@@ -9,7 +9,7 @@ argument-hint: "[description of the change]"
 
 # Follow-Up Change Pipeline
 
-**You are a coordinator.** You delegate implementation work to subagents. You do NOT write code directly — except Trivial changes (1-2 files, obvious fix, no logic). For Small and Medium changes, you MUST delegate to subagents. You run shell commands (build, test, lint) and read their output to determine pass/fail. When something fails, you forward the raw error output to a fixer agent.
+**You are a coordinator.** You delegate ALL implementation work to subagents. You do NOT write code directly — no exceptions, not even for Trivial changes. Every code change (implementation, fixes, tweaks) goes through a subagent. You run shell commands (build, test, lint) and read their output to determine pass/fail.
 
 **Pipeline:** Assess → Implement → Simplify → Validate → Review → Ship (includes Learn & Improve before commit)
 
@@ -101,7 +101,7 @@ Write a brief plan: list each file and what changes, dependencies, risks. Presen
 
 ### Step 2: Execute
 
-**Trivial** (1–2 files, obvious fix): Implement directly using Edit/Write tools. No subagent needed. **Guard:** If you find yourself reading more than 2 files or the fix touches logic (not just text/config), re-assess — it's probably Small, not Trivial. Delegate instead.
+**Trivial** (1–2 files, obvious fix): Delegate to a single agent (same template as Small below, without Tests section). Even Trivial changes go through agents — orchestrator context is too expensive to spend on implementation.
 
 **Small** (3–5 files, 1–2 modules): Delegate to a single agent:
 
@@ -109,23 +109,10 @@ Write a brief plan: list each file and what changes, dependencies, risks. Presen
 Agent(model="sonnet", prompt="""
 ## Task
 [describe the specific change needed]
-
-## Pre-Inlined Context
-[paste the content of files you read in Phase 1 — save the agent from re-reading them]
-
-## Codebase Conventions
-Match existing patterns exactly. Find the closest existing example and follow it.
-
-## Tests — MANDATORY
-- For each new/changed source file, create or update the corresponding test file
-- Follow existing test patterns in the same module (find the nearest test file as exemplar)
-- Run tests after changes and report results
-
-## Requirements
-- Follow project rules in CLAUDE.md and docs/
-- Do NOT run git add/commit/push — the orchestrator handles git
-- Run the project's validation commands after changes
-- Report: files changed, what was done, any issues encountered
+## Pre-Inlined Context: [file contents from Phase 1]
+## Codebase Conventions: match existing patterns exactly
+## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
+## Requirements: follow CLAUDE.md, do NOT git add/commit/push, run validation, report changes and issues
 """)
 ```
 
@@ -137,30 +124,22 @@ Match existing patterns exactly. Find the closest existing example and follow it
 
 ```
 # Spawn ALL agents in a SINGLE message for parallel execution:
+# Each agent prompt: Task, Pre-Inlined Context, Tests — MANDATORY, Requirements (scope/CLAUDE.md/no-git/report)
 
 Agent(model="sonnet", prompt="""
 ## Task — Group 1: [module/layer name]
 [changes for this group]
-
-## Pre-Inlined Context
-[file contents this agent needs]
-
-## Tests — MANDATORY
-- For each new/changed source file, create or update the corresponding test file
-- Follow existing test patterns in the same module (find the nearest test file as exemplar)
-- Run tests after changes and report results
-
-## Requirements
-- Scope: ONLY modify files in your group: [list files]
-- Follow project rules in CLAUDE.md and docs/
-- Do NOT run git add/commit/push
-- Report: files changed, what was done, any issues
+## Pre-Inlined Context: [file contents]
+## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
+## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 """, description="Implement [group 1]")
 
 Agent(model="sonnet", prompt="""
 ## Task — Group 2: [module/layer name]
 [changes for this group]
-...
+## Pre-Inlined Context: [file contents]
+## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
+## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 """, description="Implement [group 2]")
 ```
 
@@ -210,32 +189,17 @@ Spawn a **general-purpose** subagent with `model: "sonnet"`. The agent reads its
 ```
 Agent(model="sonnet", prompt="""
 ## Task: Simplify Changed Files
-You are a code simplifier. Make changed files cleaner, simpler, more consistent — without changing behavior.
-
-## Criteria
+Make changed files cleaner, simpler, more consistent — without changing behavior.
 Read and apply `.claude/skills/deep-simplify/simplify-criteria.md`
-
-## Changed Files: [List from git diff --name-only]
-
-## Pipeline
-1. Read each changed file + immediate neighbors for context
-2. Run three analysis passes (Reuse, Quality, Efficiency) from criteria
-3. Classify findings as P1/P2/P3 — apply P1+P2, report P3 only
-4. Report using Completion Report format from criteria
-
-## Requirements
-- Zero behavior change — preserve exact inputs, outputs, side effects
-- Do NOT run git add/commit/push
-- Do NOT modify files outside changed list (unless extracting shared utility)
-- Never delete or weaken test assertions
+Changed files: [list from git diff --name-only]
+Apply P1+P2 findings, report P3 only. Zero behavior change. Do NOT git add/commit/push.
+Do NOT modify files outside changed list. Never delete or weaken test assertions.
 """, description="Simplify: changed files")
 ```
 
 ### Step 2: Verify after simplification
 
-1. Run lint/format fix
-2. Run build + lint + test
-3. **If checks fail:** revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 4.
+Spawn a validation agent (same template as Phase 4 Step 2) to check simplification didn't break anything. If FAIL: revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 4.
 
 **→ You MUST proceed to Phase 4 (Validate) now. DO NOT present a summary or ask "anything else?" — validation has not run yet.**
 
@@ -243,49 +207,66 @@ Read and apply `.claude/skills/deep-simplify/simplify-criteria.md`
 
 ## Phase 4: Validate
 
-**Your role in this phase:** run shell commands (build, lint, test) and read their pass/fail output. Do NOT read source code, analyze logic, or find bugs — that is Phase 5's job. If a command fails, forward the raw error output to a fixer agent. You are a command-runner here, not a code-reader.
+**Your role in this phase:** verify the diff matches expectations, then delegate all heavy validation (build, lint, test) to a validation agent. You do NOT run build/lint/test commands yourself — that accumulates context that degrades your coordination for Phases 5-6. You do NOT read source code — that is Phase 5's job.
 
-### Step 1: Autofix
+### Step 1: Diff Check
 
-Run the project's autofix command from CLAUDE.md (e.g., `lint --fix`, `format`). If CLAUDE.md doesn't specify one, check `package.json` scripts. If still unknown, ask the user via `AskUserQuestion`.
+Verify implementation completeness by checking the diff:
+
 ```bash
-<lint_fix_cmd> 2>/dev/null || true
+git diff --name-only
+git status --short | head -20
 ```
 
-### Step 2: Full Check
+Confirm: (1) expected files were created/modified, (2) no unexpected files changed, (3) no untracked files that should be tracked. If files are missing or unexpected, delegate a fix agent before proceeding.
 
-Run the project's full validation suite (build + lint + test) from CLAUDE.md. Prefer backpressure if available (`source .claude/hooks/backpressure.sh && run_silent "Full Check" "<cmd>"`), otherwise pipe to temp file (`<cmd> 2>&1 | tee /tmp/ci-output.log | tail -80`). Search saved output: `grep -i "error\|fail" /tmp/ci-output.log | head -20`
+### Step 2: Validation Agent
 
-### Step 3: Codegen Check
+Spawn a validation agent that runs the project's full check suite. The agent runs commands, you read its pass/fail summary.
 
-If the project uses code generation AND DTOs/schemas/controllers changed: run codegen, then re-run validation.
+```
+Agent(model="sonnet", prompt="""
+## Task: Run Full Validation Suite
+Run the project's validation commands and report pass/fail results.
 
-### Step 4: Runtime Startup Check (Medium complexity only)
+## Steps
+1. Run autofix (lint --fix / format) from CLAUDE.md or package.json
+2. Run full validation suite (build + lint + test) from CLAUDE.md
+3. If project uses codegen AND DTOs/schemas/controllers changed: run codegen, then re-validate
+4. [Medium only] Start the app in background, wait 10-15s, check for startup errors (DI, missing providers). Kill afterward.
+5. Check test file existence: for each changed source file in [list from git diff --name-only], verify a corresponding .test.* or .spec.* file exists adjacent to it
 
-Start the changed side in background, wait 10–15s, check for startup errors (DI failures, missing providers, compilation). Kill afterward. Startup errors → fix and re-validate.
+## Report Format
+Return EXACTLY this structure:
+- autofix: PASS/FAIL [details if fail]
+- build: PASS/FAIL [details if fail]
+- lint: PASS/FAIL [details if fail]
+- test: PASS/FAIL [details if fail]
+- codegen: PASS/SKIP/FAIL [details if fail]
+- startup: PASS/SKIP/FAIL [details if fail]
+- test-coverage: [list of source files missing test files, or "all covered"]
 
-### Step 5: Test Coverage Check (Small/Medium complexity)
+## Requirements
+- Do NOT run git add/commit/push
+- Do NOT fix any issues — only report them
+- Capture full error output for any failures
+""", description="Validate: full check suite")
+```
 
-Verify test files exist for changed source files — do NOT read test content to evaluate coverage quality (that is Phase 5's job).
+### Step 3: Fix Loop
 
-1. Run `git diff --name-only` to list changed source files
-2. For each changed source file, check if a corresponding test file exists (Glob for `*.test.*` or `*.spec.*` adjacent to the source)
-3. Test file exists → sufficient for Phase 4. Phase 5 reviewers will evaluate whether tests actually cover the changes.
-4. No test file + non-trivial logic changed → delegate: "Create test file next to source. Follow existing patterns." After the agent returns, re-run validation (Step 2).
-
-### Step 6: Fix Loop
-
-If validation, startup, or tests fail:
-1. Lint/format only → run autofix command, re-validate
-2. Type/build/test failure → delegate to a fixer agent with exact error output. Do NOT read source code to diagnose — forward the raw error text and let the agent fix it. **Exception:** only for Trivial overall complexity (not just a "trivial-looking" error in a Small/Medium change) where the fix is 1–3 lines, you may fix directly.
-3. After each fix round, run codegen check if applicable, then re-validate
-4. **Max 2 fix rounds** — then escalate: present structured handoff (Fixed / Still failing with error+file+suggested fix / CI status per category). `AskUserQuestion` with header "Stuck": "Try a different approach" / "Escalate to /implement" / "Show current state". Do NOT retry same approach a 3rd time.
+If the validation agent reports failures:
+1. **Lint/format only** → spawn a fixer agent with the lint errors
+2. **Type/build/test failure** → spawn a fixer agent with the exact error output from the validation report. Do NOT read source code to diagnose.
+3. **Missing test files** → spawn an agent: "Create test file next to source. Follow existing patterns."
+4. After each fix round, re-run the validation agent (Step 2)
+5. **Max 2 fix rounds** — then escalate: present the validation report to the user. `AskUserQuestion` with header "Stuck": "Try a different approach" / "Escalate to /implement" / "Show current state". Do NOT retry same approach a 3rd time.
 
 ### Strategic Compact Point (Medium only)
 
 **Skip for Trivial and Small changes** — proceed directly to Phase 5.
 
-Validation accumulated error output and fix-loop context. Before spawning review agents:
+Validation accumulated fix-loop context. Before spawning review agents:
 
 1. Update `.claude/.artifacts/follow-up-state.md`: set `phase: 4-complete`
 2. Tell the user:
@@ -303,7 +284,7 @@ Validation accumulated error output and fix-loop context. Before spawning review
 
 Capture the changed file list from the diff against main.
 
-**Trivial changes (1–2 files):** Review the diff yourself — no subagent needed. Check for: typos in the fix itself, accidental deletions, logic inversion, missed second occurrence. If anything looks off, fix it and re-validate (Phase 4 Step 2 only). This takes 30 seconds and catches "obvious fix" mistakes that cause rollbacks.
+**Trivial changes (1–2 files):** Review the diff yourself — no subagent needed. Check for: typos in the fix itself, accidental deletions, logic inversion, missed second occurrence. If anything looks off, delegate the fix to an agent and re-validate. Do NOT fix code directly.
 
 **Small changes (3–5 files):** Spawn a single reviewer-agent. Pass the criteria file paths — the agent reads them itself. Do NOT pre-read criteria files into orchestrator context.
 
@@ -324,6 +305,7 @@ Read and apply all 5 criteria files from `.claude/skills/review/`:
 - `.claude/skills/review/guidelines-criteria.md`
 
 Review across all 5 dimensions. Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
+Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
 """, description="Review: follow-up change")
 ```
 
@@ -363,7 +345,7 @@ Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cro
 
 Aggregate findings from all reviewers. Deduplicate (same file:line from multiple reviewers = single finding, keep highest severity).
 
-- Any reviewer **CHANGES REQUIRED** → fix loop: delegate to fresh agent, re-validate (Step 2 only — skip autofix/startup), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups.
+- Any reviewer **CHANGES REQUIRED** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If still CHANGES REQUIRED after 1 round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /implement".
 - All reviewers **APPROVED WITH MINOR** → note improvements in Ship summary. Only fix MEDIUM+ findings — delegate if any, then proceed.
 - All reviewers **APPROVED** → proceed directly.
 
@@ -389,10 +371,9 @@ Show a summary:
 - "Done" — leave uncommitted, I'll handle it myself
 
 **If "Needs tweaks":**
-1. Ask what to change
-2. **Assess the tweak** — if it's another small fix, apply it directly. If it expands scope significantly (new files, new endpoints), warn:
-   > "This is growing beyond follow-up scope. Want to continue here or escalate to `/implement`?"
-3. Apply changes (directly or via agent)
+1. `AskUserQuestion` header "Tweak": "Describe what to change" (free-text via Other)
+2. **Assess the tweak** — if it expands scope significantly (new files, new endpoints), warn via `AskUserQuestion` header "Scope": "Continue here" / "Escalate to /implement".
+3. Delegate changes to an agent (never apply directly)
 4. Re-run validation (Phase 4 Step 2 only)
 5. If 10+ lines changed, re-run reviewer (Phase 5). Max 1 review round for tweaks.
 6. **Loop back to Step 1** — re-present summary and ask the Review question again. Do NOT skip ahead to Step 2.
@@ -417,6 +398,7 @@ Show a summary:
 `AskUserQuestion` with header "Ship" and options:
 - "Commit" — add to current branch (includes all changes: implementation + docs + rule updates)
 - "Commit + push" — commit and push to remote
+- "Commit + PR" — commit, push, and create pull request
 - "Leave as-is" — don't commit, I'll handle git myself
 
 **Commit message format:** Follow conventional commits:
@@ -445,11 +427,12 @@ Kill any orphaned background processes started during validation (startup checks
 | "I'll implement this Medium change in one agent" | If files span 2 modules, decompose into parallel agents. Single-agent Medium misses parallelism. |
 | "One reviewer is enough for Medium" | Single reviewers miss cross-dimensional issues. Spawn 2–3 in parallel — it's the same wall-clock time. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
-| "I'll implement this Small/Medium change directly — it's straightforward" | Orchestrator tokens are the most expensive resource. Small/Medium changes MUST be delegated to subagents. Only Trivial (1-2 files, no logic) can be done directly. |
-| "I'll just quickly edit these files myself since I already read them" | Reading files for assessment is fine. Writing code is implementation — delegate it. The assessment context goes into the agent prompt. |
-| "Spawning an agent for this is overkill" | A single-agent delegation costs fewer tokens than the orchestrator doing the work, because the orchestrator's context window is more expensive and accumulates garbage. |
+| "I'll implement this change directly — it's straightforward" | Orchestrator tokens are the most expensive resource. ALL changes MUST be delegated to subagents — no exceptions, not even Trivial. |
+| "I'll quickly fix this Trivial change myself" | No exceptions. Even Trivial fixes go through agents. Orchestrator context is the most expensive resource. |
+| "I'll just quickly edit these files myself since I already read them" | Reading files for assessment is fine. Writing code is implementation — delegate it, for ALL changes without exception. The assessment context goes into the agent prompt. |
+| "Spawning an agent for this is overkill" | Every change, even 1-line fixes, goes through agents. The context cost of orchestrator implementation always exceeds the cost of spawning. |
 | "I noticed a bug during validation — I'll fix it now since I'm already here" | Bug-finding is Phase 5 (Review). Phase 4 runs commands and reads pass/fail output. If automated checks pass, the code moves to Review where fresh-context agents find bugs. Fixing bugs in Phase 4 steals Review's job and accumulates context that degrades your coordination. |
-| "I can see the type error — I'll fix it faster than spawning an agent" | If the overall change is Small or Medium, ALL fixes go through agents. The Trivial exception applies only when the entire change is Trivial. Context you accumulate reading source code to "quickly fix" errors degrades your coordination for Phases 5-6. |
+| "I can see the type error — I'll fix it faster than spawning an agent" | ALL fixes go through agents regardless of complexity level. Context you accumulate reading source code to "quickly fix" errors degrades your coordination for Phases 5-6. |
 
 ---
 

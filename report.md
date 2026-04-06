@@ -42,6 +42,9 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 34. [Template Improvement Audit v12: Follow-Up Phase 4 Boundary Enforcement](#template-improvement-audit-v12-follow-up-phase-4-boundary-enforcement)
 35. [Template Improvement Audit v13: Setup Cleanup Skipped on Compare & Update](#template-improvement-audit-v13-setup-cleanup-skipped-on-compare--update)
 36. [Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping](#template-improvement-audit-v14-follow-up-context-exhaustion--phase-skipping)
+37. [Template Improvement Audit v15: Setup Smart Update & State Tracking](#template-improvement-audit-v15-setup-smart-update--state-tracking)
+38. [Template Improvement Audit v16: Context Monitor 1M-Aware Adaptive Thresholds](#template-improvement-audit-v16-context-monitor-1m-aware-adaptive-thresholds)
+39. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
 
 ---
 
@@ -4894,3 +4897,96 @@ Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proce
 - The same orchestrator-drift pattern (directly implementing instead of delegating) recurs across audits v8, v11, v12, now v14. The Trivial direct-fix exception was being misapplied to Small/Medium changes — making it explicit ("overall complexity must be Trivial") is the fix.
 - Soft phase transitions ("proceed to X") fail under context pressure. Hard negative constraints ("DO NOT present summary or ask 'anything else?'") are reliably more effective — confirmed across 5 audits now.
 - Pre-reading criteria files into orchestrator context before delegating to review agents is counterproductive — it adds context at the worst possible time (after Phases 1-4 have already consumed most of the budget). Agents should read their own criteria.
+
+## Template Improvement Audit v15: Setup Smart Update & State Tracking
+
+**Date:** 2026-04-06
+**Scope:** Setup skill — fresh/update detection, per-file diff comparison, state persistence
+**Method:** 3-source triangulation (internet research on Copier/Cruft/Projen update patterns, report.md sections 20/24, codebase exploration of setup SKILL.md and conflict-resolution.md)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Added `.harness-state.json` sentinel file — stores template commit hash, install timestamp, and file manifest with verbatim/tailored/user-created categories. Enables state-based fresh-vs-update detection. | Copier `.copier-answers.yml`, Cruft `.cruft.json` (strong), report.md lines 3306-3344 (designed but unshipped) |
+| 2 | High | Rewrote Re-Running Setup to analyze diffs BEFORE asking intent. Previously asked a blind 4-option question; now builds file inventory, runs targeted diffs, presents categorized summary with recommendations, then asks. | Codebase: conflict-resolution.md already does analysis-before-question; re-run flow inverted the order |
+| 3 | Medium | Added template snapshot (`.claude/.artifacts/template-snapshot/`) — saves raw template files at install for 3-way comparison on future re-runs. Enables: snapshot→new-template = structural changes; snapshot→current = user customizations. | Copier 3-way merge pattern (strong), report.md lines 3306-3344 |
+| 4 | Medium | Smart diff for tailored files — compares template-snapshot vs new-template (structural changes only), NOT installed-file vs template. Skips LLM-generated project-specific content (domain rules, framework patterns) which is expected divergence. | Report.md section-level semantic comparison (lines 3033, 3091-3093), Projen managed-vs-sample file classes |
+| 5 | Medium | Added parallel subagents for structural change detection and merging in the update flow. Previously Step 2B read all files serially in orchestrator context. | Codebase: conflict-resolution.md and Step 2A both use parallel subagents; Step 2B was the only path without |
+| 6 | Low | File taxonomy tracked via `.harness-state.json` manifest instead of in-file markers. Template markers were deliberately removed during setup (Phases 3.2-3.4), leaving no post-install trace. State file is the single source of truth. | Internet: Projen `PROJEN_MARKER` pattern; codebase confirms markers removed during tailoring |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/setup/SKILL.md` | 996 lines | 1233 lines | Phase 0 state detection, Phase 1.4 routing, Phase 3.1.1 snapshot, Phase 4.4 state file, complete Re-Running Setup rewrite, Phase 5 preservation note, compliance table + DoD updates |
+
+### Key Findings
+- The setup skill had no persistent state after install — the template-source staging directory was the only install-mode signal, and it was deleted during cleanup. This made every re-run start from zero, requiring full file reads and blind user choices.
+- Tailored files (backend-agent, rules, review criteria) diverge significantly from the template after LLM generation. Diffing installed-vs-template produces 100% noise. The correct comparison is template-old-vs-template-new (what changed in the template itself), applied as structural patches to the tailored file.
+- The Copier/Cruft pattern of "sentinel file + commit hash + 3-way merge" is the industry standard for template update systems. Our implementation adapts this for AI-driven section-level merging instead of line-level git merge.
+- Analysis-before-question is a pattern already used in conflict-resolution.md but was missing from the re-run flow. Users can't make informed update decisions without seeing what actually changed.
+
+## Template Improvement Audit v16: Context Monitor 1M-Aware Adaptive Thresholds
+
+**Date:** 2026-04-06
+**Scope:** `hooks/context-monitor.sh`, `hooks/context-statusline.sh` (new), `settings.json`, `skills/setup/SKILL.md`
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration) + deep research (hook stdin schemas, StatusLine docs, proxy mechanisms)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | HIGH | Added StatusLine bridge script (`context-statusline.sh`) — the context-monitor was a complete no-op because the bridge file producer never existed | report.md Pattern 5 (line 2014): two-hook pipeline architecture requires StatusLine writer. Official StatusLine docs confirm `context_window` data is available. |
+| 2 | HIGH | Auto-detect 1M context via `context_window.context_window_size` from StatusLine — no user configuration needed | Official StatusLine stdin JSON includes `context_window_size: 200000` or `1000000`. Eliminates need for manual setup question. |
+| 3 | HIGH | Adaptive thresholds: 200K warns at 35%/25%/15% remaining; 1M warns at 80%/70%/60% remaining (warns after ~20% usage) | User requirement. Performance degrades at ~60% capacity (report.md line 79, 3269-3271). 1M models need earlier warnings because absolute token counts are 5x larger. |
+| 4 | MEDIUM | JSONL transcript fallback — parses `transcript_path` from PostToolUse stdin when bridge file is missing/stale | PostToolUse stdin includes `transcript_path` (official hooks docs). `tail -100` + jq extraction gives real token counts without StatusLine dependency. |
+| 5 | MEDIUM | CRITICAL/EMERGENCY bypass debounce — always fire immediately | report.md Pattern 5 (line 2011): critical should bypass debounce. Original implementation had all levels inside the same debounce check. |
+| 6 | LOW | Removed `bc` dependency — all comparisons use integer arithmetic | Original required `bc` for float comparison, silently degrading to no-op when unavailable. Integer math with `${var%%.*}` stripping is sufficient. |
+| 7 | LOW | Added jq fallback (grep/sed) for both StatusLine and context-monitor scripts | Review finding: scripts silently became no-ops without jq. Now degrade gracefully with regex extraction. |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `hooks/context-statusline.sh` | — | 62 lines | NEW: StatusLine bridge script |
+| `hooks/context-monitor.sh` | 102 lines | 207 lines | REWRITE: adaptive thresholds, JSONL fallback, debounce bypass |
+| `settings.json` | 92 lines | 95 lines | Added `statusline` top-level config |
+| `skills/setup/SKILL.md` | — | +4 lines | Hook list, copy step, settings.json merge note, hook counts |
+
+### Key Findings
+- The context-monitor hook was a dead consumer in a two-hook pipeline where the producer (StatusLine) was never built. The hook silently exited on every invocation since installation — no user ever received a context warning from it.
+- Claude Code's StatusLine mechanism is the key to context monitoring — it receives `context_window_size`, `remaining_percentage`, `used_percentage`, and full token counts. This data is NOT available in any hook event's stdin or environment variables.
+- No framework out of 14 surveyed uses model-specific context thresholds — all use fixed percentages. This implementation is novel in adapting thresholds to the context window size.
+- The `[1m]` suffix is stripped from model names before reaching hooks (confirmed by multiple GitHub issues). Context window size detection must come from StatusLine's `context_window.context_window_size` field, not from model name parsing.
+
+---
+
+## Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation
+
+**Date:** 2026-04-06
+**Scope:** `claude-harness-template/skills/follow-up/SKILL.md`
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+**Trigger:** Production thread showed follow-up orchestrator making 4 direct code edits to fix agent mistakes, running 8+ inline validation commands, and presenting plain text options instead of AskUserQuestion at pipeline end.
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | HIGH | **Zero direct-edit policy** — removed ALL orchestrator code-editing permissions across 5 locations: Phase 2 Trivial execute, Phase 4 fix loop exception, Phase 5 Trivial review fixes, Phase 6 tweaks. Every code change now goes through agents, no exceptions. | Anthropic official docs: "the lead does not write code." Praetorian architecture: mutual exclusion of Task/Edit permissions. Production thread: orchestrator made 4 direct edits violating its own coordinator identity. Prior audits v11/v12/v14 tightened but didn't eliminate the Trivial exception. |
+| 2 | HIGH | **Phase 4 slimmed to diff-check + validation agent** — replaced 6 inline validation steps (autofix, build, lint, test, codegen, startup, test coverage) with: (1) orchestrator runs `git diff --name-only` only, (2) validation agent runs all heavy checks and returns structured pass/fail report. Fix loop delegates both diagnosis and fixing. | Production thread: orchestrator ran 8 shell commands accumulating context. CodeSignal: "narrow responsibility per stage." Shipyard: "heavy validation reserved for consequence gates." Phase 4 context accumulation degrades Phase 5-6 coordination quality. |
+| 3 | HIGH | **Phase 3 Simplify verification delegated** — Phase 3 Step 2 now spawns a validation agent instead of running build/lint/test inline (consistency with Phase 4 philosophy). | Review finding: Phase 3 contradicted Phase 4's new rationale about context accumulation. |
+| 4 | MEDIUM | **AskUserQuestion gaps closed** — 4 fixes: (a) Phase 5 review exhaustion now has `AskUserQuestion` fallback after 1 fix round, (b) Phase 6 tweaks uses explicit tool call instead of "Ask what to change", (c) Ship options now include "Commit + PR", (d) Small reviewer prompt now includes verdict instruction. | Platform rule: "Use AskUserQuestion for ALL questions." Production thread: plain text options at end instead of tool. Codebase audit: 4 unnamed interaction points. Small reviewer missing verdict was a review blocker — Step 2 aggregation requires verdicts from all paths. |
+| 5 | MEDIUM | **Anti-rationalization table strengthened** — updated 4 rows removing all Trivial-exception language, added 1 new row ("I'll quickly fix this Trivial change myself"). All rows now state "no exceptions." | Prior audits v12/v14 found the Trivial exception being misapplied. Removing the exception entirely eliminates the escape hatch. |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `claude-harness-template/skills/follow-up/SKILL.md` | 498 | 480 | Zero direct-edit policy, delegated validation, AskUserQuestion gaps, anti-rationalization updates |
+| `report.md` | 4960 | ~5010 | Added audit v17 section + TOC entry |
+
+### Key Findings
+- The Trivial direct-edit exception was the root escape hatch enabling orchestrator code changes across audits v11-v14. Each prior audit tightened the exception but kept it alive. Eliminating it entirely (zero exceptions) is the only pattern that survives model rationalization — any exception becomes "this counts as Trivial."
+- Phase 4 inline command execution is standard across all 14 frameworks, but those frameworks don't account for orchestrator context budgets in multi-phase pipelines. Delegating validation to an agent is a novel optimization that preserves orchestrator context for the semantically important Phase 5-6 work.
+- AskUserQuestion gaps persist even when the preamble says "every question uses AskUserQuestion" — the model follows the specific instruction at each interaction point, not the global rule. Every user-facing choice must name the tool explicitly in-place.
