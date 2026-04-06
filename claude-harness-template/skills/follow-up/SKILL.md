@@ -176,7 +176,15 @@ Agent(model="sonnet", prompt="""
 
 If all files are tightly coupled (same module, sequential dependencies), use a single agent instead — don't force parallelism where it doesn't fit.
 
-**→ After implementation, proceed to Phase 3.**
+### Step 3: Completion Check
+
+After agents report done, verify the task was completed — do NOT read source code to verify correctness:
+
+1. Run `git diff --name-only` and `git status --short` — confirm expected files were created/modified (diff shows tracked changes, status shows new untracked files)
+2. Check the agent's report covers all items from the change request
+3. If the agent missed files or partially completed: delegate a follow-up agent with the gap description. Do NOT fill in the gaps yourself.
+
+**→ After completion check passes, proceed to Phase 3.**
 
 ---
 
@@ -226,6 +234,8 @@ You are a code simplifier. Make changed files cleaner, simpler, more consistent 
 
 ## Phase 4: Validate
 
+**Your role in this phase:** run shell commands (build, lint, test) and read their pass/fail output. Do NOT read source code, analyze logic, or find bugs — that is Phase 5's job. If a command fails, forward the raw error output to a fixer agent. You are a command-runner here, not a code-reader.
+
 ### Step 1: Autofix
 
 Run the project's autofix command from CLAUDE.md (e.g., `lint --fix`, `format`). If CLAUDE.md doesn't specify one, check `package.json` scripts. If still unknown, ask the user via `AskUserQuestion`.
@@ -247,26 +257,18 @@ Start the changed side in background, wait 10–15s, check for startup errors (D
 
 ### Step 5: Test Coverage Check (Small/Medium complexity)
 
-Check each test type based on what changed. Use `git diff --name-only` against main to identify changed files.
+Verify test files exist for changed source files — do NOT read test content to evaluate coverage quality (that is Phase 5's job).
 
-#### Unit Tests
-
-1. Find test files adjacent to changed source files (Glob), grep for changed function/class names
-2. Tests exist but don't cover change → delegate: "Add test cases in [existing test file]. Extend, don't rewrite."
-3. No tests + non-trivial logic changed → delegate: "Create test file next to source. Follow existing patterns."
-4. Run unit tests after any new/updated test files.
-
-#### Integration Tests — only if DAO/query/multi-service logic changed
-
-1. Check for existing integration tests covering the changed module
-2. Tests exist but don't cover change → delegate to extend. No tests + change warrants them → delegate to create.
-3. Minor change (field addition, filter tweak) + existing tests pass → skip, note in Ship summary.
+1. Run `git diff --name-only` to list changed source files
+2. For each changed source file, check if a corresponding test file exists (Glob for `*.test.*` or `*.spec.*` adjacent to the source)
+3. Test file exists → sufficient for Phase 4. Phase 5 reviewers will evaluate whether tests actually cover the changes.
+4. No test file + non-trivial logic changed → delegate: "Create test file next to source. Follow existing patterns." After the agent returns, re-run validation (Step 2).
 
 ### Step 6: Fix Loop
 
 If validation, startup, or tests fail:
-1. Lint/format only → autofix, re-validate
-2. Type/build/test → fix directly (Trivial) or delegate with exact error output
+1. Lint/format only → run autofix command, re-validate
+2. Type/build/test failure in a Trivial change (1–2 files) where the fix is 1–3 lines → fix directly. All other failures → delegate to a fixer agent with exact error output. Do NOT read source code to diagnose — forward the raw error text and let the agent fix it.
 3. After each fix round, run codegen check if applicable, then re-validate
 4. **Max 2 fix rounds** — then escalate: present structured handoff (Fixed / Still failing with error+file+suggested fix / CI status per category). `AskUserQuestion` with header "Stuck": "Try a different approach" / "Escalate to /implement" / "Show current state". Do NOT retry same approach a 3rd time.
 
@@ -428,6 +430,7 @@ Kill any orphaned background processes started during validation (startup checks
 | "I'll implement this Small/Medium change directly — it's straightforward" | Orchestrator tokens are the most expensive resource. Small/Medium changes MUST be delegated to subagents. Only Trivial (1-2 files, no logic) can be done directly. |
 | "I'll just quickly edit these files myself since I already read them" | Reading files for assessment is fine. Writing code is implementation — delegate it. The assessment context goes into the agent prompt. |
 | "Spawning an agent for this is overkill" | A single-agent delegation costs fewer tokens than the orchestrator doing the work, because the orchestrator's context window is more expensive and accumulates garbage. |
+| "I noticed a bug during validation — I'll fix it now since I'm already here" | Bug-finding is Phase 5 (Review). Phase 4 runs commands and reads pass/fail output. If automated checks pass, the code moves to Review where fresh-context agents find bugs. Fixing bugs in Phase 4 steals Review's job and accumulates context that degrades your coordination. |
 
 ---
 

@@ -39,6 +39,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 31. [Template Improvement Audit v9: Follow-Up Skill Cross-Pollination](#template-improvement-audit-v9-follow-up-skill-cross-pollination)
 32. [Template Improvement Audit v10: All Remaining Skills](#template-improvement-audit-v10-all-remaining-skills)
 33. [Template Improvement Audit v11: Follow-Up Token Optimization](#template-improvement-audit-v11-follow-up-token-optimization)
+34. [Template Improvement Audit v12: Follow-Up Phase 4 Boundary Enforcement](#template-improvement-audit-v12-follow-up-phase-4-boundary-enforcement)
 
 ---
 
@@ -4796,3 +4797,37 @@ Cross-referenced plan formats from 6 frameworks:
 - The absence of a simplify phase meant AI-generated anti-patterns went straight from implementation to validation without a quality pass
 - Ad-hoc review dimensions in follow-up produced lower-quality reviews than the structured criteria files used by implement and standalone review
 - Anthropic's own guidance (internet research) supports selective delegation with complexity thresholds — the Trivial carve-out for direct implementation is correct and aligned with official docs
+
+## Template Improvement Audit v12: Follow-Up Phase 4 Boundary Enforcement
+
+**Date:** 2026-04-06
+**Scope:** Follow-up skill Phase 4 (Validate) — boundary enforcement between validation and review phases
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Context
+
+In production usage, the follow-up orchestrator was observed overstepping Phase 4 boundaries: after an implementation agent completed a seeder task, the orchestrator entered Phase 4 validation and began deep manual code analysis — finding bugs (wrong variable: `lawyerUserId` instead of `clientUser.id`), discovering missing database tables, running migrations, and fixing all issues directly without delegation. This work belongs in Phase 5 (Review) and violates the orchestrator's coordinator role.
+
+Root cause: Phase 4 lacked explicit scope constraints. While Phase 2 had a coordinator identity statement (added in Audit v11), Phase 4 had no equivalent — leaving an implicit permission for source code analysis during validation.
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | HIGH | Added Phase 2 Step 3: Completion Check — verifies implementation agent completed its task via `git diff --name-only` and `git status --short` without reading source code | implement skill has explicit verification gate (diff + file existence check); follow-up had none. Absence caused orchestrator to compensate by reading code. |
+| 2 | HIGH | Added Phase 4 orchestrator identity constraint: "run commands, do NOT read source code or find bugs — that is Phase 5's job" | Direct precedent: review skill received "Orchestrate, Don't Review" in Audit v8 (L4295-4303) because without it Claude reviewed code itself. Same pattern, same fix. |
+| 3 | HIGH | Rewrote Phase 4 Step 6 Fix Loop — removed blanket "fix directly" option for type/build/test errors. Retained Trivial exception (1-3 line fixes). All other failures delegated to fixer agent with raw error output. | implement-reference Phase 6 Stage A explicitly says "do NOT diagnose or read source files yourself." Follow-up Phase 4 had no equivalent prohibition. Internet research: Builder-Validator pattern (claudefa.st), Response Awareness methodology both confirm validators should be read-only. |
+| 4 | MEDIUM | Added anti-rationalization entry: "I noticed a bug during validation — I'll fix it now" → wrong because bug-finding is Phase 5's job | Compliance table had no entry covering Phase 4 → Phase 5 boundary. implement skill has per-phase compliance entries. |
+| 5 | MEDIUM | Simplified Phase 4 Step 5 (Test Coverage Check) to file-existence checks only — no longer instructs orchestrator to grep for function names or evaluate coverage quality | implement skill confines test verification to file-system checks. Evaluating whether tests "cover" changes requires reading source code — which is Phase 5 review work. |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/follow-up/SKILL.md` | 484 lines | 486 lines | Phase 2 completion check, Phase 4 identity constraint, fix loop rewrite, anti-rationalization entry, test coverage simplification |
+
+### Key Findings
+- The absence of an orchestrator identity constraint in Phase 4 is the direct cause of validation-phase scope creep — same root cause as Audit v8 (review skill). When the boundary is implicit, the orchestrator defaults to "help" by reading code.
+- Phase 4 (Validate) and Phase 5 (Review) serve architecturally distinct purposes: Phase 4 is mechanical/deterministic (command pass/fail), Phase 5 is semantic/contextual (fresh-context agents finding bugs). Collapsing them wastes Phase 5's fresh-context advantage.
+- The Trivial fix exception in Phase 4 Step 6 is load-bearing: without it, a typo fix that causes a 1-line type error would require spawning a fixer agent — disproportionate overhead. The exception is scoped to 1-3 lines to prevent creep.
+- Internet research (14 sources) unanimously agrees: validation = deterministic gate, review = contextual judgment. This is a named anti-pattern in Builder-Validator patterns (claudefa.st), Response Awareness methodology, and AddyOsmani's production patterns.
