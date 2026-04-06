@@ -1,0 +1,166 @@
+# {{PROJECT_NAME}} — CLAUDE.md
+
+> **Reference example**: The /setup skill reads this for structure guidance and generates a project-specific CLAUDE.md from scratch — it does NOT fill in placeholders.
+
+## Project Overview
+
+{{One paragraph describing what this project does and what domain it operates in. Extracted from README.md or project documentation during /setup. E.g., "A multi-tenant SaaS platform for managing construction project timelines, budgets, and contractor coordination."}}
+
+**Tech stack**: {{e.g., Python 3.11, Django 4.2, PostgreSQL, React 18, TypeScript}}
+
+**Key directories**:
+- `src/` — Application source code
+- `tests/` — Test suite
+- `docs/` — Documentation
+- {{Add project-specific structure}}
+
+**Domain context** (from project documentation):
+- {{Key domain entities — e.g., "Tenants, Projects, Budgets, Contractors, Milestones"}}
+- {{Domain safety rules — e.g., "Financial calculations use Decimal, never float", "Tenant data isolation is mandatory in all queries"}}
+- {{Architecture decisions — e.g., "Event-driven between services, synchronous within a service"}}
+
+**Essential commands**:
+```bash
+{{build}}            # Build the project
+{{test}}             # Run tests
+{{lint}}             # Lint (check only)
+{{typecheck}}        # Type checking
+{{format_fix}}       # Auto-format code
+{{lint_fix}}         # Auto-fix lint issues
+{{start}}            # Start dev server
+```
+
+**Additional commands** (if available):
+```bash
+{{codegen}}          # Code generation (GraphQL, OpenAPI, proto)
+{{e2e}}              # End-to-end tests
+{{preflight}}        # Full validation suite (build+lint+test)
+{{migrate}}          # Database migrations
+```
+
+See project README for full setup instructions and package.json (or requirements.txt, Cargo.toml, etc.) for dependencies.
+
+## Workflow Rules
+
+**STOP after implementation → Full Review**: After implementing any feature or fix, always use `/review` before committing:
+1. Re-read the requirements to confirm scope
+2. Verify tests pass and cover edge cases
+3. Run linters and type checkers
+4. Check for obvious bugs or bad patterns
+5. Never commit without this review step
+
+**Plan before coding**: For changes touching multiple files or unfamiliar code:
+- Use `/implement` to get an implementation plan that explores the codebase first
+- Ask Claude to create a detailed file-level implementation spec
+- Review the plan with skeptic-agent before proceeding
+
+**After review, follow-up**: Use `/follow-up` to ensure all review findings are addressed and tests pass before final commit.
+
+**Never skip verification**: Include tests, expected outputs, or verification scripts. Without success criteria, you become the only feedback loop.
+
+**Backpressure: compress verbose output**: When running tests, builds, or lints, use the backpressure wrapper to preserve context:
+```bash
+source .claude/hooks/backpressure.sh
+run_silent "Tests" "{{test}}"
+run_silent "Build" "{{build}}"
+run_silent "Lint" "{{lint}}"
+```
+On success, this outputs one line (`✓ Tests passed`). On failure, it shows only the errors. This prevents flooding the context window with passing test output — every line of `PASS src/utils/helper.test.ts` is waste. When running tests directly (not via backpressure), always use fail-fast flags (`--bail`, `-x`, `--failfast`) to surface one failure at a time.
+
+## Agent Routing
+
+Available agents in `.claude/agents/`:
+
+**Core Agents (6):**
+- **architect-agent**: Analyzes tasks, explores codebase, evaluates multiple approaches, produces implementation-ready specs with file-level plans. Use for architecture decisions before implementation.
+- **skeptic-agent**: Validates architect specs against the real codebase. Detects hallucinated files/functions ("mirages"), verifies requirement coverage, flags scope creep. Read-only — no code changes.
+- **reviewer-agent**: Reviews code across bugs, security, architecture, tests, and guidelines in a single pass. Confidence-scored findings with judge verification. Read-only.
+- **backend-agent**: Domain specialist for backend implementation — API routes, services, database operations. Template: customize {{PLACEHOLDERS}} for your stack.
+- **frontend-agent**: Domain specialist for frontend implementation — components, state management, styling. Template: customize {{PLACEHOLDERS}} for your stack.
+- **refactor-agent**: Incremental safe refactoring with continuous test verification. Guarantees zero behavior change.
+
+**Optional Agents (6):**
+- **debugger-agent**: Scientific-method bug investigation — hypothesis-driven testing, log analysis, constraint narrowing. Use when code behavior is unexpected.
+- **security-agent**: Threat modeling and OWASP audit — finds injection vulnerabilities, auth bypass risks, data exposure, compliance gaps. Use for security-critical code.
+- **doc-agent**: Documentation maintenance — keeps API docs, README, and guides in sync with code changes. Extracts examples from working code.
+- **devops-agent**: Infrastructure and CI/CD specialist — containerization, deployment pipelines, observability, scaling. Use for infrastructure changes.
+- **knowledge-agent**: Extracts and curates learnings from implementations — builds internal playbooks, documents patterns, creates decision records.
+- **meta-agent**: Creates and improves agents and skills — helps build custom agents for your domain, refines existing workflows.
+
+To discover agents: search for `agent` in `.claude/agents/`.
+
+**Agent turn limits**: Each agent has a `maxTurns` ceiling (implementers: 60, reviewers: 30, haiku utilities: 25-30). A "turn" is one agent-loop round-trip, not one tool call. If an agent hits its limit, it returns partial results — design tasks to be bounded and idempotent.
+
+## Coding Conventions
+
+**Follow existing patterns**: Before writing new code, find the closest existing example in the codebase and follow its structure. This keeps consistency without needing explicit rules.
+
+**Code structure**: {{Describe your specific conventions briefly; prefer code examples over text}}
+- {{Architecture pattern: layered, MVC, hexagonal, etc.}}
+- {{Module organization principle}}
+- {{Error handling approach}}
+
+**Testing**: Every feature needs tests before merging. {{Specify test framework and example pattern with file reference}}
+
+## Git Workflow
+
+**Never commit without explicit user approval**: Always ask before staging, committing, or pushing changes. Use conventional commit messages.
+
+**Branch naming**: `feature/`, `bugfix/`, `docs/`, `chore/` prefixes.
+
+**Pull requests**: Include a summary of changes, link related issues, and wait for approval.
+
+**Never force push** to shared branches (main, develop, production).
+
+## Context Management
+
+**Target 40-60% context utilization.** Performance degrades as context fills — aim to use only half the available context window for actual work, reserving the rest for tool outputs and reasoning. When approaching 70%+:
+- Spawn sub-agents for remaining research (isolates noise in their context, not yours)
+- Compress what you've learned into summary files (`.claude/.artifacts/planning/<branch-name>/state.md`)
+- Use backpressure wrappers for all test/build/lint output
+- Avoid re-reading files you've already processed — reference them by path
+
+<important if="you are running tests, builds, or linting">
+Use `.claude/hooks/backpressure.sh` to compress output. Never dump raw test suite output into context — it wastes tokens and degrades focus. On success, one checkmark line is enough. On failure, show only errors.
+</important>
+
+<important if="you are debugging or investigating">
+Retrieve prior learnings before starting: spawn the knowledge-agent or check `.claude/.artifacts/knowledge/learnings.jsonl` and `.claude/.artifacts/knowledge/sessions/` for past research, decisions, and gotchas related to this area. Don't re-discover what was already found.
+</important>
+
+## Critical Rules (Anti-Rationalization)
+
+These rules exist to prevent cascading mistakes. Do not skip them even if a task seems simple:
+
+1. **Always verify your work**: Run tests, check outputs, take screenshots for UI changes. Never trust a claim that "the tests pass" — run them yourself.
+2. **Run full reviews after any code change**: Not quick spot-checks. This catches edge cases and prevents technical debt accumulation.
+3. **Use subagents for investigation, not trust their claims**: If Claude claims a codebase pattern exists, have a subagent verify it independently. Self-reports are unreliable.
+4. **Never skip linting or type checks**: Even if you're "just refactoring." Automated checks are faster and more reliable than manual review.
+
+## How to Write Rules
+
+To add instructions to this file:
+
+- **Specific**: "Use 2-space indentation" not "format code well"
+- **Verifiable**: Rule should be checkable (linting, test results, etc.)
+- **Reusable**: Applies across multiple files/scenarios
+- **Non-trivial**: Claude already handles obvious things (clean code, basic conventions)
+
+**Avoid duplication**: If a rule already exists in another file (a skill, hook, or .claude/rules/), merge it instead of adding a duplicate.
+
+**Prune regularly**: If Claude already does something correctly without the instruction, delete it. Bloated CLAUDE.md files lose effectiveness.
+
+## Integration Points
+
+{{PLACEHOLDER: Document any custom integrations}}
+
+- **MCP tools**: {{List available MCP servers and their purpose}}
+- **Hooks**: {{Note if auto-formatting, pre-commit checks, or other hooks are configured}}
+- **Skills**: For domain knowledge or repeatable workflows, use `.claude/skills/`. See `/skill-creator` to generate new skills.
+
+## Notes for Teams
+
+- Check this file into git to share conventions with your team
+- Update periodically as patterns evolve or new decisions are made
+- Use `/memory` to view what CLAUDE.md and auto memory are currently loaded
+- For detailed topic-specific instructions, use `.claude/rules/` files scoped to file paths
