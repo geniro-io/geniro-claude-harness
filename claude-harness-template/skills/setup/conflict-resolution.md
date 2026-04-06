@@ -75,7 +75,7 @@ project-specific (not present in the template's generic version):
 - **Project context sections** — monorepo structure, app descriptions, tech stack specifics
   (e.g., "apps/api/ — NestJS backend with MikroORM" or "React frontend with Ant Design")
 - **Custom commands** — project-specific validation, build, test commands
-  (e.g., `pnpm run full-check`, `pnpm --filter @geniro/web generate:api`)
+  (e.g., `pnpm run full-check`, `pnpm --filter @myorg/web generate:api`)
 - **Framework-specific patterns** — NestJS decorators, React hooks, library-specific conventions
 - **Project-specific file paths and module names** — actual paths, not placeholders
 - **Safety rules** — domain-specific safety constraints

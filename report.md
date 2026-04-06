@@ -32,7 +32,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 24. [Artifact Consolidation & Template Snapshot](#artifact-consolidation--template-snapshot-v110-continued)
 25. [Full Template Audit v2](#full-template-audit-v2-post-v110-review-all-skills-agents-hooks)
 26. [Full Template Audit v3](#full-template-audit-v3-fresh-re-review-all-skills-agents-hooks)
-27. [Template Improvement Audit v4: Geniro Cross-Pollination](#template-improvement-audit-v4-geniro-cross-pollination--best-practices-review)
+27. [Template Improvement Audit v4: Production Cross-Pollination](#template-improvement-audit-v4-production-cross-pollination--best-practices-review)
 28. [Template Improvement Audit v6: Skill Composition & 8-Phase Pipeline](#template-improvement-audit-v6-skill-composition--8-phase-pipeline)
 29. [Template Improvement Audit v7: Refactor Skill & Agent Cross-Pollination](#template-improvement-audit-v7-refactor-skill--agent-cross-pollination)
 30. [Template Improvement Audit v8: Review Skill & Agent Cross-Pollination](#template-improvement-audit-v8-review-skill--agent-cross-pollination)
@@ -3580,38 +3580,38 @@ These are tracked but not fixed because they're design decisions or low-priority
 
 ---
 
-## Template Improvement Audit v4: Geniro Cross-Pollination & Best Practices Review
+## Template Improvement Audit v4: Production Cross-Pollination & Best Practices Review
 
 ### Motivation
 
-After installing the harness template onto the Geniro monorepo (NestJS + React 19 + pnpm + Turbo), the `/setup` skill adapted several template files to be Geniro-specific. In four cases, the adapted versions were significantly larger and more detailed than the template originals:
+After installing the harness template onto a production monorepo (NestJS + React 19 + pnpm + Turbo), the `/setup` skill adapted several template files to be project-specific. In four cases, the adapted versions were significantly larger and more detailed than the template originals:
 
-| File | Template (before) | Geniro (after setup) | Delta |
+| File | Template (before) | Adapted (after setup) | Delta |
 |---|---|---|---|
 | `agents/architect-agent.md` | 215 lines | 327 lines | +52% |
 | `agents/reviewer-agent.md` | 136 lines | 493 lines | +262% |
 | `skills/follow-up/SKILL.md` | 196 lines | 358 lines | +83% |
 | `skills/simplify/SKILL.md` | 89 lines | 222 lines | +149% |
 
-This audit analyzed each geniro version to extract **generic, reusable patterns** that should have been in the template all along, then applied them back to the template and cross-checked everything against this report's best practices.
+This audit analyzed each adapted version to extract **generic, reusable patterns** that should have been in the template all along, then applied them back to the template and cross-checked everything against this report's best practices.
 
 ### Analysis Per File
 
 #### 1. `agents/reviewer-agent.md` — No Change Needed
 
-**Geniro's approach:** Multi-agent orchestrator that spawns 5 Task instances with inline sub-reviewer prompts (493 lines). Each Task receives a detailed inline criteria prompt and produces JSON-structured review output.
+**The reference project's approach:** Multi-agent orchestrator that spawns 5 Task instances with inline sub-reviewer prompts (493 lines). Each Task receives a detailed inline criteria prompt and produces JSON-structured review output.
 
 **Why it's wrong:** This violates the Known Limitations constraint documented at line 35 of this report: "Subagents cannot spawn sub-tasks — an agent spawned via Agent/Task tool cannot create nested Tasks ([#4182](https://github.com/anthropics/claude-code/issues/4182), [#19077](https://github.com/anthropics/claude-code/issues/19077))." The orchestration must live at skill level, not agent level.
 
 **Template's approach is correct:** The template's reviewer-agent is a focused single-dimension reviewer designed to be spawned in parallel by the `/review` skill. The skill orchestrates the parallel grid; the agent focuses on one dimension per invocation. This matches the workaround documented in the limitations table.
 
-**Verdict:** Template correct. Geniro version is architecturally wrong. No changes.
+**Verdict:** Template correct. The adapted version is architecturally wrong. No changes.
 
 #### 2. `agents/architect-agent.md` — Significantly Improved
 
-**Geniro additions analyzed (327 lines):**
+**Reference project additions analyzed (327 lines):**
 
-| Pattern | Geniro-specific? | Generic value | Incorporated? |
+| Pattern | Project-specific? | Generic value | Incorporated? |
 |---|---|---|---|
 | **Effort Scaling** (S/M/L task complexity matching) | No — universal | High — prevents over-architecting trivial changes | ✓ Yes |
 | **Minor Improvements** (implement small fixes directly during exploration) | No — universal | High — typos, dead code, stale comments don't need full spec→engineer cycle | ✓ Yes |
@@ -3623,7 +3623,7 @@ This audit analyzed each geniro version to extract **generic, reusable patterns*
 | **Plan Revision** (addendum-style revisions instead of full rewrites) | No — universal | Medium — saves tokens when engineer feedback requires spec changes | ✓ Yes |
 | **Quality Bar** section (quality over compatibility, never compromise to preserve bad code) | No — universal | High — counters AI tendency to patch around problems | ✓ Yes |
 | **Autonomy** section (operate without asking follow-ups unless genuinely ambiguous) | No — universal | Medium — reduces unnecessary back-and-forth | ✓ Yes |
-| Geniro-specific knowledge (API architecture, Web architecture, cross-repo patterns) | **Yes** | None for template | ✗ Excluded |
+| Project-specific knowledge (API architecture, Web architecture, cross-repo patterns) | **Yes** | None for template | ✗ Excluded |
 | Keycloak safety rules | **Yes** | None for template | ✗ Excluded |
 | Specific module lists (graphs, agents, agent-tools, etc.) | **Yes** | None for template | ✗ Excluded |
 
@@ -3633,9 +3633,9 @@ This audit analyzed each geniro version to extract **generic, reusable patterns*
 
 #### 3. `skills/follow-up/SKILL.md` — Significantly Improved
 
-**Geniro additions analyzed (358 lines):**
+**Reference project additions analyzed (358 lines):**
 
-| Pattern | Geniro-specific? | Generic value | Incorporated? |
+| Pattern | Project-specific? | Generic value | Incorporated? |
 |---|---|---|---|
 | **Hard Escalation Signals table** (8 signals with "why it escalates" rationale) | No — universal | Critical — prevents follow-up from handling what should be /implement | ✓ Yes (8 signals) |
 | **Detailed complexity levels** with concrete examples per level | No — universal | High — calibrates assessment beyond file counting | ✓ Yes |
@@ -3647,8 +3647,8 @@ This audit analyzed each geniro version to extract **generic, reusable patterns*
 | **Troubleshooting table** (5 common problems with causes and fixes) | No — universal | Medium — reduces debugging time for common pipeline issues | ✓ Yes |
 | **Structured handoff on fix exhaustion** (Remaining Failures format) | No — universal | High — matches /implement's Phase 4 handoff pattern | ✓ Yes |
 | **Tweak loop with scope detection** ("growing beyond follow-up scope" warning) | No — universal | High — prevents follow-up from becoming a shadow /implement | ✓ Yes |
-| Geniro-specific commands (`pnpm --filter`, `pnpm run full-check`) | **Yes** | None for template | ✗ Excluded |
-| Geniro-specific agent names (`api-agent`, `web-agent`) | **Yes** | None for template | ✗ Excluded |
+| Project-specific commands (`pnpm --filter`, `pnpm run full-check`) | **Yes** | None for template | ✗ Excluded |
+| Project-specific agent names (`api-agent`, `web-agent`) | **Yes** | None for template | ✗ Excluded |
 
 **Additional fixes from report cross-check:**
 
@@ -3675,9 +3675,9 @@ This audit analyzed each geniro version to extract **generic, reusable patterns*
 
 #### 4. `skills/simplify/SKILL.md` — Major Rewrite
 
-**Geniro additions analyzed (222 lines):**
+**Reference project additions analyzed (222 lines):**
 
-| Pattern | Geniro-specific? | Generic value | Incorporated? |
+| Pattern | Project-specific? | Generic value | Incorporated? |
 |---|---|---|---|
 | **4-phase pipeline** (Scope → Analyze → Fix → Verify) | No — universal | Critical — previous version had no structured pipeline | ✓ Yes |
 | **3 analysis passes** (Reuse/Duplication, Quality/Readability, Efficiency/Patterns) | No — universal | Critical — systematic coverage vs ad-hoc checklist | ✓ Yes |
@@ -3688,9 +3688,9 @@ This audit analyzed each geniro version to extract **generic, reusable patterns*
 | **Safe revert strategy** (revert individual failed changes, max 1 retry cycle) | No — universal | High — prevents cascading failures from cleanup changes | ✓ Yes |
 | **Scope limiting** (max 20 files, exclude generated code/migrations/type-only files) | No — universal | Medium — prevents runaway analysis on large diffs | ✓ Yes |
 | **Test file separation** (lighter review for test files, never weaken assertions) | No — universal | Medium — different review bar for test code vs source code | ✓ Yes |
-| Geniro-specific commands (`pnpm lint:fix`, `pnpm run full-check`) | **Yes** | None for template | ✗ Excluded |
-| Geniro-specific patterns (`findByX` DAO methods, `FilterQuery<T>`) | **Yes** | None for template | ✗ Excluded |
-| Geniro-specific React patterns (Ant Design theme tokens, Refine hooks) | **Yes** | None for template | ✗ Excluded |
+| Project-specific commands (`pnpm lint:fix`, `pnpm run full-check`) | **Yes** | None for template | ✗ Excluded |
+| Project-specific patterns (`findByX` DAO methods, `FilterQuery<T>`) | **Yes** | None for template | ✗ Excluded |
+| Project-specific React patterns (Ant Design theme tokens, Refine hooks) | **Yes** | None for template | ✗ Excluded |
 
 **Additional fixes from report cross-check:**
 
@@ -3711,7 +3711,7 @@ This audit analyzed each geniro version to extract **generic, reusable patterns*
 | `architect-agent.md` | 215 | 346 | +131 (+61%) | 10 patterns added |
 | `follow-up/SKILL.md` | 196 | 429 | +233 (+119%) | 10 patterns added, 5 report fixes |
 | `simplify/SKILL.md` | 89 | 280 | +191 (+215%) | 9 patterns added, 3 report fixes |
-| `reviewer-agent.md` | 136 | 136 | 0 | Confirmed correct (geniro version wrong) |
+| `reviewer-agent.md` | 136 | 136 | 0 | Confirmed correct (the adapted version wrong) |
 | **Total** | **636** | **1191** | **+555 (+87%)** | **29 patterns + 8 fixes** |
 
 ### Updated Template Ratings (Post v4)
@@ -3733,7 +3733,7 @@ This audit demonstrates a valuable pattern: **production installations reveal te
 
 1. **follow-up at 429 lines** — approaching the 500-line limit from report line 383. If more features are added, reference material should be extracted to supporting files (e.g., `follow-up/escalation-signals.md`).
 2. **Description length tradeoff** — report recommends <250 chars, but informative descriptions improve skill routing accuracy. Current descriptions are 200-280 chars, slightly over limit but providing critical routing information ("Do NOT use for new features, new entities..."). The routing value outweighs the marginal context cost.
-3. **Startup check in follow-up** — report's pipeline comparison table (line 1174) doesn't include startup check for follow-up, but geniro's production experience shows DI/compilation errors are caught by startup checks that static analysis misses. Kept as medium-complexity-only with the understanding that this slightly exceeds the report's minimal spec.
+3. **Startup check in follow-up** — report's pipeline comparison table (line 1174) doesn't include startup check for follow-up, but the reference project's production experience shows DI/compilation errors are caught by startup checks that static analysis misses. Kept as medium-complexity-only with the understanding that this slightly exceeds the report's minimal spec.
 
 ---
 
@@ -3828,13 +3828,13 @@ This matches report line 2209-2226 recommendation exactly.
 
 **Date:** 2026-04-04
 **Scope:** Implement skill pipeline expansion (6→8 phases), skill composition pattern fix, cross-skill reference audit
-**Method:** Comparison of template vs production geniro implementation, internet research on skill composition limitations, full cross-reference audit of all 12 skills + 13 agents
+**Method:** Comparison of template vs the reference project's production implementation, internet research on skill composition limitations, full cross-reference audit of all 12 skills + 13 agents
 
 ### Motivation
 
 Two issues converged:
 
-1. **Pipeline gap:** The template's 6-phase implement pipeline was missing battle-tested patterns from the production geniro implementation (11 phases). Analysis identified 5 high-impact patterns worth porting back without adding geniro-specific complexity (Context/Fast-Path phases deliberately excluded).
+1. **Pipeline gap:** The template's 6-phase implement pipeline was missing battle-tested patterns from the reference project's production implementation (11 phases). Analysis identified 5 high-impact patterns worth porting back without adding project-specific complexity (Context/Fast-Path phases deliberately excluded).
 
 2. **Skill composition bug:** The implement skill used "Read `.claude/skills/review/SKILL.md` and follow its instructions exactly" — a pattern that **does not work correctly** for complex skills with their own orchestration and infrastructure needs. Research confirmed this is a known, unresolved limitation.
 
@@ -3906,7 +3906,7 @@ skills/implement/
 ### Pipeline Expansion: 6 → 8 Phases
 
 **Sources for new phases:**
-- Production geniro implementation (11 phases, battle-tested across multiple features)
+- Reference project production implementation (11 phases, battle-tested across multiple features)
 - Report's own Implementation Pipeline section (line 755+)
 - Cross-framework consensus: GSD (5 phases), Metaswarm (9 phases), oh-my-claudecode (autopilot/ultrapilot), Orchestrator Kit (7 stages)
 
@@ -3915,17 +3915,17 @@ skills/implement/
 | # | Phase | Status | Source |
 |---|---|---|---|
 | 1 | Discover (WAIT) | Unchanged | — |
-| 2 | Architect → Validate | Simplified — approval moved out | Geniro (separate Approval phase) |
-| 3 | **Approval (WAIT)** | **NEW** — structured summary with per-task files, user decisions carried forward, risk assessment | Geniro production, Metaswarm (Design Review Gate), Superpowers (per-section approval) |
-| 4 | Implement (delegated) | Enhanced — scope-aware wave ordering | Geniro (API→codegen→Web ordering) |
-| 5 | Validate (automated) | Enhanced — startup check + test granularity | Geniro (runtime check), report line 968 (startup check recommendation) |
-| 6 | **Simplify (automated)** | **NEW** — spawns subagent with shared criteria, reverts if CI breaks | Geniro (Phase 8), report audit v4 (simplify rated 9/10) |
+| 2 | Architect → Validate | Simplified — approval moved out | Reference project (separate Approval phase) |
+| 3 | **Approval (WAIT)** | **NEW** — structured summary with per-task files, user decisions carried forward, risk assessment | Reference project production, Metaswarm (Design Review Gate), Superpowers (per-section approval) |
+| 4 | Implement (delegated) | Enhanced — scope-aware wave ordering | Reference project (API→codegen→Web ordering) |
+| 5 | Validate (automated) | Enhanced — startup check + test granularity | Reference project (runtime check), report line 968 (startup check recommendation) |
+| 6 | **Simplify (automated)** | **NEW** — spawns subagent with shared criteria, reverts if CI breaks | Reference project (Phase 8), report audit v4 (simplify rated 9/10) |
 | 7 | Review (with fix loops) | Enhanced — inline parallel review, no skill-calls-skill | Skill composition fix |
-| 8 | **Ship & Finalize (WAIT)** | **NEW (merged)** — adjustment routing + docs + learnings + improvements + cleanup | Geniro (Ship + Finalize phases) |
+| 8 | **Ship & Finalize (WAIT)** | **NEW (merged)** — adjustment routing + docs + learnings + improvements + cleanup | Reference project (Ship + Finalize phases) |
 
 #### Phase 3: Approval (new) — rationale
 
-The template previously bundled approval into Phase 2 as a brief "Should I proceed?" The geniro version presents a structured summary:
+The template previously bundled approval into Phase 2 as a brief "Should I proceed?" The reference version presents a structured summary:
 1. What we're building (2-3 sentences)
 2. Implementation tasks (numbered, one-line each)
 3. Per-task file changes
@@ -3938,14 +3938,14 @@ This gives the user enough context for informed approval without reading the ful
 
 #### Phase 5: Validate (enhanced) — rationale
 
-**Runtime startup check (Step 4):** Static checks (lint, build, test) miss DI failures, missing providers, env validation crashes. Geniro's production experience and the report's recommended pipeline (line 968-973) both confirm this. Boot the app for 15 seconds, check for runtime errors, kill.
+**Runtime startup check (Step 4):** Static checks (lint, build, test) miss DI failures, missing providers, env validation crashes. The reference project's production experience and the report's recommended pipeline (line 968-973) both confirm this. Boot the app for 15 seconds, check for runtime errors, kill.
 
 **Test coverage granularity (Step 5):** Replaced the generic "test coverage check" with structured 3-tier coverage:
 - **5a: Unit tests** — adjacent to changed source files, always checked
 - **5b: Integration tests** — mandatory when touching data access, entity changes, multi-service logic
 - **5c: E2E tests** — only for NEW endpoints, not modifications
 
-Source: Geniro production (separate unit/integration/e2e checks with specific triggers per type).
+Source: Reference project production (separate unit/integration/e2e checks with specific triggers per type).
 
 #### Phase 6: Simplify (new) — rationale
 
@@ -3965,7 +3965,7 @@ Report audit v4 (line 3615) rated simplify 9/10 after the rewrite: "the most dra
 | Medium | New logic, needs research | Explore → maybe architect → implement |
 | Small | Styling, typo, CI fix | Direct fix → validate |
 
-Source: Geniro production (Ship phase with 3-tier routing).
+Source: Reference project production (Ship phase with 3-tier routing).
 
 **Doc updates (Step 4):** Scan diff against documentation sources, patch stale examples. Prevents doc drift — "the #1 source of confusion in future sessions."
 
@@ -3973,7 +3973,7 @@ Source: Geniro production (Ship phase with 3-tier routing).
 
 **Improvement suggestions (Step 6):** Proposes changes to rules, skills, and agent prompts based on pipeline friction. Creates a positive feedback loop where each implementation improves the harness.
 
-Source: Geniro production (Finalize phase), report's Self-Improving Knowledge section.
+Source: Reference project production (Finalize phase), report's Self-Improving Knowledge section.
 
 ### Cross-Skill Reference Audit
 
@@ -4029,14 +4029,14 @@ Audited all 12 skills + 13 agents for skill composition issues:
 ### Methodology
 
 Same approach as v6 (implement skill audit):
-1. Compare template refactor skill + agent against geniro production versions
+1. Compare template refactor skill + agent against the reference project's production versions
 2. Identify gaps and improvements
 3. Validate each suggestion against framework ecosystem and research
 4. Implement only validated improvements
 
-### Comparison: Template vs Geniro
+### Comparison: Template vs Reference
 
-| Aspect | Template (before) | Geniro | Gap |
+| Aspect | Template (before) | Reference | Gap |
 |---|---|---|---|
 | **Skill-agent relationship** | Disconnected — skill (133 lines) has full inline logic, agent (253 lines) is standalone. Running `/refactor` only executes the skill; agent sits unused | Skill (50 lines) delegates via `agent: refactor-agent` field | Template skill and agent duplicate each other |
 | **Risk classification** | Agent has risk levels but no quantitative scoring | Agent counts consumers via grep, 10+ = HIGH regardless of transformation type | Template lacks quantitative impact scoring |
@@ -4052,7 +4052,7 @@ Same approach as v6 (implement skill audit):
 
 **Problem:** Template has both `skills/refactor/SKILL.md` (133 lines) and `agents/refactor-agent.md` (253 lines) but they're completely disconnected. User runs `/refactor`, only the skill executes — the agent definition is wasted.
 
-**Geniro's approach:** Uses `agent: refactor-agent` in skill frontmatter. However, this field is **undocumented and unreliable** ([#17283](https://github.com/anthropics/claude-code/issues/17283), [#8501](https://github.com/anthropics/claude-code/issues/8501)).
+**The reference project's approach:** Uses `agent: refactor-agent` in skill frontmatter. However, this field is **undocumented and unreliable** ([#17283](https://github.com/anthropics/claude-code/issues/17283), [#8501](https://github.com/anthropics/claude-code/issues/8501)).
 
 **Our fix:** Rewrote skill as a thin orchestrator (5 phases) that spawns the refactor-agent via the Agent tool — the same pattern established in v6 for implement→simplify. Skill handles scope/context/approval, agent handles analysis and execution.
 
@@ -4066,7 +4066,7 @@ Same approach as v6 (implement skill audit):
 
 **Problem:** Agent had no quantitative way to assess risk. "LOW/MEDIUM/HIGH" was purely subjective.
 
-**Geniro's approach:** `grep -r "SymbolName" | wc -l` to count consumers. 10+ consumers = HIGH.
+**The reference project's approach:** `grep -r "SymbolName" | wc -l` to count consumers. 10+ consumers = HIGH.
 
 **Our fix:** Added Step 2 (Change Impact Scoring) to agent Phase 1. Consumer count thresholds: 1-3 LOW, 4-9 MEDIUM, 10+ HIGH. Added escalation override: any public API/export/shared type change is HIGH regardless of count.
 
@@ -4090,7 +4090,7 @@ Same approach as v6 (implement skill audit):
 
 **Problem:** Agent stopped on first test failure. Template skill offered "3 failures → AskUserQuestion" but all options (try different approach, show state, escalate) halt the session.
 
-**Geniro's approach:** 3 attempts → revert → mark BLOCKED → continue to next step. Report all blocked steps at the end.
+**The reference project's approach:** 3 attempts → revert → mark BLOCKED → continue to next step. Report all blocked steps at the end.
 
 **Our fix:** Added "Blocked Step Protocol" to agent Phase 3. After 3 failed attempts: revert via Edit, mark BLOCKED with failure report, continue to next transformation. Blocked steps collected and reported in Phase 4 summary.
 
@@ -4103,7 +4103,7 @@ Same approach as v6 (implement skill audit):
 
 **Problem:** No protection against destructive database/Docker commands in the agent (which is the one running Bash).
 
-**Our fix:** Added explicit prohibition matching Geniro's pattern: `docker volume rm`, `podman volume rm`, `docker compose down -v`, `DROP TABLE`, `DROP DATABASE`, `TRUNCATE`.
+**Our fix:** Added explicit prohibition matching the reference project's pattern: `docker volume rm`, `podman volume rm`, `docker compose down -v`, `DROP TABLE`, `DROP DATABASE`, `TRUNCATE`.
 
 **Evidence:**
 - OWASP Docker Security Cheat Sheet — destructive container operations as security concern
@@ -4226,17 +4226,17 @@ Chose Option B — the architect-agent works similarly (has Write/Edit but is to
 ## Template Improvement Audit v8: Review Skill & Agent Cross-Pollination
 
 **Date:** 2026-04-04
-**Methodology:** Same as audit v7 — compare template review skill/agent against Geniro production installation, validate improvements against report.md findings and internet research, implement only validated changes, self-review for logical issues.
+**Methodology:** Same as audit v7 — compare template review skill/agent against the reference project's production installation, validate improvements against report.md findings and internet research, implement only validated changes, self-review for logical issues.
 
 **Files compared:**
 - Template: `claude-harness-template/skills/review/SKILL.md` + `claude-harness-template/agents/reviewer-agent.md`
-- Geniro: `geniro/.claude/skills/review/SKILL.md` + `geniro/.claude/agents/reviewer-agent.md`
+- Reference: `reference-project/.claude/skills/review/SKILL.md` + `reference-project/.claude/agents/reviewer-agent.md`
 
 ### Comparison Table
 
-| Aspect | Template (before) | Geniro | Assessment |
+| Aspect | Template (before) | Reference | Assessment |
 |---|---|---|---|
-| **Architecture** | Skill → 5 reviewer-agents (flat) | Skill → Task(reviewer-agent) → Task(5 sub-tasks) (nested) | **Template is correct.** Geniro's nested Task pattern violates known limitation #4182/#19077 — subagents cannot spawn sub-tasks. The template's flat architecture is the right pattern. |
+| **Architecture** | Skill → 5 reviewer-agents (flat) | Skill → Task(reviewer-agent) → Task(5 sub-tasks) (nested) | **Template is correct.** The reference project's nested Task pattern violates known limitation #4182/#19077 — subagents cannot spawn sub-tasks. The template's flat architecture is the right pattern. |
 | **Skill-Agent connection** | Descriptive only ("spawn 5 agents") | Uses `Task` tool with inline prompts | **Template gap.** No explicit Agent() code blocks — same disconnection issue fixed in refactor (audit v7). |
 | **Criteria files** | External .md files loaded by skill, passed to agents | Inline in reviewer-agent (bloats to 494 lines) | **Template is better.** Criteria as separate files is cleaner and under 500-line limit. |
 | **Adaptive batching** | Yes (>8 files / >400 LOC → batch mode) | No | **Template is better.** Backed by "Lost in the Middle" research (Liu et al., 2023). |
@@ -4296,11 +4296,11 @@ Chose Option B — the architect-agent works similarly (has Write/Edit but is to
 
 **Problem:** Skill didn't explicitly state its role as coordinator. Without this, Claude might read and review code itself instead of delegating to the 5 reviewer-agents, which defeats the multi-agent architecture.
 
-**Research:** Geniro's review skill has "You are a router, not an explorer. Do not read source code yourself." The implement skill (audit v6) uses similar orchestrator identity patterns. Clear role definition prevents scope creep in orchestrator skills.
+**Research:** The reference project's review skill has "You are a router, not an explorer. Do not read source code yourself." The implement skill (audit v6) uses similar orchestrator identity patterns. Clear role definition prevents scope creep in orchestrator skills.
 
 **Fix:** Added "Your Role — Orchestrate, Don't Review" section: "You are a coordinator. You delegate review work to reviewer-agent instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself."
 
-**Evidence:** Geniro production pattern; implement skill orchestrator identity (audit v6)
+**Evidence:** Reference project production pattern; implement skill orchestrator identity (audit v6)
 
 ### Improvement Rejected (1)
 
@@ -4312,7 +4312,7 @@ Chose Option B — the architect-agent works similarly (has Write/Edit but is to
 
 ### Key Architectural Finding
 
-**Geniro's nested Task architecture is broken.** Geniro's reviewer-agent spawns 5 sub-tasks via the Task tool, but this violates known limitation #4182/#19077 — subagents cannot spawn sub-tasks. The spawning either fails silently or degrades to serial single-context execution, negating the parallelism benefit and reintroducing the "Lost in the Middle" attention degradation that multi-agent review is designed to solve.
+**The reference project's nested Task architecture is broken.** The reference project's reviewer-agent spawns 5 sub-tasks via the Task tool, but this violates known limitation #4182/#19077 — subagents cannot spawn sub-tasks. The spawning either fails silently or degrades to serial single-context execution, negating the parallelism benefit and reintroducing the "Lost in the Middle" attention degradation that multi-agent review is designed to solve.
 
 The template's flat architecture (skill spawns 5 leaf agents directly) is the correct pattern given Claude Code's current limitations.
 
@@ -4385,23 +4385,23 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 ## Template Improvement Audit v9: Follow-Up Skill Cross-Pollination
 
-Compared template `/follow-up` skill against Geniro's production installation to identify transferable improvements.
+Compared template `/follow-up` skill against the reference project's production installation to identify transferable improvements.
 
 ### Methodology
 
-1. Read both skills (template: 430 lines, geniro: 359 lines)
+1. Read both skills (template: 430 lines, reference: 359 lines)
 2. Identified 18 differences across frontmatter, escalation signals, validation, delegation, learnings, and structural sections
 3. Validated each difference against report.md findings and internet research
 4. Implemented 4 improvements, rejected 5 project-specific patterns
 
 ### Comparison Summary
 
-| Area | Template | Geniro | Winner |
+| Area | Template | Reference | Winner |
 |------|----------|--------|--------|
-| Escalation signals | 8 signals | 9 signals (adds OCP violation) | Geniro |
-| Learn & Improve | "save as learning" (generic) | Typed memory: `feedback`/`project` | Geniro |
-| Fix loop handoff | "Fixed" + "Still failing" | Adds "CI status" subsection | Geniro |
-| Description | Mentions complexity levels | Explicit exclusions ("Do NOT use for...") | Geniro |
+| Escalation signals | 8 signals | 9 signals (adds OCP violation) | Reference |
+| Learn & Improve | "save as learning" (generic) | Typed memory: `feedback`/`project` | Reference |
+| Fix loop handoff | "Fixed" + "Still failing" | Adds "CI status" subsection | Reference |
+| Description | Mentions complexity levels | Explicit exclusions ("Do NOT use for...") | Reference |
 | Frontmatter | `context: main`, `allowed-tools` | Neither field present | Template |
 | Validation | Backpressure + tee fallback | Only `tee` fallback | Template |
 | Compliance, DoD, Examples, Prior Context, Task Tracking | All present (71 lines) | All missing | Template |
@@ -4443,7 +4443,7 @@ Compared template `/follow-up` skill against Geniro's production installation to
 
 **Problem:** Template's structured handoff when stuck only had "Fixed" and "Still failing" sections — no at-a-glance triage view.
 
-**Research:** Geniro's production handoff includes `Lint: PASS/FAIL — Types: PASS/FAIL — Build: PASS/FAIL — Tests: N/M passing`. Provides immediate triage without re-reading error logs.
+**Research:** The reference project's production handoff includes `Lint: PASS/FAIL — Types: PASS/FAIL — Build: PASS/FAIL — Tests: N/M passing`. Provides immediate triage without re-reading error logs.
 
 **Fix:** Added `### CI status` subsection to the Phase 3 Step 6 structured handoff template.
 
@@ -4451,7 +4451,7 @@ Compared template `/follow-up` skill against Geniro's production installation to
 
 **Problem:** Template description mentioned complexity levels but lacked explicit exclusions, reducing skill routing accuracy.
 
-**Research:** fp8.co Claude Code Skills guide + Dean Blank's mental model article confirm explicit exclusions in descriptions improve activation rates (20% → 90%). Geniro's description adds "new endpoints/pages, auth/permissions changes, or changes requiring architecture decisions."
+**Research:** fp8.co Claude Code Skills guide + Dean Blank's mental model article confirm explicit exclusions in descriptions improve activation rates (20% → 90%). The reference project's description adds "new endpoints/pages, auth/permissions changes, or changes requiring architecture decisions."
 
 **Fix:** Expanded description to include explicit exclusions: "Do NOT use for new features, new entities, new endpoints/pages, auth/permissions changes, new modules, or changes requiring architecture decisions."
 
@@ -4461,7 +4461,7 @@ Compared template `/follow-up` skill against Geniro's production installation to
 
 ### Rejected Improvements (5 — all project-specific)
 
-| Geniro Pattern | Why Rejected |
+| Reference Pattern | Why Rejected |
 |----------------|-------------|
 | Scope detection (API-only/Web-only/Both) | Monorepo-specific; template must stay generic |
 | Hardcoded port ranges in cleanup | Project-specific (`lsof -ti :4200-4299`) |
@@ -4471,7 +4471,7 @@ Compared template `/follow-up` skill against Geniro's production installation to
 
 ### Key Architectural Finding
 
-Geniro lost 6 template sections during customization (~71 lines / 17%): Compliance table, Task Tracking (TodoWrite), Definition of Done, When to Use vs /implement comparison, Prior Context loading, and Examples. This validates the need for the `/upgrade` skill (report section 20) — manual customization strips useful generic content that should survive project-specific adaptation.
+The reference project lost 6 template sections during customization (~71 lines / 17%): Compliance table, Task Tracking (TodoWrite), Definition of Done, When to Use vs /implement comparison, Prior Context loading, and Examples. This validates the need for the `/upgrade` skill (report section 20) — manual customization strips useful generic content that should survive project-specific adaptation.
 
 ### Self-Review: 3 Issues Found and Fixed
 
@@ -4479,7 +4479,7 @@ Geniro lost 6 template sections during customization (~71 lines / 17%): Complian
 
 **Problem:** All other 8 escalation signals are mechanically detectable (grep for new files, count modules). OCP was the only one requiring semantic judgment with no examples.
 
-**Research:** Geniro's version has the same gap. OCP literature (Wikipedia, DevIQ, Stackify) identifies three concrete patterns: changing public method signatures, modifying shared middleware/validation, altering switch/if routing logic instead of adding handlers. These are observable in diffs.
+**Research:** The reference project's version has the same gap. OCP literature (Wikipedia, DevIQ, Stackify) identifies three concrete patterns: changing public method signatures, modifying shared middleware/validation, altering switch/if routing logic instead of adding handlers. These are observable in diffs.
 
 **Fix:** Added inline examples: "e.g., changing a public method signature, altering shared validation/middleware, modifying switch/if routing logic instead of adding a handler"
 
@@ -4487,7 +4487,7 @@ Geniro lost 6 template sections during customization (~71 lines / 17%): Complian
 
 **Problem:** Line 292 lumped "discovered problems" and "workarounds" together as `project` memory. But workarounds ("test runner fails without NODE_ENV=test") are operational behavioral guidance, not project state.
 
-**Research:** Geniro's production version already splits this correctly — problems → `project`, workarounds → `feedback`. Claude Code memory system defines `feedback` as "guidance about how to approach work" which matches workarounds exactly. `project` memory is for high-level state that decays fast. arXiv:2512.13564 confirms different memory types serve different retrieval needs.
+**Research:** The reference project's production version already splits this correctly — problems → `project`, workarounds → `feedback`. Claude Code memory system defines `feedback` as "guidance about how to approach work" which matches workarounds exactly. `project` memory is for high-level state that decays fast. arXiv:2512.13564 confirms different memory types serve different retrieval needs.
 
 **Fix:** Split into two bullets: discovered problems → `project` memory, workarounds/patterns that failed → `feedback` memory.
 
@@ -4495,7 +4495,7 @@ Geniro lost 6 template sections during customization (~71 lines / 17%): Complian
 
 **Problem:** Pre-existing inconsistency. Troubleshooting table (line 403) said "Validation fails after 3 fix rounds" but Phase 3 Step 6 (line 210) says "Max 2 fix rounds" and AskUserQuestion text (line 222) says "after 2 fix rounds."
 
-**Research:** Report line 1162 confirms max 2 for follow-up validation. Report line 1193 confirms "Max 2 rounds (validation)" for follow-up. Geniro's production version already uses "2" in its troubleshooting table. The "3" was a copy-paste error from `/implement` pipeline (which uses max 3).
+**Research:** Report line 1162 confirms max 2 for follow-up validation. Report line 1193 confirms "Max 2 rounds (validation)" for follow-up. The reference project's production version already uses "2" in its troubleshooting table. The "3" was a copy-paste error from `/implement` pipeline (which uses max 3).
 
 **Fix:** Changed troubleshooting table from "3 fix rounds" to "2 fix rounds."
 
@@ -4522,7 +4522,7 @@ Geniro lost 6 template sections during customization (~71 lines / 17%): Complian
 ### Methodology
 
 1. Identified all template skills not yet audited (8 of 12 — implement/refactor/review/follow-up already done in v6-v9)
-2. For 3 skills with geniro counterparts (spec, simplify, features): cross-pollination comparison
+2. For 3 skills with reference project counterparts (spec, simplify, features): cross-pollination comparison
 3. For 5 template-only skills (debug, setup, onboard, learnings, ui-review): internal quality review
 4. Each finding validated against report.md, framework patterns, and internet research
 5. Validated fixes implemented across all files
@@ -4564,7 +4564,7 @@ Geniro lost 6 template sections during customization (~71 lines / 17%): Complian
 |---|---|---|---|
 | F3 | MED | Added cross-reference note to `/spec` for detailed specs | Skills should reference each other at natural handoff points |
 | F4 | MED | Added `move <id> <status>` command for status transitions | Previously no way to mark features as in-progress or blocked via command |
-| F5 | MED | Added routing hint on `next` output: "Ready to spec? `/spec [name]`" | Geniro pattern; limited to `next` to avoid "clippy syndrome" |
+| F5 | MED | Added routing hint on `next` output: "Ready to spec? `/spec [name]`" | Reference project pattern; limited to `next` to avoid "clippy syndrome" |
 
 **Rejected:** F1 (per-file storage) — single table is deliberately lightweight, doesn't conflict with spec files. F2 (draft/approved statuses) — couples two independent skills unnecessarily.
 
@@ -4630,7 +4630,7 @@ Geniro lost 6 template sections during customization (~71 lines / 17%): Complian
 
 4. **JSONL schema was mismatched** between learnings skill and knowledge-retrieval-agent — the agent expected fields that didn't exist (`context`, `timestamp`). Aligned both to skill's schema + new `files`/`keywords` tags.
 
-5. **Simplify skill was already clean** — Template version is strictly superior to geniro. All improvements were already applied in prior audits.
+5. **Simplify skill was already clean** — Template version is strictly superior to the reference project's version. All improvements were already applied in prior audits.
 
 ### Files Changed
 

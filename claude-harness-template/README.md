@@ -162,8 +162,10 @@ The skill detects existing `.claude/` files and compares each one against the te
 
 ## Credits
 
+Part of [Geniro Claude Harness](https://github.com/geniro-io/geniro-claude-harness), built by the [Geniro](https://github.com/geniro-io) team.
+
 Patterns synthesized from: Metaswarm, GSD, Citadel, claude-pipeline, ECC, and analysis of 14 production frameworks.
 
 ## License
 
-Use freely. Template is yours to customize.
+[Apache License 2.0](../LICENSE) — use freely, customize, and contribute back.

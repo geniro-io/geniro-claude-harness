@@ -1,2 +1,16 @@
-
+# IDE
 .idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code artifacts (generated per-project)
+.artifacts/
+
+# Node (if any tooling is added)
+node_modules/
