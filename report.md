@@ -45,6 +45,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 37. [Template Improvement Audit v15: Setup Smart Update & State Tracking](#template-improvement-audit-v15-setup-smart-update--state-tracking)
 38. [Template Improvement Audit v16: Context Monitor 1M-Aware Adaptive Thresholds](#template-improvement-audit-v16-context-monitor-1m-aware-adaptive-thresholds)
 39. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
+40. [Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation](#template-improvement-audit-v18-deep-simplify-token-explosion--state-file-relocation)
 
 ---
 
@@ -4990,3 +4991,35 @@ Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proce
 - The Trivial direct-edit exception was the root escape hatch enabling orchestrator code changes across audits v11-v14. Each prior audit tightened the exception but kept it alive. Eliminating it entirely (zero exceptions) is the only pattern that survives model rationalization — any exception becomes "this counts as Trivial."
 - Phase 4 inline command execution is standard across all 14 frameworks, but those frameworks don't account for orchestrator context budgets in multi-phase pipelines. Delegating validation to an agent is a novel optimization that preserves orchestrator context for the semantically important Phase 5-6 work.
 - AskUserQuestion gaps persist even when the preamble says "every question uses AskUserQuestion" — the model follows the specific instruction at each interaction point, not the global rule. Every user-facing choice must name the tool explicitly in-place.
+
+---
+
+## Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation
+
+**Date:** 2026-04-06
+**Scope:** `claude-harness-template/skills/deep-simplify/SKILL.md`, `claude-harness-template/skills/setup/SKILL.md`
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+**Trigger:** Production observation showed deep-simplify spawning 3 agents at 90-117k tokens each (hitting limits), then 3 MORE retry agents — 6 agents total, ~600k+ tokens wasted. Also: `.harness-state.json` needed relocation to `.artifacts/` folder.
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | CRITICAL | **Stop inlining file contents into agent prompts** — agents now receive file paths and read files themselves using their own 200K context windows. Orchestrator no longer reads file contents at all (only `git diff --stat` for LOC count). | Anthropic's official code-review plugin passes paths not contents. 8 strong-evidence internet sources. Report.md Audit v14: "pre-reading into orchestrator context before delegating is counterproductive when orchestrator reads solely to inline." Codebase: `follow-up`, `refactor`, `implement` Phase 5 all pass paths — deep-simplify was the only skill still inlining full contents without a size guard. |
+| 2 | HIGH | **Added LOC/file-count threshold with batching** — ≤8 files AND ≤400 LOC = standard 3-agent mode; above = batched mode (files split into groups of ~5, capped at 12 total agents). | Report.md Pattern 1b: explicit batching logic. "Lost in the Middle" research (Liu et al. 2023): 30%+ accuracy drop with large contexts. `review/SKILL.md` already has >8 files/>400 LOC threshold — deep-simplify was missing it. |
+| 3 | HIGH | **Delegated Phase 4 (Fix) and Phase 5 (Verify)** — orchestrator no longer applies fixes directly or runs build/lint/test inline. Both delegated to agents. | Consistency with follow-up Audit v17 zero direct-edit policy and delegated validation. |
+| 4 | MEDIUM | **Agents read their own criteria** — orchestrator no longer pre-reads `simplify-criteria.md`. Each agent reads it directly from `${CLAUDE_SKILL_DIR}/simplify-criteria.md`. | Report.md Audit v14 Fix #5. `follow-up` Phase 3 already follows this pattern. |
+| 5 | LOW | **Relocated `.harness-state.json`** — moved from `.claude/.harness-state.json` to `.claude/.artifacts/.harness-state.json` across all 9 references in setup/SKILL.md. Updated gitignore handling to note `.claude/.artifacts/` directory entry already covers the file. | User request — state file belongs in artifacts folder with other persistent state. |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `claude-harness-template/skills/deep-simplify/SKILL.md` | 262 | 283 | Path-passing, batching, delegated fix/verify, self-read criteria |
+| `claude-harness-template/skills/setup/SKILL.md` | ~1228 | ~1228 | 9 path references updated to `.artifacts/` |
+| `report.md` | ~5010 | ~5060 | Added audit v18 section + TOC entry |
+
+### Key Findings
+- Inlining file contents into agent prompts is a well-documented anti-pattern called "context dilution" / "observation overflow." Even Anthropic's own code-review plugin passes file paths, not contents. The deep-simplify skill was the only template skill that inlined full file contents without any size guard.
+- The "pre-inline everything" pattern originated from a valid principle ("save the agent from re-reading") but the correct resolution (per Audit v14) depends on whether the orchestrator needs the content for its own decisions. Deep-simplify reads files solely to inline them — making path-passing the correct choice.
+- Three inconsistent simplify agent invocation patterns existed across deep-simplify, follow-up, and implement — all now consistently use path-passing with agent self-read.

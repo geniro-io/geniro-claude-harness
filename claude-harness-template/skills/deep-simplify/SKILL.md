@@ -30,18 +30,26 @@ Otherwise, treat `$ARGUMENTS` as a list of specific files or directories.
 
 Exclude: test files (`*.spec.*`, `*.test.*`, `*.int.*`, `*.cy.*`), generated code, type-only files (`*.types.ts`, `*.d.ts`).
 
-### Step 2: Read Criteria and Files
+### Step 2: Prepare File List
 
-1. Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — you will inline the relevant section into each agent's prompt
-2. Read each changed source file + immediate neighbors (imports from same module) for context
+1. Run `git diff --stat` to get a summary of changes (files + lines changed)
+2. Count total changed LOC — this determines Standard vs Batched mode in Phase 2
 
-You need the full contents because you will inline them into agent prompts.
+Do NOT read file contents — agents have their own 200K context windows and will read files themselves. Do NOT pre-read criteria — agents read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` directly.
+
+---
+
+### Mode Selection
+
+Based on Phase 1 diff stats:
+- **Standard mode** (≤8 files AND ≤400 total changed LOC): Spawn 3 agents (Reuse, Quality, Efficiency), each gets all files.
+- **Batched mode** (>8 files OR >400 LOC): Split files into groups of ~5 by module/directory. For each batch, spawn 3 dimension agents. Cap at 12 total agents (4 batches × 3 dimensions). Triage first: exclude trivially-changed files (renames, formatting-only, generated) from review batches.
+
+All agents in a single mode MUST be spawned in one message.
 
 ---
 
 ## Phase 2: Parallel Review — Spawn 3 Agents
-
-Spawn all 3 agents **in a single message** using the Agent tool. Each agent gets: ground rules, its specific analysis pass criteria, and the full contents of changed files inlined.
 
 **All 3 agents MUST be spawned in one message. Do NOT wait for one before spawning the next.**
 
@@ -54,21 +62,18 @@ Spawn a **general-purpose** subagent with `model: "sonnet"`:
 
 You are a code reviewer focused on finding duplication and reuse opportunities.
 
-## Ground Rules
-[Inline Ground Rules section from simplify-criteria.md]
-
-## Analysis Criteria — Pass A: Reuse & Duplication
-[Inline Pass A table from simplify-criteria.md]
+## Criteria
+Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass A sections.
 
 ## Changed Files
-[Inline full contents of each changed file with filename headers]
+Read each of these files: [list file paths from Phase 1]
+Also read each file's immediate neighbors (imports from same module) for reuse context.
 
 ## Instructions
-1. Read each file's immediate neighbors (imports from same module) for reuse context
-2. Analyze each file for Pass A patterns only
-3. For each finding report: file, line number, pattern matched, proposed fix
-4. Classify: P1 (fix) or P2 (fix if safe) per severity below
-5. Do NOT make any edits — report findings only
+1. Analyze each file for Pass A patterns only
+2. For each finding report: file, line number, pattern matched, proposed fix
+3. Classify: P1 (fix) or P2 (fix if safe) per severity below
+4. Do NOT make any edits — report findings only
 
 ## Severity
 - P1: Duplication with existing utility, dead code
@@ -89,14 +94,12 @@ Spawn a **general-purpose** subagent with `model: "sonnet"`:
 
 You are a code reviewer focused on readability, naming, and AI-generated anti-patterns.
 
-## Ground Rules
-[Inline Ground Rules section from simplify-criteria.md]
-
-## Analysis Criteria — Pass B: Quality & Readability
-[Inline Pass B table, AI-Generated Code Anti-Patterns table, and Frontend-Specific table from simplify-criteria.md]
+## Criteria
+Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass B (+ AI Anti-Patterns + Frontend tables) sections.
 
 ## Changed Files
-[Inline full contents of each changed file with filename headers]
+Read each of these files: [list file paths from Phase 1]
+Also read each file's immediate neighbors (imports from same module) for reuse context.
 
 ## Instructions
 1. Analyze each file for Pass B patterns only
@@ -124,14 +127,12 @@ Spawn a **general-purpose** subagent with `model: "sonnet"`:
 
 You are a code reviewer focused on unnecessary complexity and inefficient patterns.
 
-## Ground Rules
-[Inline Ground Rules section from simplify-criteria.md]
-
-## Analysis Criteria — Pass C: Efficiency & Patterns
-[Inline Pass C table from simplify-criteria.md]
+## Criteria
+Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass C sections.
 
 ## Changed Files
-[Inline full contents of each changed file with filename headers]
+Read each of these files: [list file paths from Phase 1]
+Also read each file's immediate neighbors (imports from same module) for reuse context.
 
 ## Instructions
 1. Analyze each file for Pass C patterns only
@@ -165,45 +166,65 @@ Collect findings from all 3 agents. Merge into a single list:
 
 ## Phase 4: Fix
 
-### Step 1: Apply P1 Fixes
+Delegate ALL fixes to an agent. Do NOT apply fixes directly.
 
-Apply all P1 fixes using Edit. If extracting a utility to a new file, update imports in consuming files.
+```
+Agent(model="sonnet", prompt="""
+## Task: Apply Simplification Fixes
+Apply the following categorized fixes. Batch all changes, do NOT validate between fixes.
 
-### Step 2: Apply P2 Fixes
+## P1 Fixes (must apply)
+[paste P1 findings from Phase 3 aggregation]
 
-Apply P2 fixes. Skip any that feel risky (could change behavior) — note as "skipped — behavior change risk."
+## P2 Fixes (apply if safe)
+[paste P2 findings — skip any that risk behavior change, note as "skipped"]
 
-**Do NOT run validation after each fix. Batch all fixes, then verify once.**
+## Files to Modify
+Read each file before editing: [list unique file paths from P1+P2 findings]
 
-### Step 3: Fix Test References (if needed)
-
-If source changes broke test imports/references: update imports only. Never change test assertions.
+## Rules
+- Zero behavior change — preserve exact inputs, outputs, side effects
+- If extracting a utility to a new file, update imports in consuming files
+- If source changes break test imports/references: update imports only. Never change test assertions.
+- Do NOT run git add/commit/push
+- Report: files modified, fixes applied, fixes skipped with reason
+""", description="Apply: simplify fixes")
+```
 
 ---
 
 ## Phase 5: Verify
 
-### Step 1: Autofix
+Delegate validation to an agent. Do NOT run build/lint/test commands yourself.
 
-Run the project's format/autofix command from CLAUDE.md.
+```
+Agent(model="sonnet", prompt="""
+## Task: Verify Simplification Changes
+Run the project's full validation suite and report results.
 
-### Step 2: Full Validation
+## Steps
+1. Run autofix (lint --fix / format) from CLAUDE.md or package.json
+2. Run full validation suite (build + lint + test) from CLAUDE.md
+3. If validation fails: identify which simplification change caused it, revert that file (git checkout -- <file>), note "skipped — caused CI failure", re-run validation
+4. Max 1 revert-and-retry cycle. If still failing: revert ALL changes (git checkout -- .), report "Simplification aborted — changes caused cascading failures"
 
-Run build + lint + test:
-```bash
-source .claude/hooks/backpressure.sh 2>/dev/null
-run_silent "Full Check" "<validation_cmd>" || <validation_cmd> 2>&1 | tail -80
+## Report Format
+Return EXACTLY:
+- autofix: PASS/FAIL
+- build: PASS/FAIL
+- lint: PASS/FAIL
+- test: PASS/FAIL
+- reverted: [list of files reverted, or "none"]
+- status: PASS / PARTIAL (some files reverted) / ABORTED (all reverted)
+
+## Requirements
+- Do NOT run git add/commit/push
+- Do NOT fix issues beyond reverting the problematic simplification
+""", description="Verify: post-simplify validation")
 ```
 
-### Step 3: Handle Failures
-
-**If validation passes:** Done. Report results.
-
-**If validation fails:**
-1. Read errors
-2. If caused by a simplification change: revert that file (`git checkout -- <file>`), note "skipped — caused CI failure"
-3. Re-run validation
-4. **Max 1 revert-and-retry cycle.** If still failing, revert ALL changes (`git checkout -- .`) and report "Simplification aborted — changes caused cascading failures"
+**If the agent reports ABORTED:** Report to user "Simplification aborted — all changes reverted." and stop.
+**If PARTIAL:** Include reverted files in the Completion Report's "Skipped" section.
 
 ---
 
@@ -239,6 +260,7 @@ run_silent "Full Check" "<validation_cmd>" || <validation_cmd> 2>&1 | tail -80
 | "I'll spawn agents one at a time to save tokens" | Spawn all 3 in a SINGLE message. Sequential spawning defeats the purpose of parallel review. |
 | "These changes are obviously safe" | Run validation. "Obviously safe" is the #1 predictor of broken builds. |
 | "I'll fix the P3 items too since I'm here" | P3 is report-only. Fixing P3 risks behavior changes. |
+| "I'll apply these fixes myself since I can see exactly what to change" | You are an orchestrator. ALL fixes go through agents. Even obvious P1 fixes. |
 
 ---
 

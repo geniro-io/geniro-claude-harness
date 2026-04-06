@@ -75,7 +75,7 @@ Store the resolved path as `$TEMPLATE_DIR` for all subsequent phases.
 
 Track whether the source was the bootstrap location (`$BOOTSTRAPPED=true`) — this determines whether cleanup runs at the end (Phase 5).
 
-Also check for `.claude/.harness-state.json`:
+Also check for `.claude/.artifacts/.harness-state.json`:
 - If it exists → read it. Store as `$HARNESS_STATE`. This contains the template version, install date, and file manifest with categories (verbatim/tailored/user-created). Its presence means a previous `/setup` completed successfully — this is an **update**, not a fresh install.
 - If it does not exist but `.claude/` has recognizable harness files (agents/skills/hooks from this template) → **legacy install** (installed before state tracking was added). Treat as update but without baseline data.
 - If it does not exist and `.claude/` has no recognizable harness files, only non-template files, or doesn't exist → **fresh install**. (Non-template files are handled by Phase 1.5 Conflict Resolution during the fresh install flow.)
@@ -171,10 +171,10 @@ Check for pre-existing configuration:
 Route based on `$INSTALL_MODE` detected in Phase 0:
 
 - **`fresh`**: No existing harness. Continue to Phase 2 (User Interview) as normal.
-- **`update`**: Previous successful install detected (`.harness-state.json` exists). Skip to the **Re-Running Setup (Smart Update)** flow below. Do NOT run Phases 2-3 unless the user chooses Fresh Install.
-- **`legacy-update`**: Harness files exist but no `.harness-state.json` (installed before state tracking). Skip to **Re-Running Setup (Smart Update)** flow — it handles the "no snapshot" case with header-level heuristics.
+- **`update`**: Previous successful install detected (`.artifacts/.harness-state.json` exists). Skip to the **Re-Running Setup (Smart Update)** flow below. Do NOT run Phases 2-3 unless the user chooses Fresh Install.
+- **`legacy-update`**: Harness files exist but no `.artifacts/.harness-state.json` (installed before state tracking). Skip to **Re-Running Setup (Smart Update)** flow — it handles the "no snapshot" case with header-level heuristics.
 
-If `.claude/` exists but contains only non-template files (no recognizable harness agents/skills/hooks AND no `.harness-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
+If `.claude/` exists but contains only non-template files (no recognizable harness agents/skills/hooks AND no `.artifacts/.harness-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
 
 If `.claude/` does NOT exist but `CLAUDE.md` exists at the project root, this is a standalone instructions file (common — many projects have a hand-written CLAUDE.md). **Leave it untouched.** The rest of `.claude/` is installed normally as a fresh setup.
 
@@ -688,7 +688,7 @@ Do NOT create `.claude/.gitignore` — all ignore rules go in the project root.
 
 ### 4.4 Write Harness State File
 
-Write `.claude/.harness-state.json` to track the installation state for future re-runs. This file is git-ignored (covered by the `.claude/.harness-state.json` entry added to `.gitignore` below).
+Write `.claude/.artifacts/.harness-state.json` to track the installation state for future re-runs. This file is git-ignored (covered by the `.claude/.artifacts/` entry already in `.gitignore`).
 
 Use the Bash tool to get the template commit hash (if `$TEMPLATE_DIR` is a git repo or was bootstrapped from one):
 
@@ -731,10 +731,7 @@ Populate the lists from the actual files installed during Phase 3. The categorie
 - **tailored**: Files that were copied then AI-edited (backend-agent, frontend-agent, rules files) or generated from scratch (review criteria files)
 - **user_created**: Files that existed in `.claude/` before setup and are not part of the template
 
-Ensure `.harness-state.json` is git-ignored. Add to root `.gitignore` if not covered:
-```bash
-grep -q "\.harness-state\.json" .gitignore 2>/dev/null || echo ".claude/.harness-state.json" >> .gitignore
-```
+Ensure `.artifacts/.harness-state.json` is git-ignored. The `.claude/.artifacts/` entry added in Phase 4.3 already covers this — no separate gitignore entry is needed.
 
 ### 4.5 Summary Report
 
@@ -1000,7 +997,7 @@ chmod +x .claude/hooks/*.sh 2>/dev/null
 
 **3A.5: Update state file and refresh template snapshot**
 
-Update `.claude/.harness-state.json` with the new template version, timestamp, and updated file manifest.
+Update `.claude/.artifacts/.harness-state.json` with the new template version, timestamp, and updated file manifest.
 
 Replace `.claude/.artifacts/template-snapshot/` with the current template files:
 ```bash
@@ -1164,7 +1161,7 @@ The full template copy in `.claude/.artifacts/template-source/` is no longer nee
 rm -rf .claude/.artifacts/template-source/
 ```
 
-**Note:** Do NOT delete `.claude/.harness-state.json` or `.claude/.artifacts/template-snapshot/` during cleanup — these are persistent state files needed for future `/setup` re-runs.
+**Note:** Do NOT delete `.claude/.artifacts/.harness-state.json` or `.claude/.artifacts/template-snapshot/` during cleanup — these are persistent state files needed for future `/setup` re-runs.
 
 ### 5.2 Ask User Feedback & Remove Setup Skill
 
@@ -1225,7 +1222,7 @@ rm -rf .claude/skills/setup/
 - [ ] Phase 3.1.1: Template snapshot saved to `.artifacts/template-snapshot/`
 - [ ] Phase 4.1: Orchestrator verification passed (formatting, placeholders, cross-language)
 - [ ] Phase 4.2: Independent verification agent passed (paths, consistency, frontmatter, hooks)
-- [ ] Phase 4.4: `.harness-state.json` written with file manifest
+- [ ] Phase 4.4: `.artifacts/.harness-state.json` written with file manifest
 - [ ] Phase 5: Bootstrap artifacts cleaned up (if bootstrapped install)
 - [ ] Re-Running Setup: Analysis completed before user prompt
 - [ ] User has received summary with next steps
