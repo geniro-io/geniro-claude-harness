@@ -97,17 +97,7 @@ Present escalation signals to user. `AskUserQuestion` with header "Scope":
 
 ### Step 1: Plan (Medium complexity only)
 
-For **Medium** complexity changes, write a brief implementation plan before coding:
-
-1. List each file to change and what changes
-2. Identify dependencies between changes (order matters)
-3. Note any risks or things to verify
-
-Present the plan to the user:
-
-`AskUserQuestion` with header "Plan":
-- "Looks good — proceed"
-- "Adjust" — I want to change the approach
+Write a brief plan: list each file and what changes, dependencies, risks. Present it via `AskUserQuestion` header "Plan": "Looks good — proceed" / "Adjust — change the approach".
 
 ### Step 2: Execute
 
@@ -184,7 +174,26 @@ After agents report done, verify the task was completed — do NOT read source c
 2. Check the agent's report covers all items from the change request
 3. If the agent missed files or partially completed: delegate a follow-up agent with the gap description. Do NOT fill in the gaps yourself.
 
-**→ After completion check passes, proceed to Phase 3.**
+### Strategic Compact Point (Small/Medium only)
+
+**Skip for Trivial changes** — proceed directly to Phase 3/4.
+
+After implementation agents complete, your context is loaded with pre-inlined file contents and agent reports. Before continuing to validation/review, checkpoint and suggest compaction:
+
+1. Write state to `.claude/.artifacts/follow-up-state.md`:
+   ```
+   complexity: [trivial/small/medium]
+   change: [one-line description]
+   phase: 2-complete
+   changed-files: [list from git diff --name-only]
+   branch: [current branch]
+   ```
+2. Tell the user:
+   > Implementation complete. I recommend running `/compact` now to free context for validation and review phases. After compacting, say "continue" and I'll resume from Phase 3.
+
+**After compaction (or if user skips):** Read `.claude/.artifacts/follow-up-state.md` and `git diff --name-only` to restore context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
+
+**DO NOT present a summary or ask "anything else?" here. Phases 3-6 have not run yet.**
 
 ---
 
@@ -196,7 +205,7 @@ After agents report done, verify the task was completed — do NOT read source c
 
 ### Step 1: Spawn simplify agent
 
-Pre-read `.claude/skills/deep-simplify/simplify-criteria.md`. Spawn a **general-purpose** subagent with `model: "sonnet"`:
+Spawn a **general-purpose** subagent with `model: "sonnet"`. The agent reads its own criteria file — do NOT pre-read criteria into orchestrator context:
 
 ```
 Agent(model="sonnet", prompt="""
@@ -204,7 +213,7 @@ Agent(model="sonnet", prompt="""
 You are a code simplifier. Make changed files cleaner, simpler, more consistent — without changing behavior.
 
 ## Criteria
-[Pre-inline `.claude/skills/deep-simplify/simplify-criteria.md`]
+Read and apply `.claude/skills/deep-simplify/simplify-criteria.md`
 
 ## Changed Files: [List from git diff --name-only]
 
@@ -228,7 +237,7 @@ You are a code simplifier. Make changed files cleaner, simpler, more consistent 
 2. Run build + lint + test
 3. **If checks fail:** revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 4.
 
-**→ Proceed to Phase 4 (Validate).**
+**→ You MUST proceed to Phase 4 (Validate) now. DO NOT present a summary or ask "anything else?" — validation has not run yet.**
 
 ---
 
@@ -268,11 +277,23 @@ Verify test files exist for changed source files — do NOT read test content to
 
 If validation, startup, or tests fail:
 1. Lint/format only → run autofix command, re-validate
-2. Type/build/test failure in a Trivial change (1–2 files) where the fix is 1–3 lines → fix directly. All other failures → delegate to a fixer agent with exact error output. Do NOT read source code to diagnose — forward the raw error text and let the agent fix it.
+2. Type/build/test failure → delegate to a fixer agent with exact error output. Do NOT read source code to diagnose — forward the raw error text and let the agent fix it. **Exception:** only for Trivial overall complexity (not just a "trivial-looking" error in a Small/Medium change) where the fix is 1–3 lines, you may fix directly.
 3. After each fix round, run codegen check if applicable, then re-validate
 4. **Max 2 fix rounds** — then escalate: present structured handoff (Fixed / Still failing with error+file+suggested fix / CI status per category). `AskUserQuestion` with header "Stuck": "Try a different approach" / "Escalate to /implement" / "Show current state". Do NOT retry same approach a 3rd time.
 
-**→ After validation passes, proceed to Phase 5.**
+### Strategic Compact Point (Medium only)
+
+**Skip for Trivial and Small changes** — proceed directly to Phase 5.
+
+Validation accumulated error output and fix-loop context. Before spawning review agents:
+
+1. Update `.claude/.artifacts/follow-up-state.md`: set `phase: 4-complete`
+2. Tell the user:
+   > Validation passed. For best review quality, I recommend `/compact` now. After compacting, say "continue" and I'll run the review phase.
+
+**After compaction (or if user skips):** Read `.claude/.artifacts/follow-up-state.md` and `git diff --name-only` to restore context.
+
+**→ You MUST proceed to Phase 5 (Review) now. DO NOT present results to the user or ask "anything else?" — review has not run yet.**
 
 ---
 
@@ -284,7 +305,7 @@ Capture the changed file list from the diff against main.
 
 **Trivial changes (1–2 files):** Review the diff yourself — no subagent needed. Check for: typos in the fix itself, accidental deletions, logic inversion, missed second occurrence. If anything looks off, fix it and re-validate (Phase 4 Step 2 only). This takes 30 seconds and catches "obvious fix" mistakes that cause rollbacks.
 
-**Small changes (3–5 files):** Pre-read all 5 review criteria files from `.claude/skills/review/` (bugs-criteria.md, security-criteria.md, architecture-criteria.md, tests-criteria.md, guidelines-criteria.md). Spawn a single reviewer-agent with the criteria pre-inlined and the change summary + changed file list:
+**Small changes (3–5 files):** Spawn a single reviewer-agent. Pass the criteria file paths — the agent reads them itself. Do NOT pre-read criteria files into orchestrator context.
 
 ```
 Agent(model="sonnet", prompt="""
@@ -295,35 +316,48 @@ CHANGED FILES: [list]
 CHANGE SUMMARY: [summary]
 
 ## Review Criteria
-[Pre-inline the contents of all 5 criteria files from `.claude/skills/review/`]
+Read and apply all 5 criteria files from `.claude/skills/review/`:
+- `.claude/skills/review/bugs-criteria.md`
+- `.claude/skills/review/security-criteria.md`
+- `.claude/skills/review/architecture-criteria.md`
+- `.claude/skills/review/tests-criteria.md`
+- `.claude/skills/review/guidelines-criteria.md`
 
 Review across all 5 dimensions. Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
 """, description="Review: follow-up change")
 ```
 
-**Medium changes (6–8 files):** Pre-read the relevant criteria files from `.claude/skills/review/`. Spawn 2–3 reviewer-agent instances in a **single message**, each reviewing its own dimension with the corresponding criteria file pre-inlined:
+**Medium changes (6–8 files):** Spawn 2–3 reviewer-agent instances in a **single message**. Each agent reads its own criteria file — do NOT pre-read criteria into orchestrator context:
 
 ```
 # Spawn ALL reviewers in a SINGLE message for parallel execution:
 
 Agent(model="sonnet", prompt="""
 DIMENSION: Bugs & Correctness
-[Pre-inline `.claude/skills/review/bugs-criteria.md`]
 CHANGED FILES: [list]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
+Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
+Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
+
+## Review Criteria
+Read and apply this criteria file: `.claude/skills/review/bugs-criteria.md`
 """, description="Review: bugs")
 
 Agent(model="sonnet", prompt="""
 DIMENSION: Security & Edge Cases
-[Pre-inline `.claude/skills/review/security-criteria.md`]
 CHANGED FILES: [list]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
+Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
+Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
+
+## Review Criteria
+Read and apply this criteria file: `.claude/skills/review/security-criteria.md`
 """, description="Review: security")
 ```
 
-Add a 3rd reviewer (architecture + tests + guidelines criteria combined from `.claude/skills/review/architecture-criteria.md`, `tests-criteria.md`, `guidelines-criteria.md`) only if changes touch cross-module boundaries.
+Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. That agent reads `.claude/skills/review/architecture-criteria.md`, `tests-criteria.md`, and `guidelines-criteria.md` itself.
 
 ### Step 2: Process Results
 
@@ -370,27 +404,11 @@ Show a summary:
 
 ### Step 2: Learn & Improve
 
-Two jobs: save what we learned, suggest improvements. **Skip entirely for Trivial changes** (1-2 files, obvious fix). This runs BEFORE committing so that doc/rule changes are included in the commit.
+**Skip entirely for Trivial changes.** Runs BEFORE committing so doc/rule changes are included.
 
-#### Extract Learnings
+**Extract Learnings:** Scan conversation. Save `feedback` memory (user corrections, workarounds, non-obvious resolutions) and `project` memory (discovered bugs/gotchas). UPDATE existing memories rather than duplicate. Skip if nothing novel.
 
-Scan conversation for learnings. Save as `feedback` memory: user corrections/preferences, workarounds, non-obvious fix resolutions. Save as `project` memory: discovered bugs/gotchas. Check existing memories first — UPDATE rather than duplicate. Skip if nothing novel.
-
-#### Suggest Improvements (WAIT)
-
-**Skip for Small changes** — only run for Medium complexity or "Proceed anyway" escalated changes.
-
-Check if the pipeline run revealed:
-- **Rules gaps** — agent made a mistake a rule would have prevented
-- **Rules conflicts** — a rule contradicted what actually works
-- **Stale documentation** — rules reference patterns/files that no longer exist
-
-For each improvement, draft: which file, what to change, why.
-
-`AskUserQuestion` with header "Improve":
-- "Apply all" — implement proposed changes
-- "Review one-by-one" — approve each separately
-- "Skip" — done
+**Suggest Improvements (WAIT) — Skip for Small changes**, run for Medium or "Proceed anyway" only. Check for: rules gaps, rules conflicts, stale documentation. Draft: file, change, why. `AskUserQuestion` header "Improve": "Apply all" / "Review one-by-one" / "Skip".
 
 ### Step 3: Ship Decision
 
@@ -431,56 +449,49 @@ Kill any orphaned background processes started during validation (startup checks
 | "I'll just quickly edit these files myself since I already read them" | Reading files for assessment is fine. Writing code is implementation — delegate it. The assessment context goes into the agent prompt. |
 | "Spawning an agent for this is overkill" | A single-agent delegation costs fewer tokens than the orchestrator doing the work, because the orchestrator's context window is more expensive and accumulates garbage. |
 | "I noticed a bug during validation — I'll fix it now since I'm already here" | Bug-finding is Phase 5 (Review). Phase 4 runs commands and reads pass/fail output. If automated checks pass, the code moves to Review where fresh-context agents find bugs. Fixing bugs in Phase 4 steals Review's job and accumulates context that degrades your coordination. |
+| "I can see the type error — I'll fix it faster than spawning an agent" | If the overall change is Small or Medium, ALL fixes go through agents. The Trivial exception applies only when the entire change is Trivial. Context you accumulate reading source code to "quickly fix" errors degrades your coordination for Phases 5-6. |
 
 ---
 
 ## Task Tracking
 
-Use `TodoWrite` to track progress:
-- Create todos at the start: Assess complexity, Implement, Simplify, Validate, Review, Ship
-- Mark each as `in_progress` when starting, `completed` when done
-- For medium complexity: add the plan outline as a todo before implementation
+Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Ship) at the start. Mark `in_progress` → `completed` as each phase runs. For Medium: add plan outline as todo before implementation.
 
 ## Definition of Done
 
-For each change, confirm:
-
-- [ ] Complexity assessed and routed correctly (trivial/small/escalated)
-- [ ] Prior context loaded (spec, plan, concerns, notes, review-feedback from task directory if they exist)
-- [ ] Implementation complete and matches `$ARGUMENTS`
-- [ ] Simplification pass completed (Medium) or skipped (Trivial/Small)
-- [ ] All tests pass (new and existing)
-- [ ] No type/lint errors
-- [ ] Code quality reviewed for edge cases and clarity
-- [ ] User approved the change before shipping
-- [ ] Change is committed or staged (or delivered for user to commit)
+- [ ] Complexity assessed and routed correctly
+- [ ] Prior planning context loaded if available
+- [ ] Implementation matches `$ARGUMENTS`
+- [ ] Simplification pass run (Medium) or skipped (Trivial/Small)
+- [ ] All tests pass; no type/lint errors
+- [ ] Code quality reviewed
+- [ ] User approved before shipping
+- [ ] Change committed or delivered for user to commit
 
 ---
 
 ## When to Use This Skill vs. `/implement`
 
-**`/follow-up`:** Change builds on existing code, scope is clear and bounded, no new architecture, complexity ≤ Medium.
-
-**`/implement`:** New major feature/component, ambiguous intent, new entity/endpoint/auth, 3+ modules, multiple decision points, needs design review.
+**`/follow-up`:** Builds on existing code, scope clear and bounded, no new architecture, complexity ≤ Medium.
+**`/implement`:** New feature/entity/endpoint/auth, ambiguous intent, 3+ modules, needs design review.
 
 ---
 
 ## Troubleshooting
 
-| Problem | Cause | Fix |
-|---------|-------|-----|
-| Validation fails after 2 fix rounds | Agent is stuck on the same error | Present error to user with structured handoff |
-| Change is larger than expected | Scope grew beyond follow-up | Escalate to `/implement` |
-| Agent re-reads files already scanned | Pre-inlined context was not passed | Always paste file contents from Phase 1 into the agent delegation prompt |
-| Reviewer finds architectural issues | Change needs design work | Escalate to `/implement` with reviewer findings as context |
-| Codegen not detected | Schema/DTO changes not showing in diff | Run codegen manually if API surface changed |
+| Problem | Fix |
+|---------|-----|
+| Validation fails after 2 fix rounds | Present structured handoff to user |
+| Change larger than expected | Escalate to `/implement` |
+| Agent re-reads files already scanned | Pre-inline file contents from Phase 1 into agent prompt |
+| Reviewer finds architectural issues | Escalate to `/implement` with reviewer findings |
+| Codegen not detected | Run codegen manually if API surface changed |
 
 ---
 
 ## Examples
 
-- **Trivial:** `/follow-up Fix typo in src/auth.ts line 42` → Read, fix, validate, review, ship
-- **Small:** `/follow-up Better error message when API returns 429` → Find call sites, improve, test, review, ship
-- **Small:** `/follow-up Fix double-render bug in Dashboard` → Reproduce, fix, test, review, ship
-- **Medium:** `/follow-up Rename userId to ownerId across UserService` → Plan, refactor all sites, simplify, validate, review, ship
+- **Trivial:** `/follow-up Fix typo in src/auth.ts line 42`
+- **Small:** `/follow-up Better error message when API returns 429`
+- **Medium:** `/follow-up Rename userId to ownerId across UserService`
 - **Too Large:** `/follow-up Add Notifications service with websockets` → Escalate to `/implement`

@@ -41,6 +41,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 33. [Template Improvement Audit v11: Follow-Up Token Optimization](#template-improvement-audit-v11-follow-up-token-optimization)
 34. [Template Improvement Audit v12: Follow-Up Phase 4 Boundary Enforcement](#template-improvement-audit-v12-follow-up-phase-4-boundary-enforcement)
 35. [Template Improvement Audit v13: Setup Cleanup Skipped on Compare & Update](#template-improvement-audit-v13-setup-cleanup-skipped-on-compare--update)
+36. [Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping](#template-improvement-audit-v14-follow-up-context-exhaustion--phase-skipping)
 
 ---
 
@@ -4862,3 +4863,34 @@ Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proce
 - Soft transition instructions ("proceed to X as normal") are unreliable at conversation-boundary points where the user's natural language ("good", "looks good") can be interpreted as session completion
 - The same pattern (absent hard constraint → orchestrator skips phase) recurs across skills — Audit v8 (review), v11 (follow-up coordinator), v12 (Phase 4 boundary), now v13 (setup cleanup). Hard negative constraints ("DO NOT") are more reliable than positive ones ("proceed to")
 - Bootstrap artifacts left behind can cause confusion in future sessions — the template-source directory makes the setup skill think it's a re-run
+
+## Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping
+
+**Date:** 2026-04-06
+**Scope:** Follow-up skill (context management, phase compliance, delegation enforcement)
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+**Trigger:** Production thread showed follow-up orchestrator: (1) accumulating massive context in Phase 1, (2) fixing type errors directly in Phase 4 instead of delegating, (3) skipping Phase 3 (Simplify) and Phase 5 (Review) entirely for a Medium change.
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | HIGH | Added strategic compact point after Phase 2 — write state checkpoint to `.claude/.artifacts/follow-up-state.md`, suggest `/compact` to user | implement skill has this pattern (lines 148-154). ECC framework documents strategic compaction. Report L1953-1964 confirms. |
+| 2 | HIGH | Added strategic compact point before Phase 5 for Medium changes — update state, suggest `/compact` before review agents spawn | Report: "After review+fix cycle → Compact." Thread confirms phases 3+5 skipped due to context exhaustion. |
+| 3 | HIGH | Strengthened Phase 4 fix loop delegation — default to delegate, Trivial-only exception explicitly scoped to overall-Trivial changes. New anti-rationalization entry. | Thread: Medium change, orchestrator made 6+ direct edits in Phase 4. Report Audits v8/v11/v12 confirm drift pattern. |
+| 4 | HIGH | Added hard "DO NOT" phase transition directives at Phase 2→3, 3→4, 4→5 boundaries | Report Audits v8/v11/v12/v13: same phase-skipping pattern across 4 audits. Hard negatives > soft positives. |
+| 5 | MEDIUM | Phase 5 reviewers read their own criteria files — orchestrator no longer pre-reads 5 criteria files into its context | Codebase: criteria pre-read adds 5 files at worst possible time. implement doesn't pre-read at orchestrator level. |
+| 6 | MEDIUM | Phase 3 simplify agent reads its own criteria file (consistency fix from review) | Review finding: Phase 3 still pre-read criteria, inconsistent with Phase 5 pattern after fix #5. |
+| 7 | MEDIUM | Medium reviewer agents now include severity/verdict instruction matching Small reviewer | Review finding: Medium agents missing "Report findings with severity" instruction present in Small reviewer prompt. |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/follow-up/SKILL.md` | 487 lines | 497 lines | Strategic compact points, hard transitions, delegation mandate, criteria delegation to agents |
+
+### Key Findings
+- Context exhaustion is the root cause of phase skipping — the orchestrator runs out of usable context before reaching later phases (Simplify, Review). Strategic compact points between phases are the primary mitigation.
+- The same orchestrator-drift pattern (directly implementing instead of delegating) recurs across audits v8, v11, v12, now v14. The Trivial direct-fix exception was being misapplied to Small/Medium changes — making it explicit ("overall complexity must be Trivial") is the fix.
+- Soft phase transitions ("proceed to X") fail under context pressure. Hard negative constraints ("DO NOT present summary or ask 'anything else?'") are reliably more effective — confirmed across 5 audits now.
+- Pre-reading criteria files into orchestrator context before delegating to review agents is counterproductive — it adds context at the worst possible time (after Phases 1-4 have already consumed most of the budget). Agents should read their own criteria.
