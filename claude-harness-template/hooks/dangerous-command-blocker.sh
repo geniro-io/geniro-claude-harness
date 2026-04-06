@@ -38,13 +38,23 @@ DANGEROUS_PATTERNS=(
 # not actual destructive commands — don't match against them.
 BASE_COMMAND=$(echo "$COMMAND" | sed 's/|.*//')
 
+# SQL patterns should only be checked when the command is actually executing SQL,
+# not when reading/searching files that happen to mention SQL keywords.
+SQL_EXECUTORS="psql|mysql|sqlite3|mongosh|mongo|sqlcmd|bq|clickhouse-client"
+IS_SQL_CONTEXT=false
+if echo "$BASE_COMMAND" | grep -qiE "^\s*($SQL_EXECUTORS)\b"; then
+  IS_SQL_CONTEXT=true
+fi
+
 # Check if command matches any dangerous pattern
 for pattern in "${DANGEROUS_PATTERNS[@]}"; do
-  # SQL patterns (DROP, TRUNCATE, DELETE) only check the base command (before pipes)
-  # to avoid false positives on grep/search patterns in piped output.
-  # All other patterns check the full command.
+  # SQL patterns (DROP, TRUNCATE, DELETE) only apply in SQL execution contexts
+  # to avoid false positives on cat/grep/echo commands that mention SQL keywords.
   case "$pattern" in
     *DROP*|*TRUNCATE*|*DELETE*)
+      if [ "$IS_SQL_CONTEXT" = false ]; then
+        continue
+      fi
       CHECK_AGAINST="$BASE_COMMAND"
       ;;
     *)
