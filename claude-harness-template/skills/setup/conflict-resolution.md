@@ -200,7 +200,7 @@ For "Architecture mismatch" files, explain the issue and proposed fix — never 
 **Merge direction: template is ALWAYS the base.** This is the most important rule.
 
 For files classified as **merge**:
-1. **Start with the template file** as the base — Write it to the project path
+1. **Start with the template file** as the base — copy it to the project path using shell `cp` (e.g., `cp "$TEMPLATE_DIR/agents/file.md" ".claude/agents/file.md"`)
 2. Use the subagent's `PROJECT_SPECIFIC_CONTENT` and `TEMPLATE_SECTIONS_TO_REPLACE` outputs
 3. For each project-specific item:
    - If it maps to an existing template section → **replace** the template's generic content

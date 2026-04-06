@@ -368,7 +368,7 @@ If no issues: report "LGTM — all checks passed"
 
 ---
 
-## PHASE 6: REPORT & COMPLETE
+## PHASE 6: REPORT, LEARN & COMPLETE
 
 ### Step 1: Summary
 
@@ -385,17 +385,61 @@ Present to the user:
 [any warnings from Phase 5]
 ```
 
-### Step 2: Update report.md (if applicable)
+### Step 2: Learn & Improve
 
-If the investigation produced findings worth preserving for future reference
-(new patterns, new limitations, new best practices), ask the user:
+This step ALWAYS runs — no asking, no skipping.
 
+#### 2a. Extract findings to report.md
+
+Append an audit section to `report.md` documenting what was investigated and changed.
+Pull structured data from earlier phases — do NOT reconstruct from scratch:
+- Phase 3 evidence table → feeds the "Implemented Fixes" table (findings + evidence)
+- Phase 4 implementation results → feeds the "Files Changed" table (before/after lines)
+- Phase 5 review verdict → included in the summary under Key Findings
+- **Phase 1-fast path:** Phases 2-4 don't exist. Derive fixes from Phase 1-fast Step 2-3 evidence and file changes from Step 4 edits. Same audit format, different data source.
+
+**Dedup check before appending:**
+1. Grep `report.md` for the topic/area being documented
+2. Check existing audit section headers (`## Template Improvement Audit`) for overlap
+3. If a prior section covers the same area: update/extend that section instead
+4. Only create a new section if the topic is genuinely new
+
+**Required audit section format:**
 ```
-Should I append investigation findings to report.md?
-- Section: "Template Improvement Audit vN: [topic]"
+## Template Improvement Audit vN: [Topic]
+
+**Date:** YYYY-MM-DD
+**Scope:** [which skills/agents/hooks were investigated]
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | [sev] | [what was changed] | [source of evidence] |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| [path] | [lines] | [lines] | [description] |
+
+### Key Findings
+- [2-5 bullet points of high-level insights/patterns discovered]
 ```
 
-If yes: append a new audit section following the existing format (see sections 22-32).
+**After appending or extending:** update the Table of Contents at the top of `report.md`
+to include the new/updated section with its line number.
+
+#### 2b. Extract learnings to memory
+
+Scan the conversation for:
+- User corrections ("actually, do X not Y")
+- Convention discoveries (patterns that weren't documented)
+- Blocked items or limitations encountered
+
+Before writing to memory, check if existing memory already covers the topic — update
+rather than duplicate. Skip this sub-step entirely if nothing novel was discovered.
 
 ### Step 3: Cleanup
 
@@ -425,6 +469,7 @@ If the user interjects during any phase:
 | "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
 | "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
+| "The fix was small, no new patterns discovered" | Even small fixes reveal where the template was deficient. The pattern worth documenting is WHY it was deficient — that prevents the same class of issue. |
 
 ## Definition of Done
 
@@ -434,6 +479,7 @@ If the user interjects during any phase:
 - [ ] Phase 3: Evidence table presented, user approved specific changes
 - [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
 - [ ] Phase 5: Independent review by fresh agent passed
-- [ ] Phase 6: Summary presented, state file cleaned up, report.md updated if applicable
+- [ ] Phase 6: Summary presented, state file cleaned up
+- [ ] report.md updated with audit section (or existing section extended)
 - [ ] All changed SKILL.md files under 500 lines
 - [ ] No scope creep beyond approved changes

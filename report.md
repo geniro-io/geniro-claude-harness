@@ -38,6 +38,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 30. [Template Improvement Audit v8: Review Skill & Agent Cross-Pollination](#template-improvement-audit-v8-review-skill--agent-cross-pollination)
 31. [Template Improvement Audit v9: Follow-Up Skill Cross-Pollination](#template-improvement-audit-v9-follow-up-skill-cross-pollination)
 32. [Template Improvement Audit v10: All Remaining Skills](#template-improvement-audit-v10-all-remaining-skills)
+33. [Template Improvement Audit v11: Follow-Up Token Optimization](#template-improvement-audit-v11-follow-up-token-optimization)
 
 ---
 
@@ -4764,3 +4765,34 @@ Cross-referenced plan formats from 6 frameworks:
 | `skills/implement/SKILL.md` | Modified | Phase 2-3 refactored to reference plan skill + criteria file |
 | `README.md` | Modified | Added plan skill to counts and directory tree |
 | `skills/setup/SKILL.md` | Modified | Added plan/ to skills copy list, updated counts |
+
+---
+
+## Template Improvement Audit v11: Follow-Up Token Optimization
+
+**Date:** 2026-04-06
+**Scope:** `/follow-up` skill — delegation enforcement, simplify phase, review quality
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+**Trigger:** Production observation — follow-up orchestrator implementing 10+ file Medium changes directly, consuming excessive orchestrator tokens instead of delegating
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | HIGH | Added coordinator statement: "You delegate implementation work to subagents. You do NOT write code directly — except Trivial." Follow-up was the only orchestrator skill without this identity block. | All other orchestrator skills (implement, review, deep-simplify, refactor) have explicit coordinator statements. Report.md L4294: "Without it, Claude will read and review code itself." |
+| 2 | HIGH | Added 3 anti-rationalization rows about delegation: "I'll implement directly", "I'll quickly edit myself", "Spawning agent is overkill" | Thread showed orchestrator doing `Write` and `Update` for a Medium change. Implement skill has equivalent rows (lines 395-401). |
+| 3 | MEDIUM | Added Phase 3: Simplify — spawns sonnet agent with `simplify-criteria.md` for Medium changes, safe revert if CI fails | Implement has Phase 5 (Simplify) between implementation and review. Follow-up lacked this quality pass. |
+| 4 | MEDIUM | Upgraded review agents to use structured criteria files from `.claude/skills/review/` instead of ad-hoc inline descriptions | Implement Phase 6 Stage C and standalone /review both pre-inline criteria files. Follow-up was using ad-hoc dimension descriptions. Report.md L598-614 on shared criteria files. |
+| 5 | LOW | Added `## Tests — MANDATORY` section to Small and Medium implementation agent prompts | Implement-reference agent template has mandatory Tests section. Follow-up agents lacked test requirements. |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/follow-up/SKILL.md` | 499 lines | 483 lines | Coordinator statement, simplify phase, criteria-based review, test-mandatory agents, delegation anti-rationalization |
+
+### Key Findings
+- Follow-up was the only orchestrator skill that allowed direct code writing beyond trivial edits — all other skills had explicit coordinator identity statements
+- The absence of a simplify phase meant AI-generated anti-patterns went straight from implementation to validation without a quality pass
+- Ad-hoc review dimensions in follow-up produced lower-quality reviews than the structured criteria files used by implement and standalone review
+- Anthropic's own guidance (internet research) supports selective delegation with complexity thresholds — the Trivial carve-out for direct implementation is correct and aligned with official docs

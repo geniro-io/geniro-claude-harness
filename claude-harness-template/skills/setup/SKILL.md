@@ -369,9 +369,39 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 
 **Review criteria** — Do NOT copy criteria files here. They are generated in Phase 3.5 with stack-specific content.
 
-To copy, read each file from `$TEMPLATE_DIR` and write it to the project's `.claude/` directory. Copy file-by-file — do NOT use `rm -rf` on entire directories or `cp -r` that would overwrite the whole directory. If `.claude/agents/` already contains files not in the template (user-created agents), they must remain untouched after this step.
+Use shell `cp` via the Bash tool to copy each file individually — do NOT use `rm -rf` on entire directories or `cp -r` on directories, as that would overwrite user-created files. If `.claude/agents/` already contains files not in the template (user-created agents), they must remain untouched after this step.
 
 If the template was bootstrapped via `install.sh`, `$TEMPLATE_DIR` is `.claude/.artifacts/template-source/`. Otherwise it's the external template path provided by the user.
+
+```bash
+# Create target directories (install.sh only creates .claude/.artifacts/template-source/ and .claude/skills/setup/)
+mkdir -p .claude/agents
+mkdir -p .claude/hooks
+mkdir -p .claude/rules
+mkdir -p .claude/skills/plan
+mkdir -p .claude/skills/implement
+# ... repeat for each selected skill
+
+# Agents (copy all or selected subset)
+cp "$TEMPLATE_DIR/agents/architect-agent.md" .claude/agents/
+cp "$TEMPLATE_DIR/agents/skeptic-agent.md" .claude/agents/
+# ... repeat for each selected agent
+
+# Skills (copy all files in each selected skill directory — includes companion files like plan-criteria.md)
+cp "$TEMPLATE_DIR/skills/plan/"* .claude/skills/plan/
+cp "$TEMPLATE_DIR/skills/implement/"* .claude/skills/implement/
+# ... repeat for each selected skill
+
+# Hooks (copy all or selected subset)
+cp "$TEMPLATE_DIR/hooks/dangerous-command-blocker.sh" .claude/hooks/
+cp "$TEMPLATE_DIR/hooks/context-monitor.sh" .claude/hooks/
+# ... repeat for each selected hook
+chmod +x .claude/hooks/*.sh
+```
+
+Files like `backend-agent.md`, `frontend-agent.md`, `rules/backend-conventions.md`, and `rules/security-patterns.md` are also copied via `cp` here, then tailored via Read+Edit in Phases 3.2-3.4.
+
+For `settings.json`: if no existing file, use `cp` from template. If one already exists, use Read+Edit to **merge** template entries — preserve any user-added permissions, hooks, or custom settings.
 
 **Note:** Do NOT copy `skills/setup/` from the template — the setup skill is removed after completion (Phase 5.2). It's a bootstrap-only skill, not part of the permanent harness.
 
@@ -777,7 +807,7 @@ For each enrichment and extension identified by the subagents:
 1. **Enrichments** — Edit the fresh file to insert project-specific content into the identified section. Use the same merge principle as conflict-resolution.md: template structure stays, project content goes in.
 2. **Extensions** — Add new sections at the identified location. Keep them clearly separated so future template updates can distinguish template sections from project additions.
 3. **Conflicts** — Skip. Log them in the summary report so the user knows what was NOT ported and why.
-4. **User-only files** — Copy them from backup directly into `.claude/<category>/`. These are the user's custom agents/skills/hooks — the template has no opinion about them.
+4. **User-only files** — Restore from backup using shell `cp` (e.g., `cp .claude/.artifacts/_backup_agents/my-custom-agent.md .claude/agents/`). These are the user's custom agents/skills/hooks — the template has no opinion about them.
 
 **Anti-corruption rules:**
 - Do NOT change phase ordering, compliance tables, Definition of Done, or any structural element in template files
@@ -809,9 +839,10 @@ If user chose B, compare every file in the installed `.claude/` against the temp
 2. **Read and diff each non-identical file.** For every file that differs between template and installed:
    - Read both versions (template and installed)
    - Identify the specific differences: added sections, removed sections, changed content
-   - Classify changes as:
-     - **Structural** — template improvements (new phases, better instructions, bug fixes)
-     - **Project-specific** — customizations the user or `/setup` made for their stack (backend agent tailoring, rules files, review criteria)
+   - Assess each file on two independent dimensions:
+     - **Has structural improvements?** — template additions (new phases, better instructions, bug fixes)
+     - **Has project-specific content?** — customizations the user or `/setup` made for their stack (backend agent tailoring, rules files, review criteria)
+   - Both can be true. For files with both, do section-level analysis: identify which sections are structural improvements and which contain project-specific content
 
 3. **Present the full diff report** to the user via output (not AskUserQuestion — too large):
 
@@ -824,12 +855,12 @@ If user chose B, compare every file in the installed `.claude/` against the temp
    - ...
 
    ### Modified (N files) — review needed
-   | File | Changes | Type |
-   |------|---------|------|
-   | agents/reviewer-agent.md | +12 lines in Phase 3, removed old validation | Structural |
-   | skills/implement/SKILL.md | New Phase 5 (Simplify), restructured Review | Structural |
-   | agents/backend-agent.md | Django patterns, pytest commands | Project-specific |
-   | rules/backend-conventions.md | Python conventions | Project-specific |
+   | File | Changes | Structural? | Project-specific? |
+   |------|---------|-------------|-------------------|
+   | agents/reviewer-agent.md | +12 lines in Phase 3, removed old validation | Yes | No |
+   | skills/implement/SKILL.md | New Phase 5 (Simplify), restructured Review | Yes | No |
+   | agents/backend-agent.md | Django patterns, pytest commands | No | Yes |
+   | rules/security-patterns.md | 5 new security sections + NestJS-tailored patterns | Yes | Yes |
 
    ### Template-only (N files) — new in template
    - agents/knowledge-retrieval-agent.md (NEW)
@@ -842,15 +873,19 @@ If user chose B, compare every file in the installed `.claude/` against the temp
 
 4. **For each modified file**, show the specific differences:
    ```
-   ### agents/reviewer-agent.md
+   ### agents/reviewer-agent.md (Structural only)
    **Structural changes from template:**
    - Added: confidence scoring in Phase 2 (lines 45-58)
    - Changed: review output format (line 72 → new table format)
    - Removed: redundant validation step (old lines 80-95)
 
+   ### rules/security-patterns.md (Both)
+   **Structural changes from template:**
+   - Added: 5 new security sections (CSRF, XSS, injection, auth, logging)
+   - Changed: threat model format (section 2 → new checklist format)
    **Your project-specific content (preserved):**
-   - Django-specific patterns in Phase 3
-   - Custom review checklist items
+   - NestJS guard patterns in section 3
+   - Custom Passport.js auth rules
    ```
 
 5. **Ask for decisions** using `AskUserQuestion`:
@@ -864,12 +899,14 @@ If user chose B, compare every file in the installed `.claude/` against the temp
    ```
 
 6. **Apply based on choice:**
-   - **A (recommended):** For each modified file, start from the new template version and port in project-specific content. Same algorithm as fresh install — template as base, port user customizations in. For generated files (backend-agent, frontend-agent, rules, review criteria), re-run the generation phases (Phase 3.2-3.5) with fresh codebase analysis.
+   - **A (recommended):** For each modified file with structural improvements (including "Both" files), copy the new template version using shell `cp`, then Edit to port in project-specific content. Same algorithm as fresh install — template as base, port user customizations in. For generated files (backend-agent, frontend-agent, rules, review criteria), re-run the generation phases (Phase 3.2-3.5) with fresh codebase analysis. Files with only project-specific changes are left as-is.
    - **B:** Present each file one at a time with full diff, ask accept/skip/custom per file.
    - **C:** Overwrite all files from template, re-run Phase 3 for generated files.
    - **D:** Only copy files that exist in template but not in `.claude/`. Skip all existing files.
 
-7. **Install new files** — for template-only files (new agents, skills, hooks), copy them regardless of the user's choice above.
+7. **Install new files** — for template-only files (new agents, skills, hooks), use shell `cp` to copy them into `.claude/` regardless of the user's choice above.
+
+Then proceed to Phase 4 (Verify) and Phase 5 (Cleanup) as normal.
 
 ### Step 2C: Regenerate Project-Specific Only
 
@@ -877,6 +914,8 @@ If user chose C:
 1. Re-run Phase 1 (Codebase Analysis) to detect current stack
 2. Re-run Phase 3.2 (Tailor Backend Agent), Phase 3.3 (Tailor Frontend Agent), Phase 3.4 (Tailor Rules), Phase 3.5 (Generate Review Criteria)
 3. Skip universal files — they remain as-is
+
+Then proceed to Phase 4 (Verify) and Phase 5 (Cleanup) as normal.
 
 **If `.claude/` exists but has no recognizable harness files** (no agents/skills/hooks from this template):
 
