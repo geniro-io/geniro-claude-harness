@@ -929,8 +929,10 @@ How would you like to proceed?
 A) Apply all recommended changes (auto-apply verbatim updates, merge structural 
    changes into tailored files, regenerate criteria, install new files)
 B) Let me review each category individually
-C) Fresh install — reinstall everything from template, port back my project content
-D) Cancel
+C) Apply ALL template files — overwrite every template file with latest version,
+   preserve project-specific content in tailored files
+D) Fresh install — reinstall everything from template, port back my project content
+E) Cancel
 ```
 
 ### Step 3A: Apply Recommended Changes
@@ -1021,15 +1023,45 @@ For **new files**: ask which to install.
 
 After applying selected changes, update state file and refresh template snapshot (same as 3A.5).
 
-### Step 3C: Fresh Install
+### Step 3C: Apply ALL Template Files
 
-If user chose C, run the **Fresh Install (with Knowledge Preservation)** flow defined immediately below: backup → clean install → analyze backup → enrich → delete backup.
+If user chose C — apply every template file regardless of whether changes were detected. This is useful when the comparison missed changes or the user wants to ensure everything is in sync.
+
+**3C.1: Overwrite all verbatim files**
+
+Copy every verbatim template file (agents, hooks, non-tailored skills) directly from template:
+```bash
+# Copy all template files, overwriting existing
+for f in $(find "$TEMPLATE_DIR" -type f -not -name "*.example" | sed "s|$TEMPLATE_DIR/||"); do
+  mkdir -p ".claude/$(dirname "$f")"
+  cp "$TEMPLATE_DIR/$f" ".claude/$f"
+done
+chmod +x .claude/hooks/*.sh 2>/dev/null
+```
+
+**3C.2: Merge all tailored files**
+
+For each tailored file (CLAUDE.md, settings.json, review criteria), spawn a merge agent (same template as Step 3A.2) — even if no structural changes were detected. The agent reads both template and installed versions, applies the template structure while preserving all project-specific content.
+
+Spawn all merge agents in a single message.
+
+**3C.3: Regenerate review criteria**
+
+Re-run Phase 1 (Codebase Analysis) to detect the current stack, then re-run Phase 3.5 (Generate Review Criteria) using the new template criteria files.
+
+**3C.4: Update state file and refresh template snapshot**
+
+Same as Step 3A.5 — update `.claude/.artifacts/.harness-state.json` and refresh the template snapshot.
+
+### Step 3D: Fresh Install
+
+If user chose D, run the **Fresh Install (with Knowledge Preservation)** flow defined immediately below: backup → clean install → analyze backup → enrich → delete backup.
 
 **DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
 
 ### Fresh Install (with Knowledge Preservation)
 
-If the user chose C (Fresh Install) in the Smart Update flow, or if this is a legacy install where the user prefers a clean slate:
+If the user chose D (Fresh Install) in the Smart Update flow, or if this is a legacy install where the user prefers a clean slate:
 
 The template is ALWAYS the base — but existing project-specific knowledge is not thrown away. The flow is: **backup → clean copy → analyze backup → enrich → delete backup.**
 
