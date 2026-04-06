@@ -9,7 +9,7 @@ set -euo pipefail
 INPUT=$(cat)
 
 # Create .claude directory structure if needed
-STATE_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/.state"
+STATE_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/.artifacts/state"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
 # Get current state information

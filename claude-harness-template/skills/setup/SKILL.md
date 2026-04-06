@@ -34,7 +34,7 @@ your-project/
 └── .claude/
     ├── agents/                  # Committed — 12 agents
     ├── skills/                  # Committed — 13 skills
-    ├── hooks/                   # Committed — 9 hooks (8 registered + 1 utility)
+    ├── hooks/                   # Committed — 10 hooks (8 registered + 1 StatusLine + 1 utility)
     ├── rules/                   # Committed — generated per-project
     ├── settings.json            # Committed — permissions & hooks
     └── .artifacts/              # Git-ignored via root .gitignore
@@ -75,6 +75,13 @@ Store the resolved path as `$TEMPLATE_DIR` for all subsequent phases.
 
 Track whether the source was the bootstrap location (`$BOOTSTRAPPED=true`) — this determines whether cleanup runs at the end (Phase 5).
 
+Also check for `.claude/.harness-state.json`:
+- If it exists → read it. Store as `$HARNESS_STATE`. This contains the template version, install date, and file manifest with categories (verbatim/tailored/user-created). Its presence means a previous `/setup` completed successfully — this is an **update**, not a fresh install.
+- If it does not exist but `.claude/` has recognizable harness files (agents/skills/hooks from this template) → **legacy install** (installed before state tracking was added). Treat as update but without baseline data.
+- If it does not exist and `.claude/` has no recognizable harness files, only non-template files, or doesn't exist → **fresh install**. (Non-template files are handled by Phase 1.5 Conflict Resolution during the fresh install flow.)
+
+Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-update`).
+
 ## What Gets Written to Your Project
 
 **Tailored (copied from template, then edited by AI for your stack):**
@@ -87,7 +94,7 @@ Track whether the source was the bootstrap location (`$BOOTSTRAPPED=true`) — t
 **Copied directly from template (universal, no customization needed):**
 - 11 universal agents from `$TEMPLATE_DIR/agents/`
 - 13 skills from `$TEMPLATE_DIR/skills/` (setup is removed after completion)
-- 9 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 backpressure utility)
+- 10 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 StatusLine + 1 backpressure utility)
 - `settings.json` from `$TEMPLATE_DIR/settings.json`
 
 **Written to .artifacts/ (git-ignored, not committed):**
@@ -161,11 +168,15 @@ Check for pre-existing configuration:
 - `AGENTS.md`, `.agents.md` (generic agent instructions — read for context)
 - `.editorconfig`, `.prettierrc`, `eslint.config.*`
 
-If `.claude/` exists with agents, skills, or hooks (harness files already present), proceed with the "Re-Running Setup" flow (see below) — which compares each file against the template and shows differences.
+Route based on `$INSTALL_MODE` detected in Phase 0:
 
-If `.claude/` exists but contains only user-created files (no agents/skills/hooks from this template), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
+- **`fresh`**: No existing harness. Continue to Phase 2 (User Interview) as normal.
+- **`update`**: Previous successful install detected (`.harness-state.json` exists). Skip to the **Re-Running Setup (Smart Update)** flow below. Do NOT run Phases 2-3 unless the user chooses Fresh Install.
+- **`legacy-update`**: Harness files exist but no `.harness-state.json` (installed before state tracking). Skip to **Re-Running Setup (Smart Update)** flow — it handles the "no snapshot" case with header-level heuristics.
 
-If `.claude/` does NOT exist but `CLAUDE.md` exists at the project root, this is a standalone instructions file (common — many projects have a hand-written CLAUDE.md). **Leave it untouched.** The setup skill does not generate or modify CLAUDE.md — that's the developer's responsibility. The rest of `.claude/` is installed normally as a fresh setup.
+If `.claude/` exists but contains only non-template files (no recognizable harness agents/skills/hooks AND no `.harness-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
+
+If `.claude/` does NOT exist but `CLAUDE.md` exists at the project root, this is a standalone instructions file (common — many projects have a hand-written CLAUDE.md). **Leave it untouched.** The rest of `.claude/` is installed normally as a fresh setup.
 
 ### 1.5 Existing File Conflict Resolution
 
@@ -334,7 +345,7 @@ Which integrations do you want to enable?
 ```
 Which components do you want to install?
 
-A) Full setup — all 13 agents, 13 skills (incl. plan), 9 hooks (recommended)
+A) Full setup — all 13 agents, 13 skills (incl. plan), 10 hooks (recommended)
 B) Core only — 6 core agents, 8 core skills, essential hooks
 C) Minimal — just implement, review, and safety hooks
 D) Custom — I'll pick individually
@@ -360,12 +371,12 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 
 **Hooks** (copy all or selected subset based on integration choices):
 - Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`
-- Monitoring: `context-monitor.sh`
+- Monitoring: `context-monitor.sh`, `context-statusline.sh` (StatusLine bridge — provides real-time context metrics)
 - Lifecycle: `pre-compact-state-save.sh`, `post-compact-notification.sh`
 - Database: `db-guard.sh` (only if database integration selected)
 - Utility: `backpressure.sh` (not a hook — sourced by skills for output compression)
 
-**settings.json** — If no existing `settings.json`, copy from template and adjust hook paths. If `settings.json` already exists, **merge** template entries into it — preserve any user-added permissions, hooks, or custom settings that aren't in the template.
+**settings.json** — If no existing `settings.json`, copy from template and adjust hook paths. If `settings.json` already exists, **merge** template entries into it — preserve any user-added permissions, hooks, or custom settings that aren't in the template. The template `settings.json` includes a `statusline` field for the context monitoring bridge — merge this into the existing settings alongside the hooks.
 
 **Review criteria** — Do NOT copy criteria files here. They are generated in Phase 3.5 with stack-specific content.
 
@@ -395,9 +406,27 @@ cp "$TEMPLATE_DIR/skills/implement/"* .claude/skills/implement/
 # Hooks (copy all or selected subset)
 cp "$TEMPLATE_DIR/hooks/dangerous-command-blocker.sh" .claude/hooks/
 cp "$TEMPLATE_DIR/hooks/context-monitor.sh" .claude/hooks/
+cp "$TEMPLATE_DIR/hooks/context-statusline.sh" .claude/hooks/
 # ... repeat for each selected hook
 chmod +x .claude/hooks/*.sh
 ```
+
+### 3.1.1 Save Template Snapshot
+
+Save a copy of the raw template files (before any tailoring) to `.claude/.artifacts/template-snapshot/`. This snapshot enables future `/setup` re-runs to distinguish template structural changes from project-specific tailoring.
+
+```bash
+# Save template baseline for future 3-way comparison
+rm -rf .claude/.artifacts/template-snapshot/
+mkdir -p .claude/.artifacts/template-snapshot/
+for dir in agents hooks rules skills; do
+  if [[ -d "$TEMPLATE_DIR/$dir" ]]; then
+    cp -r "$TEMPLATE_DIR/$dir" .claude/.artifacts/template-snapshot/
+  fi
+done
+```
+
+This snapshot is git-ignored (under `.claude/.artifacts/`) and is refreshed on every `/setup` run. On future re-runs, comparing this snapshot against the new template reveals what changed in the template itself — independent of any AI tailoring or user modifications.
 
 Files like `backend-agent.md`, `frontend-agent.md`, `rules/backend-conventions.md`, and `rules/security-patterns.md` are also copied via `cp` here, then tailored via Read+Edit in Phases 3.2-3.4.
 
@@ -648,17 +677,66 @@ If no issues found, return: "ALL CHECKS PASSED — harness is ready to commit."
 
 ### 4.3 Ensure Runtime Directories are Git-Ignored
 
-Add `.claude/.artifacts/` and `.claude/.state/` to the **root** `.gitignore` (not `.claude/.gitignore`):
+Add `.claude/.artifacts/` to the **root** `.gitignore` (not `.claude/.gitignore`). This covers all runtime directories including `state/`, `planning/`, `debug/`, `knowledge/`, and `template-snapshot/`:
 
 ```bash
 # Add to root .gitignore if not already present
 grep -q "\.claude/\.artifacts" .gitignore 2>/dev/null || echo ".claude/.artifacts/" >> .gitignore
-grep -q "\.claude/\.state" .gitignore 2>/dev/null || echo ".claude/.state/" >> .gitignore
 ```
 
 Do NOT create `.claude/.gitignore` — all ignore rules go in the project root.
 
-### 4.4 Summary Report
+### 4.4 Write Harness State File
+
+Write `.claude/.harness-state.json` to track the installation state for future re-runs. This file is git-ignored (covered by the `.claude/.harness-state.json` entry added to `.gitignore` below).
+
+Use the Bash tool to get the template commit hash (if `$TEMPLATE_DIR` is a git repo or was bootstrapped from one):
+
+```bash
+# Get template commit hash if available
+TEMPLATE_COMMIT=$(cd "$TEMPLATE_DIR" && git rev-parse HEAD 2>/dev/null || echo "unknown")
+```
+
+Write the state file:
+
+```json
+{
+  "harness_version": "$TEMPLATE_COMMIT",
+  "installed_at": "ISO-8601 timestamp",
+  "install_mode": "fresh|update|legacy-update",
+  "files": {
+    "verbatim": [
+      "agents/architect-agent.md",
+      "agents/skeptic-agent.md",
+      "skills/implement/SKILL.md",
+      ...all files copied directly from template
+    ],
+    "tailored": [
+      "agents/backend-agent.md",
+      "agents/frontend-agent.md",
+      "rules/backend-conventions.md",
+      "rules/security-patterns.md",
+      "skills/review/bugs-criteria.md",
+      ...all files that were AI-generated or tailored
+    ],
+    "user_created": [
+      ...any files in .claude/ that are NOT from the template
+    ]
+  }
+}
+```
+
+Populate the lists from the actual files installed during Phase 3. The categories are:
+- **verbatim**: Files copied directly from template without AI modification (all agents except backend/frontend, all skills, all hooks, settings.json)
+- **tailored**: Files that were copied then AI-edited (backend-agent, frontend-agent, rules files) or generated from scratch (review criteria files)
+- **user_created**: Files that existed in `.claude/` before setup and are not part of the template
+
+Ensure `.harness-state.json` is git-ignored. Add to root `.gitignore` if not covered:
+```bash
+grep -q "\.harness-state\.json" .gitignore 2>/dev/null || echo ".claude/.harness-state.json" >> .gitignore
+```
+
+### 4.5 Summary Report
 
 Present to the user:
 
@@ -692,26 +770,271 @@ Next steps:
 4. Start using: /implement, /review, /refactor
 ```
 
-## Re-Running Setup (Per-File Diff Comparison)
+## Re-Running Setup (Smart Update)
 
-If the user runs `/setup` again on a project that already has `.claude/` with harness files:
+If `/setup` detects `$INSTALL_MODE` is `update` or `legacy-update`, it enters update mode instead of the fresh install pipeline.
 
-### Step 1: Ask Intent
+### Step 1: Analyze Changes (before asking the user anything)
 
-Use `AskUserQuestion`:
+Do NOT ask the user what they want to do yet. First, gather data so the user can make an informed choice.
+
+#### 1a: Build File Inventory
+
+Compare the template against the installed harness:
+
+```bash
+# List template files (relative paths)
+(cd "$TEMPLATE_DIR" && find agents skills hooks rules -type f 2>/dev/null)
+# List installed files (relative paths)
+(cd .claude && find agents skills hooks rules -type f 2>/dev/null)
 ```
-This project already has a harness installed.
 
-What would you like to do?
-A) Fresh install — reinstall from template, then port back your project-specific content (backup → clean install → enrich → delete backup)
-B) Compare & update — analyze each file against the template, show differences, decide per-file
-C) Regenerate project-specific files only (backend-agent, frontend-agent, rules, review criteria)
+Classify each file using `$HARNESS_STATE` (if available from a previous install) or by matching filenames against the template:
+
+| Category | Detection | Update Strategy |
+|---|---|---|
+| **Verbatim** (in `$HARNESS_STATE.files.verbatim` or filename matches template AND file was not tailored) | Direct content comparison against template | Auto-apply if template changed |
+| **Tailored** (in `$HARNESS_STATE.files.tailored` or is one of: backend-agent, frontend-agent, rules/*, skills/review/*-criteria.md) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
+| **User-created** (in `$HARNESS_STATE.files.user_created` or exists in .claude/ but NOT in template) | Skip entirely | Never touch |
+| **Template-only** (exists in template but NOT in .claude/) | New file | Offer to install |
+
+#### 1b: Diff Verbatim Files
+
+For files categorized as **verbatim**: use `cmp` via Bash to quickly identify which actually changed, then only read the changed ones:
+
+```bash
+# Quick binary comparison — only shows files that differ
+for f in $VERBATIM_FILES; do
+  if [[ -f "$TEMPLATE_DIR/$f" ]] && [[ -f ".claude/$f" ]] && ! cmp -s "$TEMPLATE_DIR/$f" ".claude/$f"; then
+    echo "CHANGED: $f"
+  fi
+done
+```
+
+For each changed verbatim file, read both versions to summarize the differences (new sections, bug fixes, restructured phases).
+
+#### 1c: Diff Tailored Files (structural changes only)
+
+For files categorized as **tailored**, do NOT compare the installed file against the template — that would just show LLM-generated project-specific content (Django patterns, domain rules, etc.), which is expected and not actionable.
+
+Instead, detect **template structural changes** using one of these strategies:
+
+**If template snapshot exists** (`.claude/.artifacts/template-snapshot/`):
+Compare the **template snapshot** (what the template looked like when setup last ran) against the **current template** (what the template looks like now). This reveals what changed in the template itself — new sections, restructured phases, added constraints — independent of any project-specific tailoring.
+
+```bash
+# Compare old template baseline vs new template for tailored files
+for f in $TAILORED_FILES; do
+  if [[ -f ".claude/.artifacts/template-snapshot/$f" ]] && [[ -f "$TEMPLATE_DIR/$f" ]]; then
+    if ! cmp -s ".claude/.artifacts/template-snapshot/$f" "$TEMPLATE_DIR/$f"; then
+      echo "TEMPLATE STRUCTURAL CHANGE: $f"
+    fi
+  fi
+done
+```
+
+For files with template structural changes, spawn a subagent per file (all in parallel) to identify the specific structural differences:
+
+```
+Agent(prompt="""
+Compare TWO versions of the same template file (NOT the project's installed version):
+- OLD template: .claude/.artifacts/template-snapshot/{file}
+- NEW template: $TEMPLATE_DIR/{file}
+
+Read both files. Identify structural changes — sections added, removed, restructured,
+new constraints, new phases, changed instructions. Ignore placeholder values
+({{FRAMEWORK}}, {{ORM}}, etc.) — those are filled during setup and are not structural.
+
+Report each structural change:
+- SECTION: which section changed
+- CHANGE TYPE: added / removed / restructured / constraint-added
+- DESCRIPTION: what specifically changed
+- IMPACT: how this affects a project that already has a tailored version of this file
+
+Do NOT suggest how to apply these changes — just identify them.
+""", description="Diff template structural changes: {file}")
+```
+
+**If no template snapshot exists** (legacy install):
+Compare section headers (`##` and `###` lines) between the template file and the installed file. New headers in the template that don't exist in the installed file indicate structural additions. This is a rough heuristic but catches the most important changes (new phases, new sections).
+
+```bash
+# Extract section headers from both files
+grep -n "^##" "$TEMPLATE_DIR/$file" > /tmp/template_headers.txt
+grep -n "^##" ".claude/$file" > /tmp/installed_headers.txt
+diff /tmp/template_headers.txt /tmp/installed_headers.txt
+```
+
+For **review criteria files** (`skills/review/*-criteria.md`): these are fully generated (not edited from template). On update, they should be **regenerated** using the current template criteria as reference + current codebase analysis. Flag them as "regenerate recommended" rather than diffing.
+
+#### 1d: Identify New Files
+
+```bash
+for f in $(cd "$TEMPLATE_DIR" && find agents skills hooks rules -type f 2>/dev/null); do
+  if [[ ! -f ".claude/$f" ]]; then
+    echo "NEW: $f"
+  fi
+done
+```
+
+### Step 2: Present Analysis & Suggest Path
+
+Present the findings to the user. Show what changed, categorized by action needed:
+
+```
+## Harness Update Analysis
+
+### Verbatim files with template updates (N files)
+These files are direct copies from the template and have been updated upstream:
+| File | Change Summary |
+|------|---------------|
+| agents/reviewer-agent.md | +15 lines: new confidence scoring in Phase 2 |
+| skills/implement/SKILL.md | Restructured: new Phase 5 (Simplify) added |
+
+→ Recommended: auto-apply all (template is authoritative for these files)
+
+### Tailored files with template structural changes (N files)
+These files were customized for your project, but the template structure has changed:
+| File | Structural Change | Your Content |
+|------|------------------|--------------|
+| agents/backend-agent.md | New "Quality Checklist" section added | Django patterns preserved |
+
+→ Recommended: apply structural changes, preserve your project-specific content
+
+### Review criteria — regeneration recommended (N files)
+These were generated for your stack and should be regenerated from the updated template:
+| File | Reason |
+|------|--------|
+| skills/review/bugs-criteria.md | Template criteria updated with new checks |
+
+→ Recommended: regenerate using current codebase analysis
+
+### New template files (N files)
+These are new in the template and not yet installed:
+| File | Purpose |
+|------|---------|
+| agents/knowledge-retrieval-agent.md | RAG-based knowledge retrieval |
+
+→ Recommended: install all
+
+### Your project-only files (N files) — won't be touched
+- agents/custom-domain-agent.md
+
+### No changes (N files)
+- agents/architect-agent.md, agents/skeptic-agent.md, ...
+```
+
+Then ask using `AskUserQuestion`:
+
+```
+How would you like to proceed?
+
+A) Apply all recommended changes (auto-apply verbatim updates, merge structural 
+   changes into tailored files, regenerate criteria, install new files)
+B) Let me review each category individually
+C) Fresh install — reinstall everything from template, port back my project content
 D) Cancel
 ```
 
-### Step 2A: Fresh Install (with Knowledge Preservation)
+### Step 3A: Apply Recommended Changes
 
-If user chose A, the template is ALWAYS the base — but existing project-specific knowledge is not thrown away. The flow is: **backup → clean copy → analyze backup → enrich → delete backup.**
+If user chose A:
+
+**3A.1: Auto-apply verbatim file updates**
+
+For each changed verbatim file, copy the template version directly:
+```bash
+cp "$TEMPLATE_DIR/$rel" ".claude/$rel"
+```
+
+**3A.2: Merge structural changes into tailored files**
+
+For each tailored file with template structural changes, spawn a subagent (all in parallel):
+
+```
+Agent(prompt="""
+Apply structural template changes to a project-tailored file.
+
+TEMPLATE (new version): $TEMPLATE_DIR/{file}
+INSTALLED (project-tailored version): .claude/{file}
+STRUCTURAL CHANGES IDENTIFIED:
+{list of structural changes from Step 1c}
+
+Your task:
+1. Read the installed file (the project's tailored version)
+2. Read the new template file
+3. For each structural change identified:
+   - If it's a NEW section: add it to the installed file at the same relative position
+     as in the template. Use the template's content as-is (with {{PLACEHOLDER}} values
+     if the section has them — they will need tailoring).
+   - If it's a RESTRUCTURED section: update the structure (headings, ordering, flow)
+     while preserving any project-specific content within the section.
+   - If it's a NEW CONSTRAINT: add it to the appropriate location.
+   - If a section was REMOVED from the template: keep it in the installed file
+     (it may contain project-specific content — flag for user review).
+4. PRESERVE all project-specific content: domain context, framework patterns,
+   custom commands, safety rules, real code examples from the project.
+5. After applying changes, re-run the tailoring step for any newly added sections
+   that contain {{PLACEHOLDER}} values — replace them with the project's actual
+   detected values.
+
+Use Edit tool to apply changes.
+""", description="Merge structural changes: {file}")
+```
+
+Spawn one subagent per tailored file with structural changes, all in parallel.
+
+**3A.3: Regenerate review criteria**
+
+Re-run Phase 1 (Codebase Analysis) to detect the current stack, then re-run Phase 3.5 (Generate Review Criteria) using the new template criteria files.
+
+**3A.4: Install new files**
+
+```bash
+for f in $NEW_FILES; do
+  mkdir -p ".claude/$(dirname "$f")"
+  cp "$TEMPLATE_DIR/$f" ".claude/$f"
+done
+chmod +x .claude/hooks/*.sh 2>/dev/null
+```
+
+**3A.5: Update state file and refresh template snapshot**
+
+Update `.claude/.harness-state.json` with the new template version, timestamp, and updated file manifest.
+
+Replace `.claude/.artifacts/template-snapshot/` with the current template files:
+```bash
+rm -rf .claude/.artifacts/template-snapshot/
+mkdir -p .claude/.artifacts/template-snapshot/
+for dir in agents hooks rules skills; do
+  if [[ -d "$TEMPLATE_DIR/$dir" ]]; then
+    cp -r "$TEMPLATE_DIR/$dir" .claude/.artifacts/template-snapshot/
+  fi
+done
+```
+
+### Step 3B: Review Each Category
+
+If user chose B, present each category one at a time with `AskUserQuestion`:
+
+For **verbatim updates**: show each changed file's diff summary, ask accept/skip per file.
+For **tailored structural changes**: show each structural change with context, ask accept/skip.
+For **criteria regeneration**: ask per-file whether to regenerate.
+For **new files**: ask which to install.
+
+After applying selected changes, update state file and refresh template snapshot (same as 3A.5).
+
+### Step 3C: Fresh Install
+
+If user chose C, run the **Fresh Install (with Knowledge Preservation)** flow defined immediately below: backup → clean install → analyze backup → enrich → delete backup.
+
+**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
+
+### Fresh Install (with Knowledge Preservation)
+
+If the user chose C (Fresh Install) in the Smart Update flow, or if this is a legacy install where the user prefers a clean slate:
+
+The template is ALWAYS the base — but existing project-specific knowledge is not thrown away. The flow is: **backup → clean copy → analyze backup → enrich → delete backup.**
 
 **Why backup-then-enrich instead of just wiping?** Existing files may contain project-specific patterns, domain rules, custom commands, safety constraints, or conventions that were added over time (by the user, by previous `/setup` runs, or by manual editing). A fresh install means "start from the latest template structure" — NOT "lose all project knowledge." The template provides the structure; the backup provides the project specificity.
 
@@ -827,100 +1150,6 @@ rm -f .claude/.artifacts/_backup_settings.json
 
 **DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
 
-### Step 2B: Per-File Diff Comparison
-
-If user chose B, compare every file in the installed `.claude/` against the template:
-
-1. **Build file inventory.** For each file category (agents, skills, hooks, rules, settings.json):
-   - List all files in the installed `.claude/<category>/`
-   - List all files in the template `$TEMPLATE_DIR/<category>/`
-   - Classify each file as: **identical**, **modified**, **template-only** (new in template), **project-only** (not in template)
-
-2. **Read and diff each non-identical file.** For every file that differs between template and installed:
-   - Read both versions (template and installed)
-   - Identify the specific differences: added sections, removed sections, changed content
-   - Assess each file on two independent dimensions:
-     - **Has structural improvements?** — template additions (new phases, better instructions, bug fixes)
-     - **Has project-specific content?** — customizations the user or `/setup` made for their stack (backend agent tailoring, rules files, review criteria)
-   - Both can be true. For files with both, do section-level analysis: identify which sections are structural improvements and which contain project-specific content
-
-3. **Present the full diff report** to the user via output (not AskUserQuestion — too large):
-
-   ```
-   ## File Comparison: Template vs Installed
-
-   ### Identical (N files) — no action needed
-   - agents/architect-agent.md
-   - agents/skeptic-agent.md
-   - ...
-
-   ### Modified (N files) — review needed
-   | File | Changes | Structural? | Project-specific? |
-   |------|---------|-------------|-------------------|
-   | agents/reviewer-agent.md | +12 lines in Phase 3, removed old validation | Yes | No |
-   | skills/implement/SKILL.md | New Phase 5 (Simplify), restructured Review | Yes | No |
-   | agents/backend-agent.md | Django patterns, pytest commands | No | Yes |
-   | rules/security-patterns.md | 5 new security sections + NestJS-tailored patterns | Yes | Yes |
-
-   ### Template-only (N files) — new in template
-   - agents/knowledge-retrieval-agent.md (NEW)
-   - skills/plan/plan-criteria.md (NEW)
-
-   ### Project-only (N files) — not in template
-   - agents/custom-domain-agent.md (user-created)
-   - skills/custom-workflow/SKILL.md (user-created)
-   ```
-
-4. **For each modified file**, show the specific differences:
-   ```
-   ### agents/reviewer-agent.md (Structural only)
-   **Structural changes from template:**
-   - Added: confidence scoring in Phase 2 (lines 45-58)
-   - Changed: review output format (line 72 → new table format)
-   - Removed: redundant validation step (old lines 80-95)
-
-   ### rules/security-patterns.md (Both)
-   **Structural changes from template:**
-   - Added: 5 new security sections (CSRF, XSS, injection, auth, logging)
-   - Changed: threat model format (section 2 → new checklist format)
-   **Your project-specific content (preserved):**
-   - NestJS guard patterns in section 3
-   - Custom Passport.js auth rules
-   ```
-
-5. **Ask for decisions** using `AskUserQuestion`:
-   ```
-   How would you like to handle the differences?
-
-   A) Update all structural changes, preserve project-specific content
-   B) Let me review each modified file individually
-   C) Update all — overwrite everything with template (re-run tailoring for generated files)
-   D) Skip updates — just install template-only (new) files
-   ```
-
-6. **Apply based on choice:**
-   - **A (recommended):** For each modified file with structural improvements (including "Both" files), copy the new template version using shell `cp`, then Edit to port in project-specific content. Same algorithm as fresh install — template as base, port user customizations in. For generated files (backend-agent, frontend-agent, rules, review criteria), re-run the generation phases (Phase 3.2-3.5) with fresh codebase analysis. Files with only project-specific changes are left as-is.
-   - **B:** Present each file one at a time with full diff, ask accept/skip/custom per file.
-   - **C:** Overwrite all files from template, re-run Phase 3 for generated files.
-   - **D:** Only copy files that exist in template but not in `.claude/`. Skip all existing files.
-
-7. **Install new files** — for template-only files (new agents, skills, hooks), use shell `cp` to copy them into `.claude/` regardless of the user's choice above.
-
-**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
-
-### Step 2C: Regenerate Project-Specific Only
-
-If user chose C:
-1. Re-run Phase 1 (Codebase Analysis) to detect current stack
-2. Re-run Phase 3.2 (Tailor Backend Agent), Phase 3.3 (Tailor Frontend Agent), Phase 3.4 (Tailor Rules), Phase 3.5 (Generate Review Criteria)
-3. Skip universal files — they remain as-is
-
-**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
-
-**If `.claude/` exists but has no recognizable harness files** (no agents/skills/hooks from this template):
-
-Run the Existing File Conflict Resolution flow (Phase 1.5) — this handles semantic comparison and merge.
-
 ## Phase 5: Cleanup (bootstrapped installs only)
 
 **When:** `$BOOTSTRAPPED=true` (template was found in `.claude/.artifacts/template-source/`)
@@ -934,6 +1163,8 @@ The full template copy in `.claude/.artifacts/template-source/` is no longer nee
 ```bash
 rm -rf .claude/.artifacts/template-source/
 ```
+
+**Note:** Do NOT delete `.claude/.harness-state.json` or `.claude/.artifacts/template-snapshot/` during cleanup — these are persistent state files needed for future `/setup` re-runs.
 
 ### 5.2 Ask User Feedback & Remove Setup Skill
 
@@ -979,17 +1210,22 @@ rm -rf .claude/skills/setup/
 | "I already verified in 4.1, skip the verification agent" | You generated the files — you're blind to your own mistakes. The independent agent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
 | "I'll clean up the template source later" | Leftover bootstrap artifacts confuse future sessions. Clean up now. |
 | "The user said 'good' / 'looks good' — setup is done, I can stop" | Phase 5 cleanup has not run yet. User approval of file changes is NOT session completion. You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) before ending — `.claude/.artifacts/template-source/` must be removed. |
+| "I'll skip the analysis and just ask what the user wants" | The user can't make an informed choice without seeing what changed. Always analyze BEFORE asking — show the diff summary with specific file counts and change descriptions, then let the user decide. |
 | "The user can customize agents themselves" | Stack-specific agents are the main value. Generic stubs are a failed setup. |
 
 ## Definition of Done
 
 - [ ] Phase 0: Template source located (bootstrap or explicit path)
+- [ ] Phase 0: Install mode detected (`$INSTALL_MODE`: fresh/update/legacy-update)
 - [ ] Phase 1: Codebase analyzed, all detectable info gathered
 - [ ] Phase 1.6: Project documentation scanned, domain context extracted (if docs exist)
 - [ ] Phase 1.5: Existing file conflicts resolved (if any)
 - [ ] Phase 2: User interviewed, preferences recorded
 - [ ] Phase 3: All files generated and written
+- [ ] Phase 3.1.1: Template snapshot saved to `.artifacts/template-snapshot/`
 - [ ] Phase 4.1: Orchestrator verification passed (formatting, placeholders, cross-language)
 - [ ] Phase 4.2: Independent verification agent passed (paths, consistency, frontmatter, hooks)
+- [ ] Phase 4.4: `.harness-state.json` written with file manifest
 - [ ] Phase 5: Bootstrap artifacts cleaned up (if bootstrapped install)
+- [ ] Re-Running Setup: Analysis completed before user prompt
 - [ ] User has received summary with next steps

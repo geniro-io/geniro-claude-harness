@@ -1,4 +1,7 @@
 {
+  "statusline": {
+    "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/context-statusline.sh"
+  },
   "hooks": {
     "PreToolUse": [
       {

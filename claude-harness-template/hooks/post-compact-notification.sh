@@ -43,7 +43,7 @@ NOTIFICATION=$(jq -n \
       "task_dir": $task_dir,
       "suggested_files": [
         "CLAUDE.md",
-        ".claude/.state/pre-compact-snapshot.json"
+        ".claude/.artifacts/state/pre-compact-snapshot.json"
       ],
       "note": "Compaction lost SKILL.md instructions and conversation nuance. Re-read files before proceeding."
     }
