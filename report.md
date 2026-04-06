@@ -40,6 +40,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 32. [Template Improvement Audit v10: All Remaining Skills](#template-improvement-audit-v10-all-remaining-skills)
 33. [Template Improvement Audit v11: Follow-Up Token Optimization](#template-improvement-audit-v11-follow-up-token-optimization)
 34. [Template Improvement Audit v12: Follow-Up Phase 4 Boundary Enforcement](#template-improvement-audit-v12-follow-up-phase-4-boundary-enforcement)
+35. [Template Improvement Audit v13: Setup Cleanup Skipped on Compare & Update](#template-improvement-audit-v13-setup-cleanup-skipped-on-compare--update)
 
 ---
 
@@ -4831,3 +4832,33 @@ Root cause: Phase 4 lacked explicit scope constraints. While Phase 2 had a coord
 - Phase 4 (Validate) and Phase 5 (Review) serve architecturally distinct purposes: Phase 4 is mechanical/deterministic (command pass/fail), Phase 5 is semantic/contextual (fresh-context agents finding bugs). Collapsing them wastes Phase 5's fresh-context advantage.
 - The Trivial fix exception in Phase 4 Step 6 is load-bearing: without it, a typo fix that causes a 1-line type error would require spawning a fixer agent — disproportionate overhead. The exception is scoped to 1-3 lines to prevent creep.
 - Internet research (14 sources) unanimously agrees: validation = deterministic gate, review = contextual judgment. This is a named anti-pattern in Builder-Validator patterns (claudefa.st), Response Awareness methodology, and AddyOsmani's production patterns.
+
+## Template Improvement Audit v13: Setup Cleanup Skipped on Compare & Update
+
+**Date:** 2026-04-06
+**Scope:** Setup skill — Phase 5 cleanup not reached after Compare & Update flow
+**Method:** Phase 1-fast (obvious bug from production thread)
+
+### Context
+
+When running `/setup` in "Compare & update" mode (Step 2B), the orchestrator completed file comparisons and applied the user's choice (restore template version of follow-up skill), then asked "Is there anything else?" The user said "good" and the session ended — without ever reaching Phase 4 (Verify) or Phase 5 (Cleanup). This left `.claude/.artifacts/template-source/` in the project, which is a bootstrap artifact that should be removed after setup completes.
+
+Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proceed to Phase 4 (Verify) and Phase 5 (Cleanup) as normal." This was too easy for the orchestrator to skip when the conversational flow naturally wound down after the user approved file changes.
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | HIGH | Replaced 3 soft "proceed to Phase 4/5" instructions with hard directives: "DO NOT end the conversation or ask 'anything else?' here. You MUST proceed to Phase 4 and Phase 5 now — template-source cleanup is mandatory." | Production thread showed orchestrator ending session at exactly these transition points. |
+| 2 | MEDIUM | Added compliance table entry: "The user said 'good' — setup is done, I can stop" → wrong because Phase 5 cleanup has not run yet | Same failure mode as Audit v11/v12: absent constraints = implicit permission to skip. |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/setup/SKILL.md` | 992 lines | 995 lines | 3 hard transition gates + 1 compliance entry |
+
+### Key Findings
+- Soft transition instructions ("proceed to X as normal") are unreliable at conversation-boundary points where the user's natural language ("good", "looks good") can be interpreted as session completion
+- The same pattern (absent hard constraint → orchestrator skips phase) recurs across skills — Audit v8 (review), v11 (follow-up coordinator), v12 (Phase 4 boundary), now v13 (setup cleanup). Hard negative constraints ("DO NOT") are more reliable than positive ones ("proceed to")
+- Bootstrap artifacts left behind can cause confusion in future sessions — the template-source directory makes the setup skill think it's a re-run

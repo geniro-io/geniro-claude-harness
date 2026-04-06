@@ -825,7 +825,7 @@ rm -rf .claude/.artifacts/_backup_rules/
 rm -f .claude/.artifacts/_backup_settings.json
 ```
 
-Then proceed to Phase 4 (Verify) and Phase 5 (Cleanup) as normal.
+**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
 
 ### Step 2B: Per-File Diff Comparison
 
@@ -906,7 +906,7 @@ If user chose B, compare every file in the installed `.claude/` against the temp
 
 7. **Install new files** — for template-only files (new agents, skills, hooks), use shell `cp` to copy them into `.claude/` regardless of the user's choice above.
 
-Then proceed to Phase 4 (Verify) and Phase 5 (Cleanup) as normal.
+**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
 
 ### Step 2C: Regenerate Project-Specific Only
 
@@ -915,7 +915,7 @@ If user chose C:
 2. Re-run Phase 3.2 (Tailor Backend Agent), Phase 3.3 (Tailor Frontend Agent), Phase 3.4 (Tailor Rules), Phase 3.5 (Generate Review Criteria)
 3. Skip universal files — they remain as-is
 
-Then proceed to Phase 4 (Verify) and Phase 5 (Cleanup) as normal.
+**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
 
 **If `.claude/` exists but has no recognizable harness files** (no agents/skills/hooks from this template):
 
@@ -978,6 +978,7 @@ rm -rf .claude/skills/setup/
 | "The generated files look correct, skip verification" | Placeholder text and wrong-language content are invisible without systematic scanning. |
 | "I already verified in 4.1, skip the verification agent" | You generated the files — you're blind to your own mistakes. The independent agent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
 | "I'll clean up the template source later" | Leftover bootstrap artifacts confuse future sessions. Clean up now. |
+| "The user said 'good' / 'looks good' — setup is done, I can stop" | Phase 5 cleanup has not run yet. User approval of file changes is NOT session completion. You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) before ending — `.claude/.artifacts/template-source/` must be removed. |
 | "The user can customize agents themselves" | Stack-specific agents are the main value. Generic stubs are a failed setup. |
 
 ## Definition of Done
