@@ -383,11 +383,11 @@ Execute user's chosen method. See reference file for commit details per option.
 - **Worktree:** If in worktree, call `ExitWorktree` to merge back
 - **Linear:** Update issue status based on ship choice
 - **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
-- **Planning artifacts:** Ask the user what to do with `<task-dir>/`:
+- **Planning artifacts:** Use `AskUserQuestion` (do NOT ask as plain text — use the tool):
 
-`AskUserQuestion` with header "Planning artifacts":
-- "Keep" — useful if you plan to run `/follow-up` on this branch (follow-up loads these for context)
-- "Delete" — implementation is complete, no further changes expected
+`AskUserQuestion` with header "Artifacts":
+- A) **Keep** — "Useful if you plan to run /follow-up on this branch"
+- B) **Delete** — "Implementation is complete, no further changes expected"
 
 If "Keep": leave `<task-dir>/` as-is (it's already in `.gitignore`).
 If "Delete": remove `<task-dir>/` recursively.
