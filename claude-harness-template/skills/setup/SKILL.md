@@ -366,8 +366,8 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 - `backend-agent.md`, `frontend-agent.md`
 
 **All skills** (copy all or selected subset):
-- `plan/`, `implement/`, `review/`, `spec/`, `follow-up/`, `refactor/`, `deep-simplify/`
-- `debug/`, `learnings/`, `onboard/`, `features/`, `ui-review/`
+- `plan/`, `implement/`, `review/`, `follow-up/`, `refactor/`, `deep-simplify/`
+- `debug/`, `learnings/`, `onboard/`, `features/`
 
 **Hooks** (copy all or selected subset based on integration choices):
 - Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`

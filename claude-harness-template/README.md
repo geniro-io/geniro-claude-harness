@@ -7,7 +7,7 @@ A production-grade template for setting up a Claude Code harness in any software
 ## What's Included
 
 - **13 Agents** — 6 core (architect, skeptic, reviewer, backend, frontend, refactor) + 7 optional (debugger, security, doc, devops, knowledge, knowledge-retrieval, meta)
-- **12 Skills** — 9 core (/setup, /plan, /implement, /review, /follow-up, /deep-simplify, /refactor, /features, /learnings) + 3 optional (/debug, /onboard, /ui-review)
+- **11 Skills** — 9 core (/setup, /plan, /implement, /review, /follow-up, /deep-simplify, /refactor, /features, /learnings) + 2 optional (/debug, /onboard)
 - **8 Hooks** — 5 Priority 1 safety + 1 Priority 2 observability + 2 Priority 3 lifecycle + 1 context management utility (backpressure)
 - **Rules Files** — Generated for your specific language and framework
 - **CLAUDE.md** — Generated with your project's commands, conventions, and patterns
@@ -81,8 +81,7 @@ claude-harness-template/
 │   ├── features/SKILL.md             # Feature catalog and management
 │   ├── debug/SKILL.md                # Scientific debugging workflow
 │   ├── onboard/SKILL.md              # Codebase orientation
-│   ├── learnings/SKILL.md            # Extract learnings from sessions
-│   └── ui-review/SKILL.md            # UI/UX review workflow
+│   └── learnings/SKILL.md            # Extract learnings from sessions
 │
 ├── hooks/                            # Safety & quality automation (6 registered + 1 utility)
 │   ├── dangerous-command-blocker.sh  # Priority 1: Block rm -rf, git reset
