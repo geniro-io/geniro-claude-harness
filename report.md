@@ -46,6 +46,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 38. [Template Improvement Audit v16: Context Monitor 1M-Aware Adaptive Thresholds](#template-improvement-audit-v16-context-monitor-1m-aware-adaptive-thresholds)
 39. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
 40. [Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation](#template-improvement-audit-v18-deep-simplify-token-explosion--state-file-relocation)
+41. [Template Improvement Audit v19: Implement Phase 7 Tweak Loop-Back](#template-improvement-audit-v19-implement-phase-7-tweak-loop-back)
 
 ---
 
@@ -5023,3 +5024,38 @@ Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proce
 - Inlining file contents into agent prompts is a well-documented anti-pattern called "context dilution" / "observation overflow." Even Anthropic's own code-review plugin passes file paths, not contents. The deep-simplify skill was the only template skill that inlined full file contents without any size guard.
 - The "pre-inline everything" pattern originated from a valid principle ("save the agent from re-reading") but the correct resolution (per Audit v14) depends on whether the orchestrator needs the content for its own decisions. Deep-simplify reads files solely to inline them — making path-passing the correct choice.
 - Three inconsistent simplify agent invocation patterns existed across deep-simplify, follow-up, and implement — all now consistently use path-passing with agent self-read.
+
+## Template Improvement Audit v19: Implement Phase 7 Tweak Loop-Back
+
+**Date:** 2026-04-07
+**Scope:** implement/SKILL.md Phase 7 Steps 5-6 (Ship & Finalize tweak routing); context-monitor.sh; context-statusline.sh
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Rewrote Step 6 "Big" routing with complete downstream loop: state.md reset (keep Phase 1 only, clear 2-6) → architect revision → Phase 3 re-approval → Phase 4 delta → Phase 5 → Phase 6 → Step 4 summary | Codebase: stale state.md markers caused resume logic to skip re-runs; internet: HITL phase rollback with compensating actions pattern |
+| 2 | High | Rewrote Step 6 "Medium" routing: implementer agent → Stage A → Stage B (spec compliance) → Stage C (fresh reviewers) → Step 4 summary | Codebase: follow-up skill has precise routing; report.md: spec compliance catches field/logic mismatches |
+| 3 | Medium | Rewrote Step 6 "Small" routing: implementer agent → Stage A → Step 4 summary | Consistency with follow-up skill pattern |
+| 4 | Medium | Fixed loop target from "Step 4" (which re-triggers docs/learnings/improvements) to "Step 4 summary only" — Steps 1-3 run once on first Phase 7 entry | Codebase: follow-up loops to Review Gate, not Learn & Improve |
+| 5 | Medium | Differentiated soft limits by size: Big after 2 rounds → new /implement; Medium/Small after 3 → /follow-up | Codebase: /follow-up escalates Big scope back to /implement (circular); internet: scope-creep prevention patterns |
+| 6 | Low | Converted table-in-cell format to sub-sections (#### Big/Medium/Small) for readability | Review finding: multi-step lists in table cells render poorly in Markdown |
+| 7 | Low | Added tweak-round state tracking in state.md (round number, size, description) | Codebase: no mid-Phase-7 state persistence; session reset loses tweak context |
+| 8 | N/A | Removed context-monitor.sh, context-statusline.sh, and statusline config from template | User request — context warning hooks no longer needed |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `skills/implement/SKILL.md` | Rewrote Phase 7 Step 6 with complete loop-back routing, added anti-rationalization entry |
+| `settings.json` | Removed context-monitor PostToolUse hook entry, removed statusline config |
+| `hooks/context-monitor.sh` | Deleted |
+| `hooks/context-statusline.sh` | Deleted |
+| `skills/setup/SKILL.md` | Removed context hook references from hook list, copy commands, settings merge instruction |
+| `README.md` | Removed context-monitor from directory tree, updated hook count (8→6) |
+
+### Key Findings
+- The implement skill's Phase 7 Step 6 described *where* to route tweaks but not the *complete downstream pipeline* — Big tweaks said "re-run architect" but didn't mention that Phase 4/5/6 must also re-run, and stale state.md markers caused the resume logic to skip those phases entirely.
+- The follow-up skill already had a more precise tweak routing pattern (10-LOC threshold, explicit review re-run scope, escalation gate). The implement skill's Step 6 was written earlier and never received the same level of refinement.
+- Forward-only state checkpoints (state.md) are a structural limitation for backtracking. The fix (rewrite state.md keeping only Phase 1) is simple but was never specified because the original design assumed linear phase progression.

@@ -84,13 +84,12 @@ claude-harness-template/
 │   ├── learnings/SKILL.md            # Extract learnings from sessions
 │   └── ui-review/SKILL.md            # UI/UX review workflow
 │
-├── hooks/                            # Safety & quality automation (8 registered + 1 utility)
+├── hooks/                            # Safety & quality automation (6 registered + 1 utility)
 │   ├── dangerous-command-blocker.sh  # Priority 1: Block rm -rf, git reset
 │   ├── db-guard.sh                   # Priority 1: Prevent destructive DB ops
 │   ├── secret-protection-input.sh    # Priority 1: Redact secrets in stdin
 │   ├── file-protection.sh            # Priority 1: Protect .env, secrets
 │   ├── secret-protection-output.sh   # Priority 1: Redact secrets in output
-│   ├── context-monitor.sh            # Priority 2: Monitor token usage
 │   ├── pre-compact-state-save.sh     # Priority 3: Save state before compact
 │   ├── post-compact-notification.sh  # Priority 3: Notify after compact
 │   └── backpressure.sh               # Utility: Compress test/build/lint output

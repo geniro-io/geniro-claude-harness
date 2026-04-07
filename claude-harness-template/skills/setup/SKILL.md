@@ -371,12 +371,11 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 
 **Hooks** (copy all or selected subset based on integration choices):
 - Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`
-- Monitoring: `context-monitor.sh`, `context-statusline.sh` (StatusLine bridge — provides real-time context metrics)
 - Lifecycle: `pre-compact-state-save.sh`, `post-compact-notification.sh`
 - Database: `db-guard.sh` (only if database integration selected)
 - Utility: `backpressure.sh` (not a hook — sourced by skills for output compression)
 
-**settings.json** — If no existing `settings.json`, copy from template and adjust hook paths. If `settings.json` already exists, **merge** template entries into it — preserve any user-added permissions, hooks, or custom settings that aren't in the template. The template `settings.json` includes a `statusline` field for the context monitoring bridge — merge this into the existing settings alongside the hooks.
+**settings.json** — If no existing `settings.json`, copy from template and adjust hook paths. If `settings.json` already exists, **merge** template entries into it — preserve any user-added permissions, hooks, or custom settings that aren't in the template.
 
 **Review criteria** — Do NOT copy criteria files here. They are generated in Phase 3.5 with stack-specific content.
 
@@ -405,8 +404,6 @@ cp "$TEMPLATE_DIR/skills/implement/"* .claude/skills/implement/
 
 # Hooks (copy all or selected subset)
 cp "$TEMPLATE_DIR/hooks/dangerous-command-blocker.sh" .claude/hooks/
-cp "$TEMPLATE_DIR/hooks/context-monitor.sh" .claude/hooks/
-cp "$TEMPLATE_DIR/hooks/context-statusline.sh" .claude/hooks/
 # ... repeat for each selected hook
 chmod +x .claude/hooks/*.sh
 ```

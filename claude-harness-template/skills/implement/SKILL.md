@@ -341,15 +341,38 @@ Use `AskUserQuestion` (max 4 options). The user can always type a custom respons
 
 ### Step 6: Adjustment Routing (if user chose D)
 
-| Size | Signal | Action |
-|---|---|---|
-| **Big** | Changes to data model, API contract, new endpoints | Re-run architect -> skeptic -> Phase 3 |
-| **Medium** | New logic, additional fields | Assess scope, delegate to implementer |
-| **Small** | Styling, typo, logic tweak | Delegate to implementer, re-run Stage A |
+Ask the user to describe the tweak. Classify by size, then follow the corresponding action sequence.
 
-After adjustment: re-run codegen if applicable, re-run full check, **loop back to Step 4** (re-present summary).
+#### Big — changes to data model, API contract, new endpoints
 
-**Soft limit:** After 3 tweak rounds, suggest `/follow-up` for remaining changes.
+1. Write tweak description to `<task-dir>/notes.md`
+2. Rewrite `state.md`: keep only Phase 1 checkpoint, remove all Phase 2, 3, 4, 5, 6 markers. Add `Tweak round: N (Big) — [description]`
+3. Update existing `plan-<slug>.md` via architect-agent with tweak context (do NOT create a new plan file)
+4. Full pipeline re-entry: Phase 2 (architect revision + skeptic) → Phase 3 (re-approval) → Phase 4 (implement delta only) → Phase 5 (simplify) → Phase 6 (all stages) → Phase 7 Step 4 summary re-presentation
+
+#### Medium — new logic, additional fields
+
+1. Write tweak description to `<task-dir>/notes.md`
+2. Update `state.md`: add `Tweak round: N (Medium) — [description]`
+3. Spawn implementer agent with tweak context + affected files pre-inlined
+4. Re-run Phase 6 Stage A (build + test + lint)
+5. Re-run Phase 6 Stage B (spec compliance) with tweak description as context
+6. Re-run Phase 6 Stage C with fresh reviewer agents
+7. Loop to Step 4 summary re-presentation
+
+#### Small — styling, typo, logic tweak
+
+1. Write tweak description to `<task-dir>/notes.md`
+2. Update `state.md`: add `Tweak round: N (Small) — [description]`
+3. Spawn implementer agent with tweak context
+4. Re-run Phase 6 Stage A (build + test + lint)
+5. Loop to Step 4 summary re-presentation
+
+**Loop target:** After any tweak, loop back to **Step 4 summary re-presentation only**. Steps 1-3 (docs, learnings, improvements) run once on first entry to Phase 7 and are NOT repeated on tweak rounds.
+
+**Soft limits (by size):**
+- **Big tweaks:** After 2 rounds, suggest starting a new `/implement` session. Big tweaks compound risk — a fresh pipeline provides clean context and proper architecture review.
+- **Medium/Small tweaks:** After 3 rounds, suggest `/follow-up` for remaining changes.
 
 ### Step 7: Commit
 
@@ -377,6 +400,7 @@ If "Delete": remove `<task-dir>/` recursively.
 | "The user said 'just finish' so skip finalize" | Part A (finalize) runs BEFORE the ship decision. It is not optional regardless of user urgency. |
 | "Implementation is done, the user can test it" | Phase 4 is one of 7 phases. Follow the pipeline to completion. |
 | "I'll skip review since the agents already tested" | Agent self-reports are unreliable. Phase 6 exists to catch what agents miss. |
+| "The tweak is small, I'll skip the re-validation loop" | Every tweak re-runs at minimum Stage A. Small bugs introduced during tweaks are the hardest to catch later. |
 
 ---
 

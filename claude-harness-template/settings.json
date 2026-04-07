@@ -1,7 +1,4 @@
 {
-  "statusline": {
-    "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/context-statusline.sh"
-  },
   "hooks": {
     "PreToolUse": [
       {
@@ -43,12 +40,6 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/secret-protection-output.sh",
             "statusMessage": "Scanning for leaked secrets..."
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/context-monitor.sh",
-            "statusMessage": "Monitoring context usage...",
-            "timeout": 10
           }
         ]
       }
