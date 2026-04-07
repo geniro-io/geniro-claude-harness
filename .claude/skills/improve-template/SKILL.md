@@ -116,7 +116,7 @@ Read `report.md` and search for sections relevant to:
 This is a 354KB best-practices guide covering 14 production frameworks.
 Search strategy:
 1. Grep for keywords related to the issue
-2. Read the Table of Contents (first 40 lines) to identify relevant sections
+2. Read the Table of Contents (first 60 lines) to identify relevant sections
 3. Read each relevant section fully
 4. Extract specific recommendations, patterns, and anti-patterns
 
@@ -230,27 +230,7 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text — the tool
 
 ### Phase 3b: Challenge Resolution
 
-For each challenged finding, spawn a dedicated research agent:
-
-```
-Agent(prompt="""
-## Task: Deep Research on Challenged Finding
-The user challenged this finding:
-
-**Finding:** {{finding description}}
-**User's concern:** {{what the user said}}
-
-Research this specific point in depth:
-1. Search for definitive documentation or evidence
-2. Check if the user's concern reveals something the initial research missed
-3. Test the assumption if possible (read actual code, check actual behavior)
-
-Return: either stronger evidence supporting the finding, or evidence supporting
-the user's position. Be honest — if the user is right, say so.
-""", description="Research: challenge resolution")
-```
-
-Update the evidence table based on results. Re-present to user. Loop until approved.
+For each challenged finding, spawn a research agent with: the finding description, the user's concern, and instructions to search for definitive evidence. Update the evidence table based on results. Re-present to user. Loop until approved.
 
 ---
 
@@ -258,6 +238,9 @@ Update the evidence table based on results. Re-present to user. Loop until appro
 
 **Purpose:** Apply approved changes through subagents. Orchestrator does NOT edit files
 (except trivial 1-2 line fixes where the target and change are unambiguous).
+
+### Step 0: Capture baseline
+Before spawning implementation agents, read and record the current content of all files that will be modified. This baseline enables before/after comparison in Phase 5.
 
 ### Step 1: Group changes by file/module
 
@@ -304,14 +287,17 @@ Apply the following approved changes:
 """, description="Implement: [group name]")
 ```
 
-### Step 3: Verify
+### Step 3: Validation gate
 
-After all implementation agents complete:
-1. Check line counts: `wc -l` on each changed SKILL.md (must be under 500)
-2. Verify cross-references: Glob for any paths mentioned in changed files
-3. If issues found: spawn a fix agent (do NOT fix directly unless trivial)
+Orchestrator runs these checks directly (no subagent). All must pass before Phase 5:
 
-Write checkpoint.
+1. **Line counts:** `wc -l` on each changed SKILL.md — must be under 500
+2. **Outbound references:** Glob for every path/agent/skill name mentioned in changed files — all must exist
+3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
+4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
+5. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
+
+If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint.
 
 ---
 
@@ -330,7 +316,10 @@ Review changes made to the claude-harness-template. You were NOT involved in
 researching or implementing these changes — review with fresh eyes.
 
 ### Changes made:
-{{list each changed file with a one-line description of what changed}}
+{{git diff output of all changes}}
+
+### Pre-change baseline:
+{{file contents captured in Phase 4 Step 0}}
 
 ### Review checklist:
 1. **Correctness:** Do the changes do what they claim? Any logic errors?
@@ -338,15 +327,13 @@ researching or implementing these changes — review with fresh eyes.
    - Phase structure consistent with other skills?
    - Agent spawning syntax matches template conventions?
    - Anti-rationalization tables present where needed?
-3. **Cross-references:** Are all file paths, agent names, and skill references valid?
-   - Glob for referenced paths to verify they exist
-   - Check agent names match files in `claude-harness-template/agents/`
-4. **Line counts:** Are all SKILL.md files under 500 lines?
-5. **Scope creep:** Were any changes made beyond what was approved?
-6. **Edit-in-place:** Were original instructions rewritten to be explicit, or were
-   notes/exceptions/caveats added separately? Separate notes = blocker. The fix
-   must be self-contained in the original instruction.
-7. **Regressions:** Could these changes break existing workflows?
+3. **Scope creep:** Were any changes made beyond what was approved?
+4. **Edit-in-place:** Were original instructions rewritten to be explicit, or were
+   notes/exceptions/caveats added separately? Separate notes = blocker.
+5. **Regressions:** Compare the diff against the baseline. Flag only issues INTRODUCED by the changes, not pre-existing patterns. Check:
+   - Did any existing instruction's meaning change unintentionally?
+   - Are cross-references that worked before still valid?
+   - Could downstream skills/agents behave differently due to these changes?
 
 ### For each issue found, report:
 - File and line
@@ -440,6 +427,24 @@ Scan the conversation for:
 Before writing to memory, check if existing memory already covers the topic — update
 rather than duplicate. Skip this sub-step entirely if nothing novel was discovered.
 
+#### 2c. Report maintenance
+
+Spawn an agent to check if report.md has grown stale:
+
+```
+Agent(prompt="""
+Scan report.md for consolidation opportunities:
+1. **Superseded audits:** Find audit sections where ALL findings were later re-addressed by a newer audit on the same skill/area. List them with the superseding audit number.
+2. **Dead references:** Find mentions of files, skills, hooks, or agents that no longer exist in the template (glob to verify).
+3. **Stale base sections:** Check if the Directory Structure, Hooks & Rules, or Implementation Pipeline sections reference deleted or renamed items.
+
+For each item found, classify: REMOVE (fully superseded), CONSOLIDATE (merge into newer section), or UPDATE (fix stale reference).
+Return a structured table. Do NOT make edits — report only.
+""", description="Maintenance: report.md staleness scan")
+```
+
+If the agent finds items: present the list to the user with `AskUserQuestion` ("Apply all maintenance suggestions" / "Let me pick" / "Skip maintenance this time"). Apply approved changes. If no items found or user skips: proceed to Step 3.
+
 ### Step 3: Cleanup
 
 Remove `.claude/.artifacts/improve-template-state.md`.
@@ -469,6 +474,7 @@ If the user interjects during any phase:
 | "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
 | "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
 | "The fix was small, no new patterns discovered" | Even small fixes reveal where the template was deficient. The pattern worth documenting is WHY it was deficient — that prevents the same class of issue. |
+| "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 
 ## Definition of Done
 

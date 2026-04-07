@@ -22,32 +22,28 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 14. [Framework Summaries](#framework-summaries)
 15. [Sources](#sources)
 16. [Redundant Instructions Audit](#redundant-instructions-audit)
-17. [Post-Setup Cleanup: Template Garbage Prevention](#post-setup-cleanup-template-garbage-prevention)
-18. [AI-Driven Setup: From Bash Script to Skill](#ai-driven-setup-from-bash-script-to-skill)
-19. [Implement & Follow-Up Skill Audit](#implement--follow-up-skill-audit)
-20. [Upgrade & Sync Mechanism](#upgrade--sync-mechanism)
-21. [Legacy Cleanup & Post-Setup Artifact Prevention](#legacy-cleanup--post-setup-artifact-prevention)
-22. [Full Template Audit: All Skills & Agents](#full-template-audit-all-skills--agents)
-23. [HumanLayer Comparison & Pattern Adoption](#humanlayer-comparison--pattern-adoption-v110)
-24. [Artifact Consolidation & Template Snapshot](#artifact-consolidation--template-snapshot-v110-continued)
-25. [Full Template Audit v2](#full-template-audit-v2-post-v110-review-all-skills-agents-hooks)
-26. [Full Template Audit v3](#full-template-audit-v3-fresh-re-review-all-skills-agents-hooks)
-27. [Template Improvement Audit v4: Production Cross-Pollination](#template-improvement-audit-v4-production-cross-pollination--best-practices-review)
-28. [Template Improvement Audit v6: Skill Composition & 8-Phase Pipeline](#template-improvement-audit-v6-skill-composition--8-phase-pipeline)
-29. [Template Improvement Audit v7: Refactor Skill & Agent Cross-Pollination](#template-improvement-audit-v7-refactor-skill--agent-cross-pollination)
-30. [Template Improvement Audit v8: Review Skill & Agent Cross-Pollination](#template-improvement-audit-v8-review-skill--agent-cross-pollination)
-31. [Template Improvement Audit v9: Follow-Up Skill Cross-Pollination](#template-improvement-audit-v9-follow-up-skill-cross-pollination)
-32. [Template Improvement Audit v10: All Remaining Skills](#template-improvement-audit-v10-all-remaining-skills)
-33. [Template Improvement Audit v11: Follow-Up Token Optimization](#template-improvement-audit-v11-follow-up-token-optimization)
-34. [Template Improvement Audit v12: Follow-Up Phase 4 Boundary Enforcement](#template-improvement-audit-v12-follow-up-phase-4-boundary-enforcement)
-35. [Template Improvement Audit v13: Setup Cleanup Skipped on Compare & Update](#template-improvement-audit-v13-setup-cleanup-skipped-on-compare--update)
-36. [Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping](#template-improvement-audit-v14-follow-up-context-exhaustion--phase-skipping)
-37. [Template Improvement Audit v15: Setup Smart Update & State Tracking](#template-improvement-audit-v15-setup-smart-update--state-tracking)
-38. [Template Improvement Audit v16: Context Monitor 1M-Aware Adaptive Thresholds](#template-improvement-audit-v16-context-monitor-1m-aware-adaptive-thresholds)
-39. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
-40. [Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation](#template-improvement-audit-v18-deep-simplify-token-explosion--state-file-relocation)
-41. [Template Improvement Audit v19: Implement Phase 7 Tweak Loop-Back](#template-improvement-audit-v19-implement-phase-7-tweak-loop-back)
-42. [Template Improvement Audit v20: Features + Spec Skill Merge](#template-improvement-audit-v20-features--spec-skill-merge)
+17. [AI-Driven Setup: From Bash Script to Skill](#ai-driven-setup-from-bash-script-to-skill)
+18. [Implement & Follow-Up Skill Audit](#implement--follow-up-skill-audit)
+19. [HumanLayer Comparison & Pattern Adoption](#humanlayer-comparison--pattern-adoption-v110)
+20. [Full Template Audit v2](#full-template-audit-v2-post-v110-review-all-skills-agents-hooks)
+21. [Full Template Audit v3](#full-template-audit-v3-fresh-re-review-all-skills-agents-hooks)
+22. [Template Improvement Audit v4: Production Cross-Pollination](#template-improvement-audit-v4-production-cross-pollination--best-practices-review)
+23. [Template Improvement Audit v5: Full Template Compliance Check](#template-improvement-audit-v5-full-template-compliance-check)
+24. [Template Improvement Audit v6: Skill Composition & 8-Phase Pipeline](#template-improvement-audit-v6-skill-composition--8-phase-pipeline)
+25. [Template Improvement Audit v7: Refactor Skill & Agent Cross-Pollination](#template-improvement-audit-v7-refactor-skill--agent-cross-pollination)
+26. [Template Improvement Audit v8: Review Skill & Agent Cross-Pollination](#template-improvement-audit-v8-review-skill--agent-cross-pollination)
+27. [Template Improvement Audit v10: All Remaining Skills](#template-improvement-audit-v10-all-remaining-skills)
+28. [Plan Skill Creation & Task Complexity Research](#plan-skill-creation--task-complexity-research-audit-v11)
+29. [Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping](#template-improvement-audit-v14-follow-up-context-exhaustion--phase-skipping)
+30. [Template Improvement Audit v15: Setup Smart Update & State Tracking](#template-improvement-audit-v15-setup-smart-update--state-tracking)
+31. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
+32. [Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation](#template-improvement-audit-v18-deep-simplify-token-explosion--state-file-relocation)
+33. [Template Improvement Audit v19: Implement Phase 7 Tweak Loop-Back](#template-improvement-audit-v19-implement-phase-7-tweak-loop-back)
+34. [Template Improvement Audit v20: Features + Spec Skill Merge](#template-improvement-audit-v20-features--spec-skill-merge)
+35. [Template Improvement Audit v21: Improve-Template Degradation Checking](#template-improvement-audit-v21-improve-template-degradation-checking)
+36. [Template Improvement Audit v22: Deep-Simplify Pattern Compliance & Comment Preservation](#template-improvement-audit-v22-deep-simplify-pattern-compliance--comment-preservation)
+37. [Template Improvement Audit v23: Report.md Maintenance Step](#template-improvement-audit-v23-reportmd-maintenance-step)
+38. [Template Improvement Audit v24: Implement Second-Run Prior Context Loading](#template-improvement-audit-v24-implement-second-run-prior-context-loading)
 
 ---
 
@@ -115,7 +111,14 @@ Hard constraints in Claude Code as of April 2026. All patterns in this guide wor
 │   ├── reviewer-agent.md
 │   ├── backend-agent.md
 │   ├── frontend-agent.md
-│   └── refactor-agent.md
+│   ├── refactor-agent.md
+│   ├── debugger-agent.md
+│   ├── security-agent.md
+│   ├── doc-agent.md
+│   ├── devops-agent.md
+│   ├── knowledge-agent.md
+│   ├── knowledge-retrieval-agent.md
+│   └── meta-agent.md
 │
 ├── skills/
 │   ├── implement/
@@ -129,9 +132,15 @@ Hard constraints in Claude Code as of April 2026. All patterns in this guide wor
 │   │   └── guidelines-criteria.md   # Supporting file: coding standards
 │   ├── follow-up/
 │   │   └── SKILL.md
-│   ├── spec/
-│   │   └── SKILL.md
-│   ├── simplify/
+│   ├── features/
+│   │   └── SKILL.md                 # Feature backlog + spec pipeline
+│   ├── deep-simplify/
+│   │   ├── SKILL.md
+│   │   └── simplify-criteria.md
+│   ├── plan/
+│   │   ├── SKILL.md
+│   │   └── plan-criteria.md
+│   ├── investigate/
 │   │   └── SKILL.md
 │   └── refactor/
 │       └── SKILL.md
@@ -383,26 +392,26 @@ A survey of 12 frameworks shows a range from 5 built-in skills to 151 (ECC). The
 
 Based on cross-framework consensus, these are the most universally useful skill roles. The sweet spot is **10-25 active skills** per project — all skill descriptions share ~1% of context window (~8000 chars total), with each capped at ~250 chars.
 
-#### Core pipeline (7 skills)
+#### Core pipeline (8 skills)
 
 | Skill | Purpose | Context | Model | Source frameworks |
 |---|---|---|---|---|
-| `/spec` | Gather requirements through adaptive questioning + codebase scouting. Produces a feature spec file | main | default | GSD (`discuss-phase`), Superpowers (`brainstorming`), Orchestrator Kit (`speckit.clarify` + `speckit.specify`), SuperClaude (`confidence-check`) |
+| `/features` | Feature backlog management + spec pipeline (list, next, complete, status, spec) | main | inherit | GSD (`gsd:progress`, `gsd:stats`, `gsd:next`), Orchestrator Kit (`speckit.tasks`), SuperClaude (`pm`) |
+| `/plan` | Architecture planning with plan-criteria reference file | main | default | GSD (`gsd:plan-phase`), Orchestrator Kit (`speckit.plan`), Superpowers (`writing-plans`) |
 | `/implement` | Full pipeline orchestrator: spec -> architecture -> approval -> implementation -> validate -> simplify -> review -> ship | main | inherit | Universal — every framework has this: GSD (`execute-phase`), Metaswarm (`orchestrated-execution`), Superpowers (`executing-plans`), claude-pipeline (`implement-issue`), Orchestrator Kit (`speckit.implement`) |
 | `/review` | Multi-agent parallel review grid (5 sub-reviewers via Task) + judge pass + fix routing to implementer agents | fork | sonnet | Metaswarm (`plan-review-gate` + `design-review-gate`), Superpowers (`requesting-code-review`), claude-pipeline (2-stage review), Orchestrator Kit (`code-review`) |
 | `/follow-up` | Lightweight changes — skip architecture, go straight to implement + full review | main | inherit | GSD has `gsd:fast` (trivial inline) and `gsd:quick` (with guarantees). Most frameworks don't differentiate — a unique pattern for reducing overhead on small changes |
-| `/simplify` | Code quality pass on changed files — reuse patterns, readability, efficiency | fork | sonnet | Built-in Claude Code skill. ECC and claude-pipeline have similar post-implementation cleanup steps |
+| `/deep-simplify` | Code quality pass on changed files — reuse patterns, readability, efficiency. Uses simplify-criteria.md | fork | inherit | Built-in Claude Code skill. ECC and claude-pipeline have similar post-implementation cleanup steps |
+| `/investigate` | Deep codebase Q&A with parallel research agents | main | default | GSD (`gsd:research-phase`), Orchestrator Kit (`research-specialist`) |
 | `/refactor` | Safe incremental refactoring with continuous test verification | fork | default | Most frameworks bundle this into implementation. Dedicated refactor skill is less common but valuable for large codebases |
-| `/features` | Feature backlog management (list, next, complete, status) | main | haiku | GSD (`gsd:progress`, `gsd:stats`, `gsd:next`), Orchestrator Kit (`speckit.tasks`), SuperClaude (`pm`) |
 
 #### Optional skills (add when needed)
 
 | Skill | Purpose | Context | Model | When to add | Source frameworks |
 |---|---|---|---|---|---|
 | `/debug` | Scientific-method bug investigation with hypothesis tracking | main | default | When bugs are complex enough to need structured debugging | Built-in Claude Code skill. GSD (`gsd:debug`), Superpowers (`systematic-debugging`), SuperClaude (`troubleshoot`) |
-| `/ui-review` | Visual review via Playwright screenshots | fork | sonnet | When frontend changes need visual verification | Metaswarm (`visual-review`), GSD (`gsd:ui-review`), claude-pipeline (`review-ui`) |
 | `/onboard` | Codebase mapping and knowledge extraction for new developers or new sessions | main | default | When team members frequently start new sessions | GSD (`gsd:map-codebase`), Orchestrator Kit (`onboard`), SuperClaude (`/sc:index-repo`) |
-| `/improve` | Post-session learning: extract feedback, update rules, improve skills | main | haiku | When your harness itself is evolving | claude-pipeline (`improvement-loop`), ECC (`continuous-learning-v2`), Claude Forge (`continuous-learning-v2`) |
+| `/learnings` | Post-session learning: extract feedback, update rules, improve skills | main | haiku | When your harness itself is evolving | claude-pipeline (`improvement-loop`), ECC (`continuous-learning-v2`), Claude Forge (`continuous-learning-v2`) |
 | `/meta-skill` | Create or improve agents and skills with TDD-like workflow | main | default | When building or evolving your harness | Official (`skill-creator`), claude-pipeline (`writing-skills`, `writing-agents`), Orchestrator Kit (`skill-builder-v2`) |
 
 ### Skill design rules
@@ -492,17 +501,17 @@ ${CLAUDE_SKILL_DIR}                 # Directory containing this SKILL.md
 ### Skill relationship diagram
 
 ```
-/spec  ->  /implement  ->  /follow-up
-               |
-               |-- reads .claude/skills/review/SKILL.md (Phase 1-3)
-               |       |-- spawns 5 Tasks from criteria files
-               |       |-- judge pass
-               |       |-- routes fixes to backend-agent / frontend-agent
-               |
-               |-- reads .claude/skills/simplify/SKILL.md
-               |
-               |-- spawns architect-agent -> skeptic-agent (pre-implementation)
-               |-- spawns backend-agent / frontend-agent (implementation)
+/features spec  ->  /plan  ->  /implement  ->  /follow-up
+                                    |
+                                    |-- reads .claude/skills/review/SKILL.md (Phase 1-3)
+                                    |       |-- spawns 5 Tasks from criteria files
+                                    |       |-- judge pass
+                                    |       |-- routes fixes to backend-agent / frontend-agent
+                                    |
+                                    |-- reads .claude/skills/deep-simplify/simplify-criteria.md
+                                    |
+                                    |-- spawns architect-agent -> skeptic-agent (pre-implementation)
+                                    |-- spawns backend-agent / frontend-agent (implementation)
 
 /review (standalone)
     |-- spawns 5 Tasks from criteria files
@@ -1234,7 +1243,7 @@ Since skills cannot call other skills directly ([#17351](https://github.com/anth
 ```
 # Directory structure
 skills/
-├── simplify/
+├── deep-simplify/
 │   ├── SKILL.md              ← process (Scope → Analyze → Fix → Verify)
 │   └── simplify-criteria.md  ← knowledge (3 analysis passes, severity, anti-patterns)
 ├── review/
@@ -1251,7 +1260,7 @@ skills/
 ```markdown
 # In implement/SKILL.md Phase 6 (Simplify):
 ## Step 1: Spawn simplify agent
-Pre-read `.claude/skills/simplify/simplify-criteria.md`.
+Pre-read `.claude/skills/deep-simplify/simplify-criteria.md`.
 Spawn a general-purpose subagent with pre-inlined criteria content.
 Agent applies P1/P2 fixes, reports results.
 Orchestrator verifies CI, reverts if broken.
@@ -2430,16 +2439,13 @@ Hooks and rules are the enforcement layer — they complement agents and skills 
 | **Secret protection (input)** | PreToolUse (Bash) | Blocks reading `.env`, credential files, secrets, private keys | 2 (BLOCK) | Citadel |
 | **Secret protection (output)** | PostToolUse | Scans tool output for API keys, tokens, passwords. Redacts or warns | 0 + warning | Claude Forge |
 | **File protection** | PreToolUse (Write/Edit) | Blocks writes to `.env`, `.git/`, `pnpm-lock.yaml`, `package-lock.json` | 2 (BLOCK) | claude-pipeline |
-| **Interactive command blocker** | PreToolUse (Bash) | Blocks commands requiring interactive input (`git rebase -i`, `nano`, `vim`, `less`) | 2 (BLOCK) | Beads |
+
 
 #### Observability hooks (Priority 2)
 
 | Hook | Event | What it does | Source |
 |---|---|---|---|
-| **Cost tracker** | PostToolUse (time-gated, max 1/3min) | Reads session JSONL from `~/.claude/projects/{slug}/{session}.jsonl`, computes cost from `message.usage` token counts, alerts at thresholds ($5, $15, $30) | Citadel |
-| **Context monitor** | PostToolUse (debounced) | Reads context metrics from bridge file, warns at ≤35% remaining, critical at ≤25% | GSD (`gsd-context-monitor.js`) |
 | **Work tracker** | UserPromptSubmit + PostToolUse + Stop | Three-hook pipeline tracking session-spanning telemetry: what was asked, what was done, what was the outcome | Claude Forge |
-| **Circuit breaker** | PostToolUse | After N consecutive tool failures, suggests alternatives. After 2N, escalates to user | Citadel |
 
 #### Lifecycle hooks (Priority 3)
 
@@ -2449,7 +2455,7 @@ Hooks and rules are the enforcement layer — they complement agents and skills 
 | **Post-compact notification** | PostCompact | Injects warning that context was compressed, suggests re-reading critical files. Receives `trigger` and `compact_summary` | GSD, undocumented but works |
 | **Session restore** | SessionStart | Reads latest checkpoint/handoff file, restores pipeline context | Citadel |
 | **Context sync after gaps** | SessionStart | Checks time since last session. If >4h, suggests `/sync` to catch up on teammate changes | Claude Forge |
-| **Auto-format** | PostToolUse (Edit/Write) | Runs formatter (prettier, eslint --fix) on edited files | claude-pipeline |
+
 | **Version check** | SessionStart | Checks if harness/plugin version is current | Claude Forge |
 
 #### MCP-specific hooks (Priority 4 — add when using MCP tools)
@@ -2763,75 +2769,6 @@ Agent and skill definitions often include instructions that Claude Code already 
 
 ---
 
-## Post-Setup Cleanup: Template Garbage Prevention
-
-### Problem
-
-After running `setup.sh`, template artifacts can survive into the final output — confusing Claude with irrelevant instructions, wrong-language code examples, broken placeholders, and meta-instructions meant for human setup authors, not for AI consumption.
-
-### Categories of Garbage Found
-
-| Category | Example | Impact |
-|---|---|---|
-| **Missing placeholder replacement** | `{{LINTER_COMMAND}}` never replaced in backend-agent | Agent sees literal `{{...}}` placeholder |
-| **Meta-instructions surviving setup** | "TEMPLATE NOTICE: Customize placeholders below" | Wastes context, confuses agent |
-| **Placeholder reference lists** | `- \`{{FRAMEWORK}}\` → React, Vue, Angular...` (already substituted) | Agent sees choice lists with replaced values alongside options |
-| **"none" default values** | `ORM: (auto-detected: none)` | Noise — adds nothing |
-| **Generic multi-language references** | "package.json (or requirements.txt, Cargo.toml, etc.)" in Python project | Irrelevant |
-| **Wrong-language code blocks in rules** | Python examples in `security-patterns.md` for a TypeScript project | Wastes token budget, may confuse patterns |
-| **Customization Guide sections** | Template instructions at bottom of rules files | Meta-content not for AI |
-| **Sed/eval escaping failures** | `ruff check . && ruff format --check .` broken by `eval` and sed `&` metacharacter | Commands garbled |
-| **Overly broad sed patterns** | Deleting any line containing "Zustand" or "Playwright" | Accidentally removes frontmatter, role descriptions, stack tables |
-
-### Fixes Applied to setup.sh
-
-**1. Missing replacements added:**
-- `{{LINTER_COMMAND}}` → derived from `DISCOVERED_CMDS[lint]`
-- `TEST_RUNNER` now set for all languages (Python→pytest, Rust→cargo test, Go→go test, Java→JUnit, Ruby→RSpec, C#→xUnit)
-
-**2. Sed-safe escaping:**
-- Added `sed_escape()` helper that escapes `&`, `|`, `\`, `/` in replacement strings
-- All variables passed through `sed_escape()` before use in `run_or_dry_run` (which uses `eval`)
-- Prevents `&&` in commands like `ruff check . && ruff format --check .` from breaking
-
-**3. Cleanup phase added (runs after placeholder replacement):**
-
-CLAUDE.md cleanup:
-- Removes "Template guide" meta-instruction line
-- Replaces generic "package.json (or requirements.txt, Cargo.toml, etc.)" with detected dependency file
-- Converts unreplaced instructional placeholders to `# TODO:` comments
-- Removes "Template: customize {{PLACEHOLDERS}}" from agent description lines
-- Builds tech stack string omitting "none" values
-
-Agent file cleanup:
-- Removes "TEMPLATE NOTICE" and "TEMPLATE:" lines
-- Removes placeholder reference lists (pattern: `- \`Value\` → Option1, Option2, etc.`)
-- Removes "Example Placeholder Customization" sections entirely
-- Strips "(customizable for ...)" parentheticals
-- Removes lines where detection resulted in "none"
-- Removes "via Glob/Grep" tool-teaching references
-- Removes table rows with "none" values
-- Fixes hardcoded "TypeScript (strict mode)" based on detected language
-- Collapses consecutive blank lines
-
-Rules file cleanup:
-- Removes "Customization Guide" sections from all rules files
-- Narrows glob patterns to detected language extensions (e.g., `*.{js,ts,py,go,...}` → `*.{js,ts,jsx,tsx}`)
-- Removes code blocks for non-detected languages (e.g., Python blocks removed from TS project)
-
-**4. Final sweep:**
-- Warns user about any remaining `{{...}}` placeholders (excluding legitimate template syntax like Jinja `{{ user_comment }}`)
-
-### Verification
-
-Tested with two project types:
-- **Next.js/React/TS project**: All JS-specific, no Python/Go/Ruby garbage. Globs narrowed to `*.{js,ts,jsx,tsx}`. Frontend agent has correct stack (Next.js, React, Zustand, Tailwind CSS, Vitest).
-- **Django/SQLAlchemy/Python project**: All Python-specific, no TypeScript garbage. Globs narrowed to `*.py`. Backend agent shows Django, SQLAlchemy, pytest correctly. `&&` in lint commands survives escaping.
-
-> **Note:** The cleanup described above documents fixes applied to setup.sh before it was superseded by the AI-driven `/setup` skill. The section is preserved for historical reference and to document the problems that motivated the architectural change.
-
----
-
 ## AI-Driven Setup: From Bash Script to Skill
 
 ### The Problem with setup.sh
@@ -2923,11 +2860,6 @@ After (/setup skill approach):
   rules/security-patterns.md    # Stub → "Run /setup"
   _reference/                   # Reference examples for AI
     CLAUDE.md.example
-    agents/backend-agent.example.md
-    agents/frontend-agent.example.md
-    rules/backend-conventions.example.md
-    rules/security-patterns.example.md
-    setup.sh.legacy             # Preserved for reference
 ```
 
 ### Recommendations
@@ -3016,237 +2948,6 @@ Compared the `/implement` (6-phase pipeline) and `/follow-up` (quick post-implem
 
 ---
 
-## Upgrade & Sync Mechanism
-
-### Problem Statement
-
-Three scenarios need to be handled:
-
-1. **Template version upgrade** — The template gets new skills, improved agents, or bug fixes. How does a project update its installed harness without losing customizations?
-2. **First setup with existing files** — A project already has some `.claude/` files (from a colleague, a different template, or manual setup). Some files may have the same names as template files but different content.
-3. **Context efficiency** — Harness files are large (50+ files). How does the LLM identify changes and apply them without loading everything into context?
-
-### Research Summary
-
-Researched scaffolding tools (Yeoman, CRA, Next.js, Angular CLI, Rails), dotfile managers (chezmoi, yadm, dotbot, GNU Stow), git-based template sync (Copier, Cruft, Cookiecutter), AI coding framework config sync (cursor2claude, rulesync), and semantic diff tools (Semantic Merge, Graphtage, SemanticDiff).
-
-**Key findings:**
-
-1. **Most scaffolding tools lack upgrade mechanisms** — Yeoman, CRA, Rails have no built-in "update existing project" flow. They're designed for one-time generation.
-
-2. **Copier/Cruft are the gold standard for template sync** — Both use 3-way merge (old template + user changes + new template) with version tracking via metadata files (`.copier-answers.yml`, `.cruft.json`). Cruft stores the template commit hash, enabling precise diffs.
-
-3. **Text-based diffs are inadequate for prompt files** — Git's 3-way merge treats files as lines of text. For agent definitions and skill instructions, *semantic meaning* matters more than exact text. A rewording for clarity is a non-change; a new constraint is a meaningful change. Line-based tools can't distinguish these.
-
-4. **Angular schematics show intelligent upgrade is possible** — `ng update` runs transformation rules that understand code structure. Schematics can create, modify, or delete files with awareness of what they contain. This is closer to what AI prompt files need.
-
-5. **AI coding frameworks have no standard upgrade mechanism** — Communities build ad-hoc sync tools (cursor2claude, rulesync). The AGENTS.md standard is emerging but doesn't address versioning. Claude Code's `/init` has no "re-init to update" flow.
-
-6. **Changelog-driven upgrades beat full-file diffing** — Instead of comparing every file (expensive, context-heavy), maintain a human-readable changelog. The upgrade tool reads the changelog to know what changed and why, then only examines affected files. This is crucial for context efficiency.
-
-### Architecture Decision: AI-Driven Semantic Upgrade
-
-Chose an AI-driven `/upgrade` skill over migration scripts or text-based diffing. Rationale:
-
-| Approach | Pros | Cons | Verdict |
-|---|---|---|---|
-| **Migration scripts** (Rails-style) | Predictable, testable | Brittle for prompt files, can't handle user customizations, N migrations to maintain | Rejected |
-| **3-way text merge** (Copier/Cruft) | Well-proven for code | Can't understand semantic meaning of prompt changes, false conflicts on rewordings | Rejected for primary mechanism (useful as fallback) |
-| **Full-file AI comparison** | Semantically aware | Context-heavy (reading 50+ file pairs), expensive, slow | Rejected |
-| **Changelog-driven AI upgrade** | Context-efficient, semantically aware, handles customizations | Requires maintaining a changelog | **Chosen** |
-
-### Implementation: Three New Components
-
-**1. Version Tracking (`HARNESS_VERSION` + `.harness-meta.json`)**
-
-- `HARNESS_VERSION`: Simple file with semantic version (e.g., `1.0.0`). Lives in template root.
-- `.harness-meta.json`: Written by `/setup` into the project's `.claude/` directory. Tracks:
-  - Installed template version
-  - Per-file metadata: source (universal/generated/user), templateHash (MD5 at install), customized flag
-  - Project context (language, framework) for regeneration
-
-Inspired by Cruft's `.cruft.json` (commit hash tracking) and Copier's `.copier-answers.yml` (stored answers for re-generation).
-
-**2. `/upgrade` Skill (5 phases)**
-
-- Phase 1 — Inventory: read installed manifest + new template version + changelog between versions
-- Phase 2 — Classify: for each changed file, determine action (auto-update / semantic merge / user decision) based on whether user customized it
-- Phase 3 — Semantic Merge: for conflicted files, use AI to understand what both sides changed and merge intelligently. Key innovation: section-level comparison using changelog hints, not full-file diffs.
-- Phase 4 — Apply: backup first, then auto-updates, then merges, then regenerations. Update manifest.
-- Phase 5 — Verify: validate all modified files, present summary report.
-
-**3. `/setup` Existing File Conflict Resolution (Phase 1.5)**
-
-Added to `/setup` for the case where a project already has `.claude/` files from a different source:
-
-- Scan existing files
-- Match against template files by path
-- For matched files: semantic comparison (identical / user-superset / template-superset / divergent)
-- Efficient comparison: read frontmatter + headers first, only dive into sections if needed
-- Present grouped findings to user with recommendations
-- Record decisions in manifest
-
-### Context Efficiency Strategies
-
-The core challenge: how to identify and apply changes without loading 50+ files into context.
-
-| Strategy | How It Works | Context Savings |
-|---|---|---|
-| **Changelog-driven** | Read changelog first. Only examine files mentioned in it. | Skip ~80% of files (unchanged between versions) |
-| **Hash-based skip** | Compute MD5, compare against manifest. Identical = skip. | Zero context for unchanged files |
-| **Section-level comparison** | Changelog says "Phase 5 changed". Read only Phase 5 from both files. | ~70% savings per conflicted file |
-| **Batch auto-updates** | Files not customized by user get a simple copy. No AI analysis. | Zero AI context for clean updates |
-| **Progressive header scan** | Compare `## ` headers before reading section content. | Quickly classify relationship without full read |
-
-This design means a typical upgrade (say, 5 files changed in new version, user customized 2 of them) reads:
-- 1 changelog file (small)
-- 5 file hashes (instant)
-- 2 conflicted file sections (partial reads)
-- Total: ~10-15% of the context that a naive "compare everything" approach would use.
-
-### What Changed
-
-| File | Change |
-|---|---|
-| `HARNESS_VERSION` (new) | Template version number (`1.0.0`) |
-| `CHANGELOG.md` (new) | Version history for upgrade skill to read |
-| `skills/upgrade/SKILL.md` (new) | Full upgrade skill — 5 phases, semantic merge, conflict resolution |
-| `skills/setup/SKILL.md` | Added Phase 1.5 (existing file conflict resolution), Phase 4.2 (manifest generation), updated Re-Running Setup to reference /upgrade |
-| `README.md` | Added upgrade section, updated skill count to 13, added /upgrade to directory tree |
-
-### What Was NOT Added (Deliberate Omissions)
-
-1. **No automatic upgrade trigger** — User must explicitly run `/upgrade`. No auto-check-for-updates. Reason: upgrades should be intentional, not surprising.
-
-2. **No rollback command** — Backup is created, user can `cp -r .claude.backup.*/ .claude/` manually. A dedicated rollback skill adds complexity with little value since backups are simple directory copies.
-
-3. **No partial version upgrades** — Can't upgrade to "just 1.1.0" if 1.2.0 is available. Always upgrades to latest. Reason: partial upgrades create weird intermediate states. If a user wants to skip a version's changes, they can use `--check` to preview and then skip individual files during the upgrade.
-
-4. **No migration scripts** — No `migrate_1.0_to_1.1.sh` files. All upgrade logic is in the AI skill, driven by the changelog. Reason: migration scripts are brittle for prompt files and require maintenance per version pair.
-
----
-
-## Legacy Cleanup & Post-Setup Artifact Prevention
-
-### Legacy Files Removed
-
-| File | Reason |
-|---|---|
-| `_reference/setup.sh.legacy` | 1,016-line bash setup script from old approach. No longer needed — `/setup` skill reads `_reference/*.example` files instead. |
-| `scripts/` (empty directory) | Leftover from earlier iteration. No contents. |
-
-### Legacy References Cleaned
-
-- README.md: removed "instead of brittle bash scripts" phrasing, removed "Bash Script (old approach) vs AI Skill" comparison table, removed `setup.sh.legacy` from directory tree
-- CHANGELOG.md: replaced "replacing bash scripts" with neutral description
-- skills/setup/SKILL.md: replaced "replaces traditional setup scripts" intro with forward-looking description
-
-### Reference File Notices Updated
-
-- `_reference/agents/backend-agent.example.md`: Changed "TEMPLATE NOTICE: Customize the {{PLACEHOLDERS}}" to "Reference example: /setup reads this for structure guidance"
-- `_reference/CLAUDE.md.example`: Changed "Template guide: Replace {{PLACEHOLDERS}}" to "Reference example: /setup reads this for structure guidance"
-
-These notices were misleading — they suggested humans should manually fill in placeholders, when actually the AI `/setup` skill reads them as structural examples and generates fresh project-specific files.
-
-### Post-Setup Cross-Language Contamination Prevention
-
-**Problem:** The `_reference/` examples intentionally contain multi-language content (TypeScript AND Python code blocks, mentions of Django AND Express AND Rails, etc.) to cover all possible stacks. When the `/setup` skill generates project-specific files, it reads these references for structure guidance. Risk: the LLM copies content from the reference without filtering out wrong-language artifacts.
-
-**Prevention added at three levels:**
-
-1. **Generation instructions (Phase 3)**: Added explicit "anti-leakage rules" to each generation step:
-   - Backend agent: "only include the ONE detected framework — remove all others"
-   - Frontend agent: "only include the ONE detected framework"
-   - Rules files: "Include ONLY the detected language's code examples. If project is Python, every code block must be Python — zero TypeScript/Go/Java/Ruby."
-   - CLAUDE.md: "No cross-language content: If the project is Python, don't mention npm/yarn/tsc."
-   - All: "Do NOT copy from reference — generate fresh. Reference is for structure guidance only."
-
-2. **Verification (Phase 4.1)**: Added three concrete verification checks:
-   - **Cross-language contamination check**: Language-specific search table — if project is Python, grep generated files for `npm`, `yarn`, `jest`, ````typescript`, etc. If found, determine if legitimate (monorepo) or artifact (generation leak) and fix.
-   - **Template artifact check**: Search for template-language phrases ("customize this", "e.g., Django, Rails, FastAPI", "customizable for") that indicate generic content survived into project-specific files.
-   - **Reference contamination check**: Spot-check generated files against their reference examples. If sections are identical (just with placeholders filled in), the file was copied rather than generated fresh and needs to be redone.
-
-3. **Reference file framing**: Updated notices in `_reference/*.example` files to clearly state they are structural examples, not fill-in-the-blank templates. This reduces the risk of the LLM treating them as templates to copy-and-fill.
-
----
-
-## Full Template Audit: All Skills & Agents
-
-### Methodology
-
-Reviewed all 13 skills and 12 agents against 10 evaluation dimensions: frontmatter completeness, structure/clarity, hardcoded commands, error handling, user interaction, anti-rationalization, scope control, skill/agent integration, TodoWrite usage, and Definition of Done. Each file also compared against internet best practices for its domain. Six parallel review agents ran simultaneously, each covering a cluster of files.
-
-Previously audited: `/implement` and `/follow-up` (see earlier section). This audit covers the remaining 11 skills and 12 agents.
-
-### Consistent Gaps Found Across Files
-
-| Gap | Affected Files | Severity | Fix Applied |
-|---|---|---|---|
-| **Missing git constraints** | architect, refactor-agent, devops, doc, meta, knowledge, security, debugger, skeptic, reviewer agents + backend/frontend stubs | Critical | Added "Rule 0: No Git Operations" (or equivalent Critical Constraints section) to all 12 agents. |
-| **AskUserQuestion missing from allowed-tools** | refactor, simplify, features skills | Critical | Added AskUserQuestion to all three. |
-| **Hardcoded test commands** | simplify (`npm test`, `python -m pytest`, `go test`), debug (`run full test suite if feasible`) | Warning | Replaced with "project's test command from CLAUDE.md". |
-| **No escalation/retry limits** | refactor, simplify, debug skills | Warning | Added: refactor/simplify "3 failures → AskUserQuestion", debug "5 hypothesis tests → escalate", "2 fix failures → escalate". |
-| **Backend/frontend stubs too minimal** | backend-agent.md, frontend-agent.md | Warning | Added: scope boundaries, convention guidance, error reporting instructions, anti-rationalization constraints. |
-
-### Per-File Findings
-
-#### Skills
-
-| Skill | Rating | Key Strengths | Gaps Found | Fix Applied |
-|---|---|---|---|---|
-| **setup** | 8/10 | Comprehensive 4-phase pipeline, anti-leakage rules, conflict resolution | No TodoWrite mention, no detection retry logic | Not fixed (nice-to-have) |
-| **upgrade** | 8/10 | Changelog-driven efficiency, semantic merge, hash tracking | Assumes CHANGELOG always exists, generated file regeneration underspecified | Not fixed (edge cases) |
-| **spec** | 7.5/10 | Gray areas framework excellent, AskUserQuestion used well | No BDD/Gherkin format, DoD product-focused not LLM-focused | Not fixed (nice-to-have) |
-| **review** | 8/10 | Multi-agent parallel, confidence scoring, batched mode | No explicit fix loop, triage is pattern-based not risk-based | Not fixed (review is called by /implement which has fix loops) |
-| **refactor** | 7.5/10 | Strong anti-rationalization, incremental execution | Missing AskUserQuestion, no retry limit, hardcoded commit | Fixed: added AskUserQuestion, escalation at 3 failures, removed hardcoded commit |
-| **simplify** | 7/10 | Good simplification patterns, clarity principle | Missing AskUserQuestion, hardcoded test commands, no retry limit, no complexity metrics | Fixed: added AskUserQuestion, escalation at 3 failures, reference CLAUDE.md |
-| **features** | 7/10 | Lightweight, anti-framework, clear commands | Missing AskUserQuestion, no conflict resolution, vague tiebreaker | Fixed: added AskUserQuestion |
-| **debug** | 8.5/10 | Scientific method enforced, hypothesis tracking excellent | No escalation limit, "if feasible" loophole, no binary search | Fixed: added escalation limits, binary search technique, removed "if feasible" |
-| **onboard** | 7.5/10 | 3-phase workflow clear, 2000-line limit, anti-over-documentation | No error handling for scan failures, missing ADR discovery | Not fixed (nice-to-have) |
-| **improve** | 7.5/10 | Quality gates, counter tracking, AskUserQuestion present | No impact/severity field, no pruning guidance | Not fixed (nice-to-have) |
-| **ui-review** | 7/10 | 6 review dimensions, Playwright integration | WCAG 2.2 specifics missing, contrast ratios inconsistent, incomplete keyboard testing | Not fixed (requires domain expertise to get ratios right) |
-
-#### Agents
-
-| Agent | Rating | Key Strengths | Gaps Found | Fix Applied |
-|---|---|---|---|---|
-| **architect** | 8/10 | Anti-rationalization Rule 3, file-level precision, exploration framework | No git constraint, no ADR mandate, no C4 model | Fixed: added git constraint |
-| **skeptic** | 8.5/10 | 8 validation dimensions, mirage detection, blocking rules | No git constraint, scope creep detection not quantified, DAG tool unspecified | Fixed: added git constraint + read-only constraint |
-| **reviewer** | 8/10 | 5 dimensions, judge verification, confidence scoring | No git constraint, missing Google "code health" principle, criteria application rules | Fixed: added git constraint + review-only constraint |
-| **refactor-agent** | 8/10 | Atomic application, rollback strategy, code smell catalog | No git constraint, dead code limits, no Fowler catalog reference | Fixed: added git constraint |
-| **backend (stub)** | 5/10 | Correct frontmatter and tools | No constraints, no scope, no conventions, no git guard | Fixed: added all missing sections |
-| **frontend (stub)** | 5/10 | Correct frontmatter, includes Playwright | No constraints, no scope, no accessibility mention, no git guard | Fixed: added all missing sections |
-| **debugger** | 9/10 | Best agent in template. Anti-speculation, evidence hierarchy, hypothesis tracking | No git constraint, no binary search mention, no profiling guidance | Fixed: added git constraint. Binary search added to skill. |
-| **security** | 9/10 | OWASP Top 10, attacker personas, severity framework, read-only | No git constraint, missing STRIDE taxonomy, no supply chain security, crypto guidance thin | Fixed: added git constraint + read-only constraint. STRIDE/supply chain not fixed (requires security domain expertise). |
-| **doc** | 7.5/10 | Anti-drift rules, structured output, example testing | No Diátaxis framework, example testing says "if possible" | Fixed: added git constraint |
-| **devops** | 8/10 | Production safety gates, CI/CD pipeline, Dockerfile best practices | No GitOps principles, no drift detection, state file protection missing | Fixed: added git constraint |
-| **knowledge** | 7.5/10 | Reusability gate, JSONL format, validation checklist | No post-mortem integration, no runbook linkage, no git constraint | Fixed: added git constraint + read-only constraint |
-| **meta** | 8/10 | Agent taxonomy, tool selection rationale, validation template | No multi-agent coordination patterns, no agent testing framework | Fixed: added git constraint |
-
-### What Was NOT Fixed (Deliberate)
-
-Items marked "not fixed" fall into three categories:
-
-1. **Requires domain expertise** — WCAG 2.2 specifics, STRIDE taxonomy, supply chain security guidance, cryptography audit details. Getting these wrong is worse than leaving them as-is. These should be addressed by domain experts.
-
-2. **Nice-to-have improvements** — BDD/Gherkin in spec, Diátaxis in doc, complexity metrics in simplify, ADR mandates in architect. The skills work well without these; adding them would improve but not fix a gap.
-
-3. **Architectural decisions** — Review skill's fix loop is intentionally handled by `/implement` (Phase 5), not by `/review` itself. Setup's TodoWrite usage is a style preference. These are design choices, not gaps.
-
-### Sources
-
-- Martin Fowler's Refactoring Catalog: https://refactoring.com/catalog/
-- Google Code Review Practices: https://google.github.io/eng-practices/review/reviewer/standard.html
-- OWASP Top 10: https://owasp.org/www-project-top-ten/
-- STRIDE Threat Modeling: https://www.practical-devsecops.com/what-is-stride-threat-model/
-- Diátaxis Documentation Framework: https://diataxis.fr/
-- GitOps Principles: https://www.firefly.ai/academy/beyond-provisioning-a-2025-guide-to-infrastructure-orchestration-with-iac-and-gitops
-- WCAG 2.1/2.2: https://www.w3.org/TR/WCAG21/
-- Scientific Debugging: https://web.mit.edu/6.031/www/fa17/classes/13-debugging/
-- Augment Code Review Best Practices: https://www.augmentcode.com/guides/code-review-best-practices-that-scale
-
----
-
 ## HumanLayer Comparison & Pattern Adoption (v1.1.0)
 
 ### Research
@@ -3267,7 +2968,7 @@ Problem: Running `npm test` on a 500-test project dumps all passing output into 
 
 Solution: Created `hooks/backpressure.sh` with a `run_silent()` function. On success: outputs "✓ Tests passed (summary)" (~5 tokens). On failure: outputs only errors, capped at 150 lines. Integrated into 5 skills (implement, follow-up, refactor, simplify, debug). Added fail-fast flag guidance (`--bail`, `-x`, `--failfast`) as fallback.
 
-Files changed: new `hooks/backpressure.sh`, modified `skills/implement/SKILL.md` (Phase 4), `skills/follow-up/SKILL.md`, `skills/refactor/SKILL.md`, `skills/simplify/SKILL.md`, `skills/debug/SKILL.md`, `_reference/CLAUDE.md.example`.
+Files changed: new `hooks/backpressure.sh`, modified `skills/implement/SKILL.md` (Phase 4), `skills/follow-up/SKILL.md`, `skills/refactor/SKILL.md`, `skills/deep-simplify/SKILL.md`, `skills/debug/SKILL.md`, `_reference/CLAUDE.md.example`.
 
 **2. Context Utilization Guidance** (from their "Advanced Context Engineering" and "Long-Context Isn't the Answer" articles)
 
@@ -3307,285 +3008,15 @@ Files changed: new `agents/knowledge-retrieval-agent.md`, modified `skills/impro
 - 12 Factor Agents: https://hlyr.dev/blog/12-factor-agents
 - ETH Zurich Agent Files Study (cited in Skill Issue article)
 
----
-
-## Artifact Consolidation & Template Snapshot (v1.1.0 continued)
-
-### Problem
-
-Transient artifacts were scattered across three unrelated directories: `.planning/` (at project root), `.debug/` (at project root), and `.claude/knowledge/` (inside .claude/). This caused three issues: (1) no clear gitignore boundary — users had to manually ignore each directory, (2) the locations were arbitrary (`.planning/` is not a common convention), (3) no separation between committed configuration and transient runtime data.
-
-Additionally, the `/upgrade` skill relied on MD5 hashes in `.harness-meta.json` to detect user customizations. This is fragile — hash mismatches can't distinguish between "user intentionally modified this file" and "line endings changed" or "whitespace was reformatted."
-
-### Solution
-
-**1. Centralized `.claude/.artifacts/` directory** (git-ignored):
-
-All transient data now lives under one directory:
-- `.claude/.artifacts/planning/` — SPEC.md, ARCHITECTURE.md, STATE.md, NOTES.md, FEATURES.md, CODEBASE_MAP.md, UI_REVIEW.md
-- `.claude/.artifacts/debug/` — HYPOTHESES.md
-- `.claude/.artifacts/knowledge/` — learnings.jsonl, sessions/, patterns/, gotchas/, decisions/, recipes/
-- `.claude/.artifacts/template-snapshot/` — installed template state for upgrade diffing
-
-Benefits: single gitignore entry, clear committed-vs-transient boundary, all paths share a common prefix for easy discovery.
-
-**2. Template snapshot for upgrade diffing:**
-
-During `/setup`, all installed files are copied to `.claude/.artifacts/template-snapshot/`. This gives `/upgrade` a 3-way comparison:
-- **Snapshot** (what was installed) vs **Current** (what exists now) → detects user customizations
-- **Snapshot** (what was installed) vs **New template** (what's being upgraded to) → detects template changes
-- More reliable than hash comparison: actual file-level diff, handles whitespace/formatting changes correctly
-- Refreshed during `/upgrade` Phase 4.7 after updates are applied
-
-**3. Gitignore setup:**
-
-`/setup` Phase 4.4 creates `.claude/.gitignore` with `.artifacts/` entry and adds `.claude/.artifacts/` to root `.gitignore`.
-
-### Files Changed
-
-Path updates applied to 9 files: skills/implement, follow-up, debug, improve, onboard, features, ui-review; agents/knowledge-retrieval-agent, knowledge-agent; _reference/CLAUDE.md.example. Setup skill got Phases 4.3-4.4 (snapshot creation + gitignore). Upgrade skill got Phase 4.7 (snapshot refresh) and snapshot-based comparison in Phases 1.2 and 2.1.
-
-Note: report.md retains original `.planning/` references in analytical sections describing external frameworks (GSD, etc.) — these are historical documentation, not active path references.
-
----
-
 ## Full Template Audit v2: Post-v1.1.0 Review (All Skills, Agents, Hooks)
 
-### Methodology
-
-Reviewed all 13 skills, 13 agents, 13 hooks, and 3 cross-cutting files (CLAUDE.md.example, settings.json, README.md) against 10 evaluation dimensions each. Eleven parallel review agents ran simultaneously. This audit follows the v1.1.0 changes (backpressure, context utilization, knowledge retrieval, artifact consolidation, template snapshot) and checks for regressions, inconsistencies, and new gaps.
-
-### Consistent Gaps Found Across Files
-
-| Gap | Affected Files | Severity | Fix Applied |
-|---|---|---|---|
-| **`/tmp/` path violations in hooks** | cost-tracker.sh, context-monitor.sh, circuit-breaker.sh | High | Migrated all three to `.claude/.artifacts/<hook-name>/` with fallback to `/tmp/` |
-| **Missing `model` field in agent frontmatter** | backend-agent, frontend-agent, debugger-agent | Medium | Added `model: sonnet` to all three |
-| **CLAUDE.md.example agent count typo** | `_reference/CLAUDE.md.example` | High | Changed "Optional Agents (6)" → "Optional Agents (7)" |
-| **Escalation limit inconsistency** | follow-up skill (2 attempts) vs refactor/simplify (3 attempts) | Medium | Standardized follow-up to 3 attempts |
-| **Refactor-agent git contradiction** | refactor-agent.md (forbids git at line 16 but uses `git diff`/`git checkout` in Phase 4) | High | Replaced git commands with Edit-based rollback |
-| **Reviewer-agent unused WebSearch** | reviewer-agent.md | Medium | Removed WebSearch from tools |
-| **Reviewer-agent criteria file validation** | reviewer-agent.md | Medium | Added explicit validation step before loading criteria |
-| **TodoWrite not mentioned in most skills** | spec, review, debug, refactor, simplify, improve, onboard, features, ui-review | Low | Not fixed (nice-to-have — skills work without it; /implement covers tracking) |
-
-### Per-File Ratings
-
-#### Skills
-
-| Skill | Rating | Line Count | Key Strengths | New Gaps Found | Fix Applied |
-|---|---|---|---|---|---|
-| **setup** | 9/10 | 662 (over 500) | Comprehensive 5-phase pipeline, excellent conflict resolution, template snapshot | Line count exceeds 500 recommendation; AskUserQuestion error handling could be more explicit | Not fixed (complexity justified) |
-| **upgrade** | 8.5/10 | 502 | Changelog-driven efficiency, semantic merge, snapshot comparison | Hardcoded Bash commands without directory guards; no git constraint enforcement | Not fixed (edge cases) |
-| **implement** | 9/10 | 592 | Exemplary 6-phase pipeline, 9+ AskUserQuestion references, knowledge retrieval integrated | Backpressure path assumes `.claude/hooks/` exists; subagent contracts not fully specified | Not fixed (minor) |
-| **spec** | 9/10 | 311 | Gray areas framework, concrete examples, strong anti-rationalization | No TodoWrite mention; no `.artifacts/` for spec output | Not fixed (nice-to-have) |
-| **review** | 8/10 | 275 | Parallel execution, confidence scoring, U-shaped attention reference | Criteria file dependencies not validated; no Agent spawn error handling | Not fixed (reviewer-agent got criteria validation fix instead) |
-| **debug** | 9/10 | 209 | Scientific method enforced, hypothesis tracking, knowledge retrieval integrated | No HYPOTHESES.md initialization guidance; learnings.jsonl format not documented | Not fixed (nice-to-have) |
-| **refactor** | 8.5/10 | 128 | Strong anti-rationalization, backpressure integrated, escalation logic | Unused WebSearch in allowed-tools; no TodoWrite | Not fixed (minor) |
-| **simplify** | 7.5/10 | 89 | Compact and focused, clear patterns, escalation logic | Missing Agent in allowed-tools; git assumption without fallback | Not fixed (simplify runs in fork context) |
-| **follow-up** | 8/10 | 196 | Complexity assessment table, TodoWrite usage, prior context loading | Escalation was 2 attempts (inconsistent with refactor/simplify at 3); unused WebSearch | Fixed: standardized to 3 attempts |
-| **improve** | 8.5/10 | 272 | Quality gates, session artifact persistence, learning lifecycle | No error handling for missing artifact directories; counter increment logic undefined | Not fixed (nice-to-have) |
-| **onboard** | 8/10 | 242 | 3-phase workflow, anti-over-documentation, clear scope boundaries | No knowledge retrieval integration; depth parameter undefined | Not fixed (nice-to-have) |
-| **features** | 7.5/10 | 142 | Simple data format, anti-over-engineering, clear commands | No file initialization check; ID auto-increment undefined; AskUserQuestion not explicit | Not fixed (lightweight tool) |
-| **ui-review** | 8/10 | 198 | 6 review dimensions, Playwright integration, accessibility focus | No timeout handling for slow pages; screenshot storage unspecified | Not fixed (nice-to-have) |
-
-#### Agents
-
-| Agent | Rating | Key Strengths | New Gaps Found | Fix Applied |
-|---|---|---|---|---|
-| **architect** | 8/10 | Anti-rationalization Rule 3, file-level specs, exploration framework | Tools include Write/Edit (could violate analysis-only intent); no `.artifacts/` path for specs | Not fixed (Write needed for spec output) |
-| **skeptic** | 9/10 | 8 validation dimensions, mirage detection, high approval bar | Scope sanity check requires velocity metrics with no mechanism to obtain them | Not fixed (nice-to-have) |
-| **reviewer** | 8/10 | 5 dimensions, judge verification, confidence scoring | Criteria files not validated before loading; WebSearch unjustified | Fixed: removed WebSearch; added criteria validation step |
-| **refactor-agent** | 8/10 | Atomic application, rollback strategy, code smell catalog | Git contradiction: forbids git but uses git diff/checkout in Phase 4 | Fixed: replaced git commands with Edit-based rollback |
-| **backend** | 7/10 | Clear constraints, scope boundaries, convention-first | Missing `model` field; no output format spec; no error handling section | Fixed: added `model: sonnet` |
-| **frontend** | 7/10 | Accessibility mandate, scope boundaries, Playwright included | Missing `model` field; no output format spec | Fixed: added `model: sonnet` |
-| **debugger** | 9/10 | Scientific method, anti-speculation, hypothesis tracking | Missing `model` field; no `.artifacts/` for investigation artifacts | Fixed: added `model: sonnet` |
-| **security** | 9/10 | OWASP Top 10, threat personas, read-only enforced | Bash tool without explicit "read-only only" caveat | Not fixed (minor) |
-| **doc** | 8.5/10 | Anti-drift rules, structured output, example testing | No `.artifacts/` reference for staging docs | Not fixed (nice-to-have) |
-| **devops** | 8/10 | Production safety gates, CI/CD pipeline, Dockerfile best practices | Git constraint ambiguous (permits git diff/status); no artifact storage path | Not fixed (devops legitimately needs git inspection) |
-| **meta** | 8/10 | Agent taxonomy, tool selection rationale, validation template | Agent storage/versioning guidance missing | Not fixed (nice-to-have) |
-| **knowledge** | 8.5/10 | Reusability gate, JSONL structure, validation checklist | JSONL format example spans multiple lines (ambiguous); no deduplication strategy | Not fixed (documentation issue) |
-| **knowledge-retrieval** | 8/10 | Fast retrieval, condensed output, 5-category search | Search patterns don't specify case sensitivity or truncation strategy | Not fixed (minor) |
-
-#### Hooks
-
-| Hook | Rating | Critical Issues | Fix Applied |
-|---|---|---|---|
-| **auto-format.sh** | 8/10 | `eval` usage in formatter dispatch | Not fixed (input is internally constructed, low risk) |
-| **file-protection.sh** | 9/10 | None | — |
-| **dangerous-command-blocker.sh** | 8.5/10 | Some regex patterns could be stricter | Not fixed (low risk) |
-| **interactive-command-blocker.sh** | 8.5/10 | Position-dependent patterns | Not fixed (low risk) |
-| **db-guard.sh** | 8/10 | Incomplete WHERE clause detection | Not fixed (medium risk but complex to get right) |
-| **secret-protection-input.sh** | 8.5/10 | Overly broad grep patterns for API/SECRET | Not fixed (false positive risk is low) |
-| **secret-protection-output.sh** | 7.5/10 | Fragile JSON output construction | Not fixed (non-blocking hook) |
-| **cost-tracker.sh** | 7.5/10 | `/tmp/` storage; `bc` dependency; hardcoded pricing | Fixed: migrated to `.claude/.artifacts/cost-tracker/` |
-| **context-monitor.sh** | 7.5/10 | `/tmp/` storage; `bc` dependency; world-readable handoff | Fixed: migrated to `.claude/.artifacts/context-monitor/` |
-| **pre-compact-state-save.sh** | 8.5/10 | Silent mkdir failure | Not fixed (low risk) |
-| **post-compact-notification.sh** | 8/10 | Output validation missing | Not fixed (low risk) |
-| **circuit-breaker.sh** | 7.5/10 | `/tmp/` storage; no JSON validation | Fixed: migrated to `.claude/.artifacts/circuit-breaker/` |
-| **backpressure.sh** | 8.5/10 | Not a traditional hook; utility library | — (by design) |
-
-#### Cross-Cutting Files
-
-| File | Issues Found | Fix Applied |
-|---|---|---|
-| **CLAUDE.md.example** | "Optional Agents (6)" should be (7) | Fixed: changed to "Optional Agents (7)" |
-| **settings.json** | 12 registered hooks + 1 utility = 13 total; backpressure not registered (by design) | Not fixed (correct by design) |
-| **README.md** | Counts accurate (13/13/13); directory tree current | — |
-
-### What Was NOT Fixed (Deliberate)
-
-Items marked "not fixed" fall into four categories:
-
-1. **Nice-to-have improvements** — TodoWrite mentions in skills, output format specs for backend/frontend stubs, depth parameter docs for onboard. These improve completeness but don't affect functionality.
-
-2. **Complexity-justified** — Setup skill at 662 lines exceeds the 500-line recommendation but its complexity (5 phases, conflict resolution, template snapshot) justifies the length. Splitting it would add skill-calls-skill complexity.
-
-3. **Low-risk edge cases** — Regex pattern strictness in hooks, `bc` dependency in cost-tracker/context-monitor (still works on most systems), auto-format `eval` usage with internally-constructed input.
-
-4. **Design decisions** — Backpressure.sh as utility (not hook), devops-agent git inspection permission, backend/frontend as stubs pending `/setup` generation.
-
-### Summary Statistics
-
-| Category | Files Reviewed | Average Rating | Fixes Applied | Issues Deferred |
-|---|---|---|---|---|
-| Skills | 13 | 8.3/10 | 1 | 15 |
-| Agents | 13 | 8.2/10 | 5 | 12 |
-| Hooks | 13 | 8.2/10 | 3 | 10 |
-| Cross-cutting | 3 | — | 1 | 1 |
-| **Total** | **42** | **8.2/10** | **10** | **38** |
-
-### Fixes Applied in This Audit
-
-1. **CLAUDE.md.example**: "Optional Agents (6)" → "Optional Agents (7)"
-2. **cost-tracker.sh**: `/tmp/` → `.claude/.artifacts/cost-tracker/` with fallback
-3. **context-monitor.sh**: `/tmp/` → `.claude/.artifacts/context-monitor/` with fallback
-4. **circuit-breaker.sh**: `/tmp/` → `.claude/.artifacts/circuit-breaker/` with fallback
-5. **refactor-agent.md**: Removed git commands from rollback phase; replaced with Edit-based rollback
-6. **follow-up/SKILL.md**: Escalation limit 2 → 3 (consistent with refactor/simplify)
-7. **backend-agent.md**: Added `model: sonnet`
-8. **frontend-agent.md**: Added `model: sonnet`
-9. **debugger-agent.md**: Added `model: sonnet`
-10. **reviewer-agent.md**: Removed WebSearch from tools; added criteria file validation step
+**Date:** Post-v1.1.0. Reviewed all 42 files (13 skills, 13 agents, 13 hooks, 3 cross-cutting) against 10 evaluation dimensions. Average rating: 8.2/10. Applied 10 fixes: `/tmp/` path migrations for 3 hooks, missing `model` fields for 3 agents, refactor-agent git contradiction, follow-up escalation limit, CLAUDE.md.example agent count, reviewer-agent WebSearch removal + criteria validation. Superseded by v3 and later audits.
 
 ---
 
 ## Full Template Audit v3: Fresh Re-Review (All Skills, Agents, Hooks)
 
-### Methodology
-
-Complete re-audit of all 42 files (13 skills, 13 agents, 13 hooks, 3 cross-cutting) using 11 fresh parallel review agents. This audit ran independently of v2 to catch issues that the previous pass either missed or introduced.
-
-### New Issues Found (Not in v2)
-
-| Issue | File | Severity | Fix Applied |
-|---|---|---|---|
-| **Missing `model` field** | refactor-agent.md | High | Added `model: sonnet` (was missed in v2 — only backend/frontend/debugger were fixed) |
-| **Hardcoded `npm run dev`** | implement/SKILL.md line 375 | High | Changed to "start/dev command from CLAUDE.md's Essential Commands" |
-| **Spec output to project root** | spec/SKILL.md lines 119, 287 | High | Changed to `.claude/.artifacts/planning/FEATURE_SPEC.md` |
-| **AskUserQuestion missing from ui-review** | ui-review/SKILL.md | High | Added to allowed-tools; added Pre-flight step with explicit tool usage |
-| **Hardcoded npm commands in example** | onboard/SKILL.md lines 156-157 | Medium | Replaced with generic placeholders |
-| **Missing `bc` availability check** | context-monitor.sh | High | Added `command -v bc` guard; exits gracefully if missing |
-| **Missing `awk`/`bc` availability check** | cost-tracker.sh | High | Added `command -v awk && command -v bc` guard |
-| **Fragile jq output construction** | secret-protection-output.sh | Medium | Simplified to single `jq -n -c` call with `--arg` for all strings |
-
-### Updated Per-File Ratings (Changes from v2)
-
-#### Skills (updated ratings)
-
-| Skill | v2 Rating | v3 Rating | Change | Reason |
-|---|---|---|---|---|
-| **setup** | 9/10 | 8.5/10 | -0.5 | Line count 662 (32% over 500 limit); AskUserQuestion error handling still lacks rollback path |
-| **upgrade** | 8.5/10 | 7.5/10 | -1.0 | Hardcoded bash commands without guards in Phase 4.7; no TodoWrite; no escalation limits for massive changelogs |
-| **implement** | 9/10 | 8.5/10 | -0.5 | Had hardcoded `npm run dev` (now fixed); `knowledge-retrieval-agent` subagent type undocumented |
-| **spec** | 9/10 | 8.5/10 | -0.5 | Spec output was going to project root instead of `.artifacts/` (now fixed) |
-| **review** | 8/10 | 9/10 | +1.0 | Criteria file validation added in v2 working well; batched mode logic and confidence scoring excellent |
-| **debug** | 9/10 | 8.5/10 | -0.5 | No `.artifacts/debug/` directory creation guard; no definition of "inconclusive" for escalation |
-| **refactor** | 8.5/10 | 8/10 | -0.5 | Backpressure fallback vague ("fail-fast flags" without examples); WebSearch in allowed-tools but unused |
-| **simplify** | 7.5/10 | 7/10 | -0.5 | Still missing TodoWrite; backpressure fallback doesn't specify actual flags; git-diff-empty case unhandled |
-| **follow-up** | 8/10 | 7.5/10 | -0.5 | Model `inherit` undefined; backpressure fallback vague; plan outline format unspecified for medium complexity |
-| **improve** | 8.5/10 | 9/10 | +0.5 | Session artifact persistence well-integrated; quality gates strong |
-| **onboard** | 8/10 | 8/10 | = | Hardcoded npm commands fixed; depth parameter still undocumented |
-| **features** | 7.5/10 | 9/10 | +1.5 | Clean design, well-scoped, strong anti-over-engineering — previous rating was too low |
-| **ui-review** | 8/10 | 8/10 | = | AskUserQuestion now added; Playwright error handling added in Pre-flight |
-
-#### Agents (updated ratings)
-
-| Agent | v2 Rating | v3 Rating | Change | Reason |
-|---|---|---|---|---|
-| **architect** | 8/10 | 8/10 | = | WebSearch in tools questionable but not critical |
-| **skeptic** | 9/10 | 9/10 | = | Strongest agent; mirage detection, high approval bar |
-| **reviewer** | 8/10 | 8/10 | = | v2 fixes (criteria validation, WebSearch removal) verified working |
-| **refactor-agent** | 8/10 | 7.5/10 | -0.5 | Was missing `model` field (now fixed); test creation contradicts core "stop and ask" principle |
-| **backend** | 7/10 | 8/10 | +1.0 | Model added in v2; clear constraints and scope |
-| **frontend** | 7/10 | 8/10 | +1.0 | Model added in v2; accessibility mandate strong |
-| **debugger** | 9/10 | 9/10 | = | Strongest implementation agent; scientific method rigorous |
-| **security** | 9/10 | 9/10 | = | OWASP coverage, read-only enforcement, threat personas |
-| **doc** | 8.5/10 | 9/10 | +0.5 | Anti-drift rules excellent; structured output clear |
-| **devops** | 8/10 | 8/10 | = | Git constraint deliberately allows read-only inspection |
-| **meta** | 8/10 | 8/10 | = | Agent taxonomy and validation template strong |
-| **knowledge** | 8.5/10 | 9/10 | +0.5 | JSONL format well-defined; reusability gate prevents pollution |
-| **knowledge-retrieval** | 8/10 | 9/10 | +1.0 | Librarian role tight; search strategy comprehensive; maxTurns 15 appropriate |
-
-#### Hooks (updated ratings)
-
-| Hook | v2 Rating | v3 Rating | Change | Reason |
-|---|---|---|---|---|
-| **auto-format.sh** | 8/10 | 8/10 | = | eval risk acknowledged but internally constructed |
-| **file-protection.sh** | 9/10 | 8/10 | -1.0 | Double lowercase conversion (jq + tr); dot not escaped in some patterns |
-| **dangerous-command-blocker.sh** | 8.5/10 | 8/10 | -0.5 | Regex anchoring inconsistent across patterns |
-| **interactive-command-blocker.sh** | 8.5/10 | 8/10 | -0.5 | Pattern anchoring inconsistent |
-| **db-guard.sh** | 8/10 | 8/10 | = | SQL coverage gaps unchanged |
-| **secret-protection-input.sh** | 8.5/10 | 8/10 | -0.5 | Broad patterns (cat.*secret) risk false positives |
-| **secret-protection-output.sh** | 7.5/10 | 7.5/10 | = | jq construction simplified (now fixed) |
-| **cost-tracker.sh** | 7.5/10 | 7.5/10 | = | awk/bc guard added; pricing still hardcoded |
-| **context-monitor.sh** | 7.5/10 | 7.5/10 | = | bc guard added; /tmp bridge path still hardcoded |
-| **pre-compact-state-save.sh** | 8.5/10 | 9/10 | +0.5 | Clean implementation; state capture comprehensive |
-| **post-compact-notification.sh** | 8/10 | 9/10 | +1.0 | Well-focused, helpful suggestions |
-| **circuit-breaker.sh** | 7.5/10 | 7/10 | -0.5 | /tmp fallback still problematic conceptually |
-| **backpressure.sh** | 8.5/10 | 9/10 | +0.5 | Excellent utility design; flexible sourcing pattern |
-
-### Cross-Cutting Consistency
-
-| Check | Status | Details |
-|---|---|---|
-| Agent count: README vs CLAUDE.md.example vs actual | ✓ PASS | All say 13 (6 core + 7 optional) |
-| Skill count: README vs actual | ✓ PASS | 13 (9 core + 4 optional) |
-| Hook count: README vs settings.json vs actual | ⚠️ NOTE | 13 files, 12 registered in settings.json + 1 utility (backpressure). By design. |
-| Artifact paths consistent | ✓ PASS | All skills/agents use `.claude/.artifacts/` |
-| Git constraints on all agents | ✓ PASS | All 13 agents have explicit "No Git Operations" |
-
-### Fixes Applied in This Audit (v3)
-
-1. **refactor-agent.md**: Added `model: sonnet` (missed in v2)
-2. **implement/SKILL.md**: Replaced hardcoded `npm run dev` with CLAUDE.md reference
-3. **spec/SKILL.md**: Moved spec output from project root to `.claude/.artifacts/planning/FEATURE_SPEC.md`
-4. **ui-review/SKILL.md**: Added `AskUserQuestion` to allowed-tools; added Pre-flight step with error handling
-5. **onboard/SKILL.md**: Replaced hardcoded `npm test`/`npm run migrate` with generic placeholders
-6. **context-monitor.sh**: Added `bc` availability check before float comparisons
-7. **cost-tracker.sh**: Added `awk`/`bc` availability check before calculations
-8. **secret-protection-output.sh**: Simplified jq construction to single robust call
-
-### Summary Statistics
-
-| Category | Files | Avg v2 Rating | Avg v3 Rating | Fixes This Round |
-|---|---|---|---|---|
-| Skills | 13 | 8.3/10 | 8.2/10 | 5 |
-| Agents | 13 | 8.2/10 | 8.5/10 | 1 |
-| Hooks | 13 | 8.2/10 | 8.1/10 | 3 |
-| **Total** | **42** | **8.2/10** | **8.3/10** | **8 + 10 (v2) = 18 total** |
-
-### Remaining Deferred Items (Deliberate)
-
-These are tracked but not fixed because they're design decisions or low-priority:
-
-1. **Setup skill line count (662)** — complexity justified; splitting would add inter-skill complexity
-2. **Upgrade skill hardcoded bash** — cp/mkdir commands are pragmatic; wrapping in Write tool would over-abstract
-3. **TodoWrite not in most skills** — /implement covers orchestration tracking; adding to leaf skills is noise
-4. **Backpressure fallback flags** — project-specific; documenting every framework's flags would bloat skills
-5. **Follow-up model: inherit** — valid Claude Code frontmatter value; means "use parent model"
-6. **bc/awk in remaining hooks** — guards added where critical; remaining usage degrades gracefully
-7. **Circuit-breaker /tmp fallback** — fallback exists for systems without .claude/; conceptually impure but functional
-8. **Pricing hardcoded in cost-tracker** — externalizing to config adds complexity for marginal benefit
+**Date:** Post-v1.1.0. Independent re-audit of all 42 files using 11 fresh parallel review agents. Average rating: 8.3/10. Applied 8 fixes: refactor-agent missing model field, hardcoded `npm run dev` in implement, spec output path to `.artifacts/`, AskUserQuestion in ui-review, hardcoded npm in onboard, `bc`/`awk` guards in hooks, jq simplification. Baseline for v4+ audits.
 
 ---
 
@@ -3640,196 +3071,13 @@ This audit analyzed each adapted version to extract **generic, reusable patterns
 
 **Updated rating:** architect-agent 8/10 → **9/10** (now has effort scaling, research mandate, progressive delivery, context management, and plan revision — previously missing).
 
-#### 3. `skills/follow-up/SKILL.md` — Significantly Improved
-
-**Reference project additions analyzed (358 lines):**
-
-| Pattern | Project-specific? | Generic value | Incorporated? |
-|---|---|---|---|
-| **Hard Escalation Signals table** (8 signals with "why it escalates" rationale) | No — universal | Critical — prevents follow-up from handling what should be /implement | ✓ Yes (8 signals) |
-| **Detailed complexity levels** with concrete examples per level | No — universal | High — calibrates assessment beyond file counting | ✓ Yes |
-| **Codegen Rule** (run codegen after DTO/schema changes) | Partially — pnpm-specific command | High — generalized to "check CLAUDE.md for project's codegen commands" | ✓ Yes (generalized) |
-| **Agent Failure Handling** (retry once, then escalate) | No — universal | High — without this, agent timeouts silently stall the pipeline | ✓ Yes |
-| **Runtime Startup Check** (boot app, check for DI/compilation errors) | No — universal | Medium — catches runtime errors that static checks miss | ✓ Yes (medium complexity only) |
-| **Test Coverage Check** (find/extend/create unit + integration tests) | No — universal | High — ensures changes have test coverage proportional to risk | ✓ Yes |
-| **Learn & Improve phase** (extract learnings, suggest rule improvements) | No — universal | Medium — accumulates project knowledge across sessions | ✓ Yes (medium complexity only) |
-| **Troubleshooting table** (5 common problems with causes and fixes) | No — universal | Medium — reduces debugging time for common pipeline issues | ✓ Yes |
-| **Structured handoff on fix exhaustion** (Remaining Failures format) | No — universal | High — matches /implement's Phase 4 handoff pattern | ✓ Yes |
-| **Tweak loop with scope detection** ("growing beyond follow-up scope" warning) | No — universal | High — prevents follow-up from becoming a shadow /implement | ✓ Yes |
-| Project-specific commands (`pnpm --filter`, `pnpm run full-check`) | **Yes** | None for template | ✗ Excluded |
-| Project-specific agent names (`api-agent`, `web-agent`) | **Yes** | None for template | ✗ Excluded |
-
-**Additional fixes from report cross-check:**
-
-| Issue | Report reference | Fix applied |
-|---|---|---|
-| Validation fix loop was 3 rounds | Report line 1176: "max 2 rounds (validation)" for follow-up | Changed from 3 → 2 |
-| Missing anti-rationalization table | Report line 2200: every pipeline skill needs compliance table | Added 6-entry table |
-| Description over 250 chars | Report line 389: description under 250 chars | Shortened but kept informative (includes "Do NOT use for..." guidance) |
-| Validation commands not referencing CLAUDE.md | Report Pattern 8 (line 1326): discover-ask-persist | Added "from CLAUDE.md" references + fallback to AskUserQuestion |
-| AskUserQuestion explicit throughout | Report line 1370: follow-up had implicit "ask user" | Now has 11 explicit AskUserQuestion references |
-
-**Result:** Template follow-up grew from 196 → 429 lines. Pipeline comparison table against /implement now matches report's specification:
-
-| Aspect | `/implement` | `/follow-up` (updated) | Report spec (line 1169) | Match? |
-|---|---|---|---|---|
-| Discovery | Full | Skip | Skip | ✓ |
-| Architecture | Architect + skeptic + approval | Skip or brief plan (medium) | Skip or brief plan | ✓ |
-| Validation | Full check + codegen + startup + test coverage | Full check + codegen + startup (medium) + test coverage (small/medium) | Full check + codegen | ✓ (exceeds — startup/test coverage are valuable) |
-| Review | Full grid, max 3 rounds | Full review, max 1 round | Full review, max 1 round | ✓ |
-| Validation fix loops | Max 3 | Max 2 | Max 2 | ✓ |
-| Ship | Full ceremony + learn | Summary + tweaks + learn (medium only) | Summary + tweaks + commit | ✓ |
-
-**Updated rating:** follow-up 7.5/10 → **9/10** (now has proper escalation signals, agent failure handling, test coverage, learn & improve, and anti-rationalization — was the weakest pipeline skill, now on par with /implement).
-
-#### 4. `skills/simplify/SKILL.md` — Major Rewrite
-
-**Reference project additions analyzed (222 lines):**
-
-| Pattern | Project-specific? | Generic value | Incorporated? |
-|---|---|---|---|
-| **4-phase pipeline** (Scope → Analyze → Fix → Verify) | No — universal | Critical — previous version had no structured pipeline | ✓ Yes |
-| **3 analysis passes** (Reuse/Duplication, Quality/Readability, Efficiency/Patterns) | No — universal | Critical — systematic coverage vs ad-hoc checklist | ✓ Yes |
-| **P1/P2/P3 severity classification** | No — universal | High — prevents over-fixing (P3 = report only, never fix) | ✓ Yes |
-| **AI-Generated Code Anti-Patterns** (over-abstraction, verbose error handling, unnecessary wrappers, over-documentation) | No — universal | Critical — the most common quality issues in AI-generated code | ✓ Yes |
-| **Frontend-Specific checks** (component splitting, effect splitting, prop drilling, stale closures) | No — universal | Medium — generic React/frontend patterns, not framework-specific | ✓ Yes (renamed from "React-Specific" to "Frontend-Specific") |
-| **Structured Completion Report** (Applied/Skipped/P3 Notes/Verification format) | No — universal | High — gives user clear visibility into what changed and what was deferred | ✓ Yes |
-| **Safe revert strategy** (revert individual failed changes, max 1 retry cycle) | No — universal | High — prevents cascading failures from cleanup changes | ✓ Yes |
-| **Scope limiting** (max 20 files, exclude generated code/migrations/type-only files) | No — universal | Medium — prevents runaway analysis on large diffs | ✓ Yes |
-| **Test file separation** (lighter review for test files, never weaken assertions) | No — universal | Medium — different review bar for test code vs source code | ✓ Yes |
-| Project-specific commands (`pnpm lint:fix`, `pnpm run full-check`) | **Yes** | None for template | ✗ Excluded |
-| Project-specific patterns (`findByX` DAO methods, `FilterQuery<T>`) | **Yes** | None for template | ✗ Excluded |
-| Project-specific React patterns (Ant Design theme tokens, Refine hooks) | **Yes** | None for template | ✗ Excluded |
-
-**Additional fixes from report cross-check:**
-
-| Issue | Report reference | Fix applied |
-|---|---|---|
-| Missing anti-rationalization table | Report line 2200 | Added 5-entry table specific to simplify's failure modes |
-| Validation commands not referencing CLAUDE.md | Report Pattern 8 (line 1326) | Added "from CLAUDE.md" references |
-| Description over 250 chars | Report line 389 | Shortened to ~200 chars while keeping key differentiators |
-
-**Result:** Template simplify grew from 89 → 280 lines. This was the most dramatic improvement — the previous 89-line version was essentially a basic checklist with no structured pipeline, no severity classification, no AI anti-pattern detection, and no completion report format.
-
-**Updated rating:** simplify 7/10 → **9/10** (now has proper 4-phase pipeline, 3 analysis passes with specific pattern tables, P1/P2/P3 severity, AI anti-patterns, frontend-specific checks, safe revert strategy, and structured completion report — was the weakest skill in the template).
-
-### Summary Statistics
-
-| File | Before | After | Delta | New Patterns |
-|---|---|---|---|---|
-| `architect-agent.md` | 215 | 346 | +131 (+61%) | 10 patterns added |
-| `follow-up/SKILL.md` | 196 | 429 | +233 (+119%) | 10 patterns added, 5 report fixes |
-| `simplify/SKILL.md` | 89 | 280 | +191 (+215%) | 9 patterns added, 3 report fixes |
-| `reviewer-agent.md` | 136 | 136 | 0 | Confirmed correct (the adapted version wrong) |
-| **Total** | **636** | **1191** | **+555 (+87%)** | **29 patterns + 8 fixes** |
-
-### Updated Template Ratings (Post v4)
-
-| File | v3 Rating | v4 Rating | Change |
-|---|---|---|---|
-| **architect-agent** | 8/10 | 9/10 | +1.0 |
-| **follow-up** | 7.5/10 | 9/10 | +1.5 |
-| **simplify** | 7/10 | 9/10 | +2.0 |
-| **reviewer-agent** | 8/10 | 8/10 | = (confirmed correct) |
-
-### Key Principle: Cross-Pollination from Production Usage
-
-This audit demonstrates a valuable pattern: **production installations reveal template gaps**. When the setup skill adapts template files for a specific project, the adapted versions often contain patterns that should have been generic in the template all along. The signal is: if a production version is >50% larger than the template AND the additions aren't project-specific, those additions represent missing generic functionality.
-
-**Recommended process:** After each new project installation, compare adapted files against template originals. Extract generic patterns back into the template. This creates a positive feedback loop where each installation improves the template for all future projects.
-
-### Remaining Concerns
-
-1. **follow-up at 429 lines** — approaching the 500-line limit from report line 383. If more features are added, reference material should be extracted to supporting files (e.g., `follow-up/escalation-signals.md`).
-2. **Description length tradeoff** — report recommends <250 chars, but informative descriptions improve skill routing accuracy. Current descriptions are 200-280 chars, slightly over limit but providing critical routing information ("Do NOT use for new features, new entities..."). The routing value outweighs the marginal context cost.
-3. **Startup check in follow-up** — report's pipeline comparison table (line 1174) doesn't include startup check for follow-up, but the reference project's production experience shows DI/compilation errors are caught by startup checks that static analysis misses. Kept as medium-complexity-only with the understanding that this slightly exceeds the report's minimal spec.
+Follow-up skill (196 → 429 lines, 10 patterns + 5 report fixes), simplify skill (89 → 280 lines, 9 patterns + 3 report fixes), and reviewer-agent (confirmed correct, no changes) were also audited. Follow-up and simplify improvements were subsequently superseded by audits v11-v17 (follow-up) and v18/v22 (deep-simplify). Total: 29 patterns + 8 fixes applied across 4 files.
 
 ---
 
 ## Template Improvement Audit v5: Full Template Compliance Check
 
-**Date:** 2026-04-03
-**Scope:** All 12 skills + 13 agents checked against report.md best practices
-**Method:** Three parallel audit agents (pipeline skills, utility skills, agents) + manual verification
-
-### Fixes Applied
-
-| File | Fix | Severity | Report Reference |
-|------|-----|----------|-----------------|
-| `agents/knowledge-retrieval-agent.md` | Added missing git constraint: "Do NOT run git add, git commit, git push" | P1 | Only agent without explicit git rule |
-| `skills/debug/SKILL.md` | Added "Git Constraint" section with explicit git prohibition + git bisect/log/diff allowance | P2 | Report: all pipeline skills need git constraint |
-| `skills/refactor/SKILL.md` | Added "Git Constraint" section with explicit git prohibition | P2 | Report: all pipeline skills need git constraint |
-| `skills/refactor/SKILL.md` | Fixed Definition of Done checkboxes: `[x]` → `[ ]` (pre-checked = useless as a checklist) | P2 | Checkboxes should be unchecked templates |
-| `skills/debug/SKILL.md` | Converted anti-rationalization from prose to structured table (6 entries) | P2 | Report line 2209: structured table format required |
-| `skills/spec/SKILL.md` | Converted anti-rationalization from prose to structured table (5 entries) | P2 | Report line 2209 |
-| `skills/features/SKILL.md` | Converted anti-rationalization from prose to structured table (5 entries) | P2 | Report line 2209 |
-| `skills/learnings/SKILL.md` | Converted anti-rationalization from prose to structured table (5 entries) | P2 | Report line 2209 |
-| `skills/onboard/SKILL.md` | Converted anti-rationalization from prose to structured table (4 entries) | P2 | Report line 2209 |
-| `skills/ui-review/SKILL.md` | Converted anti-rationalization from prose to structured table (5 entries) | P2 | Report line 2209 |
-| `skills/review/SKILL.md` | Converted anti-rationalization from prose to structured table (6 entries) | P2 | Report line 2209 |
-| `skills/setup/SKILL.md` | Added missing "Compliance — Do Not Skip Phases" table (5 entries) | P2 | Report line 2209: every pipeline skill needs compliance table |
-
-### Per-File Status After Fixes
-
-| File | Lines | Git Constraint | Anti-Rat Table | Def of Done | AskUserQuestion | CLAUDE.md Refs | Rating |
-|------|-------|---------------|----------------|-------------|-----------------|----------------|--------|
-| `implement/SKILL.md` | 593 | ✓ | ✓ (per-phase) | ✓ (10 items) | ✓ (5 refs) | ✓ | 9/10 |
-| `follow-up/SKILL.md` | 429 | ✓ | ✓ (6 entries) | ✓ (8 items) | ✓ (11 refs) | ✓ | 9/10 |
-| `simplify/SKILL.md` | 280 | ✓ | ✓ (5 entries) | ✓ (7 items) | ✓ (in tools) | ✓ | 9/10 |
-| `debug/SKILL.md` | ~218 | ✓ (NEW) | ✓ (NEW, 6 entries) | ✓ (8 items) | ✓ (2 refs) | ✓ | 8.5/10 |
-| `refactor/SKILL.md` | ~137 | ✓ (NEW) | ✓ (8 entries) | ✓ (FIXED) | ✓ (2 refs) | ✓ | 8.5/10 |
-| `review/SKILL.md` | ~276 | N/A (fork) | ✓ (NEW, 6 entries) | ✓ (8 items) | N/A (fork) | N/A | 8.5/10 |
-| `spec/SKILL.md` | ~312 | N/A | ✓ (NEW, 5 entries) | ✓ (7 items) | ✓ (2 refs) | N/A | 8.5/10 |
-| `features/SKILL.md` | ~143 | N/A | ✓ (NEW, 5 entries) | ✓ (6 items) | ✓ (in tools) | N/A | 8/10 |
-| `learnings/SKILL.md` | ~273 | N/A | ✓ (NEW, 5 entries) | ✓ (6 items) | ✓ (1 ref) | N/A | 8/10 |
-| `onboard/SKILL.md` | ~243 | N/A | ✓ (NEW, 4 entries) | ✓ (6 items) | N/A | N/A | 8/10 |
-| `ui-review/SKILL.md` | ~203 | N/A (fork) | ✓ (NEW, 5 entries) | ✓ (6 items) | ✓ (in tools) | N/A | 8/10 |
-| `setup/SKILL.md` | ~754 | N/A (user) | ✓ (NEW, 5 entries) | ✓ (8 items) | ✓ (many) | ✓ | 8/10 |
-
-### Agent Status After Fixes
-
-| Agent | Git Constraint | Model | maxTurns | Desc <250 | Output Format | Task Limitation |
-|-------|---------------|-------|----------|-----------|---------------|-----------------|
-| `architect-agent` | ✓ | sonnet | 60 | ✓ (268) | ✓ (6 sections) | ✓ (context budget) |
-| `reviewer-agent` | ✓ | sonnet | 25 | ✓ (217) | ✓ (confidence) | ✓ (explicit) |
-| `knowledge-retrieval-agent` | ✓ (FIXED) | haiku | 15 | ✓ (140) | ✓ (citations) | N/A |
-| `debugger-agent` | ✓ | sonnet | 60 | ✓ (141) | ✓ (7 sections) | N/A |
-| `doc-agent` | ✓ | haiku | 30 | ✓ (146) | ✓ (update fmt) | N/A |
-| `security-agent` | ✓ | sonnet | 40 | ✓ (149) | ✓ (findings) | N/A |
-| `skeptic-agent` | ✓ | sonnet | 30 | ✓ (178) | ✓ (validation) | P3: has Task, no #4182 note |
-| `knowledge-agent` | ✓ | haiku | 25 | ✓ (146) | ✓ (JSONL) | N/A |
-| `refactor-agent` | ✓ | sonnet | 60 | ✓ (136) | ✓ (summary) | P3: has Task, no #4182 note |
-| `meta-agent` | ✓ | sonnet | 60 | ✓ (148) | ✓ (8 sections) | N/A |
-| `devops-agent` | ✓ | sonnet | 60 | ✓ (152) | ✓ (2 formats) | N/A |
-| `backend-agent` | ✓ | sonnet | 60 | ✓ (113) | Stub (/setup) | Stub |
-| `frontend-agent` | ✓ | sonnet | 60 | ✓ (130) | Stub (/setup) | Stub |
-
-### P3 Notes (Not Fixed — Informational)
-
-1. **Subagent Task limitation (GitHub #4182)**: `skeptic-agent` and `refactor-agent` have Task in their tools but don't document that subagents cannot spawn nested Tasks. Low risk since both are typically invoked by orchestrator skills that handle coordination.
-
-2. **implement at 593 lines**: Over the 500-line guideline. Splitting is possible but risky — the skill's coherence benefits from being in one file. Phase-specific reference material (mid-flow input handling, error tables) could theoretically be extracted to supporting files.
-
-3. **setup at 754 lines**: Over the 500-line guideline. This is the known exception — setup is a one-time bootstrap skill with inherent complexity. Splitting would reduce coherence.
-
-4. **backend-agent and frontend-agent are stubs**: Intentionally minimal — designed to be generated by `/setup` with project-specific content. Not a deficiency.
-
-5. **implement anti-rationalization is per-phase, not centralized**: Lines 214, 470, 530 have per-phase constraints rather than one table. For a 593-line skill, per-phase placement may be more effective than a centralized table that's far from the relevant phase.
-
-### Consistency Improvements Made
-
-All 12 skills now use the same anti-rationalization format:
-- **Section header**: `## Compliance — Do Not [Skip Phases|Cut Corners|Over-Engineer|Pollute Knowledge|Over-Document]`
-- **Format**: `| Your reasoning | Why it's wrong |` table with 4-6 entries
-- **Content**: Specific rationalizations Claude might use, paired with concrete rebuttals
-
-This matches report line 2209-2226 recommendation exactly.
-
-### Summary
-
-**Before this audit:** 4 skills had proper table-format anti-rationalization (implement, follow-up, simplify, architect-agent). 8 skills used prose format. 2 skills (debug, refactor) lacked git constraints. 1 agent (knowledge-retrieval) lacked git constraint. Setup had no anti-rationalization at all. Refactor had pre-checked checkboxes.
-
-**After this audit:** All 12 skills have structured anti-rationalization tables. All pipeline skills have git constraints. All 13 agents have git constraints. All Definition of Done sections use unchecked `[ ]` format. Template-wide consistency achieved.
+**Date:** 2026-04-03. Checked all 12 skills + 13 agents against report.md best practices. Applied 12 fixes: git constraints added to debug/refactor skills and knowledge-retrieval agent, anti-rationalization tables converted from prose to structured `| Your reasoning | Why it's wrong |` format in 8 skills (debug, spec, features, learnings, onboard, ui-review, review, setup), refactor DoD checkboxes fixed. Key outcome: all 12 skills now use the same anti-rationalization table format, all pipeline skills have git constraints, all 13 agents have git constraints.
 
 ---
 
@@ -4392,136 +3640,6 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 ---
 
-## Template Improvement Audit v9: Follow-Up Skill Cross-Pollination
-
-Compared template `/follow-up` skill against the reference project's production installation to identify transferable improvements.
-
-### Methodology
-
-1. Read both skills (template: 430 lines, reference: 359 lines)
-2. Identified 18 differences across frontmatter, escalation signals, validation, delegation, learnings, and structural sections
-3. Validated each difference against report.md findings and internet research
-4. Implemented 4 improvements, rejected 5 project-specific patterns
-
-### Comparison Summary
-
-| Area | Template | Reference | Winner |
-|------|----------|--------|--------|
-| Escalation signals | 8 signals | 9 signals (adds OCP violation) | Reference |
-| Learn & Improve | "save as learning" (generic) | Typed memory: `feedback`/`project` | Reference |
-| Fix loop handoff | "Fixed" + "Still failing" | Adds "CI status" subsection | Reference |
-| Description | Mentions complexity levels | Explicit exclusions ("Do NOT use for...") | Reference |
-| Frontmatter | `context: main`, `allowed-tools` | Neither field present | Template |
-| Validation | Backpressure + tee fallback | Only `tee` fallback | Template |
-| Compliance, DoD, Examples, Prior Context, Task Tracking | All present (71 lines) | All missing | Template |
-
-### Implemented Improvements (4)
-
-#### 1. [HIGH] Open-Closed Principle Violation as 9th Escalation Signal
-
-**Problem:** Template's 8 hard escalation signals missed a class of risky changes: modifications to existing behavior that affect all consumers.
-
-**Research:** OCP literature (Wikipedia, DevIQ, Stackify) unanimously frames "change by modification" as fundamentally riskier than "change by extension." Stackify: "modifications can create regressions that can theoretically exist anywhere within the entire system." This is not project-specific — it applies to any codebase.
-
-**Fix:** Added to Hard Escalation Signals table: `| **Open-closed principle violation** | Modifies existing behavior for all consumers; regression risk is unbounded, needs rollback strategy |`
-
-**Evidence:**
-- [Open-Closed Principle - Wikipedia](https://en.wikipedia.org/wiki/Open%E2%80%93closed_principle)
-- [OCP - DevIQ](https://deviq.com/principles/open-closed-principle/)
-- [SOLID Design Open Closed Principle - Stackify](https://stackify.com/solid-design-open-closed-principle/)
-- Report line 2990: existing signals "match scope control research" — OCP is the same class of risk signal
-
-#### 2. [HIGH] Typed Memory Categories in Learn & Improve
-
-**Problem:** Template said "save as learning" with no guidance on WHERE to save, causing ad-hoc decisions and poor retrieval quality.
-
-**Research:** arXiv:2512.13564 ("Memory in the Age of AI Agents") + ICLR 2026 MemAgents workshop confirm typed memory (episodic/semantic/procedural) outperforms unstructured storage. mem0.ai State of AI Agent Memory 2026 confirms graph/typed memory is production-standard. Claude Code natively supports `feedback` and `project` memory types.
-
-**Fix:** Replaced generic "save as learning" with typed categories:
-- User corrections/preferences → `feedback` memory (persists across sessions)
-- Discovered problems/workarounds → `project` memory (shared context)
-- Validation failure resolutions → `feedback` memory (operational knowledge)
-
-**Evidence:**
-- [Memory in the Age of AI Agents (arXiv:2512.13564)](https://arxiv.org/abs/2512.13564)
-- [State of AI Agent Memory 2026 - mem0.ai](https://mem0.ai/blog/state-of-ai-agent-memory-2026)
-- [3 Types of Long-term Memory AI Agents Need - MachineLearningMastery](https://machinelearningmastery.com/beyond-short-term-memory-the-3-types-of-long-term-memory-ai-agents-need/)
-- Report line 2201: Claude Code native memory supports `memory: user|project|local` frontmatter
-
-#### 3. [MEDIUM] CI Status Subsection in Fix Loop Handoff
-
-**Problem:** Template's structured handoff when stuck only had "Fixed" and "Still failing" sections — no at-a-glance triage view.
-
-**Research:** The reference project's production handoff includes `Lint: PASS/FAIL — Types: PASS/FAIL — Build: PASS/FAIL — Tests: N/M passing`. Provides immediate triage without re-reading error logs.
-
-**Fix:** Added `### CI status` subsection to the Phase 3 Step 6 structured handoff template.
-
-#### 4. [MEDIUM] Improved Description with Explicit Exclusions
-
-**Problem:** Template description mentioned complexity levels but lacked explicit exclusions, reducing skill routing accuracy.
-
-**Research:** fp8.co Claude Code Skills guide + Dean Blank's mental model article confirm explicit exclusions in descriptions improve activation rates (20% → 90%). The reference project's description adds "new endpoints/pages, auth/permissions changes, or changes requiring architecture decisions."
-
-**Fix:** Expanded description to include explicit exclusions: "Do NOT use for new features, new entities, new endpoints/pages, auth/permissions changes, new modules, or changes requiring architecture decisions."
-
-**Evidence:**
-- [Claude Code Skills Complete Developer Guide (fp8.co)](https://fp8.co/articles/Claude-Code-Skills-Complete-Developer-Guide)
-- [A Mental Model for Claude Code Skills (Dean Blank)](https://levelup.gitconnected.com/a-mental-model-for-claude-code-skills-subagents-and-plugins-3dea9924bf05)
-
-### Rejected Improvements (5 — all project-specific)
-
-| Reference Pattern | Why Rejected |
-|----------------|-------------|
-| Scope detection (API-only/Web-only/Both) | Monorepo-specific; template must stay generic |
-| Hardcoded port ranges in cleanup | Project-specific (`lsof -ti :4200-4299`) |
-| Named agents (api-agent/web-agent) | Projects name their own agents during `/setup` |
-| Hardcoded codegen/validation commands | Template correctly references CLAUDE.md |
-| BullMQ examples in escalation signals | Too specific; generic wording is correct |
-
-### Key Architectural Finding
-
-The reference project lost 6 template sections during customization (~71 lines / 17%): Compliance table, Task Tracking (TodoWrite), Definition of Done, When to Use vs /implement comparison, Prior Context loading, and Examples. This validates the need for the `/upgrade` skill (report section 20) — manual customization strips useful generic content that should survive project-specific adaptation.
-
-### Self-Review: 3 Issues Found and Fixed
-
-#### Issue 1 (MEDIUM): OCP escalation signal lacked detection heuristic
-
-**Problem:** All other 8 escalation signals are mechanically detectable (grep for new files, count modules). OCP was the only one requiring semantic judgment with no examples.
-
-**Research:** The reference project's version has the same gap. OCP literature (Wikipedia, DevIQ, Stackify) identifies three concrete patterns: changing public method signatures, modifying shared middleware/validation, altering switch/if routing logic instead of adding handlers. These are observable in diffs.
-
-**Fix:** Added inline examples: "e.g., changing a public method signature, altering shared validation/middleware, modifying switch/if routing logic instead of adding a handler"
-
-#### Issue 2 (MEDIUM): `project` memory wrong for workarounds
-
-**Problem:** Line 292 lumped "discovered problems" and "workarounds" together as `project` memory. But workarounds ("test runner fails without NODE_ENV=test") are operational behavioral guidance, not project state.
-
-**Research:** The reference project's production version already splits this correctly — problems → `project`, workarounds → `feedback`. Claude Code memory system defines `feedback` as "guidance about how to approach work" which matches workarounds exactly. `project` memory is for high-level state that decays fast. arXiv:2512.13564 confirms different memory types serve different retrieval needs.
-
-**Fix:** Split into two bullets: discovered problems → `project` memory, workarounds/patterns that failed → `feedback` memory.
-
-#### Issue 3 (HIGH): Troubleshooting table said "3 fix rounds" but process says "Max 2"
-
-**Problem:** Pre-existing inconsistency. Troubleshooting table (line 403) said "Validation fails after 3 fix rounds" but Phase 3 Step 6 (line 210) says "Max 2 fix rounds" and AskUserQuestion text (line 222) says "after 2 fix rounds."
-
-**Research:** Report line 1162 confirms max 2 for follow-up validation. Report line 1193 confirms "Max 2 rounds (validation)" for follow-up. The reference project's production version already uses "2" in its troubleshooting table. The "3" was a copy-paste error from `/implement` pipeline (which uses max 3).
-
-**Fix:** Changed troubleshooting table from "3 fix rounds" to "2 fix rounds."
-
-### Files Changed
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `skills/follow-up/SKILL.md` | 430 lines | 438 lines | +8 lines (4 initial improvements + 3 self-review fixes) |
-
-### Updated Ratings
-
-| File | Before | After | Reason |
-|------|--------|-------|--------|
-| `skills/follow-up/SKILL.md` | 9/10 | 9.5/10 | +0.5 (OCP escalation signal with examples, typed memory categories split correctly, CI status in handoff, improved description, fix round consistency) |
-
----
-
 ## Template Improvement Audit v10: All Remaining Skills
 
 **Date:** 2026-04-04
@@ -4777,99 +3895,6 @@ Cross-referenced plan formats from 6 frameworks:
 
 ---
 
-## Template Improvement Audit v11: Follow-Up Token Optimization
-
-**Date:** 2026-04-06
-**Scope:** `/follow-up` skill — delegation enforcement, simplify phase, review quality
-**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
-**Trigger:** Production observation — follow-up orchestrator implementing 10+ file Medium changes directly, consuming excessive orchestrator tokens instead of delegating
-
-### Implemented Fixes
-
-| # | Severity | Fix | Evidence |
-|---|----------|-----|----------|
-| 1 | HIGH | Added coordinator statement: "You delegate implementation work to subagents. You do NOT write code directly — except Trivial." Follow-up was the only orchestrator skill without this identity block. | All other orchestrator skills (implement, review, deep-simplify, refactor) have explicit coordinator statements. Report.md L4294: "Without it, Claude will read and review code itself." |
-| 2 | HIGH | Added 3 anti-rationalization rows about delegation: "I'll implement directly", "I'll quickly edit myself", "Spawning agent is overkill" | Thread showed orchestrator doing `Write` and `Update` for a Medium change. Implement skill has equivalent rows (lines 395-401). |
-| 3 | MEDIUM | Added Phase 3: Simplify — spawns sonnet agent with `simplify-criteria.md` for Medium changes, safe revert if CI fails | Implement has Phase 5 (Simplify) between implementation and review. Follow-up lacked this quality pass. |
-| 4 | MEDIUM | Upgraded review agents to use structured criteria files from `.claude/skills/review/` instead of ad-hoc inline descriptions | Implement Phase 6 Stage C and standalone /review both pre-inline criteria files. Follow-up was using ad-hoc dimension descriptions. Report.md L598-614 on shared criteria files. |
-| 5 | LOW | Added `## Tests — MANDATORY` section to Small and Medium implementation agent prompts | Implement-reference agent template has mandatory Tests section. Follow-up agents lacked test requirements. |
-
-### Files Changed
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `skills/follow-up/SKILL.md` | 499 lines | 483 lines | Coordinator statement, simplify phase, criteria-based review, test-mandatory agents, delegation anti-rationalization |
-
-### Key Findings
-- Follow-up was the only orchestrator skill that allowed direct code writing beyond trivial edits — all other skills had explicit coordinator identity statements
-- The absence of a simplify phase meant AI-generated anti-patterns went straight from implementation to validation without a quality pass
-- Ad-hoc review dimensions in follow-up produced lower-quality reviews than the structured criteria files used by implement and standalone review
-- Anthropic's own guidance (internet research) supports selective delegation with complexity thresholds — the Trivial carve-out for direct implementation is correct and aligned with official docs
-
-## Template Improvement Audit v12: Follow-Up Phase 4 Boundary Enforcement
-
-**Date:** 2026-04-06
-**Scope:** Follow-up skill Phase 4 (Validate) — boundary enforcement between validation and review phases
-**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
-
-### Context
-
-In production usage, the follow-up orchestrator was observed overstepping Phase 4 boundaries: after an implementation agent completed a seeder task, the orchestrator entered Phase 4 validation and began deep manual code analysis — finding bugs (wrong variable: `lawyerUserId` instead of `clientUser.id`), discovering missing database tables, running migrations, and fixing all issues directly without delegation. This work belongs in Phase 5 (Review) and violates the orchestrator's coordinator role.
-
-Root cause: Phase 4 lacked explicit scope constraints. While Phase 2 had a coordinator identity statement (added in Audit v11), Phase 4 had no equivalent — leaving an implicit permission for source code analysis during validation.
-
-### Implemented Fixes
-
-| # | Severity | Fix | Evidence |
-|---|----------|-----|----------|
-| 1 | HIGH | Added Phase 2 Step 3: Completion Check — verifies implementation agent completed its task via `git diff --name-only` and `git status --short` without reading source code | implement skill has explicit verification gate (diff + file existence check); follow-up had none. Absence caused orchestrator to compensate by reading code. |
-| 2 | HIGH | Added Phase 4 orchestrator identity constraint: "run commands, do NOT read source code or find bugs — that is Phase 5's job" | Direct precedent: review skill received "Orchestrate, Don't Review" in Audit v8 (L4295-4303) because without it Claude reviewed code itself. Same pattern, same fix. |
-| 3 | HIGH | Rewrote Phase 4 Step 6 Fix Loop — removed blanket "fix directly" option for type/build/test errors. Retained Trivial exception (1-3 line fixes). All other failures delegated to fixer agent with raw error output. | implement-reference Phase 6 Stage A explicitly says "do NOT diagnose or read source files yourself." Follow-up Phase 4 had no equivalent prohibition. Internet research: Builder-Validator pattern (claudefa.st), Response Awareness methodology both confirm validators should be read-only. |
-| 4 | MEDIUM | Added anti-rationalization entry: "I noticed a bug during validation — I'll fix it now" → wrong because bug-finding is Phase 5's job | Compliance table had no entry covering Phase 4 → Phase 5 boundary. implement skill has per-phase compliance entries. |
-| 5 | MEDIUM | Simplified Phase 4 Step 5 (Test Coverage Check) to file-existence checks only — no longer instructs orchestrator to grep for function names or evaluate coverage quality | implement skill confines test verification to file-system checks. Evaluating whether tests "cover" changes requires reading source code — which is Phase 5 review work. |
-
-### Files Changed
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `skills/follow-up/SKILL.md` | 484 lines | 486 lines | Phase 2 completion check, Phase 4 identity constraint, fix loop rewrite, anti-rationalization entry, test coverage simplification |
-
-### Key Findings
-- The absence of an orchestrator identity constraint in Phase 4 is the direct cause of validation-phase scope creep — same root cause as Audit v8 (review skill). When the boundary is implicit, the orchestrator defaults to "help" by reading code.
-- Phase 4 (Validate) and Phase 5 (Review) serve architecturally distinct purposes: Phase 4 is mechanical/deterministic (command pass/fail), Phase 5 is semantic/contextual (fresh-context agents finding bugs). Collapsing them wastes Phase 5's fresh-context advantage.
-- The Trivial fix exception in Phase 4 Step 6 is load-bearing: without it, a typo fix that causes a 1-line type error would require spawning a fixer agent — disproportionate overhead. The exception is scoped to 1-3 lines to prevent creep.
-- Internet research (14 sources) unanimously agrees: validation = deterministic gate, review = contextual judgment. This is a named anti-pattern in Builder-Validator patterns (claudefa.st), Response Awareness methodology, and AddyOsmani's production patterns.
-
-## Template Improvement Audit v13: Setup Cleanup Skipped on Compare & Update
-
-**Date:** 2026-04-06
-**Scope:** Setup skill — Phase 5 cleanup not reached after Compare & Update flow
-**Method:** Phase 1-fast (obvious bug from production thread)
-
-### Context
-
-When running `/setup` in "Compare & update" mode (Step 2B), the orchestrator completed file comparisons and applied the user's choice (restore template version of follow-up skill), then asked "Is there anything else?" The user said "good" and the session ended — without ever reaching Phase 4 (Verify) or Phase 5 (Cleanup). This left `.claude/.artifacts/template-source/` in the project, which is a bootstrap artifact that should be removed after setup completes.
-
-Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proceed to Phase 4 (Verify) and Phase 5 (Cleanup) as normal." This was too easy for the orchestrator to skip when the conversational flow naturally wound down after the user approved file changes.
-
-### Implemented Fixes
-
-| # | Severity | Fix | Evidence |
-|---|----------|-----|----------|
-| 1 | HIGH | Replaced 3 soft "proceed to Phase 4/5" instructions with hard directives: "DO NOT end the conversation or ask 'anything else?' here. You MUST proceed to Phase 4 and Phase 5 now — template-source cleanup is mandatory." | Production thread showed orchestrator ending session at exactly these transition points. |
-| 2 | MEDIUM | Added compliance table entry: "The user said 'good' — setup is done, I can stop" → wrong because Phase 5 cleanup has not run yet | Same failure mode as Audit v11/v12: absent constraints = implicit permission to skip. |
-
-### Files Changed
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `skills/setup/SKILL.md` | 992 lines | 995 lines | 3 hard transition gates + 1 compliance entry |
-
-### Key Findings
-- Soft transition instructions ("proceed to X as normal") are unreliable at conversation-boundary points where the user's natural language ("good", "looks good") can be interpreted as session completion
-- The same pattern (absent hard constraint → orchestrator skips phase) recurs across skills — Audit v8 (review), v11 (follow-up coordinator), v12 (Phase 4 boundary), now v13 (setup cleanup). Hard negative constraints ("DO NOT") are more reliable than positive ones ("proceed to")
-- Bootstrap artifacts left behind can cause confusion in future sessions — the template-source directory makes the setup skill think it's a re-run
-
 ## Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping
 
 **Date:** 2026-04-06
@@ -4929,41 +3954,6 @@ Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proce
 - Tailored files (backend-agent, rules, review criteria) diverge significantly from the template after LLM generation. Diffing installed-vs-template produces 100% noise. The correct comparison is template-old-vs-template-new (what changed in the template itself), applied as structural patches to the tailored file.
 - The Copier/Cruft pattern of "sentinel file + commit hash + 3-way merge" is the industry standard for template update systems. Our implementation adapts this for AI-driven section-level merging instead of line-level git merge.
 - Analysis-before-question is a pattern already used in conflict-resolution.md but was missing from the re-run flow. Users can't make informed update decisions without seeing what actually changed.
-
-## Template Improvement Audit v16: Context Monitor 1M-Aware Adaptive Thresholds
-
-**Date:** 2026-04-06
-**Scope:** `hooks/context-monitor.sh`, `hooks/context-statusline.sh` (new), `settings.json`, `skills/setup/SKILL.md`
-**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration) + deep research (hook stdin schemas, StatusLine docs, proxy mechanisms)
-
-### Implemented Fixes
-
-| # | Severity | Fix | Evidence |
-|---|----------|-----|----------|
-| 1 | HIGH | Added StatusLine bridge script (`context-statusline.sh`) — the context-monitor was a complete no-op because the bridge file producer never existed | report.md Pattern 5 (line 2014): two-hook pipeline architecture requires StatusLine writer. Official StatusLine docs confirm `context_window` data is available. |
-| 2 | HIGH | Auto-detect 1M context via `context_window.context_window_size` from StatusLine — no user configuration needed | Official StatusLine stdin JSON includes `context_window_size: 200000` or `1000000`. Eliminates need for manual setup question. |
-| 3 | HIGH | Adaptive thresholds: 200K warns at 35%/25%/15% remaining; 1M warns at 80%/70%/60% remaining (warns after ~20% usage) | User requirement. Performance degrades at ~60% capacity (report.md line 79, 3269-3271). 1M models need earlier warnings because absolute token counts are 5x larger. |
-| 4 | MEDIUM | JSONL transcript fallback — parses `transcript_path` from PostToolUse stdin when bridge file is missing/stale | PostToolUse stdin includes `transcript_path` (official hooks docs). `tail -100` + jq extraction gives real token counts without StatusLine dependency. |
-| 5 | MEDIUM | CRITICAL/EMERGENCY bypass debounce — always fire immediately | report.md Pattern 5 (line 2011): critical should bypass debounce. Original implementation had all levels inside the same debounce check. |
-| 6 | LOW | Removed `bc` dependency — all comparisons use integer arithmetic | Original required `bc` for float comparison, silently degrading to no-op when unavailable. Integer math with `${var%%.*}` stripping is sufficient. |
-| 7 | LOW | Added jq fallback (grep/sed) for both StatusLine and context-monitor scripts | Review finding: scripts silently became no-ops without jq. Now degrade gracefully with regex extraction. |
-
-### Files Changed
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `hooks/context-statusline.sh` | — | 62 lines | NEW: StatusLine bridge script |
-| `hooks/context-monitor.sh` | 102 lines | 207 lines | REWRITE: adaptive thresholds, JSONL fallback, debounce bypass |
-| `settings.json` | 92 lines | 95 lines | Added `statusline` top-level config |
-| `skills/setup/SKILL.md` | — | +4 lines | Hook list, copy step, settings.json merge note, hook counts |
-
-### Key Findings
-- The context-monitor hook was a dead consumer in a two-hook pipeline where the producer (StatusLine) was never built. The hook silently exited on every invocation since installation — no user ever received a context warning from it.
-- Claude Code's StatusLine mechanism is the key to context monitoring — it receives `context_window_size`, `remaining_percentage`, `used_percentage`, and full token counts. This data is NOT available in any hook event's stdin or environment variables.
-- No framework out of 14 surveyed uses model-specific context thresholds — all use fixed percentages. This implementation is novel in adapting thresholds to the context window size.
-- The `[1m]` suffix is stripped from model names before reaching hooks (confirmed by multiple GitHub issues). Context window size detection must come from StatusLine's `context_window.context_window_size` field, not from model name parsing.
-
----
 
 ## Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation
 
@@ -5089,3 +4079,110 @@ Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proce
 - The separation of `/features` and `/spec` into independent skills was architecturally correct (matches all 14 production frameworks), but the implementation missed the critical bridge: write-time registration. Specs and backlogs are separate concerns, but creating a spec IS a backlog event.
 - The `features` skill used `model: haiku` for cost efficiency. Merging required upgrading to `model: inherit` since the spec pipeline needs stronger reasoning. This is a minor cost tradeoff for correctness.
 - No other template files referenced `/spec` as a standalone command — the setup skill listed it in the skills directory, but the README was the only file that needed updating.
+
+## Template Improvement Audit v21: Improve-Template Degradation Checking
+
+**Date:** 2026-04-07
+**Scope:** improve-template skill (Phase 4 validation, Phase 5 review)
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | medium | Added before-state baseline capture (Phase 4 Step 0) before implementation agents modify files | Convergent pattern across all 3 sources: every regression system captures baseline before changes |
+| 2 | medium | Replaced 3-line spot check with 5-check structured validation gate (line counts, outbound refs, inbound refs, YAML frontmatter, pattern consistency) | report.md 6-phase verification loop, internet multi-stage gates, codebase showed Phase 4/5 duplication |
+| 3 | medium | Phase 5 review agent now receives git diff + baseline instead of text descriptions, with diff-aware regression checklist | LLM-as-judge needs concrete evidence; SonarQube baseline pattern distinguishes new vs pre-existing issues |
+| 4 | low | Added anti-rationalization entry for "change is too small to affect other skills" | Present in follow-up and deep-simplify skills but missing from improve-template |
+| 5 | low | Removed duplicate checks (cross-refs, line counts) from Phase 5 that are now handled by validation gate | Codebase finding: Phase 4 Step 3 and Phase 5 items 3-4 were identical checks |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `.claude/skills/improve-template/SKILL.md` | 484 lines | 492 lines | Added degradation checking: baseline capture, validation gate, diff-aware review, anti-rationalization |
+
+### Key Findings
+- The improve-template skill had no regression detection mechanism — Phase 5's "could these break workflows?" was subjective guesswork with no baseline to compare against.
+- Bidirectional cross-reference scanning (inbound + outbound) is critical for template changes: a renamed file breaks every file that references it, but the old check only validated outbound references from changed files.
+- The "cheap checks before expensive review" pattern (structural validation gate before LLM review) eliminates wasted review cycles on files with structural errors.
+
+## Template Improvement Audit v22: Deep-Simplify Pattern Compliance & Comment Preservation
+
+**Date:** 2026-04-07
+**Scope:** deep-simplify skill (SKILL.md, simplify-criteria.md)
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | medium | Added "Protected Comment Categories" row to simplify-criteria.md Pass B table — explicit PRESERVE instruction for WHY comments, legal headers, TODO/FIXME with ticket refs, consequence warnings, complex algorithm explanations | Academic taxonomy (Pascarella & Bacchelli), Prettier/ESLint preservation patterns, user request. Criteria had only REMOVE rules, no PRESERVE rules |
+| 2 | medium | Rewrote Phase 2 agent blocks to use `Agent(model=..., prompt=..., description=...)` syntax matching Phases 4-5 and other skills | Codebase comparison: implement, follow-up, refactor all use Agent() syntax consistently |
+| 3 | low | Added `model: inherit` to frontmatter | Every other skill specifies model field; deep-simplify was the only one without it |
+| 4 | medium | Added Phase 6: Learn & Improve with Extract Learnings (project memory, dedup check) and Suggest Improvements (structured table) | 4/4 comparable multi-phase skills have Learn & Improve; deep-simplify was the only one without |
+| 5 | low | Added strategic compact point after Phase 2 | implement and follow-up have compact suggestions at context-heavy boundaries |
+| 6 | medium | Added top-level Agent Failure Handling section covering all phases (Phase 2: proceed without, Phase 4/5: escalate) | follow-up has explicit agent failure handling; Phase 4/5 failures are more critical than Phase 2 |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/deep-simplify/SKILL.md` | 284 lines | 308 lines | Pattern compliance: model field, Agent() syntax, compact point, failure handling, Learn & Improve phase |
+| `skills/deep-simplify/simplify-criteria.md` | 131 lines | 132 lines | Comment preservation safeguard: explicit protected categories row |
+
+### Key Findings
+- Deep-simplify's criteria had a directional gap: instructions to REMOVE bad comments but no instructions to PRESERVE meaningful ones. Academic literature (Pascarella & Bacchelli taxonomy) provides a ready-made classification framework for comment preservation.
+- Agent spawning syntax inconsistency within a single skill (markdown blocks in Phase 2 vs Agent() in Phases 4-5) is a pattern smell — makes the skill harder for Claude to interpret consistently.
+- The Learn & Improve phase is the most commonly skipped pattern when creating new skills, despite being present in 4/4 comparable skills (implement, refactor, follow-up, review).
+
+## Template Improvement Audit v23: Report.md Maintenance Step
+
+**Date:** 2026-04-07
+**Scope:** improve-template skill (Phase 6 report.md handling)
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | medium | Added Step 2c "Report maintenance" to Phase 6 — spawns agent to scan for superseded audits, dead references, and stale base sections; presents findings to user via AskUserQuestion before applying | report.md is 5149 lines, 47% audit appendices, ~400 lines fully superseded. Claude Code docs: long context files degrade LLM performance. ADR/log rotation/content pruning patterns all converge on periodic compaction. |
+| 2 | low | Fixed hardcoded "first 40 lines" ToC read window to "first 60 lines" — ToC had grown to 52 lines | Directly observable: research agent was missing the last 12 ToC entries |
+| 3 | low | Compressed Phase 3b Challenge Resolution from full agent prompt block to 1-line description to reclaim space | File was at 492/500 lines; needed 15 lines for Step 2c |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `.claude/skills/improve-template/SKILL.md` | 492 lines | 490 lines | Added report maintenance step, fixed ToC window, compressed Phase 3b |
+
+### Key Findings
+- report.md grows monotonically — the skill always appends but never prunes. 19 audit sections accumulated with ~400 lines of fully superseded content (follow-up alone has 6 successive audits).
+- No skill in the template had a document maintenance pattern. All cleanup targets ephemeral artifacts (temp files, state files), never accumulated knowledge documents.
+- The "first 40 lines" hardcode in the research agent prompt was silently causing missed ToC entries as the file grew — a class of bug where hardcoded assumptions rot as the file evolves.
+
+## Template Improvement Audit v24: Implement Second-Run Prior Context Loading
+
+**Date:** 2026-04-07
+**Scope:** implement skill — state persistence, Phase 1 discovery, Phase 7 cleanup
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Added `Pipeline: COMPLETE` sentinel to state.md in Phase 7 Step 8 — distinguishes completed pipelines from interrupted ones | Report.md Finding 6 (stale markers skip phases), Codebase Finding 5 (no completion marker) |
+| 2 | High | Rewrote Task Execution Step 0 with three-way detection: fresh / resume / second run with prior context loading | All 3 sources converge: internet (OpenSpec, RIPER-5, ADK scope patterns), report.md (Finding 7: analysis-before-question), codebase (Finding 10: no user confirmation before resume) |
+| 3 | High | Phase 1 Step 5 now uses prior spec/plan as "Prior iteration context" for gray-area questions on second run | Report.md Finding 5 (follow-up inherits but implement doesn't), Codebase Finding 17 (follow-up loads prior artifacts, implement doesn't) |
+| 4 | Medium | Phase 1 Step 7 versions prior spec.md → `spec-v{N}.md` and plan files before overwriting | Report.md Finding 8 (dynamic naming prevents overwrite), Internet Finding 2 (OpenSpec delta model) |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/implement/SKILL.md` | 437 lines | 441 lines | 4 surgical edits: sentinel, 3-way detection, prior context in discovery, spec versioning |
+
+### Key Findings
+- The implement skill conflated "resume interrupted run" with "re-run with changed requirements" — a single `state.md` existence check handled both cases identically, causing stale phase markers to skip re-architecture when requirements changed.
+- The `/follow-up` skill already loaded prior artifacts from the same branch's planning directory (spec.md, plan-*.md, state.md), but `/implement` did not — an asymmetry where the simpler skill was more context-aware than the full pipeline.
+- The `Pipeline: COMPLETE` sentinel ordering (before artifact keep/delete question) creates correct behavior for both paths: kept artifacts enable second-run detection, deleted artifacts trigger a clean fresh run.

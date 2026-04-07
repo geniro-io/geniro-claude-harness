@@ -2,6 +2,7 @@
 name: deep-simplify
 description: "Three-pass parallel code review. Spawns 3 subagents (reuse, quality, efficiency) on changed files, aggregates findings by severity, applies P1/P2 fixes, reverts if CI breaks. Zero behavior change guaranteed."
 context: main
+model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[files or 'changed' for git diff]"
 ---
@@ -11,6 +12,12 @@ argument-hint: "[files or 'changed' for git diff]"
 You are a **review orchestrator**. You spawn 3 specialized subagents in parallel, aggregate their findings, apply fixes, and verify. You do NOT analyze code yourself.
 
 **Pipeline:** Scope → Parallel Review (3 agents) → Aggregate → Fix → Verify
+
+## Agent Failure Handling
+
+If any delegated agent fails (timeout, error, empty/garbage result): retry once with the same prompt. If the retry also fails:
+- **Phase 2 agents:** proceed without its findings and note "Agent [N] failed — dimension not reviewed" in the Completion Report
+- **Phase 4/5 agents:** escalate to the user — fix/verify failures cannot be silently skipped
 
 ---
 
@@ -55,9 +62,8 @@ All agents in a single mode MUST be spawned in one message.
 
 ### Agent 1: Reuse & Duplication
 
-Spawn a **general-purpose** subagent with `model: "sonnet"`:
-
 ```
+Agent(model="sonnet", prompt="""
 ## Task: Reuse & Duplication Review
 
 You are a code reviewer focused on finding duplication and reuse opportunities.
@@ -83,13 +89,13 @@ Also read each file's immediate neighbors (imports from same module) for reuse c
 Return a JSON array:
 [{"file": "path", "line": N, "pattern": "name", "severity": "P1|P2", "description": "what", "fix": "how"}]
 If no findings, return: []
+""", description="Review: reuse & duplication")
 ```
 
 ### Agent 2: Quality & Readability
 
-Spawn a **general-purpose** subagent with `model: "sonnet"`:
-
 ```
+Agent(model="sonnet", prompt="""
 ## Task: Quality & Readability Review
 
 You are a code reviewer focused on readability, naming, and AI-generated anti-patterns.
@@ -116,13 +122,13 @@ Also read each file's immediate neighbors (imports from same module) for reuse c
 Return a JSON array:
 [{"file": "path", "line": N, "pattern": "name", "severity": "P1|P2", "description": "what", "fix": "how"}]
 If no findings, return: []
+""", description="Review: quality & readability")
 ```
 
 ### Agent 3: Efficiency & Patterns
 
-Spawn a **general-purpose** subagent with `model: "sonnet"`:
-
 ```
+Agent(model="sonnet", prompt="""
 ## Task: Efficiency & Patterns Review
 
 You are a code reviewer focused on unnecessary complexity and inefficient patterns.
@@ -149,7 +155,10 @@ Also read each file's immediate neighbors (imports from same module) for reuse c
 Return a JSON array:
 [{"file": "path", "line": N, "pattern": "name", "severity": "P1|P2|P3", "description": "what", "fix": "how"}]
 If no findings, return: []
+""", description="Review: efficiency & patterns")
 ```
+
+**Context checkpoint:** If the 3 agent responses are large (20+ findings total), suggest `/compact` before proceeding to Phase 3.
 
 ---
 
@@ -248,6 +257,22 @@ Return EXACTLY:
 - Lines added/removed: +N/-M
 - Agents: 3 parallel (Reuse, Quality, Efficiency)
 ```
+
+---
+
+## Phase 6: Learn & Improve
+
+### Extract Learnings
+If any simplification pattern appeared 3+ times across files, save it as a `project` memory (anti-pattern specific to this codebase). Before writing, check existing memories for overlap — update rather than duplicate. Skip if nothing novel was discovered.
+
+### Suggest Improvements
+If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), suggest follow-up actions:
+
+| Pattern type | Suggested action |
+|---|---|
+| Architectural issues (P3 items) | "Consider running `/refactor` on [module]" |
+| Recurring anti-patterns | "Add a lint rule or criteria entry for [pattern]" |
+| Missing utilities causing duplication | "Extract [utility] to shared module" |
 
 ---
 

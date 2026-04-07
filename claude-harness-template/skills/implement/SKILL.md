@@ -87,13 +87,13 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 2. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
 3. Scan codebase for relevant patterns, conventions, architecture
 4. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
-5. Identify ambiguities and gray areas
+5. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before.
 6. **MANDATORY: Resolve gray areas.** You MUST stop here and ask the user questions before proceeding. Do NOT synthesize the spec without user input first.
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
    - **Auto mode:** Pick recommended defaults, log choices in spec
    - **Assumptions mode:** Propose plan, let user correct
    - **Include git workspace question** in this batch (new branch / current branch / worktree)
-7. Synthesize into spec document (only AFTER step 6). Write to `<task-dir>/spec.md`
+7. Synthesize into spec document (only AFTER step 6). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
 8. Document assumptions in spec file
 9. **Git workspace setup** — execute user's choice from step 6
 
@@ -384,6 +384,7 @@ Execute user's chosen method. See reference file for commit details per option.
 - **Worktree:** If in worktree, call `ExitWorktree` to merge back
 - **Linear:** Ask user before updating issue status (see reference file for details)
 - **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
+- **State:** Append `Pipeline: COMPLETE` to `<task-dir>/state.md`.
 - **Planning artifacts:** Use `AskUserQuestion` (do NOT ask as plain text — use the tool):
 
 `AskUserQuestion` with header "Artifacts":
@@ -407,7 +408,10 @@ If "Delete": remove `<task-dir>/` recursively.
 
 ## TASK EXECUTION
 
-0. **Check for existing state.** Glob for `<task-dir>/state.md`. If found, resume from next incomplete phase.
+0. **Check for existing state.** Glob for `<task-dir>/state.md`. Three cases:
+   - **No state.md** → fresh first run, proceed normally.
+   - **state.md exists, no "Pipeline: COMPLETE"** → interrupted run, resume from next incomplete phase.
+   - **state.md exists, has "Pipeline: COMPLETE"** → second run with changed requirements. Read all prior artifacts (`spec.md`, `plan-*.md`, `concerns.md`) into context now (before any renames). Proceed to Phase 1 with this prior context available.
 
 1. Take user's description: `$ARGUMENTS`
 2. **Create TodoWrite checklist** (planning phases only — implementation phases added after Phase 3 approval):

@@ -41,6 +41,7 @@ Reference file shared between `/deep-simplify` skill and `/implement` Phase 5. C
 | **Vague names** (`data`, `result`, `temp`, `item`, `val`) | Rename to describe the domain concept |
 | **Comments restating what code does** | Remove (keep comments that explain *why*) |
 | **Commented-out code blocks** | Remove entirely (git has history) |
+| **Meaningful comments** (explain *why*, legal/copyright headers, TODO/FIXME with ticket refs, consequence warnings, complex algorithm explanations) | **Preserve** — never remove during simplification. When editing code that has adjacent meaningful comments, keep the comments and update them if the code change alters their meaning |
 | **Dead code** (unreachable branches, unused variables/imports) | Remove |
 | **`any` type usage** (TypeScript) | Replace with specific type, generic, or `unknown` + type guard |
 | **Type assertions** bypassing type safety | Replace with type guards or proper typing |
