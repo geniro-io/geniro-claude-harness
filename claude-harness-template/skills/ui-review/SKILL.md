@@ -27,7 +27,7 @@ Use this skill to visually inspect UI components, pages, or full flows. Automate
 ### 0. Pre-flight
 - If the URL or page path is unclear, use `AskUserQuestion` to ask the user which pages to review and at what viewport sizes
 - If Playwright fails to load the page (network error, timeout, auth wall), use `AskUserQuestion` to ask the user for a corrected URL or credentials before retrying
-- **Playwright check:** Attempt to call `browser_navigate` to `about:blank`. If the tool is unavailable or returns an error, inform the user via `AskUserQuestion`: "Playwright MCP server is not installed. Install with: `claude mcp add playwright -- npx @playwright/mcp@latest` and restart Claude Code." Stop the skill.
+- **Playwright check:** Attempt to call `browser_navigate` to `about:blank`. If the tool is unavailable or returns an error, use the `AskUserQuestion` tool (do NOT output as plain text) to inform the user: "Playwright MCP server is not installed. Install with: `claude mcp add playwright -- npx @playwright/mcp@latest` and restart Claude Code." Stop the skill.
 
 ### 1. Capture Screenshots
 - Take screenshots at user-specified viewport sizes, or defaults (desktop: 1920x1080, tablet: 768x1024, mobile: 375x667)

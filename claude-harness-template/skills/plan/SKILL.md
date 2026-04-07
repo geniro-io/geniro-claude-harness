@@ -43,7 +43,7 @@ Parse `$ARGUMENTS` to detect intent:
 | `/plan update plan-0405-oauth.md` | Re-read and revise an existing plan |
 | `/plan just plan it` or `ASAP` | Auto mode: skip questions, pick recommended defaults |
 | `/plan I think we should add OAuth` | Assumptions mode: propose plan with assumptions, let user correct |
-| `/plan` (no arguments) | Use `AskUserQuestion`: "What would you like to plan?" |
+| `/plan` (no arguments) | Use the `AskUserQuestion` tool to ask "What would you like to plan?" |
 
 **Detection rules (checked in order):**
 1. **Empty arguments** → ask what to plan via `AskUserQuestion`
@@ -71,7 +71,7 @@ Existing Plans:
 | 2 | plan-0403-fix-pagination.md | Fix Pagination | completed | 2026-04-03 |
 ```
 
-4. Use `AskUserQuestion`: "Open a plan to view details, or start a new one?"
+4. Use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "Open a plan to view details, or start a new one?"
 5. If `.claude/.artifacts/planning/` doesn't exist or glob returns no results: "No plans found. Describe what you'd like to plan."
 
 ---
@@ -124,7 +124,7 @@ If no hard signals, score these dimensions:
 | **Large** | **Progressive delivery:** Phase 2a approach summary first → user confirmation → Phase 2b full plan + skeptic. |
 
 For Large tasks, Phase 2 becomes two sub-phases:
-1. **Phase 2a: Approach Proposal** — architect produces a brief proposal (not full plan): recommended approach + 1-2 alternatives with trade-offs + key decisions + risk assessment. Present to user via `AskUserQuestion`: A) Looks good, proceed to full plan. B) I'd prefer a different approach. C) This is too big, help me split it.
+1. **Phase 2a: Approach Proposal** — architect produces a brief proposal (not full plan): recommended approach + 1-2 alternatives with trade-offs + key decisions + risk assessment. Use the `AskUserQuestion` tool (do NOT output options as plain text) to present options: A) Looks good, proceed to full plan. B) I'd prefer a different approach. C) This is too big, help me split it.
 2. **Phase 2b: Full Plan** — only after user confirms approach.
 
 ---
@@ -179,7 +179,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
      - Key design decisions that affect the plan shape
      - Constraints (performance targets, backwards compat, etc.)
    - **Auto mode:** Pick the recommended default for every gray area. Log choices in the plan's Key Decisions section.
-   - **Assumptions mode:** Produce a complete proposal with all decisions listed. Present to user via `AskUserQuestion`: A) Looks good, proceed. B) I have corrections.
+   - **Assumptions mode:** Produce a complete proposal with all decisions listed. Use the `AskUserQuestion` tool (do NOT output options as plain text) to present options: A) Looks good, proceed. B) I have corrections.
    - **Do NOT skip this step** — even with a Linear issue or in auto mode, gray areas must be resolved (either by asking or by choosing defaults)
 
 ### Phase 2: Generate Plan
@@ -254,7 +254,7 @@ For Medium and Large tasks:
 
 2. **Read the validation report** from the file the skeptic wrote. If the file doesn't exist (skeptic failed to write it), treat as NEEDS REVISION and re-spawn with explicit instruction to write the file.
 
-2. **If NEEDS REVISION:** Route feedback back to architect-agent with specific issues. Architect revises the plan file. Re-run skeptic. Max 3 iterations. **If 3 iterations exhausted:** Present the best plan + remaining issues to user for decision via `AskUserQuestion`: A) Approve as-is with known issues noted. B) Abandon this approach, start fresh. C) I'll fix the plan manually.
+2. **If NEEDS REVISION:** Route feedback back to architect-agent with specific issues. Architect revises the plan file. Re-run skeptic. Max 3 iterations. **If 3 iterations exhausted:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to present the best plan + remaining issues with options: A) Approve as-is with known issues noted. B) Abandon this approach, start fresh. C) I'll fix the plan manually.
 
 3. **If PASS:** Proceed to Phase 4.
 
@@ -269,7 +269,7 @@ For Medium and Large tasks:
    - "Skeptic validation: PASS — N/8 dimensions verified"
    - If any warnings from skeptic: list them
 
-4. **Ask for approval** using `AskUserQuestion`:
+4. **Ask for approval** using the `AskUserQuestion` tool (do NOT output options as plain text):
    - A) **Approve this plan** — mark as approved, ready for `/implement`
    - B) **Adjust** — describe what to change (routes back to architect for revision)
    - C) **Too large — split** — decompose into smaller plans

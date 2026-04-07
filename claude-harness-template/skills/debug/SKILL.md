@@ -133,7 +133,7 @@ After documenting the fix, check if the debug session revealed harness improveme
 | **Missing test patterns** | Bug class not covered by review criteria? | `.claude/skills/review/*-criteria.md` |
 | **Stale documentation** | Docs described behavior that didn't match reality? | Any doc file |
 
-For each improvement found, present to the user via `AskUserQuestion`:
+For each improvement found, use the `AskUserQuestion` tool (do NOT output options as plain text) to present the options:
 ```
 The debug session revealed potential harness improvements:
 
@@ -150,7 +150,7 @@ If user approves, draft and apply the changes. If no improvements found, skip si
 ## Escalation Limits
 
 - **Hypothesis testing**: If 5 hypothesis tests across all hypotheses are inconclusive, stop and escalate to user with findings. May need domain expertise or more reproduction data.
-- **Fix attempts**: If 2 fix attempts fail verification, stop and present findings via `AskUserQuestion`: A) Try different approach, B) Escalate to /implement for deeper rework, C) Show investigation summary
+- **Fix attempts**: If 2 fix attempts fail verification, stop and use the `AskUserQuestion` tool (do NOT output options as plain text) to present findings with options: A) Try different approach, B) Escalate to /implement for deeper rework, C) Show investigation summary
 
 ## Git Constraint
 

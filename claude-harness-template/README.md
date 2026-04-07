@@ -7,7 +7,7 @@ A production-grade template for setting up a Claude Code harness in any software
 ## What's Included
 
 - **13 Agents** — 6 core (architect, skeptic, reviewer, backend, frontend, refactor) + 7 optional (debugger, security, doc, devops, knowledge, knowledge-retrieval, meta)
-- **13 Skills** — 10 core (/setup, /plan, /spec, /implement, /review, /follow-up, /deep-simplify, /refactor, /features, /learnings) + 3 optional (/debug, /onboard, /ui-review)
+- **12 Skills** — 9 core (/setup, /plan, /implement, /review, /follow-up, /deep-simplify, /refactor, /features, /learnings) + 3 optional (/debug, /onboard, /ui-review)
 - **8 Hooks** — 5 Priority 1 safety + 1 Priority 2 observability + 2 Priority 3 lifecycle + 1 context management utility (backpressure)
 - **Rules Files** — Generated for your specific language and framework
 - **CLAUDE.md** — Generated with your project's commands, conventions, and patterns

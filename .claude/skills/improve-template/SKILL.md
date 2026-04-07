@@ -63,7 +63,7 @@ For obvious bug fixes only. The user already showed what's broken.
 2. Research the correct fix — spawn 1-2 agents if the fix isn't obvious:
    - Internet agent: search for the correct pattern/syntax
    - Codebase agent: check how similar cases are handled elsewhere in the template
-3. Present the fix to the user with evidence. `AskUserQuestion`: approve or investigate deeper?
+3. Present the fix to the user with evidence, then use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "Approve this fix or investigate deeper?" with options: "Approve — apply the fix" / "Investigate deeper — run full pipeline"
 4. If approved: apply the fix (directly if 1-2 lines, subagent if more)
 5. Spawn a fresh review agent (Phase 5 Step 1) to verify
 6. Skip to Phase 6
@@ -218,14 +218,13 @@ For each finding: which files change, what changes, estimated line impact.
 
 ### Step 2: Ask for approval
 
-`AskUserQuestion`:
-```
-How should I proceed?
-A) Implement all findings
-B) Let me pick which ones to implement
-C) I disagree with some findings — let me challenge them
-D) Research deeper on specific items
-```
+Use the `AskUserQuestion` tool (do NOT output options as plain text — the tool provides a structured UI). Call it with:
+- **Question:** "How should I proceed with these findings?"
+- **Options (use these exactly):**
+  - "Implement all findings"
+  - "Let me pick which ones to implement"
+  - "I disagree with some findings — let me challenge them"
+  - "Research deeper on specific items"
 
 **If user picks C or D:** Go to Phase 3b.
 

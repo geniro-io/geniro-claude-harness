@@ -69,7 +69,7 @@ Find the template files using this priority order:
 
 3. **Common locations**: Search `~/claude-harness-template`, `../claude-harness-template`, `~/.claude/harness-template`
 
-4. **Ask user**: Use `AskUserQuestion`: "Where is the claude-harness-template directory? (e.g., ~/claude-harness-template)"
+4. **Ask user**: Use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "Where is the claude-harness-template directory? (e.g., ~/claude-harness-template)"
 
 Store the resolved path as `$TEMPLATE_DIR` for all subsequent phases.
 
@@ -131,7 +131,7 @@ Detect:
 - **State management** (Redux, Zustand, Jotai, Pinia — if frontend exists)
 - **Styling** (Tailwind, styled-components, CSS Modules, SASS — if frontend exists)
 
-**Fallback:** If no language or framework can be detected (empty repo, documentation-only, or unsupported language), use `AskUserQuestion`: "I couldn't auto-detect your tech stack. What language and framework does this project use?" If the user says it's a new/empty project, proceed with universal agents + hooks only, skip generated files.
+**Fallback:** If no language or framework can be detected (empty repo, documentation-only, or unsupported language), use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "I couldn't auto-detect your tech stack. What language and framework does this project use?" If the user says it's a new/empty project, proceed with universal agents + hooks only, skip generated files.
 
 ### 1.2 Validation Command Discovery
 
@@ -918,7 +918,7 @@ These are new in the template and not yet installed:
 - agents/architect-agent.md, agents/skeptic-agent.md, ...
 ```
 
-Then ask using `AskUserQuestion`:
+Then use the `AskUserQuestion` tool (do NOT output options as plain text) to present the options:
 
 ```
 How would you like to proceed?
@@ -1011,7 +1011,7 @@ done
 
 ### Step 3B: Review Each Category
 
-If user chose B, present each category one at a time with `AskUserQuestion`:
+If user chose B, present each category one at a time using the `AskUserQuestion` tool (do NOT output options as plain text):
 
 For **verbatim updates**: show each changed file's diff summary, ask accept/skip per file.
 For **tailored structural changes**: show each structural change with context, ask accept/skip.
@@ -1194,7 +1194,7 @@ rm -rf .claude/.artifacts/template-source/
 
 ### 5.2 Ask User Feedback & Remove Setup Skill
 
-Before cleanup, ask the user for confirmation using `AskUserQuestion`:
+Before cleanup, use the `AskUserQuestion` tool (do NOT output options as plain text) to ask for confirmation:
 
 ```
 Setup is complete. Does everything look correct?

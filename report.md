@@ -47,6 +47,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 39. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
 40. [Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation](#template-improvement-audit-v18-deep-simplify-token-explosion--state-file-relocation)
 41. [Template Improvement Audit v19: Implement Phase 7 Tweak Loop-Back](#template-improvement-audit-v19-implement-phase-7-tweak-loop-back)
+42. [Template Improvement Audit v20: Features + Spec Skill Merge](#template-improvement-audit-v20-features--spec-skill-merge)
 
 ---
 
@@ -5059,3 +5060,32 @@ Root cause: Steps 2A, 2B, and 2C all ended with the soft instruction "Then proce
 - The implement skill's Phase 7 Step 6 described *where* to route tweaks but not the *complete downstream pipeline* — Big tweaks said "re-run architect" but didn't mention that Phase 4/5/6 must also re-run, and stale state.md markers caused the resume logic to skip those phases entirely.
 - The follow-up skill already had a more precise tweak routing pattern (10-LOC threshold, explicit review re-run scope, escalation gate). The implement skill's Step 6 was written earlier and never received the same level of refinement.
 - Forward-only state checkpoints (state.md) are a structural limitation for backtracking. The fix (rewrite state.md keeping only Phase 1) is simple but was never specified because the original design assumed linear phase progression.
+
+---
+
+## Template Improvement Audit v20: Features + Spec Skill Merge
+
+**Date:** 2026-04-07
+**Scope:** `skills/features/`, `skills/spec/`, `README.md`
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Merged `/spec` skill into `/features` as `spec` subcommand — eliminates sync gap where specs weren't registered in FEATURES.md | User transcript: `/features list` showed empty backlog despite spec existing; all 14 frameworks keep specs+backlogs as separate concerns but with write-time registration |
+| 2 | Medium | Added Step 5b to spec pipeline: auto-register feature in FEATURES.md after writing spec file | Core bug fix — spec creation now writes to both `*-spec.md` and FEATURES.md atomically |
+| 3 | Medium | Added unregistered spec detection to `list` command — scans `*-spec.md` files not referenced in FEATURES.md | Safety net for specs created before merge or manually |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `skills/features/SKILL.md` | Rewritten — merged spec pipeline as `spec` subcommand (147→413 lines), added Step 5b registration, added list scan |
+| `skills/spec/` | Deleted — functionality moved to features skill |
+| `README.md` | Updated skill count (13→12), removed `/spec` from core skills list |
+
+### Key Findings
+- The separation of `/features` and `/spec` into independent skills was architecturally correct (matches all 14 production frameworks), but the implementation missed the critical bridge: write-time registration. Specs and backlogs are separate concerns, but creating a spec IS a backlog event.
+- The `features` skill used `model: haiku` for cost efficiency. Merging required upgrading to `model: inherit` since the spec pipeline needs stronger reasoning. This is a minor cost tradeoff for correctness.
+- No other template files referenced `/spec` as a standalone command — the setup skill listed it in the skills directory, but the README was the only file that needed updating.

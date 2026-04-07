@@ -130,7 +130,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 2. Present complete plan content to user
 3. Add metadata: plan location, skeptic verdict
 
-**Gate:** Use `AskUserQuestion`:
+**Gate:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to present:
 - A) **Approve — start building**
 - B) **Adjust** — user describes changes
 - C) **Too large — split** — decompose into smaller pieces
@@ -147,7 +147,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Strategic compact point:** All discovery, architecture, and validation context is now captured in files (spec.md, plan.md, concerns.md, state.md). Phases 1-3 consumed significant context that Phase 4 agents don't need — they get fresh context with pre-inlined files. Tell the user:
 
-> "All planning artifacts are saved. Before starting implementation, I recommend compacting to free context: type `/compact` then say 'continue'. This improves quality for Phases 4-7. (Optional — you can also just continue.)"
+> "All planning artifacts are saved. Before starting implementation, I recommend compacting to free context. Type `/compact`, then type `/implement continue` to resume from Phase 4. This improves quality for Phases 4-7. (Optional — you can also just continue now.)"
 
 If the user compacts: after compaction, read `<task-dir>/state.md` to resume, then re-read the SKILL.md for phase instructions.
 

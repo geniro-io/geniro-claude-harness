@@ -168,7 +168,7 @@ After implementation agents complete, your context is loaded with pre-inlined fi
    branch: [current branch]
    ```
 2. Tell the user:
-   > Implementation complete. I recommend running `/compact` now to free context for validation and review phases. After compacting, say "continue" and I'll resume from Phase 3.
+   > Implementation complete. I recommend running `/compact` now to free context for validation and review phases. After compacting, type `/follow-up continue` to resume from Phase 3.
 
 **After compaction (or if user skips):** Read `.claude/.artifacts/follow-up-state.md` and `git diff --name-only` to restore context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
 
@@ -270,7 +270,7 @@ Validation accumulated fix-loop context. Before spawning review agents:
 
 1. Update `.claude/.artifacts/follow-up-state.md`: set `phase: 4-complete`
 2. Tell the user:
-   > Validation passed. For best review quality, I recommend `/compact` now. After compacting, say "continue" and I'll run the review phase.
+   > Validation passed. For best review quality, I recommend `/compact` now. After compacting, type `/follow-up continue` to resume the review phase.
 
 **After compaction (or if user skips):** Read `.claude/.artifacts/follow-up-state.md` and `git diff --name-only` to restore context.
 

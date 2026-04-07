@@ -268,7 +268,7 @@ After Stage C produces findings:
 5. **After 3 rounds:** Stop iterating. Present a structured handoff:
    - List what was fixed vs. what remains
    - Classify remaining issues: spec gap (-> needs re-architecture) vs. code quality (-> `/follow-up` later)
-   - Use `AskUserQuestion`: A) Ship as-is with known issues documented, B) Re-run Phase 2 (re-architect the approach), C) Create `/follow-up` tasks for remaining items
+   - Use the `AskUserQuestion` tool (do NOT output options as plain text) to present: A) Ship as-is with known issues documented, B) Re-run Phase 2 (re-architect the approach), C) Create `/follow-up` tasks for remaining items
 
 **Scope constraints (anti-rationalization):**
 - Reviews must stay in-scope (code exists, not feature creep)
