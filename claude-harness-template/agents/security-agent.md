@@ -53,6 +53,24 @@ Systematic code review for security defects:
 - **Dependency vulnerabilities** — Known CVEs in libraries
 - **Error handling** — Information disclosure, stack traces exposed
 
+### Mode 3: Agent Data Processing Risk Assessment
+
+Assess risks from AI coding agents processing the system's data. The agent itself is an attack surface — it reads untrusted data, reasons about it, and takes actions based on it.
+
+**Evaluate these data flows:**
+
+- **Database → Agent**: Does the agent query tables containing user-submitted content (comments, form fields, ticket descriptions, CMS entries)? Could a crafted record inject instructions into the agent's reasoning?
+- **Logs → Agent**: Does the agent read application logs that include user input (request bodies, error messages with user data, webhook payloads)? Log entries are not sanitized for LLM consumption.
+- **External APIs → Agent**: Does the agent process responses from external services (CRM records, email content, webhook data) that include content controlled by external users?
+- **PII exposure**: When the agent queries data for debugging or investigation, does it pull full records (`SELECT *`) or targeted columns? PII in the agent's context window transits the inference provider.
+- **Tool-use chain risk**: Could a malicious string in a data field cause the agent to execute shell commands, modify files, or make HTTP requests to unintended destinations?
+
+**For each risky data flow, report:**
+- What data enters the agent's context
+- Who controls that data (internal users, external users, third-party systems)
+- What actions the agent could take based on that data
+- Recommended mitigations (column-level queries, output sanitization, read-only access separation)
+
 ## Critical Operating Rules
 
 ### Rule 1: Threat Modeling Scope
@@ -78,6 +96,12 @@ For proposed features, model these attack scenarios:
    - Can they intercept/modify data in transit?
    - Can they forge valid requests?
    - Can they replay past requests?
+
+5. **Attacker: Prompt injection via data**
+   - Does the system store user-submitted content (form fields, comments, CMS entries, support tickets) that an AI agent might later read and process?
+   - Could a malicious string in a database record, log entry, API response, or CRM field inject instructions into an AI agent's context?
+   - If an AI agent queries this data via MCP servers, CLI tools, or REPL, could crafted content cause it to execute unintended tool calls, exfiltrate data, or modify code?
+   - Are there fields where users control free-text content that flows into agent processing pipelines?
 
 ### Rule 2: OWASP Top 10 Systematic Check
 

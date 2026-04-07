@@ -87,6 +87,7 @@ Before investigating, check for relevant prior learnings:
 - Each hypothesis must be testable
 - Avoid "it's probably X" without evidence
 - Write hypotheses in `.claude/.artifacts/debug/HYPOTHESES.md`
+- **Consider infrastructure causes alongside code causes** — connection timeouts, resource exhaustion, DNS failures, container restarts, database connection pool limits, cloud service rate limits, and deployment-related changes (new config, changed env vars, scaled-down replicas) are common root causes that code inspection alone will miss. If symptoms include timeouts, intermittent failures, or errors that only appear in deployed environments, form at least one infrastructure hypothesis.
 
 ### 3. Test (10–30 min)
 - Design a minimal test for each hypothesis
@@ -161,6 +162,31 @@ When narrowing down the bug source:
 - **Binary search**: Disable half the relevant code path, check if bug reproduces. Narrow the range iteratively.
 - **Git bisect**: For regressions, use `git bisect` to identify the commit that introduced the bug.
 - **Profiling**: For performance bugs, use profiling tools to get quantitative data (timing, memory) rather than inspecting code.
+
+## Infrastructure Investigation
+
+When symptoms suggest the bug may not be in the code (timeouts, intermittent failures, environment-specific errors, deployment regressions), investigate infrastructure before or alongside code hypotheses:
+
+**Logs & error tracking:**
+- Check application logs for error spikes, unusual patterns, or upstream failures (`docker logs`, cloud logging CLI, log aggregator)
+- Look for correlation: did errors start at a specific time? Does that coincide with a deployment, config change, or infrastructure event?
+
+**Service health:**
+- Check database connectivity and query performance — connection pool exhaustion and slow queries are common silent killers
+- Check external service dependencies — are APIs returning errors or timing out?
+- Check container/process health — OOM kills, restart loops, CPU throttling
+
+**Environment & config:**
+- Compare environment variables between working and broken environments
+- Check for recent config changes, secret rotations, or certificate expirations
+- Verify DNS resolution, network connectivity, and firewall rules
+
+**Resource limits:**
+- Check memory usage, CPU utilization, disk space, and file descriptor limits
+- Check database connection pool size vs active connections
+- Check rate limits on external APIs
+
+Form infrastructure hypotheses with the same rigor as code hypotheses — record them in HYPOTHESES.md with test plans. "The database connection pool is exhausted under load" is a testable hypothesis; "something is wrong with the server" is not.
 
 ## Compliance — Do Not Skip Steps
 
