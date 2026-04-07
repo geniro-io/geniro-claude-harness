@@ -367,7 +367,7 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 
 **All skills** (copy all or selected subset):
 - `plan/`, `implement/`, `review/`, `follow-up/`, `refactor/`, `deep-simplify/`
-- `debug/`, `learnings/`, `onboard/`, `features/`
+- `debug/`, `learnings/`, `onboard/`, `features/`, `investigate/`
 
 **Hooks** (copy all or selected subset based on integration choices):
 - Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`
