@@ -349,10 +349,11 @@ Execute the user's chosen ship method:
 
 **Worktree:** If working in a worktree (from Phase 1 Step 9 option C) and user chose a commit option (A/B/C), call `ExitWorktree` to merge changes back and clean up. If user chose to leave uncommitted, warn that changes remain in the worktree directory.
 
-**Linear:** If Linear issue was detected in Phase 1:
-- After **Commit + PR**: move issue to **"In Review"**, add comment with PR link
-- After **Commit** or **Commit + push**: add comment summarizing what was implemented
-- After **Leave uncommitted**: leave status as "In Progress"
+**Linear:** If Linear issue was detected in Phase 1, **always ask the user before changing issue status** using `AskUserQuestion`. Do NOT update automatically.
+
+- After **Commit + PR**: ask "Move [ISSUE-ID] to In Review and add PR link?" with options "Yes" / "No"
+- After **Commit** or **Commit + push**: ask "Update [ISSUE-ID] with implementation comment?" with options "Yes" / "No"
+- After **Leave uncommitted**: do not change status (already asked in Phase 1)
 - If Linear MCP is unavailable, log a warning and skip (non-blocking)
 
 ### Cleanup
@@ -389,5 +390,5 @@ Feature implementation is complete when:
 - [ ] Harness improvements applied (if found) or noted in summary
 - [ ] Code committed (with message referencing feature and task ID if applicable)
 - [ ] Code pushed to remote (if requested)
-- [ ] Linear issue status updated (if detected): In Progress -> In Review / Done
+- [ ] Linear issue status update offered to user (if detected) — never auto-updated
 - [ ] Cleanup completed (temp files removed, orphaned processes killed)
