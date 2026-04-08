@@ -45,6 +45,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 37. [Template Improvement Audit v25: Setup Smart Update Algorithm Detail Gaps](#template-improvement-audit-v25-setup-smart-update-algorithm-detail-gaps)
 38. [Template Improvement Audit v26: Deep-Simplify Removal Safety Verification](#template-improvement-audit-v26-deep-simplify-removal-safety-verification)
 39. [Template Improvement Audit v27: Implement Phase 6 Stage B Delegation Gap](#template-improvement-audit-v27-implement-phase-6-stage-b-delegation-gap)
+40. [Template Improvement Audit v28: Setup Scope Selection UX](#template-improvement-audit-v28-setup-scope-selection-ux)
 
 ---
 
@@ -4266,3 +4267,31 @@ Findings and fixes from this audit were extended by Audit v25. See v25 for the c
 - Stage B was the only phase in the implement pipeline without explicit "do NOT fix it yourself" language. Stage A (line 273) and Stage C (line 291) both had it, but Stage B said "route to Phase 4 implementer" — which the orchestrator interpreted as permission to implement directly.
 - The ambiguity manifested in production: the orchestrator found a spec gap (R-IB7), read source files, and made 3 direct Edit calls to add imports/parameters/logic — exactly what the delegation rule prohibits.
 - Error handling summary tables can re-trigger bugs if they contain stale phrasing. The reviewer caught that line 288 still used the old ambiguous language.
+
+## Template Improvement Audit v28: Setup Scope Selection UX
+
+**Date:** 2026-04-08
+**Scope:** skills/setup/SKILL.md — Phase 2.5 Scope Selection
+**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | Medium | Rewrote tier descriptions with capability-focused text instead of bare component counts | Nuxt CLI #1166 (blind selection anti-pattern), ECC hook profiles (additive stacking), Angular CLI (benefit-first), report.md "labels AND descriptions" rule |
+| 2 | Medium | Added explicit tier component mapping table (which agents/skills belong to Full/Core/Minimal) | Codebase gap — "6 core agents" had no definition anywhere in the file; report.md Core 6 agents (L197) and Core 8 skills (L396) provided canonical definitions |
+| 3 | Low | Fixed skill count from "13" to "11" — setup, cleanup, update are plugin-internal, not installable | Codebase verification — 11 skills listed in Phase 3.1 copy block |
+| 4 | Low | Resolved hooks contradiction — removed hook differentiation from tier descriptions, added "hooks are never tiered" | L360 says "always copy ALL hooks — none are optional" contradicted old tier descriptions implying different hook sets |
+| 5 | Low | Added required agents to Minimal tier description (architect, skeptic, reviewer, backend, frontend) | implement/review skills spawn these agents — Minimal without them would break |
+| 6 | Medium | Added Custom option guidance — per-category multiSelect questions with dependency warnings | Codebase gap — old guidance was one sentence; Vue CLI checkbox pattern and dependency checking as references |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/setup/SKILL.md` | 1376 lines | 1416 lines | Phase 2.5 rewritten with capability descriptions, tier table, Custom guidance; skill count fixed in 2 locations |
+
+### Key Findings
+- The setup interview had inconsistent detail levels: Phase 2.1 (detection confirmation) showed rich formatted blocks with tech stack, commands, and sources; Phase 2.5 (scope selection) showed bare counts. The quality gap was the starkest inconsistency in the entire interview flow.
+- "Core" tier had no canonical definition in the setup skill — the AI had to guess which 6 of 13 agents were "core". The report.md already defined this (Core 6 agents, Core 8 skills) but the information never flowed into the user-facing prompt.
+- The hooks contradiction ("none are optional" + tier-differentiated hook descriptions) would cause AI confusion during setup execution — one instruction says copy all, another implies copy a subset.

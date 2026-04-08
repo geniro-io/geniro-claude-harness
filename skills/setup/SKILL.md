@@ -33,7 +33,7 @@ geniro-claude-plugin/
 your-project/
 └── .claude/
     ├── agents/                  # Committed — 12 agents
-    ├── skills/                  # Committed — 13 skills
+    ├── skills/                  # Committed — 11 skills
     ├── hooks/                   # Committed — 10 hooks (8 registered + 1 statusLine + 1 utility)
     ├── rules/                   # Committed — generated per-project
     └── settings.json            # Committed — permissions & hooks
@@ -84,7 +84,7 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-u
 
 **Copied directly from template (universal, no customization needed):**
 - 11 universal agents from `$TEMPLATE_DIR/agents/`
-- 13 skills from `$TEMPLATE_DIR/skills/` (setup is removed after completion)
+- 11 skills from `$TEMPLATE_DIR/skills/` (setup, cleanup, update are plugin-internal — not copied)
 - 10 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 statusLine + 1 backpressure utility)
 - `settings.json` from `$TEMPLATE_DIR/settings.json`
 
@@ -330,16 +330,56 @@ Which integrations do you want to enable?
 
 ### 2.5 Scope Selection
 
+Use the `AskUserQuestion` tool to present scope options. The prompt text should include the capability descriptions below so the user understands what each tier enables:
+
 ```
 Which components do you want to install?
 
-A) Full setup — all 13 agents, 13 skills (incl. plan), 10 hooks (recommended)
-B) Core only — 6 core agents, 8 core skills, essential hooks
-C) Minimal — just implement, review, and safety hooks
+A) Full setup (recommended)
+   Everything: plan architecture, implement, review, debug, refactor, investigate,
+   manage features, onboard teammates, and extract learnings.
+   → 13 agents, 11 skills, all hooks
+
+B) Core only
+   Full development pipeline: plan, implement, review, refactor, investigate,
+   and manage features. No debugging agent, onboarding, or learnings extraction.
+   → 6 agents, 8 skills, all hooks
+
+C) Minimal
+   Just implement and review code with safety guardrails.
+   No planning, debugging, refactoring, or investigation workflows.
+   → 5 agents (architect, skeptic, reviewer, backend, frontend), 2 skills, all hooks
+
 D) Custom — I'll pick individually
 ```
 
-If "Custom", present agent/skill/hook lists with checkboxes.
+**All tiers include:** All 10 hooks (safety, lifecycle, statusline) — hooks are never tiered.
+
+#### Tier component mapping
+
+The AI executing setup MUST use this mapping — do not guess tier contents.
+
+| Component | Full | Core | Minimal |
+|-----------|------|------|---------|
+| **Agents** | | | |
+| architect, skeptic, reviewer | ✓ | ✓ | ✓ |
+| backend, frontend | ✓ | ✓ | ✓ |
+| refactor | ✓ | ✓ | — |
+| debugger, security, doc, devops | ✓ | — | — |
+| knowledge, knowledge-retrieval, meta | ✓ | — | — |
+| **Skills** | | | |
+| implement, review | ✓ | ✓ | ✓ |
+| plan, follow-up, refactor, deep-simplify, investigate, features | ✓ | ✓ | — |
+| debug, onboard, learnings | ✓ | — | — |
+| **Hooks** | all | all | all |
+
+#### Custom option handling
+
+If the user selects "Custom", present components grouped by category using `AskUserQuestion` with `multiSelect: true`. Ask three questions (one per category):
+
+1. **Agents** — list all 13 with one-line purpose descriptions. Pre-select the Core tier agents as defaults.
+2. **Skills** — list all 11 with one-line purpose descriptions. Pre-select the Core tier skills as defaults.
+3. **Dependency warning** — after selection, check: if `implement` or `review` is selected, `architect-agent`, `skeptic-agent`, and `reviewer-agent` must also be selected (they are spawned by these skills). If missing, warn the user and ask to confirm or add them.
 
 ## Phase 3: Generate Files
 
@@ -442,7 +482,7 @@ Files like `backend-agent.md`, `frontend-agent.md`, `rules/backend-conventions.m
 
 For `settings.json`: if no existing file, use `cp` from template. If one already exists, use Read+Edit to **merge** template entries — preserve any user-added permissions, hooks, or custom settings.
 
-**Note:** Do NOT copy `skills/setup/` from the template — the setup skill is removed after completion (Phase 5.2). It's a bootstrap-only skill, not part of the permanent harness.
+**Note:** Do NOT copy `skills/setup/`, `skills/update/`, or `skills/cleanup/` from the template — these are global plugin skills, not project-level skills. They run from the plugin installation and are never part of the project's `.claude/` directory.
 
 ### Agent Prompt Principles (apply when editing agents)
 
