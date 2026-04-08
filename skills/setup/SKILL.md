@@ -365,7 +365,7 @@ Universal agents (`architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`,
 
 **Hooks** — do NOT copy hooks. They are provided globally by the plugin via `hooks.json` in `plugin.json`. Hook scripts run from `${CLAUDE_PLUGIN_ROOT}/hooks/`. Copying hooks to `.claude/hooks/` would cause them to fire twice (different paths bypass deduplication).
 
-**settings.json** — If no existing `.claude/settings.json`, create it with default permissions. If one already exists, preserve it. The plugin provides hook configuration via `hooks.json` — do NOT add hook entries to the project's `settings.json`.
+**settings.json** — If no existing `.claude/settings.json`, create it with default permissions only. If one already exists, preserve it. The plugin provides `statusLine` and hook configuration globally via its own `settings.json` and `hooks.json` — do NOT copy `statusLine` or hook entries to the project's `settings.json`.
 
 **Review criteria** — The 5 review criteria files are written to `.geniro/project/review/`, generated in Phase 3.5 with stack-specific content. This directory is committed (excluded from the `.geniro/` gitignore via `!.geniro/project/`).
 
@@ -437,7 +437,7 @@ This snapshot is git-ignored (under `.geniro/`) and is refreshed on every `/geni
 
 Files like `backend-agent.md`, `frontend-agent.md`, `rules/backend-conventions.md`, and `rules/security-patterns.md` are also copied via `cp` here, then tailored via Read+Edit in Phases 3.2-3.4.
 
-For `settings.json`: if no existing file, create it with default permissions. If one already exists, preserve it. Do NOT add hook entries — hooks are provided by the plugin.
+For `settings.json`: if no existing file, create it with default permissions only. If one already exists, preserve it. Do NOT add `statusLine` or hook entries — these are plugin-global settings.
 
 **Note:** Do NOT copy universal agents, skills, or hooks from the template to the project. These are provided globally by the plugin. Only write to the project: tailored agents (backend/frontend), tailored rules, review criteria files, and `settings.json` (permissions only).
 
@@ -1035,7 +1035,7 @@ Note: Universal agents and hooks are no longer copied to the project (they are p
 
 **3A.1b: Merge settings.json updates**
 
-If the inventory flagged `settings.json` as changed, merge template permission entries into the installed version — preserve user-added permissions; add new template entries that are missing. Do NOT add hook entries (hooks are provided by the plugin via `hooks.json`).
+If the inventory flagged `settings.json` as changed, merge template **permission entries only** into the installed version — preserve user-added permissions; add new template entries that are missing. Do NOT copy `statusLine` or hook entries to the project (these are plugin-global settings).
 
 Spawn a subagent:
 ```
@@ -1050,9 +1050,10 @@ Read both files. For each permission entry in the template:
 - If it exists in the installed file with a different value → keep the installed value (user customization)
 - If it does NOT exist in the installed file → add it (new template entry)
 
-IMPORTANT: Do NOT add hook entries to settings.json. Hooks are provided by the plugin
-via hooks.json — they must not appear in the project's settings.json. If the installed
-file has hook entries from a previous install, remove them.
+IMPORTANT: Only merge permission entries. Do NOT copy statusLine or hook entries to the
+project's settings.json — these are plugin-global settings provided by the plugin's own
+settings.json, not project settings. If the installed file has statusLine or hook entries
+from a previous install, remove them.
 
 Use the Edit tool to apply changes. Output what was added/changed.
 """, description="Merge settings.json updates")
