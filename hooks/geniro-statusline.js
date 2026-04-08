@@ -38,14 +38,21 @@ process.stdin.on('end', () => {
       const filled = Math.floor(used / 10);
       const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(10 - filled);
 
+      // Token count (used / total)
+      const ctxSize = data.context_window?.context_window_size;
+      const usedTokens = ctxSize ? Math.round(ctxSize * used / 100) : null;
+      const tokenLabel = usedTokens != null && ctxSize
+        ? ` ${(usedTokens / 1000).toFixed(0)}k/${(ctxSize / 1000).toFixed(0)}k`
+        : '';
+
       if (used < 50) {
-        ctx = ` \x1b[32m${bar} ${used}%\x1b[0m`;
+        ctx = ` \x1b[32m${bar} ${used}%${tokenLabel}\x1b[0m`;
       } else if (used < 65) {
-        ctx = ` \x1b[33m${bar} ${used}%\x1b[0m`;
+        ctx = ` \x1b[33m${bar} ${used}%${tokenLabel}\x1b[0m`;
       } else if (used < 80) {
-        ctx = ` \x1b[38;5;208m${bar} ${used}%\x1b[0m`;
+        ctx = ` \x1b[38;5;208m${bar} ${used}%${tokenLabel}\x1b[0m`;
       } else {
-        ctx = ` \x1b[5;31m\uD83D\uDC80 ${bar} ${used}%\x1b[0m`;
+        ctx = ` \x1b[5;31m\uD83D\uDC80 ${bar} ${used}%${tokenLabel}\x1b[0m`;
       }
     }
 
