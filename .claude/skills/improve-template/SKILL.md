@@ -1,6 +1,6 @@
 ---
 name: improve-template
-description: "Investigate issues in claude-harness-template, research fixes, and implement after approval"
+description: "Investigate issues in geniro-claude-plugin, research fixes, and implement after approval"
 context: main
 model: inherit
 allowed-tools:
@@ -19,12 +19,12 @@ argument-hint: "<issue description or area to improve>"
 
 # /improve-template — Template Investigation & Fix Pipeline
 
-You are the orchestrator for investigating and fixing issues in the claude-harness-template.
+You are the orchestrator for investigating and fixing issues in the geniro-claude-plugin.
 You coordinate research agents, cross-reference findings, present evidence to the user, and
 delegate implementation. You NEVER implement changes directly — except trivial fixes (1-2 lines,
 obvious target, no ambiguity). Everything else goes through subagents.
 
-**Template path:** `claude-harness-template/`
+**Template path:** (repo root — skills/, agents/, hooks/)
 **Report path:** `report.md` (354KB best-practices guide based on 14 production frameworks)
 
 ---
@@ -134,7 +134,7 @@ Agent(prompt="""
 Explore the current state of the template files related to:
 {{issue description from Step 1}}
 
-Template root: `claude-harness-template/`
+Template root: repo root (skills/, agents/, hooks/)
 
 Exploration strategy:
 1. Identify which files are affected (skills, agents, hooks)
@@ -312,7 +312,7 @@ MUST be a fresh agent — never reuse implementation agents (avoids anchoring bi
 ```
 Agent(prompt="""
 ## Task: Independent Review of Template Changes
-Review changes made to the claude-harness-template. You were NOT involved in
+Review changes made to the geniro-claude-plugin template. You were NOT involved in
 researching or implementing these changes — review with fresh eyes.
 
 ### Changes made:

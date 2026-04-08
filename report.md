@@ -43,6 +43,8 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 35. [Template Improvement Audit v23: Report.md Maintenance Step](#template-improvement-audit-v23-reportmd-maintenance-step)
 36. [Template Improvement Audit v24: Implement Second-Run Prior Context Loading](#template-improvement-audit-v24-implement-second-run-prior-context-loading)
 37. [Template Improvement Audit v25: Setup Smart Update Algorithm Detail Gaps](#template-improvement-audit-v25-setup-smart-update-algorithm-detail-gaps)
+38. [Template Improvement Audit v26: Deep-Simplify Removal Safety Verification](#template-improvement-audit-v26-deep-simplify-removal-safety-verification)
+39. [Template Improvement Audit v27: Implement Phase 6 Stage B Delegation Gap](#template-improvement-audit-v27-implement-phase-6-stage-b-delegation-gap)
 
 ---
 
@@ -4198,3 +4200,69 @@ Findings and fixes from this audit were extended by Audit v25. See v25 for the c
 - Tailored files (backend-agent, rules, review criteria) diverge significantly from the template after LLM generation. Diffing installed-vs-template produces 100% noise. The correct comparison is template-old-vs-template-new (what changed in the template itself), applied as structural patches to the tailored file.
 - The Copier/Cruft pattern of "sentinel file + commit hash + 3-way merge" is the industry standard for template update systems. Our implementation adapts this for AI-driven section-level merging instead of line-level git merge.
 - Analysis-before-question is a pattern already used in conflict-resolution.md but was missing from the re-run flow. Users can't make informed update decisions without seeing what actually changed.
+
+## Template Improvement Audit v26: Deep-Simplify Removal Safety Verification
+
+**Date:** 2026-04-08
+**Scope:** Deep-simplify skill — code removal safety (SKILL.md agent prompts, simplify-criteria.md Ground Rules and Pass A/B)
+**Method:** 3-source triangulation (internet research on AI code review safety patterns, report.md audit cross-referencing, codebase exploration comparing deep-simplify vs refactor-agent safety mechanisms)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Added Ground Rule 6 "Verify before removing" to simplify-criteria.md — requires Grep for symbol name (identifier + string literal) and barrel/index file check before classifying as dead/unused. References outside changed files → P3 instead of removal. | CodeRabbit grep-before-comment pattern (strong), Meta BigGrep textual fallback (strong), refactor-agent L52-54 cross-reference requirement (strong), report.md Audit v7 Fix 6 convention reading (strong) |
+| 2 | High | Added Grep verification step to Agent 1 (Reuse) and Agent 2 (Quality) — agents must verify zero cross-file references before recommending removal, reclassifying to P3 if references found. Added P3 to their severity sections and output format. | Knip whole-project module graph (strong), refactor-agent hidden reference guardrail L222 (strong), report.md two-layer validation pattern L654-666 (moderate) |
+| 3 | Medium | Added Step 0 "Read project convention files" to all 3 agent prompts — prevents misidentifying intentional project patterns (factory patterns, barrel re-exports, framework hooks) as dead code or over-abstraction. | Report.md Audit v7 Fix 6 added this to refactor-agent but not deep-simplify (strong), convention drift analysis L258-278 (strong), architecture-criteria Common False Positives section (strong) |
+| 4 | Medium | Added barrel file / re-export protection to Pass A — "Do NOT remove an export if it is re-exported from any index.* or barrel file." | Knip entry-file export protection (strong), refactor-agent L84 public API rule (strong) |
+| 5 | Low | Clarified wrapper function removal scope — must Grep repo-wide for all callers; only replace if ALL callers within changed file set, otherwise report as P2 with external caller list. | Codebase analysis: agent scope limited to changed files + neighbors (strong), Ground Rule 2 "Only changed files" alignment (moderate) |
+
+### Review Fixes (from independent review)
+
+| # | Severity | Fix |
+|---|----------|-----|
+| R1 | Warning | Added P3 severity definition and P3 to output format JSON in Agent 1 and Agent 2 severity sections — new Grep verification step referenced P3 but it was undefined |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/deep-simplify/SKILL.md` | 300 lines | 315 lines | 3x Step 0 convention reading, 2x Grep verification steps, 2x P3 severity + output format additions |
+| `skills/deep-simplify/simplify-criteria.md` | 133 lines | 135 lines | Ground Rule 6, barrel file protection, wrapper scope clarification |
+
+### Key Findings
+- Deep-simplify had 10 removal-triggering instructions across criteria and agent prompts, with 0 requiring cross-file verification before removal. The refactor-agent (same template) had 5 distinct safety mechanisms (cross-reference check, consumer counting, hidden reference guardrail, convention reading, per-step test verification) that deep-simplify lacked entirely.
+- The "only remove provably dead code" anti-rationalization rule existed as text but had no procedural enforcement — no method was prescribed for how to "prove" code is dead. Adding Grep verification operationalizes this rule.
+- simplify-criteria.md is shared between `/deep-simplify` and `/implement` Phase 5. The new Ground Rule 6 benefits both consumers — implement's simplify step was equally vulnerable to false-positive dead code removal.
+- Post-hoc CI verification (Phase 5) was the sole safety net, but it only catches removals that break build/test. Code referenced dynamically, by external consumers, or in untested paths would pass CI and ship broken.
+
+## Template Improvement Audit v27: Implement Phase 6 Stage B Delegation Gap
+
+**Date:** 2026-04-08
+**Scope:** Implement skill — Phase 6 Stage B (spec compliance) fix routing
+**Method:** Phase 1-fast (screenshot evidence + codebase comparison of Stage A/B/C delegation language)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Rewrote Stage B fix routing in SKILL.md to explicitly say "spawn a fixer agent with gap details — do NOT read source files, diagnose gaps, or apply fixes yourself." Previously said ambiguous "route to Phase 4 implementer." | Screenshot showing orchestrator making 3 direct Update calls to fix a spec gap (strong), Stage A/C both had explicit delegation language but Stage B did not (strong) |
+| 2 | High | Rewrote Stage B fix routing in implement-reference.md with same explicit delegation language. Also changed round-1 retry from "re-route to implementer" to "spawn a fresh fixer agent." | Same evidence as above — reference file is the primary template read by the orchestrator at Phase 6 entry (strong) |
+
+### Review Fixes (from independent review)
+
+| # | Severity | Fix |
+|---|----------|-----|
+| R1 | Warning | Updated error handling summary table (implement-reference.md line 288) — still had old "Route back to Phase 4 implementer" phrasing that could re-trigger the same bug |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/implement/SKILL.md` | 441 lines | 441 lines | Stage B delegation language rewritten (1 line) |
+| `skills/implement/implement-reference.md` | 394 lines | 394 lines | Stage B delegation + error table updated (3 lines) |
+
+### Key Findings
+- Stage B was the only phase in the implement pipeline without explicit "do NOT fix it yourself" language. Stage A (line 273) and Stage C (line 291) both had it, but Stage B said "route to Phase 4 implementer" — which the orchestrator interpreted as permission to implement directly.
+- The ambiguity manifested in production: the orchestrator found a spec gap (R-IB7), read source files, and made 3 direct Edit calls to add imports/parameters/logic — exactly what the delegation rule prohibits.
+- Error handling summary tables can re-trigger bugs if they contain stale phrasing. The reviewer caught that line 288 still used the old ambiguous language.

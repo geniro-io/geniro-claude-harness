@@ -9,8 +9,8 @@
 .DS_Store
 Thumbs.db
 
-# Claude Code artifacts (generated per-project)
-.artifacts/
+# Geniro runtime data (generated per-project, git-ignored)
+.geniro/
 
 # Node (if any tooling is added)
 node_modules/

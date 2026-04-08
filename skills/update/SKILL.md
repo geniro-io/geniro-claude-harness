@@ -1,0 +1,34 @@
+---
+name: geniro:update
+description: "Update the geniro-claude-plugin to the latest version and re-run setup to sync project-specific files. Run when the status line shows an update is available."
+context: main
+model: inherit
+allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep, Agent]
+---
+
+# /geniro:update — Update Plugin
+
+Update the plugin and sync project-specific configuration.
+
+## Steps
+
+### 1. Check current version
+
+```bash
+cat "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | grep version
+```
+
+### 2. Run the update
+
+```bash
+claude plugin update geniro-claude-plugin
+```
+
+If the update fails or no update is available, report the result and stop.
+
+### 3. Re-run setup
+
+After a successful update, automatically run `/geniro:setup` to sync project-specific files
+(CLAUDE.md, agents, rules) with any changes in the updated plugin templates.
+
+The setup skill detects existing files and shows a per-file diff — the user decides what to accept.
