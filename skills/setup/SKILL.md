@@ -378,24 +378,9 @@ cp "$TEMPLATE_DIR/agents/frontend-agent.md" .claude/agents/
 
 #### StatusLine Configuration
 
-Configure the geniro status line in `.claude/settings.local.json` (project-level, NOT `settings.json` or user-level):
+The geniro status line is provided globally by the plugin via `settings.json`. No per-project configuration needed.
 
-1. If `.claude/settings.local.json` does not exist, create it:
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js\""
-  }
-}
-```
-
-2. If `.claude/settings.local.json` already exists, read it and:
-   - If it has no `statusLine` key, merge the entry above (preserve all existing keys).
-   - If it already has a `statusLine` key, ask the user before overwriting:
-     - **Question:** "`.claude/settings.local.json` already has a statusLine entry. Replace it with geniro's status line?"
-     - **Options:** "Yes, replace it" / "No, keep existing"
-     - If user declines, skip statusLine setup silently.
+If the project has a stale `statusLine` entry in `.claude/settings.local.json` from a previous install, remove that key (preserve all other keys in the file).
 
 #### Legacy Cleanup
 
