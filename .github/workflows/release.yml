@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current version
+        id: current
+        run: echo "version=$(jq -r .version .claude-plugin/plugin.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Determine version bump from commits
+        id: bump
+        run: |
+          # Find the latest tag, or use initial commit if none exists
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LATEST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LATEST_TAG}..HEAD"
+          fi
+
+          # Parse conventional commits
+          COMMITS=$(git log "$RANGE" --pretty=format:"%s" 2>/dev/null || echo "")
+          if [ -z "$COMMITS" ]; then
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BUMP="none"
+          while IFS= read -r msg; do
+            # Check for breaking changes
+            if echo "$msg" | grep -qiE '^[a-z]+(\(.+\))?!:|BREAKING CHANGE'; then
+              BUMP="major"
+              break
+            fi
+            # feat = minor (only upgrade if not already major)
+            if echo "$msg" | grep -qE '^feat(\(.+\))?:'; then
+              [ "$BUMP" != "major" ] && BUMP="minor"
+            fi
+            # fix, perf, refactor = patch (only upgrade if still none)
+            if echo "$msg" | grep -qE '^(fix|perf|refactor)(\(.+\))?:'; then
+              [ "$BUMP" = "none" ] && BUMP="patch"
+            fi
+          done <<< "$COMMITS"
+
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate new version
+        id: next
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          VERSION="${{ steps.current.outputs.version }}"
+          BUMP="${{ steps.bump.outputs.bump }}"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          echo "version=${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version in plugin.json
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          NEW_VERSION="${{ steps.next.outputs.version }}"
+          jq --arg v "$NEW_VERSION" '.version = $v' .claude-plugin/plugin.json > tmp.json
+          mv tmp.json .claude-plugin/plugin.json
+
+      - name: Commit version bump
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          NEW_VERSION="${{ steps.next.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/plugin.json
+          git commit -m "chore(release): v${NEW_VERSION}"
+          git push
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          NEW_VERSION="${{ steps.next.outputs.version }}"
+          LATEST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+
+          if [ -z "$LATEST_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s" HEAD)
+          else
+            NOTES=$(git log --pretty=format:"- %s" "${LATEST_TAG}..HEAD~1")
+          fi
+
+          gh release create "v${NEW_VERSION}" \
+            --title "v${NEW_VERSION}" \
+            --notes "$NOTES" \
+            --target main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
