@@ -40,5 +40,5 @@ This plugin provides safety hooks that run automatically:
 
 This plugin updates automatically via the Claude Code marketplace. To manually check:
 ```
-claude plugin update geniro-claude-plugin
+claude plugin update geniro-claude-plugin@geniro-claude-harness
 ```

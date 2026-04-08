@@ -25,7 +25,7 @@ then the plugin update pulls the new files:
 
 ```bash
 claude plugin marketplace update geniro-claude-harness
-claude plugin update geniro-claude-plugin
+claude plugin update geniro-claude-plugin@geniro-claude-harness
 ```
 
 If the update fails or no update is available, report the result and stop.

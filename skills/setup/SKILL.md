@@ -50,7 +50,7 @@ your-project/
 3. Commit: `git add .claude/ && git commit -m 'chore: add Claude Code harness'`
 
 **To re-sync later:**
-1. Update the plugin: `claude plugin update geniro-claude-plugin` (or run `/geniro:update`)
+1. Update the plugin: `claude plugin update geniro-claude-plugin@geniro-claude-harness` (or run `/geniro:update`)
 2. Run `/geniro:setup` in Claude Code — it analyzes every file against the template and shows differences
 
 ## Phase 0: Locate Template Source

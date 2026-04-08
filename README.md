@@ -93,7 +93,7 @@ All hooks run automatically after installation:
 The plugin auto-updates via the Claude Code marketplace. To manually update:
 
 ```bash
-claude plugin update geniro-claude-plugin
+claude plugin update geniro-claude-plugin@geniro-claude-harness
 ```
 
 Or run `/geniro:update` inside Claude Code. The status line shows an arrow when updates are available.
