@@ -1,13 +1,19 @@
 {
   "name": "geniro-claude-plugin",
   "description": "Production-grade Claude Code harness with AI-driven setup, multi-agent skills, and safety hooks. Includes /setup for project-tailored configuration.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Geniro",
     "email": "hello@geniro.io"
   },
   "repository": "https://github.com/geniro-io/geniro-claude-harness",
   "license": "MIT",
-  "keywords": ["harness", "setup", "multi-agent", "code-review", "safety-hooks"],
+  "keywords": [
+    "harness",
+    "setup",
+    "multi-agent",
+    "code-review",
+    "safety-hooks"
+  ],
   "hooks": "./hooks/hooks.json"
 }
