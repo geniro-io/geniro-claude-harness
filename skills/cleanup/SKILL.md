@@ -205,5 +205,5 @@ Present a summary:
 - Y user-created files (list them, or "none")
 
 The geniro-claude-plugin has been fully removed from this project.
-To reinstall: claude plugin install geniro-claude-plugin
+To reinstall: claude plugin install geniro-claude-plugin@geniro-claude-harness
 ```
