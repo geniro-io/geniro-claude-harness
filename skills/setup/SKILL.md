@@ -22,7 +22,7 @@ geniro-claude-plugin/
 ├── HOOKS.md              # Hook docs, never copied
 ├── skills/setup/reference/ # AI reads during generation, never copied
 ├── agents/               # → copied to .claude/agents/
-├── skills/               # → copied to .claude/skills/
+├── skills/               # → global (provided by plugin, not copied)
 ├── hooks/                # → copied to .claude/hooks/
 ├── rules/                # → stubs, regenerated per-project
 └── settings.json         # → copied to .claude/settings.json
@@ -33,7 +33,7 @@ geniro-claude-plugin/
 your-project/
 └── .claude/
     ├── agents/                  # Committed — 12 agents
-    ├── skills/                  # Committed — 11 skills
+    ├── skills/review/           # Committed — 5 generated review criteria files only
     ├── hooks/                   # Committed — 10 hooks (8 registered + 1 statusLine + 1 utility)
     ├── rules/                   # Committed — generated per-project
     └── settings.json            # Committed — permissions & hooks
@@ -84,9 +84,11 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-u
 
 **Copied directly from template (universal, no customization needed):**
 - 11 universal agents from `$TEMPLATE_DIR/agents/`
-- 11 skills from `$TEMPLATE_DIR/skills/` (setup, cleanup, update are plugin-internal — not copied)
 - 10 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 statusLine + 1 backpressure utility)
 - `settings.json` from `$TEMPLATE_DIR/settings.json`
+
+**Not copied (provided globally by the plugin):**
+- All skills — the plugin provides them directly. Only `.claude/skills/review/*-criteria.md` files are written to the project (generated per-project in Phase 3.5).
 
 **Written to .geniro/ (git-ignored, not committed):**
 - `.geniro/planning/` — created empty, populated during /geniro:implement
@@ -338,17 +340,17 @@ Which components do you want to install?
 A) Full setup (recommended)
    Everything: plan architecture, implement, review, debug, refactor, investigate,
    manage features, onboard teammates, and extract learnings.
-   → 13 agents, 11 skills, all hooks
+   → 13 agents, all hooks
 
 B) Core only
-   Full development pipeline: plan, implement, review, refactor, investigate,
-   and manage features. No debugging agent, onboarding, or learnings extraction.
-   → 6 agents, 8 skills, all hooks
+   Full development pipeline with core agents. Missing: debugger, security, doc,
+   devops, knowledge, and meta agents.
+   → 6 agents, all hooks
 
 C) Minimal
-   Just implement and review code with safety guardrails.
-   No planning, debugging, refactoring, or investigation workflows.
-   → 5 agents (architect, skeptic, reviewer, backend, frontend), 2 skills, all hooks
+   Basic implement and review with essential agents only. All skills are available
+   but advanced workflows (debug, refactor) lack dedicated agents.
+   → 5 agents (architect, skeptic, reviewer, backend, frontend), all hooks
 
 D) Custom — I'll pick individually
 ```
@@ -367,19 +369,14 @@ The AI executing setup MUST use this mapping — do not guess tier contents.
 | refactor | ✓ | ✓ | — |
 | debugger, security, doc, devops | ✓ | — | — |
 | knowledge, knowledge-retrieval, meta | ✓ | — | — |
-| **Skills** | | | |
-| implement, review | ✓ | ✓ | ✓ |
-| plan, follow-up, refactor, deep-simplify, investigate, features | ✓ | ✓ | — |
-| debug, onboard, learnings | ✓ | — | — |
 | **Hooks** | all | all | all |
 
 #### Custom option handling
 
-If the user selects "Custom", present components grouped by category using `AskUserQuestion` with `multiSelect: true`. Ask three questions (one per category):
+If the user selects "Custom", present agent selection using `AskUserQuestion` with `multiSelect: true`:
 
 1. **Agents** — list all 13 with one-line purpose descriptions. Pre-select the Core tier agents as defaults.
-2. **Skills** — list all 11 with one-line purpose descriptions. Pre-select the Core tier skills as defaults.
-3. **Dependency warning** — after selection, check: if `implement` or `review` is selected, `architect-agent`, `skeptic-agent`, and `reviewer-agent` must also be selected (they are spawned by these skills). If missing, warn the user and ask to confirm or add them.
+2. **Dependency note** — inform the user that all skills are provided globally by the plugin. The implement and review skills require `architect-agent`, `skeptic-agent`, and `reviewer-agent` — ensure these are selected.
 
 ## Phase 3: Generate Files
 
@@ -393,10 +390,6 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 - `knowledge-agent.md`, `knowledge-retrieval-agent.md`, `meta-agent.md`
 - `backend-agent.md`, `frontend-agent.md`
 
-**All skills** (copy all or selected subset):
-- `plan/`, `implement/`, `review/`, `follow-up/`, `refactor/`, `deep-simplify/`
-- `debug/`, `learnings/`, `onboard/`, `features/`, `investigate/`
-
 **Hooks** (always copy ALL hooks from the template — none are optional):
 - Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`, `db-guard.sh`
 - Lifecycle: `pre-compact-state-save.sh`, `post-compact-notification.sh`
@@ -406,7 +399,7 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 
 **settings.json** — If no existing `settings.json`, copy from template and adjust hook paths. If `settings.json` already exists, **merge** template entries into it — preserve any user-added permissions, hooks, or custom settings that aren't in the template.
 
-**Review criteria** — Do NOT copy criteria files here. They are generated in Phase 3.5 with stack-specific content.
+**Review criteria** — The only files written to `.claude/skills/` are the 5 review criteria files, generated in Phase 3.5 with stack-specific content.
 
 Use shell `cp` via the Bash tool to copy each file individually — do NOT use `rm -rf` on entire directories or `cp -r` on directories, as that would overwrite user-created files. If `.claude/agents/` already contains files not in the template (user-created agents), they must remain untouched after this step.
 
@@ -417,19 +410,15 @@ Use shell `cp` via the Bash tool to copy each file individually — do NOT use `
 mkdir -p .claude/agents
 mkdir -p .claude/hooks
 mkdir -p .claude/rules
-mkdir -p .claude/skills/plan
-mkdir -p .claude/skills/implement
-# ... repeat for each selected skill
+mkdir -p .claude/skills/review
 
 # Agents (copy all or selected subset)
 cp "$TEMPLATE_DIR/agents/architect-agent.md" .claude/agents/
 cp "$TEMPLATE_DIR/agents/skeptic-agent.md" .claude/agents/
 # ... repeat for each selected agent
 
-# Skills (copy all files in each selected skill directory — includes companion files like plan-criteria.md)
-cp "$TEMPLATE_DIR/skills/plan/"* .claude/skills/plan/
-cp "$TEMPLATE_DIR/skills/implement/"* .claude/skills/implement/
-# ... repeat for each selected skill
+# Skills are NOT copied — they are provided globally by the plugin.
+# Only .claude/skills/review/ is created for per-project review criteria (Phase 3.5).
 
 # Hooks (copy all or selected subset)
 cp "$TEMPLATE_DIR/hooks/dangerous-command-blocker.sh" .claude/hooks/
@@ -461,6 +450,24 @@ After copying hooks, configure the geniro status line in `.claude/settings.local
      - **Options:** "Yes, replace it" / "No, keep existing"
      - If user declines, skip statusLine setup silently.
 
+#### Legacy Skill Cleanup
+
+If `.claude/skills/` contains skill SKILL.md files or universal companion files from a previous install, remove them. These are now provided globally by the plugin.
+
+```bash
+# Remove previously-copied skill files (now provided by plugin)
+# Only .claude/skills/review/*-criteria.md should remain (generated per-project)
+for skill_dir in plan implement follow-up refactor deep-simplify debug learnings onboard features investigate; do
+  if [[ -d ".claude/skills/$skill_dir" ]]; then
+    rm -rf ".claude/skills/$skill_dir"
+  fi
+done
+# Remove review SKILL.md if it was copied (keep criteria files)
+rm -f .claude/skills/review/SKILL.md
+```
+
+This cleanup is safe — these files are identical to the plugin versions. User-created skill directories (not in the list above) are preserved.
+
 ### 3.1.1 Save Template Snapshot
 
 Save a copy of the raw template files (before any tailoring) to `.geniro/template-snapshot/`. This snapshot enables future `/geniro:setup` re-runs to distinguish template structural changes from project-specific tailoring.
@@ -482,7 +489,7 @@ Files like `backend-agent.md`, `frontend-agent.md`, `rules/backend-conventions.m
 
 For `settings.json`: if no existing file, use `cp` from template. If one already exists, use Read+Edit to **merge** template entries — preserve any user-added permissions, hooks, or custom settings.
 
-**Note:** Do NOT copy `skills/setup/`, `skills/update/`, or `skills/cleanup/` from the template — these are global plugin skills, not project-level skills. They run from the plugin installation and are never part of the project's `.claude/` directory.
+**Note:** Do NOT copy ANY skills from the template to the project. All skills are provided globally by the plugin — copying them creates duplicates in the skill list. The only files written to `.claude/skills/` are the 5 review criteria files generated in Phase 3.5.
 
 ### Agent Prompt Principles (apply when editing agents)
 
@@ -688,7 +695,7 @@ For backend-agent.md, frontend-agent.md, rules/*.md, skills/review/*-criteria.md
 - No multi-framework lists like "(Django, Rails, FastAPI)" — file must be specific
 
 ### 5. Frontmatter Integrity
-For every `.md` file in `.claude/agents/` and `.claude/skills/`:
+For every `.md` file in `.claude/agents/` (skills are not in the project — they are provided by the plugin):
 - Has valid YAML frontmatter (opens and closes with `---`)
 - Required fields present: `name`, `description` (agents also need `tools`)
 - No duplicate frontmatter keys
@@ -777,7 +784,7 @@ Write the state file:
 ```
 
 Populate the lists from the actual files installed during Phase 3. The categories are:
-- **verbatim**: Files copied directly from template without AI modification (all agents except backend/frontend, all skills, all hooks, settings.json)
+- **verbatim**: Files copied directly from template without AI modification (all agents except backend/frontend, all hooks, settings.json)
 - **tailored**: Files that were copied then AI-edited (backend-agent, frontend-agent, rules files) or generated from scratch (review criteria files)
 - **user_created**: Files that existed in `.claude/` before setup and are not part of the template
 
@@ -792,7 +799,7 @@ Setup complete! Here's what was generated:
 
 .claude/
   agents/     (N agents)
-  skills/     (N skills)
+  skills/review/  (5 review criteria files)
   hooks/      (N hooks)
   rules/      (N rule files)
   settings.json
@@ -861,8 +868,8 @@ Without the state file, classify files by explicit enumeration — do NOT rely o
 | Always Tailored (never auto-overwrite) | Always Verbatim (safe to auto-apply) |
 |---|---|
 | `agents/backend-agent.md` | All other agents (`architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`, `refactor-agent.md`, `debugger-agent.md`, `security-agent.md`, `doc-agent.md`, `devops-agent.md`, `knowledge-agent.md`, `knowledge-retrieval-agent.md`, `meta-agent.md`) |
-| `agents/frontend-agent.md` | All skills (entire `skills/` directory) |
-| `rules/backend-conventions.md` | All hooks (entire `hooks/` directory) |
+| `agents/frontend-agent.md` | All hooks (entire `hooks/` directory) |
+| `rules/backend-conventions.md` | |
 | `rules/security-patterns.md` | |
 | `skills/review/bugs-criteria.md` | |
 | `skills/review/security-criteria.md` | |
@@ -1200,11 +1207,10 @@ If user chose C — apply every template file regardless of whether changes were
 
 **3C.1: Overwrite all verbatim files**
 
-Copy every verbatim template file (agents, hooks, non-tailored skills) directly from template:
+Copy every verbatim template file (agents, hooks) directly from template. Skills are NOT copied — they are provided globally by the plugin:
 ```bash
-# Copy all template files from harness subdirectories, overwriting existing
-# Scoped to agents/skills/hooks/rules — prevents plugin root files (README.md, HOOKS.md, .DS_Store) from being copied into .claude/
-for f in $(find "$TEMPLATE_DIR/agents" "$TEMPLATE_DIR/skills" "$TEMPLATE_DIR/hooks" "$TEMPLATE_DIR/rules" -type f 2>/dev/null | sed "s|$TEMPLATE_DIR/||"); do
+# Copy all template files from agents/hooks/rules — skills are provided by plugin, not copied
+for f in $(find "$TEMPLATE_DIR/agents" "$TEMPLATE_DIR/hooks" "$TEMPLATE_DIR/rules" -type f 2>/dev/null | sed "s|$TEMPLATE_DIR/||"); do
   mkdir -p ".claude/$(dirname "$f")"
   cp "$TEMPLATE_DIR/$f" ".claude/$f"
 done
@@ -1263,7 +1269,7 @@ Remove only files that came from the template — **preserve user-created files*
 # But if user has .claude/agents/my-custom-agent.md, leave it untouched
 ```
 
-To identify which files are template files: list all filenames in `$TEMPLATE_DIR/agents/`, `$TEMPLATE_DIR/skills/`, `$TEMPLATE_DIR/hooks/`, `$TEMPLATE_DIR/rules/`. Remove only those matching filenames from `.claude/`. Any file in `.claude/` that does NOT have a corresponding template file is user-created and must be kept.
+To identify which files are template files: list all filenames in `$TEMPLATE_DIR/agents/`, `$TEMPLATE_DIR/hooks/`, `$TEMPLATE_DIR/rules/`. Remove only those matching filenames from `.claude/`. Also remove any legacy skill files in `.claude/skills/` (except `.claude/skills/review/*-criteria.md` which are per-project). Any file in `.claude/` that does NOT have a corresponding template file is user-created and must be kept.
 
 Phase 1-5 runs normally — codebase analysis, user interview, file generation, tailoring, verification. The template files are installed fresh, then tailored for the detected stack. User-created files remain untouched alongside the new template files.
 
