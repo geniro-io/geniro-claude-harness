@@ -81,9 +81,9 @@ function compareVersions(a, b) {
   return false;
 }
 
-// Skip if recently checked
+// Skip if recently checked (unless GENIRO_FORCE_CHECK is set)
 const cached = readCache();
-if (cached && cached.checked && (Date.now() - cached.checked) < CHECK_INTERVAL_MS) {
+if (!process.env.GENIRO_FORCE_CHECK && cached && cached.checked && (Date.now() - cached.checked) < CHECK_INTERVAL_MS) {
   process.exit(0);
 }
 

@@ -30,13 +30,15 @@ claude plugin update geniro-claude-plugin@geniro-claude-harness
 
 If the update fails or no update is available, report the result and stop.
 
-### 3. Clear update cache
+### 3. Refresh update cache
 
-After a successful update, clear the update notification so the statusline stops showing the update arrow:
+After a successful update, re-run the update check so the statusline reflects the new version:
 
 ```bash
-rm -f ~/.claude/cache/geniro-update-check.json
+GENIRO_UPDATE_BG=1 GENIRO_FORCE_CHECK=1 node "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-check-update.js"
 ```
+
+This writes `update_available: false` to the cache with the correct installed version.
 
 ### 4. Re-run setup
 
