@@ -34,7 +34,7 @@ your-project/
 └── .claude/
     ├── agents/                  # Committed — 12 agents
     ├── skills/                  # Committed — 13 skills
-    ├── hooks/                   # Committed — 10 hooks (8 registered + 1 StatusLine + 1 utility)
+    ├── hooks/                   # Committed — 9 hooks (8 registered + 1 utility)
     ├── rules/                   # Committed — generated per-project
     └── settings.json            # Committed — permissions & hooks
 
@@ -85,7 +85,7 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-u
 **Copied directly from template (universal, no customization needed):**
 - 11 universal agents from `$TEMPLATE_DIR/agents/`
 - 13 skills from `$TEMPLATE_DIR/skills/` (setup is removed after completion)
-- 10 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 StatusLine + 1 backpressure utility)
+- 9 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 backpressure utility)
 - `settings.json` from `$TEMPLATE_DIR/settings.json`
 
 **Written to .geniro/ (git-ignored, not committed):**
@@ -326,9 +326,6 @@ D) Mixed / no clear pattern yet
 Which integrations do you want to enable?
 
 ☐ Linear (issue tracking — pass issue IDs to /geniro:implement)
-☐ GitHub (PR workflows, issue linking)
-☐ Database safety hooks (block dangerous queries)
-☐ Context monitoring (warn when context is getting large)
 ```
 
 ### 2.5 Scope Selection
@@ -361,9 +358,8 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 - `debug/`, `learnings/`, `onboard/`, `features/`, `investigate/`
 
 **Hooks** (copy all or selected subset based on integration choices):
-- Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`
+- Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`, `db-guard.sh`
 - Lifecycle: `pre-compact-state-save.sh`, `post-compact-notification.sh`
-- Database: `db-guard.sh` (only if database integration selected)
 - Utility: `backpressure.sh` (not a hook — sourced by skills for output compression)
 
 **settings.json** — If no existing `settings.json`, copy from template and adjust hook paths. If `settings.json` already exists, **merge** template entries into it — preserve any user-added permissions, hooks, or custom settings that aren't in the template.

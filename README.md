@@ -114,10 +114,9 @@ geniro-claude-plugin/
 ├── hooks/                       # 10 safety & quality hooks
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
-│   ├── geniro-statusline.js     # Status line display
 │   └── *.sh                     # Safety hook scripts
 ├── rules/                       # Scoped instruction files
-├── settings.json                # Permissions and status line config
+├── settings.json                # Permissions config
 ├── CLAUDE.md                    # Plugin instructions (auto-loaded)
 └── HOOKS.md                     # Hook documentation
 ```

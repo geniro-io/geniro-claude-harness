@@ -126,7 +126,7 @@ Remove each file individually with `rm -f`. Do NOT use `rm -rf` on directories.
 rm -f .claude/agents/architect-agent.md
 rm -f .claude/agents/backend-agent.md
 rm -f .claude/hooks/dangerous-command-blocker.sh
-rm -f .claude/hooks/geniro-statusline.js
+rm -f .claude/hooks/geniro-check-update.js
 rm -f .claude/skills/plan/SKILL.md
 # ... repeat for EVERY file individually
 ```
