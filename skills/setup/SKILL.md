@@ -391,20 +391,23 @@ cp "$TEMPLATE_DIR/agents/frontend-agent.md" .claude/agents/
 
 Configure the geniro status line in `.claude/settings.local.json` (project-level). This overrides any user-level statusLine (e.g., from GSD) so the geniro status line shows in geniro-configured projects.
 
-1. If `.claude/settings.local.json` does not exist, create it:
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js\""
-  }
-}
+**IMPORTANT:** `${CLAUDE_PLUGIN_ROOT}` is only expanded in plugin-provided files — it does NOT work in project `settings.local.json`. You must resolve the absolute path at setup time.
+
+1. Resolve the plugin install path using Bash:
+```bash
+PLUGIN_PATH=$(python3 -c "import json; d=json.load(open('$HOME/.claude/plugins/installed_plugins.json')); p=d['plugins'].get('geniro-claude-plugin@geniro-claude-harness',[]); print(p[0]['installPath'] if p else '')" 2>/dev/null)
 ```
 
-2. If `.claude/settings.local.json` already exists, read it and:
-   - If it has no `statusLine` key, merge the entry above (preserve all existing keys).
-   - If it already has a geniro `statusLine` (contains `geniro-statusline`), skip — already configured.
-   - If it has a different `statusLine`, replace it with geniro's (the plugin's statusLine includes model, context usage, and update notifications).
+2. If `$PLUGIN_PATH` is empty, fall back to `${CLAUDE_PLUGIN_ROOT}` (available in skill context):
+```bash
+PLUGIN_PATH="${CLAUDE_PLUGIN_ROOT}"
+```
+
+3. Write the statusLine to `.claude/settings.local.json` using the resolved absolute path:
+   - If `.claude/settings.local.json` does not exist, create it with `statusLine` only.
+   - If it already exists: merge the `statusLine` key (preserve all existing keys).
+   - If it already has a geniro `statusLine` (contains `geniro-statusline`), update the path (version may have changed).
+   - The command must be: `node "<absolute_plugin_path>/hooks/geniro-statusline.js"`
 
 #### Legacy Cleanup
 

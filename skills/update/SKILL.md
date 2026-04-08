@@ -46,7 +46,17 @@ GENIRO_UPDATE_BG=1 GENIRO_FORCE_CHECK=1 node "${CLAUDE_PLUGIN_ROOT}/hooks/geniro
 
 This writes `update_available: false` to the cache with the correct installed version.
 
-### 4. Re-run setup
+### 4. Refresh statusLine path
+
+After a successful update, the plugin install path changes (new version directory). Update the statusLine in `.claude/settings.local.json` to point to the new path:
+
+```bash
+PLUGIN_PATH=$(python3 -c "import json; d=json.load(open('$HOME/.claude/plugins/installed_plugins.json')); p=d['plugins'].get('geniro-claude-plugin@geniro-claude-harness',[]); print(p[0]['installPath'] if p else '')" 2>/dev/null)
+```
+
+If `.claude/settings.local.json` exists and has a `statusLine` entry containing `geniro-statusline`, update the path to `node "$PLUGIN_PATH/hooks/geniro-statusline.js"`. Use the Edit tool to replace the old path.
+
+### 5. Re-run setup
 
 After a successful update, invoke `/geniro:setup` using the Skill tool to sync project-specific files
 (tailored agents, rules, review criteria) with any changes in the updated plugin templates.
