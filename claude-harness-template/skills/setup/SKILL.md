@@ -783,6 +783,15 @@ Compare the template against the installed harness:
 (cd .claude && find agents skills hooks rules -type f 2>/dev/null)
 ```
 
+Additionally, explicitly check `settings.json` since it lives at the template root (not inside agents/skills/hooks/rules):
+```bash
+# settings.json is at template root, not in subdirectories — check separately
+if [[ -f "$TEMPLATE_DIR/settings.json" ]]; then
+  echo "settings.json"
+fi
+```
+Classify `settings.json` as **verbatim** for diff purposes, but apply using the **merge strategy** (preserve user-added entries).
+
 Classify each file using `$HARNESS_STATE` (if available from a previous install) or by matching filenames against the template:
 
 | Category | Detection | Update Strategy |
@@ -791,6 +800,26 @@ Classify each file using `$HARNESS_STATE` (if available from a previous install)
 | **Tailored** (in `$HARNESS_STATE.files.tailored` or is one of: backend-agent, frontend-agent, rules/*, skills/review/*-criteria.md) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
 | **User-created** (in `$HARNESS_STATE.files.user_created` or exists in .claude/ but NOT in template) | Skip entirely | Never touch |
 | **Template-only** (exists in template but NOT in .claude/) | New file | Offer to install |
+
+**Legacy-update classification fallback** (when `$HARNESS_STATE` is absent):
+
+Without the state file, classify files by explicit enumeration — do NOT rely on LLM judgment alone:
+
+| Always Tailored (never auto-overwrite) | Always Verbatim (safe to auto-apply) |
+|---|---|
+| `agents/backend-agent.md` | All other agents (`architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`, `refactor-agent.md`, `debugger-agent.md`, `security-agent.md`, `doc-agent.md`, `devops-agent.md`, `knowledge-agent.md`, `knowledge-retrieval-agent.md`, `meta-agent.md`) |
+| `agents/frontend-agent.md` | All skills (entire `skills/` directory) |
+| `rules/backend-conventions.md` | All hooks (entire `hooks/` directory) |
+| `rules/security-patterns.md` | |
+| `skills/review/bugs-criteria.md` | |
+| `skills/review/security-criteria.md` | |
+| `skills/review/tests-criteria.md` | |
+| `skills/review/architecture-criteria.md` | |
+| `skills/review/guidelines-criteria.md` | |
+
+Any file in `.claude/` that does NOT appear in either column AND does NOT exist in the template directory → classify as **user-created** (never touch).
+
+Any file in `.claude/` that does NOT appear in either column BUT DOES exist in the template directory → classify as **verbatim** (safe to auto-apply).
 
 #### 1b: Diff Verbatim Files
 
@@ -850,13 +879,23 @@ Do NOT suggest how to apply these changes — just identify them.
 ```
 
 **If no template snapshot exists** (legacy install):
-Compare section headers (`##` and `###` lines) between the template file and the installed file. New headers in the template that don't exist in the installed file indicate structural additions. This is a rough heuristic but catches the most important changes (new phases, new sections).
+Compare ALL section headers (`##` and `###` lines) between the template file and the installed file, AND check for significant line-count deltas (>10%). New or changed headers indicate structural additions; large size changes indicate substantial content updates even when headers stay the same. This heuristic catches most structural changes — new phases, new subsections, and substantive content rewrites.
 
 ```bash
-# Extract section headers from both files
-grep -n "^##" "$TEMPLATE_DIR/$file" > /tmp/template_headers.txt
-grep -n "^##" ".claude/$file" > /tmp/installed_headers.txt
+# Extract ALL section headers (## and ###) from both files
+grep -n "^###\?\s" "$TEMPLATE_DIR/$file" > /tmp/template_headers.txt
+grep -n "^###\?\s" ".claude/$file" > /tmp/installed_headers.txt
 diff /tmp/template_headers.txt /tmp/installed_headers.txt
+
+# Also check for significant content changes: line count delta > 10% suggests structural change
+TEMPLATE_LINES=$(wc -l < "$TEMPLATE_DIR/$file")
+INSTALLED_LINES=$(wc -l < ".claude/$file")
+DELTA=$(( TEMPLATE_LINES - INSTALLED_LINES ))
+DELTA=${DELTA#-}  # absolute value
+THRESHOLD=$(( TEMPLATE_LINES / 10 ))
+if [[ $DELTA -gt $THRESHOLD ]]; then
+  echo "SIGNIFICANT SIZE CHANGE: $file ($INSTALLED_LINES → $TEMPLATE_LINES lines)"
+fi
 ```
 
 For **review criteria files** (`skills/review/*-criteria.md`): these are fully generated (not edited from template). On update, they should be **regenerated** using the current template criteria as reference + current codebase analysis. Flag them as "regenerate recommended" rather than diffing.
@@ -869,6 +908,35 @@ for f in $(cd "$TEMPLATE_DIR" && find agents skills hooks rules -type f 2>/dev/n
     echo "NEW: $f"
   fi
 done
+```
+
+#### 1e: Detect Removed Template Files
+
+Check for files in `.claude/` that were part of the previous template but have been removed from the current template:
+
+```bash
+# Files in .claude/ that match template structure but no longer exist in template
+for f in $(cd .claude && find agents skills hooks rules -type f 2>/dev/null); do
+  if [[ ! -f "$TEMPLATE_DIR/$f" ]]; then
+    # Check if this was a template file (not user-created)
+    if [[ -n "$HARNESS_STATE" ]] && (echo "$HARNESS_STATE" | grep -q "$f"); then
+      echo "REMOVED FROM TEMPLATE: $f"
+    fi
+  fi
+done
+```
+
+For legacy installs without `$HARNESS_STATE`: only flag files whose names match known template patterns (e.g., filenames that appear in the legacy classification table from Step 1a). Do NOT flag files that could be user-created.
+
+Present removed files in the Step 2 analysis as a separate category:
+```
+### Removed from template (N files)
+These files existed in the previous template but have been removed:
+| File | Action |
+|------|--------|
+| agents/old-agent.md | Safe to delete — no longer maintained in template |
+
+→ Recommended: review and delete if no longer needed
 ```
 
 ### Step 2: Present Analysis & Suggest Path
@@ -911,6 +979,14 @@ These are new in the template and not yet installed:
 
 → Recommended: install all
 
+### Removed from template (N files)
+These files existed in the previous template but have been removed:
+| File | Action |
+|------|--------|
+| agents/old-agent.md | Safe to delete — no longer maintained in template |
+
+→ Recommended: review and delete if no longer needed
+
 ### Your project-only files (N files) — won't be touched
 - agents/custom-domain-agent.md
 
@@ -938,9 +1014,40 @@ If user chose A:
 
 **3A.1: Auto-apply verbatim file updates**
 
-For each changed verbatim file, copy the template version directly:
+For each changed verbatim file, copy the template version directly. Skip `settings.json` in this loop — it is handled by Step 3A.1b instead.
 ```bash
 cp "$TEMPLATE_DIR/$rel" ".claude/$rel"
+```
+
+```bash
+# Ensure hook scripts remain executable after copy
+chmod +x .claude/hooks/*.sh 2>/dev/null
+```
+
+**3A.1b: Merge settings.json updates**
+
+If the inventory flagged `settings.json` as changed, merge template entries into the installed version — same merge strategy as fresh install (line 378): preserve user-added permissions, hooks, and custom settings; add new template entries that are missing.
+
+Spawn a subagent:
+```
+Agent(prompt="""
+Merge template settings.json updates into the project's installed version.
+
+TEMPLATE: $TEMPLATE_DIR/settings.json
+INSTALLED: .claude/settings.json
+
+Read both files. For each entry in the template:
+- If it exists in the installed file with the same value → skip
+- If it exists in the installed file with a different value → keep the installed value (user customization)
+- If it does NOT exist in the installed file → add it (new template entry)
+
+For hook registrations specifically:
+- If the template has a new hook registration (new command in hooks array) → add it
+- If the template changed a hook's command path → update it (hook paths come from template, not user)
+- If the installed file has hook registrations not in the template → keep them (user-added hooks)
+
+Use the Edit tool to apply changes. Output what was added/changed.
+""", description="Merge settings.json updates")
 ```
 
 **3A.2: Merge structural changes into tailored files**
@@ -1009,6 +1116,20 @@ for dir in agents hooks rules skills; do
 done
 ```
 
+**3A.6: Post-update verification**
+
+Run the same verification checks as fresh install Phase 4 — but scoped to updated files only:
+
+1. **Placeholder residue:** Grep all updated files for `{{`, `}}`, `$TEMPLATE_DIR`, `PLACEHOLDER`
+2. **Hook executability:** Verify all `.sh` files in `.claude/hooks/` are executable
+3. **settings.json validity:** Parse `.claude/settings.json` as JSON, verify hook paths point to existing files
+4. **Cross-references:** For each updated file, verify paths it references still exist
+5. **Frontmatter integrity:** For updated `.md` files in agents/ and skills/, verify YAML frontmatter has required fields
+
+If issues found: fix immediately (Edit tool for trivial fixes, subagent for complex ones). Max 1 fix round.
+
+This step also applies after Steps 3B, 3C, and 3D — always verify after applying changes.
+
 ### Step 3B: Review Each Category
 
 If user chose B, present each category one at a time using the `AskUserQuestion` tool (do NOT output options as plain text):
@@ -1018,7 +1139,7 @@ For **tailored structural changes**: show each structural change with context, a
 For **criteria regeneration**: ask per-file whether to regenerate.
 For **new files**: ask which to install.
 
-After applying selected changes, update state file and refresh template snapshot (same as 3A.5).
+After applying selected changes, update state file and refresh template snapshot (same as 3A.5). Then run Step 3A.6 (Post-update verification) before proceeding.
 
 ### Step 3C: Apply ALL Template Files
 
@@ -1028,11 +1149,13 @@ If user chose C — apply every template file regardless of whether changes were
 
 Copy every verbatim template file (agents, hooks, non-tailored skills) directly from template:
 ```bash
-# Copy all template files, overwriting existing
-for f in $(find "$TEMPLATE_DIR" -type f -not -name "*.example" | sed "s|$TEMPLATE_DIR/||"); do
+# Copy all template files from harness subdirectories, overwriting existing
+# Scoped to agents/skills/hooks/rules — prevents template root files (README.md, install.sh, HOOKS.md, .DS_Store) from being copied into .claude/
+for f in $(find "$TEMPLATE_DIR/agents" "$TEMPLATE_DIR/skills" "$TEMPLATE_DIR/hooks" "$TEMPLATE_DIR/rules" -type f 2>/dev/null | sed "s|$TEMPLATE_DIR/||"); do
   mkdir -p ".claude/$(dirname "$f")"
   cp "$TEMPLATE_DIR/$f" ".claude/$f"
 done
+# settings.json is at template root — handle separately with merge strategy
 chmod +x .claude/hooks/*.sh 2>/dev/null
 ```
 
@@ -1050,11 +1173,13 @@ Re-run Phase 1 (Codebase Analysis) to detect the current stack, then re-run Phas
 
 Same as Step 3A.5 — update `.claude/.artifacts/.harness-state.json` and refresh the template snapshot.
 
+After applying changes, run Step 3A.6 (Post-update verification) before proceeding.
+
 ### Step 3D: Fresh Install
 
 If user chose D, run the **Fresh Install (with Knowledge Preservation)** flow defined immediately below: backup → clean install → analyze backup → enrich → delete backup.
 
-**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
+**DO NOT end the conversation or ask "anything else?" here.** After applying changes, run Step 3A.6 (Post-update verification) before proceeding. You MUST proceed to Phase 4 (Verify) and Phase 5 (Cleanup) now — template-source cleanup is mandatory.
 
 ### Fresh Install (with Knowledge Preservation)
 

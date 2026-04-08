@@ -25,25 +25,24 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 17. [AI-Driven Setup: From Bash Script to Skill](#ai-driven-setup-from-bash-script-to-skill)
 18. [Implement & Follow-Up Skill Audit](#implement--follow-up-skill-audit)
 19. [HumanLayer Comparison & Pattern Adoption](#humanlayer-comparison--pattern-adoption-v110)
-20. [Full Template Audit v2](#full-template-audit-v2-post-v110-review-all-skills-agents-hooks)
-21. [Full Template Audit v3](#full-template-audit-v3-fresh-re-review-all-skills-agents-hooks)
-22. [Template Improvement Audit v4: Production Cross-Pollination](#template-improvement-audit-v4-production-cross-pollination--best-practices-review)
-23. [Template Improvement Audit v5: Full Template Compliance Check](#template-improvement-audit-v5-full-template-compliance-check)
-24. [Template Improvement Audit v6: Skill Composition & 8-Phase Pipeline](#template-improvement-audit-v6-skill-composition--8-phase-pipeline)
-25. [Template Improvement Audit v7: Refactor Skill & Agent Cross-Pollination](#template-improvement-audit-v7-refactor-skill--agent-cross-pollination)
-26. [Template Improvement Audit v8: Review Skill & Agent Cross-Pollination](#template-improvement-audit-v8-review-skill--agent-cross-pollination)
-27. [Template Improvement Audit v10: All Remaining Skills](#template-improvement-audit-v10-all-remaining-skills)
-28. [Plan Skill Creation & Task Complexity Research](#plan-skill-creation--task-complexity-research-audit-v11)
-29. [Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping](#template-improvement-audit-v14-follow-up-context-exhaustion--phase-skipping)
-30. [Template Improvement Audit v15: Setup Smart Update & State Tracking](#template-improvement-audit-v15-setup-smart-update--state-tracking)
-31. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
-32. [Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation](#template-improvement-audit-v18-deep-simplify-token-explosion--state-file-relocation)
-33. [Template Improvement Audit v19: Implement Phase 7 Tweak Loop-Back](#template-improvement-audit-v19-implement-phase-7-tweak-loop-back)
-34. [Template Improvement Audit v20: Features + Spec Skill Merge](#template-improvement-audit-v20-features--spec-skill-merge)
-35. [Template Improvement Audit v21: Improve-Template Degradation Checking](#template-improvement-audit-v21-improve-template-degradation-checking)
-36. [Template Improvement Audit v22: Deep-Simplify Pattern Compliance & Comment Preservation](#template-improvement-audit-v22-deep-simplify-pattern-compliance--comment-preservation)
-37. [Template Improvement Audit v23: Report.md Maintenance Step](#template-improvement-audit-v23-reportmd-maintenance-step)
-38. [Template Improvement Audit v24: Implement Second-Run Prior Context Loading](#template-improvement-audit-v24-implement-second-run-prior-context-loading)
+20. [Template Improvement Audit v4: Production Cross-Pollination](#template-improvement-audit-v4-production-cross-pollination--best-practices-review)
+21. [Template Improvement Audit v5: Full Template Compliance Check](#template-improvement-audit-v5-full-template-compliance-check)
+22. [Template Improvement Audit v6: Skill Composition & 8-Phase Pipeline](#template-improvement-audit-v6-skill-composition--8-phase-pipeline)
+23. [Template Improvement Audit v7: Refactor Skill & Agent Cross-Pollination](#template-improvement-audit-v7-refactor-skill--agent-cross-pollination)
+24. [Template Improvement Audit v8: Review Skill & Agent Cross-Pollination](#template-improvement-audit-v8-review-skill--agent-cross-pollination)
+25. [Template Improvement Audit v10: All Remaining Skills](#template-improvement-audit-v10-all-remaining-skills)
+26. [Plan Skill Creation & Task Complexity Research](#plan-skill-creation--task-complexity-research-audit-v11)
+27. [Template Improvement Audit v14: Follow-Up Context Exhaustion & Phase Skipping](#template-improvement-audit-v14-follow-up-context-exhaustion--phase-skipping)
+28. [Template Improvement Audit v15: Setup Smart Update & State Tracking](#template-improvement-audit-v15-setup-smart-update--state-tracking)
+29. [Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation](#template-improvement-audit-v17-follow-up-zero-direct-edits--delegated-validation)
+30. [Template Improvement Audit v18: Deep-Simplify Token Explosion & State File Relocation](#template-improvement-audit-v18-deep-simplify-token-explosion--state-file-relocation)
+31. [Template Improvement Audit v19: Implement Phase 7 Tweak Loop-Back](#template-improvement-audit-v19-implement-phase-7-tweak-loop-back)
+32. [Template Improvement Audit v20: Features + Spec Skill Merge](#template-improvement-audit-v20-features--spec-skill-merge)
+33. [Template Improvement Audit v21: Improve-Template Degradation Checking](#template-improvement-audit-v21-improve-template-degradation-checking)
+34. [Template Improvement Audit v22: Deep-Simplify Pattern Compliance & Comment Preservation](#template-improvement-audit-v22-deep-simplify-pattern-compliance--comment-preservation)
+35. [Template Improvement Audit v23: Report.md Maintenance Step](#template-improvement-audit-v23-reportmd-maintenance-step)
+36. [Template Improvement Audit v24: Implement Second-Run Prior Context Loading](#template-improvement-audit-v24-implement-second-run-prior-context-loading)
+37. [Template Improvement Audit v25: Setup Smart Update Algorithm Detail Gaps](#template-improvement-audit-v25-setup-smart-update-algorithm-detail-gaps)
 
 ---
 
@@ -1716,7 +1715,7 @@ AI coding agents typically receive instructions via chat and produce code — bu
 3. After commit only: add comment summarizing implementation
 4. After leave uncommitted: keep as "In Progress"
 
-**Setup (optional, via setup.sh):**
+**Setup (via `/setup` skill):**
 - Ask user during setup whether to enable Linear integration
 - If yes: add instructions to CLAUDE.md, remind to run `claude mcp add`
 - If no: skip entirely, no traces in the harness
@@ -2954,8 +2953,6 @@ Compared the `/implement` (6-phase pipeline) and `/follow-up` (quick post-implem
 
 Analyzed HumanLayer/CodeLayer (github.com/humanlayer/humanlayer) — a YC-backed IDE for orchestrating AI coding agents — and their blog (hlyr.dev). Reviewed 8 blog articles and their full .claude/ configuration (6 agents, 27 commands, settings.json, CLAUDE.md). Key articles: "Skill Issue: Harness Engineering for Coding Agents" (23 min), "Advanced Context Engineering" (20 min), "12 Factor Agents" (32 min), "Long-Context Isn't the Answer", "Context-Efficient Backpressure", "Getting Claude to Actually Read Your CLAUDE.md".
 
-Full comparison document: `humanlayer-vs-harness-analysis.md`
-
 ### Key Differences Identified
 
 HumanLayer excels at context discipline (explicit budgets, backpressure wrappers, sub-agents as context firewalls), knowledge persistence (thoughts/ directory with search agents), and workflow decomposition (separate research → plan → validate → implement → validate pipeline with persistent artifacts). Our template excels at domain specialization (12 expert agents vs their 6 generic), universality (AI-driven setup for any tech stack), coverage breadth (security, review, refactoring skills), and upgradeability.
@@ -3007,18 +3004,6 @@ Files changed: new `agents/knowledge-retrieval-agent.md`, modified `skills/impro
 - Long-Context Isn't the Answer: https://hlyr.dev/blog/long-context-isnt-the-answer
 - 12 Factor Agents: https://hlyr.dev/blog/12-factor-agents
 - ETH Zurich Agent Files Study (cited in Skill Issue article)
-
-## Full Template Audit v2: Post-v1.1.0 Review (All Skills, Agents, Hooks)
-
-**Date:** Post-v1.1.0. Reviewed all 42 files (13 skills, 13 agents, 13 hooks, 3 cross-cutting) against 10 evaluation dimensions. Average rating: 8.2/10. Applied 10 fixes: `/tmp/` path migrations for 3 hooks, missing `model` fields for 3 agents, refactor-agent git contradiction, follow-up escalation limit, CLAUDE.md.example agent count, reviewer-agent WebSearch removal + criteria validation. Superseded by v3 and later audits.
-
----
-
-## Full Template Audit v3: Fresh Re-Review (All Skills, Agents, Hooks)
-
-**Date:** Post-v1.1.0. Independent re-audit of all 42 files using 11 fresh parallel review agents. Average rating: 8.3/10. Applied 8 fixes: refactor-agent missing model field, hardcoded `npm run dev` in implement, spec output path to `.artifacts/`, AskUserQuestion in ui-review, hardcoded npm in onboard, `bc`/`awk` guards in hooks, jq simplification. Baseline for v4+ audits.
-
----
 
 ## Template Improvement Audit v4: Production Cross-Pollination & Best Practices Review
 
@@ -3128,7 +3113,7 @@ Established a new composition pattern (now Pattern 1 in Skill Composition Patter
 
 **Architecture:**
 ```
-skills/simplify/
+skills/deep-simplify/
 ├── SKILL.md              ← process (standalone skill — Scope → Analyze → Fix → Verify)
 └── simplify-criteria.md  ← knowledge (3 analysis passes, severity, anti-patterns) — SHARED
 
@@ -3239,7 +3224,7 @@ Audited all 12 skills + 13 agents for skill composition issues:
 | File | Cross-references found | Issue? | Fix |
 |---|---|---|---|
 | `implement/SKILL.md` | `Read .claude/skills/review/SKILL.md and follow` (line 521) | **Yes** — review is a complex multi-agent orchestrator; "read and follow" loses infrastructure | Replaced with inline parallel reviewer spawning using pre-inlined criteria files |
-| `implement/SKILL.md` | `Read .claude/skills/simplify/SKILL.md and follow` (Phase 6) | **Yes** — same issue | Replaced with subagent delegation using shared `simplify-criteria.md` |
+| `implement/SKILL.md` | `Read .claude/skills/deep-simplify/SKILL.md and follow` (Phase 6) | **Yes** — same issue | Replaced with subagent delegation using shared `simplify-criteria.md` |
 | `implement/SKILL.md` | `run /simplify on changed files` (TodoWrite) | **Yes** — references skill invocation | Changed to `spawn simplify agent` |
 | `follow-up/SKILL.md` | Spawns `reviewer-agent` directly | No | Correct pattern — uses agent, not skill |
 | `review/SKILL.md` | Reads own criteria files | No | Correct pattern — supporting files in own directory |
@@ -3257,8 +3242,8 @@ Audited all 12 skills + 13 agents for skill composition issues:
 | File | Change | Lines before → after |
 |---|---|---|
 | `skills/implement/SKILL.md` | 6→8 phase pipeline, inline review process, subagent simplify delegation | 593 → 755 |
-| `skills/simplify/SKILL.md` | Extracted criteria to supporting file, simplified process | 280 → 162 |
-| `skills/simplify/simplify-criteria.md` | **NEW** — shared reference file with 3 analysis passes, severity, anti-patterns | 0 → 131 |
+| `skills/deep-simplify/SKILL.md` | Extracted criteria to supporting file, simplified process | 280 → 162 |
+| `skills/deep-simplify/simplify-criteria.md` | **NEW** — shared reference file with 3 analysis passes, severity, anti-patterns | 0 → 131 |
 | `report.md` (Known Limitations) | Expanded workaround with 3 ranked approaches + evidence links | — |
 | `report.md` (Skill Composition Pattern 1) | Replaced "file-reading" with "shared reference + subagent delegation", added Pattern 1b | — |
 | `report.md` (Composition selection guide) | Updated Pattern 1 recommendation | — |
@@ -3644,6 +3629,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 **Date:** 2026-04-04
 **Scope:** 8 skills — spec, simplify, features, debug, setup, onboard, learnings, ui-review
+**Note:** `/spec` was later merged into `/features` (Audit v20). `/ui-review` was later removed (commit 8a3102f).
 **Method:** 8 parallel research agents (audit) → 7 parallel validation agents (evidence check) → 7 parallel implementation agents + direct edits
 
 ### Methodology
@@ -3932,28 +3918,9 @@ Cross-referenced plan formats from 6 frameworks:
 **Scope:** Setup skill — fresh/update detection, per-file diff comparison, state persistence
 **Method:** 3-source triangulation (internet research on Copier/Cruft/Projen update patterns, report.md sections 20/24, codebase exploration of setup SKILL.md and conflict-resolution.md)
 
-### Implemented Fixes
+**Date:** 2026-04-06. **Scope:** Setup skill fresh/update detection, per-file diff comparison, state persistence. Added `.harness-state.json` sentinel, template snapshot for 3-way comparison, smart diff for tailored files, analysis-before-question pattern, parallel subagents for update flow. 6 fixes applied to `skills/setup/SKILL.md` (996 -> 1233 lines).
 
-| # | Severity | Fix | Evidence |
-|---|----------|-----|----------|
-| 1 | High | Added `.harness-state.json` sentinel file — stores template commit hash, install timestamp, and file manifest with verbatim/tailored/user-created categories. Enables state-based fresh-vs-update detection. | Copier `.copier-answers.yml`, Cruft `.cruft.json` (strong), report.md lines 3306-3344 (designed but unshipped) |
-| 2 | High | Rewrote Re-Running Setup to analyze diffs BEFORE asking intent. Previously asked a blind 4-option question; now builds file inventory, runs targeted diffs, presents categorized summary with recommendations, then asks. | Codebase: conflict-resolution.md already does analysis-before-question; re-run flow inverted the order |
-| 3 | Medium | Added template snapshot (`.claude/.artifacts/template-snapshot/`) — saves raw template files at install for 3-way comparison on future re-runs. Enables: snapshot→new-template = structural changes; snapshot→current = user customizations. | Copier 3-way merge pattern (strong), report.md lines 3306-3344 |
-| 4 | Medium | Smart diff for tailored files — compares template-snapshot vs new-template (structural changes only), NOT installed-file vs template. Skips LLM-generated project-specific content (domain rules, framework patterns) which is expected divergence. | Report.md section-level semantic comparison (lines 3033, 3091-3093), Projen managed-vs-sample file classes |
-| 5 | Medium | Added parallel subagents for structural change detection and merging in the update flow. Previously Step 2B read all files serially in orchestrator context. | Codebase: conflict-resolution.md and Step 2A both use parallel subagents; Step 2B was the only path without |
-| 6 | Low | File taxonomy tracked via `.harness-state.json` manifest instead of in-file markers. Template markers were deliberately removed during setup (Phases 3.2-3.4), leaving no post-install trace. State file is the single source of truth. | Internet: Projen `PROJEN_MARKER` pattern; codebase confirms markers removed during tailoring |
-
-### Files Changed
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `skills/setup/SKILL.md` | 996 lines | 1233 lines | Phase 0 state detection, Phase 1.4 routing, Phase 3.1.1 snapshot, Phase 4.4 state file, complete Re-Running Setup rewrite, Phase 5 preservation note, compliance table + DoD updates |
-
-### Key Findings
-- The setup skill had no persistent state after install — the template-source staging directory was the only install-mode signal, and it was deleted during cleanup. This made every re-run start from zero, requiring full file reads and blind user choices.
-- Tailored files (backend-agent, rules, review criteria) diverge significantly from the template after LLM generation. Diffing installed-vs-template produces 100% noise. The correct comparison is template-old-vs-template-new (what changed in the template itself), applied as structural patches to the tailored file.
-- The Copier/Cruft pattern of "sentinel file + commit hash + 3-way merge" is the industry standard for template update systems. Our implementation adapts this for AI-driven section-level merging instead of line-level git merge.
-- Analysis-before-question is a pattern already used in conflict-resolution.md but was missing from the re-run flow. Users can't make informed update decisions without seeing what actually changed.
+Findings and fixes from this audit were extended by Audit v25. See v25 for the current state of the setup Smart Update algorithm.
 
 ## Template Improvement Audit v17: Follow-Up Zero Direct Edits & Delegated Validation
 
@@ -4186,3 +4153,48 @@ Cross-referenced plan formats from 6 frameworks:
 - The implement skill conflated "resume interrupted run" with "re-run with changed requirements" — a single `state.md` existence check handled both cases identically, causing stale phase markers to skip re-architecture when requirements changed.
 - The `/follow-up` skill already loaded prior artifacts from the same branch's planning directory (spec.md, plan-*.md, state.md), but `/implement` did not — an asymmetry where the simpler skill was more context-aware than the full pipeline.
 - The `Pipeline: COMPLETE` sentinel ordering (before artifact keep/delete question) creates correct behavior for both paths: kept artifacts enable second-run detection, deleted artifacts trigger a clean fresh run.
+
+## Template Improvement Audit v25: Setup Smart Update Algorithm Detail Gaps
+
+**Date:** 2026-04-08
+**Scope:** Setup skill — Smart Update algorithm (Re-Running Setup flow, Steps 1a–3D)
+**Method:** 3-source triangulation (internet research on Copier/Cruft/Yeoman update patterns, report.md audits v14/v15/v21/v24, codebase exploration of setup SKILL.md update flow)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Added `settings.json` to update inventory scan (Step 1a) and merge step (3A.1b). Previously invisible to `find agents skills hooks rules` since it lives at template root. New hook registrations and permissions were silently skipped on every re-run. | Copier manifest completeness (strong), report.md Audit v15 sentinel file (strong), codebase: `find` command scope (strong) |
+| 2 | High | Added post-update verification (Step 3A.6) with 5 checks (placeholder residue, hook executability, settings.json validity, cross-references, frontmatter). Wired into all update paths (3A, 3B, 3C, 3D). Previously only fresh install had Phase 4 verification. | Cruft silent failure pattern (strong), report.md Audit v21 bidirectional scanning (strong), codebase G8 (strong) |
+| 3 | High | Added explicit legacy-update classification table — enumerates all tailored files (backend-agent, frontend-agent, rules/*, review criteria) vs verbatim files by name. Previously relied on LLM judgment for legacy installs without `$HARNESS_STATE`. | Cruft #147 skip config fragility (strong), report.md Audit v15 manifest (strong), codebase G4/G5 (strong) |
+| 4 | Medium | Expanded legacy header heuristic from `grep "^##"` to `grep "^###\?\s"` plus >10% line-count delta check. Previously missed `###` subsection additions and substantive content rewrites that kept the same `##` header. | Internet: legacy header heuristic analysis (strong), report.md Audit v24 stale markers (strong) |
+| 5 | Medium | Added Step 1e: detect files removed from template. Previously deprecated template files persisted in projects forever with no flag. | Copier: user-deleted not restored (moderate), report.md monotonic growth (moderate), codebase G9 (moderate) |
+| 6 | Low | Added `chmod +x .claude/hooks/*.sh` after verbatim hook copies in Step 3A.1. Previously only Steps 3A.4 and 3C.1 had this safety net. | Codebase G3 (moderate) |
+| 7 | Low | Fixed Step 3C.1 `find` scope from `$TEMPLATE_DIR -type f` to `$TEMPLATE_DIR/agents $TEMPLATE_DIR/skills $TEMPLATE_DIR/hooks $TEMPLATE_DIR/rules`. Previously copied template root files (README.md, install.sh, HOOKS.md, .DS_Store) into `.claude/`. | Codebase G7 (moderate) |
+
+### Review Fixes (from independent review)
+
+| # | Severity | Fix |
+|---|----------|-----|
+| R1 | Warning | Added "Skip settings.json" instruction to Step 3A.1 to prevent overwrite before 3A.1b merge |
+| R2 | Warning | Added 3A.6 reference to Step 3B (was missing from one update path) |
+| R3 | Nit | Added "Removed from template" section to Step 2 display block template |
+
+### Files Changed
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `skills/setup/SKILL.md` | 1257 lines | 1382 lines | 7 additions/edits to Smart Update flow + 3 review fixes |
+
+### Key Findings
+- The `find agents skills hooks rules` command used to build the file inventory structurally excluded `settings.json` (lives at template root) — making it invisible to the entire update pipeline. This is the most likely cause of "skipped template updates" the user reported.
+- Legacy installs (no `$HARNESS_STATE`) had no deterministic way to distinguish tailored files from verbatim files. The classification relied on LLM judgment, which is unreliable — an explicit enumeration table eliminates this ambiguity.
+- The `grep -n "^##"` header heuristic for legacy-update tailored-file comparison was structurally limited: it only detected top-level section additions/removals. Subsection changes (`###`), content rewrites within existing sections, and significant size changes were all invisible.
+- Post-update verification was completely absent — fresh install had a full Phase 4 (orchestrator checks + independent agent), but the Smart Update flow skipped directly to state file refresh after applying changes.
+- The Copier/Cruft ecosystem documents the same class of bugs: cruft #67 (new files treated as deleted), cruft #147 (skip config fragility), copier #1263 (false "already up to date"). These are structural risks in any template-sync system.
+
+**From Audit v15 (original Smart Update investigation):**
+- The setup skill had no persistent state after install — the template-source staging directory was the only install-mode signal, and it was deleted during cleanup. This made every re-run start from zero, requiring full file reads and blind user choices.
+- Tailored files (backend-agent, rules, review criteria) diverge significantly from the template after LLM generation. Diffing installed-vs-template produces 100% noise. The correct comparison is template-old-vs-template-new (what changed in the template itself), applied as structural patches to the tailored file.
+- The Copier/Cruft pattern of "sentinel file + commit hash + 3-way merge" is the industry standard for template update systems. Our implementation adapts this for AI-driven section-level merging instead of line-level git merge.
+- Analysis-before-question is a pattern already used in conflict-resolution.md but was missing from the re-run flow. Users can't make informed update decisions without seeing what actually changed.
