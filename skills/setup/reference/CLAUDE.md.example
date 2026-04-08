@@ -60,7 +60,7 @@ See project README for full setup instructions and package.json (or requirements
 
 **Backpressure: compress verbose output**: When running tests, builds, or lints, use the backpressure wrapper to preserve context:
 ```bash
-source .claude/hooks/backpressure.sh
+source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh"
 run_silent "Tests" "{{test}}"
 run_silent "Build" "{{build}}"
 run_silent "Lint" "{{lint}}"
@@ -69,7 +69,7 @@ On success, this outputs one line (`✓ Tests passed`). On failure, it shows onl
 
 ## Agent Routing
 
-Available agents in `.claude/agents/`:
+Available agents in `${CLAUDE_PLUGIN_ROOT}/agents/` (provided by plugin):
 
 **Core Agents (6):**
 - **architect-agent**: Analyzes tasks, explores codebase, evaluates multiple approaches, produces implementation-ready specs with file-level plans. Use for architecture decisions before implementation.
@@ -87,7 +87,7 @@ Available agents in `.claude/agents/`:
 - **knowledge-agent**: Extracts and curates learnings from implementations — builds internal playbooks, documents patterns, creates decision records.
 - **meta-agent**: Creates and improves agents and skills — helps build custom agents for your domain, refines existing workflows.
 
-To discover agents: search for `agent` in `.claude/agents/`.
+To discover agents: search for `agent` in `${CLAUDE_PLUGIN_ROOT}/agents/`.
 
 **Agent turn limits**: Each agent has a `maxTurns` ceiling (implementers: 60, reviewers: 30, haiku utilities: 25-30). A "turn" is one agent-loop round-trip, not one tool call. If an agent hits its limit, it returns partial results — design tasks to be bounded and idempotent.
 
@@ -121,7 +121,7 @@ To discover agents: search for `agent` in `.claude/agents/`.
 - Avoid re-reading files you've already processed — reference them by path
 
 <important if="you are running tests, builds, or linting">
-Use `.claude/hooks/backpressure.sh` to compress output. Never dump raw test suite output into context — it wastes tokens and degrades focus. On success, one checkmark line is enough. On failure, show only errors.
+Use `${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh` to compress output. Never dump raw test suite output into context — it wastes tokens and degrades focus. On success, one checkmark line is enough. On failure, show only errors.
 </important>
 
 <important if="you are debugging or investigating">

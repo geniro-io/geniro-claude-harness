@@ -30,17 +30,7 @@ claude plugin update geniro-claude-plugin@geniro-claude-harness
 
 If the update fails or no update is available, report the result and stop.
 
-### 3. Copy updated hooks to project
-
-After a successful update, copy the latest hook scripts from the updated plugin to the project.
-This ensures the project always has the newest versions without waiting for a full setup re-run:
-
-```bash
-cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js" .claude/hooks/geniro-statusline.js
-cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-check-update.js" .claude/hooks/geniro-check-update.js
-```
-
-### 4. Refresh update cache
+### 3. Refresh update cache
 
 Re-run the update check so the statusline reflects the new version:
 
@@ -50,10 +40,10 @@ GENIRO_UPDATE_BG=1 GENIRO_FORCE_CHECK=1 node "${CLAUDE_PLUGIN_ROOT}/hooks/geniro
 
 This writes `update_available: false` to the cache with the correct installed version.
 
-### 5. Re-run setup
+### 4. Re-run setup
 
 After a successful update, invoke `/geniro:setup` using the Skill tool to sync project-specific files
-(agents, hooks, rules) with any changes in the updated plugin templates.
+(tailored agents, rules, review criteria) with any changes in the updated plugin templates.
 
 ```
 Skill(skill="geniro:setup")

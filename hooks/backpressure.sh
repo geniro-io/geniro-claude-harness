@@ -4,15 +4,15 @@
 # Inspired by HumanLayer's "context-efficient backpressure" pattern.
 #
 # Usage in skills: Instead of running `npm test` directly, run:
-#   bash .claude/hooks/backpressure.sh "Tests" "npm test"
-#   bash .claude/hooks/backpressure.sh "Build" "npm run build"
-#   bash .claude/hooks/backpressure.sh "Lint" "npm run lint"
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" "Tests" "npm test"
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" "Build" "npm run build"
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" "Lint" "npm run lint"
 #
 # On success: outputs "✓ Tests passed" (~5 tokens)
 # On failure: outputs full error details (only what's needed)
 #
 # Can also be sourced for the run_silent function:
-#   source .claude/hooks/backpressure.sh
+#   source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh"
 #   run_silent "Tests" "npm test"
 
 run_silent() {

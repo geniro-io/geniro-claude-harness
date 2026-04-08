@@ -110,7 +110,7 @@ Before investigating, check for relevant prior learnings:
 - Confirm bug is gone (reproduction fails)
 - Check no new tests break
 - Verify no regressions in related functionality
-- Run the project's full test suite via backpressure: `source .claude/hooks/backpressure.sh && run_silent "Tests" "<test_cmd>"` (use the test command from CLAUDE.md). If backpressure is unavailable, use fail-fast flags (`--bail`, `-x`) to surface one failure at a time.
+- Run the project's full test suite via backpressure: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<test_cmd>"` (use the test command from CLAUDE.md). If backpressure is unavailable, use fail-fast flags (`--bail`, `-x`) to surface one failure at a time.
 - If the project uses code generation (check CLAUDE.md) AND the fix modified DTOs, schemas, or controllers: run the codegen command, then re-validate.
 
 ### 7. Document
@@ -129,7 +129,7 @@ After documenting the fix, check if the debug session revealed harness improveme
 | Category | What to look for | Target files |
 |---|---|---|
 | **Rules gaps** | Bug was caused by violating an undocumented convention? | `.claude/rules/*.md` |
-| **Agent prompt gaps** | An agent produced code with this bug pattern? | `.claude/agents/*.md` |
+| **Agent prompt gaps** | An agent produced code with this bug pattern? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
 | **Missing test patterns** | Bug class not covered by review criteria? | `.claude/skills/review/*-criteria.md` |
 | **Stale documentation** | Docs described behavior that didn't match reality? | Any doc file |
 

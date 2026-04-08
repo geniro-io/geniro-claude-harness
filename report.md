@@ -46,6 +46,7 @@ Based on analysis of 14 production frameworks: Metaswarm, GSD, Citadel, Claude-C
 38. [Template Improvement Audit v26: Deep-Simplify Removal Safety Verification](#template-improvement-audit-v26-deep-simplify-removal-safety-verification)
 39. [Template Improvement Audit v27: Implement Phase 6 Stage B Delegation Gap](#template-improvement-audit-v27-implement-phase-6-stage-b-delegation-gap)
 40. [Template Improvement Audit v28: Setup Scope Selection UX](#template-improvement-audit-v28-setup-scope-selection-ux)
+41. [Template Improvement Audit v29: Global Plugin Architecture](#template-improvement-audit-v29-global-plugin-architecture)
 
 ---
 
@@ -4295,3 +4296,46 @@ Findings and fixes from this audit were extended by Audit v25. See v25 for the c
 - The setup interview had inconsistent detail levels: Phase 2.1 (detection confirmation) showed rich formatted blocks with tech stack, commands, and sources; Phase 2.5 (scope selection) showed bare counts. The quality gap was the starkest inconsistency in the entire interview flow.
 - "Core" tier had no canonical definition in the setup skill — the AI had to guess which 6 of 13 agents were "core". The report.md already defined this (Core 6 agents, Core 8 skills) but the information never flowed into the user-facing prompt.
 - The hooks contradiction ("none are optional" + tier-differentiated hook descriptions) would cause AI confusion during setup execution — one instruction says copy all, another implies copy a subset.
+
+## Template Improvement Audit v29: Global Plugin Architecture
+
+**Date:** 2026-04-08
+**Scope:** All skills, agents, hooks — full plugin architecture restructure
+**Method:** 3-source triangulation (Claude Code docs, codebase exploration, internet research)
+
+### Implemented Fixes
+
+| # | Severity | Fix | Evidence |
+|---|----------|-----|----------|
+| 1 | High | Stop copying 11 universal agents to project — provided globally by plugin | Claude Code docs: plugin agents auto-discovered at priority 5 |
+| 2 | High | Stop copying hooks to project — plugin provides via hooks.json. Previously hooks fired TWICE (different paths bypassed dedup) | Claude Code docs: plugin hooks auto-register; hooks.json uses ${CLAUDE_PLUGIN_ROOT} |
+| 3 | High | Stop copying skills to project (done in v28) — provided globally by plugin | Claude Code docs: plugin skills namespaced, no conflicts |
+| 4 | Medium | Updated 6 files referencing `.claude/hooks/backpressure.sh` to use `${CLAUDE_PLUGIN_ROOT}` path | Grep across all skills/agents found 6 stale references |
+| 5 | Medium | Updated 4 skills referencing `.claude/agents/*.md` for agent prompt gaps to use plugin path | Grep found stale project-path references |
+| 6 | Medium | Added legacy cleanup step to remove previously-copied agents, hooks, and skills from existing installs | Required for migration from old setup model |
+| 7 | Low | Updated cleanup skill to only target project-resident files (tailored agents, rules, criteria) | Cleanup was listing universal agents and hooks that no longer exist in project |
+| 8 | Low | Removed hook-copying step from update skill | Hooks no longer need copying after plugin update |
+| 9 | Low | Updated conflict-resolution.md to not scan for hooks in project | Stale reference to `.claude/hooks/*.sh` |
+| 10 | Trivial | Removed `.envrc` mentions from secret-protection-input.sh comments | User requested removal |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `skills/setup/SKILL.md` | Major restructure: removed agent/hook copying, updated Smart Update flow, removed tier selection, added legacy cleanup |
+| `skills/cleanup/SKILL.md` | Rewritten to only target project-resident files |
+| `skills/update/SKILL.md` | Removed hook-copying step, renumbered steps |
+| `agents/refactor-agent.md` | Updated backpressure.sh path to plugin path |
+| `skills/debug/SKILL.md` | Updated backpressure + agent path references |
+| `skills/refactor/SKILL.md` | Updated backpressure + agent path references |
+| `skills/implement/implement-reference.md` | Updated backpressure + agent path references |
+| `skills/review/SKILL.md` | Updated backpressure + agent path references |
+| `skills/setup/reference/CLAUDE.md.example` | Updated backpressure + agent directory references |
+| `skills/setup/conflict-resolution.md` | Removed hooks glob |
+| `hooks/backpressure.sh` | Updated usage comment paths |
+| `hooks/secret-protection-input.sh` | Removed .envrc comment mentions |
+
+### Key Findings
+- Hooks were firing TWICE on every event — once from the plugin (${CLAUDE_PLUGIN_ROOT}/hooks/) and once from the project copy (.claude/hooks/). The command strings differed so deduplication didn't catch it.
+- The entire copy-to-project model was unnecessary. Claude Code plugins provide agents, skills, and hooks globally with well-defined priority systems. The only project-level files needed are those tailored per-project (2 agents, 2 rules, 5 review criteria, settings.json).
+- The tier selection (Full/Core/Minimal/Custom) became obsolete — all agents and skills are available globally regardless of tier. Only backend/frontend agent tailoring is project-specific.

@@ -19,8 +19,8 @@ fi
 # Patterns for commands that read sensitive files
 # Covers: .env files, credentials, private keys, secrets, tokens, passwords
 SENSITIVE_FILE_PATTERNS=(
-  "cat\s+\.env([^a-zA-Z0-9_]|$)"        # cat .env (but NOT .envrc — direnv config is safe)
-  "source\s+\.env([^a-zA-Z0-9_]|$)"     # source .env (but NOT .envrc)
+  "cat\s+\.env([^a-zA-Z0-9_]|$)"        # cat .env
+  "source\s+\.env([^a-zA-Z0-9_]|$)"     # source .env
   "cat\s+credentials\."                  # cat credentials.json, credentials.ini, etc.
   "cat\s+.*\.pem"                        # cat *.pem (private keys)
   "cat\s+.*private.*\.key"               # cat *private*.key

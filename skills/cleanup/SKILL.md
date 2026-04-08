@@ -9,7 +9,7 @@ allowed-tools: [Bash, AskUserQuestion, Read, Glob, Grep]
 # /geniro:cleanup — Remove Plugin Files
 
 Remove all geniro-claude-plugin files from the current project. Preserves any user-created
-files that are not part of the plugin template.
+files that are not part of the plugin.
 
 ## Phase 0: Quick Check
 
@@ -26,41 +26,37 @@ Check for `.geniro/.harness-state.json`:
 cat .geniro/.harness-state.json 2>/dev/null
 ```
 
-**If found:** parse the `files.verbatim`, `files.tailored`, and `files.user_created` arrays.
+**If found:** parse the `files.tailored` and `files.user_created` arrays.
 These tell you exactly which files in `.claude/` belong to the plugin and which the user created.
 
 **If not found:** fall back to heuristic detection — compare files in `.claude/` against
-the plugin template to classify them:
+the known plugin-generated files:
 
 ```bash
 # List all files in .claude/ (excluding .artifacts/)
 find .claude/ -type f ! -path '.claude/.artifacts/*' 2>/dev/null
-
-# List template files for comparison
-ls "${CLAUDE_PLUGIN_ROOT}/agents/" "${CLAUDE_PLUGIN_ROOT}/hooks/" 2>/dev/null
-ls "${CLAUDE_PLUGIN_ROOT}/skills/" 2>/dev/null
 ```
 
-A file is **plugin-owned** if its filename matches a template file (agents, hooks, skills, settings.json).
-A file is **user-created** if it exists in `.claude/` but has no corresponding template file.
+A file is **plugin-owned** if it matches one of the known generated files listed in 1.2.
+A file is **user-created** if it exists in `.claude/` but is not a known plugin file.
 
 ### 1.2 Build deletion manifest
 
-Build three lists:
+The plugin generates these files in the project:
 
-1. **Plugin files** (will be deleted): all verbatim + tailored files from `.claude/`, including:
-   - Agent files (`.claude/agents/*.md`) — both `.sh` and `.md` files
-   - Hook files (`.claude/hooks/*.sh`, `.claude/hooks/*.js`, `.claude/hooks/hooks.json`, `.claude/hooks/geniro-statusline.js`)
-   - Skill directories (`.claude/skills/*/`)
-   - Rules files (`.claude/rules/*.md`)
-   - `settings.json` — see Step 1.3 for merge handling
-2. **Plugin directories** (will be removed if empty after file deletion):
-   - `.claude/agents/`
-   - `.claude/hooks/`
-   - `.claude/skills/` (each skill subdirectory)
-   - `.claude/rules/`
-3. **Plugin runtime** (will be removed entirely): `.geniro/` directory
-4. **User-created files** (will be preserved): files not matching any template file
+1. **Tailored agents** (will be deleted):
+   - `.claude/agents/backend-agent.md`
+   - `.claude/agents/frontend-agent.md`
+2. **Tailored rules** (will be deleted):
+   - `.claude/rules/backend-conventions.md`
+   - `.claude/rules/security-patterns.md`
+3. **Generated review criteria** (will be deleted):
+   - `.claude/skills/review/*-criteria.md` (5 files)
+4. **Settings files** (will be deleted — see 1.3 for merge handling):
+   - `.claude/settings.json`
+   - `.claude/settings.local.json`
+5. **Plugin runtime** (will be removed entirely): `.geniro/` directory
+6. **User-created files** (will be preserved): any other files in `.claude/` not listed above
 
 Also check for plugin-generated entries in other files:
 - `CLAUDE.md` at project root — check harness-state `files.tailored` for `CLAUDE.md`. If listed, it was plugin-generated. If no harness-state, check if the first line contains `# Geniro Harness Plugin`.
@@ -86,10 +82,20 @@ Present the deletion manifest clearly:
 ```
 ## Files to remove
 
-### Plugin files (.claude/)
-- .claude/agents/architect-agent.md
+### Tailored agents
 - .claude/agents/backend-agent.md
-- ... (list all)
+- .claude/agents/frontend-agent.md
+
+### Tailored rules
+- .claude/rules/backend-conventions.md
+- .claude/rules/security-patterns.md
+
+### Generated review criteria
+- .claude/skills/review/*-criteria.md (list each file)
+
+### Settings
+- .claude/settings.json
+- .claude/settings.local.json
 
 ### Plugin runtime
 - .geniro/ (entire directory)
@@ -99,7 +105,7 @@ Present the deletion manifest clearly:
 - .gitignore entry: .geniro/
 
 ### Files that will be PRESERVED (user-created)
-- .claude/agents/my-custom-agent.md
+- .claude/some-custom-file.md
 - ... (list all, or "none" if empty)
 ```
 
@@ -122,13 +128,20 @@ hook. Use `rm -f` for individual files and `rmdir` for empty directories only.
 Remove each file individually with `rm -f`. Do NOT use `rm -rf` on directories.
 
 ```bash
-# Remove each plugin file one by one — NEVER rm -rf on directories
-rm -f .claude/agents/architect-agent.md
+# Remove tailored agents
 rm -f .claude/agents/backend-agent.md
-rm -f .claude/hooks/dangerous-command-blocker.sh
-rm -f .claude/hooks/geniro-check-update.js
-rm -f .claude/skills/plan/SKILL.md
-# ... repeat for EVERY file individually
+rm -f .claude/agents/frontend-agent.md
+
+# Remove tailored rules
+rm -f .claude/rules/backend-conventions.md
+rm -f .claude/rules/security-patterns.md
+
+# Remove generated review criteria
+rm -f .claude/skills/review/*-criteria.md
+
+# Remove settings
+rm -f .claude/settings.json
+rm -f .claude/settings.local.json
 ```
 
 ### 3.2 Remove empty directories
@@ -142,7 +155,7 @@ for dir in .claude/skills/*/; do
 done
 
 # Remove empty top-level directories
-for dir in .claude/agents .claude/hooks .claude/skills .claude/rules; do
+for dir in .claude/agents .claude/skills .claude/rules; do
   [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ] && rmdir "$dir"
 done
 
@@ -176,15 +189,6 @@ grep -v '^\\.geniro/$' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitigno
 If `.gitignore` is now empty, remove it:
 ```bash
 [ ! -s .gitignore ] && rm -f .gitignore
-```
-
-Remove `statusLine` entry from `.claude/settings.local.json` if it points to geniro-statusline.js:
-- Read `.claude/settings.local.json` (if it exists)
-- If its `statusLine.command` contains `geniro-statusline.js`, remove the `statusLine` key
-- If the file has other entries remaining, write it back (preserving those entries)
-- If the file would be empty (`{}`) after removal, delete it entirely:
-```bash
-rm -f .claude/settings.local.json
 ```
 
 ### 3.5 Uninstall the plugin

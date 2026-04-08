@@ -134,7 +134,7 @@ For each transformation:
 
 2. **Pre-condition check** — run tests via backpressure to preserve context:
    ```bash
-   source .claude/hooks/backpressure.sh && run_silent "Pre-check" "[test command from prompt]"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check" "[test command from prompt]"
    ```
    If backpressure is unavailable, run directly with output capped: `[test command] 2>&1 | tail -80`
    If pre-tests fail, stop and report — do not make changes on a broken baseline.
@@ -143,7 +143,7 @@ For each transformation:
 
 4. **Post-condition check** — run tests via backpressure:
    ```bash
-   source .claude/hooks/backpressure.sh && run_silent "Post-check" "[test command from prompt]"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Post-check" "[test command from prompt]"
    ```
    If backpressure is unavailable: `[test command] 2>&1 | tail -80`
 

@@ -148,7 +148,7 @@ Example for 15 files, 3 batches:
 Run the project's validation suite **in parallel** with the reviewer agents. This catches build failures and test regressions that no reviewer can detect:
 
 ```bash
-source .claude/hooks/backpressure.sh && run_silent "Build Check" "<validation_cmd from CLAUDE.md>"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Build Check" "<validation_cmd from CLAUDE.md>"
 ```
 
 If backpressure is unavailable, run directly: `<validation_cmd> 2>&1 | tail -80`
@@ -327,7 +327,7 @@ Check if the review revealed harness improvement opportunities:
 |---|---|---|
 | **Rules gaps** | Same anti-pattern found in multiple places? A rule would prevent it. | `.claude/rules/*.md` |
 | **Criteria gaps** | Reviewer missed a bug class that should be checked? | `.claude/skills/review/*-criteria.md` |
-| **Agent prompt gaps** | Implementation agent produced a pattern the reviewer flagged? | `.claude/agents/*.md` |
+| **Agent prompt gaps** | Implementation agent produced a pattern the reviewer flagged? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
 | **Stale rules** | A rule flagged something that turns out to be correct? | `.claude/rules/*.md` |
 
 For each improvement found, present to the user:

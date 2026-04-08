@@ -94,7 +94,7 @@ APPROVED PLAN:
 
 VALIDATION COMMAND: [test command from CLAUDE.md]
 AUTOFIX COMMAND: [autofix command from CLAUDE.md, if any]
-BACKPRESSURE: source .claude/hooks/backpressure.sh && run_silent "Tests" "<validation_cmd>". If unavailable, pipe through tail -80.
+BACKPRESSURE: source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<validation_cmd>". If unavailable, pipe through tail -80.
 
 Execute each step following the Step Execution Protocol in your agent definition.
 
@@ -154,7 +154,7 @@ Check if the refactoring revealed harness improvement opportunities:
 |---|---|---|
 | **Rules gaps** | Refactoring uncovered a pattern that should be a convention? | `.claude/rules/*.md` |
 | **Stale rules** | A documented convention contradicts what the codebase actually does? | `.claude/rules/*.md` |
-| **Agent prompt gaps** | Implementation agent produces code that consistently needs the same refactoring? | `.claude/agents/*.md` |
+| **Agent prompt gaps** | Implementation agent produces code that consistently needs the same refactoring? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
 
 For each improvement found, present to the user:
 ```

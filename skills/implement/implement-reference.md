@@ -157,7 +157,7 @@ Orchestrator runs shell commands directly (build, lint, test — these are valid
 
 2. **Full check:** Run build + lint + test using the backpressure wrapper:
    ```bash
-   source .claude/hooks/backpressure.sh
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh"
    run_silent "Build" "<build_cmd>"
    run_silent "Lint" "<lint_cmd>"
    run_silent "Tests" "<test_cmd>"
@@ -332,7 +332,7 @@ Analyze the full pipeline run and identify improvements to the harness itself:
 | **Rules gaps** | Agent made a mistake a rule would have prevented? | `.claude/rules/*.md` |
 | **Rules conflicts** | A rule contradicted what actually works? | `.claude/rules/*.md` |
 | **Skill gaps** | Pipeline hit a scenario it wasn't designed for? | `.claude/skills/*/SKILL.md` |
-| **Agent prompt gaps** | An agent consistently missed something? | `.claude/agents/*.md` |
+| **Agent prompt gaps** | An agent consistently missed something? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
 | **Stale documentation** | CLAUDE.md or rules reference patterns that no longer exist? | Any doc file |
 
 For each improvement found, draft the change and include it in the commit. If no improvements found, skip silently. For ambiguous improvements where the right fix is unclear, mention them in the Ship summary as suggestions for the user to consider later — do NOT block the pipeline with a separate approval gate.
