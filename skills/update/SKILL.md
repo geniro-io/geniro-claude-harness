@@ -18,9 +18,13 @@ Update the plugin and sync project-specific configuration.
 cat "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | grep version
 ```
 
-### 2. Run the update
+### 2. Refresh marketplace and update plugin
+
+Run both commands — the marketplace refresh fetches latest commit info from GitHub,
+then the plugin update pulls the new files:
 
 ```bash
+claude plugin marketplace update geniro-claude-harness
 claude plugin update geniro-claude-plugin
 ```
 
