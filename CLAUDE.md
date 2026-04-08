@@ -26,6 +26,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:onboard` | Rapid codebase mapping and orientation |
 | `/geniro:learnings` | Extract session learnings into categorized memory |
 | `/geniro:update` | Update plugin to latest version |
+| `/geniro:cleanup` | Remove all plugin files from project and uninstall |
 
 ## Safety Hooks (Active)
 
