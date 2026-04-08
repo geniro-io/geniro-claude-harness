@@ -371,53 +371,7 @@ Present to the user:
 [any warnings from Phase 5]
 ```
 
-### Step 2: Learn & Improve
-
-This step ALWAYS runs — no asking, no skipping.
-
-#### 2a. Extract findings to report.md
-
-Append an audit section to `report.md` documenting what was investigated and changed.
-Pull structured data from earlier phases — do NOT reconstruct from scratch:
-- Phase 3 evidence table → feeds the "Implemented Fixes" table (findings + evidence)
-- Phase 4 implementation results → feeds the "Files Changed" table (before/after lines)
-- Phase 5 review verdict → included in the summary under Key Findings
-- **Phase 1-fast path:** Phases 2-4 don't exist. Derive fixes from Phase 1-fast Step 2-3 evidence and file changes from Step 4 edits. Same audit format, different data source.
-
-**Dedup check before appending:**
-1. Grep `report.md` for the topic/area being documented
-2. Check existing audit section headers (`## Template Improvement Audit`) for overlap
-3. If a prior section covers the same area: update/extend that section instead
-4. Only create a new section if the topic is genuinely new
-
-**Required audit section format:**
-```
-## Template Improvement Audit vN: [Topic]
-
-**Date:** YYYY-MM-DD
-**Scope:** [which skills/agents/hooks were investigated]
-**Method:** 3-source triangulation (internet research, report.md analysis, codebase exploration)
-
-### Implemented Fixes
-
-| # | Severity | Fix | Evidence |
-|---|----------|-----|----------|
-| 1 | [sev] | [what was changed] | [source of evidence] |
-
-### Files Changed
-
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| [path] | [lines] | [lines] | [description] |
-
-### Key Findings
-- [2-5 bullet points of high-level insights/patterns discovered]
-```
-
-**After appending or extending:** update the Table of Contents at the top of `report.md`
-to include the new/updated section with its line number.
-
-#### 2b. Extract learnings to memory
+### Step 2: Extract learnings to memory
 
 Scan the conversation for:
 - User corrections ("actually, do X not Y")
@@ -425,25 +379,7 @@ Scan the conversation for:
 - Blocked items or limitations encountered
 
 Before writing to memory, check if existing memory already covers the topic — update
-rather than duplicate. Skip this sub-step entirely if nothing novel was discovered.
-
-#### 2c. Report maintenance
-
-Spawn an agent to check if report.md has grown stale:
-
-```
-Agent(prompt="""
-Scan report.md for consolidation opportunities:
-1. **Superseded audits:** Find audit sections where ALL findings were later re-addressed by a newer audit on the same skill/area. List them with the superseding audit number.
-2. **Dead references:** Find mentions of files, skills, hooks, or agents that no longer exist in the template (glob to verify).
-3. **Stale base sections:** Check if the Directory Structure, Hooks & Rules, or Implementation Pipeline sections reference deleted or renamed items.
-
-For each item found, classify: REMOVE (fully superseded), CONSOLIDATE (merge into newer section), or UPDATE (fix stale reference).
-Return a structured table. Do NOT make edits — report only.
-""", description="Maintenance: report.md staleness scan")
-```
-
-If the agent finds items: present the list to the user with `AskUserQuestion` ("Apply all maintenance suggestions" / "Let me pick" / "Skip maintenance this time"). Apply approved changes. If no items found or user skips: proceed to Step 3.
+rather than duplicate. Skip this step entirely if nothing novel was discovered.
 
 ### Step 3: Cleanup
 
@@ -473,7 +409,6 @@ If the user interjects during any phase:
 | "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
 | "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
-| "The fix was small, no new patterns discovered" | Even small fixes reveal where the template was deficient. The pattern worth documenting is WHY it was deficient — that prevents the same class of issue. |
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 
 ## Definition of Done
@@ -485,6 +420,5 @@ If the user interjects during any phase:
 - [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
 - [ ] Phase 5: Independent review by fresh agent passed
 - [ ] Phase 6: Summary presented, state file cleaned up
-- [ ] report.md updated with audit section (or existing section extended)
 - [ ] All changed SKILL.md files under 500 lines
 - [ ] No scope creep beyond approved changes
