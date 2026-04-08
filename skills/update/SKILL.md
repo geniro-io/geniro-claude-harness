@@ -30,7 +30,15 @@ claude plugin update geniro-claude-plugin@geniro-claude-harness
 
 If the update fails or no update is available, report the result and stop.
 
-### 3. Re-run setup
+### 3. Clear update cache
+
+After a successful update, clear the update notification so the statusline stops showing the update arrow:
+
+```bash
+rm -f ~/.claude/cache/geniro-update-check.json
+```
+
+### 4. Re-run setup
 
 After a successful update, automatically run `/geniro:setup` to sync project-specific files
 (CLAUDE.md, agents, rules) with any changes in the updated plugin templates.
