@@ -52,7 +52,11 @@ This writes `update_available: false` to the cache with the correct installed ve
 
 ### 5. Re-run setup
 
-After a successful update, automatically run `/geniro:setup` to sync project-specific files
-(CLAUDE.md, agents, rules) with any changes in the updated plugin templates.
+After a successful update, invoke `/geniro:setup` using the Skill tool to sync project-specific files
+(agents, hooks, rules) with any changes in the updated plugin templates.
+
+```
+Skill(skill="geniro:setup")
+```
 
 The setup skill detects existing files and shows a per-file diff — the user decides what to accept.
