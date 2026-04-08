@@ -70,8 +70,8 @@ Find the template files using this priority order:
 
 Store the resolved path as `$TEMPLATE_DIR` for all subsequent phases.
 
-Also check for `.geniro/.harness-state.json`:
-- If it exists → read it. Store as `$HARNESS_STATE`. This contains the template version, install date, and file manifest with categories (verbatim/tailored/user-created). Its presence means a previous `/geniro:setup` completed successfully — this is an **update**, not a fresh install.
+Also check for `.geniro/.geniro-state.json`:
+- If it exists → read it. Store as `$GENIRO_STATE`. This contains the template version, install date, and file manifest with categories (verbatim/tailored/user-created). Its presence means a previous `/geniro:setup` completed successfully — this is an **update**, not a fresh install.
 - If it does not exist but `.claude/` has recognizable harness files (agents/skills/hooks from this template) → **legacy install** (installed before state tracking was added). Treat as update but without baseline data.
 - If it does not exist and `.claude/` has no recognizable harness files, only non-template files, or doesn't exist → **fresh install**. (Non-template files are handled by Phase 1.5 Conflict Resolution during the fresh install flow.)
 
@@ -172,10 +172,10 @@ Check for pre-existing configuration:
 Route based on `$INSTALL_MODE` detected in Phase 0:
 
 - **`fresh`**: No existing harness. Continue to Phase 2 (User Interview) as normal.
-- **`update`**: Previous successful install detected (`.geniro/.harness-state.json` exists). Skip to the **Re-Running Setup (Smart Update)** flow below. Do NOT run Phases 2-3 unless the user chooses Fresh Install.
-- **`legacy-update`**: Harness files exist but no `.geniro/.harness-state.json` (installed before state tracking). Skip to **Re-Running Setup (Smart Update)** flow — it handles the "no snapshot" case with header-level heuristics.
+- **`update`**: Previous successful install detected (`.geniro/.geniro-state.json` exists). Skip to the **Re-Running Setup (Smart Update)** flow below. Do NOT run Phases 2-3 unless the user chooses Fresh Install.
+- **`legacy-update`**: Harness files exist but no `.geniro/.geniro-state.json` (installed before state tracking). Skip to **Re-Running Setup (Smart Update)** flow — it handles the "no snapshot" case with header-level heuristics.
 
-If `.claude/` exists but contains only non-template files (no recognizable harness agents/skills/hooks AND no `.geniro/.harness-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
+If `.claude/` exists but contains only non-template files (no recognizable harness agents/skills/hooks AND no `.geniro/.geniro-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
 
 If `.claude/` does NOT exist but `CLAUDE.md` exists at the project root, this is a standalone instructions file (common — many projects have a hand-written CLAUDE.md). **Leave it untouched.** The rest of `.claude/` is installed normally as a fresh setup.
 
@@ -389,9 +389,22 @@ cp "$TEMPLATE_DIR/agents/frontend-agent.md" .claude/agents/
 
 #### StatusLine Configuration
 
-The geniro status line is provided globally by the plugin via `settings.json`. No per-project configuration needed.
+Configure the geniro status line in `.claude/settings.local.json` (project-level). This overrides any user-level statusLine (e.g., from GSD) so the geniro status line shows in geniro-configured projects.
 
-If the project has a stale `statusLine` entry in `.claude/settings.local.json` from a previous install, remove that key (preserve all other keys in the file).
+1. If `.claude/settings.local.json` does not exist, create it:
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js\""
+  }
+}
+```
+
+2. If `.claude/settings.local.json` already exists, read it and:
+   - If it has no `statusLine` key, merge the entry above (preserve all existing keys).
+   - If it already has a geniro `statusLine` (contains `geniro-statusline`), skip — already configured.
+   - If it has a different `statusLine`, replace it with geniro's (the plugin's statusLine includes model, context usage, and update notifications).
 
 #### Legacy Cleanup
 
@@ -694,7 +707,7 @@ Do NOT create `.claude/.gitignore` — all ignore rules go in the project root.
 
 ### 4.4 Write Harness State File
 
-Write `.geniro/.harness-state.json` to track the installation state for future re-runs. This file is git-ignored (covered by the `.geniro/` entry already in `.gitignore`).
+Write `.geniro/.geniro-state.json` to track the installation state for future re-runs. This file is git-ignored (covered by the `.geniro/` entry already in `.gitignore`).
 
 Use the Bash tool to get the template commit hash (if `$TEMPLATE_DIR` is a git repo or was bootstrapped from one):
 
@@ -739,7 +752,7 @@ Populate the lists from the actual files installed during Phase 3. The categorie
 - **tailored**: Files that were copied then AI-edited (backend-agent, frontend-agent, rules files) or generated from scratch (review criteria files)
 - **user_created**: Files that existed in `.claude/` before setup and are not part of the template
 
-Ensure `.geniro/.harness-state.json` is git-ignored. The `.geniro/` entry added in Phase 4.3 already covers this — no separate gitignore entry is needed.
+Ensure `.geniro/.geniro-state.json` is git-ignored. The `.geniro/` entry added in Phase 4.3 already covers this — no separate gitignore entry is needed.
 
 ### 4.5 Summary Report
 
@@ -804,16 +817,16 @@ fi
 ```
 Classify `settings.json` as **verbatim** for diff purposes, but apply using the **merge strategy** (preserve user-added entries).
 
-Classify each file using `$HARNESS_STATE` (if available from a previous install) or by matching filenames against the template:
+Classify each file using `$GENIRO_STATE` (if available from a previous install) or by matching filenames against the template:
 
 | Category | Detection | Update Strategy |
 |---|---|---|
-| **Verbatim** (in `$HARNESS_STATE.files.verbatim` or filename matches template AND file was not tailored) | Direct content comparison against template | Auto-apply if template changed |
-| **Tailored** (in `$HARNESS_STATE.files.tailored` or is one of: backend-agent, frontend-agent, rules/*, .geniro/project/review/*-criteria.md) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
-| **User-created** (in `$HARNESS_STATE.files.user_created` or exists in .claude/ but NOT in template) | Skip entirely | Never touch |
+| **Verbatim** (in `$GENIRO_STATE.files.verbatim` or filename matches template AND file was not tailored) | Direct content comparison against template | Auto-apply if template changed |
+| **Tailored** (in `$GENIRO_STATE.files.tailored` or is one of: backend-agent, frontend-agent, rules/*, .geniro/project/review/*-criteria.md) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
+| **User-created** (in `$GENIRO_STATE.files.user_created` or exists in .claude/ but NOT in template) | Skip entirely | Never touch |
 | **Template-only** (exists in template but NOT in .claude/) | New file | Offer to install |
 
-**Legacy-update classification fallback** (when `$HARNESS_STATE` is absent):
+**Legacy-update classification fallback** (when `$GENIRO_STATE` is absent):
 
 Without the state file, classify files by explicit enumeration — do NOT rely on LLM judgment alone:
 
@@ -931,14 +944,14 @@ Check for files in `.claude/` that were part of the previous template but have b
 for f in $(cd .claude && find agents rules -type f 2>/dev/null); do
   if [[ ! -f "$TEMPLATE_DIR/$f" ]]; then
     # Check if this was a template file (not user-created)
-    if [[ -n "$HARNESS_STATE" ]] && (echo "$HARNESS_STATE" | grep -q "$f"); then
+    if [[ -n "$GENIRO_STATE" ]] && (echo "$GENIRO_STATE" | grep -q "$f"); then
       echo "REMOVED FROM TEMPLATE: $f"
     fi
   fi
 done
 ```
 
-For legacy installs without `$HARNESS_STATE`: only flag files whose names match known template patterns (e.g., filenames that appear in the legacy classification table from Step 1a). Do NOT flag files that could be user-created.
+For legacy installs without `$GENIRO_STATE`: only flag files whose names match known template patterns (e.g., filenames that appear in the legacy classification table from Step 1a). Do NOT flag files that could be user-created.
 
 Present removed files in the Step 2 analysis as a separate category:
 ```
@@ -1111,7 +1124,7 @@ done
 
 **3A.5: Update state file and refresh template snapshot**
 
-Update `.geniro/.harness-state.json` with the new template version, timestamp, and updated file manifest.
+Update `.geniro/.geniro-state.json` with the new template version, timestamp, and updated file manifest.
 
 Replace `.geniro/template-snapshot/` with the current template files:
 ```bash
@@ -1181,7 +1194,7 @@ Re-run Phase 1 (Codebase Analysis) to detect the current stack, then re-run Phas
 
 **3C.4: Update state file and refresh template snapshot**
 
-Same as Step 3A.5 — update `.geniro/.harness-state.json` and refresh the template snapshot.
+Same as Step 3A.5 — update `.geniro/.geniro-state.json` and refresh the template snapshot.
 
 After applying changes, run Step 3A.6 (Post-update verification) before proceeding.
 
@@ -1316,7 +1329,7 @@ rm -f .geniro/_backup_settings.json
 
 After setup is complete and verified, finalize the installation.
 
-**Note:** Do NOT delete `.geniro/.harness-state.json` or `.geniro/template-snapshot/` — these are persistent state files needed for future `/geniro:setup` re-runs.
+**Note:** Do NOT delete `.geniro/.geniro-state.json` or `.geniro/template-snapshot/` — these are persistent state files needed for future `/geniro:setup` re-runs.
 
 ### 5.1 Ask User Feedback
 
@@ -1340,7 +1353,7 @@ C) Start over — re-run setup from scratch
 
 ```bash
 # State files should exist for future re-runs
-[[ -f ".geniro/.harness-state.json" ]] && echo "✓ Harness state saved"
+[[ -f ".geniro/.geniro-state.json" ]] && echo "✓ Harness state saved"
 ```
 
 ## Compliance — Do Not Skip Phases
@@ -1368,7 +1381,7 @@ C) Start over — re-run setup from scratch
 - [ ] Phase 3.1.1: Template snapshot saved to `.geniro/template-snapshot/`
 - [ ] Phase 4.1: Orchestrator verification passed (formatting, placeholders, cross-language)
 - [ ] Phase 4.2: Independent verification agent passed (paths, consistency, frontmatter, hooks)
-- [ ] Phase 4.4: `.geniro/.harness-state.json` written with file manifest
+- [ ] Phase 4.4: `.geniro/.geniro-state.json` written with file manifest
 - [ ] Phase 5: Finalization complete, state files verified
 - [ ] Re-Running Setup: Analysis completed before user prompt
 - [ ] User has received summary with next steps

@@ -20,10 +20,10 @@ If `.claude/` does not exist and `.geniro/` does not exist, report
 
 ### 1.1 Detect harness state
 
-Check for `.geniro/.harness-state.json`:
+Check for `.geniro/.geniro-state.json`:
 
 ```bash
-cat .geniro/.harness-state.json 2>/dev/null
+cat .geniro/.geniro-state.json 2>/dev/null
 ```
 
 **If found:** parse the `files.tailored` and `files.user_created` arrays.
@@ -60,7 +60,7 @@ The plugin generates these files in the project:
 6. **User-created files** (will be preserved): any other files in `.claude/` not listed above
 
 Also check for plugin-generated entries in other files:
-- `CLAUDE.md` at project root — check harness-state `files.tailored` for `CLAUDE.md`. If listed, it was plugin-generated. If no harness-state, check if the first line contains `# Geniro Harness Plugin`.
+- `CLAUDE.md` at project root — check geniro-state `files.tailored` for `CLAUDE.md`. If listed, it was plugin-generated. If no geniro-state, check if the first line contains `# Geniro Harness Plugin`.
 - `.gitignore` — check for `.geniro/` entry added by setup
 
 ### 1.3 Handle settings.json
@@ -68,13 +68,13 @@ Also check for plugin-generated entries in other files:
 `settings.json` requires special handling because setup may have merged plugin entries into
 a pre-existing user file:
 
-- If `settings.json` is listed in `files.verbatim` in harness-state → it was a fresh copy from
+- If `settings.json` is listed in `files.verbatim` in geniro-state → it was a fresh copy from
   the template. Safe to delete entirely.
-- If `settings.json` is listed in `files.tailored` or harness-state is absent → it may contain
+- If `settings.json` is listed in `files.tailored` or geniro-state is absent → it may contain
   merged user settings. Read the file and remove only plugin-specific entries (hook command paths
   containing `CLAUDE_PLUGIN_ROOT` or `geniro`, plugin-specific permission entries). Preserve any
   remaining user settings. If the file would be empty after removal, delete it.
-- If `settings.json` is not listed in harness-state at all → it's user-created. Do not touch it.
+- If `settings.json` is not listed in geniro-state at all → it's user-created. Do not touch it.
 
 ## Phase 2: Confirm with User
 
