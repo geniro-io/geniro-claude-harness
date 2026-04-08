@@ -217,7 +217,7 @@ Only reached after Stage B passes.
 
 1. **Collect context:** Capture the changed file list (`git diff --name-only main...HEAD`), read all changed files, build a summary of what changed and why.
 
-2. **Load review criteria:** Pre-read these criteria files from `.claude/skills/review/`:
+2. **Load review criteria:** Pre-read these criteria files from `.geniro/project/review/`:
    - `bugs-criteria.md` — logic errors, null checks, off-by-one, state issues
    - `security-criteria.md` — injection, auth/authz, secrets, crypto
    - `architecture-criteria.md` — design patterns, modularity, coupling

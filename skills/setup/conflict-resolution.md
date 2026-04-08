@@ -25,7 +25,7 @@ Traditional template updaters (Cruft, Yeoman) work at line-level diffs and fall 
 
 ```
 Glob(".claude/agents/*.md")
-Glob(".claude/skills/review/*-criteria.md")
+Glob(".geniro/project/review/*-criteria.md")
 Glob(".claude/rules/*.md")
 ```
 

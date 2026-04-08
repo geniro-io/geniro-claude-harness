@@ -28,6 +28,10 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:update` | Update plugin to latest version |
 | `/geniro:cleanup` | Remove all plugin files from project and uninstall |
 
+## Path Rules
+
+**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` is NOT expanded by these tools and creates a literal `~` directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or fully resolved absolute paths for project files.
+
 ## Safety Hooks (Active)
 
 This plugin provides safety hooks that run automatically:

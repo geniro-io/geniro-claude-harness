@@ -437,5 +437,5 @@ The orchestrator's job is to coordinate, not to code. Every line of code the orc
 
 - Agent templates, examples, error tables: `${CLAUDE_SKILL_DIR}/implement-reference.md`
 - Plan criteria: `.claude/skills/plan/plan-criteria.md`
-- Review criteria: `.claude/skills/review/` (bugs, security, architecture, tests, guidelines)
+- Review criteria: `.geniro/project/review/` (bugs, security, architecture, tests, guidelines)
 - Simplify criteria: `.claude/skills/deep-simplify/simplify-criteria.md`

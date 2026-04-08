@@ -31,26 +31,31 @@ geniro-claude-plugin/
 **Your project** (target — what actually gets committed):
 ```
 your-project/
-└── .claude/
-    ├── agents/                  # Committed — 2 tailored agents (backend + frontend)
-    ├── skills/review/           # Committed — 5 generated review criteria files only
-    ├── rules/                   # Committed — generated per-project
-    └── settings.json            # Committed — permissions only
-
-.geniro/                         # Git-ignored via root .gitignore
-├── planning/                    # Specs, architecture, state files
-├── debug/                       # Hypothesis tracking
-└── knowledge/                   # Learnings, session summaries
+├── .claude/
+│   ├── agents/                  # Committed — 2 tailored agents (backend + frontend)
+│   ├── rules/                   # Committed — generated per-project
+│   └── settings.json            # Committed — permissions only
+│
+└── .geniro/
+    ├── project/                 # Committed (!.geniro/project/ in .gitignore)
+    │   └── review/              # 5 generated review criteria files
+    ├── planning/                # Git-ignored — specs, architecture, state files
+    ├── debug/                   # Git-ignored — hypothesis tracking
+    └── knowledge/               # Git-ignored — learnings, session summaries
 ```
 
 **How to set up** (the user runs this in their project):
 1. Install the plugin: `claude plugin install geniro-claude-plugin`
 2. Run `/geniro:setup` in Claude Code
-3. Commit: `git add .claude/ && git commit -m 'chore: add Claude Code harness'`
+3. Commit: `git add .claude/ .geniro/project/ && git commit -m 'chore: add Claude Code harness'`
 
 **To re-sync later:**
 1. Update the plugin: `claude plugin update geniro-claude-plugin@geniro-claude-harness` (or run `/geniro:update`)
 2. Run `/geniro:setup` in Claude Code — it analyzes every file against the template and shows differences
+
+## Path Constraints
+
+**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` character is NOT expanded by these tools — it creates a literal `~` directory in the working directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths (e.g., `/Users/...`) for project files.
 
 ## Phase 0: Locate Template Source
 
@@ -74,17 +79,23 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-u
 
 ## What Gets Written to Your Project
 
-**Tailored (generated per-project):**
+**Written to .claude/ (committed):**
 - `.claude/agents/backend-agent.md` — Tailored to your backend stack
 - `.claude/agents/frontend-agent.md` — Tailored to your frontend stack
 - `.claude/rules/backend-conventions.md` — Language-specific coding conventions
 - `.claude/rules/security-patterns.md` — Language-specific security patterns
-- 5 review criteria files in `.claude/skills/review/` — Stack-specific grep patterns, code examples, and framework checks
 - `settings.json` — permissions configuration
+
+**Written to .geniro/project/ (committed — NOT gitignored):**
+- `.geniro/project/review/bugs-criteria.md` — Stack-specific bug detection patterns
+- `.geniro/project/review/security-criteria.md` — Stack-specific security checks
+- `.geniro/project/review/tests-criteria.md` — Stack-specific test quality checks
+- `.geniro/project/review/architecture-criteria.md` — Stack-specific architecture checks
+- `.geniro/project/review/guidelines-criteria.md` — Stack-specific coding guidelines
 
 **Not copied (provided globally by the plugin):**
 - 11 universal agents — the plugin provides them directly. Only `backend-agent.md` and `frontend-agent.md` are written to the project (tailored per-project).
-- All skills — the plugin provides them directly. Only `.claude/skills/review/*-criteria.md` files are written to the project (generated per-project in Phase 3.5).
+- All skills — the plugin provides them directly.
 - All hooks — the plugin provides them via `hooks.json`. Hook scripts run from `${CLAUDE_PLUGIN_ROOT}/hooks/`.
 
 **Written to .geniro/ (git-ignored, not committed):**
@@ -334,7 +345,7 @@ All agents, skills, and hooks are provided globally by the plugin — no tier se
 **What setup writes to the project:**
 - `backend-agent.md` and `frontend-agent.md` — tailored to the detected stack
 - `rules/backend-conventions.md` and `rules/security-patterns.md` — tailored to the detected stack
-- 5 review criteria files in `skills/review/` — generated per-project
+- 5 review criteria files in `.geniro/project/review/` — generated per-project
 - `settings.json` — permissions only (no hook entries)
 
 **If no frontend framework was detected**, `frontend-agent.md` is skipped (not created).
@@ -356,7 +367,7 @@ Universal agents (`architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`,
 
 **settings.json** — If no existing `.claude/settings.json`, create it with default permissions. If one already exists, preserve it. The plugin provides hook configuration via `hooks.json` — do NOT add hook entries to the project's `settings.json`.
 
-**Review criteria** — The only files written to `.claude/skills/` are the 5 review criteria files, generated in Phase 3.5 with stack-specific content.
+**Review criteria** — The 5 review criteria files are written to `.geniro/project/review/`, generated in Phase 3.5 with stack-specific content. This directory is committed (excluded from the `.geniro/` gitignore via `!.geniro/project/`).
 
 Use shell `cp` via the Bash tool to copy each file individually — do NOT use `rm -rf` on entire directories or `cp -r` on directories, as that would overwrite user-created files. If `.claude/agents/` already contains files not in the template (user-created agents), they must remain untouched after this step.
 
@@ -366,14 +377,14 @@ Use shell `cp` via the Bash tool to copy each file individually — do NOT use `
 # Create target directories in the user's project
 mkdir -p .claude/agents
 mkdir -p .claude/rules
-mkdir -p .claude/skills/review
+mkdir -p .geniro/project/review
 
 # Tailored agents only (universal agents are provided by the plugin)
 cp "$TEMPLATE_DIR/agents/backend-agent.md" .claude/agents/
 cp "$TEMPLATE_DIR/agents/frontend-agent.md" .claude/agents/
 
 # Skills and hooks are NOT copied — they are provided globally by the plugin.
-# Only .claude/skills/review/ is created for per-project review criteria (Phase 3.5).
+# Only .geniro/project/review/ is created for per-project review criteria (Phase 3.5).
 ```
 
 #### StatusLine Configuration
@@ -400,6 +411,9 @@ for skill_dir in plan implement follow-up refactor deep-simplify debug learnings
   rm -rf ".claude/skills/$skill_dir"
 done
 rm -f .claude/skills/review/SKILL.md
+
+# Remove old review criteria location (now in .geniro/project/review/)
+rm -rf .claude/skills/review/
 ```
 
 This cleanup is safe — universal agents are identical to plugin versions, hooks are provided by the plugin, and skill files are global. User-created files in `.claude/agents/` (not in the list above) are preserved. Tailored agents (`backend-agent.md`, `frontend-agent.md`) are preserved.
@@ -599,7 +613,7 @@ PROJECT ROOT: [path]
 
 ## What to check
 
-Read every file in `.claude/` (agents, rules, skills/review, settings.json) and verify:
+Read every file in `.claude/` (agents, rules, settings.json) and `.geniro/project/review/` and verify:
 
 ### 1. Template Variable Residue
 Grep ALL files in `.claude/` for these patterns:
@@ -612,7 +626,7 @@ Grep ALL files in `.claude/` for these patterns:
 For every file path referenced inside agent prompts and rules:
 - Verify the referenced file actually exists (Glob or ls)
 - Check relative vs absolute paths are appropriate
-- Verify skill subdirectory references (e.g., `skills/review/bugs-criteria.md`) exist
+- Verify review criteria references (e.g., `.geniro/project/review/bugs-criteria.md`) exist
 - Verify NO `.claude/hooks/` directory exists (hooks are provided by the plugin, not the project)
 
 ### 3. Cross-File Consistency
@@ -622,7 +636,7 @@ For every file path referenced inside agent prompts and rules:
 - Verify `settings.json` does NOT contain hook entries (hooks are provided by the plugin via `hooks.json`)
 
 ### 4. Stack Contamination (generated files only)
-For backend-agent.md, frontend-agent.md, rules/*.md, skills/review/*-criteria.md:
+For backend-agent.md, frontend-agent.md, rules/*.md, .geniro/project/review/*-criteria.md:
 - Verify ONLY the detected language/framework appears
 - No wrong-language commands (e.g., `npm` in a Python project)
 - No wrong-language code blocks (e.g., ```typescript in a Python project)
@@ -667,11 +681,13 @@ If no issues found, return: "ALL CHECKS PASSED — harness is ready to commit."
 
 ### 4.3 Ensure Runtime Directories are Git-Ignored
 
-Add `.geniro/` to the **root** `.gitignore` (not `.claude/.gitignore`). This covers all runtime directories including `state/`, `planning/`, `debug/`, `knowledge/`, and `template-snapshot/`:
+Add `.geniro/` to the **root** `.gitignore` (not `.claude/.gitignore`), then add `!.geniro/project/` as an exception so that `.geniro/project/` (review criteria) is committed while the rest of `.geniro/` stays ignored:
 
 ```bash
 # Add to root .gitignore if not already present
-grep -q "\.geniro" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
+grep -q "^\.geniro/$" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
+# Add exception for .geniro/project/ (committed review criteria, etc.)
+grep -q "^\!\.geniro/project/$" .gitignore 2>/dev/null || echo "!.geniro/project/" >> .gitignore
 ```
 
 Do NOT create `.claude/.gitignore` — all ignore rules go in the project root.
@@ -704,7 +720,11 @@ Write the state file:
       "agents/frontend-agent.md",
       "rules/backend-conventions.md",
       "rules/security-patterns.md",
-      "skills/review/bugs-criteria.md",
+      ".geniro/project/review/bugs-criteria.md",
+      ".geniro/project/review/security-criteria.md",
+      ".geniro/project/review/tests-criteria.md",
+      ".geniro/project/review/architecture-criteria.md",
+      ".geniro/project/review/guidelines-criteria.md",
       ...all files that were AI-generated or tailored
     ],
     "user_created": [
@@ -730,9 +750,11 @@ Setup complete! Here's what was generated:
 
 .claude/
   agents/     (2 tailored agents)
-  skills/review/  (5 review criteria files)
   rules/      (N rule files)
   settings.json
+
+.geniro/project/
+  review/     (5 review criteria files)
 
 Tech Stack: [detected]
 Validation: build ✓ | test ✓ | lint ✓ | typecheck ✓
@@ -750,7 +772,7 @@ Next steps:
    - Files changed and validation results
    - After compaction: read <task-dir>/state.md to resume pipeline
 
-3. Commit: git add .claude/ && git commit -m 'chore: add Claude Code harness'
+3. Commit: git add .claude/ .geniro/project/ && git commit -m 'chore: add Claude Code harness'
 4. Start using: /geniro:implement, /geniro:review, /geniro:refactor
 ```
 
@@ -787,7 +809,7 @@ Classify each file using `$HARNESS_STATE` (if available from a previous install)
 | Category | Detection | Update Strategy |
 |---|---|---|
 | **Verbatim** (in `$HARNESS_STATE.files.verbatim` or filename matches template AND file was not tailored) | Direct content comparison against template | Auto-apply if template changed |
-| **Tailored** (in `$HARNESS_STATE.files.tailored` or is one of: backend-agent, frontend-agent, rules/*, skills/review/*-criteria.md) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
+| **Tailored** (in `$HARNESS_STATE.files.tailored` or is one of: backend-agent, frontend-agent, rules/*, .geniro/project/review/*-criteria.md) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
 | **User-created** (in `$HARNESS_STATE.files.user_created` or exists in .claude/ but NOT in template) | Skip entirely | Never touch |
 | **Template-only** (exists in template but NOT in .claude/) | New file | Offer to install |
 
@@ -801,11 +823,11 @@ Without the state file, classify files by explicit enumeration — do NOT rely o
 | `agents/frontend-agent.md` | | All hooks (entire `hooks/` directory) |
 | `rules/backend-conventions.md` | | |
 | `rules/security-patterns.md` | | |
-| `skills/review/bugs-criteria.md` | | |
-| `skills/review/security-criteria.md` | | |
-| `skills/review/tests-criteria.md` | | |
-| `skills/review/architecture-criteria.md` | | |
-| `skills/review/guidelines-criteria.md` | | |
+| `.geniro/project/review/bugs-criteria.md` | | |
+| `.geniro/project/review/security-criteria.md` | | |
+| `.geniro/project/review/tests-criteria.md` | | |
+| `.geniro/project/review/architecture-criteria.md` | | |
+| `.geniro/project/review/guidelines-criteria.md` | | |
 
 Any file in `.claude/` that does NOT appear in either column AND does NOT exist in the template directory → classify as **user-created** (never touch).
 
@@ -888,7 +910,7 @@ if [[ $DELTA -gt $THRESHOLD ]]; then
 fi
 ```
 
-For **review criteria files** (`skills/review/*-criteria.md`): these are fully generated (not edited from template). On update, they should be **regenerated** using the current template criteria as reference + current codebase analysis. Flag them as "regenerate recommended" rather than diffing.
+For **review criteria files** (`.geniro/project/review/*-criteria.md`): these are fully generated (not edited from template). On update, they should be **regenerated** using the current template criteria as reference + current codebase analysis. Flag them as "regenerate recommended" rather than diffing.
 
 #### 1d: Identify New Files
 
@@ -957,7 +979,7 @@ These files were customized for your project, but the template structure has cha
 These were generated for your stack and should be regenerated from the updated template:
 | File | Reason |
 |------|--------|
-| skills/review/bugs-criteria.md | Template criteria updated with new checks |
+| .geniro/project/review/bugs-criteria.md | Template criteria updated with new checks |
 
 → Recommended: regenerate using current codebase analysis
 
@@ -1181,7 +1203,8 @@ The template is ALWAYS the base — but existing project-specific knowledge is n
 ```bash
 # Create backup in .geniro (git-ignored)
 cp -r .claude/agents/ .geniro/_backup_agents/ 2>/dev/null || true
-cp -r .claude/skills/ .geniro/_backup_skills/ 2>/dev/null || true
+cp -r .geniro/project/review/ .geniro/_backup_review/ 2>/dev/null || true
+cp -r .claude/skills/ .geniro/_backup_skills/ 2>/dev/null || true  # legacy location
 cp -r .claude/rules/ .geniro/_backup_rules/ 2>/dev/null || true
 cp .claude/settings.json .geniro/_backup_settings.json 2>/dev/null || true
 ```
@@ -1196,7 +1219,7 @@ Remove only files that came from the template — **preserve user-created files*
 # But if user has .claude/agents/my-custom-agent.md, leave it untouched
 ```
 
-To identify which files are template files: list all filenames in `$TEMPLATE_DIR/agents/`, `$TEMPLATE_DIR/hooks/`, `$TEMPLATE_DIR/rules/`. Remove only those matching filenames from `.claude/`. Also remove any legacy skill files in `.claude/skills/` (except `.claude/skills/review/*-criteria.md` which are per-project). Any file in `.claude/` that does NOT have a corresponding template file is user-created and must be kept.
+To identify which files are template files: list all filenames in `$TEMPLATE_DIR/agents/`, `$TEMPLATE_DIR/hooks/`, `$TEMPLATE_DIR/rules/`. Remove only those matching filenames from `.claude/`. Also remove any legacy skill files in `.claude/skills/` and legacy review criteria in `.claude/skills/review/`. Review criteria now live in `.geniro/project/review/` and are backed up separately. Any file in `.claude/` that does NOT have a corresponding template file is user-created and must be kept.
 
 Phase 1-5 runs normally — codebase analysis, user interview, file generation, tailoring, verification. The template files are installed fresh, then tailored for the detected stack. User-created files remain untouched alongside the new template files.
 
@@ -1279,6 +1302,7 @@ For each enrichment and extension identified by the subagents:
 After enrichments are applied and verified:
 ```bash
 rm -rf .geniro/_backup_agents/
+rm -rf .geniro/_backup_review/
 rm -rf .geniro/_backup_skills/
 rm -rf .geniro/_backup_hooks/
 rm -rf .geniro/_backup_rules/

@@ -297,12 +297,12 @@ CHANGED FILES: [list]
 CHANGE SUMMARY: [summary]
 
 ## Review Criteria
-Read and apply all 5 criteria files from `.claude/skills/review/`:
-- `.claude/skills/review/bugs-criteria.md`
-- `.claude/skills/review/security-criteria.md`
-- `.claude/skills/review/architecture-criteria.md`
-- `.claude/skills/review/tests-criteria.md`
-- `.claude/skills/review/guidelines-criteria.md`
+Read and apply all 5 criteria files from `.geniro/project/review/`:
+- `.geniro/project/review/bugs-criteria.md`
+- `.geniro/project/review/security-criteria.md`
+- `.geniro/project/review/architecture-criteria.md`
+- `.geniro/project/review/tests-criteria.md`
+- `.geniro/project/review/guidelines-criteria.md`
 
 Review across all 5 dimensions. Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
 Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
@@ -323,7 +323,7 @@ Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only repor
 Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
 
 ## Review Criteria
-Read and apply this criteria file: `.claude/skills/review/bugs-criteria.md`
+Read and apply this criteria file: `.geniro/project/review/bugs-criteria.md`
 """, description="Review: bugs")
 
 Agent(model="sonnet", prompt="""
@@ -335,11 +335,11 @@ Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only repor
 Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
 
 ## Review Criteria
-Read and apply this criteria file: `.claude/skills/review/security-criteria.md`
+Read and apply this criteria file: `.geniro/project/review/security-criteria.md`
 """, description="Review: security")
 ```
 
-Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. That agent reads `.claude/skills/review/architecture-criteria.md`, `tests-criteria.md`, and `guidelines-criteria.md` itself.
+Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. That agent reads `.geniro/project/review/architecture-criteria.md`, `tests-criteria.md`, and `guidelines-criteria.md` itself.
 
 ### Step 2: Process Results
 

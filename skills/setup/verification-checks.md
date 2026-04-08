@@ -35,7 +35,7 @@ If found → rewrite the section to be concrete and project-specific.
 
 **Review criteria contamination check:**
 
-For each generated criteria file (`skills/review/*-criteria.md`), verify:
+For each generated criteria file (`.geniro/project/review/*-criteria.md`), verify:
 - No `file.js` or `file.ts` references remain (unless the project IS JavaScript/TypeScript)
 - No `npm audit` / `npm list` commands remain (unless the project uses npm)
 - No "Stack-Agnostic Patterns" section remains (should have been removed during generation)

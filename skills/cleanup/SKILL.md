@@ -51,7 +51,8 @@ The plugin generates these files in the project:
    - `.claude/rules/backend-conventions.md`
    - `.claude/rules/security-patterns.md`
 3. **Generated review criteria** (will be deleted):
-   - `.claude/skills/review/*-criteria.md` (5 files)
+   - `.geniro/project/review/*-criteria.md` (5 files, current location)
+   - `.claude/skills/review/*-criteria.md` (5 files, legacy location — clean up if present)
 4. **Settings files** (will be deleted — see 1.3 for merge handling):
    - `.claude/settings.json`
    - `.claude/settings.local.json`
@@ -91,7 +92,8 @@ Present the deletion manifest clearly:
 - .claude/rules/security-patterns.md
 
 ### Generated review criteria
-- .claude/skills/review/*-criteria.md (list each file)
+- .geniro/project/review/*-criteria.md (list each file)
+- .claude/skills/review/*-criteria.md (legacy, list if present)
 
 ### Settings
 - .claude/settings.json
@@ -136,7 +138,11 @@ rm -f .claude/agents/frontend-agent.md
 rm -f .claude/rules/backend-conventions.md
 rm -f .claude/rules/security-patterns.md
 
-# Remove generated review criteria
+# Remove generated review criteria (current location)
+rm -f .geniro/project/review/*-criteria.md
+[ -d ".geniro/project/review/" ] && [ -z "$(ls -A .geniro/project/review/)" ] && rmdir .geniro/project/review/
+
+# Remove generated review criteria (legacy location)
 rm -f .claude/skills/review/*-criteria.md
 
 # Remove settings
@@ -180,10 +186,10 @@ If user approved CLAUDE.md removal and it was plugin-generated:
 rm -f CLAUDE.md
 ```
 
-Remove `.geniro/` entry from `.gitignore` (if present):
+Remove `.geniro/` and `!.geniro/project/` entries from `.gitignore` (if present):
 ```bash
-# Remove the .geniro/ line from .gitignore
-grep -v '^\\.geniro/$' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitignore
+# Remove the .geniro/ ignore and !.geniro/project/ exception from .gitignore
+grep -v '^\\.geniro/$' .gitignore | grep -v '^!\.geniro/project/$' > .gitignore.tmp && mv .gitignore.tmp .gitignore
 ```
 
 If `.gitignore` is now empty, remove it:

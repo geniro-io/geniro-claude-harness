@@ -10,6 +10,12 @@ allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep, Agent]
 
 Update the plugin and sync project-specific configuration.
 
+## Path Constraints
+
+**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` character is NOT expanded by these tools — it creates a literal `~` directory in the working directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths (e.g., `/Users/...`) for project files.
+
+If a step fails, do NOT improvise by constructing paths manually. Report the error and stop.
+
 ## Steps
 
 ### 1. Check current version
