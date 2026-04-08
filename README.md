@@ -7,17 +7,18 @@ Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 ## Install
 
 ```bash
-claude plugin install --source github:geniro-io/geniro-claude-harness
+claude plugin marketplace add geniro-io/geniro-claude-harness
+claude plugin install geniro-claude-plugin
 ```
 
 ### For your team (project-scoped)
 
-Add to your repo's `.claude/settings.json`:
+Add to your repo's `.claude/settings.json` so teammates get prompted to install:
 
 ```json
 {
   "extraKnownMarketplaces": {
-    "geniro": {
+    "geniro-claude-harness": {
       "source": { "source": "github", "repo": "geniro-io/geniro-claude-harness" }
     }
   }

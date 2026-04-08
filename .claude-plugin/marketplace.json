@@ -1,0 +1,15 @@
+{
+  "name": "geniro-claude-harness",
+  "owner": {
+    "name": "Geniro",
+    "email": "hello@geniro.io"
+  },
+  "plugins": [
+    {
+      "name": "geniro-claude-plugin",
+      "description": "AI-driven setup, 13 multi-agent skills, and 8 safety hooks for Claude Code",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
