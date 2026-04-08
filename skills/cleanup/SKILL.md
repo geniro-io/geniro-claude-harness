@@ -50,7 +50,7 @@ Build three lists:
 
 1. **Plugin files** (will be deleted): all verbatim + tailored files from `.claude/`, including:
    - Agent files (`.claude/agents/*.md`) — both `.sh` and `.md` files
-   - Hook files (`.claude/hooks/*.sh`, `.claude/hooks/*.js`, `.claude/hooks/hooks.json`)
+   - Hook files (`.claude/hooks/*.sh`, `.claude/hooks/*.js`, `.claude/hooks/hooks.json`, `.claude/hooks/geniro-statusline.js`)
    - Skill directories (`.claude/skills/*/`)
    - Rules files (`.claude/rules/*.md`)
    - `settings.json` — see Step 1.3 for merge handling
@@ -176,6 +176,15 @@ grep -v '^\\.geniro/$' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitigno
 If `.gitignore` is now empty, remove it:
 ```bash
 [ ! -s .gitignore ] && rm -f .gitignore
+```
+
+Remove `statusLine` entry from `.claude/settings.local.json` if it points to geniro-statusline.js:
+- Read `.claude/settings.local.json` (if it exists)
+- If its `statusLine.command` contains `geniro-statusline.js`, remove the `statusLine` key
+- If the file has other entries remaining, write it back (preserving those entries)
+- If the file would be empty (`{}`) after removal, delete it entirely:
+```bash
+rm -f .claude/settings.local.json
 ```
 
 ### 3.5 Uninstall the plugin

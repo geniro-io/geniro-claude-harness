@@ -34,7 +34,7 @@ your-project/
 └── .claude/
     ├── agents/                  # Committed — 12 agents
     ├── skills/                  # Committed — 13 skills
-    ├── hooks/                   # Committed — 9 hooks (8 registered + 1 utility)
+    ├── hooks/                   # Committed — 10 hooks (8 registered + 1 statusLine + 1 utility)
     ├── rules/                   # Committed — generated per-project
     └── settings.json            # Committed — permissions & hooks
 
@@ -85,7 +85,7 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-u
 **Copied directly from template (universal, no customization needed):**
 - 11 universal agents from `$TEMPLATE_DIR/agents/`
 - 13 skills from `$TEMPLATE_DIR/skills/` (setup is removed after completion)
-- 9 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 backpressure utility)
+- 10 hooks from `$TEMPLATE_DIR/hooks/` (8 registered + 1 statusLine + 1 backpressure utility)
 - `settings.json` from `$TEMPLATE_DIR/settings.json`
 
 **Written to .geniro/ (git-ignored, not committed):**
@@ -393,7 +393,31 @@ cp "$TEMPLATE_DIR/skills/implement/"* .claude/skills/implement/
 cp "$TEMPLATE_DIR/hooks/dangerous-command-blocker.sh" .claude/hooks/
 # ... repeat for each selected hook
 chmod +x .claude/hooks/*.sh
+
+# StatusLine script
+cp "$TEMPLATE_DIR/hooks/geniro-statusline.js" .claude/hooks/
 ```
+
+#### StatusLine Configuration
+
+After copying hooks, configure the geniro status line in `.claude/settings.local.json` (project-level, NOT `settings.json` or user-level):
+
+1. If `.claude/settings.local.json` does not exist, create it:
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node \".claude/hooks/geniro-statusline.js\""
+  }
+}
+```
+
+2. If `.claude/settings.local.json` already exists, read it and:
+   - If it has no `statusLine` key, merge the entry above (preserve all existing keys).
+   - If it already has a `statusLine` key, ask the user before overwriting:
+     - **Question:** "`.claude/settings.local.json` already has a statusLine entry. Replace it with geniro's status line?"
+     - **Options:** "Yes, replace it" / "No, keep existing"
+     - If user declines, skip statusLine setup silently.
 
 ### 3.1.1 Save Template Snapshot
 
