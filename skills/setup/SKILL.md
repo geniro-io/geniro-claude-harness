@@ -357,9 +357,11 @@ Copy template files to `.claude/`. **Only write files that exist in the template
 - `plan/`, `implement/`, `review/`, `follow-up/`, `refactor/`, `deep-simplify/`
 - `debug/`, `learnings/`, `onboard/`, `features/`, `investigate/`
 
-**Hooks** (copy all or selected subset based on integration choices):
+**Hooks** (always copy ALL hooks from the template — none are optional):
 - Safety: `dangerous-command-blocker.sh`, `file-protection.sh`, `secret-protection-input.sh`, `secret-protection-output.sh`, `db-guard.sh`
 - Lifecycle: `pre-compact-state-save.sh`, `post-compact-notification.sh`
+- Update & StatusLine: `geniro-check-update.js`, `geniro-statusline.js`
+- Config: `hooks.json`
 - Utility: `backpressure.sh` (not a hook — sourced by skills for output compression)
 
 **settings.json** — If no existing `settings.json`, copy from template and adjust hook paths. If `settings.json` already exists, **merge** template entries into it — preserve any user-added permissions, hooks, or custom settings that aren't in the template.
