@@ -170,7 +170,7 @@ Spawn the relevance filter agent:
 ```
 Agent(subagent_type="relevance-filter-agent", prompt="""
 FINDINGS: [all findings from 5 reviewers, in their original format]
-CHANGED FILES: [list of changed files with paths]
+CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
 
@@ -184,7 +184,7 @@ CRITICAL severity findings (security vulnerabilities, data loss, crashes) are al
 """)
 ```
 
-**Pass only KEEP findings to Phase 4 (Judge Pass).** FILTERED findings appear in a collapsed section at the end of the review report for transparency.
+**Pass only KEEP findings to Phase 4 (Judge Pass).** FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 unfiltered (fail-open).
 
 ### Phase 4: Judge Pass
 
@@ -274,7 +274,7 @@ All five reviewers are spawned as independent `reviewer-agent` instances via the
 - Each agent receives ONE criteria file, the changed files, and the diff context
 - All five (or more in batched mode) are spawned in a SINGLE message for parallel execution
 - Each reviewer is a leaf agent — it cannot spawn sub-agents (by design)
-- Judge pass reads all outputs and validates findings
+- Relevance filter checks findings against repo conventions, then judge pass confidence-scores the remaining findings
 
 ## Common False Positives to Avoid
 
@@ -319,9 +319,13 @@ Spawning parallel reviewers:
 
 [Reviewers execute in parallel: ~5-8 seconds]
 
-Validating 12 findings...
+Running relevance filter against repo conventions...
+- 10 of 12 findings kept
+- 2 filtered (over-engineering for this repo's complexity level)
+
+Validating 10 findings...
 - 8 pass confidence threshold
-- 4 filtered (< 80% confidence)
+- 2 filtered (< 80% confidence)
 
 ## Review Summary
 Files: 2 | Issues: 8 (1 CRITICAL, 3 HIGH, 4 MEDIUM)
