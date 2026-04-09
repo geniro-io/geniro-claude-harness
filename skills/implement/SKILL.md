@@ -191,6 +191,7 @@ Read the plan's steps and group into WUs — clusters of tightly coupled files. 
 
 For each wave:
 1. **Spawn all WU agents in a single message** (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.)
+   **Agent context injection:** Before spawning a `backend-agent` or `frontend-agent`, check if `.geniro/project/agents/backend-context.md` or `frontend-context.md` exists. If it does, read the file and include its contents in the agent's prompt under a `## Project Context` section. If the file doesn't exist (standalone mode where context is baked into the agent, or user deleted it), skip — the agent's base instructions still work without project-specific context.
 2. **Collect results** — each agent must report: files created/modified, tests created/modified, test results
 3. **Quick gate** (build + test) — pass/fail only. If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
 4. **Start next wave**
@@ -438,4 +439,5 @@ The orchestrator's job is to coordinate, not to code. Every line of code the orc
 - Agent templates, examples, error tables: `${CLAUDE_SKILL_DIR}/implement-reference.md`
 - Plan criteria: `.claude/skills/plan/plan-criteria.md`
 - Review criteria: `.geniro/project/review/` (bugs, security, architecture, tests, guidelines)
+- Agent project context: `.geniro/project/agents/` (backend-context.md, frontend-context.md)
 - Simplify criteria: `.claude/skills/deep-simplify/simplify-criteria.md`

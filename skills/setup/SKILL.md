@@ -21,7 +21,7 @@ geniro-claude-plugin/
 ├── README.md             # Plugin docs, never copied
 ├── HOOKS.md              # Hook docs, never copied
 ├── skills/setup/reference/ # AI reads during generation, never copied
-├── agents/               # → global (provided by plugin); backend/frontend copied + tailored
+├── agents/               # → global (provided by plugin); project context in .geniro/project/agents/
 ├── skills/               # → global (provided by plugin, not copied)
 ├── hooks/                # → global (provided by plugin via hooks.json)
 ├── rules/                # → stubs, regenerated per-project
@@ -32,12 +32,12 @@ geniro-claude-plugin/
 ```
 your-project/
 ├── .claude/
-│   ├── agents/                  # Committed — 2 tailored agents (backend + frontend)
 │   ├── rules/                   # Committed — generated per-project
 │   └── settings.json            # Committed — permissions only
 │
 └── .geniro/
     ├── project/                 # Committed (!.geniro/project/ in .gitignore)
+    │   ├── agents/              # Project-specific context for backend/frontend agents
     │   └── review/              # 5 generated review criteria files
     ├── planning/                # Git-ignored — specs, architecture, state files
     ├── debug/                   # Git-ignored — hypothesis tracking
@@ -123,13 +123,13 @@ Store the answer as `$DEPLOY_MODE` (`global` or `standalone`).
 ## What Gets Written to Your Project
 
 **Written to .claude/ (committed):**
-- `.claude/agents/backend-agent.md` — Tailored to your backend stack
-- `.claude/agents/frontend-agent.md` — Tailored to your frontend stack
 - `.claude/rules/backend-conventions.md` — Language-specific coding conventions
 - `.claude/rules/security-patterns.md` — Language-specific security patterns
 - `settings.json` — permissions configuration
 
 **Written to .geniro/project/ (committed — NOT gitignored):**
+- `.geniro/project/agents/backend-context.md` — Project-specific backend context (framework, ORM, domain)
+- `.geniro/project/agents/frontend-context.md` — Project-specific frontend context (framework, components, domain)
 - `.geniro/project/review/bugs-criteria.md` — Stack-specific bug detection patterns
 - `.geniro/project/review/security-criteria.md` — Stack-specific security checks
 - `.geniro/project/review/tests-criteria.md` — Stack-specific test quality checks
@@ -137,7 +137,7 @@ Store the answer as `$DEPLOY_MODE` (`global` or `standalone`).
 - `.geniro/project/review/guidelines-criteria.md` — Stack-specific coding guidelines
 
 **Not copied (provided globally by the plugin):**
-- 11 universal agents — the plugin provides them directly. Only `backend-agent.md` and `frontend-agent.md` are written to the project (tailored per-project).
+- 13 agents (including backend-agent and frontend-agent) — the plugin provides them directly. Project-specific context is in `.geniro/project/agents/`.
 - All skills — the plugin provides them directly.
 - All hooks — the plugin provides them via `hooks.json`. Hook scripts run from `${CLAUDE_PLUGIN_ROOT}/hooks/`.
 
@@ -147,7 +147,7 @@ Store the answer as `$DEPLOY_MODE` (`global` or `standalone`).
 - `.geniro/knowledge/` — created empty, populated during /geniro:learnings
 
 **Additional files written in standalone mode ($DEPLOY_MODE = standalone):**
-- `.claude/agents/*.md` — All 11 universal agents (in addition to the 2 tailored ones)
+- `.claude/agents/*.md` — All 13 agents (context appended to backend/frontend in Phase 3.2-3.3)
 - `.claude/skills/*/SKILL.md` — All skill files (with `geniro:` prefix removed from names)
 - `.claude/skills/review/*-criteria.md` — Review criteria (instead of `.geniro/project/review/`)
 - `.claude/hooks/*.sh`, `.claude/hooks/*.js` — All hook scripts
@@ -395,14 +395,14 @@ Which integrations do you want to enable?
 All agents, skills, and hooks are provided globally by the plugin — no tier selection is needed.
 
 **What setup writes to the project:**
-- `backend-agent.md` and `frontend-agent.md` — tailored to the detected stack
+- `.geniro/project/agents/backend-context.md` and `frontend-context.md` — project-specific context injected into agents at spawn time
 - `rules/backend-conventions.md` and `rules/security-patterns.md` — tailored to the detected stack
 - 5 review criteria files in `.geniro/project/review/` — generated per-project
 - `settings.json` — permissions only (no hook entries)
 
-**If no frontend framework was detected**, `frontend-agent.md` is skipped (not created).
+**If no frontend framework was detected**, `frontend-context.md` is skipped (not created). In standalone mode, the copied `frontend-agent.md` is deleted.
 
-All 11 universal agents, all hooks, and all skills are available automatically via the plugin — they do not need to be installed into the project.
+All 13 agents, all hooks, and all skills are available automatically via the plugin — they do not need to be installed into the project.
 
 ## Phase 3: Generate Files
 
@@ -412,10 +412,7 @@ All 11 universal agents, all hooks, and all skills are available automatically v
 
 Copy template files to `.claude/`. **Only write files that exist in the template — never delete existing files that aren't part of the template.** If the user has custom agents, skills, hooks, or rules they created themselves, those must be preserved untouched.
 
-**Tailored agents** (copied from template, then customized for the project's stack):
-- `backend-agent.md`, `frontend-agent.md`
-
-Universal agents (`architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`, `refactor-agent.md`, `debugger-agent.md`, `security-agent.md`, `doc-agent.md`, `devops-agent.md`, `knowledge-agent.md`, `knowledge-retrieval-agent.md`, `meta-agent.md`) are provided globally by the plugin — do NOT copy them.
+All 13 agents (including `backend-agent.md` and `frontend-agent.md`) are provided globally by the plugin — do NOT copy them. Project-specific context is written to `.geniro/project/agents/` in Phase 3.2-3.3.
 
 **Hooks** — do NOT copy hooks. They are provided globally by the plugin via `hooks.json` in `plugin.json`. Hook scripts run from `${CLAUDE_PLUGIN_ROOT}/hooks/`. Copying hooks to `.claude/hooks/` would cause them to fire twice (different paths bypass deduplication).
 
@@ -423,19 +420,19 @@ Universal agents (`architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`,
 
 **Review criteria** — The 5 review criteria files are written to `.geniro/project/review/`, generated in Phase 3.5 with stack-specific content. This directory is committed (excluded from the `.geniro/` gitignore via `!.geniro/project/`).
 
-Use shell `cp` via the Bash tool to copy each file individually — do NOT use `rm -rf` on entire directories or `cp -r` on directories, as that would overwrite user-created files. If `.claude/agents/` already contains files not in the template (user-created agents), they must remain untouched after this step.
+Use shell `cp` via the Bash tool to copy each file individually — do NOT use `rm -rf` on entire directories or `cp -r` on directories, as that would overwrite user-created files. If `.claude/` already contains files not in the template (user-created agents, rules, etc.), they must remain untouched after this step.
 
 `$TEMPLATE_DIR` is `${CLAUDE_PLUGIN_ROOT}` — the plugin installation path. If an explicit argument was provided, it's that path instead.
 
 ```bash
 # Create target directories in the user's project
-mkdir -p .claude/agents
 mkdir -p .claude/rules
 mkdir -p .geniro/project/review
+mkdir -p .geniro/project/agents
 
-# Tailored agents only (universal agents are provided by the plugin)
-cp "$TEMPLATE_DIR/agents/backend-agent.md" .claude/agents/
-cp "$TEMPLATE_DIR/agents/frontend-agent.md" .claude/agents/
+# Agent context directory for project-specific stack context
+# Agent .md files are NOT copied — provided globally by the plugin.
+# Project-specific context is written to .geniro/project/agents/ in Phase 3.2-3.3.
 
 # Skills and hooks are NOT copied — they are provided globally by the plugin.
 # Only .geniro/project/review/ is created for per-project review criteria (Phase 3.5).
@@ -458,19 +455,29 @@ PLUGIN_PATH="${CLAUDE_PLUGIN_ROOT}"
 ```
 
 3. Write the statusLine to `.claude/settings.local.json` using the resolved absolute path:
-   - If `.claude/settings.local.json` does not exist, create it with `statusLine` only.
+   - If `.claude/settings.local.json` does not exist, create it with `{"statusLine": {...}}` only.
    - If it already exists: merge the `statusLine` key (preserve all existing keys).
    - If it already has a geniro `statusLine` (contains `geniro-statusline`), update the path (version may have changed).
    - The command must be: `node "<absolute_plugin_path>/hooks/geniro-statusline.js"`
+   - **NEVER write `permissions`, `hooks`, or any other key to `settings.local.json` — it is ONLY for `statusLine`.** Permissions belong in `settings.json`.
 
 #### Legacy Cleanup
 
 If the project has agents, hooks, or skills from a previous install, remove them. These are now provided globally by the plugin.
 
 ```bash
-# Remove previously-copied universal agents (keep tailored backend/frontend)
+# Remove previously-copied universal agents
 for agent in architect-agent skeptic-agent reviewer-agent refactor-agent debugger-agent security-agent doc-agent devops-agent knowledge-agent knowledge-retrieval-agent meta-agent; do
   rm -f ".claude/agents/${agent}.md"
+done
+
+# Migrate previously-copied tailored agents to context files
+for agent in backend-agent frontend-agent; do
+  if [[ -f ".claude/agents/${agent}.md" ]]; then
+    context_name="${agent%-agent}-context.md"
+    mkdir -p .geniro/project/agents
+    echo "MIGRATE: .claude/agents/${agent}.md → .geniro/project/agents/${context_name}"
+  fi
 done
 
 # Remove previously-copied hooks (now provided by plugin via hooks.json)
@@ -486,13 +493,26 @@ rm -f .claude/skills/review/SKILL.md
 rm -rf .claude/skills/review/
 ```
 
-This cleanup is safe — universal agents are identical to plugin versions, hooks are provided by the plugin, and skill files are global. User-created files in `.claude/agents/` (not in the list above) are preserved. Tailored agents (`backend-agent.md`, `frontend-agent.md`) are preserved.
+**Migrate legacy tailored agents (global mode only):** If `.claude/agents/backend-agent.md` or `frontend-agent.md` exist from a previous install, extract project-specific content (Stack, Domain Context, Code Patterns) into `.geniro/project/agents/backend-context.md` or `frontend-context.md`, then delete the old files. Use Read to extract, Write to create context files, then `rm -f` the old agent files.
+
+This cleanup is safe — all agents are now provided by the plugin, hooks are provided via `hooks.json`, and skill files are global. User-created files in `.claude/agents/` (not in the lists above) are preserved.
 
 **In standalone mode (`$DEPLOY_MODE = standalone`), skip the Legacy Cleanup above** — universal agents, hooks, and skills ARE supposed to be in the project.
 
 #### Standalone Mode Copy ($DEPLOY_MODE = standalone)
 
-If `$DEPLOY_MODE` is `standalone`, copy ALL plugin files to the project:
+If `$DEPLOY_MODE` is `standalone`, copy ALL plugin files to the project.
+
+**CRITICAL — do NOT copy these 3 skills: `setup`, `update`, `cleanup`.** These skills require the plugin to be installed and will not work in standalone mode. Skip them completely — do not create their directories, do not copy any of their files. If they already exist in `.claude/skills/` from a previous install, delete them:
+```bash
+rm -rf .claude/skills/setup .claude/skills/update .claude/skills/cleanup
+```
+
+**Clean up global-mode artifacts:** If switching from global to standalone, remove `.geniro/project/` and `.geniro/template-snapshot/` (review criteria and agent context now live in `.claude/`, and template snapshots are not used in standalone mode):
+```bash
+rm -rf .geniro/project/
+rm -rf .geniro/template-snapshot/
+```
 
 ```bash
 # Create target directories
@@ -508,7 +528,7 @@ for hook in "$TEMPLATE_DIR"/hooks/*.sh "$TEMPLATE_DIR"/hooks/*.js; do
   [ -f "$hook" ] && cp "$hook" .claude/hooks/
 done
 
-# Copy ALL skills EXCEPT setup, update, cleanup (these only work with plugin installed)
+# Copy skills — SKIP setup, update, cleanup (they require the plugin installed)
 for skill_dir in "$TEMPLATE_DIR"/skills/*/; do
   skill_name=$(basename "$skill_dir")
   [[ "$skill_name" == "setup" || "$skill_name" == "update" || "$skill_name" == "cleanup" ]] && continue
@@ -521,6 +541,8 @@ for rule in "$TEMPLATE_DIR"/rules/*.md; do
   [ -f "$rule" ] && cp "$rule" .claude/rules/
 done
 ```
+
+**Verify exclusion:** After copying, confirm these directories do NOT exist: `.claude/skills/setup/`, `.claude/skills/update/`, `.claude/skills/cleanup/`. If any exist, delete them now.
 
 **Path rewriting in copied files:**
 
@@ -590,11 +612,11 @@ done
 
 This snapshot is git-ignored (under `.geniro/`) and is refreshed on every `/geniro:setup` run. On future re-runs, comparing this snapshot against the new template reveals what changed in the template itself — independent of any AI tailoring or user modifications.
 
-Files like `backend-agent.md`, `frontend-agent.md`, `rules/backend-conventions.md`, and `rules/security-patterns.md` are also copied via `cp` here, then tailored via Read+Edit in Phases 3.2-3.4.
+Files like `rules/backend-conventions.md` and `rules/security-patterns.md` are also copied via `cp` here, then tailored via Read+Edit in Phase 3.4. Agent context files are generated (not copied) in Phases 3.2-3.3.
 
 For `settings.json`: if no existing file, create it with default permissions only. If one already exists, preserve it. Do NOT add `statusLine` or hook entries — these are plugin-global settings.
 
-**Note:** Do NOT copy universal agents, skills, or hooks from the template to the project. These are provided globally by the plugin. Only write to the project: tailored agents (backend/frontend), tailored rules, review criteria files, and `settings.json` (permissions only).
+**Note:** Do NOT copy universal agents, skills, or hooks from the template to the project. These are provided globally by the plugin. Only write to the project: project context files (`.geniro/project/agents/`), tailored rules, review criteria files, and `settings.json` (permissions only).
 
 ### Agent Prompt Principles (apply when editing agents)
 
@@ -607,44 +629,48 @@ When editing agent files for the project, follow these evidence-based principles
 5. **Show, don't describe** — Concrete examples of patterns to follow (from the actual codebase) teach better than abstract rules. Include 2-3 real code patterns found during detection.
 6. **Critical info at boundaries** — Core identity and constraints at the top. Success criteria and quality checklist at the bottom. Supporting procedures in the middle.
 
-### 3.2 Tailor Backend Agent
+### 3.2 Generate Backend Context
 
-The backend agent was copied in 3.1 with `{{PLACEHOLDER}}` values. Edit it in-place:
+**If `$DEPLOY_MODE` is `global`:** Write project-specific backend context to `.geniro/project/agents/backend-context.md`. This file is read by orchestrating skills and injected into the backend-agent's prompt at spawn time. The `backend-agent.md` itself is provided by the plugin with base instructions.
 
-1. **Frontmatter** — update `description` to mention the detected framework (e.g., "Implement backend features for Django + PostgreSQL")
-2. **Project Context section** — replace `{{PLACEHOLDER}}` values with actual detected framework, ORM, test runner, linter commands
-3. **Domain Context section** — if `$PROJECT_KNOWLEDGE` contains relevant information, add a `## Domain Context` section after Project Context with:
-   - **Project purpose** — one-line description of what the project does (from README)
-   - **Key domain entities** — the core objects/concepts this backend manages (e.g., "Tenants, Workspaces, Pipeline Runs, Invoices")
-   - **Domain safety rules** — business-critical constraints from docs (e.g., "Never delete user data without audit trail", "Financial calculations use decimal, never float")
-   - **API patterns** — versioning strategy, auth model, key conventions from API docs
-   - Only include what was found — don't invent domain context. If `$PROJECT_KNOWLEDGE` is empty, skip this section entirely.
-4. **Remove the setup note** (the blockquote about `/geniro:setup` replacing placeholders)
-5. **Replace `{{PLACEHOLDER}}` patterns throughout** — in workflow steps, test commands, quality checks, success criteria. Use actual detected values.
-6. **Remove irrelevant sections** — if no ORM detected, remove ORM-related workflow steps. If no specific pattern applies, remove it rather than leaving generic placeholders.
-7. **Add 2-3 real code patterns** from the detected codebase (e.g., actual route patterns, actual test patterns found during Phase 1 detection)
+Generate the context file with:
+
+1. **Stack section:**
+   - Framework: [detected]
+   - ORM/database: [detected]
+   - Test runner: [detected test command]
+   - Linter/formatter: [detected lint command]
+
+2. **Domain Context section** — if `$PROJECT_KNOWLEDGE` contains relevant information:
+   - Project purpose (from README)
+   - Key domain entities
+   - Domain safety rules
+   - API patterns
+   - Only include what was found — don't invent. If empty, omit this section.
+
+3. **Code Patterns section** — 2-3 real code patterns from the detected codebase (actual route patterns, test patterns found during Phase 1)
+
+**If `$DEPLOY_MODE` is `standalone`:** The backend agent was copied in 3.1 with base instructions. Append the project context content (Stack + Domain Context + Code Patterns) at the end of `.claude/agents/backend-agent.md`, under a `## Project Context` header. This makes the standalone agent file self-contained. Also:
+- Update `description` in frontmatter to mention the detected framework
+
+**If no backend framework detected**, skip this step.
 
 **Anti-leakage rules:**
 - Code examples must be in the detected language ONLY
 - Do not add competency declarations, expertise lists, or 3rd-person framing (see Agent Prompt Principles above)
 - Domain context must come from `$PROJECT_KNOWLEDGE` (docs the project actually has) — never invent domain knowledge
 
-### 3.3 Tailor Frontend Agent
+### 3.3 Generate Frontend Context
 
-The frontend agent was copied in 3.1 with `{{PLACEHOLDER}}` values. Edit it in-place. Same approach as backend.
+**If no frontend framework was detected:** In global mode, do not create the context file. In standalone mode, delete the copied `.claude/agents/frontend-agent.md`. Skip the rest of this step.
 
-**If no frontend framework was detected → delete the copied `frontend-agent.md` entirely.**
+**If `$DEPLOY_MODE` is `global`:** Write project-specific frontend context to `.geniro/project/agents/frontend-context.md`. Same structure as backend context, adapted for frontend:
 
-1. **Frontmatter** — update `description` to mention the detected framework
-2. **Project Context section** — replace `{{PLACEHOLDER}}` values with actual detected framework, component library, state management, styling, test runner
-3. **Domain Context section** — same as backend (3.2 step 3): add project purpose, key UI entities/flows, and domain-specific UI rules from `$PROJECT_KNOWLEDGE`. For frontend, also include:
-   - **Key user flows** — the main workflows users perform (from docs/guides)
-   - **UI conventions** — design system references, accessibility requirements, responsive breakpoints (from existing docs)
-   - Skip if `$PROJECT_KNOWLEDGE` has no relevant frontend info.
-4. **Remove the setup note** (the blockquote about `/geniro:setup` replacing placeholders)
-5. **Replace `{{PLACEHOLDER}}` patterns throughout** — in workflow steps, test commands, quality checklist
-6. **Remove irrelevant sections** — if no state management library detected, simplify those steps. If no E2E runner, remove E2E references.
-7. **Add real component patterns** from the detected codebase
+1. **Stack section** — Framework, component library, state management, styling, test runner
+2. **Domain Context section** — Project purpose, key user flows, UI conventions (design system, accessibility, breakpoints). Only include what was found in `$PROJECT_KNOWLEDGE`.
+3. **Code Patterns section** — 2-3 real component patterns from the detected codebase
+
+**If `$DEPLOY_MODE` is `standalone`:** The frontend agent was copied in 3.1 with base instructions. Append the project context content (Stack + Domain Context + Code Patterns) at the end of `.claude/agents/frontend-agent.md`, under a `## Project Context` header. Also update frontmatter description to mention the detected framework.
 
 **Anti-leakage rules:**
 - Only include the ONE detected framework — remove all alternative framework references
@@ -799,18 +825,19 @@ For every file path referenced inside agent prompts and rules:
 - **Standalone mode:** Verify `settings.json` DOES contain hook entries pointing to `.claude/hooks/`
 
 ### 4. Stack Contamination (generated files only)
-For backend-agent.md, frontend-agent.md, rules/*.md, and review criteria (`.geniro/project/review/*-criteria.md` in global mode, `.claude/skills/review/*-criteria.md` in standalone mode):
+For agent context files (`.geniro/project/agents/*-context.md` in global mode, `.claude/agents/backend-agent.md` and `frontend-agent.md` in standalone mode), rules/*.md, and review criteria (`.geniro/project/review/*-criteria.md` in global mode, `.claude/skills/review/*-criteria.md` in standalone mode):
 - Verify ONLY the detected language/framework appears
 - No wrong-language commands (e.g., `npm` in a Python project)
 - No wrong-language code blocks (e.g., ```typescript in a Python project)
 - No multi-framework lists like "(Django, Rails, FastAPI)" — file must be specific
 
 ### 5. Frontmatter Integrity
-For every `.md` file in `.claude/agents/` (in global mode, skills are provided by the plugin; in standalone mode, also check `.claude/skills/`):
+For every agent `.md` file in `.claude/agents/` (standalone mode only — in global mode, agents are provided by the plugin and don't need checking). In standalone mode, also check `.claude/skills/`:
 - Has valid YAML frontmatter (opens and closes with `---`)
 - Required fields present: `name`, `description` (agents also need `tools`)
 - No duplicate frontmatter keys
 - `model` field (if present) uses a valid value
+Note: `.geniro/project/agents/*-context.md` files are plain markdown content (no frontmatter) — do NOT check them here.
 
 ### 6. Hook Configuration
 - **Global mode:** Verify `.claude/hooks/` does NOT exist (legacy cleanup should have removed it) and `settings.json` does NOT contain hook command paths
@@ -845,11 +872,13 @@ If no issues found, return: "ALL CHECKS PASSED — plugin is ready to commit."
 
 ### 4.3 Ensure Runtime Directories are Git-Ignored
 
-**If `$DEPLOY_MODE` is `global`:** add both `.geniro/` and `!.geniro/project/` to `.gitignore` (review criteria are in `.geniro/project/review/`):
+**If `$DEPLOY_MODE` is `global`:** add `.geniro/*` (with wildcard — NOT `.geniro/`) and `!.geniro/project/` to `.gitignore`. Using `/*` instead of `/` is critical — `.geniro/` tells git to ignore the directory entirely so negation patterns inside it never take effect, while `.geniro/*` ignores the contents and allows `!.geniro/project/` to work:
 
 ```bash
-# Add to root .gitignore if not already present
-grep -q "^\.geniro/$" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
+# MUST use .geniro/* (not .geniro/) so the !.geniro/project/ negation works
+# If old .geniro/ entry exists, replace it with .geniro/*
+sed -i '' 's|^\.geniro/$|.geniro/*|' .gitignore 2>/dev/null
+grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
 # Add exception for .geniro/project/ (committed review criteria, etc.)
 grep -q "^\!\.geniro/project/$" .gitignore 2>/dev/null || echo "!.geniro/project/" >> .gitignore
 ```
@@ -887,8 +916,8 @@ Write the state file:
       ...all files copied directly from template without modification
     ],
     "tailored": [
-      "agents/backend-agent.md",
-      "agents/frontend-agent.md",
+      ".geniro/project/agents/backend-context.md",
+      ".geniro/project/agents/frontend-context.md",
       "rules/backend-conventions.md",
       "rules/security-patterns.md",
       ".geniro/project/review/bugs-criteria.md",
@@ -922,11 +951,11 @@ Present to the user:
 Setup complete! Here's what was generated:
 
 .claude/
-  agents/     (2 tailored agents)
   rules/      (N rule files)
   settings.json
 
 .geniro/project/
+  agents/     (project-specific context for backend/frontend agents)
   review/     (5 review criteria files)
 
 Tech Stack: [detected]
@@ -1009,7 +1038,7 @@ Classify each file using `$GENIRO_STATE` (if available from a previous install) 
 | Category | Detection | Update Strategy |
 |---|---|---|
 | **Verbatim** (in `$GENIRO_STATE.files.verbatim` or filename matches template AND file was not tailored) | Direct content comparison against template | Auto-apply if template changed |
-| **Tailored** (in `$GENIRO_STATE.files.tailored` or is one of: backend-agent, frontend-agent, rules/*, .geniro/project/review/*-criteria.md) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
+| **Tailored** (in `$GENIRO_STATE.files.tailored` or is one of: `.geniro/project/agents/*-context.md`, `rules/*`, `.geniro/project/review/*-criteria.md`. In standalone mode also: `.claude/agents/backend-agent.md`, `.claude/agents/frontend-agent.md`) | Compare ONLY template structural sections — ignore LLM-generated project content | Flag structural changes only |
 | **User-created** (in `$GENIRO_STATE.files.user_created` or exists in .claude/ but NOT in template) | Skip entirely | Never touch |
 | **Template-only** (exists in template but NOT in .claude/) | New file | Offer to install |
 
@@ -1019,8 +1048,8 @@ Without the state file, classify files by explicit enumeration — do NOT rely o
 
 | Always Tailored (never auto-overwrite) | Always Verbatim (safe to auto-apply) | Should be removed (legacy — now provided by plugin) |
 |---|---|---|
-| `agents/backend-agent.md` | `settings.json` | All universal agents (`architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`, `refactor-agent.md`, `debugger-agent.md`, `security-agent.md`, `doc-agent.md`, `devops-agent.md`, `knowledge-agent.md`, `knowledge-retrieval-agent.md`, `meta-agent.md`) |
-| `agents/frontend-agent.md` | | All hooks (entire `hooks/` directory) |
+| `.geniro/project/agents/backend-context.md` | `settings.json` | All 13 agent `.md` files in `.claude/agents/` (global mode only — in standalone mode, `backend-agent.md` and `frontend-agent.md` are Tailored, rest are Verbatim) |
+| `.geniro/project/agents/frontend-context.md` | | All hooks (entire `hooks/` directory) |
 | `rules/backend-conventions.md` | | |
 | `rules/security-patterns.md` | | |
 | `.geniro/project/review/bugs-criteria.md` | | |
@@ -1355,11 +1384,10 @@ If user chose C — apply every template file regardless of whether changes were
 
 **3C.1: Overwrite all verbatim files**
 
-Copy only tailored agents and rules from template. Universal agents, hooks, and skills are NOT copied — they are provided globally by the plugin:
+Copy only rules from template. All agents (including backend/frontend), hooks, and skills are NOT copied — they are provided globally by the plugin. Agent context files are regenerated in Phase 3.2-3.3:
 ```bash
-# Copy only tailored agents (universal agents are provided by the plugin)
-cp "$TEMPLATE_DIR/agents/backend-agent.md" .claude/agents/
-cp "$TEMPLATE_DIR/agents/frontend-agent.md" .claude/agents/
+# Agent files are NOT copied — provided globally by the plugin
+# Agent context is regenerated in .geniro/project/agents/ (Phase 3.2-3.3)
 
 # Copy rules
 for f in $(find "$TEMPLATE_DIR/rules" -type f 2>/dev/null | sed "s|$TEMPLATE_DIR/||"); do

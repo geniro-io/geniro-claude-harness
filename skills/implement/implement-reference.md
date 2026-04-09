@@ -75,6 +75,11 @@ When spawning any implementation agent, use this template:
 [Paste file contents you already read — saves agent from re-reading]
 [If Wave 2+: include relevant outputs from prior wave agents]
 
+## Project Context (for backend-agent / frontend-agent)
+[If `.geniro/project/agents/<agent>-context.md` exists, pre-inline its contents here.
+This provides stack-specific information (framework, ORM, test runner, domain context).
+If the file doesn't exist, omit this section — the agent works with generic best practices.]
+
 ## Codebase Conventions
 [Paste the CONVENTIONS_BRIEF section from spec file — naming patterns, file structure, error handling, import style, test patterns. Include 1-2 exemplar file snippets showing the patterns to follow.]
 Match existing patterns exactly. Find the closest existing example and follow it.
@@ -258,6 +263,7 @@ After Stage C produces findings:
    - Current file contents (pre-inlined — the code as it exists NOW, not as it was planned)
    - Spec file and conventions brief for reference
    - Instruction: "Fix these specific issues. Do NOT refactor beyond what's needed to resolve each finding."
+   - Project context file contents (if agent is `backend-agent` or `frontend-agent` — read from `.geniro/project/agents/<agent>-context.md` if it exists)
 
 2. **Re-run Stage A** (autofix + full check + codegen if schema changed).
 

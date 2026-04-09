@@ -45,9 +45,11 @@ A file is **user-created** if it exists in `.claude/` but is not a known plugin 
 
 The plugin generates these files in the project:
 
-1. **Tailored agents** (will be deleted):
-   - `.claude/agents/backend-agent.md`
-   - `.claude/agents/frontend-agent.md`
+1. **Agent context files** (will be deleted):
+   - `.geniro/project/agents/backend-context.md` (current location, global mode)
+   - `.geniro/project/agents/frontend-context.md` (current location, global mode)
+   - `.claude/agents/backend-agent.md` (legacy location or standalone mode)
+   - `.claude/agents/frontend-agent.md` (legacy location or standalone mode)
 2. **Tailored rules** (will be deleted):
    - `.claude/rules/backend-conventions.md`
    - `.claude/rules/security-patterns.md`
@@ -94,9 +96,11 @@ Present the deletion manifest clearly:
 ```
 ## Files to remove
 
-### Tailored agents
-- .claude/agents/backend-agent.md
-- .claude/agents/frontend-agent.md
+### Agent context files
+- .geniro/project/agents/backend-context.md (if present)
+- .geniro/project/agents/frontend-context.md (if present)
+- .claude/agents/backend-agent.md (if present — legacy/standalone)
+- .claude/agents/frontend-agent.md (if present — legacy/standalone)
 
 ### Tailored rules
 - .claude/rules/backend-conventions.md
@@ -147,7 +151,9 @@ hook. Use `rm -f` for individual files and `rmdir` for empty directories only.
 Remove each file individually with `rm -f`. Do NOT use `rm -rf` on directories.
 
 ```bash
-# Remove tailored agents
+# Remove agent context files (global mode) and tailored agents (legacy/standalone)
+rm -f .geniro/project/agents/backend-context.md
+rm -f .geniro/project/agents/frontend-context.md
 rm -f .claude/agents/backend-agent.md
 rm -f .claude/agents/frontend-agent.md
 
