@@ -325,7 +325,7 @@ Before writing, check if an existing memory/learning covers this topic — UPDAT
 
 ### Suggest Improvements
 
-Analyze the full pipeline run and identify improvements to the harness itself:
+Analyze the full pipeline run and identify improvements to the plugin itself:
 
 | Category | What to look for | Target files |
 |---|---|---|
@@ -387,7 +387,7 @@ Feature implementation is complete when:
 - [ ] Review complete (<=3 fix rounds)
 - [ ] User approves for commit
 - [ ] Learnings extracted and saved
-- [ ] Harness improvements applied (if found) or noted in summary
+- [ ] Plugin improvements applied (if found) or noted in summary
 - [ ] Code committed (with message referencing feature and task ID if applicable)
 - [ ] Code pushed to remote (if requested)
 - [ ] Linear issue status update offered to user (if detected) — never auto-updated

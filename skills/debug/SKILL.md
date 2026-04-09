@@ -124,7 +124,7 @@ Before writing, check if an existing memory covers this topic — UPDATE rather 
 
 ### 8. Suggest Improvements
 
-After documenting the fix, check if the debug session revealed harness improvement opportunities:
+After documenting the fix, check if the debug session revealed plugin improvement opportunities:
 
 | Category | What to look for | Target files |
 |---|---|---|
@@ -135,7 +135,7 @@ After documenting the fix, check if the debug session revealed harness improveme
 
 For each improvement found, use the `AskUserQuestion` tool (do NOT output options as plain text) to present the options:
 ```
-The debug session revealed potential harness improvements:
+The debug session revealed potential plugin improvements:
 
 1. [Rule gap] Backend agent has no guard against [pattern] — suggest adding to backend-conventions.md
 2. [Test gap] Review criteria don't check for [bug class] — suggest adding to bugs-criteria.md

@@ -1,6 +1,6 @@
-# Contributing to Geniro Claude Harness
+# Contributing to Geniro Plugin
 
-Thank you for your interest in contributing! This project aims to provide the best possible Claude Code harness template for the community.
+Thank you for your interest in contributing! This project aims to provide the best possible Claude Code plugin for the community.
 
 ## How to Contribute
 

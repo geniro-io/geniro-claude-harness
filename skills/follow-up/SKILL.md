@@ -393,7 +393,7 @@ Show a summary:
 
 ### Step 3: Ship Decision
 
-**Only reach this step when the user explicitly chose "Looks good" in Step 1.** Never auto-commit — always ask.
+**NEVER run `git commit` or `git push` without reaching this step and getting the user's explicit choice via `AskUserQuestion` below.** Only reach this step when the user explicitly chose "Looks good" in Step 1.
 
 `AskUserQuestion` with header "Ship" and options:
 - "Commit" — add to current branch (includes all changes: implementation + docs + rule updates)
@@ -433,6 +433,7 @@ Kill any orphaned background processes started during validation (startup checks
 | "Spawning an agent for this is overkill" | Every change, even 1-line fixes, goes through agents. The context cost of orchestrator implementation always exceeds the cost of spawning. |
 | "I noticed a bug during validation — I'll fix it now since I'm already here" | Bug-finding is Phase 5 (Review). Phase 4 runs commands and reads pass/fail output. If automated checks pass, the code moves to Review where fresh-context agents find bugs. Fixing bugs in Phase 4 steals Review's job and accumulates context that degrades your coordination. |
 | "I can see the type error — I'll fix it faster than spawning an agent" | ALL fixes go through agents regardless of complexity level. Context you accumulate reading source code to "quickly fix" errors degrades your coordination for Phases 5-6. |
+| "The user said 'looks good' so I'll commit and push" | NEVER run git commit or git push without the user choosing a specific ship option via AskUserQuestion in Phase 6 Step 3. "Looks good" means proceed to the ship question — not auto-commit. |
 
 ---
 

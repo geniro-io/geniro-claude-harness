@@ -4,7 +4,7 @@ This file is read by the `/geniro:setup` skill when existing `.claude/` files ar
 
 ---
 
-**When:** `.claude/` directory exists but contains files NOT created by this template (no recognizable harness agents/skills/hooks).
+**When:** `.claude/` directory exists but contains files NOT created by this template (no recognizable plugin agents/skills/hooks).
 
 This handles the case where the project already has some skills, agents, or hooks — possibly with the same names as template files but different content. The goal is to **merge the best of both**: preserve project-specific content while ensuring template structural quality.
 
@@ -55,7 +55,7 @@ Spawn one subagent per matched file. Files with no template match (user-only) sk
 
 ```
 You are analyzing a file overlap between a user's existing project file and a template
-file during harness setup. The merge direction is: TEMPLATE is the base, user's
+file during plugin setup. The merge direction is: TEMPLATE is the base, user's
 project-specific content gets merged INTO the template. Your job is to extract
 exactly what needs to be ported from the user's file into the template.
 

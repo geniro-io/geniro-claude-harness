@@ -1,6 +1,6 @@
-# Geniro Harness Plugin
+# Geniro Plugin
 
-Production-grade Claude Code harness with AI-driven setup, multi-agent workflows, and safety hooks.
+Production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks.
 
 ## Getting Started
 

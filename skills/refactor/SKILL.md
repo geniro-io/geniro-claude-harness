@@ -148,7 +148,7 @@ Before writing, check if an existing memory covers this topic — UPDATE rather 
 
 ### Suggest Improvements
 
-Check if the refactoring revealed harness improvement opportunities:
+Check if the refactoring revealed plugin improvement opportunities:
 
 | Category | What to look for | Target files |
 |---|---|---|
@@ -158,7 +158,7 @@ Check if the refactoring revealed harness improvement opportunities:
 
 For each improvement found, present to the user:
 ```
-The refactoring revealed potential harness improvements:
+The refactoring revealed potential plugin improvements:
 
 1. [Rule gap] The pattern [X] is used everywhere but not documented — suggest adding to backend-conventions.md
 2. [Stale rule] Rule says [Y] but codebase consistently does [Z] — suggest updating

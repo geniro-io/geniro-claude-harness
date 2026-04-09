@@ -312,7 +312,7 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 
 **Step 2: Extract Learnings** — Scan conversation for corrections, gotchas, decisions. Save to learnings.jsonl and/or memory. Write session summary. See reference file for signal table.
 
-**Step 3: Suggest Improvements** — Analyze pipeline run for harness improvements (rules gaps, skill gaps, agent prompt gaps). Draft changes. See reference file for details.
+**Step 3: Suggest Improvements** — Analyze pipeline run for plugin improvements (rules gaps, skill gaps, agent prompt gaps). Draft changes. See reference file for details.
 
 **Step 4: Present Summary**
 

@@ -1,6 +1,6 @@
 ---
 name: geniro:cleanup
-description: "Remove all geniro-claude-plugin files from the project. Uses harness state to preserve user-created files. Includes confirmation before any deletion."
+description: "Remove all geniro-claude-plugin files from the project. Uses plugin state to preserve user-created files. Includes confirmation before any deletion."
 context: main
 model: inherit
 allowed-tools: [Bash, AskUserQuestion, Read, Glob, Grep]
@@ -18,7 +18,7 @@ If `.claude/` does not exist and `.geniro/` does not exist, report
 
 ## Phase 1: Inventory
 
-### 1.1 Detect harness state
+### 1.1 Detect plugin state
 
 Check for `.geniro/.geniro-state.json`:
 
@@ -71,7 +71,7 @@ The plugin generates these files in the project:
 11. **Review criteria** at `.claude/skills/review/` (standalone location, instead of `.geniro/project/review/`)
 
 Also check for plugin-generated entries in other files:
-- `CLAUDE.md` at project root — check geniro-state `files.tailored` for `CLAUDE.md`. If listed, it was plugin-generated. If no geniro-state, check if the first line contains `# Geniro Harness Plugin`.
+- `CLAUDE.md` at project root — check geniro-state `files.tailored` for `CLAUDE.md`. If listed, it was plugin-generated. If no geniro-state, check if the first line contains `# Geniro Plugin` or `# Geniro Harness Plugin` (legacy header).
 - `.gitignore` — check for `.geniro/` entry added by setup
 
 ### 1.3 Handle settings.json

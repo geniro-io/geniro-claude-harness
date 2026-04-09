@@ -1,6 +1,6 @@
-# Claude Code Harness Template - Hooks Documentation
+# Geniro Plugin - Hooks Documentation
 
-This directory contains production-grade hooks for the Claude Code harness template. All hooks follow best practices from the official Claude Code documentation and proven implementations from Citadel, Claude Forge, and claude-pipeline.
+This directory contains production-grade hooks for the geniro plugin. All hooks follow best practices from the official Claude Code documentation and proven implementations from Citadel, Claude Forge, and claude-pipeline.
 
 ## Files Created
 

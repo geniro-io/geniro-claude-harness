@@ -321,7 +321,7 @@ Before writing, check if an existing memory covers this topic — UPDATE rather 
 
 ### Suggest Improvements
 
-Check if the review revealed harness improvement opportunities:
+Check if the review revealed plugin improvement opportunities:
 
 | Category | What to look for | Target files |
 |---|---|---|
@@ -332,7 +332,7 @@ Check if the review revealed harness improvement opportunities:
 
 For each improvement found, present to the user:
 ```
-The review revealed potential harness improvements:
+The review revealed potential plugin improvements:
 
 1. [Rule gap] No rule prevents [anti-pattern] — suggest adding to backend-conventions.md
 2. [Criteria gap] Security criteria don't check for [vulnerability class] — suggest adding

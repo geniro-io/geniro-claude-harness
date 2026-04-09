@@ -1,13 +1,13 @@
 ---
 name: geniro:setup
-description: "AI-driven project setup. Analyzes your codebase, interviews you about preferences, and generates a tailored .claude/ harness — agents, skills, rules, hooks, and settings. Replaces manual setup scripts."
+description: "AI-driven project setup. Analyzes your codebase, interviews you about preferences, and generates a tailored .claude/ configuration — agents, skills, rules, hooks, and settings. Replaces manual setup scripts."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: path to template directory]"
 ---
 
-# Setup: AI-Driven Harness Generation
+# Setup: AI-Driven Plugin Setup
 
 This skill uses AI to analyze your codebase, interview you about preferences, and generate tailored configuration files — specific to your project's language, framework, and conventions.
 
@@ -64,14 +64,14 @@ your-project/
     └── knowledge/               # Git-ignored
 ```
 
-**Standalone commit:** `git add .claude/ && git commit -m 'chore: add Claude Code harness (standalone)'`
+**Standalone commit:** `git add .claude/ && git commit -m 'chore: add geniro plugin (standalone)'`
 
 **Note:** After standalone setup, uninstall the plugin to avoid hook duplication: `claude plugin uninstall geniro-claude-plugin@geniro-claude-harness`. Reinstall only when running `/geniro:update`.
 
 **How to set up** (the user runs this in their project):
 1. Install the plugin: `claude plugin install geniro-claude-plugin`
 2. Run `/geniro:setup` in Claude Code
-3. Commit: `git add .claude/ .geniro/project/ && git commit -m 'chore: add Claude Code harness'`
+3. Commit: `git add .claude/ .geniro/project/ && git commit -m 'chore: add geniro plugin'`
 
 **To re-sync later:**
 1. Update the plugin: `claude plugin update geniro-claude-plugin@geniro-claude-harness` (or run `/geniro:update`)
@@ -96,23 +96,23 @@ Store the resolved path as `$TEMPLATE_DIR` for all subsequent phases.
 
 Also check for `.geniro/.geniro-state.json`:
 - If it exists → read it. Store as `$GENIRO_STATE`. This contains the template version, install date, and file manifest with categories (verbatim/tailored/user-created). Its presence means a previous `/geniro:setup` completed successfully — this is an **update**, not a fresh install.
-- If it does not exist but `.claude/` has recognizable harness files (agents/skills/hooks from this template) → **legacy install** (installed before state tracking was added). Treat as update but without baseline data.
-- If it does not exist and `.claude/` has no recognizable harness files, only non-template files, or doesn't exist → **fresh install**. (Non-template files are handled by Phase 1.5 Conflict Resolution during the fresh install flow.)
+- If it does not exist but `.claude/` has recognizable plugin files (agents/skills/hooks from this template) → **legacy install** (installed before state tracking was added). Treat as update but without baseline data.
+- If it does not exist and `.claude/` has no recognizable plugin files, only non-template files, or doesn't exist → **fresh install**. (Non-template files are handled by Phase 1.5 Conflict Resolution during the fresh install flow.)
 
 Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-update`).
 
 ## Phase 0.5: Deploy Mode
 
-Ask the user how they want to deploy the harness using `AskUserQuestion`:
+**If `$INSTALL_MODE` is `update` or `legacy-update`:** read `deploy_mode` from `.geniro/.geniro-state.json`. If the field exists, store it as `$DEPLOY_MODE` and skip the question below. If absent (legacy state without `deploy_mode`), fall through and ask.
 
-**Question:** "How do you want to deploy the harness?"
+**For fresh installs (or when state lacks `deploy_mode`):** ask the user using `AskUserQuestion`:
+
+**Question:** "How do you want to deploy the plugin?"
 **Options:**
 - "Global (Recommended)" — Plugin provides skills, agents, and hooks globally. Only project-specific files are written to the repo.
 - "Standalone" — Copy ALL plugin files into the project. The repo becomes self-contained — team members don't need the plugin installed.
 
 Store the answer as `$DEPLOY_MODE` (`global` or `standalone`).
-
-**If `$INSTALL_MODE` is `update` or `legacy-update`:** read `$DEPLOY_MODE` from `.geniro/.geniro-state.json` (`deploy_mode` field). If present, use it — do NOT re-ask. If absent (legacy state), ask the question.
 
 ## What Gets Written to Your Project
 
@@ -207,7 +207,7 @@ Use Glob and Grep to detect:
 ### 1.4 Existing Configuration
 
 Check for pre-existing configuration:
-- `.claude/` directory (existing harness files)
+- `.claude/` directory (existing plugin files)
 - `CLAUDE.md` (existing project instructions — preserve as-is, do not overwrite)
 - `.cursorrules`, `.windsurfrules` (offer to port)
 - `.github/copilot-instructions.md`, `.copilot/` (Copilot rules — offer to port)
@@ -217,11 +217,11 @@ Check for pre-existing configuration:
 
 Route based on `$INSTALL_MODE` detected in Phase 0:
 
-- **`fresh`**: No existing harness. Continue to Phase 2 (User Interview) as normal.
+- **`fresh`**: No existing plugin files. Continue to Phase 2 (User Interview) as normal.
 - **`update`**: Previous successful install detected (`.geniro/.geniro-state.json` exists). Skip to the **Re-Running Setup (Smart Update)** flow below. Do NOT run Phases 2-3 unless the user chooses Fresh Install.
-- **`legacy-update`**: Harness files exist but no `.geniro/.geniro-state.json` (installed before state tracking). Skip to **Re-Running Setup (Smart Update)** flow — it handles the "no snapshot" case with header-level heuristics.
+- **`legacy-update`**: Plugin files exist but no `.geniro/.geniro-state.json` (installed before state tracking). Skip to **Re-Running Setup (Smart Update)** flow — it handles the "no snapshot" case with header-level heuristics.
 
-If `.claude/` exists but contains only non-template files (no recognizable harness agents/skills/hooks AND no `.geniro/.geniro-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
+If `.claude/` exists but contains only non-template files (no recognizable plugin agents/skills/hooks AND no `.geniro/.geniro-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
 
 If `.claude/` does NOT exist but `CLAUDE.md` exists at the project root, this is a standalone instructions file (common — many projects have a hand-written CLAUDE.md). **Leave it untouched.** The rest of `.claude/` is installed normally as a fresh setup.
 
@@ -754,7 +754,7 @@ After the orchestrator's own checks (4.1), spawn a **separate subagent** for an 
 
 ```
 Agent(prompt="""
-You are verifying a freshly generated Claude Code harness. Your job: find every
+You are verifying a freshly generated geniro plugin. Your job: find every
 residual issue the setup process missed. You did NOT generate these files — review
 them with fresh eyes.
 
@@ -824,7 +824,7 @@ ISSUES FOUND:
 - [WARNING] <file>: <description> — should fix, not blocking
 - [INFO] <file>: <description> — minor, optional fix
 
-If no issues found, return: "ALL CHECKS PASSED — harness is ready to commit."
+If no issues found, return: "ALL CHECKS PASSED — plugin is ready to commit."
 """, description="Verify setup output")
 ```
 
@@ -853,7 +853,7 @@ grep -q "^\.geniro/$" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
 
 Do NOT create `.claude/.gitignore` — all ignore rules go in the project root.
 
-### 4.4 Write Harness State File
+### 4.4 Write Plugin State File
 
 Write `.geniro/.geniro-state.json` to track the installation state for future re-runs. This file is git-ignored (covered by the `.geniro/` entry already in `.gitignore`).
 
@@ -868,7 +868,7 @@ Write the state file:
 
 ```json
 {
-  "harness_version": "$TEMPLATE_COMMIT",
+  "plugin_version": "$TEMPLATE_COMMIT",
   "installed_at": "ISO-8601 timestamp",
   "install_mode": "fresh|update|legacy-update",
   "deploy_mode": "global|standalone",
@@ -936,7 +936,7 @@ Next steps:
    - Files changed and validation results
    - After compaction: read <task-dir>/state.md to resume pipeline
 
-3. Commit: git add .claude/ .geniro/project/ && git commit -m 'chore: add Claude Code harness'
+3. Commit: git add .claude/ .geniro/project/ && git commit -m 'chore: add geniro plugin'
 4. Start using: /geniro:implement, /geniro:review, /geniro:refactor
 ```
 
@@ -958,7 +958,7 @@ Tech Stack: [detected]
 Next steps:
 1. Uninstall plugin to avoid hook duplication:
    claude plugin uninstall geniro-claude-plugin@geniro-claude-harness
-2. Commit: git add .claude/ && git commit -m 'chore: add Claude Code harness (standalone)'
+2. Commit: git add .claude/ && git commit -m 'chore: add geniro plugin (standalone)'
 3. Start using: /implement, /review, /refactor
 4. To update later: reinstall plugin, run /geniro:update, then uninstall again
 ```
@@ -977,7 +977,7 @@ Do NOT ask the user what they want to do yet. First, gather data so the user can
 
 #### 1a: Build File Inventory
 
-Compare the template against the installed harness:
+Compare the template against the installed plugin:
 
 ```bash
 # List template files (relative paths)
@@ -1147,7 +1147,7 @@ These files existed in the previous template but have been removed:
 Present the findings to the user. Show what changed, categorized by action needed:
 
 ```
-## Harness Update Analysis
+## Plugin Update Analysis
 
 ### Verbatim files with template updates (N files)
 These files are direct copies from the template and have been updated upstream:
@@ -1525,13 +1525,13 @@ C) Start over — re-run setup from scratch
 - **If B**: Ask what needs fixing, apply changes, then ask again
 - **If C**: Remove only template-originated files (same selective removal as 2A.2 — preserve user-created files), then re-run from Phase 1
 
-**Note**: The `/geniro:setup` skill is provided by the plugin and persists across runs. It does not need to be removed — the user can re-run `/geniro:setup` at any time to update their harness configuration.
+**Note**: The `/geniro:setup` skill is provided by the plugin and persists across runs. It does not need to be removed — the user can re-run `/geniro:setup` at any time to update their plugin configuration.
 
 ### 5.2 Verify State
 
 ```bash
 # State files should exist for future re-runs
-[[ -f ".geniro/.geniro-state.json" ]] && echo "✓ Harness state saved"
+[[ -f ".geniro/.geniro-state.json" ]] && echo "✓ Plugin state saved"
 ```
 
 ## Compliance — Do Not Skip Phases
