@@ -330,27 +330,57 @@ researching or implementing these changes — review with fresh eyes.
 3. **Scope creep:** Were any changes made beyond what was approved?
 4. **Edit-in-place:** Were original instructions rewritten to be explicit, or were
    notes/exceptions/caveats added separately? Separate notes = blocker.
-5. **Regressions:** Compare the diff against the baseline. Flag only issues INTRODUCED by the changes, not pre-existing patterns. Check:
+5. **Regressions:** Compare the diff against the baseline. Check:
    - Did any existing instruction's meaning change unintentionally?
    - Are cross-references that worked before still valid?
    - Could downstream skills/agents behave differently due to these changes?
+6. **Pre-existing bugs:** While reviewing the changed files, also note any bugs, inconsistencies, or broken patterns that existed BEFORE this change. Report these separately — they are opportunities, not blockers.
 
 ### For each issue found, report:
 - File and line
 - Issue description
 - Severity (blocker/warning/nit)
+- **Category: "introduced" or "pre-existing"**
 - Suggested fix
 
-If no issues: report "LGTM — all checks passed"
+If no issues in either category: report "LGTM — all checks passed"
 """, description="Review: independent template review")
 ```
 
 ### Step 2: Process review results
 
+**Introduced issues** (from the current changes):
 - **Blockers:** Spawn a fresh fix agent (not the implementer). Then re-review with another fresh agent. Max 1 fix round.
 - **Warnings:** Present to user — let them decide.
 - **Nits:** Apply if trivial, skip if subjective.
-- **LGTM:** Proceed to completion.
+- **LGTM:** Proceed to Step 3.
+
+### Step 3: Surface pre-existing bugs
+
+If the reviewer found pre-existing bugs, present them to the user in a separate table:
+
+```
+### Pre-existing bugs found during review
+
+These were NOT introduced by the current changes but were discovered while reviewing the affected files:
+
+| # | File | Bug | Severity | Suggested fix |
+|---|------|-----|----------|---------------|
+| 1 | [path:line] | [description] | [blocker/warning/nit] | [fix] |
+```
+
+Use the `AskUserQuestion` tool (do NOT output options as plain text) to ask:
+- **Question:** "Want to fix any of these pre-existing bugs?"
+- **Options:**
+  - "Fix all of them"
+  - "Let me pick which ones to fix"
+  - "Skip — focus on the current changes only"
+
+- If **fix all**: spawn implementation agents for the pre-existing fixes (same Phase 4 flow), then re-run Phase 5 review on the new changes only.
+- If **pick**: present each bug individually and let the user select, then implement selected fixes.
+- If **skip**: proceed to Phase 6.
+
+If no pre-existing bugs were found, skip this step.
 
 ---
 

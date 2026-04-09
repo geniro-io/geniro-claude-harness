@@ -31,6 +31,7 @@ your-project/
 ├── CLAUDE.md                    # Enriched with tech stack, commands, conventions
 │
 └── .geniro/
+    ├── workflow/                 # Committed — integration configs (Linear, etc.)
     ├── planning/                # Git-ignored
     ├── debug/                   # Git-ignored
     └── knowledge/               # Git-ignored
@@ -78,6 +79,7 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`).
 
 **Written to project (committed):**
 - `CLAUDE.md` — enriched with tech stack, commands, conventions (with user permission)
+- `.geniro/workflow/*.md` — integration workflow files (Linear, etc.), created based on user choices
 
 **Not written (provided by plugin globally):**
 - All 13 agents (read CLAUDE.md for project context at runtime)
@@ -318,11 +320,15 @@ D) Mixed / no clear pattern yet
 
 ### 2.4 Optional Integrations
 
-```
-Which integrations do you want to enable?
+Use the `AskUserQuestion` tool to ask:
 
-- Linear (issue tracking — pass issue IDs to /geniro:implement)
 ```
+Would you like to enable Linear integration?
+
+Enabling Linear creates a workflow file (.geniro/workflow/linear.md) that adapts skill behavior — /geniro:implement will auto-detect Linear issue IDs and URLs, fetch issue context, and link commits to issues.
+```
+
+Options: "Enable Linear" / "Skip for now"
 
 ### 2.5 Component Summary
 
@@ -347,9 +353,11 @@ B) Enrich existing CLAUDE.md (add missing sections only)
 C) Skip — I'll maintain CLAUDE.md myself
 ```
 
+If user skips: proceed without CLAUDE.md generation.
+
 If user approves creation or enrichment:
 
-Read `${CLAUDE_SKILL_DIR}/reference/CLAUDE.md.example` as a structural guide. Generate a CLAUDE.md that includes:
+Read `${CLAUDE_SKILL_DIR}/reference/CLAUDE.md.example` as a structural guide. Generate the CLAUDE.md content (do NOT write to disk yet) that includes:
 
 1. **Project Overview** — Brief description from README/docs
 2. **Tech Stack** — All detected technologies (language, framework, ORM, etc.)
@@ -357,24 +365,40 @@ Read `${CLAUDE_SKILL_DIR}/reference/CLAUDE.md.example` as a structural guide. Ge
 4. **Architecture** — Detected patterns (layered, hexagonal, etc.), directory structure
 5. **Conventions** — From $PROJECT_KNOWLEDGE: naming, error handling, PR process
 6. **Domain Context** — From $PROJECT_KNOWLEDGE: key entities, safety rules, API patterns
-7. **Compact Instructions** — Compaction preservation rules
 
 If enriching existing CLAUDE.md: read the existing file, identify what's already covered, only add missing sections. Never overwrite existing content.
 
-If user skips: proceed without CLAUDE.md generation.
+**Preview step:** Display the full generated CLAUDE.md content to the user inside a markdown code block so they can review exactly what will be written.
 
-**Use `${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh`** in the Essential Commands section (not `.claude/hooks/` — hooks are global).
+Then use the `AskUserQuestion` tool to ask:
 
-### 3.2 Configure Linear Integration (if selected)
+```
+Here's the generated CLAUDE.md. How should I proceed?
 
-If the user selected Linear integration:
-1. Inform the user to run: `claude mcp add --transport http linear https://mcp.linear.app/mcp`
-2. Note that `/geniro:implement` auto-detects Linear issue IDs and URLs
+A) Looks good — write it
+B) I want to adjust some things
+C) Skip — I'll write it myself
+```
+
+- If **A) write it**: write the content to disk.
+- If **B) adjust**: ask the user what they want to change, apply the requested changes, show the updated preview in a code block, and ask again with the same A/B/C question. Repeat until the user selects A or C.
+- If **C) skip**: proceed without writing.
+
+### 3.2 Create Workflow Files (if integrations selected)
+
+For each integration the user enabled in Phase 2.4, create the corresponding workflow file:
+
+**Linear:**
+1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md`
+2. Copy it to `.geniro/workflow/linear.md` (create the directory if needed: `mkdir -p .geniro/workflow`)
+3. Inform the user to run: `claude mcp add --transport http linear https://mcp.linear.app/mcp`
+
+Future integrations follow the same pattern: read from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md`, copy to `.geniro/workflow/<name>.md`.
 
 ### 3.3 Create Runtime Directories
 
 ```bash
-mkdir -p .geniro/planning .geniro/debug .geniro/knowledge
+mkdir -p .geniro/workflow .geniro/planning .geniro/debug .geniro/knowledge
 ```
 
 ## Phase 4: Verify, Track & Report
@@ -456,7 +480,13 @@ Add `.geniro/` to `.gitignore`:
 grep -q "^\.geniro/$" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
 ```
 
-If an old `.geniro/*` or `!.geniro/project/` entry exists from a previous install, clean it up:
+Add exceptions for workflow files (these should be committed):
+```bash
+grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
+grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
+```
+
+If old patterns exist from a previous install, clean them up:
 ```bash
 sed -i '' '/^\.geniro\/\*$/d' .gitignore 2>/dev/null
 sed -i '' '/^\!\.geniro\/project\/$/d' .gitignore 2>/dev/null
@@ -483,7 +513,8 @@ Write the state file:
   "install_mode": "fresh|update",
   "files": {
     "generated": [
-      "CLAUDE.md"
+      "CLAUDE.md",
+      ".geniro/workflow/linear.md"
     ],
     "user_created": [
       "...any files in .claude/ that are NOT from the template"
@@ -493,7 +524,7 @@ Write the state file:
 ```
 
 Populate the lists from the actual files installed during Phase 3. The categories are:
-- **generated**: Files created by the plugin (CLAUDE.md only if plugin-generated)
+- **generated**: Files created by the plugin (CLAUDE.md if plugin-generated, plus any `.geniro/workflow/*.md` files created from templates)
 - **user_created**: Files that existed in `.claude/` before setup and are not part of the template
 
 Note: Only include `CLAUDE.md` in `generated` if the plugin created or enriched it. If the user chose to maintain it themselves, omit it.
@@ -508,6 +539,7 @@ Present to the user:
 Setup complete! Here's what was generated:
 
 CLAUDE.md          — tech stack, commands, conventions
+[If Linear] .geniro/workflow/linear.md — Linear integration workflow
 
 All agents, skills, hooks, and review criteria are provided globally by the plugin.
 
@@ -516,7 +548,7 @@ Integrations: [list enabled]
 
 Next steps:
 1. [If Linear] Run: claude mcp add --transport http linear https://mcp.linear.app/mcp
-2. Commit: git add CLAUDE.md && git commit -m 'chore: add geniro plugin config'
+2. Commit: git add CLAUDE.md .geniro/workflow/ && git commit -m 'chore: add geniro plugin config'
 3. Start using: /geniro:implement, /geniro:review, /geniro:refactor
 ```
 
@@ -530,6 +562,7 @@ Compare current CLAUDE.md against what would be generated for the current stack.
 
 Assess what has changed:
 - **CLAUDE.md**: Was it plugin-generated or user-maintained? If plugin-generated, has the project context changed?
+- **Workflow files**: Check `.geniro/workflow/` for existing integration files. Compare against available templates in `${CLAUDE_SKILL_DIR}/workflow-templates/` for new or updated integrations.
 
 ### Step 2: Present to user
 
@@ -539,6 +572,7 @@ Your plugin has been updated. Here's what can be refreshed:
 | File | Status |
 |------|--------|
 | CLAUDE.md | [Plugin-generated / User-maintained] |
+| .geniro/workflow/*.md | [Current / New templates available / Not installed] |
 
 A) Re-run full setup (re-analyze codebase, regenerate CLAUDE.md)
 D) Cancel

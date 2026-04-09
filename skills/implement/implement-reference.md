@@ -9,20 +9,19 @@ This file contains templates, examples, error tables, and detailed procedures re
 | What you say | What the skill detects | Behavior |
 |---|---|---|
 | `/geniro:implement add OAuth login` | Plain description | Full discovery with interactive questions |
-| `/geniro:implement ENG-123` | Linear issue ID (`[A-Z]{2,}-\d+`) | Fetches issue from Linear MCP, uses as context, then asks discovery questions |
-| `/geniro:implement https://linear.app/team/issue/ENG-123` | Linear URL | Extracts issue ID, fetches from Linear MCP, then asks discovery questions |
-| `/geniro:implement ENG-123 add OAuth login` | Issue ID + description | Fetches issue, supplements with description, then asks discovery questions |
-| `/geniro:implement just do it` or `ASAP` or `no questions` | Urgency signals | Auto mode: skip interactive questions, pick recommended defaults |
-| `/geniro:implement I think we should add OAuth` | Tentative language ("I think", "maybe", "should we") | Assumptions mode: propose plan, ask user to correct what's wrong |
+| `/geniro:implement ENG-123` | Issue tracker reference (from workflow) | Fetches issue via configured integration, uses as context |
+| `/geniro:implement https://linear.app/team/issue/ENG-123` | Issue tracker URL (from workflow) | Extracts issue ID, fetches via configured integration |
+| `/geniro:implement ENG-123 add OAuth login` | Issue reference + description | Fetches issue, supplements with description |
+| `/geniro:implement just do it` or `ASAP` | Urgency signals | Auto mode: skip interactive questions |
+| `/geniro:implement I think we should add OAuth` | Tentative language | Assumptions mode: propose plan |
 
 **Detection rules (checked in order):**
-1. **Linear URL** — regex: `https://linear\.app/.+/issue/([A-Z]+-\d+)` -> extract issue ID
-2. **Issue ID** — regex: `\b[A-Z]{2,}-\d+\b` (e.g., `ENG-123`, `PROJ-42`) -> fetch from Linear
-3. **Auto-mode signals** — keywords like "just do it", "ASAP", "no questions", "auto", "quick" -> skip interactive questions, pick recommended defaults for all gray areas
-4. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
-5. **No special signals** — full interactive discovery with `AskUserQuestion`
+1. Check `.geniro/workflow/*.md` for argument detection patterns. Apply them in order before falling through to mode signal detection.
+2. **Auto-mode signals** — keywords like "just do it", "ASAP", "no questions", "auto", "quick" -> skip interactive questions, pick recommended defaults for all gray areas
+3. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
+4. **No special signals** — full interactive discovery with `AskUserQuestion`
 
-If Linear MCP is not configured when an issue ID is detected, log a warning and proceed without tracker integration (non-blocking).
+If a workflow integration's backend (e.g., MCP) is unavailable, log a warning and proceed without — all integrations are non-blocking.
 
 **Example discovery questions (interactive mode, batch 3-5). IMPORTANT — include the git workspace question in this same batch, do NOT defer it to a separate prompt:**
 - Scope: Backend-only? Frontend? Both? (recommend: match existing split)
@@ -343,12 +342,12 @@ For each improvement found, draft the change and include it in the commit. If no
 ### Commit
 
 Execute the user's chosen ship method:
-- **Commit + PR**: Stage relevant files, `git commit` with conventional message (include issue ID if detected: e.g., `feat(auth): add OAuth login [ENG-123]`), `git push origin [branch]`, then `gh pr create` with summary. Include task ID in PR title.
+- **Commit + PR**: Stage relevant files, `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). If a workflow file specifies commit message format (e.g., appending issue ID), follow that format. `git push origin [branch]`, then `gh pr create` with summary. Include task ID in PR title.
 - **Commit + push**: Same commit, then `git push origin [branch]`
 - **Commit only**: Stage relevant files, `git commit` with conventional message. Include doc updates, learning files, and improvement changes in the commit.
 - **Leave uncommitted**: `git add` changed files only, skip commit
 
-### Worktree Exit + Linear Update
+### Worktree Exit + Integration Updates
 
 **Worktree:** If working in a worktree (from Phase 1 Step 9 option C):
 - After any commit option (commit, commit+push, commit+PR): call `ExitWorktree` with `action: "keep"` — the branch and worktree are preserved so the user can return for follow-up, PR review, or further pushes.
@@ -356,12 +355,7 @@ Execute the user's chosen ship method:
 - Never use `action: "remove"` automatically — only if the user explicitly asks to abandon the worktree and discard changes.
 - If `ExitWorktree` reports uncommitted files and `action: "remove"` was requested, ask the user for confirmation before setting `discard_changes: true`.
 
-**Linear:** If Linear issue was detected in Phase 1, **always ask the user before changing issue status** using `AskUserQuestion`. Do NOT update automatically.
-
-- After **Commit + PR**: ask "Move [ISSUE-ID] to In Review and add PR link?" with options "Yes" / "No"
-- After **Commit** or **Commit + push**: ask "Update [ISSUE-ID] with implementation comment?" with options "Yes" / "No"
-- After **Leave uncommitted**: do not change status (already asked in Phase 1)
-- If Linear MCP is unavailable, log a warning and skip (non-blocking)
+**Integrations:** If workflow files in `.geniro/workflow/` specify completion actions (status transitions, PR linking, comments), follow their instructions. Always ask the user before changing external state (issue status, comments). Never auto-update. If integration backend is unavailable, log warning and skip (non-blocking).
 
 ### Cleanup
 
@@ -397,5 +391,5 @@ Feature implementation is complete when:
 - [ ] Plugin improvements applied (if found) or noted in summary
 - [ ] Code committed (with message referencing feature and task ID if applicable)
 - [ ] Code pushed to remote (if requested)
-- [ ] Linear issue status update offered to user (if detected) — never auto-updated
+- [ ] Integration actions offered to user per workflow files (if any) — never auto-updated
 - [ ] Cleanup completed (temp files removed, orphaned processes killed)

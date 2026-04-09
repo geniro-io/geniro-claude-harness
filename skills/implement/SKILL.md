@@ -16,7 +16,7 @@ allowed-tools:
   - WebSearch
   - EnterWorktree
   - ExitWorktree
-argument-hint: "[what to implement — description, Linear issue ID, or Linear URL]"
+argument-hint: "[description or issue tracker reference]"
 ---
 
 # Implement Skill: 7-Phase Pipeline Orchestrator
@@ -83,7 +83,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 **Action:** Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 1: Auto-Detection Table" for argument parsing rules.
 
 **Steps:**
-1. **Parse `$ARGUMENTS`.** Detect Linear reference, mode signals, extract core description. If Linear issue detected: fetch via MCP. **Do NOT update the issue status automatically** — use `AskUserQuestion` with header "Linear Status" to ask: "Move [ISSUE-ID] to In Progress?" with options "Yes — move to In Progress" / "No — leave current status". Only update if the user approves.
+1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
 2. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
 3. Scan codebase for relevant patterns, conventions, architecture
 4. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
@@ -384,14 +384,14 @@ Ask the user to describe the tweak. Classify by size, then follow the correspond
 
 Execute user's chosen method. See reference file for commit details per option.
 
-### Step 8: Worktree Exit + Linear Update + Cleanup
+### Step 8: Worktree Exit + Integration Updates + Cleanup
 
 - **Worktree:** If in worktree, call `ExitWorktree` with the appropriate action:
   - After commit+push or commit+PR: `ExitWorktree` with `action: "keep"` (branch needed for PR review / further work)
   - After commit only: `ExitWorktree` with `action: "keep"` (user may want to push later)
   - After leave uncommitted: warn user that changes remain in the worktree directory, then `ExitWorktree` with `action: "keep"`
   - Only use `action: "remove"` if user explicitly says to abandon the work
-- **Linear:** Ask user before updating issue status (see reference file for details)
+- **Integrations:** If workflow files specify completion actions (e.g., issue status updates), follow their instructions (see reference file for details)
 - **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
 - **State:** Append `Pipeline: COMPLETE` to `<task-dir>/state.md`.
 - **Planning artifacts:** Use `AskUserQuestion` (do NOT ask as plain text — use the tool):

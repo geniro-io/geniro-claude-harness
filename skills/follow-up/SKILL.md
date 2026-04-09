@@ -43,10 +43,12 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 
 1. **Load prior planning context** — `Glob(".geniro/planning/*/")`, match against current branch (`git branch --show-current`). If found, read: `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`, `review-feedback.md`. These prevent re-discovering conventions and contradicting prior decisions. If none found, proceed without.
 
-2. **Read the change request** and identify which files likely need to change
-3. **Codebase scan** (Glob/Grep) to find the exact files and understand current patterns
-4. **Read the files** that will be modified — understand current state before changing anything
-5. **Check current state:**
+2. **Load workflow integrations** — Check for `.geniro/workflow/*.md` files. Read each one to discover active integrations and their argument detection rules. Apply detection rules to `$ARGUMENTS` (e.g., issue tracker patterns). If a reference is detected, follow the workflow file's instructions (fetch issue context, ask about status transitions).
+
+3. **Read the change request** and identify which files likely need to change
+4. **Codebase scan** (Glob/Grep) to find the exact files and understand current patterns
+5. **Read the files** that will be modified — understand current state before changing anything
+6. **Check current state:**
    ```bash
    git branch --show-current
    git log --oneline -5
@@ -405,6 +407,10 @@ Show a summary:
 ```
 fix(module): description of what changed
 ```
+
+### Integration Updates
+
+If `.geniro/workflow/*.md` files specify completion actions (e.g., issue status transitions, PR linking), follow their instructions after the user commits. Always ask the user before changing external state — never auto-update.
 
 ### Cleanup
 

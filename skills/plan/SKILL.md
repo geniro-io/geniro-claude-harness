@@ -13,7 +13,7 @@ allowed-tools:
   - Agent
   - AskUserQuestion
   - WebSearch
-argument-hint: "[what to plan — description, Linear issue ID, or 'review' to list existing plans]"
+argument-hint: "[what to plan — description, issue tracker reference, or 'review' to list existing plans]"
 ---
 
 # Plan Skill
@@ -38,7 +38,7 @@ Parse `$ARGUMENTS` to detect intent:
 | What you say | What happens |
 |---|---|
 | `/geniro:plan add OAuth login` | Full planning flow: discover → architect → validate → present |
-| `/geniro:plan ENG-123` | Fetch Linear issue, use as context, then plan |
+| `/geniro:plan ENG-123` | Fetch issue from configured tracker (see workflow files), use as context, then plan |
 | `/geniro:plan review` or `/geniro:plan list` | List existing plans in `.geniro/planning/` (flat and subdirectories) with status |
 | `/geniro:plan update plan-0405-oauth.md` | Re-read and revise an existing plan |
 | `/geniro:plan just plan it` or `ASAP` | Auto mode: skip questions, pick recommended defaults |
@@ -49,11 +49,10 @@ Parse `$ARGUMENTS` to detect intent:
 1. **Empty arguments** → ask what to plan via `AskUserQuestion`
 2. **"review" or "list"** → list mode (skip to Plan Listing)
 3. **"update" + filename** → revision mode (skip to Plan Revision)
-4. **Linear URL** — regex: `https://linear\.app/.+/issue/([A-Z]+-\d+)` → fetch issue
-5. **Issue ID** — regex: `\b[A-Z]{2,}-\d+\b` → fetch from Linear MCP
-6. **Auto-mode signals** — "just do it", "ASAP", "no questions", "auto", "quick" → skip interactive questions, pick recommended defaults
-7. **Assumptions-mode signals** — "I think", "maybe", "what if", "should we" → propose plan with assumptions, let user correct
-8. **Plain description** → full interactive planning flow
+4. **Issue tracker reference** — check `.geniro/workflow/*.md` for argument detection patterns (URLs, issue ID regexes). If a match is found, follow the workflow file's fetch instructions.
+5. **Auto-mode signals** — "just do it", "ASAP", "no questions", "auto", "quick" → skip interactive questions, pick recommended defaults
+6. **Assumptions-mode signals** — "I think", "maybe", "what if", "should we" → propose plan with assumptions, let user correct
+7. **Plain description** → full interactive planning flow
 
 ---
 
@@ -145,9 +144,9 @@ For Large tasks, Phase 2 becomes two sub-phases:
 
 ### Phase 1: Discover Context
 
-1. **Parse `$ARGUMENTS`.** Extract core description, detect Linear reference, detect mode (auto/assumptions/interactive).
-   - If Linear issue detected: fetch via MCP, extract title/description/acceptance criteria
-   - If Linear MCP unavailable: log warning, proceed without
+1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Extract core description, detect issue tracker references per workflow rules, detect mode (auto/assumptions/interactive).
+   - If issue tracker reference detected: follow the workflow file's fetch instructions (e.g., fetch via MCP, extract title/description/acceptance criteria)
+   - If integration backend unavailable: log warning, proceed without (non-blocking)
 
 2. **Check if user provided a detailed plan.** If `$ARGUMENTS` contains structured content with file paths, steps, or a clear implementation breakdown:
    - Skip architect generation entirely
@@ -180,7 +179,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
      - Constraints (performance targets, backwards compat, etc.)
    - **Auto mode:** Pick the recommended default for every gray area. Log choices in the plan's Key Decisions section.
    - **Assumptions mode:** Produce a complete proposal with all decisions listed. Use the `AskUserQuestion` tool (do NOT output options as plain text) to present options: A) Looks good, proceed. B) I have corrections.
-   - **Do NOT skip this step** — even with a Linear issue or in auto mode, gray areas must be resolved (either by asking or by choosing defaults)
+   - **Do NOT skip this step** — even with an issue tracker reference or in auto mode, gray areas must be resolved (either by asking or by choosing defaults)
 
 ### Phase 2: Generate Plan
 
@@ -195,7 +194,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
    Save the plan to: `.geniro/planning/plan-<slug>.md` (or into the task directory if one exists)
 
    ## Requirements
-   [User's description + Linear issue context if any]
+   [User's description + issue tracker context if any]
 
    ## User Decisions
    [Gray area answers from Phase 1]
@@ -319,7 +318,7 @@ Plan skill is complete when:
 | Skeptic finds critical gaps after 3 iterations | Present best plan + remaining issues to user for decision |
 | Skeptic finds mirages (hallucinated files/functions) | Return to architect with specific mirages, require grep verification |
 | Plan has >15 steps | Suggest splitting into sub-plans |
-| Linear MCP unavailable | Log warning, proceed without issue context |
+| Issue tracker integration unavailable | Log warning, proceed without issue context |
 | `.geniro/planning/` doesn't exist | Create it |
 | Plan file already exists with same slug | Append `-v2`, `-v3`, etc. |
 | Empty $ARGUMENTS | Use `AskUserQuestion` to ask what to plan |
