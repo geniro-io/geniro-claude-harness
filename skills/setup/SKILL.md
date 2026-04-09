@@ -380,7 +380,32 @@ For each integration the user enabled in Phase 2.4, create the corresponding wor
 
 Future integrations follow the same pattern: read from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md`, copy to `.geniro/workflow/<name>.md`.
 
-### 3.3 Create Runtime Directories
+### 3.3 Install StatusLine
+
+Copy the statusline script to a stable location and configure it in user settings. This ensures the statusline works across all projects and survives plugin version updates.
+
+```bash
+# Resolve home directory (never use ~)
+USER_HOME=$(echo "$HOME")
+
+# Copy statusline script to stable path
+mkdir -p "$USER_HOME/.claude/hooks"
+cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js" "$USER_HOME/.claude/hooks/geniro-statusline.js"
+```
+
+Then check if `$USER_HOME/.claude/settings.json` already has a `statusLine` entry. If not, add one:
+```json
+"statusLine": {
+  "type": "command",
+  "command": "node \"$USER_HOME/.claude/hooks/geniro-statusline.js\""
+}
+```
+
+Use the actual resolved `$USER_HOME` path in the JSON (e.g., `/Users/username`), not the variable.
+
+If a `statusLine` entry already exists and points to `geniro-statusline.js`, leave it. If it points to something else, ask the user before replacing.
+
+### 3.4 Create Runtime Directories
 
 ```bash
 mkdir -p .geniro/workflow .geniro/planning .geniro/debug .geniro/knowledge

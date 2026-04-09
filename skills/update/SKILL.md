@@ -54,9 +54,15 @@ GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" node "$PLUGIN_PATH/hooks/ge
 
 This writes `update_available: false` to the cache with the correct installed version. Using `${CLAUDE_PLUGIN_ROOT}` here would read the old `plugin.json` and leave the cache stale.
 
-### 4.1 Refresh statusLine path
+### 4.1 Refresh statusLine script
 
-If `.claude/settings.local.json` exists and has a `statusLine` entry containing `geniro-statusline`, update the path to `node "$PLUGIN_PATH/hooks/geniro-statusline.js"`. Use the Edit tool to replace the old path.
+Copy the updated statusline script to the stable location:
+
+```bash
+cp "$PLUGIN_PATH/hooks/geniro-statusline.js" "$HOME/.claude/hooks/geniro-statusline.js"
+```
+
+This overwrites the previous version. The path in `~/.claude/settings.json` stays the same (`~/.claude/hooks/geniro-statusline.js`), so no settings edit is needed.
 
 ### 5. Confirm update
 
