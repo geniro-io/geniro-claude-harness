@@ -115,6 +115,7 @@ Agent(model="sonnet", prompt="""
 ## Codebase Conventions: match existing patterns exactly
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: follow CLAUDE.md, do NOT git add/commit/push, run validation, report changes and issues
+After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
 """)
 ```
 
@@ -134,6 +135,7 @@ Agent(model="sonnet", prompt="""
 ## Pre-Inlined Context: [file contents]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
+After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
 """, description="Implement [group 1]")
 
 Agent(model="sonnet", prompt="""
@@ -142,6 +144,7 @@ Agent(model="sonnet", prompt="""
 ## Pre-Inlined Context: [file contents]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
+After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
 """, description="Implement [group 2]")
 ```
 
@@ -209,7 +212,7 @@ Spawn a validation agent (same template as Phase 4 Step 2) to check simplificati
 
 ## Phase 4: Validate
 
-**Your role in this phase:** verify the diff matches expectations, then delegate all heavy validation (build, lint, test) to a validation agent. You do NOT run build/lint/test commands yourself — that accumulates context that degrades your coordination for Phases 5-6. You do NOT read source code — that is Phase 5's job.
+**Your role in this phase:** verify the diff matches expectations, then delegate heavy validation only if needed. First check implementation agent reports for a `## Checks Report`. If ALL agents reported PASS for build+lint+test AND no code was modified after their checks (Phase 3 simplification was skipped or didn't run), skip Step 2 — proceed directly to Step 3. If any agent reported FAIL, any report is missing a Checks Report, or Phase 3 simplification touched files, spawn the validation agent in Step 2. You do NOT run build/lint/test yourself or read source code.
 
 ### Step 1: Diff Check
 

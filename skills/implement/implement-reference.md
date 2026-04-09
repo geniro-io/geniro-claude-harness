@@ -97,12 +97,20 @@ After implementation and tests are written, run these checks yourself:
 3. Run the project's build/typecheck command — must compile cleanly
 If any check fails, fix the issue and re-run. Do not report success with failing checks.
 
+After all checks pass, include this structured section at the end of your response:
+
+## Checks Report
+- build: PASS|FAIL [error summary if fail]
+- lint: PASS|FAIL [error summary if fail]
+- test: PASS|FAIL [error summary if fail]
+- typecheck: PASS|FAIL|SKIP [error summary if fail]
+
 ## Requirements
 - Follow project conventions as documented in the Codebase Conventions section above
 - Do NOT run git add/commit/push — the orchestrator handles git
 - Do NOT modify files outside your WU scope: [list files]
 - Do NOT add abstractions, wrappers, or patterns not present in the exemplar files — a separate simplification pass handles code quality
-- Report: files changed, **test files created**, what was done, test results, any issues encountered
+- Report: files changed, **test files created**, what was done, test results, checks report, any issues encountered
 ```
 
 ---
@@ -154,7 +162,9 @@ You are a code simplifier. Review the changed files and make them cleaner, simpl
 
 ## Phase 6: Stage A — Automated Checks Detail
 
-Orchestrator runs shell commands directly (build, lint, test — these are validation, not implementation). If checks fail, delegate the **fix** to an implementer agent — do not fix code yourself.
+Before running checks, inspect implementation agent reports for a `## Checks Report` section. If ALL agents reported PASS for build, lint, and test AND no code was modified after their checks ran (no simplification step in Phase 5 modified files, no fixer agents touched code), skip Steps 1–2 below — proceed directly to Step 3 (codegen check). If any agent reported FAIL, or any agent's report is missing a Checks Report, or code was modified after the agents ran (simplification in Phase 5 modified files, or a fixer agent touched code), run all checks below.
+
+If checks need to run: delegate the **fix** to an implementer agent — do not fix code yourself.
 
 1. **Autofix:** Run lint/format fix commands from CLAUDE.md. Attempt auto-fixable issues first.
 
