@@ -79,7 +79,13 @@ your-project/
 
 ## Path Constraints
 
-**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` character is NOT expanded by these tools — it creates a literal `~` directory in the working directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths (e.g., `/Users/...`) for project files.
+**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` character is NOT expanded by these tools — it creates a literal `~` directory in the working directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
+
+Before doing anything else, resolve the user's home directory:
+```bash
+echo "$HOME"
+```
+Store the output as `$USER_HOME` (e.g., `/Users/username`). Use `$USER_HOME` wherever you need the home directory path — never `~`.
 
 ## Phase 0: Locate Template Source
 
