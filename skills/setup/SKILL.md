@@ -1413,7 +1413,7 @@ Remove only files that came from the template — **preserve user-created files*
 
 To identify which files are template files: list all filenames in `$TEMPLATE_DIR/agents/`, `$TEMPLATE_DIR/hooks/`, `$TEMPLATE_DIR/rules/`. Remove only those matching filenames from `.claude/`. Also remove any legacy skill files in `.claude/skills/` and legacy review criteria in `.claude/skills/review/`. Review criteria now live in `.geniro/project/review/` and are backed up separately. Any file in `.claude/` that does NOT have a corresponding template file is user-created and must be kept.
 
-Phase 1-5 runs normally — codebase analysis, user interview, file generation, tailoring, verification. The template files are installed fresh, then tailored for the detected stack. User-created files remain untouched alongside the new template files.
+Before re-running the pipeline, re-ask `$DEPLOY_MODE` via Phase 0.5 (the user may want to switch between global and standalone). Then Phase 1-5 runs normally — codebase analysis, user interview, file generation, tailoring, verification. The template files are installed fresh, then tailored for the detected stack. User-created files remain untouched alongside the new template files.
 
 #### 2A.3: Analyze backup for project-specific enrichments
 
