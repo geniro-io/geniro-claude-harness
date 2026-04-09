@@ -30,7 +30,7 @@ If Linear MCP is not configured when an issue ID is detected, log a warning and 
 - Performance: Any constraints or targets? (recommend: <100ms latency for endpoints)
 - Testing: Unit/integration/e2e? (recommend: maintain current test coverage)
 - Rollout: Gradual rollout or all-at-once? (recommend: feature flag + gradual)
-- **Git workspace:** A) New feature branch (recommend for most features), B) Current branch, C) Git worktree (for risky/parallel work — isolates entire implementation in a separate working tree)
+- **Git workspace:** A) New feature branch (recommend for most features), B) Current branch, C) Git worktree (for risky/experimental changes with instant rollback without touching main working directory, parallel work when running multiple Claude sessions on same repo, or long-running features where you need to context-switch — isolates entire implementation in a separate working tree)
 
 ---
 
@@ -353,7 +353,11 @@ Execute the user's chosen ship method:
 
 ### Worktree Exit + Linear Update
 
-**Worktree:** If working in a worktree (from Phase 1 Step 9 option C) and user chose a commit option (A/B/C), call `ExitWorktree` to merge changes back and clean up. If user chose to leave uncommitted, warn that changes remain in the worktree directory.
+**Worktree:** If working in a worktree (from Phase 1 Step 9 option C):
+- After any commit option (commit, commit+push, commit+PR): call `ExitWorktree` with `action: "keep"` — the branch and worktree are preserved so the user can return for follow-up, PR review, or further pushes.
+- After leave uncommitted: warn that uncommitted changes remain in the worktree at `.claude/worktrees/<name>/`, then call `ExitWorktree` with `action: "keep"`.
+- Never use `action: "remove"` automatically — only if the user explicitly asks to abandon the worktree and discard changes.
+- If `ExitWorktree` reports uncommitted files and `action: "remove"` was requested, ask the user for confirmation before setting `discard_changes: true`.
 
 **Linear:** If Linear issue was detected in Phase 1, **always ask the user before changing issue status** using `AskUserQuestion`. Do NOT update automatically.
 

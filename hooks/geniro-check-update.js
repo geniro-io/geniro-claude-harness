@@ -24,14 +24,6 @@ if (!process.env.GENIRO_UPDATE_BG) {
 
 const CACHE_DIR = path.join(process.env.HOME || '', '.claude', 'cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'geniro-update-check.json');
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-
-function readCache() {
-  try {
-    return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-  } catch { return null; }
-}
-
 function writeCache(data) {
   try {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
@@ -79,12 +71,6 @@ function compareVersions(a, b) {
     if ((pb[i] || 0) < (pa[i] || 0)) return false;
   }
   return false;
-}
-
-// Skip if recently checked (unless GENIRO_FORCE_CHECK is set)
-const cached = readCache();
-if (!process.env.GENIRO_FORCE_CHECK && cached && cached.checked && (Date.now() - cached.checked) < CHECK_INTERVAL_MS) {
-  process.exit(0);
 }
 
 const installed = getInstalledVersion();

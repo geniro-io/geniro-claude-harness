@@ -95,7 +95,11 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
    - **Include git workspace question** in this batch (new branch / current branch / worktree)
 7. Synthesize into spec document (only AFTER step 6). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
 8. Document assumptions in spec file
-9. **Git workspace setup** — execute user's choice from step 6
+9. **Git workspace setup** — execute user's choice from step 6:
+   - **Option A (new branch):** `git checkout -b <branch-name>` where `<branch-name>` is a slug from the task (e.g., `feat/add-user-settings`). The task directory (already created above) uses this branch name.
+   - **Option B (current branch):** No git action. Continue on current branch.
+   - **Option C (worktree):** Call `EnterWorktree` with `name: "implement-<slug>"` (e.g., `implement-add-user-settings`). After entering, if the project has `.env` or similar gitignored config files but no `.worktreeinclude` file, warn the user that environment files won't be present and suggest creating `.worktreeinclude`.
+   - **Auto mode default:** Option A. If already on a feature branch (not `main`/`master`/`develop`), Option B.
 
 **Outputs:** spec.md, affected files list, Definition of Done
 
@@ -382,7 +386,11 @@ Execute user's chosen method. See reference file for commit details per option.
 
 ### Step 8: Worktree Exit + Linear Update + Cleanup
 
-- **Worktree:** If in worktree, call `ExitWorktree` to merge back
+- **Worktree:** If in worktree, call `ExitWorktree` with the appropriate action:
+  - After commit+push or commit+PR: `ExitWorktree` with `action: "keep"` (branch needed for PR review / further work)
+  - After commit only: `ExitWorktree` with `action: "keep"` (user may want to push later)
+  - After leave uncommitted: warn user that changes remain in the worktree directory, then `ExitWorktree` with `action: "keep"`
+  - Only use `action: "remove"` if user explicitly says to abandon the work
 - **Linear:** Ask user before updating issue status (see reference file for details)
 - **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
 - **State:** Append `Pipeline: COMPLETE` to `<task-dir>/state.md`.

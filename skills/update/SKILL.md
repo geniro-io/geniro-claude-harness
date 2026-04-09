@@ -49,7 +49,7 @@ PLUGIN_PATH=$(python3 -c "import json; d=json.load(open('$HOME/.claude/plugins/i
 Re-run the update check using the **new** plugin path (NOT `${CLAUDE_PLUGIN_ROOT}` — it still points to the old version in this session):
 
 ```bash
-GENIRO_UPDATE_BG=1 GENIRO_FORCE_CHECK=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" node "$PLUGIN_PATH/hooks/geniro-check-update.js"
+GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" node "$PLUGIN_PATH/hooks/geniro-check-update.js"
 ```
 
 This writes `update_available: false` to the cache with the correct installed version. Using `${CLAUDE_PLUGIN_ROOT}` here would read the old `plugin.json` and leave the cache stale.
