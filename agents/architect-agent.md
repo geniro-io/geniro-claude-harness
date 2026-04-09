@@ -212,7 +212,7 @@ For every standard or complex task, research the following before designing:
    - Read `CONTRIBUTING.md` if it exists — contains team conventions, PR process, code standards
    - Search for ADRs: `Glob("**/adr/**/*.md")` or `Glob("**/decisions/**/*.md")` — these contain architectural decisions and rationale that code alone doesn't express
    - Read `docs/architecture.md` or equivalent if it exists
-   - Note: CLAUDE.md and .claude/rules/ are already auto-loaded by Claude Code — do NOT re-read them
+   - Note: CLAUDE.md is already auto-loaded by Claude Code — do NOT re-read it
 
 4. **Explore the codebase (minimum necessary)** — identify relevant modules, entry points, and current patterns. Use the Discovery Checklist. Delegate broad exploration to subagents.
 

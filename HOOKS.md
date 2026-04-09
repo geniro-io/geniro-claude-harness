@@ -106,7 +106,7 @@ Place `.claude/` directory at project root:
 ```
 project/
 ├── .claude/
-│   ├── settings.json (from this template)
+│   ├── settings.json (user permissions, if any)
 │   └── hooks/
 │       ├── dangerous-command-blocker.sh
 │       ├── file-protection.sh

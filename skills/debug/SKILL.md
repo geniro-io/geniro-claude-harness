@@ -128,9 +128,8 @@ After documenting the fix, check if the debug session revealed plugin improvemen
 
 | Category | What to look for | Target files |
 |---|---|---|
-| **Rules gaps** | Bug was caused by violating an undocumented convention? | `.claude/rules/*.md` |
 | **Agent prompt gaps** | An agent produced code with this bug pattern? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| **Missing test patterns** | Bug class not covered by review criteria? | `.geniro/project/review/*-criteria.md` |
+| **Missing test patterns** | Bug class not covered by review criteria? | `${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md` |
 | **Stale documentation** | Docs described behavior that didn't match reality? | Any doc file |
 
 For each improvement found, use the `AskUserQuestion` tool (do NOT output options as plain text) to present the options:

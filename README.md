@@ -37,7 +37,7 @@ This will:
 1. **Scan** your codebase -- detect language, framework, ORM, test runner, linter, architecture patterns
 2. **Discover** validation commands -- from package.json, Makefile, config files
 3. **Interview** you -- ask about workflow preferences and conventions (only things it can't auto-detect)
-4. **Generate** tailored files -- CLAUDE.md, agents, rules specific to your project
+4. **Generate** tailored CLAUDE.md specific to your project
 5. **Verify** -- check for broken formatting, unreplaced placeholders, wrong-language content
 
 ## Skills
@@ -115,7 +115,7 @@ geniro-claude-plugin/
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   └── *.sh                     # Safety hook scripts
-├── rules/                       # Scoped instruction files
+├── rules/                       # Plugin-internal conventions
 ├── settings.json                # Permissions config
 ├── CLAUDE.md                    # Plugin instructions (auto-loaded)
 └── HOOKS.md                     # Hook documentation

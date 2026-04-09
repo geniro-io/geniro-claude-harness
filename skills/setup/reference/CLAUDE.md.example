@@ -146,7 +146,7 @@ To add instructions to this file:
 - **Reusable**: Applies across multiple files/scenarios
 - **Non-trivial**: Claude already handles obvious things (clean code, basic conventions)
 
-**Avoid duplication**: If a rule already exists in another file (a skill, hook, or .claude/rules/), merge it instead of adding a duplicate.
+**Avoid duplication**: If a rule already exists in another file (a skill or hook), merge it instead of adding a duplicate.
 
 **Prune regularly**: If Claude already does something correctly without the instruction, delete it. Bloated CLAUDE.md files lose effectiveness.
 
@@ -163,4 +163,4 @@ To add instructions to this file:
 - Check this file into git to share conventions with your team
 - Update periodically as patterns evolve or new decisions are made
 - Use `/memory` to view what CLAUDE.md and auto memory are currently loaded
-- For detailed topic-specific instructions, use `.claude/rules/` files scoped to file paths
+- For detailed topic-specific instructions, create `.claude/rules/` files scoped to file paths (if needed for your project)

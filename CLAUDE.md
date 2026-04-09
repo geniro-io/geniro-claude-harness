@@ -6,14 +6,12 @@ Production-grade Claude Code plugin with AI-driven setup, multi-agent workflows,
 
 Run `/geniro:setup` to analyze your codebase and generate a tailored configuration:
 - Project-specific CLAUDE.md with detected tech stack, commands, and conventions
-- Backend/frontend agent configurations matched to your stack
-- Rules files for your coding patterns
 
 ## Available Skills
 
 | Skill | Purpose |
 |-------|---------|
-| `/geniro:setup` | AI-driven project setup — scans codebase, interviews you, generates tailored config |
+| `/geniro:setup` | AI-driven project setup — scans codebase, interviews you, generates CLAUDE.md |
 | `/geniro:implement` | Full-featured implementation with architecture review and multi-agent execution |
 | `/geniro:plan` | Create detailed implementation plans with architect + skeptic validation |
 | `/geniro:review` | Parallel 5-agent code review (bugs, security, architecture, tests, guidelines) |

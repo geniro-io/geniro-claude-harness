@@ -25,7 +25,7 @@ Create a detailed, file-level implementation plan before writing any code. The p
 - Standalone — when you want to think through an approach before committing
 - For planning larger initiatives that span multiple implementation cycles
 
-**Output:** A `plan-<slug>.md` file saved to `.geniro/planning/` (flat when standalone) or `.geniro/planning/<branch-name>/` (when a task directory exists)
+**Output:** A `plan-<slug>.md` file saved to `.geniro/planning/` or `.geniro/planning/<branch-name>/` (when a task directory exists)
 
 **No git operations:** Do NOT run `git add`, `git commit`, or `git push` — the orchestrating skill or user handles all git.
 
@@ -167,7 +167,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
    - Read `README.md`, `CONTRIBUTING.md` if they exist
    - Search for ADRs: `Glob("**/adr/**/*.md")` or `Glob("**/decisions/**/*.md")`
    - Find 2-3 exemplar files closest to the change area
-   - Note: CLAUDE.md and .claude/rules/ are auto-loaded — skip re-reading
+   - Note: CLAUDE.md is auto-loaded — skip re-reading
 
 5. **Determine effort level** — based on codebase scan and description, classify as Small/Medium/Large (see Effort Scaling above). This determines planning depth for Phase 2-3.
 
@@ -184,7 +184,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
 
 ### Phase 2: Generate Plan
 
-1. **Read plan criteria:** Read `.claude/skills/plan/plan-criteria.md` for the plan structure and quality standards.
+1. **Read plan criteria:** Read `${CLAUDE_SKILL_DIR}/plan-criteria.md` for the plan structure and quality standards.
 
 2. **Spawn architect-agent** via Agent tool with `subagent_type: "architect-agent"`:
 
@@ -204,7 +204,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
    [Pre-inlined: relevant file contents, exemplar files, conventions discovered]
 
    ## Plan Criteria
-   [Pre-inline the FULL contents of `.claude/skills/plan/plan-criteria.md`]
+   [Pre-inline the FULL contents of `${CLAUDE_SKILL_DIR}/plan-criteria.md`]
 
    ## Instructions
    - Follow the plan structure EXACTLY as specified in the criteria
@@ -236,7 +236,7 @@ For Medium and Large tasks:
    [Pre-inline the user's description + decisions from Phase 1]
 
    ## Validation Standard + Mirage Detection
-   [Pre-inline the "Validation Standard" section from `.claude/skills/plan/plan-criteria.md` — includes the 8 dimensions AND the mandatory mirage detection instructions]
+   [Pre-inline the "Validation Standard" section from `${CLAUDE_SKILL_DIR}/plan-criteria.md` — includes the 8 dimensions AND the mandatory mirage detection instructions]
 
    ## Output File
    Write your validation report to: `.geniro/planning/validation-report.md`

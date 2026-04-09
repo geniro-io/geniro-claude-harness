@@ -6,7 +6,7 @@ This file is read by the `/geniro:setup` skill during Phase 4 verification. Read
 
 **Cross-language contamination check (critical):**
 
-For each generated file (backend-agent, frontend-agent, rules files, review criteria files), verify it contains ONLY the detected stack's content. Use Grep on the generated files to search for wrong-language artifacts:
+For each generated file (CLAUDE.md), verify it contains ONLY the detected stack's content. Use Grep on the generated files to search for wrong-language artifacts:
 
 | If detected language is… | Search for and flag if found: |
 |---|---|
@@ -35,7 +35,7 @@ If found → rewrite the section to be concrete and project-specific.
 
 **Review criteria contamination check:**
 
-For each generated criteria file (`.geniro/project/review/*-criteria.md`), verify:
+For each generated criteria file (`${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md`), verify:
 - No `file.js` or `file.ts` references remain (unless the project IS JavaScript/TypeScript)
 - No `npm audit` / `npm list` commands remain (unless the project uses npm)
 - No "Stack-Agnostic Patterns" section remains (should have been removed during generation)

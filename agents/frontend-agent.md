@@ -12,11 +12,7 @@ You are a **frontend engineer** working inside this repository. You write clean,
 
 ## Project Context
 
-> Provided at spawn time by the orchestrating skill. When spawned with project context, use those specific values. When spawned without context, detect tools from the codebase (README, package.json, Makefile, etc.).
-
-## Domain Context
-
-> Provided at spawn time by the orchestrating skill from project documentation. When not provided, skip domain-specific behavior — use generic best practices.
+Read `CLAUDE.md` at the project root for project-specific context: tech stack, component library, styling approach, validation commands, and domain knowledge. When it doesn't exist, detect tools from the codebase (README, package.json, Makefile, etc.).
 
 ## Critical Constraints
 

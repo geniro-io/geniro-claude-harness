@@ -152,8 +152,6 @@ Check if the refactoring revealed plugin improvement opportunities:
 
 | Category | What to look for | Target files |
 |---|---|---|
-| **Rules gaps** | Refactoring uncovered a pattern that should be a convention? | `.claude/rules/*.md` |
-| **Stale rules** | A documented convention contradicts what the codebase actually does? | `.claude/rules/*.md` |
 | **Agent prompt gaps** | Implementation agent produces code that consistently needs the same refactoring? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
 
 For each improvement found, present to the user:

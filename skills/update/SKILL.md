@@ -1,6 +1,6 @@
 ---
 name: geniro:update
-description: "Update the geniro-claude-plugin to the latest version and re-run setup to sync project-specific files. Run when the status line shows an update is available."
+description: "Update the geniro-claude-plugin to the latest version. Run when the status line shows an update is available."
 context: main
 model: inherit
 allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep, Agent]
@@ -58,19 +58,9 @@ This writes `update_available: false` to the cache with the correct installed ve
 
 If `.claude/settings.local.json` exists and has a `statusLine` entry containing `geniro-statusline`, update the path to `node "$PLUGIN_PATH/hooks/geniro-statusline.js"`. Use the Edit tool to replace the old path.
 
-### 4.5 Refresh standalone files (if applicable)
-
-If the project uses standalone mode (`deploy_mode: "standalone"` in `.geniro/.geniro-state.json`):
-
-After the plugin is updated, the standalone project files need to be refreshed with the new plugin version. The `/geniro:setup` re-run in Step 5 handles this — it detects standalone mode from the state file and re-copies all plugin files with path rewriting.
-
-No additional action needed here — Step 5's setup re-run handles the full standalone refresh.
-
 ### 5. Re-run setup
 
-After a successful update, invoke `/geniro:setup` using the Skill tool to sync project-specific files
-(tailored agents, rules, review criteria) with any changes in the updated plugin templates.
-In standalone mode, this also refreshes all copied plugin files (skills, agents, hooks) with the updated versions.
+After a successful update, invoke `/geniro:setup` using the Skill tool to sync project configuration (CLAUDE.md) with any changes in the updated plugin.
 
 ```
 Skill(skill="geniro:setup")

@@ -10,7 +10,7 @@ Every plan gets a unique, descriptive filename based on the task:
 .geniro/planning/<task-dir>/plan-<slug>.md
 ```
 
-Where `<task-dir>` is the branch-name subdirectory (e.g., `feat-eng-123-add-oauth/`). This colocates the plan with the spec, state, and notes files for the same task. When used standalone (no branch yet), write to `.geniro/planning/plan-<slug>.md` (flat) — `/geniro:implement` will move it into the task directory when a branch is created.
+Where `<task-dir>` is the branch-name subdirectory (e.g., `feat-eng-123-add-oauth/`). This colocates the plan with the spec, state, and notes files for the same task. When no branch exists yet, write to `.geniro/planning/plan-<slug>.md` (flat) — `/geniro:implement` will move it into the task directory when a branch is created.
 
 **Slug rules:**
 - Derive from the task description: lowercase, hyphens, max 40 chars

@@ -76,9 +76,8 @@ When spawning any implementation agent, use this template:
 [If Wave 2+: include relevant outputs from prior wave agents]
 
 ## Project Context (for backend-agent / frontend-agent)
-[If `.geniro/project/agents/<agent>-context.md` exists, pre-inline its contents here.
-This provides stack-specific information (framework, ORM, test runner, domain context).
-If the file doesn't exist, omit this section — the agent works with generic best practices.]
+[The backend-agent and frontend-agent read CLAUDE.md at runtime for project context.
+No additional context injection needed — the agents discover project context automatically.]
 
 ## Codebase Conventions
 [Paste the CONVENTIONS_BRIEF section from spec file — naming patterns, file structure, error handling, import style, test patterns. Include 1-2 exemplar file snippets showing the patterns to follow.]
@@ -132,7 +131,7 @@ Spawn a **general-purpose** subagent with `model: "sonnet"` and the simplify cri
 You are a code simplifier. Review the changed files and make them cleaner, simpler, and more consistent — without changing behavior.
 
 ## Criteria
-[Pre-inline the contents of `.claude/skills/deep-simplify/simplify-criteria.md` here — read it first, paste it in]
+[Pre-inline the contents of `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md` here — read it first, paste it in]
 
 ## Changed Files
 [List the files changed by implementation, from git diff --name-only]
@@ -222,12 +221,12 @@ Only reached after Stage B passes.
 
 1. **Collect context:** Capture the changed file list (`git diff --name-only main...HEAD`), read all changed files, build a summary of what changed and why.
 
-2. **Load review criteria:** Pre-read these criteria files from `.geniro/project/review/`:
-   - `bugs-criteria.md` — logic errors, null checks, off-by-one, state issues
-   - `security-criteria.md` — injection, auth/authz, secrets, crypto
-   - `architecture-criteria.md` — design patterns, modularity, coupling
-   - `tests-criteria.md` — coverage gaps, missing edge cases, test quality
-   - `guidelines-criteria.md` — style, naming, documentation, compliance
+2. **Load review criteria:** Pre-read these criteria files from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md` — logic errors, null checks, off-by-one, state issues
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md` — injection, auth/authz, secrets, crypto
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` — design patterns, modularity, coupling
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` — coverage gaps, missing edge cases, test quality
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` — style, naming, documentation, compliance
 
 3. **Spawn 5 parallel reviewer agents** in a single message, each with `subagent_type: "reviewer-agent"`:
 
@@ -263,7 +262,7 @@ After Stage C produces findings:
    - Current file contents (pre-inlined — the code as it exists NOW, not as it was planned)
    - Spec file and conventions brief for reference
    - Instruction: "Fix these specific issues. Do NOT refactor beyond what's needed to resolve each finding."
-   - Project context file contents (if agent is `backend-agent` or `frontend-agent` — read from `.geniro/project/agents/<agent>-context.md` if it exists)
+   - The agents read CLAUDE.md at runtime for project context — no separate context injection needed.
 
 2. **Re-run Stage A** (autofix + full check + codegen if schema changed).
 
@@ -335,9 +334,7 @@ Analyze the full pipeline run and identify improvements to the plugin itself:
 
 | Category | What to look for | Target files |
 |---|---|---|
-| **Rules gaps** | Agent made a mistake a rule would have prevented? | `.claude/rules/*.md` |
-| **Rules conflicts** | A rule contradicted what actually works? | `.claude/rules/*.md` |
-| **Skill gaps** | Pipeline hit a scenario it wasn't designed for? | `.claude/skills/*/SKILL.md` |
+| **Skill gaps** | Pipeline hit a scenario it wasn't designed for? | `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` |
 | **Agent prompt gaps** | An agent consistently missed something? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
 | **Stale documentation** | CLAUDE.md or rules reference patterns that no longer exist? | Any doc file |
 

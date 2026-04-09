@@ -115,7 +115,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Pre-check:** Look for existing approved plan (glob `plan-*.md`, check staleness). If user provided a plan in $ARGUMENTS, parse it directly.
 
-1. Read `.claude/skills/plan/plan-criteria.md` for plan structure
+1. Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md` for plan structure
 2. **Spawn architect-agent** with spec + plan criteria + relevant codebase files (pre-inlined)
 3. **Spawn skeptic-agent** with plan + spec. Explicit instruction: "Write report to `<task-dir>/concerns.md`"
 4. If NEEDS REVISION: route back to architect. Max 3 iterations.
@@ -195,7 +195,7 @@ Read the plan's steps and group into WUs — clusters of tightly coupled files. 
 
 For each wave:
 1. **Spawn all WU agents in a single message** (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.)
-   **Agent context injection:** Before spawning a `backend-agent` or `frontend-agent`, check if `.geniro/project/agents/backend-context.md` or `frontend-context.md` exists. If it does, read the file and include its contents in the agent's prompt under a `## Project Context` section. If the file doesn't exist (standalone mode where context is baked into the agent, or user deleted it), skip — the agent's base instructions still work without project-specific context.
+   **Agent context:** The `backend-agent` and `frontend-agent` read `CLAUDE.md` at runtime for project-specific context. No additional context injection is needed — simply spawn the agent.
 2. **Collect results** — each agent must report: files created/modified, tests created/modified, test results
 3. **Quick gate** (build + test) — pass/fail only. If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
 4. **Start next wave**
@@ -244,7 +244,7 @@ Strictly limited to 1-2 line registrations. If >3 lines or any logic -> delegate
 
 ### Step 1: Spawn simplify agent
 
-Read `.claude/skills/deep-simplify/simplify-criteria.md`. Spawn a **general-purpose** subagent with `model: "sonnet"` using the template from the reference file. Pre-inline the criteria and the changed file list.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a **general-purpose** subagent with `model: "sonnet"` using the template from the reference file. Pre-inline the criteria and the changed file list.
 
 ### Step 2: Verify after simplification
 
@@ -445,7 +445,6 @@ The orchestrator's job is to coordinate, not to code. Every line of code the orc
 ## REFERENCE
 
 - Agent templates, examples, error tables: `${CLAUDE_SKILL_DIR}/implement-reference.md`
-- Plan criteria: `.claude/skills/plan/plan-criteria.md`
-- Review criteria: `.geniro/project/review/` (bugs, security, architecture, tests, guidelines)
-- Agent project context: `.geniro/project/agents/` (backend-context.md, frontend-context.md)
-- Simplify criteria: `.claude/skills/deep-simplify/simplify-criteria.md`
+- Plan criteria: `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`
+- Review criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, guidelines)
+- Simplify criteria: `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`

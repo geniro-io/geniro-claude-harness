@@ -46,11 +46,13 @@ You are a **coordinator**. You delegate review work to `reviewer-agent` instance
 #### Step 0: Load criteria files (both modes)
 
 Before spawning any reviewers, read these criteria files — their content is pre-inlined into each agent's prompt:
-- `.geniro/project/review/bugs-criteria.md`
-- `.geniro/project/review/security-criteria.md`
-- `.geniro/project/review/architecture-criteria.md`
-- `.geniro/project/review/tests-criteria.md`
-- `.geniro/project/review/guidelines-criteria.md`
+- `${CLAUDE_SKILL_DIR}/bugs-criteria.md`
+- `${CLAUDE_SKILL_DIR}/security-criteria.md`
+- `${CLAUDE_SKILL_DIR}/architecture-criteria.md`
+- `${CLAUDE_SKILL_DIR}/tests-criteria.md`
+- `${CLAUDE_SKILL_DIR}/guidelines-criteria.md`
+
+Also read `CLAUDE.md` at the project root for tech stack context — use this to interpret criteria in the context of the project's language and framework.
 
 #### Standard Mode (small diff)
 
@@ -325,10 +327,8 @@ Check if the review revealed plugin improvement opportunities:
 
 | Category | What to look for | Target files |
 |---|---|---|
-| **Rules gaps** | Same anti-pattern found in multiple places? A rule would prevent it. | `.claude/rules/*.md` |
-| **Criteria gaps** | Reviewer missed a bug class that should be checked? | `.geniro/project/review/*-criteria.md` |
+| **Criteria gaps** | Reviewer missed a bug class that should be checked? | `${CLAUDE_SKILL_DIR}/*-criteria.md` |
 | **Agent prompt gaps** | Implementation agent produced a pattern the reviewer flagged? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| **Stale rules** | A rule flagged something that turns out to be correct? | `.claude/rules/*.md` |
 
 For each improvement found, present to the user:
 ```

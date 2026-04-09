@@ -23,13 +23,7 @@ Traditional template updaters (Cruft, Yeoman) work at line-level diffs and fall 
 
 **Step 1: Scan existing files**
 
-```
-Glob(".claude/agents/*.md")
-Glob(".geniro/project/review/*-criteria.md")
-Glob(".claude/rules/*.md")
-```
-
-Also check for root `CLAUDE.md`. If the project has one, **leave it untouched** — the setup skill does not generate or modify CLAUDE.md.
+Also check for root `CLAUDE.md`. If the project has a `CLAUDE.md`, **leave it untouched** — the setup skill does not generate or modify CLAUDE.md without permission.
 
 **Step 2: Match against template files**
 
