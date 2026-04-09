@@ -28,6 +28,7 @@ cat .geniro/.geniro-state.json 2>/dev/null
 
 **If found:** parse the `files.tailored` and `files.user_created` arrays.
 These tell you exactly which files in `.claude/` belong to the plugin and which the user created.
+Also extract `deploy_mode` from the state file. Store as `$DEPLOY_MODE` (`"global"` or `"standalone"`). If the field is absent (legacy state), default to `"global"`.
 
 **If not found:** fall back to heuristic detection — compare files in `.claude/` against
 the known plugin-generated files:
@@ -58,6 +59,16 @@ The plugin generates these files in the project:
    - `.claude/settings.local.json`
 5. **Plugin runtime** (will be removed entirely): `.geniro/` directory
 6. **User-created files** (will be preserved): any other files in `.claude/` not listed above
+
+**Additional files in standalone mode ($DEPLOY_MODE = standalone):**
+7. **All universal agents** (will be deleted):
+   - `.claude/agents/architect-agent.md`, `skeptic-agent.md`, `reviewer-agent.md`,
+     `refactor-agent.md`, `debugger-agent.md`, `security-agent.md`, `doc-agent.md`,
+     `devops-agent.md`, `knowledge-agent.md`, `knowledge-retrieval-agent.md`, `meta-agent.md`
+8. **All skills** (will be deleted): `.claude/skills/*/` (all skill directories)
+9. **All hooks** (will be deleted): `.claude/hooks/` directory
+10. **Hook entries in settings.json** (will be removed from `.claude/settings.json`)
+11. **Review criteria** at `.claude/skills/review/` (standalone location, instead of `.geniro/project/review/`)
 
 Also check for plugin-generated entries in other files:
 - `CLAUDE.md` at project root — check geniro-state `files.tailored` for `CLAUDE.md`. If listed, it was plugin-generated. If no geniro-state, check if the first line contains `# Geniro Harness Plugin`.
@@ -106,6 +117,12 @@ Present the deletion manifest clearly:
 - CLAUDE.md (if plugin-generated)
 - .gitignore entry: .geniro/
 
+### Standalone-mode files (only if $DEPLOY_MODE = standalone)
+- .claude/agents/ (11 universal agent files)
+- .claude/skills/*/ (all skill directories)
+- .claude/hooks/ (hook scripts)
+- .claude/settings.json hook entries
+
 ### Files that will be PRESERVED (user-created)
 - .claude/some-custom-file.md
 - ... (list all, or "none" if empty)
@@ -149,6 +166,31 @@ rm -f .claude/skills/review/*-criteria.md
 rm -f .claude/settings.json
 rm -f .claude/settings.local.json
 ```
+
+### 3.1b Remove standalone-mode files (only if $DEPLOY_MODE = standalone)
+
+```bash
+# Remove all universal agents
+for agent in architect-agent skeptic-agent reviewer-agent refactor-agent debugger-agent security-agent doc-agent devops-agent knowledge-agent knowledge-retrieval-agent meta-agent; do
+  rm -f ".claude/agents/${agent}.md"
+done
+
+# Remove all skill directories
+for skill_dir in .claude/skills/*/; do
+  [ -d "$skill_dir" ] && find "$skill_dir" -type f -delete && find "$skill_dir" -type d -empty -delete
+done
+
+# Remove hook scripts
+find .claude/hooks/ -type f -delete 2>/dev/null
+[ -d ".claude/hooks/" ] && rmdir .claude/hooks/ 2>/dev/null
+
+# Remove review criteria from standalone location
+rm -f .claude/skills/review/*-criteria.md
+```
+
+Also remove hook entries from `.claude/settings.json` if present. Read the file, remove any
+entries in the `hooks` object that reference `.claude/hooks/`, and write it back. If the file
+would be empty or only contain `{}` after removal, delete it.
 
 ### 3.2 Remove empty directories
 
@@ -199,14 +241,16 @@ If `.gitignore` is now empty, remove it:
 
 ### 3.5 Uninstall the plugin
 
-After removing project files, uninstall the plugin from Claude Code:
+If `$DEPLOY_MODE` is `global` or if the plugin is still installed, uninstall from Claude Code.
+If `$DEPLOY_MODE` is `standalone` and the plugin is not installed, skip this step.
 
 ```bash
 claude plugin uninstall geniro-claude-plugin@geniro-claude-harness
 ```
 
-If the uninstall command fails (e.g., plugin already removed), report the error but do not
-treat it as a cleanup failure — the project files have already been removed successfully.
+If the uninstall command fails (e.g., plugin already removed or not installed), report the
+error but do not treat it as a cleanup failure — the project files have already been removed
+successfully.
 
 ## Phase 4: Report
 

@@ -28,7 +28,7 @@ geniro-claude-plugin/
 └── settings.json         # → copied to .claude/settings.json
 ```
 
-**Your project** (target — what actually gets committed):
+**Your project — Global mode** (target — what actually gets committed):
 ```
 your-project/
 ├── .claude/
@@ -43,6 +43,30 @@ your-project/
     ├── debug/                   # Git-ignored — hypothesis tracking
     └── knowledge/               # Git-ignored — learnings, session summaries
 ```
+
+**Your project — Standalone mode** (everything in the project):
+```
+your-project/
+├── .claude/
+│   ├── agents/                  # All 13 agents (11 universal + 2 tailored)
+│   ├── skills/                  # All skills + review criteria
+│   │   ├── review/              # 5 generated review criteria files
+│   │   ├── setup/               # Setup skill
+│   │   ├── implement/           # Implementation skill
+│   │   └── ...                  # All other skills
+│   ├── hooks/                   # All hook scripts
+│   ├── rules/                   # Generated per-project
+│   └── settings.json            # Permissions + hook entries
+│
+└── .geniro/
+    ├── planning/                # Git-ignored
+    ├── debug/                   # Git-ignored
+    └── knowledge/               # Git-ignored
+```
+
+**Standalone commit:** `git add .claude/ && git commit -m 'chore: add Claude Code harness (standalone)'`
+
+**Note:** After standalone setup, uninstall the plugin to avoid hook duplication: `claude plugin uninstall geniro-claude-plugin@geniro-claude-harness`. Reinstall only when running `/geniro:update`.
 
 **How to set up** (the user runs this in their project):
 1. Install the plugin: `claude plugin install geniro-claude-plugin`
@@ -77,6 +101,19 @@ Also check for `.geniro/.geniro-state.json`:
 
 Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-update`).
 
+## Phase 0.5: Deploy Mode
+
+Ask the user how they want to deploy the harness using `AskUserQuestion`:
+
+**Question:** "How do you want to deploy the harness?"
+**Options:**
+- "Global (Recommended)" — Plugin provides skills, agents, and hooks globally. Only project-specific files are written to the repo.
+- "Standalone" — Copy ALL plugin files into the project. The repo becomes self-contained — team members don't need the plugin installed.
+
+Store the answer as `$DEPLOY_MODE` (`global` or `standalone`).
+
+**If `$INSTALL_MODE` is `update` or `legacy-update`:** read `$DEPLOY_MODE` from `.geniro/.geniro-state.json` (`deploy_mode` field). If present, use it — do NOT re-ask. If absent (legacy state), ask the question.
+
 ## What Gets Written to Your Project
 
 **Written to .claude/ (committed):**
@@ -102,6 +139,15 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`, `legacy-u
 - `.geniro/planning/` — created empty, populated during /geniro:implement
 - `.geniro/debug/` — created empty, populated during /geniro:debug
 - `.geniro/knowledge/` — created empty, populated during /geniro:learnings
+
+**Additional files written in standalone mode ($DEPLOY_MODE = standalone):**
+- `.claude/agents/*.md` — All 11 universal agents (in addition to the 2 tailored ones)
+- `.claude/skills/*/SKILL.md` — All skill files (with `geniro:` prefix removed from names)
+- `.claude/skills/review/*-criteria.md` — Review criteria (instead of `.geniro/project/review/`)
+- `.claude/hooks/*.sh`, `.claude/hooks/*.js` — All hook scripts
+- `settings.json` includes hook entries (not just permissions)
+
+In standalone mode, `.geniro/project/` is NOT created — review criteria live in `.claude/skills/review/`.
 
 ## Phase 1: Codebase Analysis
 
@@ -356,6 +402,8 @@ All 11 universal agents, all hooks, and all skills are available automatically v
 
 ### 3.1 Copy Template Files
 
+**If `$DEPLOY_MODE` is `standalone`:** skip this section entirely and jump to **Standalone Mode Copy** below.
+
 Copy template files to `.claude/`. **Only write files that exist in the template — never delete existing files that aren't part of the template.** If the user has custom agents, skills, hooks, or rules they created themselves, those must be preserved untouched.
 
 **Tailored agents** (copied from template, then customized for the project's stack):
@@ -433,6 +481,88 @@ rm -rf .claude/skills/review/
 ```
 
 This cleanup is safe — universal agents are identical to plugin versions, hooks are provided by the plugin, and skill files are global. User-created files in `.claude/agents/` (not in the list above) are preserved. Tailored agents (`backend-agent.md`, `frontend-agent.md`) are preserved.
+
+**In standalone mode (`$DEPLOY_MODE = standalone`), skip the Legacy Cleanup above** — universal agents, hooks, and skills ARE supposed to be in the project.
+
+#### Standalone Mode Copy ($DEPLOY_MODE = standalone)
+
+If `$DEPLOY_MODE` is `standalone`, copy ALL plugin files to the project:
+
+```bash
+# Create target directories
+mkdir -p .claude/agents .claude/rules .claude/hooks .claude/skills/review
+
+# Copy ALL agents (universal + tailored templates)
+for agent in "$TEMPLATE_DIR"/agents/*.md; do
+  cp "$agent" .claude/agents/
+done
+
+# Copy ALL hook scripts
+for hook in "$TEMPLATE_DIR"/hooks/*.sh "$TEMPLATE_DIR"/hooks/*.js; do
+  [ -f "$hook" ] && cp "$hook" .claude/hooks/
+done
+
+# Copy ALL skills (each skill directory)
+for skill_dir in "$TEMPLATE_DIR"/skills/*/; do
+  skill_name=$(basename "$skill_dir")
+  mkdir -p ".claude/skills/$skill_name"
+  cp -r "$skill_dir"* ".claude/skills/$skill_name/" 2>/dev/null
+done
+
+# Copy rules
+for rule in "$TEMPLATE_DIR"/rules/*.md; do
+  [ -f "$rule" ] && cp "$rule" .claude/rules/
+done
+```
+
+**Path rewriting in copied files:**
+
+After copying, rewrite all `${CLAUDE_PLUGIN_ROOT}` and plugin-specific references in the copied files:
+
+```bash
+# Rewrite ${CLAUDE_PLUGIN_ROOT}/hooks/ → .claude/hooks/ in all copied .md files
+find .claude/ -name "*.md" -exec sed -i '' 's|\${CLAUDE_PLUGIN_ROOT}/hooks/|.claude/hooks/|g' {} +
+
+# Rewrite ${CLAUDE_PLUGIN_ROOT}/agents/ → .claude/agents/
+find .claude/ -name "*.md" -exec sed -i '' 's|\${CLAUDE_PLUGIN_ROOT}/agents/|.claude/agents/|g' {} +
+
+# Rewrite ${CLAUDE_PLUGIN_ROOT} (remaining references) → .claude
+find .claude/ -name "*.md" -exec sed -i '' 's|\${CLAUDE_PLUGIN_ROOT}|.claude|g' {} +
+
+# Rewrite skill names in frontmatter: "geniro:skillname" → "skillname"
+find .claude/skills/ -name "SKILL.md" -exec sed -i '' 's/name: geniro:/name: /g' {} +
+
+# Rewrite cross-skill references: skill="geniro:xxx" → skill="xxx"
+find .claude/ -name "*.md" -exec sed -i '' 's/skill="geniro:/skill="/g' {} +
+find .claude/ -name "*.md" -exec sed -i '' "s/skill='geniro:/skill='/g" {} +
+
+# Rewrite /geniro: skill invocations in prose text
+find .claude/ -name "*.md" -exec sed -i '' 's|/geniro:|/|g' {} +
+
+# Rewrite .geniro/project/review/ → .claude/skills/review/ (criteria paths)
+find .claude/ -name "*.md" -exec sed -i '' 's|\.geniro/project/review/|.claude/skills/review/|g' {} +
+```
+
+**Write hooks into settings.json:**
+
+In standalone mode, hooks must be registered in `.claude/settings.json` (not `hooks.json`). Read `$TEMPLATE_DIR/hooks/hooks.json`, extract all hook entries, rewrite their command paths from `${CLAUDE_PLUGIN_ROOT}/hooks/` to `.claude/hooks/`, and merge them into `.claude/settings.json` under the `"hooks"` key.
+
+**StatusLine in standalone mode:**
+
+In standalone mode, the statusLine script is at `.claude/hooks/geniro-statusline.js`. Write to `settings.local.json`:
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node \".claude/hooks/geniro-statusline.js\""
+  }
+}
+```
+This uses a project-relative path (no absolute path or `${CLAUDE_PLUGIN_ROOT}` needed).
+
+**CLAUDE.md generation in standalone mode:**
+
+When generating the project's CLAUDE.md (which reads `CLAUDE.md.example` as a structural guide), use `.claude/hooks/backpressure.sh` and `.claude/agents/` instead of `${CLAUDE_PLUGIN_ROOT}/hooks/` and `${CLAUDE_PLUGIN_ROOT}/agents/`. The generated CLAUDE.md is at the project root (not inside `.claude/`), so the path rewriting sed commands do not reach it — the AI must use the correct paths during generation.
 
 ### 3.1.1 Save Template Snapshot
 
@@ -557,6 +687,10 @@ The rules files were copied in Phase 3.1. They contain code examples in MULTIPLE
 
 ### 3.5 Generate Review Criteria
 
+**Output path:**
+- If `$DEPLOY_MODE` is `global`: write to `.geniro/project/review/` (committed via gitignore exception)
+- If `$DEPLOY_MODE` is `standalone`: write to `.claude/skills/review/` (committed with all other `.claude/` files)
+
 Read the template criteria files at `$TEMPLATE_DIR/skills/review/` (`bugs-criteria.md`, `security-criteria.md`, `tests-criteria.md`, `architecture-criteria.md`, `guidelines-criteria.md`). These are universal/JS-centric references. Generate stack-specific versions tailored to the detected language and framework.
 
 **For each criteria file, transform:**
@@ -626,10 +760,12 @@ them with fresh eyes.
 
 DETECTED STACK: [language, framework, ORM, test runner, linter]
 PROJECT ROOT: [path]
+DEPLOY MODE: [global or standalone]
 
 ## What to check
 
-Read every file in `.claude/` (agents, rules, settings.json) and `.geniro/project/review/` and verify:
+Read every file in `.claude/` (agents, rules, settings.json) and review criteria directory
+(`.geniro/project/review/` in global mode, `.claude/skills/review/` in standalone mode) and verify:
 
 ### 1. Template Variable Residue
 Grep ALL files in `.claude/` for these patterns:
@@ -642,37 +778,40 @@ Grep ALL files in `.claude/` for these patterns:
 For every file path referenced inside agent prompts and rules:
 - Verify the referenced file actually exists (Glob or ls)
 - Check relative vs absolute paths are appropriate
-- Verify review criteria references (e.g., `.geniro/project/review/bugs-criteria.md`) exist
-- Verify NO `.claude/hooks/` directory exists (hooks are provided by the plugin, not the project)
+- Verify review criteria references exist at the correct path for the deploy mode
+- **Global mode:** Verify NO `.claude/hooks/` directory exists (hooks are provided by the plugin)
+- **Standalone mode:** Verify `.claude/hooks/` directory EXISTS and contains hook scripts
 
 ### 3. Cross-File Consistency
 - Agent `allowed-tools` in frontmatter match what the agent's instructions reference
 - Review criteria files referenced by `/geniro:review` skill actually exist
 - Plan criteria file referenced by `/geniro:plan` skill actually exists
-- Verify `settings.json` does NOT contain hook entries (hooks are provided by the plugin via `hooks.json`)
+- **Global mode:** Verify `settings.json` does NOT contain hook entries (hooks are provided by the plugin via `hooks.json`)
+- **Standalone mode:** Verify `settings.json` DOES contain hook entries pointing to `.claude/hooks/`
 
 ### 4. Stack Contamination (generated files only)
-For backend-agent.md, frontend-agent.md, rules/*.md, .geniro/project/review/*-criteria.md:
+For backend-agent.md, frontend-agent.md, rules/*.md, and review criteria (`.geniro/project/review/*-criteria.md` in global mode, `.claude/skills/review/*-criteria.md` in standalone mode):
 - Verify ONLY the detected language/framework appears
 - No wrong-language commands (e.g., `npm` in a Python project)
 - No wrong-language code blocks (e.g., ```typescript in a Python project)
 - No multi-framework lists like "(Django, Rails, FastAPI)" — file must be specific
 
 ### 5. Frontmatter Integrity
-For every `.md` file in `.claude/agents/` (skills are not in the project — they are provided by the plugin):
+For every `.md` file in `.claude/agents/` (in global mode, skills are provided by the plugin; in standalone mode, also check `.claude/skills/`):
 - Has valid YAML frontmatter (opens and closes with `---`)
 - Required fields present: `name`, `description` (agents also need `tools`)
 - No duplicate frontmatter keys
 - `model` field (if present) uses a valid value
 
-### 6. No Stale Hooks
-- Verify `.claude/hooks/` does NOT exist (legacy cleanup should have removed it)
-- Verify `settings.json` does NOT contain hook command paths
+### 6. Hook Configuration
+- **Global mode:** Verify `.claude/hooks/` does NOT exist (legacy cleanup should have removed it) and `settings.json` does NOT contain hook command paths
+- **Standalone mode:** Verify `.claude/hooks/` EXISTS with all hook scripts and `settings.json` contains hook entries pointing to `.claude/hooks/`
 
 ### 7. settings.json Validity
 - Valid JSON (no trailing commas, no comments)
 - All tool permission entries reference real tools
-- No hook entries (hooks are provided by the plugin)
+- **Global mode:** No hook entries (hooks are provided by the plugin)
+- **Standalone mode:** Hook entries present and pointing to `.claude/hooks/`
 
 ## Output Format
 
@@ -697,13 +836,19 @@ If no issues found, return: "ALL CHECKS PASSED — harness is ready to commit."
 
 ### 4.3 Ensure Runtime Directories are Git-Ignored
 
-Add `.geniro/` to the **root** `.gitignore` (not `.claude/.gitignore`), then add `!.geniro/project/` as an exception so that `.geniro/project/` (review criteria) is committed while the rest of `.geniro/` stays ignored:
+**If `$DEPLOY_MODE` is `global`:** add both `.geniro/` and `!.geniro/project/` to `.gitignore` (review criteria are in `.geniro/project/review/`):
 
 ```bash
 # Add to root .gitignore if not already present
 grep -q "^\.geniro/$" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
 # Add exception for .geniro/project/ (committed review criteria, etc.)
 grep -q "^\!\.geniro/project/$" .gitignore 2>/dev/null || echo "!.geniro/project/" >> .gitignore
+```
+
+**If `$DEPLOY_MODE` is `standalone`:** add only `.geniro/` to `.gitignore` (no `!.geniro/project/` exception needed — review criteria are in `.claude/skills/review/`):
+
+```bash
+grep -q "^\.geniro/$" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
 ```
 
 Do NOT create `.claude/.gitignore` — all ignore rules go in the project root.
@@ -726,6 +871,7 @@ Write the state file:
   "harness_version": "$TEMPLATE_COMMIT",
   "installed_at": "ISO-8601 timestamp",
   "install_mode": "fresh|update|legacy-update",
+  "deploy_mode": "global|standalone",
   "files": {
     "verbatim": [
       "settings.json",
@@ -754,6 +900,8 @@ Populate the lists from the actual files installed during Phase 3. The categorie
 - **verbatim**: Files copied directly from template without AI modification (settings.json)
 - **tailored**: Files that were copied then AI-edited (backend-agent, frontend-agent, rules files) or generated from scratch (review criteria files)
 - **user_created**: Files that existed in `.claude/` before setup and are not part of the template
+
+In standalone mode (`$DEPLOY_MODE = standalone`), the `files.verbatim` list is much larger — it includes all universal agents, all skill files, and all hook scripts in addition to `settings.json`. Also, review criteria paths in the `tailored` list use `.claude/skills/review/*-criteria.md` instead of `.geniro/project/review/*-criteria.md`.
 
 Ensure `.geniro/.geniro-state.json` is git-ignored. The `.geniro/` entry added in Phase 4.3 already covers this — no separate gitignore entry is needed.
 
@@ -792,11 +940,38 @@ Next steps:
 4. Start using: /geniro:implement, /geniro:review, /geniro:refactor
 ```
 
+**Standalone mode summary (if $DEPLOY_MODE = standalone):**
+
+```
+Setup complete! Here's what was generated:
+
+.claude/
+  agents/     (13 agents — 11 universal + 2 tailored)
+  skills/     (all skills + 5 review criteria)
+  hooks/      (all hook scripts)
+  rules/      (N rule files)
+  settings.json (permissions + hooks)
+
+Mode: Standalone (self-contained repo)
+Tech Stack: [detected]
+
+Next steps:
+1. Uninstall plugin to avoid hook duplication:
+   claude plugin uninstall geniro-claude-plugin@geniro-claude-harness
+2. Commit: git add .claude/ && git commit -m 'chore: add Claude Code harness (standalone)'
+3. Start using: /implement, /review, /refactor
+4. To update later: reinstall plugin, run /geniro:update, then uninstall again
+```
+
 ## Re-Running Setup (Smart Update)
 
 If `/geniro:setup` detects `$INSTALL_MODE` is `update` or `legacy-update`, it enters update mode instead of the fresh install pipeline.
 
-### Step 1: Analyze Changes (before asking the user anything)
+**Standalone mode updates:**
+
+If `$DEPLOY_MODE` (from `.geniro/.geniro-state.json`) is `standalone`, skip Steps 1-3 below. Instead, re-run Phase 3.1 (Standalone Mode Copy) directly — copy ALL template files again with path rewriting and hook registration. Then skip to Step 3A.5 (Update state file and refresh template snapshot) and Step 3A.6 (Post-update verification). The detailed per-file diff is unnecessary in standalone mode because all files are re-copied from the template.
+
+### Step 1: Analyze Changes (before asking the user anything — global mode only)
 
 Do NOT ask the user what they want to do yet. First, gather data so the user can make an informed choice.
 
@@ -1145,8 +1320,8 @@ done
 Run the same verification checks as fresh install Phase 4 — but scoped to updated files only:
 
 1. **Placeholder residue:** Grep all updated files for `{{`, `}}`, `$TEMPLATE_DIR`, `PLACEHOLDER`
-2. **No stale hooks:** Verify `.claude/hooks/` does not exist and `settings.json` has no hook entries
-3. **settings.json validity:** Parse `.claude/settings.json` as JSON, verify it contains only permissions (no hook entries)
+2. **Hook configuration:** Global mode: verify `.claude/hooks/` does not exist and `settings.json` has no hook entries. Standalone mode: verify `.claude/hooks/` exists and `settings.json` has hook entries pointing to `.claude/hooks/`.
+3. **settings.json validity:** Parse `.claude/settings.json` as JSON. Global: verify it contains only permissions. Standalone: verify it contains permissions AND hook entries.
 4. **Cross-references:** For each updated file, verify paths it references still exist
 5. **Frontmatter integrity:** For updated `.md` files in agents/, verify YAML frontmatter has required fields
 
@@ -1376,6 +1551,7 @@ C) Start over — re-run setup from scratch
 
 - [ ] Phase 0: Template source located (plugin root or explicit path)
 - [ ] Phase 0: Install mode detected (`$INSTALL_MODE`: fresh/update/legacy-update)
+- [ ] Phase 0.5: Deploy mode determined (`$DEPLOY_MODE`: global/standalone)
 - [ ] Phase 1: Codebase analyzed, all detectable info gathered
 - [ ] Phase 1.6: Project documentation scanned, domain context extracted (if docs exist)
 - [ ] Phase 1.5: Existing file conflicts resolved (if any)
