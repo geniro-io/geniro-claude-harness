@@ -279,22 +279,7 @@ Options: "Looks correct" / "I need to adjust some things"
 
 If adjusting, ask specifically what to change.
 
-### 2.2 Workflow Preferences
-
-Ask about workflow (one question at a time):
-
-**Git workflow:** Always ask the user before any git operation (commit, push, PR). This is not configurable — do NOT ask the user about it during setup.
-
-**Code review:**
-```
-How thorough should automated code reviews be?
-
-A) Quick — bugs and security only (faster, less noise)
-B) Standard — bugs, security, architecture, tests (recommended)
-C) Comprehensive — all categories including style nitpicks
-```
-
-### 2.3 Team Conventions (only if not detectable)
+### 2.2 Team Conventions (only if not detectable)
 
 Ask about conventions that can't be auto-detected from code:
 
@@ -318,7 +303,7 @@ C) Error codes / status objects
 D) Mixed / no clear pattern yet
 ```
 
-### 2.4 Optional Integrations
+### 2.3 Optional Integrations
 
 Use the `AskUserQuestion` tool to ask:
 
@@ -330,7 +315,7 @@ Enabling Linear creates a workflow file (.geniro/workflow/linear.md) that adapts
 
 Options: "Enable Linear" / "Skip for now"
 
-### 2.5 Component Summary
+### 2.4 Component Summary
 
 **What setup writes to the project:**
 - `CLAUDE.md` — enriched with detected tech stack, validation commands, and conventions (with your permission)

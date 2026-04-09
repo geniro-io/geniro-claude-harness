@@ -58,12 +58,6 @@ This writes `update_available: false` to the cache with the correct installed ve
 
 If `.claude/settings.local.json` exists and has a `statusLine` entry containing `geniro-statusline`, update the path to `node "$PLUGIN_PATH/hooks/geniro-statusline.js"`. Use the Edit tool to replace the old path.
 
-### 5. Re-run setup
+### 5. Confirm update
 
-After a successful update, invoke `/geniro:setup` using the Skill tool to sync project configuration (CLAUDE.md) with any changes in the updated plugin.
-
-```
-Skill(skill="geniro:setup")
-```
-
-The setup skill detects existing files and shows a per-file diff — the user decides what to accept.
+Report the new version and confirm the update was successful. No need to re-run `/geniro:setup` — the plugin provides agents, skills, and hooks globally, and your project's CLAUDE.md is project-specific content that doesn't change with plugin updates.
