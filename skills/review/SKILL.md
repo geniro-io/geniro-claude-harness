@@ -15,13 +15,13 @@ argument-hint: "[files or git diff range to review]"
 
 # Code Review Skill
 
-Comprehensive code review using parallel multi-agent analysis. Five specialized reviewers examine code changes simultaneously from different perspectives, then a judge pass validates, confidence-scores, and aggregates findings.
+Comprehensive code review using parallel multi-agent analysis. Five specialized reviewers examine code changes simultaneously, then a relevance filter validates findings against repo conventions and complexity level, and a judge pass confidence-scores and aggregates the results.
 
 ## Your Role — Orchestrate, Don't Review
 
 You are a **coordinator**. You delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself — you read files only to gather context and verify agent findings.
 
-## Three-Phase Process
+## Review Process
 
 ### Phase 1: Collect Context & Triage
 - Parse input (files, git diff range, branch)
@@ -155,9 +155,40 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Build Check"
 
 If backpressure is unavailable, run directly: `<validation_cmd> 2>&1 | tail -80`
 
-Feed the pass/fail result into the Phase 3 judge pass. A failing build is automatically a CRITICAL finding — tag as [NEW] if the base branch build passes, or [PRE-EXISTING] if it was already broken.
+Feed the pass/fail result into the Phase 4 judge pass. A failing build is automatically a CRITICAL finding — tag as [NEW] if the base branch build passes, or [PRE-EXISTING] if it was already broken.
 
-### Phase 3: Judge Pass
+### Phase 3: Relevance Filter
+
+After reviewers complete, spawn a **relevance-filter-agent** to check which findings actually apply to this repo. The agent receives all findings plus repo context, then verifies each finding against actual codebase patterns and complexity level.
+
+**Why this step exists:** Reviewers apply general best practices, but not every best practice applies to every repo. A startup MVP doesn't need enterprise patterns. A repo that intentionally uses simple functions doesn't need dependency injection suggestions. This step filters findings that contradict repo conventions or suggest over-engineering.
+
+**Convention context gathering:** Before spawning the agent, read convention files that exist in the project — CONTRIBUTING.md, ADRs (docs/adr/), architecture docs. Pass their content alongside CLAUDE.md context.
+
+Spawn the relevance filter agent:
+
+```
+Agent(subagent_type="relevance-filter-agent", prompt="""
+FINDINGS: [all findings from 5 reviewers, in their original format]
+CHANGED FILES: [list of changed files with paths]
+PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
+
+Evaluate each finding against this repo's actual patterns. For each finding, check:
+1. Convention alignment — does the suggestion match how this repo already works?
+2. Over-engineering — is this YAGNI for this repo's complexity level?
+3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
+
+Tag each finding as KEEP or FILTER with evidence.
+CRITICAL severity findings (security vulnerabilities, data loss, crashes) are always KEEP.
+""")
+```
+
+**Pass only KEEP findings to Phase 4 (Judge Pass).** FILTERED findings appear in a collapsed section at the end of the review report for transparency.
+
+### Phase 4: Judge Pass
+
+**Input:** Only KEEP findings from Phase 3 (relevance-filtered). FILTERED findings are excluded from scoring but listed in the final report for transparency.
 
 **If batched mode:** First deduplicate findings across batches — the same issue may be flagged by multiple batch reviewers if it spans modules. Merge duplicates, keeping the highest confidence score.
 
@@ -207,6 +238,9 @@ Feed the pass/fail result into the Phase 3 judge pass. A failing build is automa
 
 ## Medium Priority Issues
 [Same format]
+
+## Filtered by Relevance (not applicable to this repo)
+[List of findings that were filtered with 1-line reasons — e.g., "over-engineering for this repo's complexity level", "contradicts established repo pattern"]
 
 ## Review Confidence
 - Bugs analysis: 92%
@@ -308,7 +342,7 @@ Files: 2 | Issues: 8 (1 CRITICAL, 3 HIGH, 4 MEDIUM)
 Overall Assessment: APPROVE WITH CHANGES
 ```
 
-## Phase 4: Learn & Improve
+## Phase 5: Learn & Improve
 
 After delivering the review summary, extract knowledge and suggest improvements. **Skip this phase when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (the parent pipeline handles learnings in Phase 7). Only run when `/geniro:review` is invoked standalone.
 
@@ -350,7 +384,8 @@ Code review is complete when:
 - [ ] Phase 1 context collected (files read, changes understood)
 - [ ] Phase 2 reviewers spawned and executed in parallel
 - [ ] All 5 reviewers (bugs, security, architecture, tests, guidelines) completed
-- [ ] Phase 3 judge validation complete (findings verified)
+- [ ] Phase 3 relevance filter applied (findings checked against repo conventions and complexity)
+- [ ] Phase 4 judge validation complete (findings verified)
 - [ ] Confidence scoring applied (>=80 threshold)
 - [ ] Issues classified by severity (Critical, High, Medium)
 - [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context
@@ -367,6 +402,7 @@ Code review is complete when:
 |---|---|
 | "I can skip context gathering" | Without understanding what changed and why, you'll produce false positives and miss real issues. |
 | "I'll review all aspects myself instead of spawning 5 agents" | Serial review misses perspective. All 5 specialized reviewers MUST execute in parallel. |
+| "The reviewers found good stuff, skip relevance filtering" | Reviewers apply general best practices — without checking against THIS repo's patterns, you'll report over-engineering suggestions and convention-contradicting findings that waste engineer time. |
 | "The reviewers found good stuff, skip judge validation" | Unfiltered findings create report fatigue. Only >=80 confidence findings provide signal. |
 | "I can tell this is a real issue without reading the source" | Always validate findings in context — check the actual file and lines before reporting. |
 | "While I'm here, let me suggest improvements beyond the diff" | Review against the scope of changes, not "what else could be improved." Stay focused. |
