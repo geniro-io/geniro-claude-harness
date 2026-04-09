@@ -36,23 +36,25 @@ claude plugin update geniro-claude-plugin@geniro-claude-harness
 
 If the update fails or no update is available, report the result and stop.
 
-### 3. Refresh update cache
+### 3. Discover new plugin path
 
-Re-run the update check so the statusline reflects the new version:
-
-```bash
-GENIRO_UPDATE_BG=1 GENIRO_FORCE_CHECK=1 node "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-check-update.js"
-```
-
-This writes `update_available: false` to the cache with the correct installed version.
-
-### 4. Refresh statusLine path
-
-After a successful update, the plugin install path changes (new version directory). Update the statusLine in `.claude/settings.local.json` to point to the new path:
+After a successful update, the plugin install path changes (new version directory). Discover the new path first — subsequent steps need it:
 
 ```bash
 PLUGIN_PATH=$(python3 -c "import json; d=json.load(open('$HOME/.claude/plugins/installed_plugins.json')); p=d['plugins'].get('geniro-claude-plugin@geniro-claude-harness',[]); print(p[0]['installPath'] if p else '')" 2>/dev/null)
 ```
+
+### 4. Refresh update cache
+
+Re-run the update check using the **new** plugin path (NOT `${CLAUDE_PLUGIN_ROOT}` — it still points to the old version in this session):
+
+```bash
+GENIRO_UPDATE_BG=1 GENIRO_FORCE_CHECK=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" node "$PLUGIN_PATH/hooks/geniro-check-update.js"
+```
+
+This writes `update_available: false` to the cache with the correct installed version. Using `${CLAUDE_PLUGIN_ROOT}` here would read the old `plugin.json` and leave the cache stale.
+
+### 4.1 Refresh statusLine path
 
 If `.claude/settings.local.json` exists and has a `statusLine` entry containing `geniro-statusline`, update the path to `node "$PLUGIN_PATH/hooks/geniro-statusline.js"`. Use the Edit tool to replace the old path.
 
