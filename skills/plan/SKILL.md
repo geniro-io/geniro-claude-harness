@@ -246,6 +246,7 @@ For Medium and Large tasks:
    ## Report Contents
    - PASS / FAIL for each of the 8 dimensions with evidence
    - Mirages found (hallucinated files/functions/packages)
+   - Convention fit: does the plan's architecture match existing repo patterns? Flag over-engineering (enterprise patterns for simple repos, abstractions the codebase doesn't use, DI when repo uses simple functions)
    - Critical issues (must fix before approval)
    - Warnings (consider before implementing)
    - Overall verdict: PASS / NEEDS REVISION
@@ -304,7 +305,7 @@ When `/geniro:implement` is invoked:
 
 Plan skill is complete when:
 - [ ] Plan file written to `.geniro/planning/plan-<slug>.md`
-- [ ] Skeptic validation passed (or skipped for Small tasks with reason noted)
+- [ ] Skeptic validation passed including convention-fit check (or skipped for Small tasks with reason noted)
 - [ ] User approved the plan (or chose to implement immediately)
 - [ ] Plan status updated to `approved` in the file header
 

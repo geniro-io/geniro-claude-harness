@@ -77,6 +77,26 @@ Return the plan in this format:
 
 ### Phase 3: Approval
 
+**Relevance filter:** Before presenting the plan, spawn a `relevance-filter-agent` to check detected smells against repo conventions:
+
+```
+Agent(subagent_type="relevance-filter-agent", prompt="""
+FINDINGS: [smells detected by refactor-agent, with file:line references and risk levels]
+CHANGED FILES: [files in refactoring scope from Phase 1]
+PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
+
+Evaluate each detected smell against this repo's actual patterns. For each smell, check:
+1. Convention alignment — is this "smell" actually the repo's chosen pattern?
+2. Over-engineering — would fixing this smell introduce more complexity than it removes?
+3. Intentional pattern — does the flagged pattern exist deliberately in 3+ other files?
+
+Tag each smell as KEEP or FILTER with evidence.
+""")
+```
+
+Remove FILTERED smells from the plan before presenting to user. Note filtered smells in the results. If the agent fails, proceed with all smells unfiltered (fail-open).
+
 Review the agent's plan:
 - If any steps are **HIGH risk**: present them to user via `AskUserQuestion` and wait for confirmation before proceeding
 - If all steps are LOW/MEDIUM: present the plan summary and proceed
@@ -130,6 +150,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "Tests are passing so I'll skip the blocked step protocol" | The protocol exists for the NEXT failure. Follow it. |
 | "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. |
 | "I'll skip reading project conventions" | You'll flag intentional patterns as smells. Read first. |
+| "All detected smells are real issues" | Generic smell categories flag intentional repo patterns. Without filtering against THIS repo's conventions, you'll refactor code that was designed that way on purpose. |
 | "This is just a refactor" | Refactors break things. Tests and review apply equally. |
 
 ## Learn & Improve
@@ -178,6 +199,7 @@ If user approves, draft and apply. If no improvements found, skip silently.
 - [ ] No new dependencies introduced
 - [ ] Blocked steps documented with failure reasons
 - [ ] Rationale documented for each transformation
+- [ ] Relevance filter applied (smells checked against repo conventions)
 - [ ] Learnings extracted and saved
 - [ ] Improvement suggestions presented
 

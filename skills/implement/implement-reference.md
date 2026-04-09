@@ -256,9 +256,30 @@ Only reached after Stage B passes.
 
    For large diffs (>8 files or >400 LOC): split files into batches of ~5, spawn reviewers per batch x dimension. Skip irrelevant dimensions per batch (e.g., test-only batch skips security).
 
-4. **Aggregate findings:** Collect all reviewer outputs. Deduplicate findings that appear in multiple reviewers. Drop findings scored Medium by the reviewer (informational only). Pass CRITICAL and HIGH findings through to the fix loop.
+4. **Aggregate findings:** Collect all reviewer outputs. Deduplicate findings that appear in multiple reviewers. Drop findings scored Medium by the reviewer (informational only).
 
-5. **Output:** Write `<task-dir>/review-feedback.md` with aggregated findings by file and severity
+5. **Relevance filter:** Spawn a `relevance-filter-agent` to check which CRITICAL/HIGH findings actually apply to this repo:
+
+   ```
+   Agent(subagent_type="relevance-filter-agent", prompt="""
+   FINDINGS: [aggregated CRITICAL/HIGH findings from all reviewers]
+   CHANGED FILES: [list of changed file paths — the agent reads files itself]
+   PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+   CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
+
+   Evaluate each finding against this repo's actual patterns. For each finding, check:
+   1. Convention alignment — does the suggestion match how this repo already works?
+   2. Over-engineering — is this YAGNI for this repo's complexity level?
+   3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
+
+   Tag each finding as KEEP or FILTER with evidence.
+   CRITICAL severity findings (security vulnerabilities, data loss, crashes) are always KEEP.
+   """)
+   ```
+
+   Only KEEP findings proceed to the fix loop. If the agent fails, pass all findings through unfiltered (fail-open).
+
+6. **Output:** Write `<task-dir>/review-feedback.md` with KEEP findings by file and severity. Note FILTERED findings separately for transparency.
 
 ---
 

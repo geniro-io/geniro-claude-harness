@@ -282,6 +282,13 @@ Create a `<feature-name>-spec.md` file in `.geniro/planning/` (e.g., `notificati
 - Use the exact language user chose (e.g., if they said "panel" not "modal", use "panel")
 - Mark assumptions with "Assumption:" if needed
 
+### Step 5a. Validate Against Repo Conventions
+
+Before registering, quick-check the spec's architectural proposals against the codebase:
+- Grep for similar existing features — does the proposed architecture (new tables, API patterns, component patterns) match how the repo implements similar features?
+- If proposed patterns contradict established conventions (e.g., spec proposes REST when repo uses GraphQL, or proposes a new ORM when repo uses raw SQL), flag in the spec's "Open Decisions" section and ask the user via `AskUserQuestion` before proceeding.
+- This is a lightweight inline check, not a full agent spawn — the user reviews the spec in Step 6.
+
 ### Step 5b. Register in FEATURES.md
 
 After writing the spec file, update the backlog:
@@ -393,6 +400,7 @@ For each skill invocation, confirm:
 - [ ] (spec command) Gray areas identified (3–6 concrete questions)
 - [ ] (spec command) Questions asked and answered by user
 - [ ] (spec command) Spec file written with full Requirements section
+- [ ] (spec command) Spec validated against repo conventions
 - [ ] (spec command) Spec registered in FEATURES.md
 - [ ] (spec command) User confirmed spec is complete
 

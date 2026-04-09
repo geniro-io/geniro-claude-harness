@@ -348,6 +348,8 @@ Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cro
 
 ### Step 2: Process Results
 
+**Relevance filter (Medium only):** Before processing, spawn a `relevance-filter-agent` with reviewer findings, changed file paths, and project conventions. Only KEEP findings proceed. Skip for Trivial/Small — scope is too limited for generic findings to be a risk. If the agent fails, proceed unfiltered (fail-open).
+
 Aggregate findings from all reviewers. Deduplicate (same file:line from multiple reviewers = single finding, keep highest severity).
 
 - Any reviewer **CHANGES REQUIRED** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If still CHANGES REQUIRED after 1 round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
@@ -458,6 +460,7 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 - [ ] Simplification pass run (Medium) or skipped (Trivial/Small)
 - [ ] All tests pass; no type/lint errors
 - [ ] Code quality reviewed
+- [ ] Relevance filter applied (Medium changes only)
 - [ ] User approved before shipping
 - [ ] Change committed or delivered for user to commit
 
