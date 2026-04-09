@@ -508,9 +508,10 @@ for hook in "$TEMPLATE_DIR"/hooks/*.sh "$TEMPLATE_DIR"/hooks/*.js; do
   [ -f "$hook" ] && cp "$hook" .claude/hooks/
 done
 
-# Copy ALL skills (each skill directory)
+# Copy ALL skills EXCEPT setup, update, cleanup (these only work with plugin installed)
 for skill_dir in "$TEMPLATE_DIR"/skills/*/; do
   skill_name=$(basename "$skill_dir")
+  [[ "$skill_name" == "setup" || "$skill_name" == "update" || "$skill_name" == "cleanup" ]] && continue
   mkdir -p ".claude/skills/$skill_name"
   cp -r "$skill_dir"* ".claude/skills/$skill_name/" 2>/dev/null
 done
@@ -571,6 +572,8 @@ This uses a project-relative path (no absolute path or `${CLAUDE_PLUGIN_ROOT}` n
 When generating the project's CLAUDE.md (which reads `CLAUDE.md.example` as a structural guide), use `.claude/hooks/backpressure.sh` and `.claude/agents/` instead of `${CLAUDE_PLUGIN_ROOT}/hooks/` and `${CLAUDE_PLUGIN_ROOT}/agents/`. The generated CLAUDE.md is at the project root (not inside `.claude/`), so the path rewriting sed commands do not reach it — the AI must use the correct paths during generation.
 
 ### 3.1.1 Save Template Snapshot
+
+**If `$DEPLOY_MODE` is `standalone`:** skip this section. The template snapshot is used by Smart Update to compare template changes, which relies on `$TEMPLATE_DIR` (the plugin). In standalone mode, updates re-copy all files directly — no snapshot comparison needed.
 
 Save a copy of the raw template files (before any tailoring) to `.geniro/template-snapshot/`. This snapshot enables future `/geniro:setup` re-runs to distinguish template structural changes from project-specific tailoring.
 
