@@ -26,29 +26,28 @@ Check for `.geniro/.geniro-state.json`:
 cat .geniro/.geniro-state.json 2>/dev/null
 ```
 
-**If found:** parse the `files.tailored` and `files.user_created` arrays.
-These tell you exactly which files in `.claude/` belong to the plugin and which the user created.
+**If found:** parse the `files.generated` and `files.user_created` arrays.
+These tell you exactly which files belong to the plugin and which the user created.
 
-**If not found:** fall back to heuristic detection — compare files in `.claude/` against
-the known plugin-generated files:
+**If not found:** fall back to heuristic detection — the plugin generates files in `.geniro/` and optionally `CLAUDE.md` at root:
 
 ```bash
-# List all files in .claude/ (excluding .artifacts/)
-find .claude/ -type f ! -path '.claude/.artifacts/*' 2>/dev/null
+# List all files inside .geniro/
+find .geniro/ -type f 2>/dev/null
 ```
 
-A file is **plugin-owned** if it matches one of the known generated files listed in 1.2.
-A file is **user-created** if it exists in `.claude/` but is not a known plugin file.
+A file is **plugin-owned** if it lives in `.geniro/` or is listed in 1.2.
+A file is **user-created** if it exists in `.geniro/` but is not a known plugin file.
 
 ### 1.2 Build deletion manifest
 
 The plugin generates these files in the project:
 
 1. **Plugin runtime** (will be removed entirely): `.geniro/` directory
-2. **User-created files** (will be preserved): any files in `.claude/` not created by plugin
+2. **User-created files** (will be preserved): any non-plugin files in `.geniro/` (e.g., user-added workflow files)
 
 Also check for plugin-generated entries in other files:
-- `CLAUDE.md` at project root — check geniro-state `files.tailored` for `CLAUDE.md`. If listed, it was plugin-generated. If no geniro-state, check if the first line contains `# Geniro Plugin` or `# Geniro Harness Plugin` (legacy header).
+- `CLAUDE.md` at project root — check geniro-state `files.generated` for `CLAUDE.md`. If listed, it was plugin-generated. If no geniro-state, check if the first line contains `# Geniro Plugin` or `# Geniro Harness Plugin` (legacy header).
 - `.gitignore` — check for `.geniro/` entry added by setup
 
 ## Phase 2: Confirm with User
