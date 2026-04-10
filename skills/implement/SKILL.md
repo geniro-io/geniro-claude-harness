@@ -159,13 +159,17 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Checkpoint:** Write to `<task-dir>/state.md`: "Phase 3 completed. Plan approved."
 
-**Strategic compact point:** All discovery, architecture, and validation context is now captured in files (spec.md, plan.md, concerns.md, state.md). Phases 1-3 consumed significant context that Phase 4 agents don't need — they get fresh context with pre-inlined files. Tell the user:
+**Strategic compact point:** All discovery, architecture, and validation context is now captured in files (spec.md, plan.md, concerns.md, state.md). Phases 1-3 consumed significant context that Phase 4 agents don't need — they get fresh context with pre-inlined files.
 
-> "All planning artifacts are saved. Before starting implementation, I recommend compacting to free context. Type `/compact`, then type `/geniro:implement continue` to resume from Phase 4. This improves quality for Phases 4-7. (Optional — you can also just continue now.)"
+Use the `AskUserQuestion` tool to ask:
+- **Question:** "All planning artifacts are saved. Compacting now frees context for higher-quality implementation in Phases 4-7. How would you like to proceed?"
+- **Header:** "Compact"
+- **Options:**
+  - Label: "Compact first (Recommended)" / Description: "Run /compact, then /geniro:implement continue to resume from Phase 4. Best for complex implementations."
+  - Label: "Continue now" / Description: "Skip compaction and proceed directly to Phase 4. Fine for smaller tasks."
 
-If the user compacts: after compaction, read `<task-dir>/state.md` to resume, then re-read the SKILL.md for phase instructions.
-
-If the user says "continue" or proceeds without compacting: continue normally to Phase 4.
+If the user picks "Compact first": tell them to type `/compact`, then `/geniro:implement continue` to resume.
+If the user picks "Continue now": continue normally to Phase 4.
 
 ---
 

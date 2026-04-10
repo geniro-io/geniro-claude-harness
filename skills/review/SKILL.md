@@ -96,7 +96,7 @@ DIFF CONTEXT: [git diff summary]
 Review ONLY for test quality and coverage. Do not cross into other dimensions.
 """)
 
-Agent(subagent_type="reviewer-agent", prompt="""
+Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
 DIMENSION: guidelines
 CRITERIA: [content of guidelines-criteria.md]
 CHANGED FILES: [list of files with their full content]
@@ -113,14 +113,19 @@ Review ONLY for style, naming, and guideline compliance. Do not cross into other
 4. **Tests Reviewer** — Coverage gaps, missing edge cases, test quality
 5. **Guidelines Reviewer** — Style, naming, documentation, compliance
 
+**Model routing:** Guidelines uses `haiku` (sufficient for style checks, saves tokens). Bugs, security, architecture, and tests use `sonnet` (accuracy-critical). In batched mode, apply the same model per dimension.
+
 #### Batched Mode (large diff)
 
 **Why batch?** LLMs exhibit a U-shaped attention curve — 30%+ accuracy drop when relevant context is in the middle of large prompts ([Liu et al., "Lost in the Middle"](https://arxiv.org/abs/2307.03172)). A reviewer given 20 files misses issues in files 8-15. Batching keeps each reviewer's context focused.
 
-**Step 1: Group files into batches of ~5 files each.**
-- Group by module/directory when possible (files in the same module are more coherent to review together)
-- Keep test files with their source files in the same batch
-- Example: 15 substantive files → Batch A (5 files), Batch B (5 files), Batch C (5 files)
+**Step 1: Group files into semantic batches of ~5 files each.**
+- Analyze files by **domain responsibility**, not just directory: auth concern, data layer, API surface, UI components, infrastructure/config, tests
+- Group files that share a domain concern into the same batch (e.g., auth controller + auth middleware + auth test = one batch)
+- Use signals to determine responsibility: file path patterns, import relationships (grep for cross-file imports), naming conventions
+- Fall back to directory grouping when fewer than 2 of the 3 signals (path pattern, import relationship, naming convention) agree on a domain for a file
+- Keep test files with their corresponding source files in the same batch
+- Example: 15 files → Batch A (auth: controller + middleware + test), Batch B (API: routes + validators + serializers), Batch C (infra: config + migrations + seeds)
 
 **Step 2: Determine which dimensions apply per batch.**
 Not every batch needs all 5 dimensions. Skip irrelevant ones to save tokens:
@@ -131,7 +136,7 @@ Not every batch needs all 5 dimensions. Skip irrelevant ones to save tokens:
 
 **Step 3: Spawn batch × dimension agents in a single message.**
 
-Use the same `Agent(subagent_type="reviewer-agent", prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
+Use the same `Agent(subagent_type="reviewer-agent", prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Add `model="haiku"` for guidelines dimension agents. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
 
 ```
 Example for 15 files, 3 batches:
@@ -209,6 +214,39 @@ CRITICAL severity findings (security vulnerabilities, data loss, crashes) are al
   - **Medium**: MINOR (low-severity, informational)
 - Aggregate by file and severity
 - Output final verdict with prioritized recommendations
+
+### Phase 4b: Per-Finding Validation (Critical & High only)
+
+For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validation sub-agent** to independently confirm. Each validator gets the finding + full file context but NO knowledge of other findings (prevents anchoring).
+
+**Why:** Anthropic's official code-review plugin uses this pattern — per-finding validation eliminates ~40% of false positives. The validator has fresh context and must independently reproduce the concern.
+
+**Skip conditions:** If 0 Critical/High findings remain after Phase 4, skip to Phase 5. Always validate CRITICAL findings regardless of count; skip validation for HIGH findings only when there is exactly 1 HIGH and 0 CRITICAL.
+
+Spawn all validators **in a single message** for parallel execution:
+
+```
+Agent(prompt="""
+TASK: Validate a single review finding. You are an independent validator — confirm or reject this finding.
+
+FINDING: [severity, dimension, file:line, description, evidence]
+FILE CONTENT: [full content of the affected file]
+DIFF CONTEXT: [relevant diff hunk]
+
+You must:
+1. Read the file and line range yourself
+2. Check if the issue genuinely exists
+3. Check for mitigating context the original reviewer may have missed
+4. Verdict: CONFIRMED (issue is real) or REJECTED (false positive, explain why)
+
+Do NOT review for other issues — validate this ONE finding only.
+""")
+```
+
+**Process results:**
+- CONFIRMED findings: keep in final report at original severity
+- REJECTED findings: demote to "Filtered by validation" section (visible but not actionable)
+- If a validator fails to complete: keep the finding (fail-open)
 
 ## Input Formats
 
@@ -324,19 +362,21 @@ Running relevance filter against repo conventions...
 - 10 of 12 findings kept
 - 2 filtered (over-engineering for this repo's complexity level)
 
-Validating 10 findings...
-- 8 pass confidence threshold
+Judge pass on 10 findings...
+- 8 pass confidence threshold (>=80)
 - 2 filtered (< 80% confidence)
 
+Validating 4 Critical/High findings (per-finding validators)...
+- 3 confirmed, 1 rejected (false positive — mitigating context found)
+
 ## Review Summary
-Files: 2 | Issues: 8 (1 CRITICAL, 3 HIGH, 4 MEDIUM)
+Files: 2 | Issues: 7 (1 CRITICAL, 2 HIGH, 4 MEDIUM)
 
 ## CRITICAL ISSUES (1)
 [SQL Injection in login.js:34-38] ...
 
-## HIGH PRIORITY (3)
+## HIGH PRIORITY (2)
 [Missing logout validation] ...
-[Weak password check] ...
 [Race condition in session] ...
 
 ## MEDIUM PRIORITY (4)
@@ -383,6 +423,7 @@ Code review is complete when:
 - [ ] All 5 reviewers (bugs, security, architecture, tests, guidelines) completed
 - [ ] Phase 3 relevance filter applied (findings checked against repo conventions and complexity)
 - [ ] Phase 4 judge validation complete (findings verified)
+- [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
 - [ ] Confidence scoring applied (>=80 threshold)
 - [ ] Issues classified by severity (Critical, High, Medium)
 - [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context

@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 13 agents, 13 skills, and 8 safety hooks out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 13 agents, 15 skills, and 8 safety hooks out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -42,21 +42,149 @@ This will:
 
 ## Skills
 
-| Skill | Purpose |
-|-------|---------|
-| `/geniro:setup` | AI-driven project setup -- scans codebase, interviews you, generates tailored config |
-| `/geniro:implement` | Full-featured implementation with architecture review and multi-agent execution |
-| `/geniro:plan` | Create detailed implementation plans with architect + skeptic validation |
-| `/geniro:review` | Parallel 5-agent code review (bugs, security, architecture, tests, guidelines) |
-| `/geniro:debug` | Scientific-method bug investigation with hypothesis tracking |
-| `/geniro:follow-up` | Quick post-implementation changes (trivial/small scope) |
-| `/geniro:deep-simplify` | Three-pass parallel code review for reuse, quality, and efficiency |
-| `/geniro:refactor` | Restructure code with zero behavior change guarantee |
-| `/geniro:investigate` | Deep codebase Q&A with parallel research agents |
-| `/geniro:features` | Feature backlog management and spec creation |
-| `/geniro:onboard` | Rapid codebase mapping and orientation |
-| `/geniro:learnings` | Extract session learnings into categorized memory |
-| `/geniro:update` | Update plugin to latest version |
+### `/geniro:setup` -- AI-driven project setup
+
+Scans your codebase, interviews you about preferences, and generates a tailored CLAUDE.md with detected tech stack, commands, and conventions.
+
+```
+/geniro:setup
+```
+
+### `/geniro:implement` -- Full-featured implementation
+
+Eight-phase pipeline: discover scope, architect a solution, get your approval, implement with parallel agents, validate, simplify, review, and ship.
+
+```
+/geniro:implement add user authentication with JWT tokens
+/geniro:implement create a REST API for managing blog posts
+/geniro:implement integrate Stripe payments for subscriptions
+```
+
+### `/geniro:plan` -- Implementation planning
+
+Creates a detailed file-level implementation plan validated by architect and skeptic agents. Use before `/geniro:implement` or standalone.
+
+```
+/geniro:plan migrate from REST to GraphQL
+/geniro:plan add role-based access control
+/geniro:plan review                          # list existing plans
+```
+
+### `/geniro:review` -- Parallel 5-agent code review
+
+Spawns 5 specialized reviewers (bugs, security, architecture, tests, guidelines) in parallel with confidence-scored findings.
+
+```
+/geniro:review                               # review uncommitted changes
+/geniro:review src/auth/ src/middleware/      # review specific files/dirs
+/geniro:review HEAD~3..HEAD                   # review a commit range
+```
+
+### `/geniro:debug` -- Scientific-method bug investigation
+
+Systematic debugging: observe, hypothesize, test, isolate, fix, verify. Tracks all hypotheses and rejects speculation.
+
+```
+/geniro:debug login returns 500 after password reset
+/geniro:debug memory leak in WebSocket handler after 1000 connections
+/geniro:debug tests pass locally but fail in CI on the date formatting step
+```
+
+### `/geniro:follow-up` -- Quick post-implementation changes
+
+For small changes that skip architecture. Assesses complexity, implements, validates, reviews, and ships. Escalates to `/geniro:implement` if scope is too large.
+
+```
+/geniro:follow-up rename the "users" endpoint to "accounts"
+/geniro:follow-up add created_at timestamp to the response DTO
+/geniro:follow-up fix the typo in the error message on line 42
+```
+
+### `/geniro:deep-simplify` -- Three-pass parallel code review
+
+Spawns 3 agents (reuse, quality, efficiency) on changed files. Applies P1/P2 fixes and reverts if CI breaks. Zero behavior change guaranteed.
+
+```
+/geniro:deep-simplify                        # review uncommitted changes
+/geniro:deep-simplify src/services/          # review specific directory
+```
+
+### `/geniro:refactor` -- Safe code restructuring
+
+Incremental refactoring with continuous test verification. Detects code smells, applies transformations atomically, guarantees zero behavior change.
+
+```
+/geniro:refactor extract payment logic from OrderService into PaymentService
+/geniro:refactor consolidate duplicate validation across controllers
+/geniro:refactor convert callback-based auth module to async/await
+```
+
+### `/geniro:investigate` -- Deep codebase Q&A
+
+Parallel research agents explore codebase structure, git history, and internet sources to produce evidence-backed answers.
+
+```
+/geniro:investigate how does the caching layer invalidate stale entries?
+/geniro:investigate what happens when a WebSocket connection drops mid-transaction?
+/geniro:investigate why was the ORM switched from Sequelize to Prisma?
+```
+
+### `/geniro:features` -- Feature backlog management
+
+Track features with status, priority, and complexity. Create detailed specs with codebase scouting and adaptive questioning.
+
+```
+/geniro:features list                        # show all tracked features
+/geniro:features add dark mode support       # add a new feature
+/geniro:features spec dark mode support      # create a detailed spec
+/geniro:features next                        # pick the next feature to work on
+/geniro:features complete dark mode support  # mark as done
+```
+
+### `/geniro:onboard` -- Rapid codebase orientation
+
+Scans structure, files, patterns, and conventions. Produces a CODEBASE_MAP.md with architecture, module relationships, critical paths, and entry points.
+
+```
+/geniro:onboard
+/geniro:onboard focus on the API layer
+```
+
+### `/geniro:instructions` -- Custom instruction management
+
+Create, list, edit, validate, and delete project-specific rules that customize how skills behave.
+
+```
+/geniro:instructions list
+/geniro:instructions create "always use snake_case for database columns"
+/geniro:instructions create "skip review for test files" --scope review
+/geniro:instructions delete no-orm-rule
+```
+
+### `/geniro:learnings` -- Extract session learnings
+
+Captures patterns, gotchas, decisions, and anti-patterns from completed work into categorized memory with reusability gates.
+
+```
+/geniro:learnings
+/geniro:learnings focus on the auth refactor decisions
+```
+
+### `/geniro:cleanup` -- Remove plugin files
+
+Removes all geniro-claude-plugin files from the project. Uses plugin state to preserve user-created files. Includes confirmation before any deletion.
+
+```
+/geniro:cleanup
+```
+
+### `/geniro:update` -- Update plugin
+
+Updates to the latest version. The status line shows an arrow when updates are available.
+
+```
+/geniro:update
+```
 
 ## The Pipeline: /geniro:implement
 
