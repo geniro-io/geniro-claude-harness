@@ -254,9 +254,9 @@ For Medium and Large tasks:
 
 2. **Read the validation report** from the file the skeptic wrote. If the file doesn't exist (skeptic failed to write it), treat as NEEDS REVISION and re-spawn with explicit instruction to write the file.
 
-2. **If NEEDS REVISION:** Route feedback back to architect-agent with specific issues. Architect revises the plan file. Re-run skeptic. Max 3 iterations. **If 3 iterations exhausted:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to present the best plan + remaining issues with options: A) Approve as-is with known issues noted. B) Abandon this approach, start fresh. C) I'll fix the plan manually.
+3. **If NEEDS REVISION:** Route feedback back to architect-agent with specific issues. Architect revises the plan file. Re-run skeptic. Max 3 iterations. **If 3 iterations exhausted:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to present the best plan + remaining issues with options: A) Approve as-is with known issues noted. B) Abandon this approach, start fresh. C) I'll fix the plan manually.
 
-3. **If PASS:** Proceed to Phase 4.
+4. **If PASS:** Proceed to Phase 4.
 
 ### Phase 4: Present Plan to User
 
@@ -273,13 +273,13 @@ For Medium and Large tasks:
    - A) **Approve this plan** — mark as approved, ready for `/geniro:implement`
    - B) **Adjust** — describe what to change (routes back to architect for revision)
    - C) **Too large — split** — decompose into smaller plans
-   - D) **Start implementing now** — approve + immediately begin `/geniro:implement` using this plan
+   - D) **Approve and implement** — approve the plan, then run `/geniro:implement` to execute it
 
 5. **Route based on answer:**
    - **A:** Update plan status to `approved`, done
    - **B:** Collect feedback, revise plan (back to Phase 2 with revision context), re-present. Max 3 rounds.
    - **C:** Help decompose into sub-plans, each saved as a separate plan file
-   - **D:** Update plan status to `approved`, then invoke the implement skill referencing this plan file
+   - **D:** Update plan status to `approved`, then tell the user: "Plan approved and saved. Run `/geniro:implement` — it will auto-detect this approved plan and skip architect generation."
 
 ### On approval, update the plan header:
 
@@ -289,15 +289,7 @@ Change `Status: draft` → `Status: approved`
 
 ## Integration with /geniro:implement
 
-When `/geniro:implement` is invoked:
-
-1. **Check for existing approved plans:** Glob `.geniro/planning/plan-*.md` AND `.geniro/planning/*/plan-*.md`, read headers, find plans with `Status: approved` that match the task description.
-
-2. **If matching approved plan exists:** Skip Phase 2 (Architect) entirely — use the existing plan. Present it in Phase 3 (Approval) with: "Found existing approved plan: `<filename>`. Using this as the implementation plan."
-
-3. **If no matching plan exists:** Run Phase 2 as normal — spawn architect, generate plan following `plan-criteria.md`, validate with skeptic.
-
-4. **If user provides a detailed implementation plan as arguments to /geniro:implement:** Parse into plan format, validate, save, and use — skip architect generation.
+When `/geniro:implement` is invoked, its Phase 2 pre-check detects approved plans from three sources: conversation context (plan mode), plan files on disk, and `$ARGUMENTS`. If an approved plan is found, the architect-agent is skipped and the plan goes directly to skeptic validation, then Phase 3 (Approval). See implement SKILL.md Phase 2 for the full detection and routing logic.
 
 ---
 

@@ -92,6 +92,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
    - **Auto mode:** Pick recommended defaults, log choices in spec
    - **Assumptions mode:** Propose plan, let user correct
+   - **Plan-provided:** If a detailed plan exists in the conversation (from plan mode) or as a file (from `/geniro:plan`), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
    - **Include git workspace question** in this batch (new branch / current branch / worktree)
 7. Synthesize into spec document (only AFTER step 6). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
 8. Document assumptions in spec file
@@ -111,9 +112,17 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Purpose:** Produce full implementation plan, validate it.
 
-**Action:** Spawn architect-agent.
+**Pre-check: Existing plan detection.** Before spawning the architect, check for an existing plan from any source:
 
-**Pre-check:** Look for existing approved plan (glob `plan-*.md`, check staleness). If user provided a plan in $ARGUMENTS, parse it directly.
+1. **Conversation plan (plan mode):** If the conversation contains a structured implementation plan with file-level steps (from Claude Code's plan mode via Shift+Tab, or a prior planning discussion), extract it into `<task-dir>/plan-<slug>.md` following the structure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`. Set the header `Status: approved | Source: plan-mode`. Detection signal: the conversation has a multi-step plan with specific file paths and implementation details — not just a high-level discussion.
+2. **Plan files (from /geniro:plan):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`.
+3. **$ARGUMENTS plan:** If `$ARGUMENTS` contains or references a plan file path, read and use it directly.
+
+**If a plan is found:** Skip architect-agent. Log: "Using existing plan: `<filename>`." Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion`: A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
+
+**If no plan found:** Run the full architect flow below.
+
+**Architect flow:**
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md` for plan structure
 2. **Spawn architect-agent** with spec + plan criteria + relevant codebase files (pre-inlined)
