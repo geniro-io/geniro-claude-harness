@@ -135,6 +135,7 @@ After documenting the fix, classify each finding by its **routing target**:
 | Docs described behavior that didn't match reality | **CLAUDE.md** or **docs** | Future agents need correct project info |
 | Non-obvious debugging insight or workaround | **Knowledge** (learnings.jsonl) | Searchable by knowledge-retrieval-agent |
 | New/changed command discovered during debugging | **CLAUDE.md** | All agents read CLAUDE.md for commands |
+| Quality gate or workflow step the user enforced manually | **Custom instructions** | `.geniro/instructions/` — project-specific skill behavior rules |
 
 Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip — just fix the bug". Group by target. If no improvements found, skip silently.
 

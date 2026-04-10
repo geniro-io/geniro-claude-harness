@@ -396,7 +396,7 @@ Show a summary:
 
 **Extract Learnings:** Scan conversation. Save `feedback` memory (user corrections, workarounds, non-obvious resolutions) and `project` memory (discovered bugs/gotchas). UPDATE existing memories rather than duplicate. Skip if nothing novel.
 
-**Suggest Improvements (WAIT) — Skip for Small changes**, run for Medium or "Proceed anyway" only. Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure changes), **knowledge** (gotchas, workarounds, debugging insights to learnings.jsonl), **rules/hooks** (enforceable patterns, dangerous operations). Draft: target, file, change, why. `AskUserQuestion` header "Improvements": "Apply all" / "Review one-by-one" / "Skip".
+**Suggest Improvements (WAIT) — Skip for Small changes**, run for Medium or "Proceed anyway" only. Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure changes), **custom instructions** (quality gates, workflow steps, or constraints the user enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, debugging insights to learnings.jsonl), **rules/hooks** (enforceable patterns, dangerous operations). Draft: target, file, change, why. `AskUserQuestion` header "Improvements": "Apply all" / "Review one-by-one" / "Skip".
 
 ### Step 3: Ship Decision
 

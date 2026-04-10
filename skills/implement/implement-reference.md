@@ -373,10 +373,12 @@ Analyze the full pipeline run and classify each finding by its **routing target*
 | Recurring agent mistake catchable by a check | **Rules/hooks** or **agent prompt** | Fix the system, not the symptom |
 | Skill hit a scenario it wasn't designed for | **Skill SKILL.md** | `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` |
 | Agent prompt consistently missed something | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
+| Quality gate, workflow step, or constraint the user enforced manually | **Custom instructions** | `.geniro/instructions/` — project-specific skill behavior rules |
 | User preference or correction | **Memory** (native) | Auto-retrieved by Claude in future sessions |
 
 **Decision logic when target is ambiguous:**
 - Affects how agents should behave in THIS project → **CLAUDE.md**
+- Affects how skills should behave (quality gates, workflow steps, constraints) → **Custom instructions**
 - Reusable technical insight worth remembering → **Knowledge**
 - Can be enforced automatically without human judgment → **Rules/hooks**
 - Improves the plugin itself (not project-specific) → **Skill/agent files**

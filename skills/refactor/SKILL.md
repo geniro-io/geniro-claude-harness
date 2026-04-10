@@ -178,6 +178,7 @@ Check if the refactoring revealed improvement opportunities. Classify each by **
 | Agent produces code that consistently needs same refactoring | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
 | Surprising coupling between modules | **Knowledge** (learnings.jsonl) | Architectural insight for future changes |
 | Pattern that should be enforced automatically | **Rules/hooks** | Automated enforcement beats manual memory |
+| Quality gate or constraint the user enforced manually | **Custom instructions** | `.geniro/instructions/` — project-specific skill behavior rules |
 
 Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 

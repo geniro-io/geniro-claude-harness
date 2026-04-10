@@ -299,6 +299,7 @@ If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), sugges
 | Architectural issues (P3 items) | "Consider running `/geniro:refactor` on [module]" |
 | Recurring anti-patterns | "Add a lint rule or criteria entry for [pattern]" |
 | Missing utilities causing duplication | "Extract [utility] to shared module" |
+| Quality gate the user enforced during review | "Add rule to `.geniro/instructions/` via `/geniro:instructions create`" |
 
 ---
 

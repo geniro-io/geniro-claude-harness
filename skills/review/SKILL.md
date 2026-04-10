@@ -371,6 +371,7 @@ Check if the review revealed improvement opportunities. Classify each by **routi
 | Security pattern that should be blocked automatically | **Rules/hooks** | Automated enforcement beats manual detection |
 | Recurring false positive revealing undocumented convention | **CLAUDE.md** | Document the convention so reviewers don't flag it |
 | Non-obvious insight about codebase quality | **Knowledge** (learnings.jsonl) | Context for future reviews |
+| Review rule the user enforced manually (e.g., "always check X") | **Custom instructions** | `.geniro/instructions/review.md` — persists as review-specific rule |
 
 Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 
