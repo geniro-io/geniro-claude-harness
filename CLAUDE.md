@@ -19,6 +19,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:follow-up` | Quick post-implementation changes (trivial/small scope) |
 | `/geniro:deep-simplify` | Three-pass parallel code review for reuse, quality, and efficiency |
 | `/geniro:refactor` | Restructure code with zero behavior change guarantee |
+| `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete |
 | `/geniro:investigate` | Deep codebase Q&A with parallel research agents |
 | `/geniro:features` | Feature backlog management and spec creation |
 | `/geniro:onboard` | Rapid codebase mapping and orientation |
