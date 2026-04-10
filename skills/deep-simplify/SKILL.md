@@ -11,7 +11,7 @@ argument-hint: "[files or 'changed' for git diff]"
 
 You are a **review orchestrator**. You spawn 3 specialized subagents in parallel, aggregate their findings, apply fixes, and verify. You do NOT analyze code yourself.
 
-**Pipeline:** Scope → Parallel Review (3 agents) → Aggregate → Fix → Verify
+**Pipeline:** Scope → Parallel Review (3 agents) → Aggregate & Filter → Fix → Verify
 
 ## Agent Failure Handling
 
@@ -177,6 +177,25 @@ Collect findings from all 3 agents. Merge into a single list:
 2. **Sort** — P1 first, then P2, grouped by file
 3. **Separate P3** — report only, never applied
 4. **Conflict check** — if two findings target the same code range with contradictory fixes, keep the one with clearer criteria match
+5. **Relevance filter** — spawn a `relevance-filter-agent` to check which P1/P2 findings actually apply to this repo's conventions and complexity level:
+
+   ```
+   Agent(subagent_type="relevance-filter-agent", prompt="""
+   FINDINGS: [aggregated P1/P2 findings in JSON format]
+   CHANGED FILES: [list of changed file paths — the agent reads files itself]
+   PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+   CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
+
+   Evaluate each finding against this repo's actual patterns. For each finding, check:
+   1. Convention alignment — does the suggestion match how this repo already works?
+   2. Over-engineering — is this YAGNI for this repo's complexity level?
+   3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
+
+   Tag each finding as KEEP or FILTER with evidence.
+   """)
+   ```
+
+   Only KEEP findings proceed to Phase 4 (Fix). FILTERED findings appear in the Completion Report's "Skipped" section with filter reasons. If the agent fails, pass all findings through unfiltered (fail-open).
 
 ---
 
@@ -290,6 +309,7 @@ If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), sugges
 | "I can analyze the code myself without spawning agents" | You are an orchestrator. Spawn all 3 agents. Parallel review catches more than a single pass. |
 | "One agent is enough for these few files" | Spawn all 3. Each has a different lens — even small files have reuse, quality, AND efficiency dimensions. |
 | "I'll spawn agents one at a time to save tokens" | Spawn all 3 in a SINGLE message. Sequential spawning defeats the purpose of parallel review. |
+| "These findings are obviously relevant to this repo" | Reviewers apply generic best practices. Without checking against THIS repo's patterns, you'll apply fixes that contradict repo conventions or add unnecessary complexity. |
 | "These changes are obviously safe" | Run validation. "Obviously safe" is the #1 predictor of broken builds. |
 | "I'll fix the P3 items too since I'm here" | P3 is report-only. Fixing P3 risks behavior changes. |
 | "I'll apply these fixes myself since I can see exactly what to change" | You are an orchestrator. ALL fixes go through agents. Even obvious P1 fixes. |
@@ -300,6 +320,7 @@ If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), sugges
 
 - [ ] 3 review agents spawned in parallel
 - [ ] Findings aggregated and deduplicated
+- [ ] Relevance filter applied (findings checked against repo conventions)
 - [ ] All P1 and safe P2 fixes applied
 - [ ] Full validation passes
 - [ ] No behavior changes (verified by test suite)

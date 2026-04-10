@@ -256,9 +256,30 @@ Only reached after Stage B passes.
 
    For large diffs (>8 files or >400 LOC): split files into batches of ~5, spawn reviewers per batch x dimension. Skip irrelevant dimensions per batch (e.g., test-only batch skips security).
 
-4. **Aggregate findings:** Collect all reviewer outputs. Deduplicate findings that appear in multiple reviewers. Drop findings scored Medium by the reviewer (informational only). Pass CRITICAL and HIGH findings through to the fix loop.
+4. **Aggregate findings:** Collect all reviewer outputs. Deduplicate findings that appear in multiple reviewers. Drop findings scored Medium by the reviewer (informational only).
 
-5. **Output:** Write `<task-dir>/review-feedback.md` with aggregated findings by file and severity
+5. **Relevance filter:** Spawn a `relevance-filter-agent` to check which CRITICAL/HIGH findings actually apply to this repo:
+
+   ```
+   Agent(subagent_type="relevance-filter-agent", prompt="""
+   FINDINGS: [aggregated CRITICAL/HIGH findings from all reviewers]
+   CHANGED FILES: [list of changed file paths — the agent reads files itself]
+   PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+   CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
+
+   Evaluate each finding against this repo's actual patterns. For each finding, check:
+   1. Convention alignment — does the suggestion match how this repo already works?
+   2. Over-engineering — is this YAGNI for this repo's complexity level?
+   3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
+
+   Tag each finding as KEEP or FILTER with evidence.
+   CRITICAL severity findings (security vulnerabilities, data loss, crashes) are always KEEP.
+   """)
+   ```
+
+   Only KEEP findings proceed to the fix loop. If the agent fails, pass all findings through unfiltered (fail-open).
+
+6. **Output:** Write `<task-dir>/review-feedback.md` with KEEP findings by file and severity. Note FILTERED findings separately for transparency.
 
 ---
 
@@ -339,15 +360,31 @@ Before writing, check if an existing memory/learning covers this topic — UPDAT
 
 ### Suggest Improvements
 
-Analyze the full pipeline run and identify improvements to the plugin itself:
+Analyze the full pipeline run and classify each finding by its **routing target** — where it should be persisted for maximum impact:
 
-| Category | What to look for | Target files |
+| What was discovered | Route to | Why |
 |---|---|---|
-| **Skill gaps** | Pipeline hit a scenario it wasn't designed for? | `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` |
-| **Agent prompt gaps** | An agent consistently missed something? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| **Stale documentation** | CLAUDE.md or rules reference patterns that no longer exist? | Any doc file |
+| New/changed build, test, or lint command | **CLAUDE.md** | Backend/frontend agents read CLAUDE.md at runtime for commands |
+| New coding convention or canonical pattern | **CLAUDE.md** | All agents inherit CLAUDE.md conventions |
+| Tech stack or project structure change | **CLAUDE.md** | Future sessions need current project shape |
+| Non-obvious gotcha, workaround, or debugging insight | **Knowledge** (learnings.jsonl) | Searchable by knowledge-retrieval-agent across sessions |
+| Architectural decision with rationale | **Knowledge** (learnings.jsonl) | Provides context for future changes in the same area |
+| Dangerous pattern that should be blocked automatically | **Rules/hooks** | Automated enforcement beats manual memory |
+| Recurring agent mistake catchable by a check | **Rules/hooks** or **agent prompt** | Fix the system, not the symptom |
+| Skill hit a scenario it wasn't designed for | **Skill SKILL.md** | `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` |
+| Agent prompt consistently missed something | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
+| User preference or correction | **Memory** (native) | Auto-retrieved by Claude in future sessions |
 
-For each improvement found, draft the change and include it in the commit. If no improvements found, skip silently. For ambiguous improvements where the right fix is unclear, mention them in the Ship summary as suggestions for the user to consider later — do NOT block the pipeline with a separate approval gate.
+**Decision logic when target is ambiguous:**
+- Affects how agents should behave in THIS project → **CLAUDE.md**
+- Reusable technical insight worth remembering → **Knowledge**
+- Can be enforced automatically without human judgment → **Rules/hooks**
+- Improves the plugin itself (not project-specific) → **Skill/agent files**
+- Uncertain → default to **Knowledge** (lowest risk, still searchable)
+
+Skip findings already captured in Extract Learnings (Step 2). This step focuses on **structural improvements** (CLAUDE.md, rules, prompts, docs) rather than knowledge capture — Step 2 handles gotchas and learnings.
+
+For each improvement found, draft the change, specify the target file, and present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target so the user sees what goes where. If no improvements found, skip silently.
 
 ### Commit
 

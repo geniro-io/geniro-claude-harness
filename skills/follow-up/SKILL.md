@@ -43,7 +43,7 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 
 1. **Load prior planning context** — `Glob(".geniro/planning/*/")`, match against current branch (`git branch --show-current`). If found, read: `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`, `review-feedback.md`. These prevent re-discovering conventions and contradicting prior decisions. If none found, proceed without.
 
-2. **Load workflow integrations** — Check for `.geniro/workflow/*.md` files. Read each one to discover active integrations and their argument detection rules. Apply detection rules to `$ARGUMENTS` (e.g., issue tracker patterns). If a reference is detected, follow the workflow file's instructions (fetch issue context, ask about status transitions).
+2. **Load workflow integrations and custom instructions** — Check for `.geniro/workflow/*.md` files to discover active integrations and their argument detection rules. Apply detection rules to `$ARGUMENTS` (e.g., issue tracker patterns). If a reference is detected, follow the workflow file's instructions (fetch issue context, ask about status transitions). Also load `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md` — apply rules as constraints, additional steps at specified phases, and hard constraints.
 
 3. **Read the change request** and identify which files likely need to change
 4. **Codebase scan** (Glob/Grep) to find the exact files and understand current patterns
@@ -348,6 +348,8 @@ Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cro
 
 ### Step 2: Process Results
 
+**Relevance filter (Medium only):** Before processing, spawn a `relevance-filter-agent` with reviewer findings, changed file paths, and project conventions. Only KEEP findings proceed. Skip for Trivial/Small — scope is too limited for generic findings to be a risk. If the agent fails, proceed unfiltered (fail-open).
+
 Aggregate findings from all reviewers. Deduplicate (same file:line from multiple reviewers = single finding, keep highest severity).
 
 - Any reviewer **CHANGES REQUIRED** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If still CHANGES REQUIRED after 1 round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
@@ -394,7 +396,7 @@ Show a summary:
 
 **Extract Learnings:** Scan conversation. Save `feedback` memory (user corrections, workarounds, non-obvious resolutions) and `project` memory (discovered bugs/gotchas). UPDATE existing memories rather than duplicate. Skip if nothing novel.
 
-**Suggest Improvements (WAIT) — Skip for Small changes**, run for Medium or "Proceed anyway" only. Check for: rules gaps, rules conflicts, stale documentation. Draft: file, change, why. `AskUserQuestion` header "Improve": "Apply all" / "Review one-by-one" / "Skip".
+**Suggest Improvements (WAIT) — Skip for Small changes**, run for Medium or "Proceed anyway" only. Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure changes), **knowledge** (gotchas, workarounds, debugging insights to learnings.jsonl), **rules/hooks** (enforceable patterns, dangerous operations). Draft: target, file, change, why. `AskUserQuestion` header "Improvements": "Apply all" / "Review one-by-one" / "Skip".
 
 ### Step 3: Ship Decision
 
@@ -458,6 +460,7 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 - [ ] Simplification pass run (Medium) or skipped (Trivial/Small)
 - [ ] All tests pass; no type/lint errors
 - [ ] Code quality reviewed
+- [ ] Relevance filter applied (Medium changes only)
 - [ ] User approved before shipping
 - [ ] Change committed or delivered for user to commit
 

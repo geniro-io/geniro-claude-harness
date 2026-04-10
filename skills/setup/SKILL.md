@@ -32,6 +32,7 @@ your-project/
 │
 └── .geniro/
     ├── workflow/                 # Committed — integration configs (Linear, etc.)
+    ├── instructions/            # Committed — custom skill instructions (optional)
     ├── planning/                # Git-ignored
     ├── debug/                   # Git-ignored
     └── knowledge/               # Git-ignored
@@ -80,6 +81,7 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`).
 **Written to project (committed):**
 - `CLAUDE.md` — enriched with tech stack, commands, conventions (with user permission)
 - `.geniro/workflow/*.md` — integration workflow files (Linear, etc.), created based on user choices
+- `.geniro/instructions/*.md` — custom skill instructions (optional, created based on user choices)
 
 **Not written (provided by plugin globally):**
 - All 13 agents (read CLAUDE.md for project context at runtime)
@@ -161,7 +163,7 @@ Check for pre-existing configuration:
 Route based on `$INSTALL_MODE` detected in Phase 0:
 
 - **`fresh`**: No existing plugin files. Continue to Phase 2 (User Interview) as normal.
-- **`update`**: Previous successful install detected (`.geniro/.geniro-state.json` exists). Skip to the **Re-Running Setup (Smart Update)** flow below. Do NOT run Phases 2-3 unless the user chooses Full Re-run.
+- **`update`**: Previous successful install detected (`.geniro/.geniro-state.json` exists). Skip to the **Re-Running Setup (Feature Sync)** flow below. Do NOT run Phases 2-3 unless the user chooses Full Re-run.
 
 If `.claude/` exists but contains only non-template files (no `.geniro/.geniro-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
 
@@ -315,7 +317,19 @@ Enabling Linear creates a workflow file (.geniro/workflow/linear.md) that adapts
 
 Options: "Enable Linear" / "Skip for now"
 
-### 2.4 Component Summary
+### 2.4 Custom Instructions
+
+Use the `AskUserQuestion` tool to ask:
+
+```
+Would you like to create a custom instructions file?
+
+Custom instructions let you add project-specific rules and steps that modify how all skills behave — like "always update documentation" or "always run E2E tests before shipping". You can edit .geniro/instructions/global.md anytime.
+```
+
+Options: "Create instructions file" / "Skip for now"
+
+### 2.5 Component Summary
 
 **What setup writes to the project:**
 - `CLAUDE.md` — enriched with detected tech stack, validation commands, and conventions (with your permission)
@@ -371,7 +385,7 @@ C) Skip — I'll write it myself
 
 ### 3.2 Create Workflow Files (if integrations selected)
 
-For each integration the user enabled in Phase 2.4, create the corresponding workflow file:
+For each integration the user enabled in Phase 2.3, create the corresponding workflow file:
 
 **Linear:**
 1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md`
@@ -379,6 +393,12 @@ For each integration the user enabled in Phase 2.4, create the corresponding wor
 3. Inform the user to run: `claude mcp add --transport http linear https://mcp.linear.app/mcp`
 
 Future integrations follow the same pattern: read from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md`, copy to `.geniro/workflow/<name>.md`.
+
+**Custom Instructions:**
+If the user chose to create custom instructions in Phase 2.4:
+1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/instructions-template.md`
+2. Copy it to `.geniro/instructions/global.md` (create the directory if needed: `mkdir -p .geniro/instructions`)
+3. Inform the user they can edit `.geniro/instructions/global.md` anytime, or create per-skill files like `.geniro/instructions/implement.md`
 
 ### 3.3 Install StatusLine
 
@@ -408,7 +428,7 @@ If a `statusLine` entry already exists and points to `geniro-statusline.js`, lea
 ### 3.4 Create Runtime Directories
 
 ```bash
-mkdir -p .geniro/workflow .geniro/planning .geniro/debug .geniro/knowledge
+mkdir -p .geniro/workflow .geniro/instructions .geniro/planning .geniro/debug .geniro/knowledge
 ```
 
 ## Phase 4: Verify, Track & Report
@@ -494,6 +514,8 @@ Add exceptions for workflow files (these should be committed):
 ```bash
 grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
 grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
+grep -q "^\!\.geniro/instructions/$" .gitignore 2>/dev/null || echo "!.geniro/instructions/" >> .gitignore
+grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/instructions/**" >> .gitignore
 ```
 
 If old patterns exist from a previous install, clean them up:
@@ -521,10 +543,15 @@ Write the state file:
   "plugin_version": "$TEMPLATE_COMMIT",
   "installed_at": "ISO-8601 timestamp",
   "install_mode": "fresh|update",
+  "features_enabled": {
+    "linear": true,
+    "custom_instructions": true
+  },
   "files": {
     "generated": [
       "CLAUDE.md",
-      ".geniro/workflow/linear.md"
+      ".geniro/workflow/linear.md",
+      ".geniro/instructions/global.md"
     ],
     "user_created": [
       "...any files in .claude/ that are NOT from the template"
@@ -534,7 +561,8 @@ Write the state file:
 ```
 
 Populate the lists from the actual files installed during Phase 3. The categories are:
-- **generated**: Files created by the plugin (CLAUDE.md if plugin-generated, plus any `.geniro/workflow/*.md` files created from templates)
+- **features_enabled**: Record which optional features the user chose (integration and feature names as keys, boolean values). This allows re-runs to know what was configured without re-asking.
+- **generated**: Files created by the plugin (CLAUDE.md if plugin-generated, plus any `.geniro/workflow/*.md` and `.geniro/instructions/*.md` files created from templates)
 - **user_created**: Files that existed in `.claude/` before setup and are not part of the template
 
 Note: Only include `CLAUDE.md` in `generated` if the plugin created or enriched it. If the user chose to maintain it themselves, omit it.
@@ -550,6 +578,7 @@ Setup complete! Here's what was generated:
 
 CLAUDE.md          — tech stack, commands, conventions
 [If Linear] .geniro/workflow/linear.md — Linear integration workflow
+[If Instructions] .geniro/instructions/global.md — Custom workflow instructions
 
 All agents, skills, hooks, and review criteria are provided globally by the plugin.
 
@@ -558,50 +587,79 @@ Integrations: [list enabled]
 
 Next steps:
 1. [If Linear] Run: claude mcp add --transport http linear https://mcp.linear.app/mcp
-2. Commit: git add CLAUDE.md .geniro/workflow/ && git commit -m 'chore: add geniro plugin config'
+2. Commit: git add CLAUDE.md .geniro/workflow/ .geniro/instructions/ && git commit -m 'chore: add geniro plugin config'
 3. Start using: /geniro:implement, /geniro:review, /geniro:refactor
 ```
 
-## Re-Running Setup (Smart Update)
+## Re-Running Setup (Feature Sync)
 
-If `/geniro:setup` detects `$INSTALL_MODE` is `update`, it enters update mode instead of the fresh install pipeline.
+If `/geniro:setup` detects `$INSTALL_MODE` is `update`, it enters Feature Sync mode. This flow is self-maintaining — it discovers features by scanning the template filesystem, so new features appear automatically without updating this section.
 
-### Step 1: Check what changed
+### Step 1: Scan & Compare
 
-Compare current CLAUDE.md against what would be generated for the current stack. Read `.geniro/.geniro-state.json` to identify plugin-generated files.
+**Scan template capabilities** (what the plugin currently offers):
+- Glob `${CLAUDE_SKILL_DIR}/workflow-templates/*.md` → available integration templates
+- Check this skill's Phase 2 and Phase 3 for other configurable features (custom instructions, StatusLine)
 
-Assess what has changed:
-- **CLAUDE.md**: Was it plugin-generated or user-maintained? If plugin-generated, has the project context changed?
-- **Workflow files**: Check `.geniro/workflow/` for existing integration files. Compare against available templates in `${CLAUDE_SKILL_DIR}/workflow-templates/` for new or updated integrations.
+**Scan project state** (what the user has installed):
+- Read `.geniro/.geniro-state.json` → tracked files and `features_enabled`
+- Glob `.geniro/workflow/*.md` → installed integrations
+- Check `.geniro/instructions/` → custom instructions present?
+- Check `.gitignore` → all required entries present? (`.geniro/`, `!.geniro/workflow/`, `!.geniro/workflow/**`, `!.geniro/instructions/`, `!.geniro/instructions/**`)
+- Check runtime directories: `.geniro/planning/`, `.geniro/debug/`, `.geniro/knowledge/`
+- Check StatusLine: `$USER_HOME/.claude/hooks/geniro-statusline.js` exists?
 
-### Step 2: Present to user
+**Classify each item:**
+- **NEW** — in template but not in project (e.g., new workflow template added to plugin, instructions/ not set up)
+- **CURRENT** — installed and up to date
+- **ORPHANED** — in project but no longer in template (deprecated feature removed from plugin)
+- **MISSING INFRA** — gitignore entries, directories, or StatusLine not present
+
+### Step 2: Present Feature Sync Report
 
 ```
-Your plugin has been updated. Here's what can be refreshed:
+Plugin configuration status:
 
-| File | Status |
-|------|--------|
-| CLAUDE.md | [Plugin-generated / User-maintained] |
-| .geniro/workflow/*.md | [Current / New templates available / Not installed] |
-
-A) Re-run full setup (re-analyze codebase, regenerate CLAUDE.md)
-D) Cancel
+| Feature | Status | Action |
+|---------|--------|--------|
+| CLAUDE.md | [Plugin-generated / User-maintained] | [Regenerate / —] |
+| Linear integration | [Installed / Not installed] | [— / Install] |
+| Custom instructions | [Installed / Not installed] | [— / Install] |
+| [Any new template] | Not installed | Install |
+| [Any orphaned file] | Orphaned (removed from plugin) | Remove |
+| StatusLine | [Current / Missing] | [— / Install] |
+| .gitignore entries | [Complete / N missing] | [— / Repair] |
+| Runtime directories | [Complete / N missing] | [— / Repair] |
 ```
 
-Use the `AskUserQuestion` tool (do NOT output options as plain text) to present the options.
+Use `AskUserQuestion` (do NOT output options as plain text):
+- **Question:** "How should I proceed with these changes?"
+- **Options:**
+  - "Apply all recommended changes (Recommended)" — install new, repair infra, flag orphans
+  - "Let me pick which changes to apply" — per-feature selection
+  - "Re-run full setup" — re-analyze codebase, regenerate everything (see Fresh Install below)
+  - "Cancel — no changes"
 
-### Step 3: Execute chosen option
+### Step 3: Execute Selected Changes
 
-- **A**: Re-run Phases 1-5 (full pipeline). This re-analyzes the codebase, re-interviews the user, and regenerates CLAUDE.md.
-- **D**: Stop. No changes made.
+For each approved change, run the corresponding fresh-install step:
+- **Install integration:** Read template from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md`, copy to `.geniro/workflow/<name>.md`
+- **Install custom instructions:** Read template from `${CLAUDE_SKILL_DIR}/workflow-templates/instructions-template.md`, copy to `.geniro/instructions/global.md`
+- **Remove orphaned files:** Confirm with user, then delete from `.geniro/workflow/`
+- **Repair gitignore:** Run Phase 4.3 gitignore commands
+- **Repair directories:** Run Phase 3.4 mkdir command
+- **Install StatusLine:** Run Phase 3.3 StatusLine installation
+- **Regenerate CLAUDE.md:** Re-run Phases 1-3 (analysis → interview → generate) for CLAUDE.md only
 
-After applying changes, update `.geniro/.geniro-state.json` with the new template version and timestamp.
+After applying changes, update `.geniro/.geniro-state.json` with new `plugin_version`, `installed_at`, and updated `features_enabled` and `files.generated`.
+
+Run Phase 4 verification checks (4.1, 4.2) on all changed files. Then proceed to Phase 5 (Finalize).
 
 **DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Finalize) now.
 
 ### Fresh Install (with Knowledge Preservation)
 
-If the user chose A (Re-run full setup) and wants a completely fresh start:
+If the user chose "Re-run full setup" and wants a completely fresh start:
 
 1. **Backup** CLAUDE.md if it was plugin-generated:
    ```bash
@@ -615,7 +673,8 @@ If the user chose A (Re-run full setup) and wants a completely fresh start:
 
 4. **Delete backups:**
    ```bash
-   rm -rf .geniro/_backup/
+   find .geniro/_backup/ -type f -delete 2>/dev/null
+   find .geniro/_backup/ -type d -empty -delete 2>/dev/null
    ```
 
 **DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Finalize) now.
