@@ -2,9 +2,9 @@
 name: geniro:instructions
 description: "Manage custom instruction files in .geniro/instructions/. Create, list, edit, validate, and delete project-specific rules that customize how skills behave."
 context: main
-model: haiku
+model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
-argument-hint: "[command: list|create|edit|validate|delete] [optional: scope — global or skill name]"
+argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instructions', 'delete review rules']"
 ---
 
 # Instructions: Custom Instruction Management
@@ -48,15 +48,97 @@ Every instruction file uses this format:
 - Hard limits (e.g., "Maximum PR size: 500 lines changed")
 ```
 
-## Core Commands
+## Intent Detection
 
-| Command | Usage | Purpose |
-|---------|-------|---------|
-| **list** | `/geniro:instructions list` | Show all instruction files, their status, and which skills they affect |
-| **create** | `/geniro:instructions create [scope]` | Create a new instruction file (global or per-skill) |
-| **edit** | `/geniro:instructions edit [scope]` | Edit an existing instruction file with guided prompts |
-| **validate** | `/geniro:instructions validate` | Check all instruction files for structure and phase name validity |
-| **delete** | `/geniro:instructions delete [scope]` | Remove an instruction file (with confirmation) |
+Parse `$ARGUMENTS` to determine the user's intent. NEVER output questions as plain text — always use the `AskUserQuestion` tool.
+
+### Action Detection
+
+Detect the action from natural language using these aliases:
+
+| Intent | Aliases | Maps to |
+|--------|---------|---------|
+| List | show, view, list, display, what instructions, current | `list` |
+| Create | add, new, create, set up, start | `create` |
+| Edit | change, modify, update, edit, tweak, adjust | `edit` |
+| Validate | check, verify, validate, lint | `validate` |
+| Delete | remove, delete, drop, clear | `delete` |
+
+If no arguments are provided, default to `list`.
+
+### Scope Detection
+
+Extract scope(s) from the arguments:
+
+- Explicit scope names: "global", "review", "implement", "plan", "debug", "follow-up", "refactor"
+- Contextual references: "add a rule to review" → scope=review, action=edit; "create debug instructions" → scope=debug, action=create
+- Multi-scope indicators: "all", "every", "global and review", "implement and plan" → collect all mentioned scopes into a list
+- "all" or "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create)
+
+Valid scopes: `global`, `implement`, `plan`, `review`, `debug`, `follow-up`, `refactor`.
+
+### Ambiguity Resolution
+
+If the action is unclear, use the `AskUserQuestion` tool:
+- **Question:** "What would you like to do with your instruction files?"
+- **Options:**
+  - label: "List" — description: "Show all instruction files and their contents"
+  - label: "Create" — description: "Create a new instruction file"
+  - label: "Edit" — description: "Modify an existing instruction file"
+  - label: "Validate" — description: "Check instruction files for issues"
+  - label: "Delete" — description: "Remove an instruction file"
+
+If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool:
+- **Question:** "Which instruction file?"
+- **Options:**
+  - label: "global" — description: "Rules that apply to all 6 skills"
+  - label: "review" — description: "Customize code review behavior"
+  - label: "implement" — description: "Customize implementation workflow"
+  - label: "plan" — description: "Customize planning workflow"
+  - label: "debug" — description: "Customize debugging workflow"
+  - label: "follow-up" — description: "Customize follow-up workflow"
+  - label: "refactor" — description: "Customize refactoring workflow"
+
+### Scope Validation
+
+Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `plan`, `review`, `debug`, `follow-up`, `refactor`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
+
+After resolving intent and scope(s), if multiple scopes were detected, proceed to **Batch Mode**. Otherwise, proceed to the resolved command section below.
+
+## Batch Mode
+
+When multiple scopes are detected (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow.
+
+### Multi-Scope Confirmation
+
+If the user said "all" or the scope list is ambiguous, use the `AskUserQuestion` tool with `multiSelect: true`:
+- **Question:** "Which instruction files do you want to target?"
+- **Options** (filter to existing files only for edit/validate/delete):
+  - label: "global" — description: "Rules for all 6 skills"
+  - label: "implement" — description: "Implementation workflow"
+  - label: "plan" — description: "Planning workflow"
+  - label: "review" — description: "Code review"
+  - label: "debug" — description: "Debugging workflow"
+  - label: "follow-up" — description: "Follow-up workflow"
+  - label: "refactor" — description: "Refactoring workflow"
+
+### Execution
+
+For each scope in the list, run the resolved command's full flow (create, edit, validate, or delete). When the command involves user input (e.g., create interview, edit changes), use the `AskUserQuestion` tool for each scope separately so the user can provide scope-specific input.
+
+### Batch Summary
+
+After processing all scopes, show a summary:
+
+```
+## Batch Complete
+
+| Scope | Action | Result |
+|-------|--------|--------|
+| global | edit | Updated — added 2 rules |
+| review | edit | Updated — added 1 constraint |
+| implement | edit | Skipped — no changes requested |
+```
 
 ## Command: list
 
@@ -125,23 +207,7 @@ from analysis of 14 production AI coding frameworks and real-world plugin usage.
 
 ## Command: create
 
-### Step 1: Determine scope
-
-If no scope argument provided, ask:
-
-Use the `AskUserQuestion` tool:
-- **Question:** "Which instruction file do you want to create?"
-- **Options:**
-  - "global — rules that apply to all 6 skills (Recommended)"
-  - "review — customize code review behavior"
-  - "implement — customize implementation workflow"
-  - "plan — customize planning workflow"
-
-If scope is provided as argument (e.g., `create review`), use it directly.
-
-Valid scopes: `global`, `implement`, `plan`, `review`, `debug`, `follow-up`, `refactor`.
-
-### Step 2: Check for existing file
+### Step 1: Check for existing file
 
 ```bash
 cat .geniro/instructions/{{scope}}.md 2>/dev/null
@@ -149,13 +215,13 @@ cat .geniro/instructions/{{scope}}.md 2>/dev/null
 
 If the file already exists, report: "`.geniro/instructions/{{scope}}.md` already exists. Use `/geniro:instructions edit {{scope}}` to modify it." and stop.
 
-### Step 3: Ensure directory exists
+### Step 2: Ensure directory exists
 
 ```bash
 mkdir -p .geniro/instructions
 ```
 
-### Step 4: Gather context
+### Step 3: Gather context
 
 Before interviewing the user, scan the project for context that will inform better instructions:
 
@@ -165,27 +231,71 @@ Before interviewing the user, scan the project for context that will inform bett
 
 This context helps you suggest relevant, project-specific rules instead of generic ones.
 
-### Step 5: Interview the user
+### Step 4: Interview the user
 
-Present what you found and ask targeted questions. Use `AskUserQuestion`:
+NEVER output questions as plain text — always use the `AskUserQuestion` tool.
+
+Use the `AskUserQuestion` tool to present what you found and ask targeted questions:
 - **Question:** "What kind of rules do you want to add? Describe your project conventions, quality gates, or workflow requirements."
 - **Options:**
-  - "Documentation rules — require docs updates, changelog entries"
-  - "Quality gates — test coverage, PR size limits, linting"
-  - "Workflow steps — extra checks before shipping, after review"
-  - "Let me describe my own rules"
+  - label: "Documentation rules" — description: "Require docs updates, changelog entries"
+  - label: "Quality gates" — description: "Test coverage, PR size limits, linting"
+  - label: "Workflow steps" — description: "Extra checks before shipping, after review"
+  - label: "Let me describe my own rules" — description: "Free-form input for custom rules"
 
 Based on the response, ask 1-2 follow-up questions to gather specific rules. Keep it concise — don't over-interview.
 
-**Per-scope guidance** — tailor follow-up questions to the scope:
-- **global**: "What rules should ALL skills follow? (e.g., documentation, testing, commit conventions)"
-- **review**: "What should reviewers always check? What severity thresholds matter? Any file patterns to always flag?"
-- **implement**: "Any pre/post implementation checks? Architecture constraints? Required validation steps?"
-- **plan**: "What must plans always include? Constraints on scope or complexity?"
-- **debug**: "Any debugging conventions? Required log formats? Systems to always check first?"
-- **refactor**: "Any refactoring boundaries? Files/modules that must not change? Required test coverage?"
+Use the `AskUserQuestion` tool for each follow-up, tailored to the scope:
 
-### Step 6: Generate the file
+**global** — Question: "What rules should ALL skills follow?"
+- Options:
+  - label: "Commit conventions" — description: "Commit message format, branch naming"
+  - label: "Testing requirements" — description: "Required test coverage, test commands"
+  - label: "Documentation standards" — description: "When to update docs, required sections"
+  - label: "Custom" — description: "Describe your own rules"
+
+**review** — Question: "What should reviewers focus on?"
+- Options:
+  - label: "Severity thresholds" — description: "Minimum severity to report, blocking vs advisory"
+  - label: "File patterns" — description: "Files or patterns to always flag"
+  - label: "Security checks" — description: "Security-specific review requirements"
+  - label: "Custom" — description: "Describe your own rules"
+
+**implement** — Question: "What implementation checks do you need?"
+- Options:
+  - label: "Pre-implementation" — description: "Checks before writing code"
+  - label: "Architecture constraints" — description: "Module boundaries, dependency rules"
+  - label: "Post-implementation" — description: "Validation steps after code changes"
+  - label: "Custom" — description: "Describe your own rules"
+
+**plan** — Question: "What must plans always include?"
+- Options:
+  - label: "Scope constraints" — description: "Maximum complexity, required breakdown"
+  - label: "Required sections" — description: "Risk analysis, rollback plan, dependencies"
+  - label: "Validation criteria" — description: "What makes a plan complete"
+  - label: "Custom" — description: "Describe your own rules"
+
+**debug** — Question: "What debugging conventions apply?"
+- Options:
+  - label: "Log requirements" — description: "Required log formats, debug output"
+  - label: "Priority systems" — description: "Systems to always check first"
+  - label: "Verification steps" — description: "How to confirm a fix works"
+  - label: "Custom" — description: "Describe your own rules"
+
+**follow-up** — Question: "What follow-up workflow rules apply?"
+- Options:
+  - label: "Scope limits" — description: "Maximum change size, escalation triggers"
+  - label: "Review requirements" — description: "Required checks before shipping"
+  - label: "Custom" — description: "Describe your own rules"
+
+**refactor** — Question: "What refactoring boundaries apply?"
+- Options:
+  - label: "Protected areas" — description: "Files or modules that must not change"
+  - label: "Test requirements" — description: "Required test coverage before/after"
+  - label: "Scope limits" — description: "Maximum files changed, complexity limits"
+  - label: "Custom" — description: "Describe your own rules"
+
+### Step 5: Generate the file
 
 Read the template from `${CLAUDE_SKILL_DIR}/../setup/workflow-templates/instructions-template.md` for structure reference.
 
@@ -197,7 +307,7 @@ from "Writing Effective Instructions" above:
 - Leave sections empty (with comment placeholders) if the user didn't specify content for them
 - Do NOT pad with generic rules — only include what the user actually wants
 
-### Step 7: Confirm
+### Step 6: Confirm
 
 Show the created file content and report:
 ```
@@ -209,11 +319,7 @@ Edit it anytime, or run `/geniro:instructions validate` to check for issues.
 
 ## Command: edit
 
-### Step 1: Determine scope
-
-If no scope argument, list existing files and ask which one to edit.
-
-### Step 2: Read current file
+### Step 1: Read current file
 
 ```bash
 cat .geniro/instructions/{{scope}}.md
@@ -221,21 +327,21 @@ cat .geniro/instructions/{{scope}}.md
 
 If the file doesn't exist: "File not found. Use `/geniro:instructions create {{scope}}` first." and stop.
 
-### Step 3: Show current content and ask what to change
+### Step 2: Show current content and ask what to change
 
-Display the current file content. Use `AskUserQuestion`:
+Display the current file content. Use the `AskUserQuestion` tool:
 - **Question:** "What would you like to change?"
 - **Options:**
-  - "Add new rules"
-  - "Add workflow steps"
-  - "Add or modify constraints"
-  - "Remove specific entries"
+  - label: "Add new rules" — description: "Add rule entries to the Rules section"
+  - label: "Add workflow steps" — description: "Add steps under Additional Steps"
+  - label: "Add or modify constraints" — description: "Add or change hard limits"
+  - label: "Remove specific entries" — description: "Delete rules, steps, or constraints"
 
-### Step 4: Apply changes
+### Step 3: Apply changes
 
 Based on user input, edit the file using the Edit tool. Preserve existing content — only add, modify, or remove what the user requested.
 
-### Step 5: Show updated file
+### Step 4: Show updated file
 
 Display the final content and confirm: "Updated `.geniro/instructions/{{scope}}.md`."
 
@@ -274,19 +380,15 @@ For warnings and errors, suggest the fix.
 
 ## Command: delete
 
-### Step 1: Determine scope
+### Step 1: Confirm deletion
 
-If no scope argument, list existing files and ask which one to delete.
-
-### Step 2: Confirm deletion
-
-Use `AskUserQuestion`:
+Use the `AskUserQuestion` tool:
 - **Question:** "Are you sure you want to delete `.geniro/instructions/{{scope}}.md`? This cannot be undone (unless the file is committed to git)."
 - **Options:**
-  - "Delete the file"
-  - "Cancel"
+  - label: "Delete the file" — description: "Permanently remove this instruction file"
+  - label: "Cancel" — description: "Keep the file unchanged"
 
-### Step 3: Execute
+### Step 2: Execute
 
 If confirmed:
 ```bash
@@ -300,13 +402,11 @@ If the directory is now empty:
 rmdir .geniro/instructions/ 2>/dev/null
 ```
 
-## No-Argument Behavior
-
-If the user runs `/geniro:instructions` with no command, default to `list`.
-
 ## Definition of Done
 
-- [ ] Command routed correctly based on argument
+- [ ] Intent detected from freeform arguments
+- [ ] Scope(s) resolved — single or batch
 - [ ] File operations completed successfully
 - [ ] User confirmed before any destructive operation (delete)
 - [ ] Validation checked structure, phase names, and scope validity
+- [ ] All user interactions used `AskUserQuestion` tool — no plain-text questions
