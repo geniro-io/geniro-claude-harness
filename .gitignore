@@ -11,6 +11,7 @@ Thumbs.db
 
 # Geniro runtime data (generated per-project, git-ignored)
 .geniro/
+.claude/.artifacts/
 
 # Node (if any tooling is added)
 node_modules/
