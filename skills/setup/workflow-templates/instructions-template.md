@@ -1,6 +1,6 @@
 # Custom Instructions
 
-Project-specific rules and steps that apply to geniro skills. Edit this file to customize how skills behave in your project. Skills read this file at the start of each run.
+Project-specific rules and steps that apply to core geniro skills (implement, plan, review, refactor, debug, follow-up). Edit this file to customize how skills behave in your project. Skills read this file at the start of each run.
 
 ## Rules
 

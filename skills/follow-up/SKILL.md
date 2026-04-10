@@ -43,7 +43,7 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 
 1. **Load prior planning context** — `Glob(".geniro/planning/*/")`, match against current branch (`git branch --show-current`). If found, read: `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`, `review-feedback.md`. These prevent re-discovering conventions and contradicting prior decisions. If none found, proceed without.
 
-2. **Load workflow integrations and custom instructions** — Check for `.geniro/workflow/*.md` files and `.geniro/instructions/global.md` + `.geniro/instructions/follow-up.md`. Read each one. Apply workflow detection rules to `$ARGUMENTS` (e.g., issue tracker patterns). If a reference is detected, follow the workflow file's instructions. Apply custom instruction rules, additional steps, and constraints throughout the pipeline.
+2. **Load workflow integrations and custom instructions** — Check for `.geniro/workflow/*.md` files to discover active integrations and their argument detection rules. Apply detection rules to `$ARGUMENTS` (e.g., issue tracker patterns). If a reference is detected, follow the workflow file's instructions (fetch issue context, ask about status transitions). Also load `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md` — apply rules as constraints, additional steps at specified phases, and hard constraints.
 
 3. **Read the change request** and identify which files likely need to change
 4. **Codebase scan** (Glob/Grep) to find the exact files and understand current patterns

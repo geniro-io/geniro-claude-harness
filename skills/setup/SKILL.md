@@ -32,6 +32,7 @@ your-project/
 │
 └── .geniro/
     ├── workflow/                 # Committed — integration configs (Linear, etc.)
+    ├── instructions/            # Committed — custom skill instructions (optional)
     ├── planning/                # Git-ignored
     ├── debug/                   # Git-ignored
     └── knowledge/               # Git-ignored
@@ -80,6 +81,7 @@ Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`).
 **Written to project (committed):**
 - `CLAUDE.md` — enriched with tech stack, commands, conventions (with user permission)
 - `.geniro/workflow/*.md` — integration workflow files (Linear, etc.), created based on user choices
+- `.geniro/instructions/*.md` — custom skill instructions (optional, created based on user choices)
 
 **Not written (provided by plugin globally):**
 - All 13 agents (read CLAUDE.md for project context at runtime)
@@ -383,7 +385,7 @@ C) Skip — I'll write it myself
 
 ### 3.2 Create Workflow Files (if integrations selected)
 
-For each integration the user enabled in Phase 2.4, create the corresponding workflow file:
+For each integration the user enabled in Phase 2.3, create the corresponding workflow file:
 
 **Linear:**
 1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md`

@@ -25,7 +25,7 @@ You are a **coordinator**. You delegate review work to `reviewer-agent` instance
 
 ### Phase 1: Collect Context & Triage
 - Parse input (files, git diff range, branch)
-- Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/review.md`. Apply rules as additional review criteria, additional steps at specified phases.
+- Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/review.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 - Read changed files and understand modifications
 - Build context map of what changed and why
 - Identify file types and affected modules
