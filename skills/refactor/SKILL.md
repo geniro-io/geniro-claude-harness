@@ -35,6 +35,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 2. Use Grep and Glob to find all related files
 3. Read all files in scope to understand current organization, dependencies, imports, and test coverage
 4. Read any project convention files referenced in CLAUDE.md (coding standards, architecture docs) — understanding project patterns prevents flagging intentional designs as smells
+5. Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/refactor.md`. Apply rules and constraints to the refactoring scope.
 
 ### Phase 2: Analyze & Plan
 

@@ -69,11 +69,12 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 
 ## Workflow: Observe → Hypothesis → Test → Fix
 
-### 0. Retrieve Prior Knowledge (1 min)
+### 0. Retrieve Prior Knowledge & Custom Instructions (1 min)
 Before investigating, check for relevant prior learnings:
 - Scan `.geniro/knowledge/learnings.jsonl` for gotchas and patterns related to the affected area (use Grep with keywords from the bug description)
 - Check `.geniro/knowledge/sessions/` for past debug sessions on similar components
 - If relevant learnings exist, use them to inform initial hypotheses — don't re-discover known issues
+- Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/debug.md`. Apply rules and constraints to the investigation.
 
 ### 1. Observe (5 min)
 - Reproduce the bug consistently

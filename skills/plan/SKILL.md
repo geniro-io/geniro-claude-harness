@@ -147,6 +147,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Extract core description, detect issue tracker references per workflow rules, detect mode (auto/assumptions/interactive).
    - If issue tracker reference detected: follow the workflow file's fetch instructions (e.g., fetch via MCP, extract title/description/acceptance criteria)
    - If integration backend unavailable: log warning, proceed without (non-blocking)
+   Also load custom instructions: Glob `.geniro/instructions/global.md` and `.geniro/instructions/plan.md`. Read any found. Apply rules and constraints to the planning flow.
 
 2. **Check if user provided a detailed plan.** If `$ARGUMENTS` contains structured content with file paths, steps, or a clear implementation breakdown:
    - Skip architect generation entirely

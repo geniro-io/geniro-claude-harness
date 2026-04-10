@@ -315,7 +315,19 @@ Enabling Linear creates a workflow file (.geniro/workflow/linear.md) that adapts
 
 Options: "Enable Linear" / "Skip for now"
 
-### 2.4 Component Summary
+### 2.4 Custom Instructions
+
+Use the `AskUserQuestion` tool to ask:
+
+```
+Would you like to create a custom instructions file?
+
+Custom instructions let you add project-specific rules and steps that modify how all skills behave — like "always update documentation" or "always run E2E tests before shipping". You can edit .geniro/instructions/global.md anytime.
+```
+
+Options: "Create instructions file" / "Skip for now"
+
+### 2.5 Component Summary
 
 **What setup writes to the project:**
 - `CLAUDE.md` — enriched with detected tech stack, validation commands, and conventions (with your permission)
@@ -380,6 +392,12 @@ For each integration the user enabled in Phase 2.4, create the corresponding wor
 
 Future integrations follow the same pattern: read from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md`, copy to `.geniro/workflow/<name>.md`.
 
+**Custom Instructions:**
+If the user chose to create custom instructions in Phase 2.4:
+1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/instructions-template.md`
+2. Copy it to `.geniro/instructions/global.md` (create the directory if needed: `mkdir -p .geniro/instructions`)
+3. Inform the user they can edit `.geniro/instructions/global.md` anytime, or create per-skill files like `.geniro/instructions/implement.md`
+
 ### 3.3 Install StatusLine
 
 Copy the statusline script to a stable location and configure it in user settings. This ensures the statusline works across all projects and survives plugin version updates.
@@ -408,7 +426,7 @@ If a `statusLine` entry already exists and points to `geniro-statusline.js`, lea
 ### 3.4 Create Runtime Directories
 
 ```bash
-mkdir -p .geniro/workflow .geniro/planning .geniro/debug .geniro/knowledge
+mkdir -p .geniro/workflow .geniro/instructions .geniro/planning .geniro/debug .geniro/knowledge
 ```
 
 ## Phase 4: Verify, Track & Report
@@ -494,6 +512,8 @@ Add exceptions for workflow files (these should be committed):
 ```bash
 grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
 grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
+grep -q "^\!\.geniro/instructions/$" .gitignore 2>/dev/null || echo "!.geniro/instructions/" >> .gitignore
+grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/instructions/**" >> .gitignore
 ```
 
 If old patterns exist from a previous install, clean them up:
@@ -550,6 +570,7 @@ Setup complete! Here's what was generated:
 
 CLAUDE.md          — tech stack, commands, conventions
 [If Linear] .geniro/workflow/linear.md — Linear integration workflow
+[If Instructions] .geniro/instructions/global.md — Custom workflow instructions
 
 All agents, skills, hooks, and review criteria are provided globally by the plugin.
 
@@ -558,7 +579,7 @@ Integrations: [list enabled]
 
 Next steps:
 1. [If Linear] Run: claude mcp add --transport http linear https://mcp.linear.app/mcp
-2. Commit: git add CLAUDE.md .geniro/workflow/ && git commit -m 'chore: add geniro plugin config'
+2. Commit: git add CLAUDE.md .geniro/workflow/ .geniro/instructions/ && git commit -m 'chore: add geniro plugin config'
 3. Start using: /geniro:implement, /geniro:review, /geniro:refactor
 ```
 
