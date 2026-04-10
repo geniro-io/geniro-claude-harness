@@ -504,14 +504,11 @@ If no issues found, return: "ALL CHECKS PASSED — configuration is ready to com
 
 ### 4.3 Ensure Runtime Directories are Git-Ignored
 
-Add `.geniro/` to `.gitignore`:
+Add `.geniro/*` to `.gitignore` (use `*` not `/` so negation patterns work — `.geniro/` would ignore the directory itself, preventing git from seeing any exceptions):
 
 ```bash
-grep -q "^\.geniro/$" .gitignore 2>/dev/null || echo ".geniro/" >> .gitignore
-```
-
-Add exceptions for workflow files (these should be committed):
-```bash
+grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
+grep -q "^\!\.geniro/$" .gitignore 2>/dev/null || echo "!.geniro/" >> .gitignore
 grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
 grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
 grep -q "^\!\.geniro/instructions/$" .gitignore 2>/dev/null || echo "!.geniro/instructions/" >> .gitignore
@@ -520,7 +517,7 @@ grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.genir
 
 If old patterns exist from a previous install, clean them up:
 ```bash
-sed -i '' '/^\.geniro\/\*$/d' .gitignore 2>/dev/null
+sed -i '' '/^\.geniro\/$/d' .gitignore 2>/dev/null
 sed -i '' '/^\!\.geniro\/project\/$/d' .gitignore 2>/dev/null
 ```
 
@@ -605,7 +602,7 @@ If `/geniro:setup` detects `$INSTALL_MODE` is `update`, it enters Feature Sync m
 - Read `.geniro/.geniro-state.json` → tracked files and `features_enabled`
 - Glob `.geniro/workflow/*.md` → installed integrations
 - Check `.geniro/instructions/` → custom instructions present?
-- Check `.gitignore` → all required entries present? (`.geniro/`, `!.geniro/workflow/`, `!.geniro/workflow/**`, `!.geniro/instructions/`, `!.geniro/instructions/**`)
+- Check `.gitignore` → all required entries present? (`.geniro/*`, `!.geniro/`, `!.geniro/workflow/`, `!.geniro/workflow/**`, `!.geniro/instructions/`, `!.geniro/instructions/**`)
 - Check runtime directories: `.geniro/planning/`, `.geniro/debug/`, `.geniro/knowledge/`
 - Check StatusLine: `$USER_HOME/.claude/hooks/geniro-statusline.js` exists?
 
