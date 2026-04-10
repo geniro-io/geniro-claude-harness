@@ -326,7 +326,7 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 
 **Step 2: Extract Learnings** — Scan conversation for corrections, gotchas, decisions. Save to learnings.jsonl and/or memory. Write session summary. See reference file for signal table.
 
-**Step 3: Suggest Improvements** — Analyze pipeline run for plugin improvements (rules gaps, skill gaps, agent prompt gaps). Draft changes. See reference file for details.
+**Step 3: Suggest Improvements (WAIT)** — Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure), **knowledge** (gotchas, workarounds, decisions), **rules/hooks** (enforceable patterns), **skill/agent files** (plugin improvements). Present grouped by target via `AskUserQuestion`. See reference file for routing table.
 
 **Step 4: Present Summary**
 

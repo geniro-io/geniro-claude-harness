@@ -361,26 +361,17 @@ Before writing, check if an existing memory covers this topic — UPDATE rather 
 
 ### Suggest Improvements
 
-Check if the review revealed plugin improvement opportunities:
+Check if the review revealed improvement opportunities. Classify each by **routing target**:
 
-| Category | What to look for | Target files |
+| What was discovered | Route to | Why |
 |---|---|---|
-| **Criteria gaps** | Reviewer missed a bug class that should be checked? | `${CLAUDE_SKILL_DIR}/*-criteria.md` |
-| **Agent prompt gaps** | Implementation agent produced a pattern the reviewer flagged? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
+| Reviewer missed a bug class that should be checked | **Review criteria** | `${CLAUDE_SKILL_DIR}/*-criteria.md` |
+| Implementation agent produced a flagged anti-pattern | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
+| Security pattern that should be blocked automatically | **Rules/hooks** | Automated enforcement beats manual detection |
+| Recurring false positive revealing undocumented convention | **CLAUDE.md** | Document the convention so reviewers don't flag it |
+| Non-obvious insight about codebase quality | **Knowledge** (learnings.jsonl) | Context for future reviews |
 
-For each improvement found, present to the user:
-```
-The review revealed potential plugin improvements:
-
-1. [Rule gap] No rule prevents [anti-pattern] — suggest adding to backend-conventions.md
-2. [Criteria gap] Security criteria don't check for [vulnerability class] — suggest adding
-
-A) Apply all improvements
-B) Review one-by-one
-C) Skip
-```
-
-If user approves, draft and apply. If no improvements found, skip silently.
+Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 
 ## Definition of Done
 

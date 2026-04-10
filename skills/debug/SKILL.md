@@ -124,27 +124,18 @@ Before writing, check if an existing memory covers this topic — UPDATE rather 
 
 ### 8. Suggest Improvements
 
-After documenting the fix, check if the debug session revealed plugin improvement opportunities:
+After documenting the fix, classify each finding by its **routing target**:
 
-| Category | What to look for | Target files |
+| What was discovered | Route to | Why |
 |---|---|---|
-| **Agent prompt gaps** | An agent produced code with this bug pattern? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| **Missing test patterns** | Bug class not covered by review criteria? | `${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md` |
-| **Stale documentation** | Docs described behavior that didn't match reality? | Any doc file |
+| Bug pattern an agent should avoid | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
+| Bug class not covered by review criteria | **Review criteria** | `${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md` |
+| Dangerous pattern that should be blocked automatically | **Rules/hooks** | Automated enforcement beats manual memory |
+| Docs described behavior that didn't match reality | **CLAUDE.md** or **docs** | Future agents need correct project info |
+| Non-obvious debugging insight or workaround | **Knowledge** (learnings.jsonl) | Searchable by knowledge-retrieval-agent |
+| New/changed command discovered during debugging | **CLAUDE.md** | All agents read CLAUDE.md for commands |
 
-For each improvement found, use the `AskUserQuestion` tool (do NOT output options as plain text) to present the options:
-```
-The debug session revealed potential plugin improvements:
-
-1. [Rule gap] Backend agent has no guard against [pattern] — suggest adding to backend-conventions.md
-2. [Test gap] Review criteria don't check for [bug class] — suggest adding to bugs-criteria.md
-
-A) Apply all improvements
-B) Review one-by-one
-C) Skip — just fix the bug
-```
-
-If user approves, draft and apply the changes. If no improvements found, skip silently.
+Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip — just fix the bug". Group by target. If no improvements found, skip silently.
 
 ## Escalation Limits
 

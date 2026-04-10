@@ -169,25 +169,16 @@ Before writing, check if an existing memory covers this topic — UPDATE rather 
 
 ### Suggest Improvements
 
-Check if the refactoring revealed plugin improvement opportunities:
+Check if the refactoring revealed improvement opportunities. Classify each by **routing target**:
 
-| Category | What to look for | Target files |
+| What was discovered | Route to | Why |
 |---|---|---|
-| **Agent prompt gaps** | Implementation agent produces code that consistently needs the same refactoring? | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
+| Undocumented convention used consistently across codebase | **CLAUDE.md** | All agents inherit CLAUDE.md conventions |
+| Agent produces code that consistently needs same refactoring | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
+| Surprising coupling between modules | **Knowledge** (learnings.jsonl) | Architectural insight for future changes |
+| Pattern that should be enforced automatically | **Rules/hooks** | Automated enforcement beats manual memory |
 
-For each improvement found, present to the user:
-```
-The refactoring revealed potential plugin improvements:
-
-1. [Rule gap] The pattern [X] is used everywhere but not documented — suggest adding to backend-conventions.md
-2. [Stale rule] Rule says [Y] but codebase consistently does [Z] — suggest updating
-
-A) Apply all improvements
-B) Review one-by-one
-C) Skip
-```
-
-If user approves, draft and apply. If no improvements found, skip silently.
+Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 
 ## Definition of Done
 
