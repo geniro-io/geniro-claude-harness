@@ -1,6 +1,6 @@
 ---
 name: geniro:review
-description: "Parallel multi-agent code review with 5 specialized reviewers (bugs, security, architecture, tests, guidelines). Confidence-scored findings automatically filtered. Use for comprehensive code quality assessment."
+description: "Parallel multi-agent code review with 5–6 specialized reviewers (bugs, security, architecture, tests, guidelines, +design when UI files present). Confidence-scored findings automatically filtered. Use for comprehensive code quality assessment."
 context: main
 model: sonnet
 allowed-tools:
@@ -15,7 +15,7 @@ argument-hint: "[files or git diff range to review]"
 
 # Code Review Skill
 
-Comprehensive code review using parallel multi-agent analysis. Five specialized reviewers examine code changes simultaneously, then a relevance filter validates findings against repo conventions and complexity level, and a judge pass confidence-scores and aggregates the results.
+Comprehensive code review using parallel multi-agent analysis. 5–6 specialized reviewers examine code changes simultaneously (design reviewer added when UI files are present), then a relevance filter validates findings against repo conventions and complexity level, and a judge pass confidence-scores and aggregates the results.
 
 ## Your Role — Orchestrate, Don't Review
 
@@ -40,7 +40,7 @@ You are a **coordinator**. You delegate review work to `reviewer-agent` instance
 
 **Determine review mode based on diff size:**
 
-**Small diff (≤8 substantive files, ≤400 LOC):** Standard mode — 5 reviewers, each sees ALL files.
+**Small diff (≤8 substantive files, ≤400 LOC):** Standard mode — 5 reviewers (+1 design when UI files present, see detection rule below), each sees ALL files.
 
 **Large diff (>8 substantive files or >400 LOC):** Batched mode — split files into batches, spawn reviewers per batch.
 
@@ -52,12 +52,13 @@ Before spawning any reviewers, read these criteria files — their content is pr
 - `${CLAUDE_SKILL_DIR}/architecture-criteria.md`
 - `${CLAUDE_SKILL_DIR}/tests-criteria.md`
 - `${CLAUDE_SKILL_DIR}/guidelines-criteria.md`
+- `${CLAUDE_SKILL_DIR}/design-criteria.md` (conditional — only loaded when the UI-file detection rule below matches at least one changed file)
 
 Also read `CLAUDE.md` at the project root for tech stack context — use this to interpret criteria in the context of the project's language and framework.
 
 #### Standard Mode (small diff)
 
-Spawn all five reviewer agents **in a single message** for parallel execution:
+Spawn all five reviewer agents **in a single message** for parallel execution. **Spawn the design reviewer (6th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.**
 
 ```
 Agent(subagent_type="reviewer-agent", prompt="""
@@ -104,7 +105,19 @@ PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 DIFF CONTEXT: [git diff summary]
 Review ONLY for style, naming, and guideline compliance. Do not cross into other dimensions.
 """)
+
+# Conditional — spawn ONLY if at least one changed file matches the UI-file detection rule below.
+Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
+DIMENSION: design
+CRITERIA: [content of design-criteria.md]
+CHANGED FILES: [list of files with their full content]
+PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+DIFF CONTEXT: [git diff summary]
+Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
+""")
 ```
+
+> **UI-file detection rule (used by the conditional design reviewer):** A file is considered a UI file if its path matches any of these globs — `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**` — or its extension is one of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.sass`, `.less`, `.styled.ts`, `.styled.tsx`. The design dimension is skipped entirely when no changed file matches.
 
 **Dimensions:**
 1. **Bugs Reviewer** — Logic errors, null checks, off-by-one, state issues
@@ -112,8 +125,9 @@ Review ONLY for style, naming, and guideline compliance. Do not cross into other
 3. **Architecture Reviewer** — Design patterns, modularity, coupling, tech debt
 4. **Tests Reviewer** — Coverage gaps, missing edge cases, test quality
 5. **Guidelines Reviewer** — Style, naming, documentation, compliance
+6. **Design Reviewer (conditional)** — Visual/UX quality: token conformance, spacing/type scale, state completeness, WCAG AA contrast, responsive coverage, exemplar drift. Fires only when the diff contains UI files (see detection rule above).
 
-**Model routing:** Guidelines uses `haiku` (sufficient for style checks, saves tokens). Bugs, security, architecture, and tests use `sonnet` (accuracy-critical). In batched mode, apply the same model per dimension.
+**Model routing:** Guidelines and design use `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, and tests use `sonnet` (accuracy-critical). In batched mode, apply the same model per dimension.
 
 #### Batched Mode (large diff)
 
@@ -128,26 +142,26 @@ Review ONLY for style, naming, and guideline compliance. Do not cross into other
 - Example: 15 files → Batch A (auth: controller + middleware + test), Batch B (API: routes + validators + serializers), Batch C (infra: config + migrations + seeds)
 
 **Step 2: Determine which dimensions apply per batch.**
-Not every batch needs all 5 dimensions. Skip irrelevant ones to save tokens:
-- Test-only batch → skip security, architecture. Run: bugs, tests, guidelines
-- Config/infra batch → skip tests. Run: security, architecture, guidelines
-- UI component batch → skip security (unless auth-related). Run: bugs, architecture, tests, guidelines
-- API/auth batch → all 5 dimensions
+Not every batch needs all 5–6 dimensions. Skip irrelevant ones to save tokens. Use the UI-file detection rule above to decide whether a batch gets the design dimension:
+- Test-only batch → skip security, architecture, design. Run: bugs, tests, guidelines
+- Config/infra batch → skip tests, design. Run: security, architecture, guidelines
+- UI component batch → skip security (unless auth-related). Run: bugs, architecture, tests, guidelines, design
+- API/auth batch → all 5 dimensions (design only if it also contains UI files — rare)
 
 **Step 3: Spawn batch × dimension agents in a single message.**
 
-Use the same `Agent(subagent_type="reviewer-agent", prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Add `model="haiku"` for guidelines dimension agents. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
+Use the same `Agent(subagent_type="reviewer-agent", prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Add `model="haiku"` for guidelines and design dimension agents. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
 
 ```
 Example for 15 files, 3 batches:
-  Batch A (auth module, 5 files):   bugs-A, security-A, architecture-A, tests-A, guidelines-A  → 5 agents
-  Batch B (UI components, 5 files): bugs-B, architecture-B, tests-B, guidelines-B              → 4 agents (no security)
-  Batch C (test utilities, 5 files): bugs-C, tests-C, guidelines-C                             → 3 agents (no security/arch)
-  Total: 12 agents (vs 5 in standard mode, but each has 1/3 the files = much higher accuracy)
+  Batch A (auth module, 5 files):   bugs-A, security-A, architecture-A, tests-A, guidelines-A       → 5 agents
+  Batch B (UI components, 5 files): bugs-B, architecture-B, tests-B, guidelines-B, design-B         → 5 agents (no security; +design)
+  Batch C (test utilities, 5 files): bugs-C, tests-C, guidelines-C                                  → 3 agents (no security/arch/design)
+  Total: 13 agents (vs 5 in standard mode, but each has 1/3 the files = much higher accuracy)
 ```
 
 **Constraints:**
-- Max **15 parallel agents** (5 batches × 3 dimensions is a practical ceiling)
+- Max **18 parallel agents** (5 batches × up to 6 dimensions when UI files present)
 - Each agent gets: criteria file + its batch's file contents only + brief summary of other batches for cross-reference context
 - All agents spawned in ONE message for parallel execution
 
@@ -175,7 +189,7 @@ Spawn the relevance filter agent:
 
 ```
 Agent(subagent_type="relevance-filter-agent", prompt="""
-FINDINGS: [all findings from 5 reviewers, in their original format]
+FINDINGS: [all findings from all reviewers (5 or 6), in their original format]
 CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
@@ -287,6 +301,7 @@ Do NOT review for other issues — validate this ONE finding only.
 - Architecture analysis: 85%
 - Tests analysis: 90%
 - Guidelines analysis: 94%
+- Design analysis: XX% (when UI files present)
 - Judge validation: 89%
 ```
 
@@ -309,9 +324,9 @@ Do NOT review for other issues — validate this ONE finding only.
 
 ## Parallel Execution Strategy
 
-All five reviewers are spawned as independent `reviewer-agent` instances via the Agent tool:
+All 5–6 reviewers (+1 design when UI files present) are spawned as independent `reviewer-agent` instances via the Agent tool:
 - Each agent receives ONE criteria file, the changed files, and the diff context
-- All five (or more in batched mode) are spawned in a SINGLE message for parallel execution
+- All reviewers (or more in batched mode) are spawned in a SINGLE message for parallel execution
 - Each reviewer is a leaf agent — it cannot spawn sub-agents (by design)
 - Relevance filter checks findings against repo conventions, then judge pass confidence-scores the remaining findings
 
@@ -349,7 +364,7 @@ Can be used in pull request checks:
 $ review src/auth/login.js src/auth/logout.js
 Analyzing 2 files with 47 lines changed...
 
-Spawning parallel reviewers:
+Spawning parallel reviewers (5–6, +design when UI files present):
   - Bugs reviewer (async pattern detection)
   - Security reviewer (injection points, auth flows)
   - Architecture reviewer (module dependencies)
@@ -420,7 +435,7 @@ Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review 
 Code review is complete when:
 - [ ] Phase 1 context collected (files read, changes understood)
 - [ ] Phase 2 reviewers spawned and executed in parallel
-- [ ] All 5 reviewers (bugs, security, architecture, tests, guidelines) completed
+- [ ] All 5–6 reviewers completed (5 always, +1 design when UI files present)
 - [ ] Phase 3 relevance filter applied (findings checked against repo conventions and complexity)
 - [ ] Phase 4 judge validation complete (findings verified)
 - [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
@@ -439,13 +454,12 @@ Code review is complete when:
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I can skip context gathering" | Without understanding what changed and why, you'll produce false positives and miss real issues. |
-| "I'll review all aspects myself instead of spawning 5 agents" | Serial review misses perspective. All 5 specialized reviewers MUST execute in parallel. |
+| "I'll review all aspects myself instead of spawning the reviewer agents" | Serial review misses perspective. All 5–6 specialized reviewers MUST execute in parallel. |
 | "The reviewers found good stuff, skip relevance filtering" | Reviewers apply general best practices — without checking against THIS repo's patterns, you'll report over-engineering suggestions and convention-contradicting findings that waste engineer time. |
 | "The reviewers found good stuff, skip judge validation" | Unfiltered findings create report fatigue. Only >=80 confidence findings provide signal. |
 | "I can tell this is a real issue without reading the source" | Always validate findings in context — check the actual file and lines before reporting. |
 | "While I'm here, let me suggest improvements beyond the diff" | Review against the scope of changes, not "what else could be improved." Stay focused. |
 | "The agent said it thoroughly reviewed everything" | Agents self-report optimistically. Verify by reading their actual outputs yourself. |
-
-**Merge confidently without addressing CRITICAL findings:** CRITICAL issues MUST be fixed before shipping.
+| "I can merge confidently without addressing CRITICAL findings" | CRITICAL issues MUST be fixed before shipping. They are non-negotiable. |
 
 ---

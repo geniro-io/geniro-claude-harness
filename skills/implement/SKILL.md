@@ -31,7 +31,7 @@ argument-hint: "[description or issue tracker reference]"
 3. Approval (WAIT) — present plan, user confirms before coding starts
 4. Implement (delegated) — backend/frontend agents execute scope
 5. Simplify (delegated) — simplify agent cleans changed files, revert if CI breaks
-6. Review & Validate (delegated) — spec compliance agent, 5 reviewer agents, fix loops
+6. Review & Validate (delegated) — spec compliance agent, 5–6 reviewer agents, fix loops
 7. Ship & Finalize (WAIT) — finalize (docs, learnings, improvements), then ship decision + commit
 
 **Reference material** (templates, examples, error tables): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` when you reach each phase. Do NOT load the entire file upfront — read the relevant section at the relevant phase.
@@ -88,7 +88,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 2. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
 3. Scan codebase for relevant patterns, conventions, architecture
 4. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
-5. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before.
+5. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 6.
 6. **MANDATORY: Resolve gray areas.** You MUST stop here and ask the user questions before proceeding. Do NOT synthesize the spec without user input first.
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
    - **Auto mode:** Pick recommended defaults, log choices in spec
@@ -303,7 +303,7 @@ Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet 
 
 ### Stage C — Code Quality
 
-**Action:** Spawn 5 parallel reviewer agents in a single message (bugs, security, architecture, tests, guidelines). Use templates from reference file.
+**Action:** Spawn 5–6 parallel reviewer agents in a single message — bugs, security, architecture, tests, guidelines, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
 
 Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-dir>/review-feedback.md`.
 
@@ -460,5 +460,5 @@ The orchestrator's job is to coordinate, not to code. Every line of code the orc
 
 - Agent templates, examples, error tables: `${CLAUDE_SKILL_DIR}/implement-reference.md`
 - Plan criteria: `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`
-- Review criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, guidelines)
+- Review criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, guidelines, +design when UI files changed)
 - Simplify criteria: `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`

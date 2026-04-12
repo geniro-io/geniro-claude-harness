@@ -130,6 +130,7 @@ Before designing, confirm you understand these aspects (skip clearly irrelevant 
 - Database/migration implications (if applicable)
 - Dependencies and imports the change will interact with
 - API contract impacts (if the change spans client/server boundaries)
+- Design system context (if frontend files in scope) — tokens, primitives, spacing/type/color scales, named design exemplars; produce a DESIGN_CONVENTIONS brief for the downstream frontend-agent (see Output Format §3)
 
 ---
 
@@ -214,7 +215,7 @@ For every standard or complex task, research the following before designing:
    - Read `docs/architecture.md` or equivalent if it exists
    - Note: CLAUDE.md is already auto-loaded by Claude Code — do NOT re-read it
 
-4. **Explore the codebase (minimum necessary)** — identify relevant modules, entry points, and current patterns. Use the Discovery Checklist. Delegate broad exploration to subagents.
+4. **Explore the codebase (minimum necessary)** — identify relevant modules, entry points, and current patterns. Use the Discovery Checklist. Delegate broad exploration to subagents. If the task touches UI files (see UI-file detection rule in `skills/review/SKILL.md`), also extract design-system context — tokens, primitives, scales, named design exemplars — and produce a DESIGN_CONVENTIONS brief for the downstream frontend-agent (see Output Format §3).
 
 5. **Research online (MANDATORY for standard/complex tasks)** — before designing, search for native/built-in solutions in the project's frameworks, existing ecosystem packages, and current best practices. Follow the "Internet Research" section rules. Start with native-first searches, then broaden if needed.
 
@@ -267,6 +268,21 @@ Why this is the **best** approach — evaluated on correctness, maintainability,
 **Files to change** (full paths, new/edit/remove):
 - Direct changes with specific functions/areas to modify
 - Ripple effects (imports, re-exports, constructor updates)
+
+**CONVENTIONS_BRIEF** — anchor patterns the implementer must mirror, captured with exemplar `file:line` references (not vague descriptions): naming, import order, error handling, test patterns, logging. Point at 1–2 concrete code exemplars per pattern.
+
+**Design Conventions** (when frontend files in scope) — a `DESIGN_CONVENTIONS` subsection inside the CONVENTIONS_BRIEF, consumed by the downstream frontend-agent so design isn't re-discovered every cycle. Capture with concrete snippets and `file:line` references:
+
+1. **Tokens and theme location** — paths to `tailwind.config.*`, `theme.*`, `tokens.css`, CSS custom properties, design-system package imports. Quote 5–10 key tokens (primary color names, base spacing, default font).
+2. **Component library and primitives** — which library (shadcn / MUI / Chakra / Mantine / Radix / custom), where its primitives live, an example primitive import path.
+3. **Spacing scale** — concrete values (e.g., "4px base, valid steps: 4 8 12 16 24 32 48 64").
+4. **Type scale and fonts** — font families, size scale, weight conventions, where fonts are loaded.
+5. **Color system** — semantic token names (e.g., `--primary`, `--accent`, `--surface-1`), light/dark pairs if dark mode exists.
+6. **Named design exemplars** — 1–2 specific component files (with paths) the implementer must visually mirror. These are *design* exemplars, distinct from the *code* exemplars above.
+7. **State conventions** — how the codebase already handles hover/focus/disabled/loading/empty/error so the implementer doesn't reinvent them.
+8. **Breakpoints and responsive approach** — values from tailwind config or media-query usage.
+
+If no design system is detectable (greenfield UI), the subsection still appears but says: *"No detectable design system. Frontend-agent should use the universal baseline (8px spacing, WCAG AA, 375/768/1440 breakpoints, semantic HTML, system font stack). User may opt into an aesthetic direction via `.geniro/instructions/frontend.md`."*
 
 **Step-by-step plan** — each step includes:
 - **Files to edit**, specific functions/areas to change

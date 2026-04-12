@@ -302,14 +302,15 @@ CHANGED FILES: [list]
 CHANGE SUMMARY: [summary]
 
 ## Review Criteria
-Read and apply all 5 criteria files from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
+Read and apply the criteria files (5, +design when UI files changed) from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — when changed files include UI; see UI-file detection rule in skills/review/SKILL.md)
 
-Review across all 5 dimensions. Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
+Review across all listed criteria files (5, or 6 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
 Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
 """, description="Review: follow-up change")
 ```
@@ -345,6 +346,7 @@ Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/security
 ```
 
 Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. That agent reads `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`, `tests-criteria.md`, and `guidelines-criteria.md` itself.
+Add a 4th reviewer with `model='haiku'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
 
 ### Step 2: Process Results
 

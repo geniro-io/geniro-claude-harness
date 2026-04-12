@@ -82,6 +82,9 @@ No additional context injection needed — the agents discover project context a
 [Paste the CONVENTIONS_BRIEF section from spec file — naming patterns, file structure, error handling, import style, test patterns. Include 1-2 exemplar file snippets showing the patterns to follow.]
 Match existing patterns exactly. Find the closest existing example and follow it.
 
+## Design Conventions (when frontend files in scope)
+[If the spec's CONVENTIONS_BRIEF includes a DESIGN_CONVENTIONS subsection, paste it here. Frontend-agent uses this as anchor context for tokens, primitives, exemplars, scales — so design isn't re-discovered every cycle. If no design system was detectable, paste the greenfield baseline statement from the spec.]
+
 ## Tests — MANDATORY (do not skip)
 Write tests alongside your implementation. Every new source file MUST have a corresponding test file.
 - Unit tests next to the source file for every new/changed service, function, or component
@@ -236,8 +239,9 @@ Only reached after Stage B passes.
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` — design patterns, modularity, coupling
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` — coverage gaps, missing edge cases, test quality
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` — style, naming, documentation, compliance
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — only when changed files include UI per the UI-file detection rule in `skills/review/SKILL.md`)
 
-3. **Spawn 5 parallel reviewer agents** in a single message, each with `subagent_type: "reviewer-agent"`:
+3. **Spawn 5 or 6 parallel reviewer agents** (5 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in a single message, each with `subagent_type: "reviewer-agent"`:
 
    | Agent | Criteria File | Focus |
    |-------|--------------|-------|
@@ -246,6 +250,9 @@ Only reached after Stage B passes.
    | 3 | architecture-criteria.md | Patterns, modularity, coupling |
    | 4 | tests-criteria.md | Coverage gaps, edge cases, test quality |
    | 5 | guidelines-criteria.md | Style, naming, documentation |
+   | 6 | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
+
+   Row 6 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). Use `model: "haiku"` like guidelines.
 
    Each reviewer gets:
    - Its criteria file content (pre-inlined — one dimension per agent, no cross-reviewing)
