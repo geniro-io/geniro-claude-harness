@@ -26,8 +26,7 @@ Check for `.geniro/.geniro-state.json`:
 cat .geniro/.geniro-state.json 2>/dev/null
 ```
 
-**If found:** parse the `files.generated` and `files.user_created` arrays.
-These tell you exactly which files belong to the plugin and which the user created.
+**If found:** parse the `files.generated` and `files.user_created` arrays — these tell you which files the plugin generated versus which the user created. Also check the top-level `mode` field: if `mode == "vendored"`, parse the `vendor.file_manifest` array (vendored files that must be removed) and `vendor.settings_backup` (path to the pre-vendor `.claude/settings.json` backup to restore).
 
 **If not found:** fall back to heuristic detection — the plugin generates files in `.geniro/` and optionally `CLAUDE.md` at root:
 
@@ -44,7 +43,9 @@ A file is **user-created** if it exists in `.geniro/` but is not a known plugin 
 The plugin generates these files in the project:
 
 1. **Plugin runtime** (will be removed entirely): `.geniro/` directory
-2. **User-created files** (will be preserved): any non-plugin files in `.geniro/` (e.g., user-added workflow files)
+2. **Vendored overlay** (only if `mode == "vendored"` in state file): every `dst` path listed in `vendor.file_manifest` — these are the files `/geniro:vendor` copied into `.claude/skills/geniro-*`, `.claude/agents/geniro-*`, and `.claude/hooks/geniro-*`. Remove each by its `dst` path.
+3. **Settings restore** (only if `mode == "vendored"` and `vendor.settings_backup` exists): restore `.claude/settings.json` from the backup path stored in `vendor.settings_backup`, then delete the backup. If the backup does not exist, delete any `.claude/settings.json` that contains only vendored hooks (sha-match against the vendored hooks block); otherwise leave it alone and warn the user.
+4. **User-created files** (will be preserved): any non-plugin files in `.geniro/` (e.g., user-added workflow files)
 
 Also check for plugin-generated entries in other files:
 - `CLAUDE.md` at project root — check geniro-state `files.generated` for `CLAUDE.md`. If listed, it was plugin-generated. If no geniro-state, check if the first line contains `# Geniro Plugin` or `# Geniro Harness Plugin` (legacy header).
@@ -59,6 +60,12 @@ Present the deletion manifest clearly:
 
 ### Plugin runtime
 - .geniro/ (entire directory)
+
+### Vendored overlay (only if mode == "vendored")
+- N files under .claude/skills/geniro-*
+- M files under .claude/agents/geniro-*
+- K files under .claude/hooks/geniro-*
+- .claude/settings.json restored from .claude/settings.json.pre-vendor-backup
 
 ### Plugin-generated config
 - CLAUDE.md (if plugin-generated)
@@ -92,6 +99,36 @@ find .geniro/ -type f -delete 2>/dev/null
 find .geniro/ -type d -empty -delete 2>/dev/null
 ```
 
+### 3.1.5 Remove vendored overlay (only if `mode == "vendored"`)
+
+If the state file had `mode: "vendored"`, remove every file listed in `vendor.file_manifest` by its `dst` path. Use per-file `rm -f` (never `rm -rf`) and trust the manifest — do NOT bolt on `find -delete` safety nets. A `find ... -name 'geniro-*' -delete` would happily delete user-authored files that happen to match the pattern, or files from a different vendored copy than the one tracked in the manifest, defeating the whole point of keeping a manifest. If the manifest is incomplete, that is a bug in `/geniro:vendor` and belongs there, not here.
+
+```bash
+# Remove every file listed in the vendor file_manifest
+# (each manifest entry has a dst path; use per-file rm -f, never rm -rf)
+python3 <<'PY'
+import json, pathlib
+state = json.loads(pathlib.Path(".geniro/.geniro-state.json").read_text())
+for entry in state.get("vendor", {}).get("file_manifest", []):
+    p = pathlib.Path(entry["dst"])
+    if p.exists() and p.is_file():
+        p.unlink()
+PY
+
+# Collapse empty directories left behind (safe: only removes empty dirs, never files)
+find .claude/skills -type d -name 'geniro-*' -empty -delete 2>/dev/null
+```
+
+Restore `.claude/settings.json` from `vendor.settings_backup` if the backup exists:
+
+```bash
+if [ -f "$VENDOR_SETTINGS_BACKUP" ]; then
+  mv "$VENDOR_SETTINGS_BACKUP" .claude/settings.json
+fi
+```
+
+If the backup does not exist and `.claude/settings.json` contains ONLY the vendored hooks (no user hooks), remove the file. Otherwise, warn the user that manual cleanup of `.claude/settings.json` hook entries may be needed.
+
 ### 3.2 Clean up generated config
 
 If user approved CLAUDE.md removal and it was plugin-generated:
@@ -112,15 +149,13 @@ If `.gitignore` is now empty, remove it:
 
 ### 3.3 Uninstall the plugin
 
-Attempt to uninstall the plugin from Claude Code:
+If the state file had `mode == "vendored"`, the marketplace plugin may already have been uninstalled by the user after vendoring (per the `/geniro:vendor` Phase 7 instructions). Running `claude plugin uninstall` in that case is a no-op — still run the command, still tolerate failure.
 
 ```bash
 claude plugin uninstall geniro-claude-plugin@geniro-claude-harness
 ```
 
-If the uninstall command fails (e.g., plugin already removed or not installed), report the
-error but do not treat it as a cleanup failure — the project files have already been removed
-successfully.
+If the uninstall command fails (e.g., plugin already removed, not installed, or the project was vendored and the marketplace plugin was uninstalled earlier), report the error but do not treat it as a cleanup failure — the project files have already been removed successfully.
 
 ## Phase 4: Report
 

@@ -25,6 +25,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:onboard` | Rapid codebase mapping and orientation |
 | `/geniro:learnings` | Extract session learnings into categorized memory |
 | `/geniro:update` | Update plugin to latest version |
+| `/geniro:vendor` | Vendor the plugin into `.claude/` with `geniro-` prefix for cloud runners (offline/CI use) |
 | `/geniro:cleanup` | Remove all plugin files from project and uninstall |
 
 ## Path Rules

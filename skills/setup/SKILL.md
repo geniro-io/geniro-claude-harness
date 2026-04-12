@@ -76,6 +76,8 @@ Also check for `.geniro/.geniro-state.json`:
 
 Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`).
 
+If `$GENIRO_STATE` exists AND has `mode: "vendored"` at the top level, set `$VENDOR_MODE=true` and store the `vendor` block as `$VENDOR_STATE`. This branches Phase 1.4 routing: vendored installs use the **Vendored Mode Resync** flow below instead of Feature Sync. Otherwise, `$VENDOR_MODE=false`.
+
 ## What Gets Written to Your Project
 
 **Written to project (committed):**
@@ -122,6 +124,10 @@ Detect:
 - **Component library** (React, Vue, Angular, Svelte — if frontend exists)
 - **State management** (Redux, Zustand, Jotai, Pinia — if frontend exists)
 - **Styling** (Tailwind, styled-components, CSS Modules, SASS — if frontend exists)
+- **Design tokens** (Tailwind config tokens, CSS custom properties in `*.css`/`*.scss`, theme files, design-token packages — if frontend exists)
+- **Component library primitives** (shadcn/ui in `components/ui/`, MUI/Chakra/Mantine imports, custom primitive directories — if frontend exists)
+- **Spacing & type scale** (read from Tailwind config or theme file — if frontend exists)
+- **Design exemplars** (1-2 canonical existing components the frontend-agent should visually mirror — if frontend exists)
 
 **Fallback:** If no language or framework can be detected (empty repo, documentation-only, or unsupported language), use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "I couldn't auto-detect your tech stack. What language and framework does this project use?" If the user says it's a new/empty project, proceed with CLAUDE.md generation only.
 
@@ -160,10 +166,11 @@ Check for pre-existing configuration:
 - `AGENTS.md`, `.agents.md` (generic agent instructions — read for context)
 - `.editorconfig`, `.prettierrc`, `eslint.config.*`
 
-Route based on `$INSTALL_MODE` detected in Phase 0:
+Route based on `$INSTALL_MODE` and `$VENDOR_MODE` detected in Phase 0:
 
 - **`fresh`**: No existing plugin files. Continue to Phase 2 (User Interview) as normal.
-- **`update`**: Previous successful install detected (`.geniro/.geniro-state.json` exists). Skip to the **Re-Running Setup (Feature Sync)** flow below. Do NOT run Phases 2-3 unless the user chooses Full Re-run.
+- **`update` + `$VENDOR_MODE=true`**: Vendored mode is active. Skip to the **Vendored Mode Resync** flow below — do NOT run the normal Feature Sync, and do NOT run Phases 2-3 unless the user explicitly opts into Full Re-run.
+- **`update` + `$VENDOR_MODE=false`**: Normal plugin-installed update. Skip to the **Re-Running Setup (Feature Sync)** flow below. Do NOT run Phases 2-3 unless the user chooses Full Re-run.
 
 If `.claude/` exists but contains only non-template files (no `.geniro/.geniro-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
 
@@ -304,6 +311,8 @@ B) Result/Either types (never throw)
 C) Error codes / status objects
 D) Mixed / no clear pattern yet
 ```
+
+**Frontend design anchors** (only if frontend exists): ask for (a) 1-3 named exemplar component files the frontend-agent should visually mirror, and (b) opt-in aesthetic direction for greenfield work (e.g., "minimal/editorial") or "stay on universal baseline" if the project is already matured.
 
 ### 2.3 Optional Integrations
 
@@ -654,6 +663,46 @@ Run Phase 4 verification checks (4.1, 4.2) on all changed files. Then proceed to
 
 **DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Finalize) now.
 
+## Vendored Mode Resync
+
+If `$VENDOR_MODE=true` was detected in Phase 0, this is a vendored install. Setup must delegate drift detection and sync to the vendor skill rather than running Feature Sync (which is designed for plugin-installed projects).
+
+### Step 1: Detect drift
+
+Read `$VENDOR_STATE.plugin_version` from `$GENIRO_STATE`. Read the current plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. If they match, recompute sha256 for each entry in `$VENDOR_STATE.file_manifest` (the `src` path under `${CLAUDE_PLUGIN_ROOT}`) and compare to the stored hash. Files whose hash differs are drifted.
+
+### Step 2: Present drift report and ask
+
+If no drift is detected, report "Vendored copy is in sync with plugin v$VERSION. No action needed." and stop.
+
+If drift is detected, present a summary:
+
+```
+Vendored copy is out of sync with the installed plugin:
+
+| File class | Drifted count |
+|------------|---------------|
+| Verbatim (skills, agents, hooks) | N |
+| Tailored (backend-agent, frontend-agent, rules/*) | M |
+
+Plugin version: X -> Y
+```
+
+Use the `AskUserQuestion` tool:
+- **Question:** "How should I resync the vendored copy?"
+- **Options:**
+  - "Delegate to /geniro:vendor --sync (Recommended)" — invoke the vendor skill's Phase 8 resync flow which preserves tailored-file user edits
+  - "Show me the drifted file list first" — print the list, then re-ask
+  - "Skip resync — I'll run /geniro:vendor --sync manually later" — note in state, continue to Phase 5
+
+### Step 3: Execute
+
+If the user chose to delegate, instruct them to run `/geniro:vendor --sync` (the vendor skill owns the resync mechanics). Do NOT attempt to run the sync logic inside setup — the vendor skill is the single source of truth for file rewrites and manifest updates.
+
+After resync completes, re-read `.geniro/.geniro-state.json` and continue to Phase 5 (Finalize).
+
+**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 5 (Finalize) now.
+
 ### Fresh Install (with Knowledge Preservation)
 
 If the user chose "Re-run full setup" and wants a completely fresh start:
@@ -719,11 +768,13 @@ C) Start over — re-run setup from scratch
 | "The user said 'good' / 'looks good' — setup is done, I can stop" | Phase 5 finalization has not run yet. User approval of file changes is NOT session completion. You MUST proceed to Phase 4 (Verify) and Phase 5 (Finalize) before ending. |
 | "I'll skip the analysis and just ask what the user wants" | The user can't make an informed choice without seeing what changed. Always analyze BEFORE asking — show the diff summary with specific file counts and change descriptions, then let the user decide. |
 | "Stack-specific CLAUDE.md is the main value" | Correct — but it must be generated from actual codebase analysis, not assumptions. |
+| "Vendored mode? I'll run normal Feature Sync anyway" | Vendored and plugin-installed have different sync semantics. Feature Sync overwrites tailored files blindly; vendor resync surfaces conflicts. Always delegate vendored drifts to /geniro:vendor --sync. |
 
 ## Definition of Done
 
 - [ ] Phase 0: Template source located (plugin root or explicit path)
 - [ ] Phase 0: Install mode detected (`$INSTALL_MODE`: fresh/update)
+- [ ] Phase 0: Vendored mode detected (`$VENDOR_MODE`); if true, Vendored Mode Resync flow executed
 - [ ] Phase 1: Codebase analyzed, all detectable info gathered
 - [ ] Phase 1.6: Project documentation scanned, domain context extracted (if docs exist)
 - [ ] Phase 1.5: Existing file conflicts resolved (if any)
