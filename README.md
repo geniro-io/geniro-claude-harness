@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 13 agents, 15 skills, and 8 safety hooks out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 14 agents, 16 skills, and 8 safety hooks out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -25,24 +25,73 @@ Add to your repo's `.claude/settings.json` so teammates get prompted to install:
 }
 ```
 
-## Getting Started
+## Quick Start
 
-After installing the plugin, run the setup skill in Claude Code:
+1. **Install** the plugin (see above) and open Claude Code in your project.
+2. **Run setup** — analyzes your stack and generates a tailored `CLAUDE.md`:
+   ```
+   /geniro:setup
+   ```
+3. **Map the codebase** (optional, recommended for larger repos) — produces `CODEBASE_MAP.md`:
+   ```
+   /geniro:onboard
+   ```
+4. **Build a feature** — 8-phase pipeline with architecture, implementation, validation, and review:
+   ```
+   /geniro:implement add user authentication with JWT tokens
+   ```
+5. **Review your work** before shipping:
+   ```
+   /geniro:review
+   ```
+
+From there, pick the right skill for each task: `/geniro:debug` for bugs, `/geniro:follow-up` for small tweaks, `/geniro:refactor` for restructuring, `/geniro:investigate` for codebase Q&A.
+
+## How it works
+
+The plugin itself ships globally — agents, skills, and hooks live inside the installed plugin and never pollute your repo. The only thing written into your project is a single `.geniro/` directory that acts as the working memory across sessions:
 
 ```
-/geniro:setup
+.geniro/
+├── .geniro-state.json      # what setup generated (used by cleanup + vendor)
+├── planning/               # specs, plans, CODEBASE_MAP.md, FEATURES.md backlog
+├── knowledge/              # learnings.jsonl + session summaries across runs
+├── instructions/           # project-specific rules (global.md + per-skill files)
+├── debug/                  # HYPOTHESES.md scratchpad for /geniro:debug
+└── workflow/               # optional integrations (issue tracker, PR flow)
 ```
 
-This will:
-1. **Scan** your codebase -- detect language, framework, ORM, test runner, linter, architecture patterns
-2. **Discover** validation commands -- from package.json, Makefile, config files
-3. **Interview** you -- ask about workflow preferences and conventions (only things it can't auto-detect)
-4. **Generate** tailored CLAUDE.md specific to your project
-5. **Verify** -- check for broken formatting, unreplaced placeholders, wrong-language content
+`.geniro/` is gitignored by default, except `workflow/` and `instructions/` which are meant to be committed so the team shares the same rules and integrations.
+
+### Typical workflow
+
+```
+  /geniro:plan         →  /geniro:implement   →  /geniro:follow-up
+  (optional, for          (8-phase pipeline      (small tweaks
+   bigger features)        with review)           after shipping)
+```
+
+Want to go deeper on quality?
+
+```
+  /geniro:deep-simplify   →   /geniro:review
+  (reuse/quality/efficiency   (5–6 parallel reviewers:
+   — zero behavior change)     bugs, security, architecture,
+                               tests, guidelines, +design)
+```
+
+Each skill reads from and writes to `.geniro/` so context survives across compaction, branches, and sessions:
+
+- **Plan → implement** — `/geniro:plan` drops a validated plan into `.geniro/planning/<branch>/`, `/geniro:implement` picks it up automatically.
+- **Knowledge accumulates** — `/geniro:learnings` appends gotchas to `knowledge/learnings.jsonl`; future `/geniro:debug` and `/geniro:implement` runs grep it before investigating.
+- **Rules persist** — `/geniro:instructions` writes rules into `.geniro/instructions/`, and every relevant skill reads `global.md` + its own file on every run (so "always use snake_case for DB columns" only has to be said once).
+- **State survives compaction** — long pipelines checkpoint to `.geniro/follow-up-state.md` or the planning dir, so the next turn can resume exactly where it left off.
+
+If you ever want to walk away cleanly, `/geniro:cleanup` removes everything listed in `.geniro-state.json` and leaves user-created files untouched.
 
 ## Skills
 
-### `/geniro:setup` -- AI-driven project setup
+### `/geniro:setup` — AI-driven project setup
 
 Scans your codebase, interviews you about preferences, and generates a tailored CLAUDE.md with detected tech stack, commands, and conventions.
 
@@ -50,7 +99,7 @@ Scans your codebase, interviews you about preferences, and generates a tailored 
 /geniro:setup
 ```
 
-### `/geniro:implement` -- Full-featured implementation
+### `/geniro:implement` — Full-featured implementation
 
 Eight-phase pipeline: discover scope, architect a solution, get your approval, implement with parallel agents, validate, simplify, review, and ship.
 
@@ -60,7 +109,7 @@ Eight-phase pipeline: discover scope, architect a solution, get your approval, i
 /geniro:implement integrate Stripe payments for subscriptions
 ```
 
-### `/geniro:plan` -- Implementation planning
+### `/geniro:plan` — Implementation planning
 
 Creates a detailed file-level implementation plan validated by architect and skeptic agents. Use before `/geniro:implement` or standalone.
 
@@ -70,9 +119,9 @@ Creates a detailed file-level implementation plan validated by architect and ske
 /geniro:plan review                          # list existing plans
 ```
 
-### `/geniro:review` -- Parallel 5-agent code review
+### `/geniro:review` — Parallel multi-agent code review
 
-Spawns 5 specialized reviewers (bugs, security, architecture, tests, guidelines) in parallel with confidence-scored findings.
+Spawns 5–6 specialized reviewers (bugs, security, architecture, tests, guidelines, +design when UI files are present) in parallel with confidence-scored findings.
 
 ```
 /geniro:review                               # review uncommitted changes
@@ -80,7 +129,7 @@ Spawns 5 specialized reviewers (bugs, security, architecture, tests, guidelines)
 /geniro:review HEAD~3..HEAD                   # review a commit range
 ```
 
-### `/geniro:debug` -- Scientific-method bug investigation
+### `/geniro:debug` — Scientific-method bug investigation
 
 Systematic debugging: observe, hypothesize, test, isolate, fix, verify. Tracks all hypotheses and rejects speculation.
 
@@ -90,7 +139,7 @@ Systematic debugging: observe, hypothesize, test, isolate, fix, verify. Tracks a
 /geniro:debug tests pass locally but fail in CI on the date formatting step
 ```
 
-### `/geniro:follow-up` -- Quick post-implementation changes
+### `/geniro:follow-up` — Quick post-implementation changes
 
 For small changes that skip architecture. Assesses complexity, implements, validates, reviews, and ships. Escalates to `/geniro:implement` if scope is too large.
 
@@ -100,7 +149,7 @@ For small changes that skip architecture. Assesses complexity, implements, valid
 /geniro:follow-up fix the typo in the error message on line 42
 ```
 
-### `/geniro:deep-simplify` -- Three-pass parallel code review
+### `/geniro:deep-simplify` — Three-pass parallel code review
 
 Spawns 3 agents (reuse, quality, efficiency) on changed files. Applies P1/P2 fixes and reverts if CI breaks. Zero behavior change guaranteed.
 
@@ -109,7 +158,7 @@ Spawns 3 agents (reuse, quality, efficiency) on changed files. Applies P1/P2 fix
 /geniro:deep-simplify src/services/          # review specific directory
 ```
 
-### `/geniro:refactor` -- Safe code restructuring
+### `/geniro:refactor` — Safe code restructuring
 
 Incremental refactoring with continuous test verification. Detects code smells, applies transformations atomically, guarantees zero behavior change.
 
@@ -119,7 +168,7 @@ Incremental refactoring with continuous test verification. Detects code smells, 
 /geniro:refactor convert callback-based auth module to async/await
 ```
 
-### `/geniro:investigate` -- Deep codebase Q&A
+### `/geniro:investigate` — Deep codebase Q&A
 
 Parallel research agents explore codebase structure, git history, and internet sources to produce evidence-backed answers.
 
@@ -129,7 +178,7 @@ Parallel research agents explore codebase structure, git history, and internet s
 /geniro:investigate why was the ORM switched from Sequelize to Prisma?
 ```
 
-### `/geniro:features` -- Feature backlog management
+### `/geniro:features` — Feature backlog management
 
 Track features with status, priority, and complexity. Create detailed specs with codebase scouting and adaptive questioning.
 
@@ -141,7 +190,7 @@ Track features with status, priority, and complexity. Create detailed specs with
 /geniro:features complete dark mode support  # mark as done
 ```
 
-### `/geniro:onboard` -- Rapid codebase orientation
+### `/geniro:onboard` — Rapid codebase orientation
 
 Scans structure, files, patterns, and conventions. Produces a CODEBASE_MAP.md with architecture, module relationships, critical paths, and entry points.
 
@@ -150,7 +199,7 @@ Scans structure, files, patterns, and conventions. Produces a CODEBASE_MAP.md wi
 /geniro:onboard focus on the API layer
 ```
 
-### `/geniro:instructions` -- Custom instruction management
+### `/geniro:instructions` — Custom instruction management
 
 Create, list, edit, validate, and delete project-specific rules that customize how skills behave.
 
@@ -161,7 +210,7 @@ Create, list, edit, validate, and delete project-specific rules that customize h
 /geniro:instructions delete no-orm-rule
 ```
 
-### `/geniro:learnings` -- Extract session learnings
+### `/geniro:learnings` — Extract session learnings
 
 Captures patterns, gotchas, decisions, and anti-patterns from completed work into categorized memory with reusability gates.
 
@@ -170,7 +219,17 @@ Captures patterns, gotchas, decisions, and anti-patterns from completed work int
 /geniro:learnings focus on the auth refactor decisions
 ```
 
-### `/geniro:cleanup` -- Remove plugin files
+### `/geniro:vendor` — Vendor plugin into project
+
+Copies the plugin into `.claude/` with a `geniro-` prefix so it runs on cloud runners, sandboxed CI, or offline environments where the marketplace isn't available. After vendoring, slash commands change from `/geniro:setup` to `/geniro-setup`.
+
+```
+/geniro:vendor                               # vendor fresh
+/geniro:vendor --sync                        # resync after plugin update
+/geniro:vendor --fresh                       # force re-vendor from scratch
+```
+
+### `/geniro:cleanup` — Remove plugin files
 
 Removes all geniro-claude-plugin files from the project. Uses plugin state to preserve user-created files. Includes confirmation before any deletion.
 
@@ -178,7 +237,7 @@ Removes all geniro-claude-plugin files from the project. Uses plugin state to pr
 /geniro:cleanup
 ```
 
-### `/geniro:update` -- Update plugin
+### `/geniro:update` — Update plugin
 
 Updates to the latest version. The status line shows an arrow when updates are available.
 
@@ -192,14 +251,14 @@ Updates to the latest version. The status line shows an arrow when updates are a
 /geniro:implement add user authentication
 ```
 
-1. **Discover** -- Clarify scope, edge cases, decisions
-2. **Architect** -- Design solution; skeptic agent validates; you approve
-3. **Approval** -- Full plan presented; you confirm before coding starts
-4. **Implement** -- Backend and frontend agents build in parallel
-5. **Validate** -- Automated checks (lint, build, test, startup)
-6. **Simplify** -- 3 parallel agents review for reuse, quality, efficiency
-7. **Review** -- Code quality review across 5 dimensions with fix cycles
-8. **Ship** -- Present results; you decide to commit/push/PR
+1. **Discover** — Clarify scope, edge cases, decisions
+2. **Architect** — Design solution; skeptic agent validates; you approve
+3. **Approval** — Full plan presented; you confirm before coding starts
+4. **Implement** — Backend and frontend agents build in parallel
+5. **Validate** — Automated checks (lint, build, test, startup)
+6. **Simplify** — 3 parallel agents review for reuse, quality, efficiency
+7. **Review** — Code quality review across 5–6 dimensions with fix cycles
+8. **Ship** — Present results; you decide to commit/push/PR
 
 ## Safety Hooks
 
@@ -232,16 +291,18 @@ Or run `/geniro:update` inside Claude Code. The status line shows an arrow when 
 geniro-claude-plugin/
 ├── .claude-plugin/
 │   └── plugin.json              # Plugin manifest
-├── agents/                      # 13 specialized agent definitions
-├── skills/                      # 13 reusable workflow definitions
+├── agents/                      # 14 specialized agent definitions
+├── skills/                      # 16 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── implement/               # 8-phase feature pipeline
 │   ├── plan/                    # Implementation planning
-│   ├── review/                  # 5-dimension code review
+│   ├── review/                  # 5–6 dimension code review
+│   ├── vendor/                  # Vendor into .claude/ for cloud runners
 │   └── ...
-├── hooks/                       # 10 safety & quality hooks
+├── hooks/                       # 8 safety hooks + status line + update check
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
+│   ├── geniro-statusline.js     # Status line renderer
 │   └── *.sh                     # Safety hook scripts
 ├── rules/                       # Plugin-internal conventions
 ├── settings.json                # Permissions config
