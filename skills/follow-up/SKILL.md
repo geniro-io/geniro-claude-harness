@@ -414,6 +414,12 @@ Show a summary:
 - "Commit + PR" — commit, push, create pull request
 - "Leave as-is" — don't commit, I'll handle git myself
 
+If the user picked "Commit + PR", immediately fire a SECOND `AskUserQuestion` with header "PR state" and exactly 2 options before committing:
+- **Draft PR** — `gh pr create --draft`; blocks merge and suppresses CODEOWNERS review requests until promoted with `gh pr ready`. Some orgs skip CI on drafts.
+- **Ready for review** — `gh pr create`; requests review immediately.
+
+Execute the user's choice by appending `--draft` for "Draft PR" (omit for "Ready for review"). `--draft` is incompatible with `--web` — create first, then `gh pr view --web` to open in browser.
+
 **Commit message:** conventional commits, e.g. `fix(module): description of what changed`.
 
 ### Integration Updates
@@ -441,12 +447,10 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 | "I'll implement this Medium change in one agent" | If files span 2 modules, decompose into parallel agents. Single-agent Medium misses parallelism. |
 | "One reviewer is enough for Medium" | Single reviewers miss cross-dimensional issues. Spawn 2–3 in parallel — it's the same wall-clock time. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
-| "I'll implement this change directly — it's straightforward" | Orchestrator tokens are the most expensive resource. ALL changes MUST be delegated to subagents — no exceptions, not even Trivial. |
-| "I'll quickly fix this Trivial change myself" | No exceptions. Even Trivial fixes go through agents. Orchestrator context is the most expensive resource. |
+| "I'll implement this directly — it's straightforward / Trivial / I'll quickly fix it myself" | Orchestrator tokens are the most expensive resource. ALL changes MUST be delegated to subagents — no exceptions, not even Trivial. |
 | "I'll just quickly edit these files myself since I already read them" | Reading files for assessment is fine. Writing code is implementation — delegate it, for ALL changes without exception. The assessment context goes into the agent prompt. |
-| "Spawning an agent for this is overkill" | Every change, even 1-line fixes, goes through agents. The context cost of orchestrator implementation always exceeds the cost of spawning. |
+| "Spawning an agent is overkill / I can fix this type error faster myself" | Every change, even 1-line fixes, goes through agents regardless of complexity. Context you accumulate reading source to "quickly fix" always exceeds the cost of spawning and degrades coordination for Phases 5-6. |
 | "I noticed a bug during validation — I'll fix it now since I'm already here" | Bug-finding is Phase 5 (Review). Phase 4 runs commands and reads pass/fail output. If automated checks pass, the code moves to Review where fresh-context agents find bugs. Fixing bugs in Phase 4 steals Review's job and accumulates context that degrades your coordination. |
-| "I can see the type error — I'll fix it faster than spawning an agent" | ALL fixes go through agents regardless of complexity level. Context you accumulate reading source code to "quickly fix" errors degrades your coordination for Phases 5-6. |
 | "The user said 'looks good' so I'll commit and push" | NEVER run git commit or git push without the user choosing a specific ship option via AskUserQuestion in Phase 6 Step 3. "Looks good" means proceed to the ship question — not auto-commit. |
 | "I'll pick Fast Lane silently — it's obviously Trivial" | Fast Lane is the user's choice, not the orchestrator's. Ask via AskUserQuestion in Phase 1 Step 3 — silent routing removes the safety gate the user asked for. |
 | "This Medium change has simple logic — I'll offer Fast Lane" | Only Trivial or Small with zero hard-escalation signals qualify. Medium always runs Full. File-count-adjacent Small changes that touched any escalation signal also get Full. |

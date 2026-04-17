@@ -365,6 +365,10 @@ Use `AskUserQuestion` (max 4 options). The user can always type a custom respons
 - C) **Commit only** — stage and commit on current branch with conventional commit message
 - D) **Minor tweaks needed** — small adjustments before shipping (I'll describe)
 
+**If the user picked A:** immediately fire a SECOND `AskUserQuestion` with header "PR state" and exactly 2 options before proceeding to Step 7:
+- **Draft PR** — create as draft (`gh pr create --draft`); blocks merge and suppresses CODEOWNERS review requests until promoted with `gh pr ready`. Choose this when CI validation or follow-up commits are expected before reviewers are pinged. Some orgs configure CI to skip drafts — surface that caveat if you can detect it.
+- **Ready for review** — create as a standard PR (`gh pr create`); requests review immediately.
+
 **Routing:**
 - **A, B, C** -> proceed to Step 7 (Commit)
 - **D** -> proceed to Step 6 (Adjustment Routing)

@@ -398,7 +398,7 @@ For each improvement found, draft the change, specify the target file, and prese
 ### Commit
 
 Execute the user's chosen ship method:
-- **Commit + PR**: Stage relevant files, `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). If a workflow file specifies commit message format (e.g., appending issue ID), follow that format. `git push origin [branch]`, then `gh pr create` with summary. Include task ID in PR title.
+- **Commit + PR**: Stage relevant files, `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). If a workflow file specifies commit message format (e.g., appending issue ID), follow that format. `git push origin [branch]`, then `gh pr create` with summary — append `--draft` when the user picked "Draft PR" in the follow-up "PR state" prompt, otherwise create as ready for review. Include task ID in PR title. `--draft` is incompatible with `--web` (gh CLI rejects the combination); if the user wants the PR in a browser, create first and then run `gh pr view --web`.
 - **Commit + push**: Same commit, then `git push origin [branch]`
 - **Commit only**: Stage relevant files, `git commit` with conventional message. Include doc updates, learning files, and improvement changes in the commit.
 - **Leave uncommitted**: `git add` changed files only, skip commit
