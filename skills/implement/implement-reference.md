@@ -19,9 +19,21 @@ This file contains templates, examples, error tables, and detailed procedures re
 1. Check `.geniro/workflow/*.md` for argument detection patterns. Apply them in order before falling through to mode signal detection.
 2. **Auto-mode signals** — keywords like "just do it", "ASAP", "no questions", "auto", "quick" -> skip interactive questions, pick recommended defaults for all gray areas
 3. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
-4. **No special signals** — full interactive discovery with `AskUserQuestion`
+4. **No special signals** — explicitly ask the user which mode to use (see "Mode Selection prompt" below). Default to interactive
 
 If a workflow integration's backend (e.g., MCP) is unavailable, log a warning and proceed without — all integrations are non-blocking.
+
+**Mode Selection prompt** (fires from Step 1 of SKILL.md when no explicit signal was detected in `$ARGUMENTS`):
+
+Use `AskUserQuestion`:
+- **Question:** "How should I run this implementation?"
+- **Header:** "Mode"
+- **Options:**
+  - Label: "Interactive (Recommended)" / Description: "Full discovery — I'll ask about gray areas, confirm the architect's plan, and check before shipping."
+  - Label: "Auto mode" / Description: "Pick recommended defaults for gray areas and auto-approve the architect's plan. I still WAIT at the ship gate, the Stage C fix-loop after 3 rounds, and the Phase 7 Step 4.5 ship-anyway prompt — see §Auto Mode Behavior."
+  - Label: "Assumptions" / Description: "I'll propose a plan with my best guesses on gray areas — you correct anything wrong before architecting."
+
+Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode signal (rule 2) or assumptions-mode signal (rule 3). Persist the chosen mode in `<task-dir>/state.md` under a `Mode:` line so resumed runs and downstream phases read it without re-prompting.
 
 **Example discovery questions (interactive mode, batch 3-5). IMPORTANT — include the git workspace question in this same batch, do NOT defer it to a separate prompt:**
 - Scope: Backend-only? Frontend? Both? (recommend: match existing split)
@@ -30,6 +42,27 @@ If a workflow integration's backend (e.g., MCP) is unavailable, log a warning an
 - Testing: Unit/integration/e2e? (recommend: maintain current test coverage)
 - Rollout: Gradual rollout or all-at-once? (recommend: feature flag + gradual)
 - **Git workspace:** A) New feature branch (recommend for most features), B) Current branch, C) Git worktree (for risky/experimental changes with instant rollback without touching main working directory, parallel work when running multiple Claude sessions on same repo, or long-running features where you need to context-switch — isolates entire implementation in a separate working tree)
+
+---
+
+## Auto Mode Behavior
+
+Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `Mode: auto` (set either by rule 2 of §Phase 1 Auto-Detection Table or by the Mode Selection prompt). Skill orchestrator MUST read `Mode:` from state.md at every gate and consult this table — do not auto-resolve gates not listed here.
+
+| Gate | Phase / Step | Auto-mode action |
+|---|---|---|
+| Gray-area resolution | Phase 1, Step 6 | Pick recommended default for each question; append one-liner per decision to `state.md` "Auto-mode decisions" |
+| Git workspace | Phase 1, Step 6 (in same batch) | Option A (new branch). If already on a feature branch (not `main`/`master`/`develop`), Option B |
+| Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
+| Plan approval | Phase 3 | **Auto-approve.** Print plan summary (path + heading + step count + skeptic verdict) and the line "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise." Skip `AskUserQuestion`. Proceed to Phase 4 |
+| Compact prompt | Phase 3 (post-approval) | "Continue now" (skip compaction). Skip `AskUserQuestion` |
+| Stage C fix loop after 3 rounds | Phase 6 | **Always-WAIT.** Auto-shipping known CRITICAL/HIGH issues is unsafe. Surface the `AskUserQuestion` regardless of mode |
+| Suggest improvements | Phase 7, Step 3 | "Skip" (defer improvements; user can run `/geniro:follow-up` later) |
+| Pre-Ship Visual Verification | Phase 7, Step 4.5 | "Skip — already verified". If Step 4.5 itself was forced and surfaced issues, the follow-up question is **always-WAIT** (auto-shipping UI regressions is unsafe) |
+| Ship decision | Phase 7, Step 5 | **Always-WAIT.** Controls commit/push/PR. User must explicitly choose |
+| Cleanup planning artifacts | Phase 7, Step 8 | "Keep" (preserve artifacts; safe default) |
+
+**Auditability:** every auto-resolved decision MUST be appended to `<task-dir>/state.md` under a section named "Auto-mode decisions" with one line per gate: `Phase X Step Y — <gate name> → <chosen option>`.
 
 ---
 

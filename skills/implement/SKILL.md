@@ -97,13 +97,14 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 **Steps:**
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
    Also load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/implement.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints throughout the pipeline.
+   Then determine **pipeline mode**: if `$ARGUMENTS` already carried an explicit auto/assumptions signal (rules 2-3 of the Auto-Detection Table), lock to that mode. Otherwise fire the **Mode Selection prompt** from `implement-reference.md` §Phase 1 Auto-Detection Table. Persist `Mode: <interactive|auto|assumptions>` in `<task-dir>/state.md` so all later gates read it without re-prompting.
 2. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
 3. Scan codebase for relevant patterns, conventions, architecture
 4. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
 5. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 6.
-6. **MANDATORY: Resolve gray areas.** You MUST stop here and ask the user questions before proceeding. Do NOT synthesize the spec without user input first.
+6. **MANDATORY: Resolve gray areas.** Read `Mode:` from `<task-dir>/state.md` (set in Step 1) and execute the matching sub-bullet. You MUST stop here and ask the user questions before proceeding (interactive mode). Do NOT synthesize the spec without user input first.
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
-   - **Auto mode:** Pick recommended defaults, log choices in spec
+   - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 6 row). Log to `state.md` "Auto-mode decisions" section
    - **Assumptions mode:** Propose plan, let user correct
    - **Plan-provided:** If a detailed plan exists in the conversation (from plan mode) or as a file (from `/geniro:plan`), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
    - **Include git workspace question** in this batch (new branch / current branch / worktree)
@@ -113,7 +114,6 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
    - **Option A (new branch):** `git checkout -b <branch-name>` where `<branch-name>` is a slug from the task (e.g., `feat/add-user-settings`). The task directory (already created above) uses this branch name.
    - **Option B (current branch):** No git action. Continue on current branch.
    - **Option C (worktree):** Call `EnterWorktree` with `name: "implement-<slug>"` (e.g., `implement-add-user-settings`). After entering, if the project has `.env` or similar gitignored config files but no `.worktreeinclude` file, warn the user that environment files won't be present and suggest creating `.worktreeinclude`.
-   - **Auto mode default:** Option A. If already on a feature branch (not `main`/`master`/`develop`), Option B.
 
 **Outputs:** spec.md, affected files list, Definition of Done
 
@@ -131,7 +131,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 2. **Plan files (from /geniro:plan):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`.
 3. **$ARGUMENTS plan:** If `$ARGUMENTS` contains or references a plan file path, read and use it directly.
 
-**If a plan is found:** Skip architect-agent. Log: "Using existing plan: `<filename>`." Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion`: A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
+**If a plan is found:** Skip architect-agent. Log: "Using existing plan: `<filename>`." Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion` (always-WAIT — see implement-reference.md §Auto Mode Behavior): A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
 
 **If no plan found:** Run the full architect flow below.
 
@@ -156,7 +156,11 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 2. Present complete plan content to user
 3. Add metadata: plan location, skeptic verdict
 
-**Gate:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to present:
+**Gate:**
+
+If `<task-dir>/state.md` shows `Mode: auto`: print "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise.", append the decision to state.md "Auto-mode decisions" section, and proceed to Phase 4. Do NOT call `AskUserQuestion`.
+
+Otherwise, use the `AskUserQuestion` tool (do NOT output options as plain text):
 - A) **Approve — start building**
 - B) **Adjust** — user describes changes
 - C) **Too large — split** — decompose into smaller pieces
@@ -173,7 +177,9 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Strategic compact point:** All discovery, architecture, and validation context is now captured in files (spec.md, plan.md, concerns.md, state.md). Phases 1-3 consumed significant context that Phase 4 agents don't need — they get fresh context with pre-inlined files.
 
-Use the `AskUserQuestion` tool to ask:
+If state.md shows `Mode: auto`: skip the compact prompt — proceed directly to Phase 4 (matches "Continue now"). Append the decision to state.md "Auto-mode decisions" section.
+
+Otherwise, use the `AskUserQuestion` tool to ask:
 - **Question:** "All planning artifacts are saved. Compacting now frees context for higher-quality implementation in Phases 4-7. How would you like to proceed?"
 - **Header:** "Compact"
 - **Options:**
@@ -319,7 +325,7 @@ Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet 
 
 Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-dir>/review-feedback.md`.
 
-**Fix loop:** Max 3 rounds. Spawn NEW fixer + FRESH reviewers each round (anchoring bias). After 3 rounds, present handoff to user.
+**Fix loop:** Max 3 rounds. Spawn NEW fixer + FRESH reviewers each round (anchoring bias). After 3 rounds, present handoff to user (always-WAIT — see implement-reference.md §Auto Mode Behavior).
 
 **Checkpoint:** Update `<task-dir>/state.md`: "Phase 6 completed. All stages passed."
 
@@ -343,7 +349,7 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 
 **Step 2: Extract Learnings** — Scan conversation for corrections, gotchas, decisions. Save to learnings.jsonl and/or memory. Write session summary. See reference file for signal table.
 
-**Step 3: Suggest Improvements (WAIT)** — Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure), **custom instructions** (quality gates, workflow steps, or constraints the user enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, decisions), **rules/hooks** (enforceable patterns), **skill/agent files** (plugin improvements). Present grouped by target via `AskUserQuestion`. See reference file for routing table.
+**Step 3: Suggest Improvements (WAIT — auto: see implement-reference.md §Auto Mode Behavior)** — Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure), **custom instructions** (quality gates, workflow steps, or constraints the user enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, decisions), **rules/hooks** (enforceable patterns), **skill/agent files** (plugin improvements). Present grouped by target via `AskUserQuestion`. See reference file for routing table.
 
 **Step 4: Present Summary**
 
@@ -355,7 +361,7 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 6. **Learnings extracted** (count, or "none")
 7. **Deferred ideas** (if any)
 
-### Step 4.5: Pre-Ship Visual Verification (WAIT — conditional, runs only if UI changed)
+### Step 4.5: Pre-Ship Visual Verification (WAIT — conditional, runs only if UI changed — auto: see implement-reference.md §Auto Mode Behavior)
 
 If any file in the "Files changed" list from Step 4 matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, `AskUserQuestion` with header "Smoke-test":
 - **Yes — walk through it** — drive Playwright MCP to smoke-test the change before shipping. Follow the full sequence in `implement-reference.md` §Pre-Ship Visual Verification.
@@ -365,7 +371,7 @@ If verification surfaces issues, route via a second `AskUserQuestion`: "Fix and 
 
 ### PART B: SHIP DECISION (Steps 5-8 — interactive)
 
-### Step 5: Ship Decision (WAIT)
+### Step 5: Ship Decision (WAIT — always-WAIT regardless of mode)
 
 Use `AskUserQuestion` (max 4 options). The user can always type a custom response via "Other" (e.g., "review diff first", "leave uncommitted"):
 - A) **Commit + PR** — commit, push, and create a pull request via `gh pr create`
@@ -422,7 +428,7 @@ Ask the user to describe the tweak. Classify by size, then follow the correspond
 
 Execute user's chosen method. See reference file for commit details per option.
 
-### Step 8: Worktree Exit + Integration Updates + Cleanup
+### Step 8: Worktree Exit + Integration Updates + Cleanup — auto: see implement-reference.md §Auto Mode Behavior
 
 - **Worktree:** If in worktree, call `ExitWorktree` with the appropriate action:
   - After commit+push or commit+PR: `ExitWorktree` with `action: "keep"` (branch needed for PR review / further work)
