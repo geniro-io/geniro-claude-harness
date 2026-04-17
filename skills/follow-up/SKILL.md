@@ -13,17 +13,19 @@ argument-hint: "[description of the change]"
 
 **Pipeline:** Assess → Implement → Simplify → Validate → Review → Ship (includes Learn & Improve before commit). **(WAIT)** phases require user input.
 
-## AskUserQuestion
+## Operating Rules
 
-Every question to the user uses `AskUserQuestion`. Formulate 2-4 options with short labels/descriptions. The tool auto-adds "Other" for custom input.
+**AskUserQuestion**: Every user question uses `AskUserQuestion` with 2-4 labeled options (auto-adds "Other"). **Agent failure**: Retry once on timeout/error/empty-or-garbage result; if retry fails, escalate to user with context (skip / different approach / abort). **Codegen**: If the project uses codegen (OpenAPI, GraphQL, Prisma, etc.), run it after modifying generator inputs (DTOs, schemas, controllers); run manually if automated detection missed it — see CLAUDE.md or package.json.
 
-## Agent Failure Handling
+## Subagent Model Tiering
 
-If a delegated agent fails (timeout, error, empty/garbage result): retry once. If retry fails, escalate to the user with error context and ask to skip, try a different approach, or abort.
+Every `Agent(...)` spawn MUST specify `model=` explicitly — never rely on frontmatter `inherit`, which lets the caller's expensive model leak into mechanical subagents. Match tier to task nature:
 
-## Codegen Rule
-
-If the project uses codegen (OpenAPI, GraphQL, Prisma, etc.), run the relevant codegen command after modifying generator inputs (DTOs, schemas, controllers). See CLAUDE.md or package.json.
+| Task nature | Model | Where used in this skill |
+|---|---|---|
+| Mechanical edit / CLI orchestration / structured PASS-FAIL report / rubric-based review | `haiku` | Trivial Fast Lane impl, Phase 4 validation, Phase 5 design-dimension review |
+| Code reasoning / implementation / bugs-security-architecture review / spec compliance | `sonnet` | Small/Medium impl, Phase 3 simplify, Phase 5 single/multi-dimension reviewers |
+| Architecture design / multi-file refactor / deep hypothesis-driven debugging | `opus` | Not spawned here — escalate to `/geniro:implement` or `/geniro:debug` |
 
 ## Change Request
 
@@ -236,7 +238,7 @@ Confirm: (1) expected files created/modified, (2) no unexpected changes, (3) no 
 Spawn a validation agent that runs the project's check suite. The agent runs commands; you read its pass/fail summary.
 
 ```
-Agent(model="sonnet", prompt="""
+Agent(model="haiku", prompt="""
 ## Task: Run Full Validation Suite
 Run the project's validation commands and report pass/fail results.
 
@@ -450,6 +452,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 | "This Medium change has simple logic — I'll offer Fast Lane" | Only Trivial or Small with zero hard-escalation signals qualify. Medium always runs Full. File-count-adjacent Small changes that touched any escalation signal also get Full. |
 | "We're in Fast Lane — I'll fix this one-liner directly instead of spawning an agent" | Delegation is mandatory at every complexity level and every lane. Fast Lane collapses phases; it does not permit orchestrator edits. Any exception becomes rationalization (5 audits eliminated the 'Trivial inline' exception). |
 | "Fast Lane reviewer spotted a bug — I'll fix it here" | Still delegate fixes to a fresh agent. Fast Lane reduces review depth, not accountability. If the diff-review raises any doubt, escalate to a Sonnet reviewer per the Fast Lane escape hatch. |
+| "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier is matched to task nature, not to risk appetite. Upgrading mechanical-task agents to sonnet defeats the cost rationale and signals drift. If the task genuinely needs reasoning, re-classify it using the Subagent Model Tiering table — don't silently upsize. |
 
 ---
 
@@ -486,7 +489,6 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 | Change larger than expected | Escalate to `/geniro:implement` |
 | Agent re-reads files already scanned | Pre-inline file contents from Phase 1 |
 | Reviewer finds architectural issues | Escalate to `/geniro:implement` with findings |
-| Codegen not detected | Run codegen manually if API surface changed |
 
 ---
 

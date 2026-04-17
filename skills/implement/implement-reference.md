@@ -133,7 +133,7 @@ After all checks pass, include this structured section at the end of your respon
 
 ## Phase 5: Simplify Agent Template
 
-Spawn a **general-purpose** subagent with `model: "sonnet"` and the simplify criteria. Sonnet is sufficient for cleanup work that follows explicit criteria — opus-level reasoning is unnecessary here. Pre-read the criteria file and the changed file list, then delegate:
+Spawn a **general-purpose** subagent with `model="sonnet"` and the simplify criteria. Sonnet is sufficient for cleanup work that follows explicit criteria — opus-level reasoning is unnecessary here. Pre-read the criteria file and the changed file list, then delegate:
 
 ```markdown
 ## Task: Simplify Changed Files
@@ -196,7 +196,7 @@ If checks need to run: delegate the **fix** to an implementer agent — do not f
 
 ## Phase 6: Stage B — Spec Compliance Agent Template
 
-Spawn a **general-purpose** subagent with `model: "sonnet"` to verify spec compliance. The orchestrator does NOT read source files to check requirements — delegate it.
+Spawn a **general-purpose** subagent with `model="sonnet"` to verify spec compliance. The orchestrator does NOT read source files to check requirements — delegate it.
 
 ```markdown
 ## Task: Verify Spec Compliance
@@ -243,16 +243,16 @@ Only reached after Stage B passes.
 
 3. **Spawn 5 or 6 parallel reviewer agents** (5 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in a single message, each with `subagent_type: "reviewer-agent"`:
 
-   | Agent | Criteria File | Focus |
-   |-------|--------------|-------|
-   | 1 | bugs-criteria.md | Logic errors, null checks, off-by-one, state issues |
-   | 2 | security-criteria.md | Injection, auth/authz, secrets, validation |
-   | 3 | architecture-criteria.md | Patterns, modularity, coupling |
-   | 4 | tests-criteria.md | Coverage gaps, edge cases, test quality |
-   | 5 | guidelines-criteria.md | Style, naming, documentation |
-   | 6 | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
+   | Agent | Model | Criteria File | Focus |
+   |-------|-------|--------------|-------|
+   | 1 | `sonnet` | bugs-criteria.md | Logic errors, null checks, off-by-one, state issues |
+   | 2 | `sonnet` | security-criteria.md | Injection, auth/authz, secrets, validation |
+   | 3 | `sonnet` | architecture-criteria.md | Patterns, modularity, coupling |
+   | 4 | `sonnet` | tests-criteria.md | Coverage gaps, edge cases, test quality |
+   | 5 | `haiku` | guidelines-criteria.md | Style, naming, documentation |
+   | 6 | `haiku` | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
 
-   Row 6 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). Use `model: "haiku"` like guidelines.
+   Row 6 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). The Model column is authoritative — pass it as `model="..."` at each spawn; the `reviewer-agent` frontmatter default is `sonnet` and the spawn-time value overrides it.
 
    Each reviewer gets:
    - Its criteria file content (pre-inlined — one dimension per agent, no cross-reviewing)
@@ -345,7 +345,7 @@ Scan the diff against main and check:
 - Did this implementation introduce a new pattern that should be documented as a canonical example?
 - Do README, architecture docs, or contributing guides need patches?
 
-If updates needed, delegate to a subagent (e.g., general-purpose with `model: "sonnet"`) with the diff summary and the doc files to patch. Keep changes minimal and focused — patch what's stale or add a new reference, don't rewrite docs. If no docs need updating, skip silently.
+If updates needed, delegate to a subagent (e.g., general-purpose with `model="haiku"`) with the diff summary and the doc files to patch. Keep changes minimal and focused — patch what's stale or add a new reference, don't rewrite docs. If no docs need updating, skip silently.
 
 ### Extract Learnings
 

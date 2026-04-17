@@ -38,6 +38,18 @@ argument-hint: "[description or issue tracker reference]"
 
 ---
 
+## Subagent Model Tiering
+
+Every `Agent(...)` spawn MUST specify `model=` explicitly — never rely on frontmatter `inherit`, which lets the caller's expensive model leak into mechanical subagents. Match tier to task nature:
+
+| Task nature | Model | Where used in this skill |
+|---|---|---|
+| Mechanical edit / template-based doc patching / rubric-based review (guidelines, design) | `haiku` | Phase 7 doc updates, Phase 6 Stage C guidelines & design reviewers |
+| Code reasoning / implementation / bugs-security-architecture review / spec compliance / simplify pass | `sonnet` | backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers |
+| Architecture design / multi-file plan / deep debugging | `opus` | architect-agent (Phase 2) only — other phases must not spawn opus directly |
+
+---
+
 ## Task Directory
 
 ```
@@ -453,6 +465,7 @@ The orchestrator's job is to coordinate, not to code. Every line of code the orc
 | "I'll execute this directly since it's simple / just deletion / cleanup" | Orchestrator tokens are the most expensive resource. Delegate ALL implementation to subagents. |
 | "Steps X-Y are small, I'll handle them myself" | Every plan step becomes a WU. Group small related steps into one WU, but never execute as orchestrator. |
 | "The build failed, let me read the source and fix it quickly" | Run the check, copy the raw terminal output into a fixer agent prompt. Do NOT open source files, diagnose, search for types, or apply edits yourself. |
+| "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier is matched to task nature, not to risk appetite. Upgrading mechanical-task agents (docs, guidelines, design) to sonnet defeats the cost rationale and signals drift. If the task genuinely needs reasoning, re-classify it using the Subagent Model Tiering table — don't silently upsize. |
 
 ---
 
