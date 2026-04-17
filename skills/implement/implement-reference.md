@@ -395,6 +395,28 @@ Skip findings already captured in Extract Learnings (Step 2). This step focuses 
 
 For each improvement found, draft the change, specify the target file, and present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target so the user sees what goes where. If no improvements found, skip silently.
 
+### Pre-Ship Visual Verification
+
+Runs only when the Phase 7 Step 4 "Files changed" list contains at least one file matching the UI-file detection rule (`skills/review/SKILL.md` §UI-file detection rule). Prompt the user via `AskUserQuestion` with header "Smoke-test" before Step 5 (Ship Decision). If the user picks "Yes — walk through it", execute this sequence:
+
+1. **Detect target URL.** Probe dev-server ports in order — 3000 (Next.js), 5173 (Vite), 8080 (generic), 4321 (Astro), 4200 (Angular) — via `curl -s -o /dev/null -w "%{http_code}" http://localhost:PORT`. On the first 200, fetch `/` and check the response `<title>` or a known marker matches the project's `package.json` `name`; if it doesn't, or you're uncertain, `AskUserQuestion` "Detected server on :PORT — is this the project under test?" before navigating. If no port responds, walk up from the primary changed UI file to the nearest `package.json` containing a `dev`/`start`/`serve` script (monorepo layouts: `apps/<name>/package.json`, `packages/<name>/package.json`) — spawn from that directory, not the repo root, so `turbo`/`nx`/`pnpm -w` orchestrators don't misfire. Choose the package manager by lockfile (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `bun.lockb` → bun, else npm). Run with `run_in_background: true`, record the PID, and poll `GET /` until 200 or 30s timeout. On timeout, report the failure and ask the user "Skip verification" / "Retry" / "Enter URL manually".
+
+2. **Infer the target route.** Map the primary changed UI file to a URL path: `app/<segment>/page.tsx` → `/<segment>`, `pages/<name>.tsx` → `/<name>`, `src/routes/<name>/+page.svelte` → `/<name>`. If the changed file is a leaf component (e.g., `components/Button.tsx`), fall back to `/` and ask the user where it renders. Navigate with `mcp__plugin_playwright_playwright__browser_navigate`.
+
+3. **Baseline snapshot.** Call `mcp__plugin_playwright_playwright__browser_snapshot` to capture the accessibility tree with element refs. Every subsequent interaction (`browser_click`, `browser_type`, `browser_fill_form`) requires a `ref` from this snapshot — without one, the tool errors.
+
+4. **Console + network sanity check.** Call `mcp__plugin_playwright_playwright__browser_console_messages` — treat any `error`-level entry as a failure worth reporting. Call `mcp__plugin_playwright_playwright__browser_network_requests` — flag same-origin 4xx/5xx responses. Re-run after step 5 and step 6.
+
+5. **Targeted interaction.** Using refs from step 3, perform 1-3 actions that exercise the specific behavior changed in this pipeline (not a generic site tour). Cap at 5 total interactions to stay scoped to the diff. Re-snapshot after each to get fresh refs.
+
+6. **Responsive sweep** — only when the diff includes any `.css`/`.scss`/`.sass`/`.less`/`.styled.*` file, OR a JSX/TSX hunk that touches `className`, `style`, or a CSS-module import. Call `mcp__plugin_playwright_playwright__browser_resize` to `{width: 375, height: 667}` (mobile) then `{width: 1280, height: 800}` (desktop). Snapshot each. Skip entirely for pure logic changes.
+
+7. **Visual record.** Final `mcp__plugin_playwright_playwright__browser_take_screenshot` with `fullPage: true`, saved under `<task-dir>/playwright-verify.png`. This is the artifact — do NOT claim a pixel-diff against a prior state (no baseline image exists).
+
+8. **Cleanup.** If step 1 spawned a dev server (you recorded a PID), send `kill -TERM <pid>`; if still alive after 3s, escalate with `kill -KILL <pid>`. Never kill servers the user had running before verification — only clean up what this step spawned.
+
+**Reporting:** Summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, route via `AskUserQuestion`: "Fix and re-verify" (loop back through Phase 7 Step 6 Small tweak path — this section re-fires after Step 4 if UI files remain in the diff), "Ship anyway with noted issues" (append to `<task-dir>/state.md` and proceed to Step 5), or "Abort" (stop pipeline; keep the task dir intact for the next session).
+
 ### Commit
 
 Execute the user's chosen ship method:

@@ -355,6 +355,14 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 6. **Learnings extracted** (count, or "none")
 7. **Deferred ideas** (if any)
 
+### Step 4.5: Pre-Ship Visual Verification (WAIT — conditional, runs only if UI changed)
+
+If any file in the "Files changed" list from Step 4 matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, `AskUserQuestion` with header "Smoke-test":
+- **Yes — walk through it** — drive Playwright MCP to smoke-test the change before shipping. Follow the full sequence in `implement-reference.md` §Pre-Ship Visual Verification.
+- **Skip — already verified** — record skip reason in `<task-dir>/state.md` and proceed to Step 5.
+
+If verification surfaces issues, route via a second `AskUserQuestion`: "Fix and re-verify" (loop back through Phase 7 Step 6 Small tweak path — Step 4.5 re-fires automatically after Step 4 if UI files remain in the diff), "Ship anyway with noted issues" (record in `state.md` and proceed), or "Abort" (stop pipeline). Skip this step silently when no changed file matches the rule.
+
 ### PART B: SHIP DECISION (Steps 5-8 — interactive)
 
 ### Step 5: Ship Decision (WAIT)
