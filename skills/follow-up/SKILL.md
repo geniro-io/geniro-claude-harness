@@ -9,29 +9,27 @@ argument-hint: "[description of the change]"
 
 # Follow-Up Change Pipeline
 
-**You are a coordinator.** You delegate ALL implementation work to subagents. You do NOT write code directly — no exceptions, not even for Trivial changes. Every code change (implementation, fixes, tweaks) goes through a subagent. You run shell commands (build, test, lint) and read their output to determine pass/fail.
+**You are a coordinator.** Delegate ALL implementation to subagents — no exceptions, not even Trivial. Every code change goes through a subagent. You run shell commands (build, test, lint) and read their pass/fail output.
 
-**Pipeline:** Assess → Implement → Simplify → Validate → Review → Ship (includes Learn & Improve before commit)
-
-Phases marked **(WAIT)** require user input before proceeding.
+**Pipeline:** Assess → Implement → Simplify → Validate → Review → Ship (includes Learn & Improve before commit). **(WAIT)** phases require user input.
 
 ## AskUserQuestion
 
-Every question to the user should use `AskUserQuestion`. Formulate 2-4 options with short labels and descriptions. The tool auto-adds "Other" for custom input.
+Every question to the user uses `AskUserQuestion`. Formulate 2-4 options with short labels/descriptions. The tool auto-adds "Other" for custom input.
 
 ## Agent Failure Handling
 
-If any delegated agent fails (timeout, error, empty/garbage result): retry once with the same prompt. If the retry also fails, escalate to the user with the error context and ask whether to skip that step, try a different approach, or abort.
+If a delegated agent fails (timeout, error, empty/garbage result): retry once. If retry fails, escalate to the user with error context and ask to skip, try a different approach, or abort.
 
 ## Codegen Rule
 
-If the project uses code generation (e.g., OpenAPI client generation, GraphQL codegen, Prisma client, etc.), run the appropriate codegen command after any step that modifies files that feed into the generator (DTOs, schemas, controllers, etc.). This prevents stale generated types from causing downstream failures. Check CLAUDE.md or package.json for the project's codegen commands.
+If the project uses codegen (OpenAPI, GraphQL, Prisma, etc.), run the relevant codegen command after modifying generator inputs (DTOs, schemas, controllers). See CLAUDE.md or package.json.
 
 ## Change Request
 
 $ARGUMENTS
 
-**If `$ARGUMENTS` is empty**, ask the user via `AskUserQuestion` with header "Change": "What would you like to change?" with options "Describe the change" / "Fix a specific issue". Do not proceed until a change is provided.
+**If `$ARGUMENTS` is empty**, `AskUserQuestion` header "Change": "What would you like to change?" options "Describe the change" / "Fix a specific issue". Do not proceed until a change is provided.
 
 ---
 
@@ -41,23 +39,16 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 
 ### Step 1: Context Scan
 
-1. **Load prior planning context** — `Glob(".geniro/planning/*/")`, match against current branch (`git branch --show-current`). If found, read: `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`, `review-feedback.md`. These prevent re-discovering conventions and contradicting prior decisions. If none found, proceed without.
-
-2. **Load workflow integrations and custom instructions** — Check for `.geniro/workflow/*.md` files to discover active integrations and their argument detection rules. Apply detection rules to `$ARGUMENTS` (e.g., issue tracker patterns). If a reference is detected, follow the workflow file's instructions (fetch issue context, ask about status transitions). Also load `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md` — apply rules as constraints, additional steps at specified phases, and hard constraints.
-
-3. **Read the change request** and identify which files likely need to change
-4. **Codebase scan** (Glob/Grep) to find the exact files and understand current patterns
-5. **Read the files** that will be modified — understand current state before changing anything
-6. **Check current state:**
-   ```bash
-   git branch --show-current
-   git log --oneline -5
-   git status --short
-   ```
+1. **Prior planning context** — `Glob(".geniro/planning/*/")`, match current branch. If found, read `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`, `review-feedback.md` to avoid re-discovery or contradicting prior decisions.
+2. **Workflow integrations & custom instructions** — check `.geniro/workflow/*.md` for active integrations and argument detection rules; apply to `$ARGUMENTS`. Follow matching workflow instructions (fetch issue context, status transitions). Load `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md` as hard constraints.
+3. **Read the change request** and identify likely files.
+4. **Codebase scan** (Glob/Grep) to find exact files and patterns.
+5. **Read the files** that will be modified.
+6. **Check state:** `git branch --show-current`, `git log --oneline -5`, `git status --short`.
 
 ### Step 2: Complexity Assessment
 
-Assess the change by checking for **hard escalation signals first**, then evaluating overall complexity. File count is a supporting signal, not the primary gate.
+Check for **hard escalation signals first**, then evaluate overall complexity. File count is a supporting signal, not the primary gate.
 
 #### Hard Escalation Signals (any ONE triggers escalation to /geniro:implement)
 
@@ -80,16 +71,43 @@ Assess the change by checking for **hard escalation signals first**, then evalua
 - **Medium**: 6–8 files, up to 2 modules, may add fields to existing entities (no new tables), non-trivial but clear logic. *Examples: add a column to an entity + migration + DTO + query + UI table + test, change an existing calculation.*
 - **Too large**: 9+ files, OR any hard escalation signal above. Escalate to `/geniro:implement`.
 
-**File count is a smell detector, not a complexity detector.** A 2-file change adding a new entity is "Too large." A 7-file change propagating an existing filter is "Medium." When file count is high, ask "why?" — the answer contains the actual complexity signal.
+**File count is a smell detector, not a complexity detector.** A 2-file change adding a new entity is "Too large"; a 7-file change propagating an existing filter is "Medium." When file count is high, ask "why?" — the answer contains the real complexity signal.
 
-### Step 3: Escalation Gate
+### Step 3: Route to Lane
 
-**If complexity is "Too large":**
+One `AskUserQuestion` routes the change. Record `lane` (Fast or Full) and reference it through the rest of the pipeline. Default to Full for anything the user did not explicitly opt into.
 
-Present escalation signals to user. `AskUserQuestion` with header "Scope":
+**Too large** → `AskUserQuestion` header "Scope":
 - "Escalate to /geniro:implement" → output `/geniro:implement [change request]` and stop
-- "Proceed anyway" → continue, treat as Medium complexity (full validation + review)
+- "Proceed anyway" → continue as Full pipeline, treat as Medium (full validation + review)
 - "Reduce scope" → ask what to cut, re-assess, loop back to Step 2
+
+**Medium** → no question; proceed to Phase 2 Full (unchanged).
+
+**Trivial or Small** with zero hard-escalation signals → `AskUserQuestion` header "Lane":
+- "Fast Lane" — collapse optional phases (see Fast Lane Semantics below)
+- "Full pipeline" — run every phase
+
+Recommend: Fast for Trivial, Full for Small. If any hard-escalation signal is present, Fast Lane is unavailable — only Full-pipeline or Escalate are offered.
+
+### Fast Lane — What it changes
+
+**Skipped in Fast Lane:**
+- Phase 2 Step 1 Plan presentation
+- Phase 3 Simplify
+- Phase 5 agent reviewer — use orchestrator diff review (Trivial pattern) for Trivial AND Small
+- Phase 6 Step 2 Learn & Improve entirely
+- Strategic Compact points (Phase 2 end, Phase 4 end)
+
+**NEVER skipped in Fast Lane:**
+- Agent delegation for implementation — Zero Direct Edits applies at every complexity and lane
+- Phase 4 Validate — build + lint + test must run, or be confirmed via agent Checks Report
+- Phase 6 Step 1 Review gate and Step 3 Ship question
+- Hard escalation signals — if any are present, Fast Lane is not offered
+
+**Model selection in Fast Lane:** Trivial impl agent: `model="haiku"` (mechanical edit). Small impl agent: `model="sonnet"` (unchanged).
+
+**Escape hatch:** If Phase 5 orchestrator diff review finds anything ambiguous or potentially CRITICAL (logic inversion, suspected regression, unclear diff, or any doubt), escalate to a single Sonnet reviewer agent — do not proceed on Fast Lane alone.
 
 **→ Proceed to Phase 2.**
 
@@ -99,11 +117,11 @@ Present escalation signals to user. `AskUserQuestion` with header "Scope":
 
 ### Step 1: Plan (Medium complexity only)
 
-Write a brief plan: list each file and what changes, dependencies, risks. Present it via `AskUserQuestion` header "Plan": "Looks good — proceed" / "Adjust — change the approach".
+Write a brief plan: each file, what changes, dependencies, risks. Present via `AskUserQuestion` header "Plan": "Looks good — proceed" / "Adjust — change the approach".
 
 ### Step 2: Execute
 
-**Trivial** (1–2 files, obvious fix): Delegate to a single agent (same template as Small below, without Tests section). Even Trivial changes go through agents — orchestrator context is too expensive to spend on implementation.
+**Trivial** (1–2 files, obvious fix): Delegate to a single agent (same template as Small below, without Tests section). Even Trivial goes through agents — orchestrator context is too expensive for implementation.
 
 **Small** (3–5 files, 1–2 modules): Delegate to a single agent:
 
@@ -119,50 +137,40 @@ After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: P
 """)
 ```
 
-**Medium** (6–8 files, up to 2 modules): Decompose into 2–3 parallel agents by module/layer and spawn in a **single message**:
+**Medium** (6–8 files, up to 2 modules): Decompose into 2–3 parallel agents by module/layer, spawn in a **single message**:
 
-1. Group the files from your plan by module or layer (e.g., backend vs frontend, entity+service vs DTO+hook)
-2. Each agent gets its own file group — no overlap between agents
+1. Group plan files by module/layer (e.g., backend vs frontend, entity+service vs DTO+hook)
+2. Each agent gets its own file group — no overlap
 3. Pre-inline the file contents each agent needs from Phase 1
 
 ```
-# Spawn ALL agents in a SINGLE message for parallel execution:
-# Each agent prompt: Task, Pre-Inlined Context, Tests — MANDATORY, Requirements (scope/CLAUDE.md/no-git/report)
+# Spawn ALL agents in a SINGLE message for parallel execution.
+# Per-agent prompt sections: Task, Pre-Inlined Context, Tests — MANDATORY, Requirements (scope/CLAUDE.md/no-git/report)
 
 Agent(model="sonnet", prompt="""
-## Task — Group 1: [module/layer name]
+## Task — Group N: [module/layer name]
 [changes for this group]
 ## Pre-Inlined Context: [file contents]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
-""", description="Implement [group 1]")
-
-Agent(model="sonnet", prompt="""
-## Task — Group 2: [module/layer name]
-[changes for this group]
-## Pre-Inlined Context: [file contents]
-## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
-## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
-After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
-""", description="Implement [group 2]")
+""", description="Implement [group N]")
+# Repeat the Agent(...) block per group — all in one message.
 ```
 
-If all files are tightly coupled (same module, sequential dependencies), use a single agent instead — don't force parallelism where it doesn't fit.
+If all files are tightly coupled (same module, sequential deps), use a single agent — don't force parallelism.
 
 ### Step 3: Completion Check
 
-After agents report done, verify the task was completed — do NOT read source code to verify correctness:
+After agents report done, verify completion — do NOT read source code for correctness:
 
-1. Run `git diff --name-only` and `git status --short` — confirm expected files were created/modified (diff shows tracked changes, status shows new untracked files)
-2. Check the agent's report covers all items from the change request
-3. If the agent missed files or partially completed: delegate a follow-up agent with the gap description. Do NOT fill in the gaps yourself.
+1. Run `git diff --name-only` and `git status --short` — confirm expected files changed (diff shows tracked, status shows untracked)
+2. Check the agent's report covers all items in the change request
+3. If missed or partial: delegate a follow-up agent with the gap description. Do NOT fill gaps yourself.
 
-### Strategic Compact Point (Small/Medium only)
+### Strategic Compact Point (Small/Medium Full pipeline only — skipped in Fast Lane and for Trivial)
 
-**Skip for Trivial changes** — proceed directly to Phase 3/4.
-
-After implementation agents complete, your context is loaded with pre-inlined file contents and agent reports. Before continuing to validation/review, checkpoint and suggest compaction:
+After agents complete, context is loaded with pre-inlined file contents and reports. Before validation/review, checkpoint and suggest compaction:
 
 1. Write state to `.geniro/follow-up-state.md`:
    ```
@@ -173,23 +181,21 @@ After implementation agents complete, your context is loaded with pre-inlined fi
    branch: [current branch]
    ```
 2. Tell the user:
-   > Implementation complete. I recommend running `/compact` now to free context for validation and review phases. After compacting, type `/geniro:follow-up continue` to resume from Phase 3.
+   > Implementation complete. I recommend `/compact` now to free context for validation and review. After compacting, type `/geniro:follow-up continue` to resume from Phase 3.
 
-**After compaction (or if user skips):** Read `.geniro/follow-up-state.md` and `git diff --name-only` to restore context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
+**After compaction (or if skipped):** Read `.geniro/follow-up-state.md` and `git diff --name-only` to restore context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
 
 **DO NOT present a summary or ask "anything else?" here. Phases 3-6 have not run yet.**
 
 ---
 
-## Phase 3: Simplify (Medium and "Proceed anyway" only)
+## Phase 3: Simplify (Medium and "Proceed anyway" only — always skipped in Fast Lane)
 
-**Purpose:** Code quality pass on changed files — catch AI-generated anti-patterns before validation.
-
-**Skip for Trivial and Small changes** — proceed directly to Phase 4 (Validate).
+**Purpose:** Code quality pass on changed files — catch AI anti-patterns before validation.
 
 ### Step 1: Spawn simplify agent
 
-Spawn a **general-purpose** subagent with `model: "sonnet"`. The agent reads its own criteria file — do NOT pre-read criteria into orchestrator context:
+Spawn a **general-purpose** subagent with `model: "sonnet"`. The agent reads its own criteria — do NOT pre-read into orchestrator context:
 
 ```
 Agent(model="sonnet", prompt="""
@@ -204,30 +210,30 @@ Do NOT modify files outside changed list. Never delete or weaken test assertions
 
 ### Step 2: Verify after simplification
 
-Spawn a validation agent (same template as Phase 4 Step 2) to check simplification didn't break anything. If FAIL: revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 4.
+Spawn a validation agent (Phase 4 Step 2 template) to check simplification didn't break anything. If FAIL: revert (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 4.
 
-**→ You MUST proceed to Phase 4 (Validate) now. DO NOT present a summary or ask "anything else?" — validation has not run yet.**
+**→ You MUST proceed to Phase 4 (Validate). DO NOT present a summary or ask "anything else?" — validation has not run yet.**
 
 ---
 
 ## Phase 4: Validate
 
-**Your role in this phase:** verify the diff matches expectations, then delegate heavy validation only if needed. First check implementation agent reports for a `## Checks Report`. If ALL agents reported PASS for build+lint+test AND no code was modified after their checks (Phase 3 simplification was skipped or didn't run), skip Step 2 — proceed directly to Step 3. If any agent reported FAIL, any report is missing a Checks Report, or Phase 3 simplification touched files, spawn the validation agent in Step 2. You do NOT run build/lint/test yourself or read source code.
+**Your role:** verify the diff matches expectations, delegate heavy validation only if needed. First check agent reports for a `## Checks Report`. If ALL agents reported PASS for build+lint+test AND no code changed after their checks (Phase 3 skipped or didn't run), skip Step 2 — proceed to Step 3. If any FAIL, any missing Checks Report, or Phase 3 touched files, spawn the validation agent in Step 2. You do NOT run build/lint/test yourself or read source code.
 
 ### Step 1: Diff Check
 
-Verify implementation completeness by checking the diff:
+Verify completeness via the diff:
 
 ```bash
 git diff --name-only
 git status --short | head -20
 ```
 
-Confirm: (1) expected files were created/modified, (2) no unexpected files changed, (3) no untracked files that should be tracked. If files are missing or unexpected, delegate a fix agent before proceeding.
+Confirm: (1) expected files created/modified, (2) no unexpected changes, (3) no untracked files that should be tracked. If missing or unexpected, delegate a fix agent before proceeding.
 
 ### Step 2: Validation Agent
 
-Spawn a validation agent that runs the project's full check suite. The agent runs commands, you read its pass/fail summary.
+Spawn a validation agent that runs the project's check suite. The agent runs commands; you read its pass/fail summary.
 
 ```
 Agent(model="sonnet", prompt="""
@@ -235,20 +241,20 @@ Agent(model="sonnet", prompt="""
 Run the project's validation commands and report pass/fail results.
 
 ## Steps
-1. Run autofix (lint --fix / format) from CLAUDE.md or package.json
-2. Run full validation suite (build + lint + test) from CLAUDE.md
-3. If project uses codegen AND DTOs/schemas/controllers changed: run codegen, then re-validate
-4. [Medium only] Start the app in background, wait 10-15s, check for startup errors (DI, missing providers). Kill afterward.
-5. Check test file existence: for each changed source file in [list from git diff --name-only], verify a corresponding .test.* or .spec.* file exists adjacent to it
+1. Run autofix (lint --fix / format) per CLAUDE.md or package.json
+2. Run full validation suite (build + lint + test) per CLAUDE.md
+3. If codegen is used AND DTOs/schemas/controllers changed: run codegen, re-validate
+4. [Medium only] Start app in background, wait 10-15s, check for startup errors (DI, missing providers). Kill after.
+5. Test coverage: for each changed source in [list from git diff --name-only HEAD], verify a `.test.*` or `.spec.*` exists adjacent
 
 ## Report Format
 Return EXACTLY this structure:
-- autofix: PASS/FAIL [details if fail]
-- build: PASS/FAIL [details if fail]
-- lint: PASS/FAIL [details if fail]
-- test: PASS/FAIL [details if fail]
-- codegen: PASS/SKIP/FAIL [details if fail]
-- startup: PASS/SKIP/FAIL [details if fail]
+- autofix: PASS/FAIL [failing-file: path, error summary if fail]
+- build: PASS/FAIL [failing-file: path, error summary if fail]
+- lint: PASS/FAIL [failing-file: path, error summary if fail]
+- test: PASS/FAIL [failing-file: path, error summary if fail]
+- codegen: PASS/SKIP/FAIL [failing-file: path, error summary if fail]
+- startup: PASS/SKIP/FAIL [failing-file: path, error summary if fail]
 - test-coverage: [list of source files missing test files, or "all covered"]
 
 ## Requirements
@@ -262,24 +268,22 @@ Return EXACTLY this structure:
 
 If the validation agent reports failures:
 1. **Lint/format only** → spawn a fixer agent with the lint errors
-2. **Type/build/test failure** → spawn a fixer agent with the exact error output from the validation report. Do NOT read source code to diagnose.
-3. **Missing test files** → spawn an agent: "Create test file next to source. Follow existing patterns."
-4. After each fix round, re-run the validation agent (Step 2)
-5. **Max 2 fix rounds** — then escalate: present the validation report to the user. `AskUserQuestion` with header "Stuck": "Try a different approach" / "Escalate to /geniro:implement" / "Show current state". Do NOT retry same approach a 3rd time.
+2. **Type/build/test failure** → spawn a fixer with the exact error output. Do NOT read source to diagnose.
+3. **Missing test files** → spawn: "Create test file next to source. Follow existing patterns."
+4. After each fix round, re-run validation (Step 2)
+5. **Max 2 fix rounds** — then escalate: present the report. `AskUserQuestion` header "Stuck": "Try a different approach" / "Escalate to /geniro:implement" / "Show current state". Do NOT retry the same approach a 3rd time.
 
-### Strategic Compact Point (Medium only)
+### Strategic Compact Point (Medium Full pipeline only — skipped in Fast Lane and for Trivial/Small)
 
-**Skip for Trivial and Small changes** — proceed directly to Phase 5.
-
-Validation accumulated fix-loop context. Before spawning review agents:
+Validation accumulated fix-loop context. Before spawning reviewers:
 
 1. Update `.geniro/follow-up-state.md`: set `phase: 4-complete`
 2. Tell the user:
-   > Validation passed. For best review quality, I recommend `/compact` now. After compacting, type `/geniro:follow-up continue` to resume the review phase.
+   > Validation passed. For best review quality I recommend `/compact`. After compacting, type `/geniro:follow-up continue` to resume review.
 
-**After compaction (or if user skips):** Read `.geniro/follow-up-state.md` and `git diff --name-only` to restore context.
+**After compaction (or if skipped):** Read `.geniro/follow-up-state.md` and `git diff --name-only` to restore context.
 
-**→ You MUST proceed to Phase 5 (Review) now. DO NOT present results to the user or ask "anything else?" — review has not run yet.**
+**→ You MUST proceed to Phase 5 (Review). DO NOT present results or ask "anything else?" — review has not run yet.**
 
 ---
 
@@ -289,9 +293,9 @@ Validation accumulated fix-loop context. Before spawning review agents:
 
 Capture the changed file list from the diff against main.
 
-**Trivial changes (1–2 files):** Review the diff yourself — no subagent needed. Check for: typos in the fix itself, accidental deletions, logic inversion, missed second occurrence. If anything looks off, delegate the fix to an agent and re-validate. Do NOT fix code directly.
+**Trivial (any lane) and Small (Fast Lane):** Review the diff yourself — no subagent. Check for: typos in the fix, accidental deletions, logic inversion, missed second occurrence. If anything looks off, delegate the fix to an agent and re-validate. Do NOT fix code directly. If ambiguous or potentially CRITICAL, escalate to a single Sonnet reviewer (Fast Lane escape hatch).
 
-**Small changes (3–5 files):** Spawn a single reviewer-agent. Pass the criteria file paths — the agent reads them itself. Do NOT pre-read criteria files into orchestrator context.
+**Small changes in Full pipeline (3–5 files):** Spawn a single reviewer-agent. Pass criteria file paths — the agent reads them itself. Do NOT pre-read criteria into orchestrator context.
 
 ```
 Agent(model="sonnet", prompt="""
@@ -315,7 +319,7 @@ Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
 """, description="Review: follow-up change")
 ```
 
-**Medium changes (6–8 files):** Spawn 2–3 reviewer-agent instances in a **single message**. Each agent reads its own criteria file — do NOT pre-read criteria into orchestrator context:
+**Medium changes (6–8 files):** Spawn 2–3 reviewer-agent instances in a **single message**. Each agent reads its own criteria — do NOT pre-read into orchestrator context:
 
 ```
 # Spawn ALL reviewers in a SINGLE message for parallel execution:
@@ -345,17 +349,17 @@ Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/security
 """, description="Review: security")
 ```
 
-Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. That agent reads `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`, `tests-criteria.md`, and `guidelines-criteria.md` itself.
+Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Reads `architecture-criteria.md`, `tests-criteria.md`, `guidelines-criteria.md` under `${CLAUDE_PLUGIN_ROOT}/skills/review/`.
 Add a 4th reviewer with `model='haiku'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
 
 ### Step 2: Process Results
 
-**Relevance filter (Medium only):** Before processing, spawn a `relevance-filter-agent` with reviewer findings, changed file paths, and project conventions. Only KEEP findings proceed. Skip for Trivial/Small — scope is too limited for generic findings to be a risk. If the agent fails, proceed unfiltered (fail-open).
+**Relevance filter (Medium only):** Spawn a `relevance-filter-agent` with findings, changed file paths, project conventions. Only KEEP findings proceed. Skip for Trivial/Small — scope too limited for generic findings to matter. If the agent fails, proceed unfiltered (fail-open).
 
-Aggregate findings from all reviewers. Deduplicate (same file:line from multiple reviewers = single finding, keep highest severity).
+Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity).
 
-- Any reviewer **CHANGES REQUIRED** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If still CHANGES REQUIRED after 1 round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
-- All reviewers **APPROVED WITH MINOR** → note improvements in Ship summary. Only fix MEDIUM+ findings — delegate if any, then proceed.
+- Any reviewer **CHANGES REQUIRED** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If still CHANGES REQUIRED: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
+- All reviewers **APPROVED WITH MINOR** → note improvements in Ship summary. Fix only MEDIUM+ findings — delegate if any, then proceed.
 - All reviewers **APPROVED** → proceed directly.
 
 **→ Proceed to Phase 6.**
@@ -374,54 +378,49 @@ Show a summary:
 
 ### Step 1: Review Gate (loop entry point)
 
-`AskUserQuestion` with header "Review" and options:
+`AskUserQuestion` header "Review":
 - "Looks good" — I'm happy with the changes
 - "Needs tweaks" — I want small adjustments (I'll describe)
 - "Done" — leave uncommitted, I'll handle it myself
 
 **If "Needs tweaks":**
 1. `AskUserQuestion` header "Tweak": "Describe what to change" (free-text via Other)
-2. **Assess the tweak** — if it expands scope significantly (new files, new endpoints), warn via `AskUserQuestion` header "Scope": "Continue here" / "Escalate to /geniro:implement".
+2. **Assess** — if it expands scope (new files, new endpoints), warn via `AskUserQuestion` header "Scope": "Continue here" / "Escalate to /geniro:implement".
 3. Delegate changes to an agent (never apply directly)
 4. Re-run validation (Phase 4 Step 2 only)
 5. If 10+ lines changed, re-run reviewer (Phase 5). Max 1 review round for tweaks.
-6. **Loop back to Step 1** — re-present summary and ask the Review question again. Do NOT skip ahead to Step 2.
-7. Soft limit: after 3 tweak rounds, suggest creating a new `/geniro:follow-up` or `/geniro:implement` for remaining changes.
+6. **Loop back to Step 1** — re-present summary, re-ask Review. Do NOT skip to Step 2.
+7. Soft limit: after 3 tweak rounds, suggest a new `/geniro:follow-up` or `/geniro:implement` for remaining changes.
 
-**If "Done":** Leave changes uncommitted, skip to cleanup.
-
-**If "Looks good":** Proceed to Step 2.
+**If "Done":** Leave uncommitted, skip to cleanup.  **If "Looks good":** Proceed to Step 2.
 
 ### Step 2: Learn & Improve
 
-**Skip entirely for Trivial changes.** Runs BEFORE committing so doc/rule changes are included.
+**Skipped entirely for Trivial changes and Fast Lane runs.** Runs BEFORE committing so doc/rule changes are included.
 
-**Extract Learnings:** Scan conversation. Save `feedback` memory (user corrections, workarounds, non-obvious resolutions) and `project` memory (discovered bugs/gotchas). UPDATE existing memories rather than duplicate. Skip if nothing novel.
+**Extract Learnings** (skipped for Trivial and Fast Lane runs): Scan conversation. Save `feedback` memory (user corrections, workarounds, non-obvious resolutions) and `project` memory (discovered bugs/gotchas). UPDATE existing memories rather than duplicate. Skip if nothing novel.
 
-**Suggest Improvements (WAIT) — Skip for Small changes**, run for Medium or "Proceed anyway" only. Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure changes), **custom instructions** (quality gates, workflow steps, or constraints the user enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, debugging insights to learnings.jsonl), **rules/hooks** (enforceable patterns, dangerous operations). Draft: target, file, change, why. `AskUserQuestion` header "Improvements": "Apply all" / "Review one-by-one" / "Skip".
+**Suggest Improvements (WAIT) — skipped for Small, Trivial, and Fast Lane runs**; runs for Medium or "Proceed anyway" only. Classify each finding by target: **CLAUDE.md** (new commands, conventions, structure), **custom instructions** (quality gates/workflow/constraints enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, debugging insights to learnings.jsonl), **rules/hooks** (enforceable patterns, dangerous ops). Draft: target, file, change, why. `AskUserQuestion` header "Improvements": "Apply all" / "Review one-by-one" / "Skip".
 
 ### Step 3: Ship Decision
 
-**NEVER run `git commit` or `git push` without reaching this step and getting the user's explicit choice via `AskUserQuestion` below.** Only reach this step when the user explicitly chose "Looks good" in Step 1.
+**NEVER run `git commit` or `git push` without reaching this step and the user's explicit choice via `AskUserQuestion` below.** Only reach this step after the user chose "Looks good" in Step 1.
 
-`AskUserQuestion` with header "Ship" and options:
-- "Commit" — add to current branch (includes all changes: implementation + docs + rule updates)
+`AskUserQuestion` header "Ship":
+- "Commit" — add to current branch (implementation + docs + rule updates)
 - "Commit + push" — commit and push to remote
-- "Commit + PR" — commit, push, and create pull request
+- "Commit + PR" — commit, push, create pull request
 - "Leave as-is" — don't commit, I'll handle git myself
 
-**Commit message format:** Follow conventional commits:
-```
-fix(module): description of what changed
-```
+**Commit message:** conventional commits, e.g. `fix(module): description of what changed`.
 
 ### Integration Updates
 
-If `.geniro/workflow/*.md` files specify completion actions (e.g., issue status transitions, PR linking), follow their instructions after the user commits. Always ask the user before changing external state — never auto-update.
+If `.geniro/workflow/*.md` specifies completion actions (issue status, PR linking), follow them after the user commits. Always ask before changing external state — never auto-update.
 
 ### Cleanup
 
-Kill any orphaned background processes started during validation (startup checks, dev servers, etc.).
+Kill orphaned background processes from validation (startup checks, dev servers, etc.).
 
 **→ Pipeline complete.**
 
@@ -447,22 +446,26 @@ Kill any orphaned background processes started during validation (startup checks
 | "I noticed a bug during validation — I'll fix it now since I'm already here" | Bug-finding is Phase 5 (Review). Phase 4 runs commands and reads pass/fail output. If automated checks pass, the code moves to Review where fresh-context agents find bugs. Fixing bugs in Phase 4 steals Review's job and accumulates context that degrades your coordination. |
 | "I can see the type error — I'll fix it faster than spawning an agent" | ALL fixes go through agents regardless of complexity level. Context you accumulate reading source code to "quickly fix" errors degrades your coordination for Phases 5-6. |
 | "The user said 'looks good' so I'll commit and push" | NEVER run git commit or git push without the user choosing a specific ship option via AskUserQuestion in Phase 6 Step 3. "Looks good" means proceed to the ship question — not auto-commit. |
+| "I'll pick Fast Lane silently — it's obviously Trivial" | Fast Lane is the user's choice, not the orchestrator's. Ask via AskUserQuestion in Phase 1 Step 3 — silent routing removes the safety gate the user asked for. |
+| "This Medium change has simple logic — I'll offer Fast Lane" | Only Trivial or Small with zero hard-escalation signals qualify. Medium always runs Full. File-count-adjacent Small changes that touched any escalation signal also get Full. |
+| "We're in Fast Lane — I'll fix this one-liner directly instead of spawning an agent" | Delegation is mandatory at every complexity level and every lane. Fast Lane collapses phases; it does not permit orchestrator edits. Any exception becomes rationalization (5 audits eliminated the 'Trivial inline' exception). |
+| "Fast Lane reviewer spotted a bug — I'll fix it here" | Still delegate fixes to a fresh agent. Fast Lane reduces review depth, not accountability. If the diff-review raises any doubt, escalate to a Sonnet reviewer per the Fast Lane escape hatch. |
 
 ---
 
 ## Task Tracking
 
-Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Ship) at the start. Mark `in_progress` → `completed` as each phase runs. For Medium: add plan outline as todo before implementation.
+Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Ship) at start. Mark `in_progress` → `completed` as phases run. For Medium: add plan outline as todo before implementation.
 
 ## Definition of Done
 
 - [ ] Complexity assessed and routed correctly
 - [ ] Prior planning context loaded if available
 - [ ] Implementation matches `$ARGUMENTS`
-- [ ] Simplification pass run (Medium) or skipped (Trivial/Small)
+- [ ] Simplification run (Medium Full) or skipped (Trivial/Small/Fast Lane)
 - [ ] All tests pass; no type/lint errors
 - [ ] Code quality reviewed
-- [ ] Relevance filter applied (Medium changes only)
+- [ ] Relevance filter applied (Medium only)
 - [ ] User approved before shipping
 - [ ] Change committed or delivered for user to commit
 
@@ -481,8 +484,8 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 |---------|-----|
 | Validation fails after 2 fix rounds | Present structured handoff to user |
 | Change larger than expected | Escalate to `/geniro:implement` |
-| Agent re-reads files already scanned | Pre-inline file contents from Phase 1 into agent prompt |
-| Reviewer finds architectural issues | Escalate to `/geniro:implement` with reviewer findings |
+| Agent re-reads files already scanned | Pre-inline file contents from Phase 1 |
+| Reviewer finds architectural issues | Escalate to `/geniro:implement` with findings |
 | Codegen not detected | Run codegen manually if API surface changed |
 
 ---
