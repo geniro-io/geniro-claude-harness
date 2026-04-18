@@ -130,7 +130,9 @@ Review ONLY for visual/UX quality per the design rubric. Do not cross into other
 """)
 ```
 
-> **UI-file detection rule (used by the conditional design reviewer):** A file is considered a UI file if its path matches any of these globs — `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**` — or its extension is one of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.sass`, `.less`, `.styled.ts`, `.styled.tsx`. The design dimension is skipped entirely when no changed file matches.
+### UI-file detection rule
+
+Used by the conditional design reviewer. A file is considered a UI file if its path matches any of these globs — `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**` — or its extension is one of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.sass`, `.less`, `.styled.ts`, `.styled.tsx`. The design dimension is skipped entirely when no changed file matches.
 
 **Dimensions:**
 1. **Bugs Reviewer** — Logic errors, null checks, off-by-one, state issues
