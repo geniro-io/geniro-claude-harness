@@ -25,9 +25,8 @@ process.stdin.on('end', () => {
     try {
       const cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
       if (cache && cache.update_available) {
-        const from = cache.installed || '?';
         const to = cache.latest || '?';
-        update = `\x1b[33m\u2B06 ${from}\u2192${to} /geniro:update\x1b[0m \u2502 `;
+        update = `\x1b[33m\u2B06 ${to} /geniro:update\x1b[0m \u2502 `;
       }
     } catch {}
 
