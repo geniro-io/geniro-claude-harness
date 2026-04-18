@@ -2,7 +2,6 @@
 # db-guard.sh
 # PreToolUse hook for Bash - blocks dangerous database operations
 # Prevents accidental data loss from DROP, TRUNCATE, DELETE without WHERE clause
-# Separate from general dangerous-command-blocker for clarity and maintainability
 
 set -euo pipefail
 
@@ -18,7 +17,6 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # Database-specific dangerous patterns
-# These are separated from general dangerous commands for better clarity
 DB_DANGEROUS_PATTERNS=(
   "^\s*DROP\s+(TABLE|DATABASE|INDEX|VIEW|SCHEMA)"  # SQL DROP commands
   "^\s*TRUNCATE\s+(TABLE|SCHEMA)"                  # SQL TRUNCATE commands

@@ -266,7 +266,6 @@ All hooks run automatically after installation:
 
 | Hook | Protection |
 |------|-----------|
-| `dangerous-command-blocker` | Blocks `rm -rf`, `git reset --hard`, `git push --force` |
 | `db-guard` | Prevents `DROP DATABASE`, `DELETE FROM` without WHERE |
 | `secret-protection-input` | Blocks reading `.env`, credentials, SSH keys |
 | `file-protection` | Prevents writing to `.env`, `.pem`, secrets |

@@ -86,8 +86,7 @@ Use the `AskUserQuestion` tool:
 
 ## Phase 3: Remove Files
 
-Execute deletion in order. **NEVER use `rm -rf`** — it triggers the dangerous-command-blocker
-hook. Use `rm -f` for individual files and `rmdir` for empty directories only.
+Execute deletion in order. Prefer `rm -f` for individual files and `rmdir` for empty directories for precise, auditable removal.
 
 ### 3.1 Remove plugin runtime directory
 

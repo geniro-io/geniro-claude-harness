@@ -262,17 +262,17 @@ Hook translation runs in three ordered steps: (1) back up and stage `.claude/set
 
 4. Validate the result: `python3 -m json.tool .claude/settings.json >/dev/null` (or `jq empty .claude/settings.json`). If validation fails, restore from `settings.json.pre-vendor-backup` and stop.
 
-The merged `hooks` block must keep every plugin matcher (`PreToolUse` for Bash and Edit|Write, `PostToolUse`, `PreCompact`, `SessionStart`, `PostCompact`) and every `timeout` and `statusMessage` field. Only the `command` strings change. Example translation for the `dangerous-command-blocker` entry:
+The merged `hooks` block must keep every plugin matcher (`PreToolUse` for Bash and Edit|Write, `PostToolUse`, `PreCompact`, `SessionStart`, `PostCompact`) and every `timeout` and `statusMessage` field. Only the `command` strings change. Example translation for the `db-guard` entry:
 
-- Source: `"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/dangerous-command-blocker.sh"`
-- Vendored: `".claude/hooks/geniro-dangerous-command-blocker.sh"`
+- Source: `"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/db-guard.sh"`
+- Vendored: `".claude/hooks/geniro-db-guard.sh"`
 
 And for the already-prefixed `geniro-check-update.js` entry:
 
 - Source: `"node \"${CLAUDE_PLUGIN_ROOT}/hooks/geniro-check-update.js\""`
 - Vendored: `"node .claude/hooks/geniro-check-update.js"` (no double prefix — see **the prefix rule**)
 
-The merge algorithm in step 2 preserves user-owned hooks: new matcher entries are appended to each event array, existing matcher entries have their inner `hooks` list extended with command-level dedup. Order within a matcher entry follows the append order, so dangerous-command and secret-protection guards authored in `hooks.json` continue to run in the sequence the plugin ships.
+The merge algorithm in step 2 preserves user-owned hooks: new matcher entries are appended to each event array, existing matcher entries have their inner `hooks` list extended with command-level dedup. Order within a matcher entry follows the append order, so db-guard and secret-protection guards authored in `hooks.json` continue to run in the sequence the plugin ships.
 
 ## Phase 5: Write Vendor State
 

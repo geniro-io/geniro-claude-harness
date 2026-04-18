@@ -35,7 +35,6 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 ## Safety Hooks (Active)
 
 This plugin provides safety hooks that run automatically:
-- **Dangerous command blocker** — blocks `rm -rf /`, `git push --force`, `DROP TABLE`, etc.
 - **Database guard** — prevents unsafe database operations
 - **File protection** — blocks writes to `.env`, `*.key`, `*.pem`, lock files
 - **Secret scanning** — scans inputs and outputs for leaked secrets

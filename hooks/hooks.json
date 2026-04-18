@@ -6,11 +6,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/dangerous-command-blocker.sh",
-            "statusMessage": "Checking for dangerous commands..."
-          },
-          {
-            "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/db-guard.sh",
             "statusMessage": "Checking for unsafe database operations..."
           },

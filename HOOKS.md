@@ -4,32 +4,7 @@ This directory contains production-grade hooks for the geniro plugin. All hooks 
 
 ## Files Created
 
-### 1. dangerous-command-blocker.sh
-**Type:** PreToolUse hook for Bash  
-**Purpose:** Blocks destructive and dangerous commands before execution
-
-**Blocks:**
-- `docker volume rm` - Container volume destruction
-- `DROP TABLE` - SQL table deletion
-- `git push --force` / `git push -f` - Forced push (rewrites history)
-- `rm -rf /` - Root directory deletion
-- `git reset --hard` - Discard all changes
-- `git checkout .` - Discard staged changes
-- `TRUNCATE` - SQL truncation
-- `DELETE FROM` without WHERE clause
-- `git clean -f` - Force clean working directory
-- `git branch -D main/master` - Delete main/master branch
-
-**Implementation Details:**
-- Consumes stdin as first action
-- Parses JSON input with jq
-- Uses regex matching for flexibility
-- Exit code 2 to block (FAIL-SAFE)
-- Provides clear error message
-
----
-
-### 2. file-protection.sh
+### 1. file-protection.sh
 **Type:** PreToolUse hook for Write and Edit  
 **Purpose:** Prevents writes to sensitive files containing credentials and configurations
 
@@ -59,7 +34,7 @@ This directory contains production-grade hooks for the geniro plugin. All hooks 
 **Purpose:** Centralized configuration for all hooks
 
 **Structure:**
-- `hooks.PreToolUse` - Dangerous command, interactive command, and file protection
+- `hooks.PreToolUse` - Database guard, secret scanning, and file protection
 - `hooks.PostToolUse` - Auto-format after edits
 - `permissions` - Global permission model (Bash, Write, Edit allowed)
 
@@ -77,10 +52,6 @@ This directory contains production-grade hooks for the geniro plugin. All hooks 
 All hooks have been tested with sample inputs:
 
 ```bash
-# Test dangerous command blocker
-echo '{"tool_input":{"command":"rm -rf /"}}' | ./hooks/dangerous-command-blocker.sh
-# Exit code 2 - BLOCKED
-
 # Test file protection
 echo '{"tool_input":{"file_path":"/config/.env"}}' | ./hooks/file-protection.sh
 # Exit code 2 - BLOCKED
@@ -108,7 +79,6 @@ project/
 ├── .claude/
 │   ├── settings.json (user permissions, if any)
 │   └── hooks/
-│       ├── dangerous-command-blocker.sh
 │       ├── file-protection.sh
 │       ├── secret-protection-input.sh
 │       └── secret-protection-output.sh
