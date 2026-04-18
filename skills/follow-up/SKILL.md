@@ -112,6 +112,10 @@ Recommend: Fast for Trivial, Full for Small. If any hard-escalation signal is pr
 
 **Escape hatch:** If Phase 5 orchestrator diff review finds anything ambiguous or potentially CRITICAL (logic inversion, suspected regression, unclear diff, or any doubt), escalate to a single Sonnet reviewer agent — do not proceed on Fast Lane alone.
 
+### Step 4: UI Preview Gate (conditional — runs for both Fast and Full lanes)
+
+If any file in the predicted affected-files list from Step 1 matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, run the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` BEFORE Phase 2. Pre-inline the change request, the affected-files list, and 1-2 exemplar UI files. Phase 2 Step 2 implementation agents pick up the approved description via the `## UI Intent` slot in their prompt template (below). If the user picks "Adjust the plan instead" inside the procedure, fire `AskUserQuestion` with header "Adjust" to capture what to change in the approach, then: for Medium, feed the captured text into Phase 2 Step 1 Plan revision; for Trivial/Small, re-enter Phase 1 Step 1 Context Scan with the updated description. Skip this step entirely when no affected file matches.
+
 **→ Proceed to Phase 2.**
 
 ---
@@ -133,6 +137,7 @@ Agent(model="sonnet", prompt="""
 ## Task
 [describe the specific change needed]
 ## Pre-Inlined Context: [file contents from Phase 1]
+## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4): [paste approved description verbatim; match it exactly; omit this section entirely if the gate did not run]
 ## Codebase Conventions: match existing patterns exactly
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: follow CLAUDE.md, do NOT git add/commit/push, run validation, report changes and issues
@@ -154,6 +159,7 @@ Agent(model="sonnet", prompt="""
 ## Task — Group N: [module/layer name]
 [changes for this group]
 ## Pre-Inlined Context: [file contents]
+## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4 AND this group touches UI files): [paste approved description verbatim; match it exactly; omit this section entirely otherwise]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL

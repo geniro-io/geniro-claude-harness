@@ -53,8 +53,8 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 
 | Gate | Phase / Step | Auto-mode action |
 |---|---|---|
-| Gray-area resolution | Phase 1, Step 6 | Pick recommended default for each question; append one-liner per decision to `state.md` "Auto-mode decisions" |
-| Git workspace | Phase 1, Step 6 (in same batch) | Option A (new branch). If already on a feature branch (not `main`/`master`/`develop`), Option B |
+| Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question; append one-liner per decision to `state.md` "Auto-mode decisions" |
+| Git workspace | Phase 1, Step 7 (in same batch) | Option A (new branch). If already on a feature branch (not `main`/`master`/`develop`), Option B |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
 | Plan approval | Phase 3 | **Auto-approve.** Print plan summary (path + heading + step count + skeptic verdict) and the line "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise." Skip `AskUserQuestion`. Proceed to Phase 4 |
 | Compact prompt | Phase 3 (post-approval) | "Continue now" (skip compaction). Skip `AskUserQuestion` |
@@ -119,6 +119,9 @@ Match existing patterns exactly. Find the closest existing example and follow it
 
 ## Design Conventions (when frontend files in scope)
 [If the spec's CONVENTIONS_BRIEF includes a DESIGN_CONVENTIONS subsection, paste it here. Frontend-agent uses this as anchor context for tokens, primitives, exemplars, scales — so design isn't re-discovered every cycle. If no design system was detectable, paste the greenfield baseline statement from the spec.]
+
+## UI Intent (when UI Preview Gate ran — paste contents of `<task-dir>/ui-preview.md` if it exists; otherwise omit this section entirely)
+[The approved textual UI description from Phase 3 Step 0. Treat as authoritative visual intent — match it exactly. If it contradicts the plan, the UI Intent wins; stop and surface the contradiction.]
 
 ## Tests — MANDATORY (do not skip)
 Write tests alongside your implementation. Every new source file MUST have a corresponding test file.

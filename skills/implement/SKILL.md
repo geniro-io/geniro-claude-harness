@@ -102,23 +102,23 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
    Also load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/implement.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints throughout the pipeline.
    Then determine **pipeline mode**: if `$ARGUMENTS` already carried an explicit auto/assumptions signal (rules 3-4 of the Auto-Detection Table), lock to that mode. Otherwise fire the **Mode Selection prompt** from `implement-reference.md` §Phase 1 Auto-Detection Table. Persist `Mode: <interactive|auto|assumptions>` in `<task-dir>/state.md` so all later gates read it without re-prompting.
-1.5. **Bind to feature row (if applicable).** If `$ARGUMENTS` matched rule 2 of the Auto-Detection Table (Geniro feature ID): look up the row in `.geniro/planning/FEATURES.md`; if status is `planned`, run `/geniro:features move <id> in-progress`; if `in-progress`, no action; if `done`/`blocked`, `AskUserQuestion` header "Feature" with options "Re-open and continue" / "Pick a different feature" / "Treat description as new work (skip feature link)". Persist `Feature: <id>` and `Spec-file: <path or "none">` to `<task-dir>/state.md` before Step 2 (carried forward in every later checkpoint). If no feature ID, `Feature:` is "none".
-2. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
-3. Scan codebase for relevant patterns, conventions, architecture
-4. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
-5. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 6.
-6. **MANDATORY: Resolve gray areas.** Read `Mode:` from `<task-dir>/state.md` (set in Step 1) and execute the matching sub-bullet. You MUST stop here and ask the user questions before proceeding (interactive mode). Do NOT synthesize the spec without user input first.
+2. **Bind to feature row (if applicable).** If `$ARGUMENTS` matched rule 2 of the Auto-Detection Table (Geniro feature ID): look up the row in `.geniro/planning/FEATURES.md`; if status is `planned`, run `/geniro:features move <id> in-progress`; if `in-progress`, no action; if `done`/`blocked`, `AskUserQuestion` header "Feature" with options "Re-open and continue" / "Pick a different feature" / "Treat description as new work (skip feature link)". Persist `Feature: <id>` and `Spec-file: <path or "none">` to `<task-dir>/state.md` before Step 3 (carried forward in every later checkpoint). If no feature ID, `Feature:` is "none".
+3. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
+4. Scan codebase for relevant patterns, conventions, architecture
+5. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
+6. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 7.
+7. **MANDATORY: Resolve gray areas.** Read `Mode:` from `<task-dir>/state.md` (set in Step 1) and execute the matching sub-bullet. You MUST stop here and ask the user questions before proceeding (interactive mode). Do NOT synthesize the spec without user input first.
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
-   - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 6 row). Log to `state.md` "Auto-mode decisions" section
+   - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 7 row). Log to `state.md` "Auto-mode decisions" section
    - **Assumptions mode:** Propose plan, let user correct
    - **Plan-provided:** If a detailed plan exists in the conversation (from plan mode) or as a file (from `/geniro:plan`), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
    - **Include git workspace question** in this batch (new branch / current branch / worktree)
-7. Synthesize into spec document (only AFTER step 6). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
-8. Document assumptions in spec file
-9. **Git workspace setup** — execute user's choice from step 6:
-   - **Option A (new branch):** `git checkout -b <branch-name>` where `<branch-name>` is a slug from the task (e.g., `feat/add-user-settings`). The task directory (already created above) uses this branch name.
-   - **Option B (current branch):** No git action. Continue on current branch.
-   - **Option C (worktree):** Call `EnterWorktree` with `name: "implement-<slug>"` (e.g., `implement-add-user-settings`). After entering, if the project has `.env` or similar gitignored config files but no `.worktreeinclude` file, warn the user that environment files won't be present and suggest creating `.worktreeinclude`.
+8. Synthesize into spec document (only AFTER step 7). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
+9. Document assumptions in spec file
+10. **Git workspace setup** — execute user's choice from step 7:
+    - **Option A (new branch):** `git checkout -b <branch-name>` where `<branch-name>` is a slug from the task (e.g., `feat/add-user-settings`). The task directory (already created above) uses this branch name.
+    - **Option B (current branch):** No git action. Continue on current branch.
+    - **Option C (worktree):** Call `EnterWorktree` with `name: "implement-<slug>"` (e.g., `implement-add-user-settings`). After entering, if the project has `.env` or similar gitignored config files but no `.worktreeinclude` file, warn the user that environment files won't be present and suggest creating `.worktreeinclude`.
 
 **Outputs:** spec.md, affected files list, Definition of Done
 
@@ -156,6 +156,10 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 **Purpose:** Present plan to user for approval.
 
 **Action:** Read and present the full plan file (do NOT summarize).
+
+### UI Preview Gate (conditional — runs before Step 1 below)
+
+If any file in the plan's affected-files list matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, run the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` BEFORE the numbered steps below. Pre-inline the spec, plan, and 1-2 exemplar UI files; save the approved description to `<task-dir>/ui-preview.md`. Phase 4 Work Unit agents that touch UI files pick it up via the `## UI Intent` slot in the Phase 4 Agent Delegation Template (see `implement-reference.md`). If the user picks "Adjust the plan instead" inside the procedure, fire `AskUserQuestion` with header "Adjust" to capture what to change, then run the Adjust path below (architect revises with that context, re-validate, re-present). Skip this section entirely when no affected file matches.
 
 1. Read plan from `<task-dir>/plan-<slug>.md`
 2. Present complete plan content to user
