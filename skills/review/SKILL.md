@@ -21,6 +21,19 @@ Comprehensive code review using parallel multi-agent analysis. 5–6 specialized
 
 You are a **coordinator**. You delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself — you read files only to gather context and verify agent findings.
 
+## Subagent Model Tiering
+
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+
+**Skill-specific mapping** — reviewer dimension drives model choice:
+
+| Spawn | Tier | Why |
+|---|---|---|
+| `reviewer-agent` (bugs, security, architecture, tests) | `sonnet` | Reasoning-heavy review |
+| `reviewer-agent` (guidelines, design) | `haiku` | Rubric-based — pattern matching against checklist |
+| `relevance-filter-agent` | `sonnet` | Adversarial validation against repo conventions |
+| Per-finding validation sub-agents (CRITICAL/HIGH) | `sonnet` | Reasoning about whether finding is real |
+
 ## Review Process
 
 ### Phase 1: Collect Context & Triage
@@ -61,7 +74,7 @@ Also read `CLAUDE.md` at the project root for tech stack context — use this to
 Spawn all five reviewer agents **in a single message** for parallel execution. **Spawn the design reviewer (6th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.**
 
 ```
-Agent(subagent_type="reviewer-agent", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: bugs
 CRITERIA: [content of bugs-criteria.md]
 CHANGED FILES: [list of files with their full content]
@@ -70,7 +83,7 @@ DIFF CONTEXT: [git diff summary showing what changed — used to tag findings as
 Review ONLY for bugs and correctness. Do not cross into other dimensions.
 """)
 
-Agent(subagent_type="reviewer-agent", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: security
 CRITERIA: [content of security-criteria.md]
 CHANGED FILES: [list of files with their full content]
@@ -79,7 +92,7 @@ DIFF CONTEXT: [git diff summary]
 Review ONLY for security vulnerabilities. Do not cross into other dimensions.
 """)
 
-Agent(subagent_type="reviewer-agent", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: architecture
 CRITERIA: [content of architecture-criteria.md]
 CHANGED FILES: [list of files with their full content]
@@ -88,7 +101,7 @@ DIFF CONTEXT: [git diff summary]
 Review ONLY for architecture and design patterns. Do not cross into other dimensions.
 """)
 
-Agent(subagent_type="reviewer-agent", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: tests
 CRITERIA: [content of tests-criteria.md]
 CHANGED FILES: [list of files with their full content]
@@ -150,7 +163,7 @@ Not every batch needs all 5–6 dimensions. Skip irrelevant ones to save tokens.
 
 **Step 3: Spawn batch × dimension agents in a single message.**
 
-Use the same `Agent(subagent_type="reviewer-agent", prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Add `model="haiku"` for guidelines and design dimension agents. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
+Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests and `model="haiku"` for guidelines/design. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
 
 ```
 Example for 15 files, 3 batches:
@@ -188,7 +201,7 @@ After reviewers complete, spawn a **relevance-filter-agent** to check which find
 Spawn the relevance filter agent:
 
 ```
-Agent(subagent_type="relevance-filter-agent", prompt="""
+Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
 FINDINGS: [all findings from all reviewers (5 or 6), in their original format]
 CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
@@ -240,7 +253,7 @@ For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validati
 Spawn all validators **in a single message** for parallel execution:
 
 ```
-Agent(prompt="""
+Agent(model="sonnet", prompt="""
 TASK: Validate a single review finding. You are an independent validator — confirm or reject this finding.
 
 FINDING: [severity, dimension, file:line, description, evidence]

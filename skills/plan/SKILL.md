@@ -31,6 +31,19 @@ Create a detailed, file-level implementation plan before writing any code. The p
 
 ---
 
+## Subagent Model Tiering
+
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+
+**Skill-specific mapping:**
+
+| Spawn | Tier | Rationale |
+|---|---|---|
+| `architect-agent` (Phase 2) | `opus` | Architecture design — always opus per canonical hard rule |
+| `skeptic-agent` (validation phase) | `sonnet` | Read-only validation, reasoning over architect output |
+
+---
+
 ## Input Detection
 
 Parse `$ARGUMENTS` to detect intent:
@@ -186,7 +199,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
 
 1. **Read plan criteria:** Read `${CLAUDE_SKILL_DIR}/plan-criteria.md` for the plan structure and quality standards.
 
-2. **Spawn architect-agent** via Agent tool with `subagent_type: "architect-agent"`:
+2. **Spawn architect-agent** via Agent tool with `subagent_type: "architect-agent"`, `model="opus"`:
 
    ```markdown
    ## Task: Create Implementation Plan
@@ -222,7 +235,7 @@ For Large tasks, Phase 2 becomes two sub-phases:
 
 For Medium and Large tasks:
 
-1. **Spawn skeptic-agent** via Agent tool with `subagent_type: "skeptic-agent"`:
+1. **Spawn skeptic-agent** via Agent tool with `subagent_type: "skeptic-agent"`, `model="sonnet"`:
 
    ```markdown
    ## Task: Validate Implementation Plan

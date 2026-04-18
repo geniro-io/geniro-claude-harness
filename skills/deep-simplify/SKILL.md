@@ -21,6 +21,23 @@ If any delegated agent fails (timeout, error, empty/garbage result): retry once 
 
 ---
 
+## Subagent Model Tiering
+
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+
+**Skill-specific mapping** — all three review dimensions are reasoning-heavy (require code understanding to spot duplication, dead code, perf smells), so all stay on `sonnet`:
+
+| Spawn | Tier | Rationale |
+|---|---|---|
+| Reuse reviewer | `sonnet` | Detecting duplication needs cross-file reasoning |
+| Quality reviewer | `sonnet` | Identifying dead code / smells needs intent reasoning |
+| Efficiency reviewer | `sonnet` | Spotting perf issues needs algorithmic reasoning |
+| `relevance-filter-agent` | `sonnet` | Adversarial validation against repo conventions |
+
+No spawns escalate to `opus` — these reviewers are bounded scope. If a finding requires architectural rework, the user invokes `/geniro:refactor` or `/geniro:implement`.
+
+---
+
 ## Phase 1: Scope
 
 ### Step 1: Identify Changed Files
@@ -180,7 +197,7 @@ Collect findings from all 3 agents. Merge into a single list:
 5. **Relevance filter** — spawn a `relevance-filter-agent` to check which P1/P2 findings actually apply to this repo's conventions and complexity level:
 
    ```
-   Agent(subagent_type="relevance-filter-agent", prompt="""
+   Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
    FINDINGS: [aggregated P1/P2 findings in JSON format]
    CHANGED FILES: [list of changed file paths — the agent reads files itself]
    PROJECT CONTEXT: [stack, conventions from CLAUDE.md]

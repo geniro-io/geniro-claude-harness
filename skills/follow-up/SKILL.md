@@ -19,13 +19,14 @@ argument-hint: "[description of the change]"
 
 ## Subagent Model Tiering
 
-Every `Agent(...)` spawn MUST specify `model=` explicitly — never rely on frontmatter `inherit`, which lets the caller's expensive model leak into mechanical subagents. Match tier to task nature:
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
 
-| Task nature | Model | Where used in this skill |
-|---|---|---|
-| Mechanical edit / CLI orchestration / structured PASS-FAIL report / rubric-based review | `haiku` | Trivial Fast Lane impl, Phase 4 validation, Phase 5 design-dimension review |
-| Code reasoning / implementation / bugs-security-architecture review / spec compliance | `sonnet` | Small/Medium impl, Phase 3 simplify, Phase 5 single/multi-dimension reviewers |
-| Architecture design / multi-file refactor / deep hypothesis-driven debugging | `opus` | Not spawned here — escalate to `/geniro:implement` or `/geniro:debug` |
+**Skill-specific mapping** (`/follow-up` never spawns `opus` directly — escalate to `/geniro:implement` or `/geniro:debug` for opus-tier work):
+
+| Where used in this skill | Tier |
+|---|---|
+| Trivial Fast Lane implementation, Phase 4 validation, Phase 5 design-dimension review | `haiku` |
+| Small/Medium implementation, Phase 3 simplify, Phase 5 single/multi-dimension reviewers | `sonnet` |
 
 ## Change Request
 

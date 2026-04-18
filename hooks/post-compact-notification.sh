@@ -15,13 +15,20 @@ COMPACT_SUMMARY=$(echo "$INPUT" | jq -r '.compact_summary // ""' 2>/dev/null || 
 # Check for active pipeline state
 PIPELINE_RESUME=""
 TASK_DIR=""
-for state_file in ./.geniro/planning/*/state.md; do
-  if [ -f "$state_file" ]; then
-    TASK_DIR=$(dirname "$state_file")
-    PIPELINE_RESUME="Active pipeline detected. Read $state_file to resume from the correct phase. Then re-read the current skill file to restore phase instructions."
-    break
+FEATURE_ID=""
+SPEC_FILE=""
+FEATURE_ANCHOR=""
+# Pick most-recently-modified state.md (handles concurrent pipelines via worktrees / parallel sessions)
+state_file=$(ls -t ./.geniro/planning/*/state.md 2>/dev/null | head -1 || true)
+if [ -n "$state_file" ] && [ -f "$state_file" ]; then
+  TASK_DIR=$(dirname "$state_file")
+  FEATURE_ID=$(grep -m1 '^Feature:' "$state_file" 2>/dev/null | sed 's/^Feature:[[:space:]]*//' || echo "")
+  SPEC_FILE=$(grep -m1 '^Spec-file:' "$state_file" 2>/dev/null | sed 's/^Spec-file:[[:space:]]*//' || echo "")
+  PIPELINE_RESUME="Active pipeline detected. Read $state_file to resume from the correct phase. Then re-read the current skill file to restore phase instructions."
+  if [ -n "$FEATURE_ID" ] && [ "$FEATURE_ID" != "none" ]; then
+    FEATURE_ANCHOR="Active feature: $FEATURE_ID. Finalization gate: before ending the pipeline, you MUST run '/geniro:features complete $FEATURE_ID' to move the FEATURES.md row to done."
   fi
-done
+fi
 
 # Build notification with suggestions
 NOTIFICATION=$(jq -n \
@@ -29,6 +36,9 @@ NOTIFICATION=$(jq -n \
   --arg summary "$COMPACT_SUMMARY" \
   --arg pipeline_resume "$PIPELINE_RESUME" \
   --arg task_dir "$TASK_DIR" \
+  --arg feature_id "$FEATURE_ID" \
+  --arg spec_file "$SPEC_FILE" \
+  --arg feature_anchor "$FEATURE_ANCHOR" \
   '{
     "additionalContext": {
       "warning": "Context was compressed by compaction. SKILL.md instructions were lost — you MUST re-read the skill file before continuing.",
@@ -37,14 +47,18 @@ NOTIFICATION=$(jq -n \
         "1. Read the current skill SKILL.md to restore phase instructions",
         "2. Read state.md from the active task directory to find your current phase",
         "3. Read spec.md and plan file for task context",
-        "4. Continue from the next incomplete phase"
+        "4. If a feature ID is set, re-read the FEATURES.md row and the linked spec file",
+        "5. Continue from the next incomplete phase"
       ],
       "pipeline_resume": $pipeline_resume,
       "task_dir": $task_dir,
-      "suggested_files": [
-        "CLAUDE.md",
-        ".geniro/state/pre-compact-snapshot.json"
-      ],
+      "feature_id": $feature_id,
+      "spec_file": $spec_file,
+      "feature_anchor": $feature_anchor,
+      "suggested_files": (
+        ["CLAUDE.md", ".geniro/state/pre-compact-snapshot.json", ".geniro/planning/FEATURES.md"]
+        + (if $spec_file != "" and $spec_file != "none" then [$spec_file] else [] end)
+      ),
       "note": "Compaction lost SKILL.md instructions and conversation nuance. Re-read files before proceeding."
     }
   }')

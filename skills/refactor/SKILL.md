@@ -27,6 +27,18 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 - To add error handling not previously present
 - To reorganize without clear architectural benefit
 
+## Subagent Model Tiering
+
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+
+**Skill-specific mapping** — refactor work is mostly mechanical pattern application; Sonnet handles ~90% of cases:
+
+| Spawn | Tier | When |
+|---|---|---|
+| `refactor-agent` (LOW or MEDIUM risk) | `sonnet` | Default — pattern application, file moves, rename, extract method |
+| `refactor-agent` (HIGH risk) | `opus` | 15+ files OR cross-module architectural restructure OR public API surface changes |
+| `relevance-filter-agent` | `sonnet` | Adversarial validation against repo conventions |
+
 ## Process
 
 ### Phase 1: Scope & Context
@@ -42,7 +54,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 Spawn a refactor-agent to analyze the scoped files and produce a refactoring plan:
 
 ```
-Agent(subagent_type="refactor-agent", prompt="""
+Agent(subagent_type="refactor-agent", model="sonnet", prompt="""
 You are analyzing code for refactoring. Your task:
 
 WHAT TO REFACTOR: $ARGUMENTS
@@ -81,7 +93,7 @@ Return the plan in this format:
 **Relevance filter:** Before presenting the plan, spawn a `relevance-filter-agent` to check detected smells against repo conventions:
 
 ```
-Agent(subagent_type="relevance-filter-agent", prompt="""
+Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
 FINDINGS: [smells detected by refactor-agent, with file:line references and risk levels]
 CHANGED FILES: [files in refactoring scope from Phase 1]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
@@ -106,8 +118,10 @@ Review the agent's plan:
 
 Spawn the refactor-agent to execute the approved plan:
 
+**Pick model from approved plan:** use `model="opus"` when `plan.max_risk == "HIGH"`, otherwise `model="sonnet"`.
+
 ```
-Agent(subagent_type="refactor-agent", prompt="""
+Agent(subagent_type="refactor-agent", model="<sonnet|opus per risk>", prompt="""
 You are executing a refactoring plan. Your task:
 
 APPROVED PLAN:

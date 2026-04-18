@@ -11,6 +11,20 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 Use this skill to answer complex questions about the codebase that require multi-source research. Spawns parallel agents to analyze code, git history, and internet sources, then synthesizes and self-reviews the answer before presenting.
 
+## Subagent Model Tiering
+
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+
+**Skill-specific mapping** — research scope drives model choice:
+
+| Spawn | Tier | When |
+|---|---|---|
+| Codebase exploration (file discovery, grep, structural mapping) | `sonnet` | Always — needs cross-file reasoning, but bounded scope |
+| Internet research (docs, GitHub issues, blog posts) | `sonnet` | Default — narrow focused queries |
+| Git history / blame analysis | `sonnet` | Reasoning over commit messages and diffs |
+| Final synthesis across multiple research streams | `opus` | When investigation question is ambiguous OR involves architectural reasoning across 3+ subsystems |
+| Final synthesis (simple lookup) | `sonnet` | Default — well-scoped questions with clear answer |
+
 ## Question
 
 $ARGUMENTS
@@ -77,7 +91,7 @@ For each relevant discovery:
 **Gaps:** [what you couldn't determine from code alone]
 
 Do NOT speculate. If the code doesn't answer a sub-question, list it as a gap.
-""", description="Investigate: codebase analysis")
+""", description="Investigate: codebase analysis", model="sonnet")
 ```
 
 ### Agent B: Git Historian (for How, Why, Risk, What-if)
@@ -109,7 +123,7 @@ For each relevant discovery:
 **Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions]
 
 Do NOT speculate about intent beyond what commit messages state.
-""", description="Investigate: git history")
+""", description="Investigate: git history", model="sonnet")
 ```
 
 ### Agent C: Internet Researcher (for Why, What-if, Compare, Risk)
@@ -143,7 +157,7 @@ For each relevant discovery:
 **Disagreements:** [where sources conflict, if applicable]
 
 Report facts with sources. Flag opinions as opinions.
-""", description="Investigate: internet research")
+""", description="Investigate: internet research", model="sonnet")
 ```
 
 ## Phase 3: Synthesize
@@ -250,6 +264,8 @@ For each major claim in the answer, mentally tag it:
 
 Spawn a fresh review agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes.
 
+Default the verifier to `sonnet` (well-scoped: check references, flag over-claims). Only escalate to `opus` if the user explicitly opted in to deep synthesis for an ambiguous cross-subsystem question — otherwise keep `sonnet`.
+
 ```
 Agent(prompt="""
 ## Task: Verify Investigation Answer
@@ -276,7 +292,7 @@ in the research — verify with fresh eyes.
 - Suggested fix
 
 If no issues: report "VERIFIED — answer is accurate and complete"
-""", description="Review: verify investigation answer")
+""", description="Review: verify investigation answer", model="sonnet")
 ```
 
 ### Process review results:

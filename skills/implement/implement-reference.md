@@ -12,14 +12,16 @@ This file contains templates, examples, error tables, and detailed procedures re
 | `/geniro:implement ENG-123` | Issue tracker reference (from workflow) | Fetches issue via configured integration, uses as context |
 | `/geniro:implement https://linear.app/team/issue/ENG-123` | Issue tracker URL (from workflow) | Extracts issue ID, fetches via configured integration |
 | `/geniro:implement ENG-123 add OAuth login` | Issue reference + description | Fetches issue, supplements with description |
+| `/geniro:implement F3` or `/geniro:implement F3 add OAuth login` | Geniro feature ID (`F<n>`) | Read `.geniro/planning/FEATURES.md`, look up the row for the matching ID, use its description (and linked spec file in the Notes column, if present) as the implementation target |
 | `/geniro:implement just do it` or `ASAP` | Urgency signals | Auto mode: skip interactive questions |
 | `/geniro:implement I think we should add OAuth` | Tentative language | Assumptions mode: propose plan |
 
 **Detection rules (checked in order):**
 1. Check `.geniro/workflow/*.md` for argument detection patterns. Apply them in order before falling through to mode signal detection.
-2. **Auto-mode signals** — keywords like "just do it", "ASAP", "no questions", "auto", "quick" -> skip interactive questions, pick recommended defaults for all gray areas
-3. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
-4. **No special signals** — explicitly ask the user which mode to use (see "Mode Selection prompt" below). Default to interactive
+2. **Geniro feature ID** — pattern `^F\d+(\s|$)` at start of `$ARGUMENTS`. Read `.geniro/planning/FEATURES.md` if present and look up the matching row. If FEATURES.md is missing or the ID is not found, treat the rest of `$ARGUMENTS` as a plain description and warn the user once. If found, capture the row's description and spec-file path (from the Notes column) — these get persisted to `state.md` (see SKILL.md Phase 1).
+3. **Auto-mode signals** — keywords like "just do it", "ASAP", "no questions", "auto", "quick" -> skip interactive questions, pick recommended defaults for all gray areas
+4. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
+5. **No special signals** — explicitly ask the user which mode to use (see "Mode Selection prompt" below). Default to interactive
 
 If a workflow integration's backend (e.g., MCP) is unavailable, log a warning and proceed without — all integrations are non-blocking.
 
@@ -33,7 +35,7 @@ Use `AskUserQuestion`:
   - Label: "Auto mode" / Description: "Pick recommended defaults for gray areas and auto-approve the architect's plan. I still WAIT at the ship gate, the Stage C fix-loop after 3 rounds, and the Phase 7 Step 4.5 ship-anyway prompt — see §Auto Mode Behavior."
   - Label: "Assumptions" / Description: "I'll propose a plan with my best guesses on gray areas — you correct anything wrong before architecting."
 
-Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode signal (rule 2) or assumptions-mode signal (rule 3). Persist the chosen mode in `<task-dir>/state.md` under a `Mode:` line so resumed runs and downstream phases read it without re-prompting.
+Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode signal (rule 3) or assumptions-mode signal (rule 4). Persist the chosen mode in `<task-dir>/state.md` under a `Mode:` line so resumed runs and downstream phases read it without re-prompting.
 
 **Example discovery questions (interactive mode, batch 3-5). IMPORTANT — include the git workspace question in this same batch, do NOT defer it to a separate prompt:**
 - Scope: Backend-only? Frontend? Both? (recommend: match existing split)
@@ -47,7 +49,7 @@ Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode
 
 ## Auto Mode Behavior
 
-Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `Mode: auto` (set either by rule 2 of §Phase 1 Auto-Detection Table or by the Mode Selection prompt). Skill orchestrator MUST read `Mode:` from state.md at every gate and consult this table — do not auto-resolve gates not listed here.
+Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `Mode: auto` (set either by rule 3 of §Phase 1 Auto-Detection Table or by the Mode Selection prompt). Skill orchestrator MUST read `Mode:` from state.md at every gate and consult this table — do not auto-resolve gates not listed here.
 
 | Gate | Phase / Step | Auto-mode action |
 |---|---|---|
@@ -301,7 +303,7 @@ Only reached after Stage B passes.
 5. **Relevance filter:** Spawn a `relevance-filter-agent` to check which CRITICAL/HIGH findings actually apply to this repo:
 
    ```
-   Agent(subagent_type="relevance-filter-agent", prompt="""
+   Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
    FINDINGS: [aggregated CRITICAL/HIGH findings from all reviewers]
    CHANGED FILES: [list of changed file paths — the agent reads files itself]
    PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
@@ -501,6 +503,7 @@ Feature implementation is complete when:
 - [ ] Learnings extracted and saved
 - [ ] Plugin improvements applied (if found) or noted in summary
 - [ ] Code committed (with message referencing feature and task ID if applicable)
+- [ ] FEATURES.md row moved to `done` (only if `/implement` was invoked with a Geniro feature ID — the `Feature:` field in state.md is set)
 - [ ] Code pushed to remote (if requested)
 - [ ] Integration actions offered to user per workflow files (if any) — never auto-updated
 - [ ] Cleanup completed (temp files removed, orphaned processes killed)

@@ -11,6 +11,17 @@ argument-hint: "[optional: path to template directory]"
 
 This skill uses AI to analyze your codebase, interview you about preferences, and generate tailored configuration files — specific to your project's language, framework, and conventions.
 
+## Subagent Model Tiering
+
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. Setup spawns subagents for verification and conflict-merge work. Those subagents must NOT inherit the orchestrator's model — they perform bounded, mechanical work and stay on `sonnet` (or `haiku` if a future spawn is purely rubric).
+
+**Skill-specific mapping:**
+
+| Spawn | Tier | Why |
+|---|---|---|
+| Verification agent (validate generated CLAUDE.md against codebase) | `sonnet` | Reads files, checks claims — reasoning but bounded |
+| Conflict resolution agent (merge existing CLAUDE.md with generated content) | `sonnet` | Pattern-matching merge with judgment calls |
+
 ## Installation Model
 
 The **plugin** provides agents, skills, hooks, and review criteria globally. Your **project** gets only what needs to be project-specific: CLAUDE.md.
@@ -502,7 +513,7 @@ ISSUES FOUND:
 - [INFO] <file>: <description> — minor, optional fix
 
 If no issues found, return: "ALL CHECKS PASSED — configuration is ready to commit."
-""", description="Verify setup output")
+""", description="Verify setup output", model="sonnet")
 ```
 
 **Route based on results:**

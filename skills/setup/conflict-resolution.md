@@ -40,7 +40,7 @@ For each existing file, check if the template has a file at the same path. Build
 For each file that exists in both the user's project and the template, spawn a **dedicated subagent** to analyze the overlap and recommend a resolution. All subagents run in parallel.
 
 ```
-Agent(prompt: "<see subagent prompt below>", description: "Analyze overlap: {file_path}")
+Agent(prompt: "<see subagent prompt below>", description: "Analyze overlap: {file_path}", model: "sonnet")
 ```
 
 Spawn one subagent per matched file. Files with no template match (user-only) skip this — they're automatically kept.

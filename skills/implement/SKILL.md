@@ -40,13 +40,17 @@ argument-hint: "[description or issue tracker reference]"
 
 ## Subagent Model Tiering
 
-Every `Agent(...)` spawn MUST specify `model=` explicitly — never rely on frontmatter `inherit`, which lets the caller's expensive model leak into mechanical subagents. Match tier to task nature:
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
 
-| Task nature | Model | Where used in this skill |
-|---|---|---|
-| Mechanical edit / template-based doc patching / rubric-based review (guidelines, design) | `haiku` | Phase 7 doc updates, Phase 6 Stage C guidelines & design reviewers |
-| Code reasoning / implementation / bugs-security-architecture review / spec compliance / simplify pass | `sonnet` | backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers |
-| Architecture design / multi-file plan / deep debugging | `opus` | architect-agent (Phase 2) only — other phases must not spawn opus directly |
+**Skill-specific mapping:**
+
+| Where used in this skill | Tier |
+|---|---|
+| Phase 7 doc updates, Phase 6 Stage C guidelines & design reviewers | `haiku` |
+| backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers, relevance-filter | `sonnet` |
+| architect-agent (Phase 2) — other phases MUST NOT spawn `opus` directly | `opus` |
+
+**Runtime escalation (Sonnet → Opus on failure):** If a `sonnet` subagent returns wrong output, fails its checklist, or fails tests during Phase 5 implementation or Phase 6 review, re-dispatch ONCE with `model="opus"` plus the failure context appended to the prompt. If the opus retry also fails, escalate to the user. Never bump twice in a row.
 
 ---
 
@@ -60,16 +64,16 @@ Derive `<branch-name>` from git branch. Create at start of Phase 1. All artifact
 
 ## State Persistence & Phase Checkpoints
 
-**After completing each phase, write a checkpoint to `<task-dir>/state.md`:**
+**After completing each phase, write a checkpoint to `<task-dir>/state.md`** (`Feature:` / `Spec-file:` MUST stay at the top so PreCompact's first-10-line capture preserves them; written once at end of Phase 1, carried forward unchanged). Read `state.md` on skill start to resume from the next incomplete phase.
 ```
+Feature: <F<n> if Geniro feature ID, else "none">
+Spec-file: <FEATURES.md Notes-column path, else "none">
 Phase [N] completed: [phase name]
 Completed phases: [1, 2, ..., N]
 Next phase: [N+1]
 Key decisions: [brief list]
 Files changed: [count or list]
 ```
-
-This creates a forced pause before moving on. Read `state.md` on skill start — if it exists, resume from the next incomplete phase.
 
 ---
 
@@ -97,7 +101,8 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 **Steps:**
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
    Also load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/implement.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints throughout the pipeline.
-   Then determine **pipeline mode**: if `$ARGUMENTS` already carried an explicit auto/assumptions signal (rules 2-3 of the Auto-Detection Table), lock to that mode. Otherwise fire the **Mode Selection prompt** from `implement-reference.md` §Phase 1 Auto-Detection Table. Persist `Mode: <interactive|auto|assumptions>` in `<task-dir>/state.md` so all later gates read it without re-prompting.
+   Then determine **pipeline mode**: if `$ARGUMENTS` already carried an explicit auto/assumptions signal (rules 3-4 of the Auto-Detection Table), lock to that mode. Otherwise fire the **Mode Selection prompt** from `implement-reference.md` §Phase 1 Auto-Detection Table. Persist `Mode: <interactive|auto|assumptions>` in `<task-dir>/state.md` so all later gates read it without re-prompting.
+1.5. **Bind to feature row (if applicable).** If `$ARGUMENTS` matched rule 2 of the Auto-Detection Table (Geniro feature ID): look up the row in `.geniro/planning/FEATURES.md`; if status is `planned`, run `/geniro:features move <id> in-progress`; if `in-progress`, no action; if `done`/`blocked`, `AskUserQuestion` header "Feature" with options "Re-open and continue" / "Pick a different feature" / "Treat description as new work (skip feature link)". Persist `Feature: <id>` and `Spec-file: <path or "none">` to `<task-dir>/state.md` before Step 2 (carried forward in every later checkpoint). If no feature ID, `Feature:` is "none".
 2. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
 3. Scan codebase for relevant patterns, conventions, architecture
 4. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
@@ -138,7 +143,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 **Architect flow:**
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md` for plan structure
-2. **Spawn architect-agent** with spec + plan criteria + relevant codebase files (pre-inlined)
+2. **Spawn architect-agent** with `model="opus"` and spec + plan criteria + relevant codebase files (pre-inlined)
 3. **Spawn skeptic-agent** with plan + spec. Explicit instruction: "Write report to `<task-dir>/concerns.md`"
 4. If NEEDS REVISION: route back to architect. Max 3 iterations.
 
@@ -438,6 +443,7 @@ Execute user's chosen method. See reference file for commit details per option.
 - **Integrations:** If workflow files specify completion actions (e.g., issue status updates), follow their instructions (see reference file for details)
 - **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
 - **State:** Append `Pipeline: COMPLETE` to `<task-dir>/state.md`.
+- **Feature row update:** Read `Feature:` from `<task-dir>/state.md`. If a Geniro feature ID, run `/geniro:features complete <id>` (moves FEATURES.md row to `done`, records the commit). If "none", skip.
 - **Planning artifacts:** Use `AskUserQuestion` (do NOT ask as plain text — use the tool):
 
 `AskUserQuestion` with header "Artifacts":
