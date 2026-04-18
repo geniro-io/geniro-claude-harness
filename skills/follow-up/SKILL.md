@@ -401,7 +401,7 @@ Show a summary:
 
 **Skipped entirely for Trivial changes and Fast Lane runs.** Runs BEFORE committing so doc/rule changes are included.
 
-**Extract Learnings** (skipped for Trivial and Fast Lane runs): Scan conversation. Save `feedback` memory (user corrections, workarounds, non-obvious resolutions) and `project` memory (discovered bugs/gotchas). UPDATE existing memories rather than duplicate. Skip if nothing novel.
+**Extract Learnings** (skipped for Trivial and Fast Lane runs): Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it. Route per canonical (`feedback_*` memory for user-preference corrections, `project_*` memory for project facts, `learnings.jsonl` for transferable rules). UPDATE existing entries rather than duplicate. Skip if nothing novel.
 
 **Suggest Improvements (WAIT) — skipped for Small, Trivial, and Fast Lane runs**; runs for Medium or "Proceed anyway" only. Classify each finding by target: **CLAUDE.md** (new commands, conventions, structure), **custom instructions** (quality gates/workflow/constraints enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, debugging insights to learnings.jsonl), **rules/hooks** (enforceable patterns, dangerous ops). Draft: target, file, change, why. `AskUserQuestion` header "Improvements": "Apply all" / "Review one-by-one" / "Skip".
 

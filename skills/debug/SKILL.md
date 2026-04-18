@@ -116,12 +116,7 @@ Before investigating, check for relevant prior learnings:
 
 ### 7. Document
 - Update `.geniro/debug/HYPOTHESES.md` with final outcome
-- **Root causes / gotchas discovered** → save as `project` memory (shared context, benefits all team members)
-- **Misleading symptoms / red herrings** → save as `project` memory (prevents others from going down the same wrong path)
-- **Debugging techniques that worked/failed** → save as `feedback` memory (operational knowledge, persists across sessions)
-- **User corrections during investigation** → save as `feedback` memory (persists across sessions, influences future behavior)
-
-Before writing, check if an existing memory covers this topic — UPDATE rather than duplicate. Skip if nothing novel was discovered.
+- **Extract Learnings:** Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it. Route per canonical: transferable debugging insights and class-of-bugs patterns → `learnings.jsonl`; user corrections during investigation → `feedback_*` memory; project-wide ongoing-investigation facts → `project_*` memory. UPDATE existing entries rather than duplicate. Skip if nothing novel.
 
 ### 8. Suggest Improvements
 

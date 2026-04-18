@@ -41,21 +41,28 @@ Both write to the same knowledge base. This agent handles automated, post-pipeli
 
 ### Principle 1: Reusability Gate
 
-A learning is only stored if it's:
+A learning is only stored if it passes ALL of these (apply in order):
 
-- **Reusable** — Could be applied to future work (not one-off)
-- **Non-trivial** — Not something obvious from reading the code
-- **Specific** — Tied to actual code/decisions, not generic advice
-- **Verified** — Based on actual evidence, not speculation
+- **Reusable across ≥2 contexts** — Applies to a class of future situations, not one file
+- **Non-trivial** — Not re-derivable by reading the affected code
+- **Generalizable** — Can be restated one level up as an architectural pattern, flow rule, or class-of-bugs prevention. If not → drop.
+- **Concrete trigger, general scope** — Identifiable WHEN+WHAT+WHY trigger conditions, but the rule itself is not pinned to a single identifier or file
+- **Verified** — Based on actual evidence (user feedback, test results, direct observation), not speculation
+
+See `skills/_shared/learnings-extraction.md` for the full canonical doctrine.
 
 ```
-GOOD: "When using async/await with array.map(), Promise.all() required for parallelism.
-  Without Promise.all(), iterations block sequentially, causing 10x slowdown.
-  See PR #234 where we fixed this in batch-processor.ts."
+GOOD: "When mapping an async transform over a collection, the iteration model
+  determines whether work runs in parallel or sequentially — choose Promise.all
+  for fan-out, for-of+await for back-pressured sequencing. Picking the wrong
+  iteration model is a class-of-bugs source, not a one-off bug." (Concrete
+  trigger; rule applies wherever async iteration occurs.)
 
-BAD: "Use async/await properly" — too vague, not reusable
-BAD: "Event listeners are cool" — too generic, not specific to this codebase
-BAD: "Once I had a weird memory leak" — not specific, not verified, anecdotal
+BAD: "Use async/await properly" — vague platitude, no trigger condition
+BAD: "Event listeners are cool" — not a rule
+BAD: "batch-processor.ts uses Promise.all on line 42" — narrow code fact;
+  re-derivable by reading the file. Save the architectural rule, not the location.
+BAD: "Once I had a weird memory leak" — anecdotal, no verifiable trigger
 ```
 
 ### Principle 2: Knowledge Organization
@@ -113,12 +120,12 @@ Each knowledge entry is a single-line JSON object:
 
 Before storing a knowledge entry, it must pass:
 
-- [ ] **Is it reusable?** (Could another team member apply this to similar future work?)
-- [ ] **Is it specific?** (Tied to actual code/decision, not generic?)
-- [ ] **Is it verified?** (Based on evidence, not speculation?)
-- [ ] **Is it actionable?** (Someone can read this and take concrete action?)
-- [ ] **Does it have context?** (Where did this come from? When was it discovered?)
-- [ ] **Is it non-obvious?** (Would someone discover this from reading code alone?)
+- [ ] **Is it reusable across ≥2 contexts?** (Not pinned to a single file or identifier)
+- [ ] **Does it have a concrete trigger condition?** (WHEN does this rule fire? Concrete trigger ≠ narrow scope.)
+- [ ] **Has it survived the Generalize pre-pass?** (Restate one level up as architectural / flow / class-of-bugs rule. If you can't, drop it.)
+- [ ] **Is it verified?** (User feedback, tests, or direct observation — not speculation.)
+- [ ] **Is it actionable?** (A future agent can read this and take concrete action in a different context.)
+- [ ] **Is it non-obvious?** (A teammate cannot derive it by reading the affected code.)
 
 If it fails any check, don't store it (or revise it until it passes).
 
@@ -280,10 +287,12 @@ This knowledge prevents [X] from being:
 ## What You MUST NOT Do
 
 - **Do NOT** store obvious learnings ("use const instead of let") — they're in every style guide
-- **Do NOT** extract from speculation — base it on actual code and decisions made
-- **Do NOT** create generic entries ("communication is important") — tie to specific code
-- **Do NOT** store anecdotal stories — need verification and specificity
-- **Do NOT** duplicate existing knowledge — check before storing
+- **Do NOT** extract from speculation — base it on user feedback, test evidence, or direct observation
+- **Do NOT** create vague-platitude entries ("communication is important") — add a concrete trigger condition (when X) so the rule has a firing point
+- **Do NOT** create narrow code-fact entries ("interface User has a createdAt: Date field") — re-derivable by reading the file; save the architectural rule, not the location
+- **Do NOT** save a finding you cannot generalize one level up — if it doesn't transfer to a different context, it's a fact, not a learning. Facts go in commits.
+- **Do NOT** store anecdotal stories — every entry needs a verifiable trigger and a transferable rule
+- **Do NOT** duplicate existing knowledge — check before storing; UPDATE rather than append
 - **Do NOT** forget context — entry must explain where/when/why it was discovered
 
 ## Success Criteria

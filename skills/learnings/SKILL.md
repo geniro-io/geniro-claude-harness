@@ -19,29 +19,31 @@ Claude Code has a native auto-memory system (`~/.claude/projects/<proj>/memory/`
 
 Extract learnings into one of four categories:
 
-| Category | Example | Reusability |
+| Category | Example (architectural / flow shape — preferred) | Reusability |
 |----------|---------|-------------|
-| **Pattern** | "Always check .env.example before creating config" | High – reusable rule |
-| **Gotcha** | "Task table uses UNIX timestamps, not ISO strings" | High – prevents bugs |
-| **Decision** | "Chose Express over FastAPI because team knows Node" | Medium – context-specific |
-| **Anti-Pattern** | "Don't batch SQL operations without indexes" | High – prevents mistakes |
+| **Pattern** | "Auth-derived state must wait on the auth context's hydration signal — direct storage reads race with rehydration" | High – architectural rule |
+| **Gotcha** | "Background-job retries amplify upstream rate-limit failures — debounce at the producer, not the consumer" | High – cross-cutting |
+| **Decision** | "Prefer server-derived session state over duplicating to client storage in this stack — simpler invalidation, fewer race conditions" | Medium – architectural choice |
+| **Anti-Pattern** | "Adding feature flags without an off-ramp accumulates dead branches that can't be safely removed later" | High – flow-level rule |
 
-**All learnings must:**
-1. Be specific (not generic)
-2. Be verified (not guessed)
-3. Be non-trivial (not obvious)
-4. Be reusable (applicable to future work)
-5. Have no duplicates
+**All learnings must (apply gates in order — fail any → drop):**
+1. Be **reusable across ≥2 contexts** (not a fact about one file)
+2. Be **non-trivial** (not re-derivable by reading the affected code)
+3. Be **generalizable** — restate the finding one level up as an architectural pattern, flow rule, or class-of-bugs prevention. If you cannot, drop it.
+4. Be **verified** (user feedback, test evidence, direct observation — not guessed)
+5. Have **no duplicates** (UPDATE existing entries rather than appending)
+
+"Specific" here means **concrete trigger conditions** ("when X happens, do Y because Z"), NOT narrow code facts. A good learning is concrete in its trigger but general in its scope. See `skills/_shared/learnings-extraction.md` for the canonical doctrine.
 
 ## Learnings.jsonl Format
 
 Append-only JSON Lines file (one JSON object per line):
 
 ```jsonl
-{"id":"L1","category":"pattern","learning":"Check package.json scripts before implementing npm run setup","verified":true,"session":"2026-04-03-auth-work","source":"user said 'we already have this script'","counter":0,"files":["package.json"],"keywords":["scripts","setup"]}
-{"id":"L2","category":"gotcha","learning":"Task service queues are FIFO only, cannot reprioritize mid-processing","verified":true,"session":"2026-04-03-queue-debug","source":"discovered via testing","counter":0,"files":["src/services/task-queue.*"],"keywords":["queue","FIFO","tasks"]}
-{"id":"L3","category":"anti-pattern","learning":"Avoid fetching all users then filtering in app—filter in SQL query instead","verified":true,"session":"2026-04-02-performance","source":"identified during optimization","counter":0,"files":["src/services/user*"],"keywords":["SQL","performance","filtering"]}
-{"id":"L4","category":"decision","learning":"Use JWT expiry of 1 hour for web, 7 days for mobile apps","verified":true,"session":"2026-04-01-auth","source":"user preference communicated","counter":0,"files":["src/auth/**"],"keywords":["JWT","auth","tokens"]}
+{"id":"L1","category":"pattern","learning":"Before scaffolding new automation, scan existing scripts/CI for the same intent — duplicating intent across script + workflow file causes drift","verified":true,"session":"2026-04-03-auth-work","source":"user correction after redundant script proposed","counter":0,"files":["package.json","ci/**"],"keywords":["scripts","scaffolding","drift"]}
+{"id":"L2","category":"gotcha","learning":"FIFO queues without reprioritization invert priority under bursty load — model bursts as a separate concern from steady-state","verified":true,"session":"2026-04-03-queue-debug","source":"discovered via load testing","counter":0,"files":["src/services/*queue*"],"keywords":["queue","backpressure","load"]}
+{"id":"L3","category":"anti-pattern","learning":"Filter at the data layer, not the application — fetching-then-filtering bounds throughput by network, not by index","verified":true,"session":"2026-04-02-performance","source":"identified during optimization","counter":0,"files":["src/services/**"],"keywords":["data-access","performance","filtering"]}
+{"id":"L4","category":"decision","learning":"Token lifetime should be derived from the trust class of the device, not a global default — short for browser, long for mobile, near-zero for shared kiosks","verified":true,"session":"2026-04-01-auth","source":"user preference communicated","counter":0,"files":["src/auth/**"],"keywords":["JWT","auth","tokens"]}
 ```
 
 **Fields:**
@@ -68,7 +70,7 @@ Extract 3–5 learnings per session. More is often noise.
 
 ### 2. Validate (2 min)
 For each learning, ask:
-- **Specific?** "Use indexes on foreign keys" not "database performance matters"
+- **Concrete trigger conditions?** "When operations on a table fall under the slow-query threshold, check whether foreign keys are indexed" — concrete WHEN+WHAT+WHY, not "database performance matters." Concreteness ≠ narrowness; the rule should still apply across files.
 - **Verified?** Not a guess, but confirmed via code, testing, or user feedback. If uncertain, use the `AskUserQuestion` tool to confirm with the user before storing.
 - **Non-Trivial?** Would a junior dev benefit? Or is it obvious?
 - **Reusable?** Could this apply to future work in this codebase or similar projects?
@@ -98,7 +100,8 @@ Append to `.geniro/knowledge/learnings.jsonl` with:
 | "This is a useful general lesson" | "Write tests" and "use types" are noise. Only store non-obvious, project-specific insights. |
 | "I'm pretty sure this is correct" | Unverified guesses become trusted rules. Only store confirmed findings. |
 | "I'll skip the duplicate check" | Duplicate learnings dilute signal. Always cross-check before storing. |
-| "This applies broadly" | Over-generalized learnings are useless. Be specific: file paths, function names, concrete patterns. |
+| "I'll add file paths and function names to make it concrete" | Concreteness ≠ narrowness. Pin the rule to architectural shape, not to a single identifier. A learning that names one file applies to one file. |
+| "This applies broadly with no concrete trigger" | Vague platitudes ("communication matters") are noise. Add a concrete trigger condition (when X), but keep the rule general in scope. |
 | "The user didn't mention this but it seems important" | Learnings without user input or test evidence are guesses. Verify first. |
 
 ## Definition of Done
@@ -142,21 +145,23 @@ Conversation included:
 - You: [Tested and found task table uses UNIX timestamps]
 - User: "Yes, all timestamps are seconds since epoch for compatibility with legacy system"
 
-**Extracted Learnings:**
-1. **Pattern:** "Check middleware/ directory for existing middleware before implementing custom validation"
+**Extracted Learnings (after Reflect → Abstract → Generalize):**
+1. **Pattern:** "Before adding a cross-cutting concern (auth, logging, validation), scan the request-pipeline middleware layer first — duplicating cross-cutting logic into handlers is the most common architectural drift in this codebase"
    - Category: pattern
-   - Verified: true (user corrected, confirmed in code)
+   - Verified: true (user corrected; pattern confirmed across multiple route files)
    - Source: "user feedback + code inspection"
 
-2. **Gotcha:** "Task table timestamps are UNIX seconds (epoch), not ISO strings or milliseconds"
+2. **Gotcha (generalized from a specific timestamp finding):** "When integrating with legacy systems, treat the data shape contract as load-bearing — units (seconds vs ms), encodings (UTF-8 vs UTF-16), and null semantics drift silently and cause class-of-bugs failures"
    - Category: gotcha
-   - Verified: true (confirmed via db/schema.sql and legacy code)
+   - Verified: true (root-caused via schema + legacy-code review)
    - Source: "user clarification + schema inspection"
 
-3. **Decision:** "JWT validation happens in middleware, not in route handlers, to avoid repetition"
+3. **Decision:** "Cross-cutting validation belongs at the boundary (middleware), not at the call site — pushes the consistency contract to one place and removes per-handler drift risk"
    - Category: decision
-   - Verified: true (standard in codebase)
+   - Verified: true (codebase convention)
    - Source: "code inspection + user confirmation"
+
+(Note: a raw finding like "Task table uses UNIX seconds" would be DROPPED unless generalized — it's re-derivable from the schema file. Save the *class* of insight, not the specific value.)
 
 All three pass quality gates and get added to learnings.jsonl.
 
@@ -234,7 +239,7 @@ Session Doc                  learnings.jsonl
 
 ## Tips for High-Quality Learnings
 
-- **Specific, not generic:** ✓ "Task service processes jobs FIFO only" vs. ✗ "queues matter"
+- **Concrete trigger, general scope:** ✓ "When a job queue lacks reprioritization, model bursts as a separate concern from steady-state" vs. ✗ "queues matter" (vague) and ✗ "the OrderQueue uses FIFO" (narrow — re-derivable from the file)
 - **Verifiable:** ✓ "Found in code + tested" vs. ✗ "seems important"
 - **Actionable:** ✓ "Check middleware/ before writing validation" vs. ✗ "middleware exists"
 - **Memorable:** One sentence, clear. If you need a paragraph, it's too complex.

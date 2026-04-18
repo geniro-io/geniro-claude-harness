@@ -384,21 +384,11 @@ If updates needed, delegate to a subagent (e.g., general-purpose with `model="ha
 
 ### Extract Learnings
 
-Scan the conversation for events worth remembering:
+Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it.
 
-| Signal | What to save |
-|---|---|
-| **User corrections** — "don't do X", "do Y instead" | The correction + why + how to apply next time |
-| **Discovered problems** — bugs, gotchas, unexpected behaviors | The problem + root cause + resolution |
-| **Workarounds** — documented pattern failed, alternative used | What failed, what worked instead, why |
-| **CI failure resolutions** requiring non-obvious fixes | The error + non-obvious root cause + fix |
-| **Reviewer CRITICAL/HIGH findings** revealing a recurring pattern | The anti-pattern + why it's dangerous |
-| **Architectural deviations** from spec that worked better | What changed + why + outcome |
-| **Cross-module dependency gotchas** hard to discover | The dependency + why it's surprising |
+Save the generalized form to `.geniro/knowledge/learnings.jsonl` and/or memory (route per the canonical's "Storage routing" section). Write a session summary to `.geniro/knowledge/sessions/YYYY-MM-DD-<feature-name>.md` with: summary, key decisions, discoveries, files changed, unresolved items.
 
-Save findings to `.geniro/knowledge/learnings.jsonl` and/or to memory. Write a session summary to `.geniro/knowledge/sessions/YYYY-MM-DD-<feature-name>.md` with: summary, key decisions, discoveries, files changed, unresolved items.
-
-Before writing, check if an existing memory/learning covers this topic — UPDATE rather than duplicate. Skip if nothing genuinely novel was discovered.
+UPDATE existing entries rather than append duplicates. Skip the entire step if nothing genuinely novel was discovered — empty extraction is the correct outcome for routine sessions.
 
 ### Suggest Improvements
 
