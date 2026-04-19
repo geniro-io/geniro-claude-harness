@@ -12,5 +12,8 @@ Thumbs.db
 # Geniro runtime data (generated per-project, git-ignored)
 .geniro/
 
+# Transient state from /improve-template and other skills
+.claude/.artifacts/
+
 # Node (if any tooling is added)
 node_modules/
