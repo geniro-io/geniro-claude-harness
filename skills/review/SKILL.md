@@ -439,18 +439,16 @@ Scan the review findings for patterns worth remembering:
 
 Before writing, check if an existing memory covers this topic — UPDATE rather than duplicate. Skip if nothing novel was discovered.
 
-### Suggest Improvements
+### Suggest Improvements (project scope only)
 
-Check if the review revealed improvement opportunities. Classify each by **routing target**:
+Route review findings only to project-owned files — do NOT suggest edits to `${CLAUDE_PLUGIN_ROOT}/…` (criteria files, agent prompts, plugin hooks are global and overwritten on update; use `/improve-template` for those).
 
 | What was discovered | Route to | Why |
 |---|---|---|
-| Reviewer missed a bug class that should be checked | **Review criteria** | `${CLAUDE_SKILL_DIR}/*-criteria.md` |
-| Implementation agent produced a flagged anti-pattern | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| Security pattern that should be blocked automatically | **Rules/hooks** | Automated enforcement beats manual detection |
 | Recurring false positive revealing undocumented convention | **CLAUDE.md** | Document the convention so reviewers don't flag it |
-| Non-obvious insight about codebase quality | **Knowledge** (learnings.jsonl) | Context for future reviews |
-| Review rule the user enforced manually (e.g., "always check X") | **Custom instructions** | `.geniro/instructions/review.md` — persists as review-specific rule |
+| Non-obvious insight about codebase quality | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Context for future reviews |
+| Security pattern that should be blocked automatically in this project | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual detection |
+| Review rule the user enforced manually (e.g., "always check X") | **Custom instructions** (`.geniro/instructions/review.md`) | Persists as review-specific rule |
 
 Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 

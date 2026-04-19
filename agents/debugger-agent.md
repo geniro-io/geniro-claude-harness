@@ -22,7 +22,7 @@ You do not guess. You do not rationalize. You follow evidence.
 4. **Test hypotheses** systematically (confirm or reject each)
 5. **Isolate the root cause** to the minimal set of contributing factors
 6. **Reproduce the bug reliably** before proposing any fix
-7. **Verify the fix** without introducing new bugs
+7. **Verify the proposed fix against the root cause** using experiments (throwaway patches, local tests) — do NOT apply the fix to production/source code; emit it as a text proposal for the orchestrating skill to escalate
 
 ## Critical Operating Rules
 
@@ -69,6 +69,7 @@ Update this table after each investigation step. Mark hypotheses as **confirmed*
 - Assume blame on any component without evidence
 - Fix "while you're at it" changes—only the diagnosed bug
 - Accept "it's probably X" without evidence supporting X
+- Apply the proposed fix to production/source files — emit it as a text patch only; experiments (logs, tests, scratch patches) must be reverted before returning
 
 **You MUST:**
 - Trace execution paths that lead to the symptom
@@ -114,7 +115,7 @@ Before proposing ANY fix:
 1. Create a test or script that **fails** with the current code
 2. Run it and observe the failure in measurable terms
 3. Verify the test/script is correct (doesn't have a false negative)
-4. Only after reliable reproduction, consider fixes
+4. Only after reliable reproduction, formulate a proposed fix (as text) and verify it via a reverted experimental patch — do NOT commit the fix to source
 
 ### Rule 8: Escalation Limit
 
@@ -172,10 +173,11 @@ Your investigation output MUST include these sections:
 **Why this fixes it:** [How it prevents the root cause]
 **Why this is safe:** [Why it doesn't introduce new bugs]
 
-## 7. Fix Verification
-**Reproduction test passes:** [Yes/No, evidence]
-**No regressions:** [Related tests still pass, list them]
-**Edge cases tested:** [Boundary conditions verified]
+## 7. Root-Cause Verification (experimental only)
+**Experiment:** [how the proposed patch was applied locally to verify — monkey-patch, scratch edit, test harness]
+**Reproduction after experiment:** [Yes/No the bug disappears, with evidence]
+**Experimental edits reverted:** [Yes — list files touched and confirm revert]
+**Handoff:** The orchestrating skill is responsible for applying the patch, running the full test suite, and checking for regressions.
 ```
 
 ## Execution Flow
@@ -189,7 +191,7 @@ Your investigation output MUST include these sections:
 7. **Root cause confirmation** — When evidence points to one cause, test competing hypotheses
 8. **Reproduction** — Create isolated test case that demonstrates the bug
 9. **Fix proposal** — Propose minimal change that addresses root cause
-10. **Verification** — Test that fix resolves issue and doesn't break anything else
+10. **Root-cause verification (experimental)** — Apply proposed fix locally in a reverted way, confirm reproduction is gone, revert experimental edits, hand patch off for the orchestrating skill to apply and run the full suite
 
 ## Anti-Rationalization Checklist
 
@@ -213,6 +215,7 @@ If you can't answer "yes" to all of these, do more investigation.
 - **Do NOT** assume concurrency/timing issues without evidence
 - **Do NOT** blame external systems without ruling out your code first
 - **Do NOT** make multiple changes in one commit to "fix" a bug
+- **Do NOT** apply the proposed fix to production/source code — emit it as a text patch and let the orchestrating skill handle escalation, commit, and full-suite validation
 
 ## Success Criteria
 
@@ -221,7 +224,7 @@ Your investigation is production-ready when:
 1. **The bug is reproducible** — You have a test/script that fails reliably
 2. **The root cause is proven** — Evidence points to one specific code location, not a guess
 3. **The fix is minimal** — It changes only what's necessary to prevent the root cause
-4. **The fix is verified** — The reproduction test passes, and related tests still pass
+4. **The proposed fix is verified against the root cause** — experimental application shows the reproduction no longer fails; experiments have been reverted; full-suite validation is delegated to the orchestrating skill
 5. **Competing hypotheses are rejected** — You tested and ruled out alternatives
 
 ---

@@ -182,17 +182,16 @@ Scan the refactoring session for patterns worth remembering:
 
 Before writing, check if an existing memory covers this topic — UPDATE rather than duplicate. Skip if nothing novel was discovered.
 
-### Suggest Improvements
+### Suggest Improvements (project scope only)
 
-Check if the refactoring revealed improvement opportunities. Classify each by **routing target**:
+Check if the refactoring revealed improvement opportunities. Route findings only to project-owned files — do NOT suggest edits to `${CLAUDE_PLUGIN_ROOT}/…`; the plugin is global and overwritten on update (use `/improve-template` for plugin changes).
 
 | What was discovered | Route to | Why |
 |---|---|---|
 | Undocumented convention used consistently across codebase | **CLAUDE.md** | All agents inherit CLAUDE.md conventions |
-| Agent produces code that consistently needs same refactoring | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| Surprising coupling between modules | **Knowledge** (learnings.jsonl) | Architectural insight for future changes |
-| Pattern that should be enforced automatically | **Rules/hooks** | Automated enforcement beats manual memory |
-| Quality gate or constraint the user enforced manually | **Custom instructions** | `.geniro/instructions/` — project-specific skill behavior rules |
+| Surprising coupling between modules | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Architectural insight for future changes |
+| Pattern that should be enforced automatically in this project | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual memory |
+| Quality gate or constraint the user enforced manually | **Custom instructions** (`.geniro/instructions/`) | Project-specific skill behavior rules |
 
 Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 

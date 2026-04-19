@@ -308,14 +308,15 @@ Return EXACTLY:
 ### Extract Learnings
 If any simplification pattern appeared 3+ times across files, save it as a `project` memory (anti-pattern specific to this codebase). Before writing, check existing memories for overlap — update rather than duplicate. Skip if nothing novel was discovered.
 
-### Suggest Improvements
-If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), suggest follow-up actions:
+### Suggest Improvements (project scope only)
+
+If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), suggest project-owned follow-up actions. Do NOT suggest edits to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/…`) — the plugin is global and overwritten on update; use `/improve-template` for plugin changes.
 
 | Pattern type | Suggested action |
 |---|---|
 | Architectural issues (P3 items) | "Consider running `/geniro:refactor` on [module]" |
-| Recurring anti-patterns | "Add a lint rule or criteria entry for [pattern]" |
-| Missing utilities causing duplication | "Extract [utility] to shared module" |
+| Recurring anti-patterns | "Add a project lint rule or CI check for [pattern]" |
+| Missing utilities causing duplication | "Extract [utility] to shared project module" |
 | Quality gate the user enforced during review | "Add rule to `.geniro/instructions/` via `/geniro:instructions create`" |
 
 ---

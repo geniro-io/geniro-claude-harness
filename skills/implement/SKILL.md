@@ -358,7 +358,7 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 
 **Step 2: Extract Learnings** — Scan conversation for corrections, gotchas, decisions. Save to learnings.jsonl and/or memory. Write session summary. See reference file for signal table.
 
-**Step 3: Suggest Improvements (WAIT — auto: see implement-reference.md §Auto Mode Behavior)** — Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure), **custom instructions** (quality gates, workflow steps, or constraints the user enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, decisions), **rules/hooks** (enforceable patterns), **skill/agent files** (plugin improvements). Present grouped by target via `AskUserQuestion`. See reference file for routing table.
+**Step 3: Suggest Improvements (project scope only) (WAIT — auto: see implement-reference.md §Auto Mode Behavior)** — Classify each finding by routing target: **CLAUDE.md** (new commands, conventions, project structure), **custom instructions** (quality gates, workflow steps, or constraints the user enforced manually — to `.geniro/instructions/`), **knowledge** (gotchas, workarounds, decisions), **project rules/hooks** (project-level enforceable patterns). Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — the plugin is global and overwritten on update; use `/improve-template` for plugin maintenance. Present grouped by target via `AskUserQuestion`. See reference file for routing table.
 
 **Step 4: Present Summary**
 

@@ -1,6 +1,6 @@
 ---
 name: geniro:debug
-description: "Scientific-method bug investigation with hypothesis tracking. Systematically debug complex issues using Observe → Hypothesize → Test → Isolate → Fix → Verify. Do NOT use for bugs with obvious root cause, already-understood fixes, or system-wide refactors — use /geniro:follow-up for simple fixes and /geniro:implement for deep rework."
+description: "Scientific-method bug investigation with hypothesis tracking. Investigate complex bugs: Observe → Hypothesize → Test → Isolate → Propose Fix → Verify Root Cause, then ESCALATE the proposed patch to /geniro:follow-up (trivial) or /geniro:implement (non-trivial). This skill does NOT apply production fixes itself — it produces a report + proposed patch. Do NOT use for bugs with obvious root cause or already-understood fixes — use /geniro:follow-up directly."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
@@ -14,7 +14,7 @@ Use this skill to systematically debug complex issues. Replaces guessing with ev
 ## The Scientific Debug Loop
 
 ```
-OBSERVE → HYPOTHESIZE → TEST → ISOLATE → FIX → VERIFY → DOCUMENT
+OBSERVE → HYPOTHESIZE → TEST → ISOLATE → PROPOSE FIX → VERIFY ROOT CAUSE → ESCALATE → DOCUMENT
 ```
 
 This is not a suggestion—it's the required process. Do NOT skip steps or guess.
@@ -54,8 +54,14 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 ## Root Cause
 [Only filled once hypothesis is confirmed]
 
-## Fix Applied
-[Code change + verification]
+## Proposed Fix
+[File path(s), diff or before/after snippet, one-sentence rationale — text only, NOT applied to source]
+
+## Fix Evidence (experimental)
+[How the patch was verified locally (throwaway experiment), reproduction result, confirmation that experimental edits were reverted]
+
+## Escalation
+[/geniro:follow-up or /geniro:implement, with the handoff payload from Step 6.5]
 ```
 
 **Fields:**
@@ -67,7 +73,7 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 
 > **Inconclusive** means the test could not distinguish whether the hypothesis is true or false. Common causes: (1) test environment differs from production, (2) bug is intermittent and didn't manifest, (3) test was too coarse to isolate this hypothesis, (4) multiple interacting causes mask effects. An inconclusive result is NOT a rejection — it means you need a better test or more data.
 
-## Workflow: Observe → Hypothesis → Test → Fix
+## Workflow: Observe → Hypothesis → Test → Propose Fix → Escalate
 
 ### 0. Retrieve Prior Knowledge & Custom Instructions (1 min)
 Before investigating, check for relevant prior learnings:
@@ -101,38 +107,51 @@ Before investigating, check for relevant prior learnings:
 - Trace the data flow or control flow leading to the bug
 - Understand why the bug happens (not just where)
 
-### 5. Fix (5–15 min)
-- Implement minimal fix for root cause
-- Do NOT refactor adjacent code
-- Test fix against reproduction steps
-- Run relevant tests
+### 5. Propose Fix (5–15 min)
+- Formulate the minimal fix for the root cause as a **text proposal**: file path(s), exact change (unified diff or before/after snippet), and a one-sentence rationale.
+- Do NOT write the fix to production/source files. Write/Edit are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/debug/` artifacts) — not for applying the proposed patch.
+- Do NOT refactor adjacent code.
+- If experiments modified non-test source to prove the hypothesis (e.g., added a temporary log line, patched a value), revert those experimental edits before escalation. The escalated skill applies the real fix cleanly.
 
-### 6. Verify (10 min)
-- Confirm bug is gone (reproduction fails)
-- Check no new tests break
-- Verify no regressions in related functionality
-- Run the project's full test suite via backpressure: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<test_cmd>"` (use the test command from CLAUDE.md). If backpressure is unavailable, use fail-fast flags (`--bail`, `-x`) to surface one failure at a time.
-- If the project uses code generation (check CLAUDE.md) AND the fix modified DTOs, schemas, or controllers: run the codegen command, then re-validate.
+### 6. Verify Root Cause (5–10 min)
+- Prove the proposed fix resolves the root cause using experiments only: apply the patch locally in a throwaway way (e.g., monkey-patch in a test, branch-local scratch edit you will revert), run the reproduction, confirm the bug disappears, then revert the experimental change.
+- Do NOT run the full project test suite here — that belongs to the escalated skill. The goal is evidence that the proposed patch is correct, not CI-green.
+- Record the experimental evidence in `.geniro/debug/HYPOTHESES.md` under "Fix Evidence".
+- If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs, schemas, or controllers: note this in the escalation so the receiving skill runs codegen.
+
+### 6.5. Escalate (WAIT)
+
+Hand the proposed fix off for implementation. Use `AskUserQuestion` with header "Escalate" and these options:
+- **Trivial — escalate to /geniro:follow-up** — ≤2 files, obvious target, no architecture or auth/permissions change.
+- **Non-trivial — escalate to /geniro:implement** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
+- **Leave it to me** — the user will apply the patch manually. Skip to Step 7.
+
+The escalation payload (include in your handoff message):
+1. One-sentence root-cause statement
+2. Reproduction steps
+3. Proposed patch (diff or before/after)
+4. Experimental evidence from Step 6
+5. Tests that should pass after the fix
+6. Any codegen/migration implications
+
+You do NOT apply the patch yourself. Full-suite validation is the receiving skill's responsibility.
 
 ### 7. Document
 - Update `.geniro/debug/HYPOTHESES.md` with final outcome
 - **Extract Learnings:** Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it. Route per canonical: transferable debugging insights and class-of-bugs patterns → `learnings.jsonl`; user corrections during investigation → `feedback_*` memory; project-wide ongoing-investigation facts → `project_*` memory. UPDATE existing entries rather than duplicate. Skip if nothing novel.
 
-### 8. Suggest Improvements
+### 8. Suggest Improvements (project scope only)
 
-After documenting the fix, classify each finding by its **routing target**:
+After documenting, classify each finding by its **routing target**. ONLY route to project-owned files — do NOT suggest edits to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`). The plugin is installed globally and overwritten on update; plugin maintenance is out of scope for debug.
 
 | What was discovered | Route to | Why |
 |---|---|---|
-| Bug pattern an agent should avoid | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| Bug class not covered by review criteria | **Review criteria** | `${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md` |
-| Dangerous pattern that should be blocked automatically | **Rules/hooks** | Automated enforcement beats manual memory |
 | Docs described behavior that didn't match reality | **CLAUDE.md** or **docs** | Future agents need correct project info |
-| Non-obvious debugging insight or workaround | **Knowledge** (learnings.jsonl) | Searchable by knowledge-retrieval-agent |
+| Non-obvious debugging insight or workaround | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Searchable by knowledge-retrieval-agent |
 | New/changed command discovered during debugging | **CLAUDE.md** | All agents read CLAUDE.md for commands |
-| Quality gate or workflow step the user enforced manually | **Custom instructions** | `.geniro/instructions/` — project-specific skill behavior rules |
+| Quality gate or workflow step the user enforced manually | **Custom instructions** (`.geniro/instructions/`) | Project-specific skill behavior rules |
 
-Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip — just fix the bug". Group by target. If no improvements found, skip silently.
+Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 
 ## Escalation Limits
 
@@ -142,6 +161,16 @@ Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review 
 ## Git Constraint
 
 Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. The orchestrating skill handles all version control. You may use `git bisect`, `git log`, `git diff`, and `git blame` for investigation.
+
+## Fix Constraint
+
+Do NOT apply the bug fix to production/source code. You MAY Write/Edit for **experiments only**:
+- Test files (new or existing) that reproduce or verify the bug
+- Debug logging, temporary print statements, or scratch scripts
+- `.geniro/debug/HYPOTHESES.md` and other investigation artifacts
+- Throwaway patches used in Step 6 to verify the root cause — these MUST be reverted before escalation
+
+The actual fix is delivered as a **text proposal** (diff or before/after) and escalated via Step 6.5 to `/geniro:follow-up` (trivial) or `/geniro:implement` (non-trivial). This keeps architecture/review gates in play and preserves a clean audit trail.
 
 ## Isolation Techniques
 
@@ -185,6 +214,10 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "Let me fix these three things at once" | Multi-variable changes make it impossible to know what worked. Test one hypothesis at a time. |
 | "The error message says X, so it must be X" | Error messages lie. Verify with logs, debuggers, and traces. |
 | "I'll document it later" | You won't. Document the root cause and fix while the context is fresh. |
+| "The fix is one line, I'll just write it and escalate nothing" | Escalate every fix. One-line fixes go to `/geniro:follow-up`; the architecture/review gate still applies. |
+| "I added experimental logging and while I'm here I'll patch the bug too" | Experiments and fixes are separate deliverables. Revert experimental edits; escalate the proposed patch. |
+| "The user said just fix it" | If the user explicitly overrides, pick "Leave it to me" in Step 6.5 and produce the patch as text — still do NOT write it to source. The user applies it manually. |
+| "A finding improves an agent prompt, I'll include it in Step 8" | Plugin files are out of scope. Suggest only project-owned targets (CLAUDE.md, `.geniro/instructions/`, `.geniro/knowledge/learnings.jsonl`). |
 
 ## Cleanup
 
@@ -203,9 +236,10 @@ For each debug session, confirm:
 - [ ] All hypotheses recorded in `.geniro/debug/HYPOTHESES.md`
 - [ ] Each hypothesis has a test plan and result
 - [ ] Root cause identified and confirmed (not guessed)
-- [ ] Fix is minimal and targeted
-- [ ] Bug is gone (reproduction fails)
-- [ ] No new test failures introduced
+- [ ] Proposed fix is minimal, targeted, and written as a text patch (not applied to source)
+- [ ] Proposed fix verified against the root cause via reverted experiments
+- [ ] Escalation decision made via Step 6.5 AskUserQuestion (follow-up / implement / user-handles)
+- [ ] All experimental edits to non-test source reverted before handoff
 - [ ] Investigation documented for future reference
 - [ ] Cleanup completed (HYPOTHESES.md removed, temp files cleaned)
 
@@ -222,9 +256,11 @@ For each debug session, confirm:
 - Bug involves async code, concurrency, or state
 
 **Don't use:**
-- Obvious one-line fix (typo, off-by-one) → use `/geniro:follow-up`
-- Bug is already understood and fix is clear → just implement it
-- Need system-wide refactor → use `/geniro:implement`
+- Obvious one-line fix (typo, off-by-one) — go straight to `/geniro:follow-up`
+- Bug is already understood and fix is clear — `/geniro:follow-up` or `/geniro:implement` directly
+- Need system-wide refactor — `/geniro:implement`
+
+**Remember:** debug investigates and *proposes* — it never applies the fix. If the proposed patch looks obvious after Step 4, that's a signal you should have gone straight to `/geniro:follow-up` in the first place.
 
 ---
 
@@ -239,8 +275,9 @@ For each debug session, confirm:
 → Hypothesis 2: Update endpoint not called
 → Test: Add logging to cache invalidation and endpoint
 → Result: Hypothesis 1 confirmed (cache key mismatch)
-→ Fix: Update cache key to include user ID
-→ Verify: Manually test, run cache tests
+→ Propose: patch cacheKey builder in `src/cache/user.ts` to include user ID
+→ Verify root cause: local experiment shows bug disappears with patch (reverted)
+→ Escalate: /geniro:follow-up with the proposed patch
 
 ### Example 2: Intermittent Timeout
 ```
@@ -251,8 +288,9 @@ For each debug session, confirm:
 → Hypothesis 2: External service timeout
 → Test: Profile database queries, check service logs
 → Result: Hypothesis 2 confirmed (service is slow)
-→ Fix: Add timeout and fallback
-→ Verify: Stress test again, no timeouts
+→ Propose: add timeout and fallback around the external service call
+→ Verify root cause: local experiment shows timeouts disappear with patch (reverted)
+→ Escalate: /geniro:implement with the proposed patch
 
 ### Example 3: Memory Leak
 ```
@@ -263,5 +301,6 @@ For each debug session, confirm:
 → Hypothesis 2: Large cache never evicted
 → Test: Add heap snapshot profiling, check cleanup
 → Result: Hypothesis 1 confirmed (useEffect missing cleanup)
-→ Fix: Add return cleanup function
-→ Verify: Run memory profiler again, heap stabilizes
+→ Propose: add return cleanup function to the offending useEffect
+→ Verify root cause: local experiment shows heap stabilizes with patch (reverted)
+→ Escalate: /geniro:follow-up with the proposed patch

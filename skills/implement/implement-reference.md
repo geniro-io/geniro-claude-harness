@@ -393,33 +393,31 @@ Save the generalized form to `.geniro/knowledge/learnings.jsonl` and/or memory (
 
 UPDATE existing entries rather than append duplicates. Skip the entire step if nothing genuinely novel was discovered — empty extraction is the correct outcome for routine sessions.
 
-### Suggest Improvements
+### Suggest Improvements (project scope only)
 
-Analyze the full pipeline run and classify each finding by its **routing target** — where it should be persisted for maximum impact:
+Analyze the full pipeline run and classify each finding by its **routing target** — project-owned files only.
+
+**Project scope only.** Do NOT suggest edits to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`). The plugin is installed globally and overwritten on update. Plugin-file improvements belong to the separate `/improve-template` skill.
 
 | What was discovered | Route to | Why |
 |---|---|---|
 | New/changed build, test, or lint command | **CLAUDE.md** | Backend/frontend agents read CLAUDE.md at runtime for commands |
 | New coding convention or canonical pattern | **CLAUDE.md** | All agents inherit CLAUDE.md conventions |
 | Tech stack or project structure change | **CLAUDE.md** | Future sessions need current project shape |
-| Non-obvious gotcha, workaround, or debugging insight | **Knowledge** (learnings.jsonl) | Searchable by knowledge-retrieval-agent across sessions |
-| Architectural decision with rationale | **Knowledge** (learnings.jsonl) | Provides context for future changes in the same area |
-| Dangerous pattern that should be blocked automatically | **Rules/hooks** | Automated enforcement beats manual memory |
-| Recurring agent mistake catchable by a check | **Rules/hooks** or **agent prompt** | Fix the system, not the symptom |
-| Skill hit a scenario it wasn't designed for | **Skill SKILL.md** | `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` |
-| Agent prompt consistently missed something | **Agent prompt** | `${CLAUDE_PLUGIN_ROOT}/agents/*.md` |
-| Quality gate, workflow step, or constraint the user enforced manually | **Custom instructions** | `.geniro/instructions/` — project-specific skill behavior rules |
+| Non-obvious gotcha, workaround, or debugging insight | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Searchable by knowledge-retrieval-agent across sessions |
+| Architectural decision with rationale | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Provides context for future changes in the same area |
+| Dangerous pattern that should be blocked automatically in this project | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual memory |
+| Quality gate, workflow step, or constraint the user enforced manually | **Custom instructions** (`.geniro/instructions/`) | Project-specific skill behavior rules |
 | User preference or correction | **Memory** (native) | Auto-retrieved by Claude in future sessions |
 
 **Decision logic when target is ambiguous:**
 - Affects how agents should behave in THIS project → **CLAUDE.md**
 - Affects how skills should behave (quality gates, workflow steps, constraints) → **Custom instructions**
 - Reusable technical insight worth remembering → **Knowledge**
-- Can be enforced automatically without human judgment → **Rules/hooks**
-- Improves the plugin itself (not project-specific) → **Skill/agent files**
+- Can be enforced automatically without human judgment in this project → **Project rules/hooks**
 - Uncertain → default to **Knowledge** (lowest risk, still searchable)
 
-Skip findings already captured in Extract Learnings (Step 2). This step focuses on **structural improvements** (CLAUDE.md, rules, prompts, docs) rather than knowledge capture — Step 2 handles gotchas and learnings.
+Skip findings already captured in Extract Learnings (Step 2). This step focuses on **structural improvements** (CLAUDE.md, project rules, docs) rather than knowledge capture — Step 2 handles gotchas and learnings.
 
 For each improvement found, draft the change, specify the target file, and present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target so the user sees what goes where. If no improvements found, skip silently.
 
