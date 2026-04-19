@@ -10,7 +10,7 @@ allowed-tools:
   - Bash
   - Agent
   - WebSearch
-argument-hint: "[files or git diff range to review]"
+argument-hint: "[files, diff range, branch, or PR ref (#N, URL)]"
 ---
 
 # Code Review Skill
@@ -37,7 +37,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 ## Review Process
 
 ### Phase 1: Collect Context & Triage
-- Parse input (files, git diff range, branch)
+- Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName` for base/head context, then feed the result into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes.
 - Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/review.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 - Read changed files and understand modifications
 - Build context map of what changed and why
@@ -231,12 +231,12 @@ CRITICAL severity findings (security vulnerabilities, data loss, crashes) are al
 - Validate: does the issue actually exist? Check for mitigating context
 - Preserve [NEW]/[PRE-EXISTING] tags from reviewers — findings in changed lines are [NEW], findings in unchanged code are [PRE-EXISTING]. Prioritize [NEW] findings in the report.
 - **Build verification:** If build/test verification ran in parallel, incorporate its result — a failing build is automatically a CRITICAL finding (tag [NEW] or [PRE-EXISTING] based on base branch state).
-- Confidence scoring:
-  - **Confirmed**: stays 100 or increases
-  - **Ambiguous**: -20 (needs context)
-  - **Pattern elsewhere**: -40 (systemic, lower individual severity)
-  - **False positive**: rejected (0)
-- Filter: keep only findings >= 80 confidence
+- Confidence scoring: start from the reviewer's reported confidence, then adjust:
+  - **Confirmed** (judge reproduces the issue from source): no change, or raise toward 100 if the reviewer under-scored
+  - **Ambiguous** (needs more context to decide): −20
+  - **Pattern elsewhere** (same code appears in 3+ other places unchanged): −40
+  - **False positive** (judge cannot reproduce the issue from source): set to 0, rejected
+- Filter: keep only findings with final confidence >= 80
 - Classify:
   - **Critical**: MUST FIX (high-severity, high-confidence)
   - **High**: SHOULD FIX (medium-severity OR repeating pattern)
@@ -250,13 +250,17 @@ For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validati
 
 **Why:** Anthropic's official code-review plugin uses this pattern — per-finding validation eliminates ~40% of false positives. The validator has fresh context and must independently reproduce the concern.
 
-**Skip conditions:** If 0 Critical/High findings remain after Phase 4, skip to Phase 5. Always validate CRITICAL findings regardless of count; skip validation for HIGH findings only when there is exactly 1 HIGH and 0 CRITICAL.
+**Skip conditions:**
+- If 0 CRITICAL and 0 HIGH remain after Phase 4: skip to Phase 5.
+- If there are any CRITICAL findings: validate all CRITICAL **and** all HIGH findings.
+- If 0 CRITICAL and exactly 1 HIGH: skip validation (single HIGH isn't worth the spawn cost).
+- If 0 CRITICAL and 2+ HIGH: validate all HIGH findings.
 
 Spawn all validators **in a single message** for parallel execution:
 
 ```
-Agent(model="sonnet", prompt="""
-TASK: Validate a single review finding. You are an independent validator — confirm or reject this finding.
+Agent(subagent_type="general-purpose", model="sonnet", prompt="""
+TASK: Validate a single review finding. You are an independent validator — confirm or reject this finding. You have Read, Glob, Grep, and Bash available for reproduction in step 4.
 
 FINDING: [severity, dimension, file:line, description, evidence]
 FILE CONTENT: [full content of the affected file]
@@ -266,7 +270,8 @@ You must:
 1. Read the file and line range yourself
 2. Check if the issue genuinely exists
 3. Check for mitigating context the original reviewer may have missed
-4. Verdict: CONFIRMED (issue is real) or REJECTED (false positive, explain why)
+4. If the finding claims runtime behavior (crash, thrown error, regex/parser match, failing test, incorrect output), attempt a read-only reproduction: run `grep`/`rg` to confirm a pattern, or run the single existing test file that covers the code path (e.g. `pytest path/to/test_file.py::test_name`, `npx jest path/to/file.test.ts`). Allowed: read-only inspection and targeted single-test execution. Forbidden: full build, full test suite, migrations, installs, any write or file-creation command, network calls, `git` mutations (checkout, reset, stash, commit, push), container/VM spawns (`docker`, `podman`, `vagrant`), or any command that mutates persistent state. If a command is rejected by a project safety hook, treat the reproduction as impractical — do NOT retry or work around the hook; skip step 4 and rely on reasoning. If reproduction is otherwise impractical or unsafe, also skip and rely on reasoning.
+5. Verdict: CONFIRMED (issue is real, with reproduction evidence if step 4 ran) or REJECTED (false positive, explain why)
 
 Do NOT review for other issues — validate this ONE finding only.
 """)
@@ -282,6 +287,7 @@ Do NOT review for other issues — validate this ONE finding only.
 - **Files**: `review src/auth.js src/db.js`
 - **Git diff**: `review HEAD~5..HEAD`
 - **Branch**: `review feature/auth`
+- **PR ref**: `review #1234`, `review 1234`, or `review https://github.com/org/repo/pull/1234` — fetched via `gh pr diff <number-or-url>`; requires `gh` and a GitHub remote. For a PR in a different repo, use the full URL.
 - **Current changes**: `review` (no args = unstaged + staged changes)
 
 ## Output Structure
@@ -322,10 +328,13 @@ Do NOT review for other issues — validate this ONE finding only.
 
 ## Confidence Scoring Rules
 
-1. **Validation Check** (adjust from 100):
-   - Does the exact issue exist in code? -0 if yes, -20 if unclear
-   - Is there mitigating context/exception? -10 to -30
-   - How widespread is the pattern? -40 if elsewhere, -10 if isolated
+These rules expand the Phase 4 judge scoring. Baseline is always the reviewer's reported confidence, not a fixed 100.
+
+1. **Adjustments to the reviewer's reported confidence:**
+   - Issue reproduces from source: no change (or raise toward 100 if the reviewer under-scored)
+   - Mitigating context/exception: −10 to −30
+   - Same code appears in 3+ other places unchanged (pattern elsewhere): −40
+   - Judge cannot reproduce the issue from source (false positive): set to 0, rejected
 
 2. **Filter Threshold**: 80 confidence minimum
    - Above 80: include in report
@@ -450,7 +459,7 @@ Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review 
 Code review is complete when:
 - [ ] Phase 1 context collected (files read, changes understood)
 - [ ] Phase 2 reviewers spawned and executed in parallel
-- [ ] All 5–6 reviewers completed (5 always, +1 design when UI files present)
+- [ ] All applicable reviewer dimensions completed (5 in standard mode, +1 design when UI files present; up to 18 parallel agents across batches in batched mode)
 - [ ] Phase 3 relevance filter applied (findings checked against repo conventions and complexity)
 - [ ] Phase 4 judge validation complete (findings verified)
 - [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
