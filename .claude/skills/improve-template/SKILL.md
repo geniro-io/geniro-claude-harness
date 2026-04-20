@@ -415,6 +415,25 @@ rather than duplicate. Skip this step entirely if nothing novel was discovered.
 
 Remove `.claude/.artifacts/improve-template-state.md`.
 
+### Step 4: Suggest commit & push
+
+After cleanup, run `git status --short` and `git diff --stat` to show what's staged vs. unstaged. Then use the `AskUserQuestion` tool (do NOT output options as plain text) to offer shipping the changes:
+
+- **Question:** "Ship these template changes?"
+- **Options:**
+  - "Commit and push (Recommended)" — orchestrator stages changed files by name, creates a commit with a message summarizing the findings, and pushes to the current branch's upstream
+  - "Commit only — I'll push later"
+  - "Skip — I'll commit manually"
+
+If the user picks commit+push or commit-only:
+- Stage only the files listed in the Phase 6 Step 1 summary table (never `git add -A` or `git add .`).
+- Write the commit message via HEREDOC, following the repo's commit style (check `git log -5 --oneline` first).
+- For commit+push: run `git push` after the commit succeeds. If the branch has no upstream, report the exact `git push -u origin <branch>` command and ask the user to confirm before running it.
+- Never use `--no-verify`, `--amend`, or any destructive flag.
+- If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
+
+If the user picks skip, print the suggested commit message and the `git add` / `git commit` / `git push` commands for them to run manually.
+
 ---
 
 ## Mid-flow User Input
@@ -450,5 +469,6 @@ If the user interjects during any phase:
 - [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
 - [ ] Phase 5: Independent review by fresh agent passed
 - [ ] Phase 6: Summary presented, state file cleaned up
+- [ ] Phase 6: Commit & push offered to the user (Step 4)
 - [ ] All changed SKILL.md files under 500 lines
 - [ ] No scope creep beyond approved changes

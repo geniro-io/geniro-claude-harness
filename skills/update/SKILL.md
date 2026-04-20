@@ -56,13 +56,16 @@ This writes `update_available: false` to the cache with the correct installed ve
 
 ### 4.1 Refresh statusLine script
 
-Copy the updated statusline script to the stable location:
+Refresh the stable user-level copy of the statusline script only if it already exists — its presence indicates the user ran `/geniro:setup` and has a `statusLine` entry in `~/.claude/settings.json` pointing at `~/.claude/hooks/geniro-statusline.js`. If the stable copy is absent, skip this step: the plugin's bundled `settings.json` already exposes the statusline via `${CLAUDE_PLUGIN_ROOT}` (which now points at the new version), so no refresh is needed. Creating `~/.claude/hooks/geniro-statusline.js` here without a corresponding settings entry would be a stray file the user never asked for — `/geniro:setup` is the single source of truth for installing that entry.
 
 ```bash
-cp "$PLUGIN_PATH/hooks/geniro-statusline.js" "$HOME/.claude/hooks/geniro-statusline.js"
+if [ -f "$HOME/.claude/hooks/geniro-statusline.js" ]; then
+  mkdir -p "$HOME/.claude/hooks"
+  cp "$PLUGIN_PATH/hooks/geniro-statusline.js" "$HOME/.claude/hooks/geniro-statusline.js"
+fi
 ```
 
-This overwrites the previous version. The path in `~/.claude/settings.json` stays the same (`~/.claude/hooks/geniro-statusline.js`), so no settings edit is needed.
+This overwrites the previous stable copy in place; the path in `~/.claude/settings.json` continues to resolve correctly, so no settings edit is needed.
 
 ### 5. Confirm update
 
