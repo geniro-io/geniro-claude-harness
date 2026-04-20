@@ -119,20 +119,45 @@ Before investigating, check for relevant prior learnings:
 - Record the experimental evidence in `.geniro/debug/HYPOTHESES.md` under "Fix Evidence".
 - If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs, schemas, or controllers: note this in the escalation so the receiving skill runs codegen.
 
-### 6.5. Escalate (WAIT)
+### 6.5. Present Findings & Escalate (WAIT)
 
-Hand the proposed fix off for implementation. Use `AskUserQuestion` with header "Escalate" and these options:
+Before asking where to route the fix, you MUST present a human-readable findings summary to the user. Do NOT jump straight to `AskUserQuestion` — the user chooses the escalation target based on this summary, so it has to be visible first. HYPOTHESES.md is a working scratchpad, not a substitute for a user-facing report.
+
+#### 6.5a — Present Findings Summary
+
+Output the following markdown block directly in the chat (not to a file), filled with the actual values from your investigation. Use "none" for any field that truly doesn't apply — don't omit fields.
+
+```markdown
+## Debug Findings
+
+**Root cause:** [one sentence, plain language — why the bug happens]
+
+**Reproduction:** [exact steps that trigger the bug]
+
+**Confirmed hypothesis:** [which numbered hypothesis from HYPOTHESES.md was confirmed, and the test result that confirmed it]
+
+**Rejected hypotheses:** [brief — which hypotheses were ruled out and why, so the user sees what was considered]
+
+**Proposed fix:**
+- Files: [path(s) that need to change]
+- Change: [unified diff or before/after snippet]
+- Rationale: [one sentence tying the change to the root cause]
+
+**Evidence the fix works:** [what happened when you applied the patch as a throwaway experiment in Step 6 — e.g., "bug stopped reproducing; experimental edits reverted"]
+
+**Tests that should pass after the fix:** [test names, criteria, or "new test needed: <description>"]
+
+**Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
+```
+
+This summary IS the handoff payload. When the user picks an escalation target, pass it verbatim to the receiving skill — do not re-derive or reword it.
+
+#### 6.5b — Escalation Decision
+
+Only after the summary above is visible, use `AskUserQuestion` with header "Escalate" and these options:
 - **Trivial — escalate to /geniro:follow-up** — ≤2 files, obvious target, no architecture or auth/permissions change.
 - **Non-trivial — escalate to /geniro:implement** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
 - **Leave it to me** — the user will apply the patch manually. Skip to Step 7.
-
-The escalation payload (include in your handoff message):
-1. One-sentence root-cause statement
-2. Reproduction steps
-3. Proposed patch (diff or before/after)
-4. Experimental evidence from Step 6
-5. Tests that should pass after the fix
-6. Any codegen/migration implications
 
 You do NOT apply the patch yourself. Full-suite validation is the receiving skill's responsibility.
 
@@ -218,6 +243,7 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "I added experimental logging and while I'm here I'll patch the bug too" | Experiments and fixes are separate deliverables. Revert experimental edits; escalate the proposed patch. |
 | "The user said just fix it" | If the user explicitly overrides, pick "Leave it to me" in Step 6.5 and produce the patch as text — still do NOT write it to source. The user applies it manually. |
 | "A finding improves an agent prompt, I'll include it in Step 8" | Plugin files are out of scope. Suggest only project-owned targets (CLAUDE.md, `.geniro/instructions/`, `.geniro/knowledge/learnings.jsonl`). |
+| "The findings are in HYPOTHESES.md, I'll just ask the escalation question" | HYPOTHESES.md is a scratchpad, not a user-facing report. Step 6.5a requires an explicit findings summary in chat before the escalation question — the user decides where to route based on that summary. |
 
 ## Cleanup
 
@@ -238,7 +264,8 @@ For each debug session, confirm:
 - [ ] Root cause identified and confirmed (not guessed)
 - [ ] Proposed fix is minimal, targeted, and written as a text patch (not applied to source)
 - [ ] Proposed fix verified against the root cause via reverted experiments
-- [ ] Escalation decision made via Step 6.5 AskUserQuestion (follow-up / implement / user-handles)
+- [ ] Findings summary (Step 6.5a) presented to user in chat before the escalation question
+- [ ] Escalation decision made via Step 6.5b AskUserQuestion (follow-up / implement / user-handles)
 - [ ] All experimental edits to non-test source reverted before handoff
 - [ ] Investigation documented for future reference
 - [ ] Cleanup completed (HYPOTHESES.md removed, temp files cleaned)
