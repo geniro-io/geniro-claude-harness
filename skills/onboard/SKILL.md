@@ -2,7 +2,7 @@
 name: geniro:onboard
 description: "Rapid codebase mapping and orientation. Scans structure, files, patterns, conventions. Produces CODEBASE_MAP.md with architecture, module relationships, critical paths, and entry points. Do NOT use for answering specific code questions, debugging, implementing features, or quick fixes in familiar code."
 context: main
-model: sonnet
+model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 argument-hint: "[optional: area to focus on, e.g. 'backend', 'auth module']"
 ---

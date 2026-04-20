@@ -2,7 +2,7 @@
 name: geniro:learnings
 description: "Use when a session produced corrections, gotchas, or decisions worth remembering. Extracts learnings into categorized JSONL with quality gates. Do NOT use for trivial sessions with no surprises."
 context: main
-model: haiku
+model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Grep, AskUserQuestion]
 argument-hint: "[optional: topic or area to focus on]"
 ---

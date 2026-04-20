@@ -258,19 +258,22 @@ For Medium and Large tasks:
    You MUST write this file using the Write tool — do NOT just return the report as text.
 
    ## Report Contents
-   - PASS / FAIL for each of the 8 dimensions with evidence
-   - Mirages found (hallucinated files/functions/packages)
-   - Convention fit: does the plan's architecture match existing repo patterns? Flag over-engineering (enterprise patterns for simple repos, abstractions the codebase doesn't use, DI when repo uses simple functions)
-   - Critical issues (must fix before approval)
-   - Warnings (consider before implementing)
-   - Overall verdict: PASS / NEEDS REVISION
+   - For each of the 8 dimensions: findings with evidence (file:line, grep/glob results, etc.), classified as BLOCKER or WARNING with confidence
+   - Mirages found (hallucinated files/functions/packages) — always BLOCKER
+   - Convention fit evidence: does the plan's architecture match existing repo patterns? Report over-engineering signals (enterprise patterns for simple repos, abstractions the codebase doesn't use, DI when repo uses simple functions) with confidence
+   - Do NOT emit an overall PASS / NEEDS REVISION / ISSUES_FOUND verdict — the orchestrating skill synthesizes blockers and warnings and decides.
    ```
 
-2. **Read the validation report** from the file the skeptic wrote. If the file doesn't exist (skeptic failed to write it), treat as NEEDS REVISION and re-spawn with explicit instruction to write the file.
+2. **Read the validation report** from the file the skeptic wrote. If the file doesn't exist (skeptic failed to write it), re-spawn the skeptic with explicit instruction to write the file and retry once; if it still fails, fall back to treating the plan as "needs revision" with the failure noted.
 
-3. **If NEEDS REVISION:** Route feedback back to architect-agent with specific issues. Architect revises the plan file. Re-run skeptic. Max 3 iterations. **If 3 iterations exhausted:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to present the best plan + remaining issues with options: A) Approve as-is with known issues noted. B) Abandon this approach, start fresh. C) I'll fix the plan manually.
+3. **Orchestrator synthesis — decide the disposition yourself from the report:**
+   - If the report contains ANY BLOCKER (mirage, dropped requirement, circular dependency, missing verification for explicit requirements): treat as NEEDS REVISION.
+   - If only WARNINGS: proceed to Phase 4, surface the warnings to the user in Phase 4 Step 3.
+   - If zero blockers and zero warnings: proceed to Phase 4 as PASS.
 
-4. **If PASS:** Proceed to Phase 4.
+4. **If NEEDS REVISION:** Route feedback back to architect-agent with the specific BLOCKERS. Architect revises the plan file. Re-run skeptic. Max 3 iterations. **If 3 iterations exhausted:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to present the best plan + remaining blockers with options: A) Approve as-is with known issues noted. B) Abandon this approach, start fresh. C) I'll fix the plan manually.
+
+5. **If PASS or WARNINGS-ONLY:** Proceed to Phase 4.
 
 ### Phase 4: Present Plan to User
 
@@ -280,7 +283,7 @@ For Medium and Large tasks:
 
 3. **Add metadata:**
    - "Full plan saved to `.geniro/planning/<filename>`"
-   - "Skeptic validation: PASS — N/8 dimensions verified"
+   - "Skeptic validation: [N blockers, M warnings] across 8 dimensions"
    - If any warnings from skeptic: list them
 
 4. **Ask for approval** using the `AskUserQuestion` tool (do NOT output options as plain text):

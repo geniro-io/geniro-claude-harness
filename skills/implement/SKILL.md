@@ -147,7 +147,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 3. **Spawn skeptic-agent** with plan + spec. Explicit instruction: "Write report to `<task-dir>/concerns.md`"
 4. If NEEDS REVISION: route back to architect. Max 3 iterations.
 
-**Checkpoint:** Write to `<task-dir>/state.md`: "Phase 2 completed. Plan: <filename>. Skeptic: PASS."
+**Checkpoint:** Write to `<task-dir>/state.md`: "Phase 2 completed. Plan: <filename>. Skeptic: [N blockers, M warnings]."
 
 ---
 
@@ -163,7 +163,7 @@ If any file in the plan's affected-files list matches the UI-file detection rule
 
 1. Read plan from `<task-dir>/plan-<slug>.md`
 2. Present complete plan content to user
-3. Add metadata: plan location, skeptic verdict
+3. Add metadata: plan location, skeptic validation summary (N blockers, M warnings)
 
 **Gate:**
 

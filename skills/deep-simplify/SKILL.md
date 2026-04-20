@@ -194,7 +194,7 @@ Collect findings from all 3 agents. Merge into a single list:
 2. **Sort** — P1 first, then P2, grouped by file
 3. **Separate P3** — report only, never applied
 4. **Conflict check** — if two findings target the same code range with contradictory fixes, keep the one with clearer criteria match
-5. **Relevance filter** — spawn a `relevance-filter-agent` to check which P1/P2 findings actually apply to this repo's conventions and complexity level:
+5. **Relevance evidence gathering + orchestrator decision** — spawn `relevance-filter-agent` to gather convention/over-engineering/pattern evidence per finding, then **you (the orchestrator) decide KEEP vs FILTER yourself** using the dossier. This is orchestrator work — do NOT delegate the tagging decision.
 
    ```
    Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
@@ -203,16 +203,16 @@ Collect findings from all 3 agents. Merge into a single list:
    PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
    CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
 
-   Evaluate each finding against this repo's actual patterns. For each finding, check:
+   Gather evidence for each finding against this repo's actual patterns:
    1. Convention alignment — does the suggestion match how this repo already works?
    2. Over-engineering — is this YAGNI for this repo's complexity level?
    3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
 
-   Tag each finding as KEEP or FILTER with evidence.
+   Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD, safety_override for CRITICAL findings). Do NOT tag findings KEEP or FILTER — return evidence only; the orchestrator decides.
    """)
    ```
 
-   Only KEEP findings proceed to Phase 4 (Fix). FILTERED findings appear in the Completion Report's "Skipped" section with filter reasons. If the agent fails, pass all findings through unfiltered (fail-open).
+   After the dossier returns, synthesize it yourself: for each finding, weigh convention-alignment, over-engineering, and pattern-frequency evidence, then tag KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP. Only KEEP findings proceed to Phase 4 (Fix); FILTERED findings appear in the Completion Report's "Skipped" section with the reason. If the agent fails (timeout/malformed dossier), pass all findings through as KEEP (fail-open).
 
 ---
 

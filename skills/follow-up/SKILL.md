@@ -323,8 +323,9 @@ Read and apply the criteria files (5, +design when UI files changed) from `${CLA
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — when changed files include UI; see UI-file detection rule in skills/review/SKILL.md)
 
-Review across all listed criteria files (5, or 6 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
-Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
+Review across all listed criteria files (5, or 6 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH.
+
+Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / APPROVED / APPROVED WITH MINOR) — the orchestrating skill synthesizes findings across all reviewers and decides.
 """, description="Review: follow-up change")
 ```
 
@@ -338,8 +339,7 @@ DIMENSION: Bugs & Correctness
 CHANGED FILES: [list]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
-Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
-Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
+Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.
 
 ## Review Criteria
 Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
@@ -350,8 +350,7 @@ DIMENSION: Security & Edge Cases
 CHANGED FILES: [list]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
-Report findings with severity (CRITICAL/HIGH/MEDIUM). Skip MEDIUM — only report CRITICAL and HIGH.
-Conclude with verdict: CHANGES REQUIRED / APPROVED WITH MINOR / APPROVED.
+Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.
 
 ## Review Criteria
 Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md`
@@ -363,13 +362,14 @@ Add a 4th reviewer with `model='haiku'` for the design dimension when changed fi
 
 ### Step 2: Process Results
 
-**Relevance filter (Medium only):** Spawn a `relevance-filter-agent` with findings, changed file paths, project conventions. Only KEEP findings proceed. Skip for Trivial/Small — scope too limited for generic findings to matter. If the agent fails, proceed unfiltered (fail-open).
+**Relevance evidence + orchestrator tagging (Medium only):** Spawn a `relevance-filter-agent` for evidence per finding, then the orchestrator decides KEEP vs FILTER from the dossier — do NOT delegate the tagging decision. Skip the filter entirely for Trivial/Small — scope too limited. If the agent fails, pass all findings through as KEEP (fail-open).
 
-Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity).
+Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity). Then the orchestrator synthesizes findings and decides the disposition:
 
-- Any reviewer **CHANGES REQUIRED** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If still CHANGES REQUIRED: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
-- All reviewers **APPROVED WITH MINOR** → note improvements in Ship summary. Fix only MEDIUM+ findings — delegate if any, then proceed.
-- All reviewers **APPROVED** → proceed directly.
+- **Any CRITICAL or HIGH finding (kept)** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If findings persist after the fix round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
+- **Zero CRITICAL, zero HIGH findings** → proceed directly; note any MEDIUM findings in Ship summary.
+
+Disposition is an orchestrator decision based on aggregated evidence, not a reviewer verdict.
 
 **→ Proceed to Phase 6.**
 
@@ -382,7 +382,7 @@ Show a summary:
 **Done. Here's what changed:**
 - [file]: [what changed]
 - Validation: PASS/FAIL
-- Review: [verdict]
+- Review: [disposition — "proceeded directly" / "1 HIGH fixed inline" / "fix-loop completed"]
 - Test coverage: [covered / gaps noted / tests added]
 
 ### Step 1: Review Gate (loop entry point)

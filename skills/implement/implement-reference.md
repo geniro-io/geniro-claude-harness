@@ -56,7 +56,7 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 | Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question; append one-liner per decision to `state.md` "Auto-mode decisions" |
 | Git workspace | Phase 1, Step 7 (in same batch) | Option A (new branch). If already on a feature branch (not `main`/`master`/`develop`), Option B |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
-| Plan approval | Phase 3 | **Auto-approve.** Print plan summary (path + heading + step count + skeptic verdict) and the line "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise." Skip `AskUserQuestion`. Proceed to Phase 4 |
+| Plan approval | Phase 3 | **Auto-approve.** Print plan summary (path + heading + step count + skeptic validation summary: N blockers, M warnings) and the line "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise." Skip `AskUserQuestion`. Proceed to Phase 4 |
 | Compact prompt | Phase 3 (post-approval) | "Continue now" (skip compaction). Skip `AskUserQuestion` |
 | Stage C fix loop after 3 rounds | Phase 6 | **Always-WAIT.** Auto-shipping known CRITICAL/HIGH issues is unsafe. Surface the `AskUserQuestion` regardless of mode |
 | Suggest improvements | Phase 7, Step 3 | "Skip" (defer improvements; user can run `/geniro:follow-up` later) |
@@ -303,7 +303,7 @@ Only reached after Stage B passes.
 
 4. **Aggregate findings:** Collect all reviewer outputs. Deduplicate findings that appear in multiple reviewers. Drop findings scored Medium by the reviewer (informational only).
 
-5. **Relevance filter:** Spawn a `relevance-filter-agent` to check which CRITICAL/HIGH findings actually apply to this repo:
+5. **Relevance evidence + orchestrator tagging:** Spawn a `relevance-filter-agent` to gather evidence per CRITICAL/HIGH finding, then **you (the orchestrator) decide KEEP vs FILTER yourself** from the dossier — do NOT delegate the tagging decision:
 
    ```
    Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
@@ -312,17 +312,16 @@ Only reached after Stage B passes.
    PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
    CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
 
-   Evaluate each finding against this repo's actual patterns. For each finding, check:
+   Gather evidence for each finding against this repo's actual patterns:
    1. Convention alignment — does the suggestion match how this repo already works?
    2. Over-engineering — is this YAGNI for this repo's complexity level?
    3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
 
-   Tag each finding as KEEP or FILTER with evidence.
-   CRITICAL severity findings (security vulnerabilities, data loss, crashes) are always KEEP.
+   Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD, safety_override for CRITICAL findings). Do NOT tag findings KEEP or FILTER — return evidence only; the orchestrator decides.
    """)
    ```
 
-   Only KEEP findings proceed to the fix loop. If the agent fails, pass all findings through unfiltered (fail-open).
+   After the dossier returns, synthesize it yourself: weigh evidence against severity and tag each finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP. Only KEEP findings proceed to the fix loop. If the agent fails, pass all findings through as KEEP (fail-open).
 
 6. **Output:** Write `<task-dir>/review-feedback.md` with KEEP findings by file and severity. Note FILTERED findings separately for transparency.
 

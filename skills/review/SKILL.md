@@ -2,7 +2,7 @@
 name: geniro:review
 description: "Parallel multi-agent code review with 5–6 specialized reviewers (bugs, security, architecture, tests, guidelines, +design when UI files present). Confidence-scored findings automatically filtered. Use for comprehensive code quality assessment."
 context: main
-model: sonnet
+model: inherit
 allowed-tools:
   - Read
   - Glob
@@ -192,15 +192,15 @@ If backpressure is unavailable, run directly: `<validation_cmd> 2>&1 | tail -80`
 
 Feed the pass/fail result into the Phase 4 judge pass. A failing build is automatically a CRITICAL finding — tag as [NEW] if the base branch build passes, or [PRE-EXISTING] if it was already broken.
 
-### Phase 3: Relevance Filter
+### Phase 3: Relevance Evidence + Orchestrator Tagging
 
-After reviewers complete, spawn a **relevance-filter-agent** to check which findings actually apply to this repo. The agent receives all findings plus repo context, then verifies each finding against actual codebase patterns and complexity level.
+After reviewers complete, spawn a **relevance-filter-agent** to gather convention/over-engineering/pattern evidence per finding. **You (the orchestrator) then decide KEEP vs FILTER yourself** from the dossier — do NOT delegate the tagging decision.
 
-**Why this step exists:** Reviewers apply general best practices, but not every best practice applies to every repo. A startup MVP doesn't need enterprise patterns. A repo that intentionally uses simple functions doesn't need dependency injection suggestions. This step filters findings that contradict repo conventions or suggest over-engineering.
+**Why the split:** Reviewers apply general best practices, but not every best practice applies to every repo. A startup MVP doesn't need enterprise patterns. A repo that intentionally uses simple functions doesn't need dependency injection suggestions. Repo-reality evidence gathering is mechanical and belongs in a subagent; the KEEP/FILTER decision weighs convention evidence against severity and belongs at the orchestrator (Opus tier) where session context lives.
 
 **Convention context gathering:** Before spawning the agent, read convention files that exist in the project — CONTRIBUTING.md, ADRs (docs/adr/), architecture docs. Pass their content alongside CLAUDE.md context.
 
-Spawn the relevance filter agent:
+Spawn the relevance-filter-agent for evidence gathering:
 
 ```
 Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
@@ -209,17 +209,16 @@ CHANGED FILES: [list of changed file paths — the agent reads files itself via 
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
 
-Evaluate each finding against this repo's actual patterns. For each finding, check:
+Gather evidence for each finding against this repo's actual patterns:
 1. Convention alignment — does the suggestion match how this repo already works?
 2. Over-engineering — is this YAGNI for this repo's complexity level?
 3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
 
-Tag each finding as KEEP or FILTER with evidence.
-CRITICAL severity findings (security vulnerabilities, data loss, crashes) are always KEEP.
+Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD, safety_override for CRITICAL findings). Do NOT tag findings KEEP or FILTER — return evidence only; the orchestrator decides.
 """)
 ```
 
-**Pass only KEEP findings to Phase 4 (Judge Pass).** FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 unfiltered (fail-open).
+**Orchestrator tagging:** After the dossier returns, synthesize it yourself per finding: weigh convention-alignment, over-engineering, and pattern-frequency evidence against severity and judge the finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4 (Judge Pass). FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 as KEEP (fail-open).
 
 ### Phase 4: Judge Pass
 
