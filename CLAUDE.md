@@ -40,6 +40,16 @@ This plugin provides safety hooks that run automatically:
 - **Secret scanning** — scans inputs and outputs for leaked secrets
 - **Compaction state** — preserves critical state across context compaction
 
+## Optional MCP Dependencies
+
+Some skills/agents unlock additional capabilities when a companion MCP server is available. They **gracefully degrade** when it isn't — install only the ones you need.
+
+| MCP | Used by | Enables | Install |
+|-----|---------|---------|---------|
+| **Playwright** (`mcp__plugin_playwright_playwright__*`) | `frontend-agent` Phase 3.5(b) visual self-critique; `/geniro:implement` Phase 7 Pre-Ship Visual Verification | Screenshot loop at 375/768/1440, console/network sanity checks, keyboard-nav verification, smoke-test of the shipped change | Install the `playwright` marketplace plugin alongside this one. The tool prefix `plugin_playwright_playwright__*` is what Claude Code exposes when Playwright comes from a sibling plugin. If absent, the visual loop and smoke-test step are skipped automatically. |
+
+To check what's available in your environment, look for `mcp__plugin_playwright_playwright__*` tools in the agent's tool list at runtime.
+
 ## Updating
 
 This plugin updates automatically via the Claude Code marketplace. To manually check:

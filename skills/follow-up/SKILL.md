@@ -105,7 +105,7 @@ Recommend: Fast for Trivial, Full for Small. If any hard-escalation signal is pr
 **NEVER skipped in Fast Lane:**
 - Agent delegation for implementation — Zero Direct Edits applies at every complexity and lane
 - Phase 4 Validate — build + lint + test must run, or be confirmed via agent Checks Report
-- Phase 6 Step 1 Review gate and Step 3 Ship question
+- Phase 6 Step 0 Pre-Ship Smoke Test offer (when conditions hold), Step 1 Review Gate, and Step 3 Ship question
 - Hard escalation signals — if any are present, Fast Lane is not offered
 
 **Model selection in Fast Lane:** Trivial impl agent: `model="haiku"` (mechanical edit). Small impl agent: `model="sonnet"` (unchanged).
@@ -384,6 +384,13 @@ Show a summary:
 - Validation: PASS/FAIL
 - Review: [disposition — "proceeded directly" / "1 HIGH fixed inline" / "fix-loop completed"]
 - Test coverage: [covered / gaps noted / tests added]
+- Smoke-test: [PASS / issues noted / skipped / n/a]   ← include only when Step 0 ran
+
+### Step 0: Pre-Ship Smoke Test (conditional — runs for Fast AND Full lanes before Review Gate)
+
+Runs only when BOTH conditions hold: (a) `git diff --name-only` contains at least one file matching the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, AND (b) Playwright MCP is available — check that `mcp__plugin_playwright_playwright__browser_navigate` is in your tool list. If either condition fails, skip silently to Step 1 and omit the Smoke-test line from the summary.
+
+When both hold, `AskUserQuestion` header "Smoke-test": "Yes — walk through it" / "Skip — go to review". On "Yes", follow the 8-step procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Pre-Ship Visual Verification verbatim (detect URL → baseline snapshot → console/network → targeted interaction → responsive sweep → visual record → cleanup). Append the result to the summary as the Smoke-test line, then proceed to Step 1 — do not re-show the summary.
 
 ### Step 1: Review Gate (loop entry point)
 
@@ -464,6 +471,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 | "We're in Fast Lane — I'll fix this one-liner directly instead of spawning an agent" | Delegation is mandatory at every complexity level and every lane. Fast Lane collapses phases; it does not permit orchestrator edits. Any exception becomes rationalization (5 audits eliminated the 'Trivial inline' exception). |
 | "Fast Lane reviewer spotted a bug — I'll fix it here" | Still delegate fixes to a fresh agent. Fast Lane reduces review depth, not accountability. If the diff-review raises any doubt, escalate to a Sonnet reviewer per the Fast Lane escape hatch. |
 | "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier is matched to task nature, not to risk appetite. Upgrading mechanical-task agents to sonnet defeats the cost rationale and signals drift. If the task genuinely needs reasoning, re-classify it using the Subagent Model Tiering table — don't silently upsize. |
+| "Validation passed and the diff is small — I'll skip the smoke-test offer" | Phase 6 Step 0 is conditional on UI file + Playwright MCP presence, not on change size or confidence. When both conditions hold, fire the `AskUserQuestion` — the user chooses whether to walk through it, not you. |
 
 ---
 
