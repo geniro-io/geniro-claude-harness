@@ -115,10 +115,10 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
    - **Include git workspace question** in this batch (new branch / current branch / worktree)
 8. Synthesize into spec document (only AFTER step 7). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
 9. Document assumptions in spec file
-10. **Git workspace setup** — execute user's choice from step 7:
-    - **Option A (new branch):** `git checkout -b <branch-name>` where `<branch-name>` is a slug from the task (e.g., `feat/add-user-settings`). The task directory (already created above) uses this branch name.
+10. **Git workspace setup** — execute user's choice from step 7. Options A and C both need a branch name; run `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md` once with the spec title and `$ARGUMENTS` to produce `<branch-name>` (e.g., `feat/ci-22-case-radar-timeline`) that follows the repo's convention rather than a hardcoded prefix.
+    - **Option A (new branch):** `git checkout -b <branch-name>`. The task directory (already created above) uses this branch name.
     - **Option B (current branch):** No git action. Continue on current branch.
-    - **Option C (worktree):** Call `EnterWorktree` with `name: "implement-<slug>"` (e.g., `implement-add-user-settings`). After entering, if the project has `.env` or similar gitignored config files but no `.worktreeinclude` file, warn the user that environment files won't be present and suggest creating `.worktreeinclude`.
+    - **Option C (worktree):** Derive a flat directory name by replacing `/` with `-` in `<branch-name>` (e.g., `feat-ci-22-case-radar-timeline`). Run `git worktree add -b <branch-name> .claude/worktrees/<dir-name>` via Bash — this creates both the worktree and the branch in one step, with the branch name exactly as computed. Then call `EnterWorktree` with `path: ".claude/worktrees/<dir-name>"` to switch the session into the already-created worktree. Do NOT use `EnterWorktree(name: ...)` here — that path auto-creates its own branch with a `worktree-` prefix, which would defeat the convention detection above. After entering, if the project has `.env` or similar gitignored config files but no `.worktreeinclude` file, warn the user that environment files won't be present and suggest creating `.worktreeinclude`.
 
 **Outputs:** spec.md, affected files list, Definition of Done
 
