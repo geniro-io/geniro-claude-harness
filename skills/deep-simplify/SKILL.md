@@ -319,6 +319,19 @@ If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), sugges
 | Missing utilities causing duplication | "Extract [utility] to shared project module" |
 | Quality gate the user enforced during review | "Add rule to `.geniro/instructions/` via `/geniro:instructions create`" |
 
+### Ship Guidance
+
+The fixes applied in Phase 4 are now in your working tree. Use the `AskUserQuestion` tool (do NOT output options as plain text) to route the user to ship:
+
+- **Question:** "The simplification fixes are applied but not committed. How do you want to ship them?"
+- **Header:** "Ship"
+- **Options:**
+  - label: "Commit yourself" — description: "Inspect the diff, commit, and push manually"
+  - label: "Ship via /geniro:follow-up" — description: "Recommended. Run `/geniro:follow-up ship simplification fixes` for a review-gated commit"
+  - label: "Leave uncommitted" — description: "Keep the diff in the working tree — I'll handle it later"
+
+If the user picks "Leave uncommitted", do not run any git commands.
+
 ---
 
 ## Compliance — Do Not Skip Phases

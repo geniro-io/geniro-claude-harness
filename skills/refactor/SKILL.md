@@ -327,6 +327,8 @@ Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Return find
 
 Delete `.geniro/refactor/state.md` at the very end of Phase 5.
 
+After deleting state.md, tell the user explicitly: "Refactor complete — the diff is in your working tree. Commit it yourself, or run `/geniro:follow-up` to ship with a review gate."
+
 ## Git Constraint
 
 Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: `git checkout -- .` is permitted in Phase 5 for reverting failed changes — this is an orchestration-level revert, not a version control operation.

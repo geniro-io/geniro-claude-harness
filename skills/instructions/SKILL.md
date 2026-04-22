@@ -314,7 +314,8 @@ Show the created file content and report:
 Created `.geniro/instructions/{{scope}}.md`
 
 This file will be loaded by {{affected skills list}} at the start of each run.
-Edit it anytime, or run `/geniro:instructions validate` to check for issues.
+These rules take effect the next time you run `/geniro:{{scope}}` (or any affected skill for global.md).
+Edit with `/geniro:instructions edit {{scope}}`, or run `/geniro:instructions validate` to check for issues.
 ```
 
 ## Command: edit
@@ -343,7 +344,7 @@ Based on user input, edit the file using the Edit tool. Preserve existing conten
 
 ### Step 4: Show updated file
 
-Display the final content and confirm: "Updated `.geniro/instructions/{{scope}}.md`."
+Display the final content and print: "Updated `.geniro/instructions/{{scope}}.md`. The new rules take effect the next time you run `/geniro:{{scope}}` (or any affected skill for global.md)."
 
 ## Command: validate
 

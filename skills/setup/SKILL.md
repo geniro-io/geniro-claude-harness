@@ -605,7 +605,8 @@ Integrations: [list enabled]
 Next steps:
 1. [If Linear] Run: claude mcp add --transport http linear https://mcp.linear.app/mcp
 2. Commit: git add CLAUDE.md .geniro/workflow/ .geniro/instructions/ && git commit -m 'chore: add geniro plugin config'
-3. Start using: /geniro:implement, /geniro:review, /geniro:refactor
+3. Orient (optional): /geniro:onboard — generate a CODEBASE_MAP.md for this project
+4. Start working: /geniro:plan <feature>, /geniro:implement <feature>, /geniro:features add, or /geniro:review (for existing diffs)
 ```
 
 ## Re-Running Setup (Feature Sync)
@@ -754,7 +755,7 @@ B) Something needs adjustment — let me tell you what to fix
 C) Start over — re-run setup from scratch
 ```
 
-- **If A**: Print the commit instructions
+- **If A**: Print the commit instructions from Phase 4.5's "Next steps" list, and remind the user: "After committing, run `/geniro:onboard` to build a codebase map, or jump straight to `/geniro:plan <feature>` to start work."
 - **If B**: Ask what needs fixing, apply changes, then ask again
 - **If C**: Remove plugin-generated CLAUDE.md, then re-run from Phase 1
 

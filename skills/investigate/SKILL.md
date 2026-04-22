@@ -314,7 +314,7 @@ Present the synthesized, reviewed answer to the user. Include:
 
 ### Step 2: Offer follow-up
 
-Use the `AskUserQuestion` tool with header "Follow-up" and question "Want to dig deeper?" with options:
+Use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Follow-up" and question "Want to dig deeper?" with options:
 - "Dive deeper into [specific aspect]" — re-run with narrower scope
 - "I have a follow-up question" — start a new investigation
 - "Save key findings to memory" — persist important discoveries
@@ -322,6 +322,15 @@ Use the `AskUserQuestion` tool with header "Follow-up" and question "Want to dig
 
 If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). Max 2 dive-deeper rounds — if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
 If user wants to save findings: extract non-obvious architectural insights, design rationale, or gotchas. Save as `project` memory. Before writing, check if an existing memory covers this topic — UPDATE rather than duplicate.
+
+If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` to route them to any follow-up action the investigation surfaced. Skip this second question if the user already indicated they are done with the topic entirely.
+- **Question:** "Anything to act on from this investigation?"
+- **Header:** "Next step"
+- **Options:**
+  - label: "Fix a bug I found" — description: "Run `/geniro:debug <symptom>` to investigate and propose a fix"
+  - label: "Implement a change (non-trivial)" — description: "Run `/geniro:plan` to design the change before building"
+  - label: "Implement a quick change" — description: "Run `/geniro:follow-up <what to change>` for trivial/small fixes"
+  - label: "Nothing — just wanted the answer" — description: "End here. Resume your prior work."
 
 ## Git Constraint
 

@@ -185,6 +185,20 @@ Express App (index.ts)
 | "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
 | "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
 
+## Next Steps
+
+After the map is generated, use the `AskUserQuestion` tool (do NOT output options as plain text) to route the user to their next action:
+
+- **Question:** "The codebase map is ready. What do you want to do next?"
+- **Header:** "Next step"
+- **Options:**
+  - label: "Plan a change" — description: "Run `/geniro:plan` to design an implementation plan with the map as context"
+  - label: "Start implementing" — description: "Run `/geniro:implement` if you already have a clear target to build"
+  - label: "Investigate specifics" — description: "Run `/geniro:investigate <question>` to dig deeper into a subsystem"
+  - label: "Review feature backlog" — description: "Run `/geniro:features list` to see planned work"
+
+---
+
 ## Definition of Done
 
 For each onboarding, confirm:
@@ -198,6 +212,7 @@ For each onboarding, confirm:
 - [ ] Known issues and tech debt noted
 - [ ] Entry points listed (how to run, test, deploy)
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use --focus for large repos)
+- [ ] User routed to a next-step command via AskUserQuestion
 
 ---
 
