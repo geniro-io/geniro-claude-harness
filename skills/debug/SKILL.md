@@ -1,11 +1,19 @@
 ---
 name: geniro:debug
-description: "Scientific-method bug investigation with hypothesis tracking. Investigate complex bugs: Observe → Hypothesize → Test → Isolate → Propose Fix → Verify Root Cause, then ESCALATE the proposed patch to /geniro:follow-up (trivial) or /geniro:implement (non-trivial). This skill does NOT apply production fixes itself — it produces a report + proposed patch. Do NOT use for bugs with obvious root cause or already-understood fixes — use /geniro:follow-up directly."
+description: "Two modes — scientific-method bug investigation (default) or adversarial verify-changes (edge-case test authoring against a diff). Default: Observe → Hypothesize → Test → Isolate → Propose Fix → Verify Root Cause, then ESCALATE the proposed patch to /geniro:follow-up (trivial) or /geniro:implement (non-trivial). Adversarial: authors F→P failing tests against a diff via adversarial-tester-agent. This skill does NOT apply production fixes itself — it produces a report + proposed patch. Do NOT use for bugs with obvious root cause or already-understood fixes — use /geniro:follow-up directly."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
-argument-hint: "[bug description or reproduction steps]"
+argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 ---
+
+## Subagent Model Tiering
+
+| Subagent | Model | Why |
+|---|---|---|
+| `adversarial-tester-agent` | `sonnet` | Matches existing call sites in `/geniro:implement` Phase 6 Stage D and `/geniro:follow-up` Medium Phase 5. Test-authoring + F→P verification workload is well-suited to sonnet's latency/cost profile. |
+
+Every `Agent(...)` spawn in this skill MUST pass an explicit `model=` argument per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
 # Debug: Scientific-Method Investigation
 
@@ -19,11 +27,19 @@ OBSERVE → HYPOTHESIZE → TEST → ISOLATE → PROPOSE FIX → VERIFY ROOT CAU
 
 This is not a suggestion—it's the required process. Do NOT skip steps or guess.
 
-## Bug Report
+## Input
 
 $ARGUMENTS
 
-**If `$ARGUMENTS` is empty**, ask the user via `AskUserQuestion` with header "Bug": "What bug are you investigating?" with options "Describe the symptoms" / "Paste error message" / "Point to a failing test". Do not proceed until a bug description is provided.
+**Mode routing (inspect `$ARGUMENTS` BEFORE the empty-check):**
+
+- If `$ARGUMENTS` matches any **verify-intent signal**, route to **Adversarial Mode** (see `## Adversarial Mode: Verify Last Changes` below) and skip the scientific-method Workflow. Every signal below is **anchored** — bare keywords alone are NOT enough, because phrases like "verify that login returns 500" or "stress-test revealed a memory leak" are scientific-method bug reports, not verify requests:
+  - Anchored keyword signals (keyword + anchor token): `verify <changes|diff|last|recent|my|this|PR>`, `break <my|the> diff`, `hunt for bugs in <diff|change|PR>`, `find edge cases in <diff|change|PR>`, `adversarial <mode|pass|scan|run>`, `stress-test <the diff|my change|last changes>`
+  - Phrase signals: `verify last changes`, `verify recent changes`, `verify my changes`, `check last changes`, `break my diff`
+  - Explicit diff range signals: `HEAD~N..HEAD`, `HEAD~N`, `main...HEAD`, a bare PR ref (`#1234` or GitHub PR URL), or a bare branch name used alongside any verify keyword
+- Otherwise → standard scientific-method flow (the `## Workflow: Observe → ...` section, unchanged). When in doubt (ambiguous input), default to scientific-method mode — the user can re-invoke with explicit adversarial phrasing if needed.
+
+**If `$ARGUMENTS` is empty**, ask the user via `AskUserQuestion` with header "Mode": "What are we doing?" with options "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)". The first three route to scientific-method mode (the selected option becomes the initial bug description seed); the fourth routes to Adversarial Mode. Do not proceed until the user answers.
 
 ## Hypothesis Tracking Format
 
@@ -178,7 +194,102 @@ After documenting, classify each finding by its **routing target**. ONLY route t
 
 Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 
-## Escalation Limits
+## Adversarial Mode: Verify Last Changes
+
+### A. Purpose
+
+Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff. Complements the scientific-method mode: that mode REPORTS hypotheses about a known bug; adversarial mode hunts for unknown bugs in recent changes by writing tests that fail on today's code. Test authoring is delegated to `adversarial-tester-agent`; the orchestrator independently re-runs authored tests to confirm the failure before surfacing findings.
+
+### B. Diff Resolution
+
+Resolve the diff scope using the same multi-form parser as `/geniro:review` Phase 1 (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §Phase 1: Collect Context & Triage — do NOT duplicate the parser here).
+
+**Default when no explicit range is passed:** `git diff main...HEAD` (covers everything on the current branch not on main). Also compute `git diff --name-only main...HEAD` to get the file list. If the branch is `main`, fall back to `HEAD~1..HEAD`. Include uncommitted work via a trailing `git diff` (unstaged) + `git diff --cached` (staged) snapshot when present.
+
+**Supported shapes:**
+- Bare keyword (`"verify last changes"`) → default (`main...HEAD`, or `HEAD~1..HEAD` if on main)
+- Explicit range (`HEAD~3..HEAD`, `abc123..def456`)
+- Branch (`feat/foo...HEAD`)
+- PR ref (strip leading `#`, resolve via `gh pr diff <number-or-url>`)
+
+### C. Skip Conditions
+
+Apply the same skip-matrix philosophy as `skills/follow-up/SKILL.md` Step 1.5 (see that file for the canonical matrix — do NOT duplicate). Adversarial mode is SKIPPED and the skill reports `"no adversarial pass — <reason>"` when any of these hold:
+
+- Empty diff (nothing to test)
+- Diff contains zero production-code files (docs / config / lock / generated only)
+- Diff is >50 changed files OR >1000 changed LOC → suggest `/geniro:review` for oversized diffs (the agent's 10-test hard cap wastes budget on diffs this large)
+
+### D. Adversarial Workflow
+
+1. **Resolve the diff** (see B). Pre-inline full diff + changed-file contents for the spawn prompt.
+2. **Detect the project test framework.** Read `CLAUDE.md` Essential Commands section + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract (a) the test command, (b) test-file naming convention, (c) 1–2 exemplar test files closest to the changed code.
+3. **Spawn `adversarial-tester-agent`** — see Spawn Template in §E below.
+4. **Independently re-run authored tests.** Read the agent's report at `.claude/.artifacts/debug-adversarial-tests.md`, extract authored test file paths, then run the project test command **once per authored test**. Single independent re-run per authored test (the agent already ran its own 3× flake check per its Step 5; duplicating would waste budget). Any test that does not fail deterministically on the re-run is deleted from disk AND removed from the report.
+5. **Present Adversarial Findings** — see §F below.
+6. **Escalate.** Reuse Step 6.5b `AskUserQuestion` (header "Escalate") with the same three options — Trivial → `/geniro:follow-up`, Non-trivial → `/geniro:implement`, Leave-it-to-me. The handoff payload is the Adversarial Findings summary from §F (authored test file paths are the escalation targets — the receiving skill applies the fix and confirms the now-green test suite). If zero red tests survived re-verification, SKIP Step 6.5b entirely — report `"no bugs found in scanned diff"` and go to DoD.
+
+### E. Spawn Template
+
+```
+Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+## Task: Adversarial Edge-Case Test Authoring (Debug — Verify Changes)
+
+### Diff (changed files + contents)
+[Pre-inline `git diff <resolved-range>` output AND full contents of every changed source file from Step 1]
+
+### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
+`${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+
+### Project Test Framework
+- Test command (from CLAUDE.md Essential Commands): [e.g. `pnpm test`, `pytest`]
+- Test-file naming convention: [project's pattern — e.g. `*.test.ts` adjacent to source]
+- Exemplar test files (1-2, pre-inlined): [closest existing test files to the changed code]
+
+### Hypothesis Seeds
+none — adversarial mode runs a fresh pass (no prior reviewer findings available in debug).
+
+### Output
+Write your report to `.claude/.artifacts/debug-adversarial-tests.md`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+
+### F→P Invariant (NON-NEGOTIABLE)
+Every test you keep MUST fail 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
+
+### Scope
+Diff-only — the orchestrator resolved the scope above. Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.
+""", description="Adversarial tests: /geniro:debug verify-changes")
+```
+
+### F. Findings Summary
+
+After re-verification, present this block directly in chat:
+
+```markdown
+## Adversarial Findings
+
+**Diff scope:** [range + file count + LOC]
+
+**Hypotheses generated:** [N]
+**Tests authored (kept after re-verify):** [M]
+**Tests discarded (F→P failed on re-run):** [K]
+
+### CRITICAL / HIGH findings
+[For each: test file path, targeted source, category, confidence, hypothesis, reproduction command, suggested direction for fix (NOT the patch itself)]
+
+### MEDIUM findings
+[same shape]
+
+### Discarded / Inconclusive
+[brief list with reasons]
+
+**Zero red tests?** [If M == 0 after re-verify: state plainly "no bugs found in scanned diff" — this is a valid outcome.]
+```
+
+If zero red tests survive, skip escalation entirely and go directly to Cleanup/DoD. Otherwise proceed to escalation per §D Step 6.
+
+## Escalation Limits (Scientific-Method Mode)
+
+These limits apply to scientific-method mode only. Adversarial mode inherits the agent-level stop rules defined in `agents/adversarial-tester-agent.md` (5 consecutive discards stop hypothesis generation; 10 authored tests is the hard cap per run).
 
 - **Hypothesis testing**: If 5 hypothesis tests across all hypotheses are inconclusive, stop and escalate to user with findings. May need domain expertise or more reproduction data.
 - **Fix attempts**: If 2 fix attempts fail verification, stop and use the `AskUserQuestion` tool (do NOT output options as plain text) to present findings with options: A) Try different approach, B) Escalate to /geniro:implement for deeper rework, C) Show investigation summary
@@ -242,21 +353,28 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "The fix is one line, I'll just write it and escalate nothing" | Escalate every fix. One-line fixes go to `/geniro:follow-up`; the architecture/review gate still applies. |
 | "I added experimental logging and while I'm here I'll patch the bug too" | Experiments and fixes are separate deliverables. Revert experimental edits; escalate the proposed patch. |
 | "The user said just fix it" | If the user explicitly overrides, pick "Leave it to me" in Step 6.5 and produce the patch as text — still do NOT write it to source. The user applies it manually. |
+| "Changes look fine, I'll skip adversarial mode" | "Looks fine" is the attacker's favorite surface. If the user asked for verify-changes, run the adversarial pass — a zero-red-tests outcome is still a valid deliverable, but only after the agent actually ran. |
+| "Small diff, adversarial pass is overkill" | The 10-test hard cap and single-agent cost make adversarial mode cheap even on small diffs. Skip only when the skip-matrix rules fire (empty / docs-only / oversized), not on vibes. |
+| "I'll reason about edges instead of authoring tests" | Reasoning is reviewer-mindset. Adversarial mode AUTHORS executable failing tests because reasoning misses what running code catches. Delegate to the agent. |
+| "The agent reported F→P, I'll trust it" | The orchestrator MUST independently re-run authored tests per the agent's own Delegation Boundary. Self-reported F→P is evidence, not proof. |
 | "A finding improves an agent prompt, I'll include it in Step 8" | Plugin files are out of scope. Suggest only project-owned targets (CLAUDE.md, `.geniro/instructions/`, `.geniro/knowledge/learnings.jsonl`). |
 | "The findings are in HYPOTHESES.md, I'll just ask the escalation question" | HYPOTHESES.md is a scratchpad, not a user-facing report. Step 6.5a requires an explicit findings summary in chat before the escalation question — the user decides where to route based on that summary. |
 
 ## Cleanup
 
 After the debug session completes (fix verified or escalated):
-- Remove `.geniro/debug/HYPOTHESES.md` — its useful content has already been saved to memory (root causes, gotchas, techniques). The file is a working scratchpad, not a permanent record.
+- **Scientific-method mode only:** Remove `.geniro/debug/HYPOTHESES.md` — its useful content has already been saved to memory (root causes, gotchas, techniques). The file is a working scratchpad, not a permanent record.
+- **Scientific-method mode only:** Remove any temporary test files or debug scripts created during the session (adversarial mode authors keeper tests — those stay on disk).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
-- Remove any temporary test files or debug scripts created during the session.
+- **Adversarial mode:** `.claude/.artifacts/debug-adversarial-tests.md` may remain as audit trail per plugin convention; authored test files stay on disk.
 
 Cleanup is best-effort — if a command fails silently, that's fine.
 
 ## Definition of Done
 
-For each debug session, confirm:
+For each debug session, confirm the checklist for the mode that ran.
+
+### Scientific-Method Mode
 
 - [ ] Bug reproduced consistently with clear steps
 - [ ] All hypotheses recorded in `.geniro/debug/HYPOTHESES.md`
@@ -269,6 +387,20 @@ For each debug session, confirm:
 - [ ] All experimental edits to non-test source reverted before handoff
 - [ ] Investigation documented for future reference
 - [ ] Cleanup completed (HYPOTHESES.md removed, temp files cleaned)
+
+### Adversarial Mode
+
+- [ ] Diff scope resolved (range + file list recorded)
+- [ ] Skip conditions checked (and explicitly reported if skipped)
+- [ ] Project test framework detected from CLAUDE.md / package.json / pyproject.toml
+- [ ] `adversarial-tester-agent` spawned with all 5 Input Contract slots pre-inlined
+- [ ] Report written to `.claude/.artifacts/debug-adversarial-tests.md`
+- [ ] Authored tests independently re-run by orchestrator (1× per test)
+- [ ] F→P-confirmed tests retained; any passing-today tests deleted
+- [ ] Adversarial Findings summary (§F) presented to user in chat
+- [ ] Escalation decision made via Step 6.5b (or "no bugs found" exit if zero red tests)
+- [ ] Authored test files left on disk (NOT reverted — unlike scientific-method experiments)
+- [ ] Cleanup completed (`.claude/.artifacts/debug-adversarial-tests.md` can remain as audit trail per plugin convention)
 
 ---
 
