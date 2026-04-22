@@ -89,7 +89,7 @@ All three agents run in parallel. Each gets a focused research scope with zero o
 Replace every `{{placeholder}}` with the actual content from Step 1 before spawning.
 
 ```
-Agent(prompt="""
+Agent(model="opus", prompt="""
 ## Task: Internet Research
 Search for patterns, best practices, and known solutions related to:
 {{issue description from Step 1}}
@@ -108,7 +108,7 @@ For each finding, provide:
 Return findings as a structured table. Do NOT suggest implementation — research only.
 """, description="Research: internet patterns")
 
-Agent(prompt="""
+Agent(model="opus", prompt="""
 ## Task: Report.md Research
 Read `report.md` and search for sections relevant to:
 {{issue description from Step 1}}
@@ -129,7 +129,7 @@ For each finding, provide:
 Return findings as a structured table. Do NOT suggest implementation — research only.
 """, description="Research: report.md patterns")
 
-Agent(prompt="""
+Agent(model="opus", prompt="""
 ## Task: Codebase Exploration
 Explore the current state of the template files related to:
 {{issue description from Step 1}}
@@ -193,6 +193,26 @@ Write checkpoint with approved finding count.
 
 ---
 
+## PHASE 2b: REDUNDANCY & RELEVANCE VALIDATION (subagent)
+
+**Purpose:** Adversarial gate BEFORE the user sees findings — catches items that duplicate existing instructions or propose theoretical/over-engineered changes. The orchestrator cannot self-review its own Phase 2 filtering without bias.
+
+Spawn `relevance-filter-agent` with every Phase 2-approved finding. The agent greps the target files for existing instructions (redundancy) and checks whether each change is needed for current scope or is YAGNI / defensive polish (relevance). It returns an evidence dossier per finding — NOT a KEEP/FILTER tag.
+
+```
+Agent(subagent_type="relevance-filter-agent", model="opus", prompt="""
+FINDINGS: [all Phase 2-approved findings, numbered, with file paths and proposed changes]
+CHANGED FILES: [list of file paths that would be modified — the agent reads them itself]
+PROJECT CONTEXT: [relevant CLAUDE.md excerpts, CONTRIBUTING.md if present]
+
+For each finding, return: ALIGNS|CONTRADICTS|NEUTRAL for redundancy (cite line if redundant); APPROPRIATE|OVER-ENGINEERED for necessity; one-line rationale. Do NOT tag KEEP or FILTER — evidence only; the orchestrator decides.
+""", description="Validate: redundancy & relevance")
+```
+
+Read the dossier yourself: tag FILTER if CONTRADICTS (redundant) or OVER-ENGINEERED (not needed); otherwise KEEP. Do NOT delegate this tagging. Write checkpoint with KEEP count. Filtered findings appear in Phase 3's "Filtered" section for transparency but are not proposed for implementation.
+
+---
+
 ## PHASE 3: PRESENT TO USER (WAIT)
 
 **Purpose:** Show evidence-backed findings and get approval before any changes.
@@ -211,6 +231,9 @@ Write checkpoint with approved finding count.
 
 ### Rejected (insufficient evidence)
 - [finding] — rejected because [reason]
+
+### Filtered by Phase 2b (redundant or over-engineering)
+- [finding] — filtered because [redundant with <file:line> | over-engineering for current scope]
 
 ### Implementation plan
 For each finding: which files change, what changes, estimated line impact.
@@ -255,7 +278,7 @@ Group approved findings into implementation units:
 Pre-inline the current file content each agent needs (from Phase 1 codebase research).
 
 ```
-Agent(prompt="""
+Agent(model="opus", prompt="""
 ## Task: Implement Changes
 Apply the following approved changes:
 
@@ -310,7 +333,7 @@ If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix roun
 MUST be a fresh agent — never reuse implementation agents (avoids anchoring bias).
 
 ```
-Agent(prompt="""
+Agent(model="opus", prompt="""
 ## Task: Independent Review of Template Changes
 Review changes made to the geniro-claude-plugin template. You were NOT involved in
 researching or implementing these changes — review with fresh eyes.
@@ -459,12 +482,14 @@ If the user interjects during any phase:
 | "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
 | "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
+| "The findings are obviously good, skip the redundancy check" | Phase 2b exists because orchestrator self-filtering inherits the researcher's framing. A fresh subagent greps the target file for existing instructions and flags over-engineering — catches what the proposer cannot see. |
 
 ## Definition of Done
 
 - [ ] Complexity gate applied (fast path or full pipeline)
 - [ ] Phase 1: Research agents completed (3 for full pipeline, 1-2 for fast path)
 - [ ] Phase 2: Findings cross-referenced and filtered to evidence-backed only
+- [ ] Phase 2b: Redundancy & relevance validated via relevance-filter-agent subagent
 - [ ] Phase 3: Evidence table presented, user approved specific changes
 - [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
 - [ ] Phase 5: Independent review by fresh agent passed
