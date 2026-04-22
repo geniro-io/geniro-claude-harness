@@ -147,7 +147,7 @@ Before the plan is presented to the user, verify:
 
 ## Validation Standard
 
-Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The skeptic-agent validates all 8 dimensions plus mirage detection.
+Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The skeptic-agent validates dimensions 1-8 for every plan. Dimensions 9-10 apply only when the plan has a `## Milestones` section (produced by `/geniro:decompose`).
 
 1. **Requirement coverage** — every user requirement appears as a step or is covered by a step
 2. **Task atomicity** — each step is independently verifiable and scoped to 1-5 files
@@ -157,5 +157,7 @@ Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The s
 6. **Context compliance** — plan follows project conventions (naming, patterns, structure)
 7. **Gap detection** — nothing silently dropped or assumed "obvious"
 8. **Scope sanity** — plan doesn't exceed or fall short of what was asked
+9. **Milestone coverage** (decomposed plans only) — every requirement from the master plan's Goal and every acceptance criterion from the spec must be covered by at least one milestone's Acceptance Criteria. No silent drops between milestones. BLOCKER when a requirement has zero milestone coverage.
+10. **Milestone dependency ordering** (decomposed plans only) — `Upstream Dependencies` across milestone files must form a DAG with no forward references. If milestone 3 references "the API created in milestone 5", that is a forward reference and a BLOCKER. Same-wave milestones (no cross-dependency) must NOT share a primary file in their Files Affected tables.
 
-**Mirage detection (mandatory):** For every file path, function name, and package the plan references, the validator must grep/glob the codebase to confirm it actually exists. Report any "mirages" — references to things that don't exist. This catches hallucinated APIs, nonexistent files, and dropped requirements before implementation begins.
+**Mirage detection (mandatory):** For every file path, function name, and package the plan references, the validator must grep/glob the codebase to confirm it actually exists. Report any "mirages" — references to things that don't exist. This catches hallucinated APIs, nonexistent files, and dropped requirements before implementation begins. In decomposed plans, a file that does not exist yet because an upstream milestone creates it is NOT a mirage — check the upstream milestone's Files Affected table before reporting. Still a mirage if no milestone creates it.

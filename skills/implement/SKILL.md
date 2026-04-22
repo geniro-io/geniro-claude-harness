@@ -64,10 +64,11 @@ Derive `<branch-name>` from git branch. Create at start of Phase 1. All artifact
 
 ## State Persistence & Phase Checkpoints
 
-**After completing each phase, write a checkpoint to `<task-dir>/state.md`** (`Feature:` / `Spec-file:` MUST stay at the top so PreCompact's first-10-line capture preserves them; written once at end of Phase 1, carried forward unchanged). Read `state.md` on skill start to resume from the next incomplete phase.
+**After completing each phase, write a checkpoint to `<task-dir>/state.md`** (`Feature:` / `Spec-file:` MUST stay at the top so PreCompact's first-10-line capture preserves them; written once at end of Phase 1, carried forward unchanged). Read `state.md` on skill start to resume from the next incomplete phase. When running in milestone-mode (plan has `## Milestones` section), the `Milestones:` field tracks per-milestone status — update it in Phase 7 Step 8 when the milestone ships, and read it in the Task Execution Step 0 resume logic.
 ```
 Feature: <F<n> if Geniro feature ID, else "none">
 Spec-file: <FEATURES.md Notes-column path, else "none">
+Milestones: <"none" | "[1: pending, 2: pending, ...]" — populated by /geniro:decompose and updated by this skill as milestones complete>
 Phase [N] completed: [phase name]
 Completed phases: [1, 2, ..., N]
 Next phase: [N+1]
@@ -130,15 +131,16 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Purpose:** Produce full implementation plan, validate it.
 
-**Pre-check: Existing plan detection.** Before spawning the architect, check for an existing plan from any source:
+**Pre-check: Existing plan or milestone detection.** Before spawning the architect, check for an existing plan OR a milestone reference from any source:
 
-1. **Conversation plan (plan mode):** If the conversation contains a structured implementation plan with file-level steps (from Claude Code's plan mode via Shift+Tab, or a prior planning discussion), extract it into `<task-dir>/plan-<slug>.md` following the structure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`. Set the header `Status: approved | Source: plan-mode`. Detection signal: the conversation has a multi-step plan with specific file paths and implementation details — not just a high-level discussion.
-2. **Plan files (from /geniro:plan):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`.
-3. **$ARGUMENTS plan:** If `$ARGUMENTS` contains or references a plan file path, read and use it directly.
+1. **Milestone reference (highest priority)** — detect a request to implement a single milestone from a decomposed plan. Patterns: `milestone N` argument, milestone-file path, or `continue` with `Milestones:` state. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 2: Milestone Reference Detection for the full detection rules, skip-architect routing, and milestone-mode scope flag.
+2. **Conversation plan (plan mode):** If the conversation contains a structured implementation plan with file-level steps (from Claude Code's plan mode via Shift+Tab, or a prior planning discussion), extract it into `<task-dir>/plan-<slug>.md` following the structure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`. Set the header `Status: approved | Source: plan-mode`. Detection signal: the conversation has a multi-step plan with specific file paths and implementation details — not just a high-level discussion.
+3. **Plan files (from /geniro:plan or /geniro:decompose):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`. If the plan contains a `## Milestones` section (produced by `/geniro:decompose`) AND `$ARGUMENTS` did not name a specific milestone, use the milestone-mode continue-logic from rule 1 instead of the plan as a whole — warn the user: "This plan is decomposed into N milestones. Running `/geniro:implement continue` or `/geniro:implement milestone <N>` is required. Pick one now." then `AskUserQuestion` listing milestones by name with status.
+4. **$ARGUMENTS plan:** If `$ARGUMENTS` contains or references a plan file path (not a milestone file — those are handled in rule 1), read and use it directly.
 
-**If a plan is found:** Skip architect-agent. Log: "Using existing plan: `<filename>`." Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion` (always-WAIT — see implement-reference.md §Auto Mode Behavior): A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
+**If a plan or milestone is found:** Skip architect-agent. Log: "Using existing plan: `<filename>`" or "Using milestone <N>: `<filename>`". Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion` (always-WAIT — see implement-reference.md §Auto Mode Behavior): A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
 
-**If no plan found:** Run the full architect flow below.
+**If no plan or milestone found:** Run the full architect flow below.
 
 **Architect flow:**
 
@@ -217,6 +219,7 @@ Read the plan's steps and group into WUs — clusters of tightly coupled files. 
 - WU = 1-5 tightly coupled files. 6+ files -> split further.
 - **Each WU that creates or modifies source files MUST include corresponding test files in its scope.** If the plan lists `auth.service.ts`, the WU scope must also list `auth.service.test.ts` (or equivalent). No source file without its test file.
 - Files in different WUs must be independently changeable
+- In milestone-mode (Phase 2 pre-check rule 1 matched): scope is HARD-LIMITED to the milestone's Files Affected table. Any step that would touch a file outside the table must be deferred to a later milestone — do NOT expand scope mid-milestone. Forward-reference files (used only by future milestones) must NOT be created in this milestone.
 - Hotspot files (routing, config, barrel exports) -> LAST wave
 - Each WU needs a clear Definition of Done (including: "tests written and passing for all new/changed logic")
 
@@ -400,38 +403,7 @@ Use `AskUserQuestion` (max 4 options). The user can always type a custom respons
 
 ### Step 6: Adjustment Routing (if user chose D)
 
-Ask the user to describe the tweak. Classify by size, then follow the corresponding action sequence.
-
-#### Big — changes to data model, API contract, new endpoints
-
-1. Write tweak description to `<task-dir>/notes.md`
-2. Rewrite `state.md`: keep only Phase 1 checkpoint, remove all Phase 2, 3, 4, 5, 6 markers. Add `Tweak round: N (Big) — [description]`
-3. Update existing `plan-<slug>.md` via architect-agent with tweak context (do NOT create a new plan file)
-4. Full pipeline re-entry: Phase 2 (architect revision + skeptic) → Phase 3 (re-approval) → Phase 4 (implement delta only) → Phase 5 (simplify) → Phase 6 (all stages) → Phase 7 Step 4 summary re-presentation
-
-#### Medium — new logic, additional fields
-
-1. Write tweak description to `<task-dir>/notes.md`
-2. Update `state.md`: add `Tweak round: N (Medium) — [description]`
-3. Spawn implementer agent with tweak context + affected files pre-inlined
-4. Re-run Phase 6 Stage A (build + test + lint)
-5. Re-run Phase 6 Stage B (spec compliance) with tweak description as context
-6. Re-run Phase 6 Stage C with fresh reviewer agents
-7. Loop to Step 4 summary re-presentation
-
-#### Small — styling, typo, logic tweak
-
-1. Write tweak description to `<task-dir>/notes.md`
-2. Update `state.md`: add `Tweak round: N (Small) — [description]`
-3. Spawn implementer agent with tweak context
-4. Re-run Phase 6 Stage A (build + test + lint)
-5. Loop to Step 4 summary re-presentation
-
-**Loop target:** After any tweak, loop back to **Step 4 summary re-presentation only**. Steps 1-3 (docs, learnings, improvements) run once on first entry to Phase 7 and are NOT repeated on tweak rounds.
-
-**Soft limits (by size):**
-- **Big tweaks:** After 2 rounds, suggest starting a new `/geniro:implement` session. Big tweaks compound risk — a fresh pipeline provides clean context and proper architecture review.
-- **Medium/Small tweaks:** After 3 rounds, suggest `/geniro:follow-up` for remaining changes.
+Ask the user to describe the tweak. Classify by size (Big / Medium / Small), then follow the corresponding action sequence in `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 7 Step 6: Adjustment Routing. That section covers the per-tier numbered steps, loop target (always Step 4 summary re-presentation), and soft limits (Big: 2 rounds → `/geniro:implement`; Medium/Small: 3 rounds → `/geniro:follow-up`).
 
 ### Step 7: Commit
 
@@ -446,7 +418,8 @@ Execute user's chosen method. See reference file for commit details per option.
   - Only use `action: "remove"` if user explicitly says to abandon the work
 - **Integrations:** If workflow files specify completion actions (e.g., issue status updates), follow their instructions (see reference file for details)
 - **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
-- **State:** Append `Pipeline: COMPLETE` to `<task-dir>/state.md`.
+- **State:** If milestone-mode AND any milestone remains non-`completed`, skip this step (pipeline is not complete yet). Otherwise append `Pipeline: COMPLETE` to `<task-dir>/state.md`. In milestone-mode when the LAST milestone completes, also set the master plan's `Status: completed` header.
+- **Milestone status update (milestone-mode only):** If this run executed a single milestone (Phase 2 pre-check rule 1 matched), update milestone file + master plan table + state.md, append Implementation Notes, and prompt for next milestone. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 7 Step 8: Milestone Status Update for the full 6-step procedure and auto-mode behavior.
 - **Feature row update:** Read `Feature:` from `<task-dir>/state.md`. If a Geniro feature ID, run `/geniro:features complete <id>` (moves FEATURES.md row to `done`, records the commit). If "none", skip.
 - **Planning artifacts:** Use `AskUserQuestion` (do NOT ask as plain text — use the tool):
 
@@ -471,8 +444,9 @@ If "Delete": remove `<task-dir>/` recursively.
 
 ## TASK EXECUTION
 
-0. **Check for existing state.** Glob for `<task-dir>/state.md`. Three cases:
+0. **Check for existing state.** Glob for `<task-dir>/state.md`. Four cases:
    - **No state.md** → fresh first run, proceed normally.
+   - **state.md has `Milestones:` field with at least one non-`completed` milestone AND `$ARGUMENTS` is empty or `continue`** → milestone-mode resume: load the first non-completed milestone (pick `in-progress` over `pending`), set that milestone's file as the implementation target, skip Phase 1 Discover (spec already exists), jump to Phase 2 pre-check rule 1 (milestone reference) which will load the file and go to Phase 3.
    - **state.md exists, no "Pipeline: COMPLETE"** → interrupted run, resume from next incomplete phase.
    - **state.md exists, has "Pipeline: COMPLETE"** → second run with changed requirements. Read all prior artifacts (`spec.md`, `plan-*.md`, `concerns.md`) into context now (before any renames). Proceed to Phase 1 with this prior context available.
 

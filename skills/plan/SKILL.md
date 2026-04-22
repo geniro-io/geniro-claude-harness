@@ -289,13 +289,13 @@ For Medium and Large tasks:
 4. **Ask for approval** using the `AskUserQuestion` tool (do NOT output options as plain text):
    - A) **Approve this plan** — mark as approved, ready for `/geniro:implement`
    - B) **Adjust** — describe what to change (routes back to architect for revision)
-   - C) **Too large — split** — decompose into smaller plans
+   - C) **Too large — decompose into milestones** — hand off to `/geniro:decompose` which produces 3-7 independently shippable milestone files that `/geniro:implement` consumes one at a time
    - D) **Approve and implement** — approve the plan, then run `/geniro:implement` to execute it
 
 5. **Route based on answer:**
    - **A:** Update plan status to `approved`, done
    - **B:** Collect feedback, revise plan (back to Phase 2 with revision context), re-present. Max 3 rounds.
-   - **C:** Help decompose into sub-plans, each saved as a separate plan file
+   - **C:** Tell the user: "This plan is a good candidate for decomposition. Run `/geniro:decompose <path-to-this-plan>` — it will restage into 3-7 independently shippable milestones and hand off to `/geniro:implement milestone 1` afterwards." Skills cannot call skills — the user re-invokes. Do NOT attempt to restage the plan yourself.
    - **D:** Update plan status to `approved`, then tell the user: "Plan approved and saved. Run `/geniro:implement` — it will auto-detect this approved plan and skip architect generation."
 
 ### On approval, update the plan header:
@@ -304,9 +304,11 @@ Change `Status: draft` → `Status: approved`
 
 ---
 
-## Integration with /geniro:implement
+## Integration with /geniro:implement and /geniro:decompose
 
 When `/geniro:implement` is invoked, its Phase 2 pre-check detects approved plans from three sources: conversation context (plan mode), plan files on disk, and `$ARGUMENTS`. If an approved plan is found, the architect-agent is skipped and the plan goes directly to skeptic validation, then Phase 3 (Approval). See implement SKILL.md Phase 2 for the full detection and routing logic.
+
+If a plan is too large to ship in one `/geniro:implement` run (score 9+ on the complexity scale, >15 steps, or any Big hard-escalation signal), hand off to `/geniro:decompose <plan-path>` — it produces per-milestone detail files that `/geniro:implement milestone <N>` consumes one at a time. See `${CLAUDE_PLUGIN_ROOT}/skills/decompose/SKILL.md` for the full decomposition flow.
 
 ---
 
@@ -327,7 +329,7 @@ Plan skill is complete when:
 | Architect produces vague plan (missing files, no verify criteria) | Return with specific gaps from plan-criteria.md checklist |
 | Skeptic finds critical gaps after 3 iterations | Present best plan + remaining issues to user for decision |
 | Skeptic finds mirages (hallucinated files/functions) | Return to architect with specific mirages, require grep verification |
-| Plan has >15 steps | Suggest splitting into sub-plans |
+| Plan has >15 steps | Recommend `/geniro:decompose <this-plan-path>` — a plan this size is a Big task that needs milestone decomposition, not a flat sub-plan split |
 | Issue tracker integration unavailable | Log warning, proceed without issue context |
 | `.geniro/planning/` doesn't exist | Create it |
 | Plan file already exists with same slug | Append `-v2`, `-v3`, etc. |

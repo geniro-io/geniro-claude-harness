@@ -81,7 +81,8 @@ Check for **hard escalation signals first**, then evaluate overall complexity. F
 One `AskUserQuestion` routes the change. Record `lane` (Fast or Full) and reference it through the rest of the pipeline. Default to Full for anything the user did not explicitly opt into.
 
 **Too large** → `AskUserQuestion` header "Scope":
-- "Escalate to /geniro:implement" → output `/geniro:implement [change request]` and stop
+- "Decompose into milestones" — output `/geniro:decompose [change request]` and stop (recommended for Big tasks that would exceed a single /implement run — 3+ modules, new subsystem, or 9+ files across unrelated slices)
+- "Escalate to /geniro:implement" → output `/geniro:implement [change request]` and stop (single-pipeline implementation — best when the task is big but cohesive)
 - "Proceed anyway" → continue as Full pipeline, treat as Medium (full validation + review)
 - "Reduce scope" → ask what to cut, re-assess, loop back to Step 2
 
@@ -128,46 +129,7 @@ Write a brief plan: each file, what changes, dependencies, risks. Present via `A
 
 ### Step 2: Execute
 
-**Trivial** (1–2 files, obvious fix): Delegate to a single agent (same template as Small below, without Tests section). Even Trivial goes through agents — orchestrator context is too expensive for implementation.
-
-**Small** (3–5 files, 1–2 modules): Delegate to a single agent:
-
-```
-Agent(model="sonnet", prompt="""
-## Task
-[describe the specific change needed]
-## Pre-Inlined Context: [file contents from Phase 1]
-## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4): [paste approved description verbatim; match it exactly; omit this section entirely if the gate did not run]
-## Codebase Conventions: match existing patterns exactly
-## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
-## Requirements: follow CLAUDE.md, do NOT git add/commit/push, run validation, report changes and issues
-After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
-""")
-```
-
-**Medium** (6–8 files, up to 2 modules): Decompose into 2–3 parallel agents by module/layer, spawn in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn:
-
-1. Group plan files by module/layer (e.g., backend vs frontend, entity+service vs DTO+hook)
-2. Each agent gets its own file group — no overlap
-3. Pre-inline the file contents each agent needs from Phase 1
-
-```
-# Spawn ALL agents in ONE response — multiple Agent() calls in the same assistant turn, NOT one per turn.
-# Per-agent prompt sections: Task, Pre-Inlined Context, Tests — MANDATORY, Requirements (scope/CLAUDE.md/no-git/report)
-
-Agent(model="sonnet", prompt="""
-## Task — Group N: [module/layer name]
-[changes for this group]
-## Pre-Inlined Context: [file contents]
-## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4 AND this group touches UI files): [paste approved description verbatim; match it exactly; omit this section entirely otherwise]
-## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
-## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
-After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
-""", description="Implement [group N]")
-# Repeat the Agent(...) block per group — all in the same assistant turn.
-```
-
-If all files are tightly coupled (same module, sequential deps), use a single agent — don't force parallelism.
+Spawn the implementation agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 2 Step 2: Agent Delegation Templates. Select the template matching the complexity level (Trivial / Small / Medium). Medium decomposes into 2–3 parallel agents spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. If all files are tightly coupled (same module, sequential deps), use a single agent — don't force parallelism.
 
 ### Step 3: Completion Check
 
@@ -304,61 +266,7 @@ Capture the changed file list from the diff against main.
 
 **Trivial (any lane) and Small (Fast Lane):** Review the diff yourself — no subagent. Check for: typos in the fix, accidental deletions, logic inversion, missed second occurrence. If anything looks off, delegate the fix to an agent and re-validate. Do NOT fix code directly. If ambiguous or potentially CRITICAL, escalate to a single Sonnet reviewer (Fast Lane escape hatch).
 
-**Small changes in Full pipeline (3–5 files):** Spawn a single reviewer-agent. Pass criteria file paths — the agent reads them itself. Do NOT pre-read criteria into orchestrator context.
-
-```
-Agent(model="sonnet", prompt="""
-## Review: Follow-Up Change
-This is a follow-up change — focus on correctness and regressions. CI already passed. Keep review proportional to change size.
-
-CHANGED FILES: [list]
-CHANGE SUMMARY: [summary]
-
-## Review Criteria
-Read and apply the criteria files (5, +design when UI files changed) from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — when changed files include UI; see UI-file detection rule in skills/review/SKILL.md)
-
-Review across all listed criteria files (5, or 6 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH.
-
-Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / APPROVED / APPROVED WITH MINOR) — the orchestrating skill synthesizes findings across all reviewers and decides.
-""", description="Review: follow-up change")
-```
-
-**Medium changes (6–8 files):** Spawn 2–3 reviewer-agent instances in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria — do NOT pre-read into orchestrator context:
-
-```
-# Spawn ALL reviewers in ONE response — multiple Agent() calls in the same assistant turn, NOT one per turn:
-
-Agent(model="sonnet", prompt="""
-DIMENSION: Bugs & Correctness
-CHANGED FILES: [list]
-CHANGE SUMMARY: [summary]
-This is a follow-up change. CI already passed. Keep review proportional.
-Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.
-
-## Review Criteria
-Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
-""", description="Review: bugs")
-
-Agent(model="sonnet", prompt="""
-DIMENSION: Security & Edge Cases
-CHANGED FILES: [list]
-CHANGE SUMMARY: [summary]
-This is a follow-up change. CI already passed. Keep review proportional.
-Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.
-
-## Review Criteria
-Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md`
-""", description="Review: security")
-```
-
-Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Reads `architecture-criteria.md`, `tests-criteria.md`, `guidelines-criteria.md` under `${CLAUDE_PLUGIN_ROOT}/skills/review/`.
-Add a 4th reviewer with `model='haiku'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
+**Small (Full pipeline, 3–5 files) and Medium (6–8 files):** Spawn reviewer-agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1: Reviewer Agent Templates. Small = single reviewer. Medium = 2–3 reviewers spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria; do NOT pre-read criteria into orchestrator context. Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Add a 4th `haiku` reviewer for the design dimension when changed files include UI.
 
 ### Step 2: Process Results
 
@@ -493,10 +401,11 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 
 ---
 
-## When to Use This Skill vs. `/geniro:implement`
+## When to Use This Skill vs. `/geniro:implement` or `/geniro:decompose`
 
 **`/geniro:follow-up`:** Builds on existing code, scope clear and bounded, no new architecture, complexity ≤ Medium.
 **`/geniro:implement`:** New feature/entity/endpoint/auth, ambiguous intent, 3+ modules, needs design review.
+**`/geniro:decompose`:** Big task that would exceed a single /implement run (score 9+ on complexity, >15 plan steps, or multiple unrelated vertical slices). Produces a master plan + 3-7 milestone files that /implement consumes one at a time.
 
 ---
 
@@ -516,4 +425,5 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 - **Trivial:** `/geniro:follow-up Fix typo in src/auth.ts line 42`
 - **Small:** `/geniro:follow-up Better error message when API returns 429`
 - **Medium:** `/geniro:follow-up Rename userId to ownerId across UserService`
-- **Too Large:** `/geniro:follow-up Add Notifications service with websockets` → Escalate to `/geniro:implement`
+- **Too Large (cohesive):** `/geniro:follow-up Add Notifications service with websockets` → Escalate to `/geniro:implement`
+- **Too Large (multi-slice):** `/geniro:follow-up Migrate auth to OAuth + add MFA + rewrite session storage` → Decompose via `/geniro:decompose`

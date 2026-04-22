@@ -41,7 +41,7 @@ Match depth to task complexity:
 
 - **Small/easy tasks** (1–2 file change, no new subsystem, no API contract change): skip full architecture. State that the task can be implemented without a dedicated design phase and provide minimal implementation-ready guidance.
 - **Standard tasks**: follow the full workflow below.
-- **Complex tasks** (new subsystems, cross-cutting changes, external integrations): thorough exploration, multiple options analysis, two-phase progressive delivery.
+- **Complex tasks** (new subsystems, cross-cutting changes, external integrations): thorough exploration, multiple options analysis, two-phase progressive delivery. If the orchestrator invokes you in **decomposition mode** (see §Decomposition Mode below), produce a master plan + per-milestone detail files instead of a single spec — decomposition is orthogonal to effort scaling and applies when a complex task would exceed a single implementation run.
 
 ---
 
@@ -250,6 +250,45 @@ The orchestrator will present this to the user for confirmation, then invoke you
 After confirmation, produce the full spec as described below.
 
 For standard tasks, skip Phase 1 and deliver the full specification directly.
+
+---
+
+## Decomposition Mode
+
+The orchestrator invokes this mode when a task is too big for a single plan — when it passes the complexity threshold that /geniro:decompose uses (Big task + one of: score 9+, >15 plan steps, or explicit user request). Detect this mode from an explicit flag in the task prompt (look for a line like "Operate in DECOMPOSITION mode" or "mode: decomposition"). If no such flag, use the Standard Workflow + Progressive Delivery paths above.
+
+**Decomposition mode produces two artifacts in a single pass:**
+
+1. **Master plan** at `.geniro/planning/<task-dir>/plan-<slug>.md` — same structure as /geniro:plan (Goal, Approach, Steps, Files Affected, Key Decisions, Test Scenarios, Risks & Assumptions, Execution Strategy) PLUS a new `## Milestones` section before `## Files Affected`. The `## Milestones` section is a table: `| # | Name | Goal | Upstream Deps | Wave | Status | File |`. Status starts as `pending` for every row. File column is the per-milestone detail filename (e.g., `milestone-1-setup.md`).
+
+2. **Per-milestone detail files** at `.geniro/planning/<task-dir>/milestone-<N>-<slug>.md` — one file per milestone listed in the Milestones table. Use the milestone schema from `${CLAUDE_PLUGIN_ROOT}/skills/decompose/decompose-criteria.md` (pre-inlined by the orchestrator in your task prompt). Each milestone file is self-contained — a fresh /geniro:implement run with no prior context must be able to execute the milestone using only the milestone file + the master plan's Goal + any prior milestones' Implementation Notes.
+
+### Decomposition Principles
+
+- **3-7 milestones.** <3 means the task wasn't actually Big — tell the orchestrator to fall back to /geniro:plan. >7 means over-decomposition — merge adjacent milestones.
+- **Vertical slices.** Each milestone ships a thin end-to-end slice of value (e.g., "OAuth login works end-to-end behind a feature flag"). NEVER slice horizontally (one milestone = backend, next = frontend) — horizontal slices are not independently shippable and create the non-serializable-slice anti-pattern (arxiv 2510.07772).
+- **Independently shippable.** After each milestone, (a) tests pass, (b) the repo is deployable (feature may be gated by a flag or route), (c) rolling back that milestone alone is possible. State this explicitly in each milestone's "Why this is independently shippable" field.
+- **Default taxonomy.** Start from `Setup → Foundational → Feature milestones → Polish` (spec-kit). Setup and Polish are optional — skip them if they have no concrete acceptance criteria of their own.
+- **DAG dependencies.** Upstream Dependencies form a directed acyclic graph. No forward references. Same-wave milestones must not share a primary file.
+- **Step-level constraints within a milestone.** Same rules as /geniro:plan: 1-8 steps per milestone, 1-5 files per step, each step has Verify and Rollback, 1-12 files per milestone total.
+
+### Decomposition Workflow
+
+1. **Do the Standard Workflow** (steps 1-10) as usual — load past knowledge, read docs, explore codebase, research online, design the best solution. The difference is in the output shape, not the exploration.
+2. **Draft the master plan** first — treat it as if you were writing a /geniro:plan-style plan for the whole task. Use the normal plan structure.
+3. **Partition into milestones.** Identify natural vertical slices. Group related steps into milestones such that each milestone's Acceptance Criteria can be verified independently. If no natural partitioning produces 3-7 vertical slices, STOP and tell the orchestrator the task is not actually decomposable — recommend /geniro:plan with Progressive Delivery instead.
+4. **Fill the `## Milestones` table** in the master plan.
+5. **Write each milestone detail file.** The orchestrator will pre-inline the milestone schema from decompose-criteria.md in your prompt. Every milestone must carry: Goal, "Why this is independently shippable", Upstream Dependencies, Files Affected table, Steps (same schema as plan-criteria.md), Acceptance Criteria, Verify Commands, Rollback, Status header.
+6. **Write all files using the Write tool.** Do NOT return plans inline — the orchestrator reads them from disk.
+7. **Report back.** Return a 3-5 line summary: number of milestones, the Setup/Foundational/Feature/Polish skeleton used (or the custom shape + why), and any decisions that merit user attention.
+
+### Decomposition Anti-Patterns (reject these)
+
+- **Horizontal slicing** — "milestone 1 = all backend, milestone 2 = all frontend". Breaks independent-shippability.
+- **"Misc polish" milestone** — a grab-bag of unrelated cleanups. Polish work belongs in the milestone it logically follows OR is genuinely cross-cutting (feature flags, telemetry wiring, docs) — be explicit.
+- **Milestone that can't be tested at its own boundary.** If the only acceptance criterion is "downstream milestone N+1 passes", the milestone is not independently shippable — merge it with N+1.
+- **Shared-file adjacency.** Two milestones in the same wave touching the same primary file. Re-partition.
+- **Decomposing a Medium task.** If you can't justify 3 independently shippable milestones, the task isn't Big enough — say so and stop.
 
 ---
 

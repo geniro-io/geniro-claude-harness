@@ -8,6 +8,9 @@ This file contains templates, examples, error tables, and detailed procedures re
 
 | What you say | What the skill detects | Behavior |
 |---|---|---|
+| `/geniro:implement milestone 2` or `/geniro:implement milestone 2 ship it` | Milestone reference (from /geniro:decompose) | Glob `<task-dir>/milestone-2-*.md`, load that milestone file as the implementation target; skip Phase 1 discovery |
+| `/geniro:implement <path-to-milestone-N-foo.md>` | Explicit milestone path | Load that milestone file as the implementation target; skip Phase 1 discovery |
+| `/geniro:implement continue` | Continue a decomposed pipeline | Read `<task-dir>/state.md` `Milestones:` field, pick the first non-completed milestone, load its file |
 | `/geniro:implement add OAuth login` | Plain description | Full discovery with interactive questions |
 | `/geniro:implement ENG-123` | Issue tracker reference (from workflow) | Fetches issue via configured integration, uses as context |
 | `/geniro:implement https://linear.app/team/issue/ENG-123` | Issue tracker URL (from workflow) | Extracts issue ID, fetches via configured integration |
@@ -17,6 +20,7 @@ This file contains templates, examples, error tables, and detailed procedures re
 | `/geniro:implement I think we should add OAuth` | Tentative language | Assumptions mode: propose plan |
 
 **Detection rules (checked in order):**
+0. **Milestone reference** — patterns (checked in priority order): (a) `^milestone\s+(\d+)\b` at start of `$ARGUMENTS`, (b) `$ARGUMENTS` references a path ending in `milestone-<N>-*.md`, (c) `$ARGUMENTS` equals `continue` AND `<task-dir>/state.md` contains a `Milestones:` field. If any matches, load the milestone file via Phase 2 pre-check rule 1 and skip remaining rules. Milestone detection takes priority over workflow files and feature IDs because the user explicitly pointed at a specific unit of work.
 1. Check `.geniro/workflow/*.md` for argument detection patterns. Apply them in order before falling through to mode signal detection.
 2. **Geniro feature ID** — pattern `^F\d+(\s|$)` at start of `$ARGUMENTS`. Read `.geniro/planning/FEATURES.md` if present and look up the matching row. If FEATURES.md is missing or the ID is not found, treat the rest of `$ARGUMENTS` as a plain description and warn the user once. If found, capture the row's description and spec-file path (from the Notes column) — these get persisted to `state.md` (see SKILL.md Phase 1).
 3. **Auto-mode signals** — keywords like "just do it", "ASAP", "no questions", "auto", "quick" -> skip interactive questions, pick recommended defaults for all gray areas
@@ -63,6 +67,7 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 | Pre-Ship Visual Verification | Phase 7, Step 4.5 | "Skip — already verified". If Step 4.5 itself was forced and surfaced issues, the follow-up question is **always-WAIT** (auto-shipping UI regressions is unsafe) |
 | Ship decision | Phase 7, Step 5 | **Always-WAIT.** Controls commit/push/PR. User must explicitly choose |
 | Cleanup planning artifacts | Phase 7, Step 8 | "Keep" (preserve artifacts; safe default) |
+| Next-milestone prompt | Phase 7 Step 8 (milestone-mode only) | "Compact first, then continue". Print the `/compact` instruction + `/geniro:implement continue` resume command. Skip `AskUserQuestion` |
 
 **Auditability:** every auto-resolved decision MUST be appended to `<task-dir>/state.md` under a section named "Auto-mode decisions" with one line per gate: `Phase X Step Y — <gate name> → <chosen option>`.
 
@@ -123,6 +128,9 @@ Match existing patterns exactly. Find the closest existing example and follow it
 ## UI Intent (when UI Preview Gate ran — paste contents of `<task-dir>/ui-preview.md` if it exists; otherwise omit this section entirely)
 [The approved textual UI description from Phase 3 Step 0. Treat as authoritative visual intent — match it exactly. If it contradicts the plan, the UI Intent wins; stop and surface the contradiction.]
 
+## Milestone Context (when milestone-mode — paste the milestone's `## Upstream Dependencies` section + the master plan's most recent `## Implementation Notes (Milestone <N-1>)` entry here; otherwise omit this section entirely)
+[Upstream milestone summaries and non-obvious gotchas from prior milestones. Treat as authoritative context — do NOT re-derive what prior milestones already decided. If this contradicts the milestone's Files Affected table, the Files Affected table wins and you surface the contradiction.]
+
 ## Tests — MANDATORY (do not skip)
 Write tests alongside your implementation. Every new source file MUST have a corresponding test file.
 - Unit tests next to the source file for every new/changed service, function, or component
@@ -161,6 +169,7 @@ After all checks pass, include this structured section at the end of your respon
 | Error | Recovery |
 |-------|----------|
 | Agent produces non-compiling code | Forward raw error output to fixer agent — do NOT diagnose or read source files yourself |
+| Agent creates a file not in the milestone's Files Affected table (milestone-mode) | Revert that file, re-run agent with explicit scope constraint: "Files Affected table is the hard boundary; if the milestone is missing a file, STOP and report back — do NOT add it." |
 | Agent modifies files outside its WU scope | Revert those changes, re-run agent with stricter scope constraint |
 | Agent ignores conventions | Re-spawn agent with exemplar files pre-inlined and stricter convention instructions |
 | Agent timeout or garbage output | **RETRY:** re-dispatch with enriched context (add error details, relevant files, conventions). If retry fails: **DECOMPOSE** the WU into smaller sub-tasks. If still failing: **PRUNE** — revert WU, mark BLOCKED, continue to next WU |
@@ -475,6 +484,65 @@ This deletes `spec.md`, `state.md`, `notes.md`, `notes-resolved.md`, `concerns.m
 **Temp files** — remove temporary screenshots, .tmp, .bak, debug-* files (not in node_modules or .git). Kill orphaned processes on agent ports (avoid touching standard dev ports). Remove stray .log files.
 
 If any command fails silently, that's fine — cleanup is best-effort.
+
+---
+
+## Phase 7 Step 8: Milestone Status Update (milestone-mode)
+
+Milestone status update (milestone-mode only): If this run executed a single milestone (Phase 2 pre-check rule 1 matched):
+
+1. Update the milestone file's Status header from `in-progress` to `completed`.
+2. Update the master plan's `## Milestones` section table: change the milestone's row Status to `completed`.
+3. Update `state.md` `Milestones:` field to reflect the new status.
+4. Append an `## Implementation Notes (Milestone <N>)` subsection to the master plan file containing: 3-8 bullet summary of non-obvious gotchas discovered, patterns to reuse, convention decisions worth propagating to later milestones. This is pre-inlined by the next milestone's Phase 2 run. Skip if nothing non-obvious was discovered — empty implementation notes are worse than none.
+5. If more milestones are `pending`, use the `AskUserQuestion` tool (do NOT output options as plain text): "Milestone <N> shipped. How to proceed?" with options A) "Continue to milestone <N+1> now" — print the `/geniro:implement milestone <N+1>` command for the user to re-invoke (skills cannot call skills), B) "Compact first, then continue" — tell the user to type `/compact` then `/geniro:implement continue`, C) "Stop for now — resume later with `/geniro:implement continue`". In auto-mode, default to B: fresh context per milestone is the entire point — treat the compact recommendation as auto-approved and print the resume command. See implement-reference.md §Auto Mode Behavior row "Next-milestone prompt".
+6. Do NOT append `Pipeline: COMPLETE` to state.md if milestones remain — that sentinel is only written after the LAST milestone (enforced by the conditional State bullet above).
+
+---
+
+## Phase 7 Step 6: Adjustment Routing (Big / Medium / Small)
+
+### Big — changes to data model, API contract, new endpoints
+
+1. Write tweak description to `<task-dir>/notes.md`
+2. Rewrite `state.md`: keep only Phase 1 checkpoint, remove all Phase 2, 3, 4, 5, 6 markers. Add `Tweak round: N (Big) — [description]`
+3. Update existing `plan-<slug>.md` via architect-agent with tweak context (do NOT create a new plan file)
+4. Full pipeline re-entry: Phase 2 (architect revision + skeptic) → Phase 3 (re-approval) → Phase 4 (implement delta only) → Phase 5 (simplify) → Phase 6 (all stages) → Phase 7 Step 4 summary re-presentation
+
+### Medium — new logic, additional fields
+
+1. Write tweak description to `<task-dir>/notes.md`
+2. Update `state.md`: add `Tweak round: N (Medium) — [description]`
+3. Spawn implementer agent with tweak context + affected files pre-inlined
+4. Re-run Phase 6 Stage A (build + test + lint)
+5. Re-run Phase 6 Stage B (spec compliance) with tweak description as context
+6. Re-run Phase 6 Stage C with fresh reviewer agents
+7. Loop to Step 4 summary re-presentation
+
+### Small — styling, typo, logic tweak
+
+1. Write tweak description to `<task-dir>/notes.md`
+2. Update `state.md`: add `Tweak round: N (Small) — [description]`
+3. Spawn implementer agent with tweak context
+4. Re-run Phase 6 Stage A (build + test + lint)
+5. Loop to Step 4 summary re-presentation
+
+**Loop target:** After any tweak, loop back to **Step 4 summary re-presentation only**. Steps 1-3 (docs, learnings, improvements) run once on first entry to Phase 7 and are NOT repeated on tweak rounds.
+
+**Soft limits (by size):**
+- **Big tweaks:** After 2 rounds, suggest starting a new `/geniro:implement` session. Big tweaks compound risk — a fresh pipeline provides clean context and proper architecture review.
+- **Medium/Small tweaks:** After 3 rounds, suggest `/geniro:follow-up` for remaining changes.
+
+---
+
+## Phase 2: Milestone Reference Detection
+
+**Milestone reference (highest priority)** — detect a request to implement a single milestone from a decomposed plan:
+- `$ARGUMENTS` matches `^milestone\s+(\d+)\b` (e.g., `/geniro:implement milestone 2`) — glob `<task-dir>/milestone-<N>-*.md` where N is the captured digit. If exactly one matches, load it.
+- `$ARGUMENTS` references a path ending in `milestone-<N>-*.md` — load that file directly.
+- `$ARGUMENTS` is `continue` AND `<task-dir>/state.md` contains a `Milestones:` field — pick the first milestone with status `pending` or `in-progress` and load its file.
+
+If a milestone file loads, also load the master plan (`<task-dir>/plan-<slug>.md`) for its Goal + Approach + Implementation Notes. The master plan's per-step details are NOT pre-inlined — only the milestone file is authoritative for what to execute. Skip architect-agent. Set mode flag `milestone-mode: true` for Phase 4 scope constraint (only files listed in the milestone's Files Affected table may change). Run skeptic-agent on the milestone file (skeptic pre-inlines the master plan and prior-milestone Implementation Notes for context). Proceed to Phase 3 with the milestone's Goal as the presented summary.
 
 ---
 

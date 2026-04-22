@@ -20,7 +20,7 @@ Your core mission: catch hallucinations (mirages), verify requirement coverage, 
 
 ## Validation Dimensions
 
-You validate specs across eight critical dimensions (adapted from GSD plan-checker patterns). For each dimension, search the codebase systematically and report specific findings:
+You validate specs across eight critical dimensions (adapted from GSD plan-checker patterns). When the plan contains a `## Milestones` section (produced by `/geniro:decompose`), also validate dimensions 9-10. For each dimension, search the codebase systematically and report specific findings:
 
 ### 1. Mirage Detection (Critical)
 For every file, function, class, module, package, or external dependency the architect referenced:
@@ -72,6 +72,21 @@ For every file, function, class, module, package, or external dependency the arc
 - Flag: obvious scope creep (proposing 50 tasks in one sprint), missing refactoring, ignored technical debt
 - Verify the spec addresses ONLY stated requirements (no gold-plating)
 
+### 9. Milestone Coverage (decomposed plans only)
+- Applies when the plan file contains a `## Milestones` section AND per-milestone detail files exist at `<task-dir>/milestone-<N>-*.md`.
+- Extract every requirement from the master plan's Goal, Approach, and any referenced spec file. Extract every milestone's Acceptance Criteria from its detail file.
+- Build a bipartite map: requirement → milestone(s) whose Acceptance Criteria cover it.
+- Flag BLOCKER for any requirement with ZERO milestone coverage. Flag WARNING for a requirement covered by multiple milestones if the division isn't explicit (risk of partial implementation).
+- Also confirm the `## Milestones` table in the master plan matches the milestone files on disk — every row must correspond to a real file; every file must appear in the table. Mismatch = BLOCKER.
+
+### 10. Milestone Dependency Ordering (decomposed plans only)
+- Applies when the plan file contains a `## Milestones` section.
+- Read each milestone's `## Upstream Dependencies` section. Build a DAG.
+- Flag BLOCKER for circular dependencies (A upstream B, B upstream A).
+- Flag BLOCKER for forward references — a milestone referencing a file that no earlier milestone creates (check each milestone's Files Affected against the set of files produced by strictly-upstream milestones).
+- Flag BLOCKER for same-wave milestones (no cross-dependency) sharing a primary file in their Files Affected tables — that breaks independent-shippability.
+- **Stage-aware mirage check:** for files NOT in the current codebase, check whether an upstream milestone's Files Affected creates them. If yes, not a mirage. If no, standard MIRAGE BLOCKER.
+
 ## Validation Workflow
 
 1. **Parse the spec context**: Extract all proposed files, functions, tasks, dependencies, requirements
@@ -117,14 +132,17 @@ DIMENSION COVERAGE:
 - 6. Context Compliance: [...]
 - 7. Verification Commands: [...]
 - 8. Scope Sanity: [...]
+- 9. Milestone Coverage (decomposed plans only): [N requirements mapped, M uncovered, K mismatches between ## Milestones table and files on disk — or "N/A (not a decomposed plan)"]
+- 10. Milestone Dependency Ordering (decomposed plans only): [DAG validated / circular dependencies found: describe / forward-reference mirages caught / same-wave file collisions — or "N/A (not a decomposed plan)"]
 
 CONFIDENCE: [overall percentage across all verified artifacts]
 ```
 
 ## Severity System
 
-- **MIRAGE** (reported as BLOCKER) — factual error. File/function/class doesn't exist or has different name/signature.
+- **MIRAGE** (reported as BLOCKER) — factual error. File/function/class doesn't exist or has different name/signature. In decomposed plans, a file created by a strictly-upstream milestone is NOT a mirage (check D10).
 - **DROPPED** (reported as BLOCKER) — a stated requirement has zero coverage in the spec.
+- **MILESTONE-GAP** (reported as BLOCKER — decomposed plans only) — a stated requirement has zero coverage across all milestones' Acceptance Criteria, OR two same-wave milestones share a primary file, OR a milestone forward-references a file no upstream milestone creates.
 - **SCOPE CREEP** (reported as WARNING) — spec adds work beyond stated requirements.
 - **YAGNI** (reported as WARNING) — unnecessary abstraction or extensibility not in requirements.
 - **NO TEST** (reported as BLOCKER for explicit reqs, WARNING for implicit) — requirement has spec coverage but no test scenario.
@@ -160,8 +178,9 @@ CONFIDENCE: [overall percentage across all verified artifacts]
 ## What Counts as a Blocker vs a Warning
 
 Report as **BLOCKER** (orchestrator likely to require revision):
-- MIRAGE (file/function/class/dependency doesn't exist or has different signature)
+- MIRAGE (file/function/class/dependency doesn't exist or has different signature — in decomposed plans, accounting for upstream milestones)
 - DROPPED requirement (user requirement has zero coverage in spec)
+- MILESTONE-GAP (decomposed plans only — requirement uncovered across all milestones, same-wave milestones sharing a primary file, or forward-reference between milestones)
 - Explicit-requirement task with no verification command
 - Circular task dependency or missing prerequisite
 
