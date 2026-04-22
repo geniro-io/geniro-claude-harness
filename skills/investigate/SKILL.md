@@ -58,7 +58,7 @@ If the question is ambiguous, use the `AskUserQuestion` tool to clarify scope be
 
 ## Phase 2: Investigate (parallel agents)
 
-Spawn 2-3 agents in a SINGLE message based on the classification from Phase 1. Always spawn the Codebase agent. Add Git and/or Internet agents based on the question type.
+Spawn 2-3 agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — based on the classification from Phase 1. Always spawn the Codebase agent. Add Git and/or Internet agents based on the question type.
 
 Replace every `{{placeholder}}` with actual content before spawning.
 
@@ -335,7 +335,7 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `
 | "The question is simple, skip the agents" | Simple questions get simple agent prompts. The structure catches blind spots even for "obvious" answers. |
 | "Self-review is overkill for a question" | Wrong answers waste more time than the review costs. File references go stale, claims drift from evidence. |
 | "I'll skip internet research, it's a code question" | Even code questions benefit from framework docs, known issues, and deprecation context. Skip only when truly irrelevant (Phase 1 classification). |
-| "I'll spawn agents one at a time to save tokens" | Parallel agents in a SINGLE message. Sequential spawning wastes wall-clock time for no token savings. |
+| "I'll spawn agents one at a time to save tokens" | Parallel agents go in ONE response — multiple Agent() calls in the same assistant turn. Sequential turns waste wall-clock time for no token savings. |
 | "The user seems to want a quick answer" | A wrong quick answer is worse than a correct 30-second-slower answer. Run the pipeline. |
 
 ## Definition of Done

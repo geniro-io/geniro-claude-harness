@@ -83,9 +83,9 @@ Classify the request:
 - **Improvement** — enhance existing behavior. Extract: which skill/agent/hook, what aspect.
 - **New capability** — add something missing. Extract: what, why, which files affected.
 
-### Step 2: Spawn 3 research agents in a SINGLE message
+### Step 2: Spawn 3 research agents in ONE response
 
-All three agents run in parallel. Each gets a focused research scope with zero overlap.
+All three agents run in parallel — multiple Agent() calls in the same assistant turn, NOT one per turn. Each gets a focused research scope with zero overlap.
 Replace every `{{placeholder}}` with the actual content from Step 1 before spawning.
 
 ```
@@ -273,7 +273,7 @@ Group approved findings into implementation units:
 - **Single file changes:** One agent per file
 - **Cross-file changes:** One agent per logical group (same module/feature)
 
-### Step 2: Spawn implementation agents in a SINGLE message
+### Step 2: Spawn implementation agents in ONE response (all Agent() calls in the same assistant turn, NOT one per turn)
 
 Pre-inline the current file content each agent needs (from Phase 1 codebase research).
 
@@ -479,7 +479,7 @@ If the user interjects during any phase:
 | "I'll reuse the implementation agent for review" | Fresh agents avoid anchoring bias. The reviewer must NOT have seen the implementation prompt. |
 | "One research agent is enough for this simple issue" | Three-source triangulation catches blind spots. Internet + report.md + codebase are independent knowledge sources. Exception: Phase 1-fast for obvious bugs. |
 | "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
-| "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
+| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
 | "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 | "The findings are obviously good, skip the redundancy check" | Phase 2b exists because orchestrator self-filtering inherits the researcher's framing. A fresh subagent greps the target file for existing instructions and flags over-engineering — catches what the proposer cannot see. |

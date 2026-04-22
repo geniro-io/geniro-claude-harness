@@ -229,13 +229,13 @@ Read the plan's steps and group into WUs — clusters of tightly coupled files. 
 - **Wave 1:** WUs with no dependencies (all parallel)
 - **Wave N:** WUs depending on prior waves
 - **Hotspot wave (last):** Orchestrator micro-edits only
-- Max 4-5 agents per wave. All spawned in a single message.
+- Max 4-5 agents per wave. All spawned in ONE response — multiple Agent() calls in the same assistant turn, NOT one per turn.
 - Same-stack agents MUST work on non-overlapping files
 
 ### Step 3: Execute waves
 
 For each wave:
-1. **Spawn all WU agents in a single message** (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.)
+1. **Spawn all WU agents in ONE response** — multiple Agent() calls in the same assistant turn, NOT one per turn (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.)
    **Agent context:** The `backend-agent` and `frontend-agent` read `CLAUDE.md` at runtime for project-specific context. No additional context injection is needed — simply spawn the agent.
 2. **Collect results** — each agent must report: files created/modified, tests created/modified, test results
 3. **Quick gate** (build + test) — pass/fail only. If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
@@ -330,7 +330,7 @@ Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet 
 
 ### Stage C — Code Quality
 
-**Action:** Spawn 5–6 parallel reviewer agents in a single message — bugs, security, architecture, tests, guidelines, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
+**Action:** Spawn 5–6 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, guidelines, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
 
 Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-dir>/review-feedback.md`.
 
@@ -494,6 +494,7 @@ The orchestrator's job is to coordinate, not to code. Every line of code the orc
 | "Steps X-Y are small, I'll handle them myself" | Every plan step becomes a WU. Group small related steps into one WU, but never execute as orchestrator. |
 | "The build failed, let me read the source and fix it quickly" | Run the check, copy the raw terminal output into a fixer agent prompt. Do NOT open source files, diagnose, search for types, or apply edits yourself. |
 | "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier is matched to task nature, not to risk appetite. Upgrading mechanical-task agents (docs, guidelines, design) to sonnet defeats the cost rationale and signals drift. If the task genuinely needs reasoning, re-classify it using the Subagent Model Tiering table — don't silently upsize. |
+| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. Only sequence when outputs feed into next agent (e.g., plan → skeptic) or files overlap. |
 
 ---
 

@@ -327,7 +327,7 @@ If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), sugges
 |---|---|
 | "I can analyze the code myself without spawning agents" | You are an orchestrator. Spawn all 3 agents. Parallel review catches more than a single pass. |
 | "One agent is enough for these few files" | Spawn all 3. Each has a different lens — even small files have reuse, quality, AND efficiency dimensions. |
-| "I'll spawn agents one at a time to save tokens" | Spawn all 3 in a SINGLE message. Sequential spawning defeats the purpose of parallel review. |
+| "I'll spawn agents one at a time to save tokens" | Spawn all 3 in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
 | "These findings are obviously relevant to this repo" | Reviewers apply generic best practices. Without checking against THIS repo's patterns, you'll apply fixes that contradict repo conventions or add unnecessary complexity. |
 | "These changes are obviously safe" | Run validation. "Obviously safe" is the #1 predictor of broken builds. |
 | "I'll fix the P3 items too since I'm here" | P3 is report-only. Fixing P3 risks behavior changes. |

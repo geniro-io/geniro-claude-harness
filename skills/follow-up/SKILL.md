@@ -145,14 +145,14 @@ After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: P
 """)
 ```
 
-**Medium** (6–8 files, up to 2 modules): Decompose into 2–3 parallel agents by module/layer, spawn in a **single message**:
+**Medium** (6–8 files, up to 2 modules): Decompose into 2–3 parallel agents by module/layer, spawn in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn:
 
 1. Group plan files by module/layer (e.g., backend vs frontend, entity+service vs DTO+hook)
 2. Each agent gets its own file group — no overlap
 3. Pre-inline the file contents each agent needs from Phase 1
 
 ```
-# Spawn ALL agents in a SINGLE message for parallel execution.
+# Spawn ALL agents in ONE response — multiple Agent() calls in the same assistant turn, NOT one per turn.
 # Per-agent prompt sections: Task, Pre-Inlined Context, Tests — MANDATORY, Requirements (scope/CLAUDE.md/no-git/report)
 
 Agent(model="sonnet", prompt="""
@@ -164,7 +164,7 @@ Agent(model="sonnet", prompt="""
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
 """, description="Implement [group N]")
-# Repeat the Agent(...) block per group — all in one message.
+# Repeat the Agent(...) block per group — all in the same assistant turn.
 ```
 
 If all files are tightly coupled (same module, sequential deps), use a single agent — don't force parallelism.
@@ -329,10 +329,10 @@ Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / 
 """, description="Review: follow-up change")
 ```
 
-**Medium changes (6–8 files):** Spawn 2–3 reviewer-agent instances in a **single message**. Each agent reads its own criteria — do NOT pre-read into orchestrator context:
+**Medium changes (6–8 files):** Spawn 2–3 reviewer-agent instances in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria — do NOT pre-read into orchestrator context:
 
 ```
-# Spawn ALL reviewers in a SINGLE message for parallel execution:
+# Spawn ALL reviewers in ONE response — multiple Agent() calls in the same assistant turn, NOT one per turn:
 
 Agent(model="sonnet", prompt="""
 DIMENSION: Bugs & Correctness
@@ -460,7 +460,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 | "The user seems impatient" | Cutting corners costs more time than following the process. |
 | "I'll implement this Medium change in one agent" | If files span 2 modules, decompose into parallel agents. Single-agent Medium misses parallelism. |
 | "One reviewer is enough for Medium" | Single reviewers miss cross-dimensional issues. Spawn 2–3 in parallel — it's the same wall-clock time. |
-| "I'll spawn agents one at a time" | All parallel agents MUST be in a SINGLE message. Sequential spawning defeats the purpose. |
+| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
 | "I'll implement this directly — it's straightforward / Trivial / I'll quickly fix it myself" | Orchestrator tokens are the most expensive resource. ALL changes MUST be delegated to subagents — no exceptions, not even Trivial. |
 | "I'll just quickly edit these files myself since I already read them" | Reading files for assessment is fine. Writing code is implementation — delegate it, for ALL changes without exception. The assessment context goes into the agent prompt. |
 | "Spawning an agent is overkill / I can fix this type error faster myself" | Every change, even 1-line fixes, goes through agents regardless of complexity. Context you accumulate reading source to "quickly fix" always exceeds the cost of spawning and degrades coordination for Phases 5-6. |

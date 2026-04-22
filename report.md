@@ -572,7 +572,7 @@ The review skill spawns N focused Tasks in parallel, each checking one dimension
 
 **Why:** LLMs exhibit a U-shaped attention curve — strong at start/end, 30%+ accuracy drop in the middle of large prompts. Each sub-reviewer gets a clean context window focused on one dimension, eliminating attention degradation.
 
-**Critical:** All Tasks must be spawned in a single message for parallel execution.
+**Critical:** All Tasks must be spawned in ONE response — multiple Agent()/Task() calls in the same assistant turn, NOT one per turn.
 
 **How many dimensions?** Anthropic plugin uses 4, HAMY uses 9, most frameworks use 5-6. The sweet spot is 4-6 — enough to specialize, not so many that orchestration overhead dominates.
 
@@ -969,7 +969,7 @@ Match existing patterns exactly. Find the closest existing example and follow it
    - Wave 1: WUs with no dependencies (run in parallel)
    - Wave 2: WUs depending on Wave 1 outputs (run in parallel after Wave 1)
    - Hotspot wave: Orchestrator edits shared files last
-5. **Spawn all agents in a wave in a single message** for parallel execution
+5. **Spawn all agents in a wave in ONE response** — multiple Agent() calls in the same assistant turn, NOT one per turn
 6. **Same-stack parallel agents** use `isolation: "worktree"`
 
 **When NOT to decompose:** Total change ≤3 files, or all files tightly coupled → single agent, no waves. Don't decompose just because you can.

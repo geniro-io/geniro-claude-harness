@@ -342,7 +342,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "I'll skip reading project conventions" | You'll flag intentional patterns as smells. Read first. |
 | "All detected smells are real issues" | Generic smell categories flag intentional repo patterns. Without filtering against THIS repo's conventions, you'll refactor code that was designed that way on purpose. |
 | "This is just a refactor" | Refactors break things. Tests and review apply equally. |
-| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in a SINGLE message. Sequential spawning defeats the purpose. |
+| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
 | "The user said go fast — skip phases" | Phase skipping is tied to Complexity Gate tier, not user impatience. Small-tier already skips appropriately. |
 | "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:follow-up` or `/geniro:implement` and stay in refactor scope. |
 | "This change is obviously safe" | "Obviously safe" is the #1 predictor of broken builds. Run validation. |

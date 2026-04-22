@@ -279,7 +279,7 @@ Only reached after Stage B passes.
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` — style, naming, documentation, compliance
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — only when changed files include UI per the UI-file detection rule in `skills/review/SKILL.md`)
 
-3. **Spawn 5 or 6 parallel reviewer agents** (5 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in a single message, each with `subagent_type: "reviewer-agent"`:
+3. **Spawn 5 or 6 parallel reviewer agents** (5 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — each with `subagent_type: "reviewer-agent"`:
 
    | Agent | Model | Criteria File | Focus |
    |-------|-------|--------------|-------|

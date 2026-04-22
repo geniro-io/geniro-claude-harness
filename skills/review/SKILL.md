@@ -72,7 +72,7 @@ Also read `CLAUDE.md` at the project root for tech stack context — use this to
 
 #### Standard Mode (small diff)
 
-Spawn all five reviewer agents **in a single message** for parallel execution. **Spawn the design reviewer (6th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.**
+Spawn all five reviewer agents in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. **Spawn the design reviewer (6th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.**
 
 ```
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -164,7 +164,7 @@ Not every batch needs all 5–6 dimensions. Skip irrelevant ones to save tokens.
 - UI component batch → skip security (unless auth-related). Run: bugs, architecture, tests, guidelines, design
 - API/auth batch → all 5 dimensions (design only if it also contains UI files — rare)
 
-**Step 3: Spawn batch × dimension agents in a single message.**
+**Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
 
 Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests and `model="haiku"` for guidelines/design. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
 
@@ -259,7 +259,7 @@ For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validati
 | 0 | ≥2 | All HIGH |
 | ≥1 | any | All CRITICAL + all HIGH |
 
-Spawn all validators **in a single message** for parallel execution:
+Spawn all validators in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn:
 
 ```
 Agent(subagent_type="general-purpose", model="sonnet", prompt="""
@@ -353,7 +353,7 @@ These rules expand the Phase 4 judge scoring. Baseline is always the reviewer's 
 
 All 5–6 reviewers (+1 design when UI files present) are spawned as independent `reviewer-agent` instances via the Agent tool:
 - Each agent receives ONE criteria file, the changed files, and the diff context
-- All reviewers (or more in batched mode) are spawned in a SINGLE message for parallel execution
+- All reviewers (or more in batched mode) are spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn
 - Each reviewer is a leaf agent — it cannot spawn sub-agents (by design)
 - Relevance filter checks findings against repo conventions, then judge pass confidence-scores the remaining findings
 
