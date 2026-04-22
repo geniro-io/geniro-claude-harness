@@ -106,3 +106,46 @@ Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/security
 
 Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Reads `architecture-criteria.md`, `tests-criteria.md`, `guidelines-criteria.md` under `${CLAUDE_PLUGIN_ROOT}/skills/review/`.
 Add a 4th reviewer with `model='haiku'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
+
+---
+
+## Phase 5 Step 1.5: Adversarial Tester Template (Medium only)
+
+Spawn the new agent AFTER the Step 1 reviewers return, BEFORE Step 2 aggregation.
+
+```
+Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+## Task: Adversarial Edge-Case Test Authoring (Follow-Up — Medium)
+
+### Diff (changed files + contents)
+[Pre-inline `git diff main...HEAD` output AND full contents of every changed source file from Phase 1]
+
+### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
+`${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+
+### Project Test Framework
+- Test command (from CLAUDE.md Essential Commands): [e.g. `pnpm test`, `pytest`]
+- Test-file naming convention: [project's pattern — e.g. `*.test.ts` adjacent to source]
+- Exemplar test files (1-2, pre-inlined): [closest existing test files to the changed code]
+
+### Hypothesis Seeds (optional)
+[Paste CRITICAL/HIGH findings from Step 1 Medium reviewers' tests dimension, if any. Use as seeds only.]
+
+### Output
+Write your report to `.geniro/follow-up-state-adversarial.md`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+
+### F→P Invariant (NON-NEGOTIABLE)
+Every test you keep MUST fail 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
+
+### Scope
+Diff-only (Medium = 6-8 files). Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.
+""", description="Adversarial tests: follow-up Medium")
+```
+
+**Orchestrator synthesis:**
+1. Read `.geniro/follow-up-state-adversarial.md`, extract authored test file paths.
+2. Run the project's test command on each authored test individually — 3 consecutive identical failures = keep; otherwise delete.
+3. For each kept test, add a CRITICAL/HIGH entry to the Step 2 aggregate (severity per agent report) tagged `origin: step-1.5-adversarial`.
+4. If the agent reported hitting the 10-test cap, note overflow hypotheses in the Phase 6 ship summary under "Deferred".
+
+**Fallback:** If the adversarial-tester-agent fails (timeout, garbage), retry ONCE. Second failure → skip Step 1.5, log "Step 1.5 skipped — adversarial-tester-agent unavailable after retry" and proceed to Step 2. Do NOT block the pipeline on infrastructure failures.

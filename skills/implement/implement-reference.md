@@ -366,6 +366,59 @@ After Stage C produces findings:
 
 ---
 
+## Phase 6: Stage D — Adversarial Edge-Case Tests
+
+Only reached after the Stage C Fix Loop exits cleanly (zero remaining CRITICAL/HIGH findings). Skip Stage D entirely when the Stage C Fix Loop exhausted its 3-round cap and the user chose to ship with known issues — authoring more red tests into a ship-as-is decision is user-hostile. Log "Stage D skipped — Stage C Fix Loop exhausted with user-accepted known issues" to `<task-dir>/state.md`.
+
+**Spawn template:**
+
+```
+Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+## Task: Adversarial Edge-Case Test Authoring
+
+### Diff (changed files + contents)
+[Pre-inline `git diff main...HEAD` output AND full contents of every changed source file]
+
+### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
+`${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+
+### Project Test Framework
+- Test command (from CLAUDE.md Essential Commands): [e.g. `pnpm test`, `pytest`, `go test ./...`]
+- Test-file naming convention: [from project — e.g. `*.test.ts` adjacent to source, `__tests__/`, `*_test.go`]
+- Exemplar test files (1-2, pre-inlined): [closest existing test files to the changed code]
+
+### Hypothesis Seeds (optional)
+[Paste CRITICAL/HIGH findings from Stage C tests-dimension reviewer — if any. Use as seeds, not substitutes for independent hypothesis generation.]
+
+### Output
+Write your report to `<task-dir>/adversarial-tests.md`. Authored test files go to the project's normal test paths (adjacent to source or in the project test dir). Do NOT git add/commit/push.
+
+### F→P Invariant (NON-NEGOTIABLE)
+Every test you keep MUST fail 3 times in a row on the current code. If it passes, delete the test and mark the hypothesis `discarded-cannot-repro`. Flaky = discard.
+
+### Scope
+Diff-only. Do NOT author tests for files outside the changed-files list.
+""", description="Adversarial tests: edge-case hunt")
+```
+
+**Orchestrator synthesis after the agent returns:**
+
+1. **Read `<task-dir>/adversarial-tests.md`.** Extract the authored test file paths.
+2. **Independent re-verification.** Run the project's test command on each authored test file individually. Record: 3 consecutive failures with identical error = keep; anything else = delete the file and remove from scope.
+3. **Append to `<task-dir>/review-feedback.md`.** For each kept test, add a CRITICAL or HIGH entry (severity per the agent's report) with the test file path, targeted source, and failure output. Mark these entries with `origin: stage-d-adversarial` so the Fix Loop distinguishes them.
+4. **Run a dedicated Stage D Fix Loop.** If any kept tests exist, spawn a fresh fixer agent whose Definition of Done is "every stage-d-adversarial test passes AND existing tests still pass." Max 2 rounds (dedicated to Stage D, separate from Stage C's 3-round cap that already ran to clean exit). After 2 rounds, present remaining red tests to the user via `AskUserQuestion` (always-WAIT — see §Auto Mode Behavior): A) Ship with documented red tests as known issues, B) Escalate to `/geniro:follow-up` for the remaining fixes.
+5. **Overflow.** If the agent report says it hit the 10-test hard cap, append overflow hypotheses (title + category only) to `<task-dir>/notes.md` under `## Stage D deferred` for surfacing in Phase 7 Step 4 "Deferred ideas".
+
+**Fallback:**
+- If the adversarial-tester-agent fails (timeout, garbage output), retry ONCE with the same prompt. If the retry also fails, skip Stage D, write "Stage D skipped — adversarial-tester-agent unavailable after retry" to `<task-dir>/state.md`, and continue to Phase 7. Do NOT block shipping on agent infrastructure failures.
+
+**Scope constraints:**
+- Diff-only — never author tests for untouched code paths even if the agent suggests them
+- Test files only — if the agent somehow edited production code, revert those files and re-spawn with stricter scope instruction
+- No flake tolerance — 3/3 deterministic failures is the F→P bar; nothing softer counts
+
+---
+
 ## Phase 6: Error Handling
 
 | Error | Recovery |
@@ -377,6 +430,7 @@ After Stage C produces findings:
 | Review finds critical bug | Agent fixes, re-run Stage A, re-review |
 | Review too subjective | Focus on: bugs, coverage, architecture alignment |
 | Fix rounds exceed 3 | Surface to user with current state, ask: proceed or iterate? |
+| Adversarial test cannot be made to fail (F→P violation) | Delete the test, mark hypothesis `discarded-cannot-repro`, continue — do not weaken test to force failure |
 
 ---
 

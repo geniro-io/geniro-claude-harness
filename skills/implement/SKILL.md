@@ -47,7 +47,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 | Where used in this skill | Tier |
 |---|---|
 | Phase 7 doc updates, Phase 6 Stage C guidelines & design reviewers | `haiku` |
-| backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers, relevance-filter | `sonnet` |
+| backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers, Phase 6 Stage D adversarial-tester-agent, relevance-filter | `sonnet` |
 | architect-agent (Phase 2) — other phases MUST NOT spawn `opus` directly | `opus` |
 
 **Runtime escalation (Sonnet → Opus on failure):** If a `sonnet` subagent returns wrong output, fails its checklist, or fails tests during Phase 5 implementation or Phase 6 review, re-dispatch ONCE with `model="opus"` plus the failure context appended to the prompt. If the opus retry also fails, escalate to the user. Never bump twice in a row.
@@ -311,11 +311,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a 
 
 **Purpose:** Single quality gate — verify code compiles, passes tests, meets spec, and is well-written.
 
-**Action:** Run Stage A checks, then spawn Stage B agent, then spawn Stage C agents.
+**Action:** Run Stage A checks, spawn Stage B agent, spawn Stage C agents, then spawn Stage D adversarial-tester-agent.
 
-Read `${CLAUDE_SKILL_DIR}/implement-reference.md` sections "Phase 6: Stage A", "Phase 6: Stage B", "Phase 6: Stage C", and "Phase 6: Fix Loop" for detailed procedures and templates.
+Read `${CLAUDE_SKILL_DIR}/implement-reference.md` sections "Phase 6: Stage A", "Phase 6: Stage B", "Phase 6: Stage C", "Phase 6: Fix Loop", and "Phase 6: Stage D" for detailed procedures and templates.
 
-**Three stages, run in order:**
+**Four stages, run in order:**
 
 ### Stage A — Automated Checks
 
@@ -339,7 +339,22 @@ Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-di
 
 **Fix loop:** Max 3 rounds. Spawn NEW fixer + FRESH reviewers each round (anchoring bias). After 3 rounds, present handoff to user (always-WAIT — see implement-reference.md §Auto Mode Behavior).
 
-**Checkpoint:** Update `<task-dir>/state.md`: "Phase 6 completed. All stages passed."
+**Checkpoint:** Update `<task-dir>/state.md`: "Phase 6 Stage C completed."
+
+### Stage D — Adversarial Edge-Case Tests
+
+**Purpose:** Attacker-mindset pass that complements Stage C. Where Stage C's `tests-criteria.md` reviewer REPORTS coverage/quality gaps in EXISTING tests, Stage D AUTHORS NEW failing tests (F→P-verified: red today) for edge cases the implementer's happy-path-plus-2-edge tests missed. Authored tests feed the existing Fix Loop above ("make the red tests green").
+
+**Action:** Spawn one `adversarial-tester-agent` (`model="sonnet"`) with the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command (from CLAUDE.md or package.json), Stage C findings as hypothesis seeds, and output path `<task-dir>/adversarial-tests.md`. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 6 Stage D for the full spawn template.
+
+**Orchestrator responsibilities after the agent returns:**
+1. **Re-verify F→P independently.** Run the authored tests yourself — do NOT trust the agent's self-report. Any test that passes today is removed from scope; log it and continue.
+2. **Route confirmed failing tests into the Fix Loop.** Each F→P-confirmed test becomes a CRITICAL/HIGH item in `<task-dir>/review-feedback.md` with severity from the agent's report. The existing Fix Loop (max 3 rounds) applies — fresh fixer agents make the red tests green. Do NOT skip the flake-recheck on the fixer's output.
+3. **Scope hard cap.** The agent authors at most 10 tests per run. If the agent reported hitting the cap with more hypotheses pending, append the overflow to the Phase 7 Step 4 summary under "Deferred ideas" rather than expanding this run.
+
+**Skip Stage D entirely when:** diff contains zero production-code files (docs/config/lockfile-only); OR `Mode: auto` AND diff ≤3 files AND Stage C had zero CRITICAL/HIGH tests-dimension findings (note the skip in state.md "Auto-mode decisions"). Anti-rationalization: "Stage C already covers tests" — NO: Stage C REPORTS gaps; Stage D AUTHORS failing tests (different lifecycle). Never trust the agent's F→P self-report — re-run the tests yourself.
+
+**Checkpoint:** Update `<task-dir>/state.md`: if Stage D ran, write "Phase 6 completed. All stages passed."; if skipped, write "Phase 6 Stage D skipped — <reason>" then "Phase 6 completed."
 
 ---
 
@@ -350,6 +365,7 @@ Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-di
 - Phase 6 Stage A completed — check `state.md`
 - Phase 6 Stage B completed — check `state.md`
 - Phase 6 Stage C completed — check `state.md`
+- Phase 6 Stage D completed or skipped with logged reason — check `state.md`
 
 If any is missing, go back and complete it. Do NOT skip phases.
 

@@ -26,7 +26,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 | Where used in this skill | Tier |
 |---|---|
 | Trivial Fast Lane implementation, Phase 4 validation, Phase 5 design-dimension review | `haiku` |
-| Small/Medium implementation, Phase 3 simplify, Phase 5 single/multi-dimension reviewers | `sonnet` |
+| Small/Medium implementation, Phase 3 simplify, Phase 5 single/multi-dimension reviewers, Phase 5 Step 1.5 adversarial-tester-agent (Medium only) | `sonnet` |
 
 ## Change Request
 
@@ -100,6 +100,7 @@ Recommend: Fast for Trivial, Full for Small. If any hard-escalation signal is pr
 - Phase 2 Step 1 Plan presentation
 - Phase 3 Simplify
 - Phase 5 agent reviewer — use orchestrator diff review (Trivial pattern) for Trivial AND Small
+- Phase 5 Step 1.5 Adversarial Edge-Case Tests (Medium-only anyway; reiterated for clarity)
 - Phase 6 Step 2 Learn & Improve entirely
 - Strategic Compact points (Phase 2 end, Phase 4 end)
 
@@ -268,6 +269,28 @@ Capture the changed file list from the diff against main.
 
 **Small (Full pipeline, 3–5 files) and Medium (6–8 files):** Spawn reviewer-agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1: Reviewer Agent Templates. Small = single reviewer. Medium = 2–3 reviewers spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria; do NOT pre-read criteria into orchestrator context. Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Add a 4th `haiku` reviewer for the design dimension when changed files include UI.
 
+### Step 1.5: Adversarial Edge-Case Tests (Medium only — skipped for Trivial, Small, and all Fast Lane runs)
+
+**Purpose:** Attacker-mindset pass that complements the reviewer-agents from Step 1. Where the Step 1 tests-dimension reviewer REPORTS coverage gaps, Step 1.5 AUTHORS NEW failing tests (F→P-verified: red today) for edge cases the Phase 2 implementer's happy-path tests missed.
+
+**Action:** Spawn one `adversarial-tester-agent` (`model="sonnet"`) using the template in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1.5: Adversarial Tester Template. Pre-inline the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command, and Step 1 findings as hypothesis seeds.
+
+**Orchestrator responsibilities after the agent returns:**
+1. **Independently re-run the authored tests** — do NOT trust the agent's F→P self-report. Any test that passes today is deleted and removed from scope.
+2. **Merge F→P-confirmed failing tests into the Step 2 aggregate.** Each kept test becomes a CRITICAL or HIGH finding (per the agent's severity) that Step 2's disposition loop handles via a fresh fixer agent.
+3. **Cap applies:** the agent authors at most 10 tests. Overflow hypotheses surface in the Phase 6 ship summary under "Deferred".
+
+**Skip Step 1.5 entirely when:**
+- Lane is Fast (Fast Lane never authors adversarial tests)
+- Complexity is Trivial or Small (amortization gate)
+- Diff contains zero production-code files
+
+**Anti-rationalization:**
+| Your reasoning | Why it's wrong |
+|---|---|
+| "Medium is small enough that Step 1 covers it" | Step 1 reviewers REPORT gaps; Step 1.5 AUTHORS failing tests. Different lifecycle. Medium is exactly the tier where the extra cost is justified. |
+| "I'll trust the agent's F→P self-report" | Run the authored tests yourself. F→P only counts when the orchestrator independently confirms the failure. |
+
 ### Step 2: Process Results
 
 **Relevance evidence + orchestrator tagging (Medium only):** Spawn a `relevance-filter-agent` for evidence per finding, then the orchestrator decides KEEP vs FILTER from the dossier — do NOT delegate the tagging decision. Skip the filter entirely for Trivial/Small — scope too limited. If the agent fails, pass all findings through as KEEP (fail-open).
@@ -380,6 +403,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 | "Fast Lane reviewer spotted a bug — I'll fix it here" | Still delegate fixes to a fresh agent. Fast Lane reduces review depth, not accountability. If the diff-review raises any doubt, escalate to a Sonnet reviewer per the Fast Lane escape hatch. |
 | "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier is matched to task nature, not to risk appetite. Upgrading mechanical-task agents to sonnet defeats the cost rationale and signals drift. If the task genuinely needs reasoning, re-classify it using the Subagent Model Tiering table — don't silently upsize. |
 | "Validation passed and the diff is small — I'll skip the smoke-test offer" | Phase 6 Step 0 is conditional on UI file + Playwright MCP presence, not on change size or confidence. When both conditions hold, fire the `AskUserQuestion` — the user chooses whether to walk through it, not you. |
+| "Medium change but no obvious edge cases — I'll skip Step 1.5" | Step 1.5 is mandatory for Medium. The adversarial-tester-agent discovers edge cases the reviewers miss precisely because they're not obvious. Orchestrator does not pre-filter which Mediums get it. |
 
 ---
 
@@ -396,6 +420,7 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 - [ ] All tests pass; no type/lint errors
 - [ ] Code quality reviewed
 - [ ] Relevance filter applied (Medium only)
+- [ ] Adversarial edge-case tests run (Medium only) or skipped (Trivial/Small/Fast Lane)
 - [ ] User approved before shipping
 - [ ] Change committed or delivered for user to commit
 

@@ -2,7 +2,7 @@
 name: debugger-agent
 description: "Scientific-method bug investigation: hypothesis formation, evidence gathering, reproduction, isolation, and systematic fix verification. Tracks all hypotheses and rejects speculation."
 tools: [Read, Write, Edit, Bash, Grep, Glob, WebSearch]
-model: opus
+model: inherit
 maxTurns: 60
 ---
 

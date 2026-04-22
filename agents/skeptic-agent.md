@@ -1,7 +1,7 @@
 ---
 name: skeptic-agent
 description: "Validate architecture specifications against codebase reality. Detects hallucinated files/functions, verifies requirement coverage, and flags scope creep with confidence-scored findings."
-tools: [Read, Write, Glob, Grep, Bash, Task]
+tools: [Read, Write, Glob, Grep, Bash]
 model: sonnet
 maxTurns: 40
 ---
