@@ -54,11 +54,12 @@ If all files are tightly coupled (same module, sequential deps), use a single ag
 **Small changes in Full pipeline (3–5 files):** Spawn a single reviewer-agent. Pass criteria file paths — the agent reads them itself. Do NOT pre-read criteria into orchestrator context.
 
 ```
-Agent(model="sonnet", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 ## Review: Follow-Up Change
 This is a follow-up change — focus on correctness and regressions. CI already passed. Keep review proportional to change size.
 
-CHANGED FILES: [list]
+CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its complete content — use the file contents already in orchestrator context from Phase 1]
+DIFF CONTEXT: [paste `git diff main...HEAD` output — used to tag findings as [NEW] vs [PRE-EXISTING]]
 CHANGE SUMMARY: [summary]
 
 ## Review Criteria
@@ -81,9 +82,10 @@ Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / 
 ```
 # Spawn ALL reviewers in ONE response — multiple Agent() calls in the same assistant turn, NOT one per turn:
 
-Agent(model="sonnet", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: Bugs & Correctness
-CHANGED FILES: [list]
+CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its complete content — from Phase 1 orchestrator context]
+DIFF CONTEXT: [paste `git diff main...HEAD` output — used to tag findings as [NEW] vs [PRE-EXISTING]]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.
@@ -92,9 +94,10 @@ Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM
 Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
 """, description="Review: bugs")
 
-Agent(model="sonnet", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: Security & Edge Cases
-CHANGED FILES: [list]
+CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its complete content — from Phase 1 orchestrator context]
+DIFF CONTEXT: [paste `git diff main...HEAD` output — used to tag findings as [NEW] vs [PRE-EXISTING]]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.

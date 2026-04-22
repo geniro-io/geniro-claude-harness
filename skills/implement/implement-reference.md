@@ -349,7 +349,19 @@ After Stage C produces findings:
 
 2. **Re-run Stage A** (autofix + full check + codegen if schema changed).
 
-3. **Spawn FRESH reviewer agents** for re-review — never reuse previous reviewer instances (anchoring bias: reviewers anchor to their prior findings instead of evaluating code as-is). Each fresh reviewer gets: updated file contents, its criteria file, and the previous round's findings (so it can verify fixes were applied). Only re-review dimensions that had findings (saves tokens).
+3. **Spawn FRESH reviewer agents** for re-review in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Never reuse previous reviewer instances (anchoring bias: reviewers anchor to their prior findings instead of evaluating code as-is). Only re-review dimensions that had CRITICAL/HIGH findings in the previous round (saves tokens). For each dimension that had findings:
+
+   ```
+   Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+   DIMENSION: [bugs|security|architecture|tests|guidelines|design]
+   CRITERIA (pre-inlined): [content of <dimension>-criteria.md]
+   CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content AFTER the fix round — NOT the pre-fix version]
+   DIFF CONTEXT: [paste `git diff main...HEAD` output reflecting the post-fix state]
+   PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+   PREVIOUS ROUND FINDINGS: [paste the CRITICAL/HIGH findings from the prior reviewer output for this dimension — so you can verify whether each was actually resolved, not just moved]
+   Review ONLY for [dimension]. For each prior-round finding, tag: RESOLVED / PARTIALLY-RESOLVED / NOT-RESOLVED / REGRESSED. Also report any NEW findings introduced by the fix round.
+   """, description="Re-review: [dimension]")
+   ```
 
 4. If the same error persists across 2+ rounds with no progress -> escalate to re-architecture (Phase 2) with failure context
 
