@@ -9,6 +9,7 @@ allowed-tools:
   - Grep
   - Bash
   - Agent
+  - AskUserQuestion
   - WebSearch
 argument-hint: "[files, diff range, branch, or PR ref (#N, URL)]"
 ---
@@ -218,7 +219,7 @@ Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/
 """)
 ```
 
-**Orchestrator tagging:** After the dossier returns, synthesize it yourself per finding: weigh convention-alignment, over-engineering, and pattern-frequency evidence against severity and judge the finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4 (Judge Pass). FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 as KEEP (fail-open).
+**Orchestrator tagging:** After the dossier returns, synthesize it yourself per finding: weigh convention-alignment, over-engineering, and pattern-frequency evidence against severity and judge the finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4 (Judge Pass). FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 as KEEP (fail-open); Phase 4 judge and Phase 4b validation still run normally on fail-open findings — only the convention-relevance layer is skipped.
 
 ### Phase 4: Judge Pass
 
@@ -249,11 +250,14 @@ For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validati
 
 **Why:** Anthropic's official code-review plugin uses this pattern — per-finding validation eliminates ~40% of false positives. The validator has fresh context and must independently reproduce the concern.
 
-**Skip conditions:**
-- If 0 CRITICAL and 0 HIGH remain after Phase 4: skip to Phase 5.
-- If there are any CRITICAL findings: validate all CRITICAL **and** all HIGH findings.
-- If 0 CRITICAL and exactly 1 HIGH: skip validation (single HIGH isn't worth the spawn cost).
-- If 0 CRITICAL and 2+ HIGH: validate all HIGH findings.
+**Validation rules:**
+
+| CRITICAL count | HIGH count | Validate |
+|---|---|---|
+| 0 | 0 | Skip entirely (proceed to Phase 5) |
+| 0 | 1 | Skip (single HIGH isn't worth the spawn cost) |
+| 0 | ≥2 | All HIGH |
+| ≥1 | any | All CRITICAL + all HIGH |
 
 Spawn all validators **in a single message** for parallel execution:
 
@@ -383,73 +387,63 @@ Can be used in pull request checks:
 
 ## Example Workflow
 
-```
-$ review src/auth/login.js src/auth/logout.js
-Analyzing 2 files with 47 lines changed...
+See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for a worked end-to-end example.
 
-Spawning parallel reviewers (5–6, +design when UI files present):
-  - Bugs reviewer (async pattern detection)
-  - Security reviewer (injection points, auth flows)
-  - Architecture reviewer (module dependencies)
-  - Tests reviewer (coverage analysis)
-  - Guidelines reviewer (code style)
+## Phase 5: Persist Findings to State
 
-[Reviewers execute in parallel: ~5-8 seconds]
+Write judge-validated findings to a state artifact so the next skill (or a resumed session) can consume them without re-running review. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline owns its own remediation loop).
 
-Running relevance filter against repo conventions...
-- 10 of 12 findings kept
-- 2 filtered (over-engineering for this repo's complexity level)
+**File:** `.claude/.artifacts/review-findings-state.md` — single file per branch, overwritten on each run.
 
-Judge pass on 10 findings...
-- 8 pass confidence threshold (>=80)
-- 2 filtered (< 80% confidence)
+**Schema (markdown with named sections):**
 
-Validating 4 Critical/High findings (per-finding validators)...
-- 3 confirmed, 1 rejected (false positive — mitigating context found)
+````
+# Review Findings — <ISO 8601 timestamp>
 
-## Review Summary
-Files: 2 | Issues: 7 (1 CRITICAL, 2 HIGH, 4 MEDIUM)
+## Summary
+- branch: <current branch>
+- input: <files | diff range | PR ref>
+- files analyzed: N
+- counts: CRITICAL=X, HIGH=Y, MEDIUM=Z
+- build: pass | fail | not-run
+- suggested next stage: /geniro:implement | /geniro:follow-up | none
 
-## CRITICAL ISSUES (1)
-[SQL Injection in login.js:34-38] ...
+## CRITICAL
+- [NEW] path/to/file.ext:42-48 — <description> — recommendation: <action> — confidence: 95%
+- ...
 
-## HIGH PRIORITY (2)
-[Missing logout validation] ...
-[Race condition in session] ...
+## HIGH
+- ...
 
-## MEDIUM PRIORITY (4)
-[Inconsistent error messages] ...
-[Missing JSDoc comments] ...
-...
+## MEDIUM
+- ...
 
-Overall Assessment: APPROVE WITH CHANGES
-```
+## Filtered
+- path:line — <description> — reason: relevance | validation | confidence-below-threshold
+````
 
-## Phase 5: Learn & Improve
+Write the file even when zero actionable findings remain (empty severity sections, `suggested next stage: none`) — the artifact's existence signals "review ran, nothing to fix" to downstream skills and resumed sessions.
 
-After delivering the review summary, extract knowledge and suggest improvements. **Skip this phase when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (the parent pipeline handles learnings in Phase 7). Only run when `/geniro:review` is invoked standalone.
+## Phase 5b: Learn & Improve
 
-### Extract Learnings
+Extract knowledge and suggest project-scope improvements after delivering findings. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline handles learnings in Phase 7).
 
-Scan the review findings for patterns worth remembering:
-- **Recurring anti-patterns** found across multiple files → save as `project` memory (helps future implementations avoid the same mistakes)
-- **False positives** where a finding looked real but wasn't (framework-specific pattern, intentional deviation) → save as `feedback` memory (improves future review accuracy)
-- **User corrections** on review findings — "that's not a bug, it's intentional because..." → save as `feedback` memory (calibrates future reviews)
+See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for the full procedure (extract recurring anti-patterns, false positives, and user corrections; route project-scope improvements to CLAUDE.md / knowledge / project rules / custom instructions; offer via `AskUserQuestion`).
 
-Before writing, check if an existing memory covers this topic — UPDATE rather than duplicate. Skip if nothing novel was discovered.
+## Phase 6: Suggest Remediation
 
-### Suggest Improvements (project scope only)
+After Phase 5b, surface the next skill to fix what was found. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent owns its own fix loop), or when there are no actionable findings (CRITICAL + HIGH + MEDIUM all zero after Phase 4b).
 
-Route review findings only to project-owned files — do NOT suggest edits to `${CLAUDE_PLUGIN_ROOT}/…` (criteria files, agent prompts, plugin hooks are global and overwritten on update; use `/improve-template` for those).
+**Severity-driven recommendation (must match the Phase 5 state file):**
+- Any CRITICAL OR ≥2 HIGH findings → recommend `/geniro:implement` (full multi-agent pipeline, architecture-aware fixes)
+- 0 CRITICAL AND ≤1 HIGH findings → recommend `/geniro:follow-up` (fast lane for trivial/small scope)
 
-| What was discovered | Route to | Why |
-|---|---|---|
-| Recurring false positive revealing undocumented convention | **CLAUDE.md** | Document the convention so reviewers don't flag it |
-| Non-obvious insight about codebase quality | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Context for future reviews |
-| Security pattern that should be blocked automatically in this project | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual detection |
-| Review rule the user enforced manually (e.g., "always check X") | **Custom instructions** (`.geniro/instructions/review.md`) | Persists as review-specific rule |
+Use `AskUserQuestion` (do NOT print options as plain text) with header "Remediate". Mark the severity-recommended option with "(Recommended)" in its label. Options:
+- **Run /geniro:implement** — full multi-agent pipeline; pre-load findings from `.claude/.artifacts/review-findings-state.md`
+- **Run /geniro:follow-up** — fast lane; pre-load findings from the same file
+- **Skip — I'll handle it manually** — no further action; state file remains for reference
 
-Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
+Do NOT auto-invoke the next skill — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel.
 
 ## Definition of Done
 
@@ -467,6 +461,8 @@ Code review is complete when:
 - [ ] Output delivered with actionable recommendations
 - [ ] Learnings extracted (standalone invocations only)
 - [ ] Improvement suggestions presented (standalone invocations only)
+- [ ] Phase 5 state artifact written to `.claude/.artifacts/review-findings-state.md`
+- [ ] Phase 6 remediation suggestion presented via `AskUserQuestion` (standalone invocations only)
 
 ---
 
@@ -482,5 +478,7 @@ Code review is complete when:
 | "While I'm here, let me suggest improvements beyond the diff" | Review against the scope of changes, not "what else could be improved." Stay focused. |
 | "The agent said it thoroughly reviewed everything" | Agents self-report optimistically. Verify by reading their actual outputs yourself. |
 | "I can merge confidently without addressing CRITICAL findings" | CRITICAL issues MUST be fixed before shipping. They are non-negotiable. |
+| "I can skip writing the state file — the user can copy from chat" | The state file is the only handoff channel that survives compaction or session end. Findings in chat alone cannot reach the next skill. |
+| "Findings are obvious — skip the AskUserQuestion and just tell them to run /implement" | Severity-driven recommendation is a structured choice (the user may want fast-lane follow-up for small scope, or to handle manually). Always offer the question; never assume. |
 
 ---
