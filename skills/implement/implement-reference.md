@@ -51,12 +51,52 @@ Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode
 
 ---
 
+## Phase 1 Step 0: Complexity Gate
+
+**Purpose:** Catch Trivial tasks at entry and suggest the lighter `/geniro:follow-up` skill before spending opus tokens on architect-agent and Phase 1 Discovery.
+
+**When to SKIP the gate (any of these applies → proceed straight to Step 1, no prompt):**
+1. Milestone reference detected (Auto-Detection Table rule 0 matched).
+2. On-disk plan-file path present in `$ARGUMENTS` (handled by Phase 2 pre-check rule 4).
+3. Plan-mode conversation plan is active (handled by Phase 2 pre-check rule 2).
+4. `state.md` already contains a `Phase 1 Step 0:` line (resume or second-run already decided this gate).
+5. `<task-dir>/state.md` `Completed phases` includes Phase 1 (interrupted after Phase 1 — do not re-prompt).
+
+**When the gate FIRES:** none of the skip conditions apply AND `$ARGUMENTS` is a natural-language request describing the change.
+
+**Signals used (reuse follow-up's rubric — do NOT duplicate):**
+
+Read `skills/follow-up/SKILL.md` §"Step 2: Complexity Assessment" for the canonical 9 hard escalation signals and the Trivial/Small/Medium/Too-large tiers. Apply those definitions here verbatim. If that file moves, update this reference — the rubric must live in exactly one place.
+
+**Decision procedure:**
+
+1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of follow-up's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1, no prompt. Do NOT offer the fast-path.
+2. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per follow-up's Trivial definition (see §"Step 2: Complexity Assessment" in `skills/follow-up/SKILL.md`). If unclear, proceed silently to Step 1 — the gate only fires on a clear Trivial signal.
+3. **If Trivial AND no hard signals:** use `AskUserQuestion` with header "Skill" and these options (present in this order — the user explicitly invoked `/geniro:implement`, so list it first):
+   - "Continue with /geniro:implement — full architect review"
+   - "Hand off to /geniro:follow-up — lighter pipeline for Trivial changes"
+4. **If user picks follow-up:** print `/geniro:follow-up <original-request>` as the exact command to run next and STOP the pipeline. Do NOT create a task directory — the pipeline is aborted before any state is written.
+5. **If user picks implement (or gate did not fire):** proceed to Step 1, which creates the task directory. After Step 1 writes the `Mode:` line, append `Phase 1 Step 0: full pipeline` as an additional line in `state.md`. (If the gate was skipped, use `Phase 1 Step 0: skipped — <reason>` instead, where reason is one of: `milestone`, `plan-path`, `plan-mode`, `resume`.)
+6. **If not clearly Trivial (Small/Medium/unclear):** proceed silently to Step 1 without prompting. The gate is biased toward the heavier path — only fires on clear Trivial signal.
+
+**Anti-rationalization:**
+
+| Reasoning | Why it's wrong |
+|---|---|
+| "Looks Trivial enough, skip even with a hard signal" | Hard signals override size. A 1-file auth change is Medium-complexity minimum. |
+| "User said it's simple, trust them" | User-stated simplicity is not a signal — apply the rubric objectively. |
+| "Skip the prompt, just redirect to follow-up" | The gate is a `AskUserQuestion` WAIT. User must confirm — they may want architect review even for a typo. |
+| "Also offer /geniro:debug as an option" | Out of scope for this gate. Debug has its own entry via `/geniro:debug`. |
+
+---
+
 ## Auto Mode Behavior
 
 Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `Mode: auto` (set either by rule 3 of §Phase 1 Auto-Detection Table or by the Mode Selection prompt). Skill orchestrator MUST read `Mode:` from state.md at every gate and consult this table — do not auto-resolve gates not listed here.
 
 | Gate | Phase / Step | Auto-mode action |
 |---|---|---|
+| Complexity gate | Phase 1, Step 0 | Auto-proceed with full pipeline. Skip `AskUserQuestion`. Append `Phase 1 Step 0 — complexity gate → auto-proceed (full pipeline)` to `state.md` "Auto-mode decisions". Rationale: auto-mode runs are typically CI or non-interactive — fast-path redirect requires a human to run the new command, so auto-mode defaults to the heavier path the user already invoked. |
 | Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question; append one-liner per decision to `state.md` "Auto-mode decisions" |
 | Git workspace | Phase 1, Step 7 (in same batch) | Option A (new branch). If already on a feature branch (not `main`/`master`/`develop`), Option B |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
@@ -529,7 +569,7 @@ Execute the user's chosen ship method:
 
 ### Worktree Exit + Integration Updates
 
-**Worktree:** If working in a worktree (from Phase 1 Step 9 option C):
+**Worktree:** If working in a worktree (from Phase 1 Step 10 option C):
 - After any commit option (commit, commit+push, commit+PR): call `ExitWorktree` with `action: "keep"` — the branch and worktree are preserved so the user can return for follow-up, PR review, or further pushes.
 - After leave uncommitted: warn that uncommitted changes remain in the worktree at `.claude/worktrees/<name>/`, then call `ExitWorktree` with `action: "keep"`.
 - Never use `action: "remove"` automatically — only if the user explicitly asks to abandon the worktree and discard changes.
