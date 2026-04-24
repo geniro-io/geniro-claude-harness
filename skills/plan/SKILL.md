@@ -131,7 +131,7 @@ If no hard signals, score these dimensions:
 
 | Size | Planning Depth |
 |------|----------------|
-| **Small** | **Lightweight plan:** Goal + Approach + Steps (no wave grouping, no test scenarios table). Skip skeptic validation — present directly. |
+| **Small** | **Lightweight plan:** Goal + Approach + Steps (no wave grouping, no test scenarios table). Skip skeptic validation, then route to Phase 4 Steps 1-4 (full plan print + approval ask) — the full-plan print is mandatory even for Small tasks. |
 | **Medium** | **Standard plan:** Full structure from `plan-criteria.md`. Architect + skeptic validation. |
 | **Large** | **Progressive delivery:** Phase 2a approach summary first → user confirmation → Phase 2b full plan + skeptic. |
 
@@ -148,8 +148,8 @@ For Large tasks, Phase 2 becomes two sub-phases:
 3. Spawn architect-agent with the existing plan + revision request
 4. Architect produces updated plan (preserves structure, updates changed sections)
 5. Run skeptic validation on the revised plan
-6. Present diff summary to user
-7. Save updated plan (same file, updated timestamp in header)
+6. Save updated plan (same file, updated timestamp in header)
+7. Route to Phase 4 Steps 1-4 — print a short changelog of what changed in this revision FIRST (not a summary of the plan itself), then the full revised plan content verbatim, then the approval ask. A changelog alone is not enough; the user must see the complete revised plan.
 
 ---
 
@@ -166,8 +166,8 @@ For Large tasks, Phase 2 becomes two sub-phases:
    - Skip architect generation entirely
    - Parse the user's plan into the standard plan format (read `plan-criteria.md` for structure)
    - Run skeptic validation on the parsed plan (skip for Small tasks)
-   - Present to user for confirmation
    - Save to `.geniro/planning/plan-<slug>.md` (or into the task directory if one exists for the current branch)
+   - Route to Phase 4 Steps 1-4 (full plan print + approval ask) — parsing a user-provided plan does NOT exempt this path from the Phase 4 full-plan print
 
 3. **Load prior context.** Before scanning the codebase fresh, check for existing artifacts:
    - Existing plans in `.geniro/planning/plan-*.md` and `.geniro/planning/*/plan-*.md` — avoid re-planning what's already decided
@@ -279,7 +279,7 @@ For Medium and Large tasks:
 
 1. **Read the plan file** from `.geniro/planning/`
 
-2. **Present the full plan** — output the complete plan content. Do NOT summarize or abbreviate. The user needs to see every step and every file.
+2. **Present the full plan** — output the entire plan file content verbatim in an assistant message. Do NOT summarize, abbreviate, paraphrase, or replace it with a "see the file" reference. The plan text MUST appear in the transcript before the `AskUserQuestion` call — either in a preceding message, or as text content that precedes the tool call in the same assistant turn. Never lead with `AskUserQuestion` when the plan has not yet been printed. The user needs to see every step, every file path, and every verify criterion before approving.
 
 3. **Add metadata:**
    - "Full plan saved to `.geniro/planning/<filename>`"
@@ -290,7 +290,7 @@ For Medium and Large tasks:
    - A) **Approve this plan** — mark as approved, ready for `/geniro:implement`
    - B) **Adjust** — describe what to change (routes back to architect for revision)
    - C) **Too large — decompose into milestones** — hand off to `/geniro:decompose` which produces 3-7 independently shippable milestone files that `/geniro:implement` consumes one at a time
-   - D) **Approve and implement** — approve the plan, then run `/geniro:implement` to execute it
+   - D) **Approve — ready for `/geniro:implement`** — mark as approved; user re-invokes `/geniro:implement` separately (skills cannot call skills)
 
 5. **Route based on answer:**
    - **A:** Update plan status to `approved`, done
@@ -347,3 +347,5 @@ Plan skill is complete when:
 | "Skeptic validation is overkill for this" | The skeptic catches hallucinated files and dropped requirements before they waste implementation time. Skip only for Small tasks. |
 | "The user seems impatient, skip straight to plan" | A bad plan costs more time than the 30 seconds saved by skipping questions. |
 | "I can merge the plan into conversation instead of writing a file" | Plans must be files — conversation memory is lost on compaction. All downstream agents reference the file. |
+| "The plan is already saved, I'll skip printing it and just ask for approval" | The user needs to see the plan to approve it. A saved file is not the same as a visible transcript — the approval is blind without the full content in the message immediately before the `AskUserQuestion`. Phase 4 Step 2 full-plan print is mandatory for every path (Small, Medium, Large, user-provided, revision). |
+| "I'll just link to the saved plan file and ask for approval" | A file path is not the plan content. The approval ask must follow a message containing the complete plan text. If the plan is too long to print comfortably, that is a decomposition signal — offer `/geniro:decompose`, do not truncate the print. |
