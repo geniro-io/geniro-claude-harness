@@ -35,22 +35,28 @@ $ARGUMENTS
 
 ### Step 1: Parse the question
 
-Classify into one of:
+Classify into one of. The "Agents needed" column is the literal spawn set — 1, 2, or 3 agents.
 
 | Type | Description | Agents needed |
 |---|---|---|
-| **How** | How does X work? Trace execution, data flow | Codebase + Git |
-| **Why** | Why was X chosen? Design rationale, history | Git + Internet |
-| **What-if** | What happens if we change X? Impact analysis | Codebase + Internet |
-| **Compare** | Compare approaches for X | Internet + Codebase |
-| **Risk** | What are the risks of X? | Codebase + Git + Internet |
+| **Current-code trace** | "How does this function / module work right now?" — behavior lives in the code itself. | Codebase only |
+| **Commit archaeology** | "When/who/why did this line change?" answerable purely from git log/blame. | Git only |
+| **External docs lookup** | "What does library X's Y API do?" / "What changed in framework Z between versions?" — answer is external, no project specifics needed. | Internet only |
+| **How** | How does X work? Trace execution + evolution. | Codebase + Git |
+| **Why** | Why was X chosen? Design rationale requires current code patterns + history + industry context. | Codebase + Git + Internet |
+| **What-if** | What happens if we change X? Impact in our code + external compatibility. | Codebase + Internet |
+| **Compare** | Compare approaches for X (ours vs alternatives). | Codebase + Internet |
+| **Risk** | What are the risks of X? Evidence needed from all three. | Codebase + Git + Internet |
 
 ### Step 2: Identify scope
 
 From the question, extract:
 - **Target area**: which files, modules, or patterns are relevant
 - **Depth needed**: surface-level overview vs deep trace
-- **Internet needed**: yes if question involves best practices, alternatives, framework internals, or "why" questions about external dependencies
+- **Skip criteria** — apply ONLY to prune agents the Phase 1 Step 1 row already includes. They never *add* agents beyond the table's literal set (the table wins). Each criterion is testable against the question text:
+  - **Skip Codebase** when the question is answerable purely from git log/blame ("when did X change?", "who wrote Y?") or purely from external docs ("what does library Z's API do?") — and the classified row does not include Codebase.
+  - **Skip Git** when the question is about current code behavior only and does not ask about history, evolution, rationale, or recent changes — and the classified row does not include Git.
+  - **Skip Internet** when the question is fully internal — our code, our patterns, our commits — and does not reference external libraries, frameworks, standards, best practices, alternatives, or security advisories — and the classified row does not include Internet.
 
 Before spawning agents, check `.geniro/knowledge/learnings.jsonl` for existing answers to this question or closely related topics (Grep with keywords from the question). If a comprehensive answer exists, present it and ask the user if they want fresh investigation.
 
@@ -58,11 +64,11 @@ If the question is ambiguous, use the `AskUserQuestion` tool to clarify scope be
 
 ## Phase 2: Investigate (parallel agents)
 
-Spawn 2-3 agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — based on the classification from Phase 1. Always spawn the Codebase agent. Add Git and/or Internet agents based on the question type.
+Spawn 1-3 agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — matching the literal "Agents needed" set from Phase 1 Step 1. No agent is unconditional; each must pass the Phase 1 Step 2 skip criteria. When only one agent is spawned, it is still spawned via `Agent(...)` (not inlined) so Phase 4 self-review can verify its findings against a fresh transcript.
 
 Replace every `{{placeholder}}` with actual content before spawning.
 
-### Agent A: Codebase Analyst (always spawned)
+### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
 ```
 Agent(prompt="""
@@ -301,7 +307,7 @@ If no issues: report "VERIFIED — answer is accurate and complete"
 - **Nits**: Apply if they improve clarity
 - **Verified**: Proceed to Phase 5
 
-If blockers are found, fix and re-verify with another fresh agent. Max 1 re-review round.
+If blockers are found, fix and re-verify with another fresh agent. Max 1 re-review round — track the count in your own scratchpad; at the limit, present what you have to the user with the remaining blockers flagged, and stop.
 
 ## Phase 5: Present
 
@@ -320,7 +326,7 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text) with header
 - "Save key findings to memory" — persist important discoveries
 - "Done — answer is sufficient"
 
-If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). Max 2 dive-deeper rounds — if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
+If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). Max 2 dive-deeper rounds — track the count in your own scratchpad; if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
 If user wants to save findings: extract non-obvious architectural insights, design rationale, or gotchas. Save as `project` memory. Before writing, check if an existing memory covers this topic — UPDATE rather than duplicate.
 
 If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` to route them to any follow-up action the investigation surfaced. Skip this second question if the user already indicated they are done with the topic entirely.
@@ -341,9 +347,10 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I already know the answer from reading the code" | You read one perspective. Parallel agents catch what you missed — git history reveals intent, internet reveals context. |
-| "The question is simple, skip the agents" | Simple questions get simple agent prompts. The structure catches blind spots even for "obvious" answers. |
+| "I'll spawn all 3 to be safe" | Irrelevant agents are net-negative — they consume tokens and their off-target findings force the synthesizer to filter noise. Phase 1 Step 2 skip criteria drive the set, not safety defaults. |
 | "Self-review is overkill for a question" | Wrong answers waste more time than the review costs. File references go stale, claims drift from evidence. |
-| "I'll skip internet research, it's a code question" | Even code questions benefit from framework docs, known issues, and deprecation context. Skip only when truly irrelevant (Phase 1 classification). |
+| "The question mentions a library, but I'll skip Internet — I can answer from code" | The skip criteria require evidence, not guesses. If the question references an external dependency, framework, or standard, Internet is in the set. Use the Phase 1 Step 2 rules, not intuition. |
+| "The classification says 1 agent but I'll add Codebase for safety" | The classification table is the literal spawn set. Adding an agent the skip criteria excluded is the over-spawn anti-pattern in miniature. If the criteria look wrong for this question, revise the question's classification — don't silently add agents. |
 | "I'll spawn agents one at a time to save tokens" | Parallel agents go in ONE response — multiple Agent() calls in the same assistant turn. Sequential turns waste wall-clock time for no token savings. |
 | "The user seems to want a quick answer" | A wrong quick answer is worse than a correct 30-second-slower answer. Run the pipeline. |
 
