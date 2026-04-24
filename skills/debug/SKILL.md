@@ -77,7 +77,7 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 [How the patch was verified locally (throwaway experiment), reproduction result, confirmation that experimental edits were reverted]
 
 ## Escalation
-[/geniro:follow-up or /geniro:implement; handoff via `.claude/.artifacts/debug-findings-state.md`]
+[/geniro:follow-up or /geniro:implement; handoff via `.geniro/debug/findings-state.md`]
 ```
 
 **Fields:**
@@ -141,7 +141,7 @@ Before asking where to route the fix, you MUST present a human-readable findings
 
 #### 6.5a — Present Findings Summary & Persist State
 
-Output the following markdown block directly in the chat AND write the same block to `.claude/.artifacts/debug-findings-state.md` (single file per branch, overwritten on each run — mirrors the `/geniro:review` state-artifact convention). Fill with the actual values from your investigation. Use "none" for any field that truly doesn't apply — don't omit fields. Prepend an ISO-8601 timestamp header (`# Debug Findings — <timestamp>`) to the file version so downstream skills and resumed sessions can tell stale artifacts from fresh ones.
+Output the following markdown block directly in the chat AND write the same block to `.geniro/debug/findings-state.md` (single file per branch, overwritten on each run — mirrors the `/geniro:review` state-artifact convention). Fill with the actual values from your investigation. Use "none" for any field that truly doesn't apply — don't omit fields. Prepend an ISO-8601 timestamp header (`# Debug Findings — <timestamp>`) to the file version so downstream skills and resumed sessions can tell stale artifacts from fresh ones.
 
 ```markdown
 ## Debug Findings
@@ -166,13 +166,13 @@ Output the following markdown block directly in the chat AND write the same bloc
 **Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
 ```
 
-The receiving skill pre-loads findings from `.claude/.artifacts/debug-findings-state.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path is the contract.
+The receiving skill pre-loads findings from `.geniro/debug/findings-state.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path is the contract.
 
 #### 6.5b — Escalation Decision
 
-Only after the summary above is visible AND written to `.claude/.artifacts/debug-findings-state.md`, use `AskUserQuestion` with header "Escalate" and these options:
-- **Trivial — run `/geniro:follow-up`; pre-load findings from `.claude/.artifacts/debug-findings-state.md`** — ≤2 files, obvious target, no architecture or auth/permissions change.
-- **Non-trivial — run `/geniro:implement`; pre-load findings from `.claude/.artifacts/debug-findings-state.md`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
+Only after the summary above is visible AND written to `.geniro/debug/findings-state.md`, use `AskUserQuestion` with header "Escalate" and these options:
+- **Trivial — run `/geniro:follow-up`; pre-load findings from `.geniro/debug/findings-state.md`** — ≤2 files, obvious target, no architecture or auth/permissions change.
+- **Non-trivial — run `/geniro:implement`; pre-load findings from `.geniro/debug/findings-state.md`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
 - **Leave it to me** — the user will apply the patch manually using the state file as reference. Skip to Step 7.
 
 Do NOT auto-invoke the next skill — surface the suggestion only. The user runs the slash command themselves; the state file is the handoff channel. You do NOT apply the patch yourself. Full-suite validation is the receiving skill's responsibility.
@@ -225,9 +225,9 @@ Apply the same skip-matrix philosophy as `skills/follow-up/SKILL.md` Step 1.5 (s
 1. **Resolve the diff** (see B). Pre-inline full diff + changed-file contents for the spawn prompt.
 2. **Detect the project test framework.** Read `CLAUDE.md` Essential Commands section + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract (a) the test command, (b) test-file naming convention, (c) 1–2 exemplar test files closest to the changed code.
 3. **Spawn `adversarial-tester-agent`** — see Spawn Template in §E below.
-4. **Independently re-run authored tests.** Read the agent's report at `.claude/.artifacts/debug-adversarial-tests.md`, extract authored test file paths, then run the project test command **once per authored test**. Single independent re-run per authored test (the agent already ran its own 3× flake check per its Step 5; duplicating would waste budget). Any test that does not fail deterministically on the re-run is deleted from disk AND removed from the report.
+4. **Independently re-run authored tests.** Read the agent's report at `.geniro/debug/adversarial-tests.md`, extract authored test file paths, then run the project test command **once per authored test**. Single independent re-run per authored test (the agent already ran its own 3× flake check per its Step 5; duplicating would waste budget). Any test that does not fail deterministically on the re-run is deleted from disk AND removed from the report.
 5. **Present Adversarial Findings** — see §F below.
-6. **Escalate.** Reuse Step 6.5b `AskUserQuestion` (header "Escalate") with the same three options — Trivial → `/geniro:follow-up`, Non-trivial → `/geniro:implement`, Leave-it-to-me. Before asking, ensure the Adversarial Findings summary from §F has been written to `.claude/.artifacts/debug-adversarial-tests.md` (the agent already wrote it at Step 3; append the re-verification delta if tests were discarded). The escalation option labels MUST reference that file by path (e.g., "Trivial — run `/geniro:follow-up`; pre-load findings from `.claude/.artifacts/debug-adversarial-tests.md`") — the authored test file paths inside are the escalation targets, and the receiving skill applies the fix and confirms the now-green test suite. If zero red tests survived re-verification, SKIP Step 6.5b entirely — report `"no bugs found in scanned diff"` and go to DoD.
+6. **Escalate.** Reuse Step 6.5b `AskUserQuestion` (header "Escalate") with the same three options — Trivial → `/geniro:follow-up`, Non-trivial → `/geniro:implement`, Leave-it-to-me. Before asking, ensure the Adversarial Findings summary from §F has been written to `.geniro/debug/adversarial-tests.md` (the agent already wrote it at Step 3; append the re-verification delta if tests were discarded). The escalation option labels MUST reference that file by path (e.g., "Trivial — run `/geniro:follow-up`; pre-load findings from `.geniro/debug/adversarial-tests.md`") — the authored test file paths inside are the escalation targets, and the receiving skill applies the fix and confirms the now-green test suite. If zero red tests survived re-verification, SKIP Step 6.5b entirely — report `"no bugs found in scanned diff"` and go to DoD.
 
 ### E. Spawn Template
 
@@ -250,7 +250,7 @@ Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
 none — adversarial mode runs a fresh pass (no prior reviewer findings available in debug).
 
 ### Output
-Write your report to `.claude/.artifacts/debug-adversarial-tests.md`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+Write your report to `.geniro/debug/adversarial-tests.md`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
 
 ### F→P Invariant (NON-NEGOTIABLE)
 Every test you keep MUST fail 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
@@ -358,17 +358,17 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "I'll reason about edges instead of authoring tests" | Reasoning is reviewer-mindset. Adversarial mode AUTHORS executable failing tests because reasoning misses what running code catches. Delegate to the agent. |
 | "The agent reported F→P, I'll trust it" | The orchestrator MUST independently re-run authored tests per the agent's own Delegation Boundary. Self-reported F→P is evidence, not proof. |
 | "A finding improves an agent prompt, I'll include it in Step 8" | Plugin files are out of scope. Suggest only project-owned targets (CLAUDE.md, `.geniro/instructions/`, `.geniro/knowledge/learnings.jsonl`). |
-| "The findings are in HYPOTHESES.md, I'll just ask the escalation question" | HYPOTHESES.md is a scratchpad, not a user-facing report. Step 6.5a requires an explicit findings summary in chat AND persisted to `.claude/.artifacts/debug-findings-state.md` before the escalation question — the user decides where to route based on the chat summary, and the receiving skill pre-loads from the state file. |
-| "I'll paste the full findings summary into the escalation command" | The escalation options reference `.claude/.artifacts/debug-findings-state.md` by path — that file IS the handoff. Inlining the summary into the command bloats context and lets the two copies drift. File path only. |
+| "The findings are in HYPOTHESES.md, I'll just ask the escalation question" | HYPOTHESES.md is a scratchpad, not a user-facing report. Step 6.5a requires an explicit findings summary in chat AND persisted to `.geniro/debug/findings-state.md` before the escalation question — the user decides where to route based on the chat summary, and the receiving skill pre-loads from the state file. |
+| "I'll paste the full findings summary into the escalation command" | The escalation options reference `.geniro/debug/findings-state.md` by path — that file IS the handoff. Inlining the summary into the command bloats context and lets the two copies drift. File path only. |
 
 ## Cleanup
 
 After the debug session completes (fix verified or escalated):
 - **Scientific-method mode only:** Remove `.geniro/debug/HYPOTHESES.md` — its useful content has already been saved to memory (root causes, gotchas, techniques). The file is a working scratchpad, not a permanent record.
 - **Scientific-method mode only:** Remove any temporary test files or debug scripts created during the session (adversarial mode authors keeper tests — those stay on disk).
-- **Scientific-method mode only:** `.claude/.artifacts/debug-findings-state.md` MUST remain on disk as the escalation handoff channel — do NOT delete it. It stays until the next debug run overwrites it (single file per branch, same as `/geniro:review`'s state artifact).
+- **Scientific-method mode only:** `.geniro/debug/findings-state.md` MUST remain on disk as the escalation handoff channel — do NOT delete it. It stays until the next debug run overwrites it (single file per branch, same as `/geniro:review`'s state artifact).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
-- **Adversarial mode:** `.claude/.artifacts/debug-adversarial-tests.md` may remain as audit trail per plugin convention; authored test files stay on disk.
+- **Adversarial mode:** `.geniro/debug/adversarial-tests.md` may remain as audit trail per plugin convention; authored test files stay on disk.
 
 Cleanup is best-effort — if a command fails silently, that's fine.
 
@@ -384,7 +384,7 @@ For each debug session, confirm the checklist for the mode that ran.
 - [ ] Root cause identified and confirmed (not guessed)
 - [ ] Proposed fix is minimal, targeted, and written as a text patch (not applied to source)
 - [ ] Proposed fix verified against the root cause via reverted experiments
-- [ ] Findings summary (Step 6.5a) presented to user in chat AND persisted to `.claude/.artifacts/debug-findings-state.md` before the escalation question
+- [ ] Findings summary (Step 6.5a) presented to user in chat AND persisted to `.geniro/debug/findings-state.md` before the escalation question
 - [ ] Escalation decision made via Step 6.5b AskUserQuestion with options referencing the state file by path (follow-up / implement / user-handles)
 - [ ] All experimental edits to non-test source reverted before handoff
 - [ ] Investigation documented for future reference
@@ -396,13 +396,13 @@ For each debug session, confirm the checklist for the mode that ran.
 - [ ] Skip conditions checked (and explicitly reported if skipped)
 - [ ] Project test framework detected from CLAUDE.md / package.json / pyproject.toml
 - [ ] `adversarial-tester-agent` spawned with all 5 Input Contract slots pre-inlined
-- [ ] Report written to `.claude/.artifacts/debug-adversarial-tests.md`
+- [ ] Report written to `.geniro/debug/adversarial-tests.md`
 - [ ] Authored tests independently re-run by orchestrator (1× per test)
 - [ ] F→P-confirmed tests retained; any passing-today tests deleted
 - [ ] Adversarial Findings summary (§F) presented to user in chat
 - [ ] Escalation decision made via Step 6.5b (or "no bugs found" exit if zero red tests)
 - [ ] Authored test files left on disk (NOT reverted — unlike scientific-method experiments)
-- [ ] Cleanup completed (`.claude/.artifacts/debug-adversarial-tests.md` can remain as audit trail per plugin convention)
+- [ ] Cleanup completed (`.geniro/debug/adversarial-tests.md` can remain as audit trail per plugin convention)
 
 ---
 

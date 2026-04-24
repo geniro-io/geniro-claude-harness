@@ -393,7 +393,7 @@ See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for a worked end-to-end example
 
 Write judge-validated findings to a state artifact so the next skill (or a resumed session) can consume them without re-running review. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline owns its own remediation loop).
 
-**File:** `.claude/.artifacts/review-findings-state.md` — single file per branch, overwritten on each run.
+**File:** `.geniro/review-findings-state.md` — single file per branch, overwritten on each run.
 
 **Schema (markdown with named sections):**
 
@@ -439,7 +439,7 @@ After Phase 5b, surface the next skill to fix what was found. **Skip when `/geni
 - 0 CRITICAL AND ≤1 HIGH findings → recommend `/geniro:follow-up` (fast lane for trivial/small scope)
 
 Use `AskUserQuestion` (do NOT print options as plain text) with header "Remediate". Mark the severity-recommended option with "(Recommended)" in its label. Options:
-- **Run /geniro:implement** — full multi-agent pipeline; pre-load findings from `.claude/.artifacts/review-findings-state.md`
+- **Run /geniro:implement** — full multi-agent pipeline; pre-load findings from `.geniro/review-findings-state.md`
 - **Run /geniro:follow-up** — fast lane; pre-load findings from the same file
 - **Skip — I'll handle it manually** — no further action; state file remains for reference
 
@@ -461,7 +461,7 @@ Code review is complete when:
 - [ ] Output delivered with actionable recommendations
 - [ ] Learnings extracted (standalone invocations only)
 - [ ] Improvement suggestions presented (standalone invocations only)
-- [ ] Phase 5 state artifact written to `.claude/.artifacts/review-findings-state.md`
+- [ ] Phase 5 state artifact written to `.geniro/review-findings-state.md`
 - [ ] Phase 6 remediation suggestion presented via `AskUserQuestion` (standalone invocations only)
 
 ---

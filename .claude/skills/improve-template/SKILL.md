@@ -31,7 +31,7 @@ obvious target, no ambiguity). Everything else goes through subagents.
 
 ## State Persistence
 
-After completing each phase, write a checkpoint to `.claude/.artifacts/improve-template-state.md`:
+After completing each phase, write a checkpoint to `.geniro/improve-template-state.md`:
 ```
 Phase [N] completed: [phase name]
 Issue: [one-line description]
@@ -39,7 +39,7 @@ Findings count: [N approved]
 Files to change: [list]
 ```
 
-On skill start: if `.claude/.artifacts/improve-template-state.md` exists, read it and resume
+On skill start: if `.geniro/improve-template-state.md` exists, read it and resume
 from the next incomplete phase. Ask the user if this is still the active improvement or a new one.
 
 ---
@@ -436,7 +436,7 @@ rather than duplicate. Skip this step entirely if nothing novel was discovered.
 
 ### Step 3: Cleanup
 
-Remove `.claude/.artifacts/improve-template-state.md`.
+Remove `.geniro/improve-template-state.md`.
 
 ### Step 4: Suggest commit & push
 

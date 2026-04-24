@@ -71,6 +71,6 @@ Files: 2 | Issues: 7 (1 CRITICAL, 2 HIGH, 4 MEDIUM)
 
 Overall Assessment: APPROVE WITH CHANGES
 
-Persisting findings to .claude/.artifacts/review-findings-state.md
+Persisting findings to .geniro/review-findings-state.md
 Suggested next stage: /geniro:implement (1 CRITICAL → recommend full pipeline)
 ```
