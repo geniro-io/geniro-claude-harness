@@ -54,7 +54,7 @@ Parse `$ARGUMENTS` to detect intent:
 | `/geniro:plan ENG-123` | Fetch issue from configured tracker (see workflow files), use as context, then plan |
 | `/geniro:plan review` or `/geniro:plan list` | List existing plans in `.geniro/planning/` (flat and subdirectories) with status |
 | `/geniro:plan update plan-0405-oauth.md` | Re-read and revise an existing plan |
-| `/geniro:plan just plan it` or `ASAP` | Auto mode: skip questions, pick recommended defaults |
+| `/geniro:plan add OAuth — just do it` or `/geniro:plan ASAP: add rate limiter` | Auto mode: skip questions, pick recommended defaults |
 | `/geniro:plan I think we should add OAuth` | Assumptions mode: propose plan with assumptions, let user correct |
 | `/geniro:plan` (no arguments) | Use the `AskUserQuestion` tool to ask "What would you like to plan?" |
 
@@ -63,7 +63,7 @@ Parse `$ARGUMENTS` to detect intent:
 2. **"review" or "list"** → list mode (skip to Plan Listing)
 3. **"update" + filename** → revision mode (skip to Plan Revision)
 4. **Issue tracker reference** — check `.geniro/workflow/*.md` for argument detection patterns (URLs, issue ID regexes). If a match is found, follow the workflow file's fetch instructions.
-5. **Auto-mode signals** — "just do it", "ASAP", "no questions", "auto", "quick" → skip interactive questions, pick recommended defaults
+5. **Auto-mode signals** — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` for the canonical phrase list (`"just do it"`, `"ASAP"`, `"no questions"`). `"auto"` and `"quick"` are NOT triggers. On match: skip interactive questions, pick recommended defaults.
 6. **Assumptions-mode signals** — "I think", "maybe", "what if", "should we" → propose plan with assumptions, let user correct
 7. **Plain description** → full interactive planning flow
 

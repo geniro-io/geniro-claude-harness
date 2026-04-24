@@ -63,7 +63,7 @@ Parse `$ARGUMENTS` to detect intent:
 3. **"update" + filename** → revision mode (skip to Milestone Revision)
 4. **Path to existing `plan-*.md`** → re-decompose mode: read file, treat as master-plan source
 5. **Issue tracker reference** — check `.geniro/workflow/*.md` for argument detection patterns. If a match is found, follow the workflow file's fetch instructions. If the integration backend is unavailable, log a warning and proceed without.
-6. **Auto-mode signals** — "just do it", "ASAP", "no questions", "auto", "quick" → skip interactive questions, pick recommended defaults
+6. **Auto-mode signals** — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` for the canonical phrase list (`"just do it"`, `"ASAP"`, `"no questions"`). `"auto"` and `"quick"` are NOT triggers. On match: skip interactive questions, pick recommended defaults.
 7. **Assumptions-mode signals** — "I think", "maybe", "what if", "should we" → propose decomposition with assumptions, let user correct
 8. **Plain description** → full interactive decomposition flow
 

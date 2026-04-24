@@ -112,10 +112,10 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 6. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 7.
 7. **MANDATORY: Resolve gray areas.** Read `Mode:` from `<task-dir>/state.md` (set in Step 1) and execute the matching sub-bullet. You MUST stop here and ask the user questions before proceeding (interactive mode). Do NOT synthesize the spec without user input first.
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
-   - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 7 row). Log to `state.md` "Auto-mode decisions" section
+   - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 7 row) for all gray areas EXCEPT git workspace. Log to `state.md` "Auto-mode decisions" section
    - **Assumptions mode:** Propose plan, let user correct
    - **Plan-provided:** If a detailed plan exists in the conversation (from plan mode) or as a file (from `/geniro:plan`), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
-   - **Include git workspace question** in this batch (new branch / current branch / worktree)
+   - **Git workspace question is ALWAYS asked via `AskUserQuestion`**, regardless of mode (including auto-mode). Options: new branch / current branch / worktree. This is a deliberate exception to auto-mode's default-picking — where the implementation lands is a consequential decision the user must make explicitly. Ask it standalone (do not batch with other gray areas in auto-mode).
 8. Synthesize into spec document (only AFTER step 7). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
 9. Document assumptions in spec file
 10. **Git workspace setup** — execute user's choice from step 7. Options A and C both need a branch name; read and apply the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md` once with the spec title and `$ARGUMENTS` to produce `<branch-name>` (e.g., `feat/ci-22-case-radar-timeline`) that follows the repo's convention rather than a hardcoded prefix.
@@ -171,7 +171,7 @@ If any file in the plan's affected-files list matches the UI-file detection rule
 
 **Gate:**
 
-If `<task-dir>/state.md` shows `Mode: auto`: print "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise.", append the decision to state.md "Auto-mode decisions" section, and proceed to Phase 4. Do NOT call `AskUserQuestion`.
+If `<task-dir>/state.md` shows `Mode: auto`: you MUST first print the full plan content verbatim (same as Step 2 above — the full plan must appear in the transcript, not just a summary or file reference), then print "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise.", append the decision to state.md "Auto-mode decisions" section, and proceed to Phase 4. Do NOT call `AskUserQuestion`. The full-plan print is mandatory in auto-mode too — a file path is not the plan content, and the user must be able to audit what was auto-approved.
 
 Otherwise, use the `AskUserQuestion` tool (do NOT output options as plain text):
 - A) **Approve — start building**

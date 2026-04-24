@@ -23,7 +23,7 @@ This file contains templates, examples, error tables, and detailed procedures re
 0. **Milestone reference** — patterns (checked in priority order): (a) `^milestone\s+(\d+)\b` at start of `$ARGUMENTS`, (b) `$ARGUMENTS` references a path ending in `milestone-<N>-*.md`, (c) `$ARGUMENTS` equals `continue` AND `<task-dir>/state.md` contains a `Milestones:` field. If any matches, load the milestone file via Phase 2 pre-check rule 1 and skip remaining rules. Milestone detection takes priority over workflow files and feature IDs because the user explicitly pointed at a specific unit of work.
 1. Check `.geniro/workflow/*.md` for argument detection patterns. Apply them in order before falling through to mode signal detection.
 2. **Geniro feature ID** — pattern `^F\d+(\s|$)` at start of `$ARGUMENTS`. Read `.geniro/planning/FEATURES.md` if present and look up the matching row. If FEATURES.md is missing or the ID is not found, treat the rest of `$ARGUMENTS` as a plain description and warn the user once. If found, capture the row's description and spec-file path (from the Notes column) — these get persisted to `state.md` (see SKILL.md Phase 1).
-3. **Auto-mode signals** — keywords like "just do it", "ASAP", "no questions", "auto", "quick" -> skip interactive questions, pick recommended defaults for all gray areas
+3. **Auto-mode signals** — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` for the canonical phrase list. If any canonical phrase is matched, skip interactive questions, pick recommended defaults for non-workspace gray areas. `"auto"` and `"quick"` are NOT triggers — they collide with common technical vocabulary (`auto-save`, `quick-action`).
 4. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
 5. **No special signals** — explicitly ask the user which mode to use (see "Mode Selection prompt" below). Default to interactive
 
@@ -41,7 +41,7 @@ Use `AskUserQuestion`:
 
 Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode signal (rule 3) or assumptions-mode signal (rule 4). Persist the chosen mode in `<task-dir>/state.md` under a `Mode:` line so resumed runs and downstream phases read it without re-prompting.
 
-**Example discovery questions (interactive mode, batch 3-5). IMPORTANT — include the git workspace question in this same batch, do NOT defer it to a separate prompt:**
+**Example discovery questions (interactive mode, batch 3-5). IMPORTANT — in interactive mode, include the git workspace question in this same batch (do NOT defer it to a separate prompt). In auto-mode, the git workspace question is asked standalone via `AskUserQuestion` regardless of mode — see §Auto Mode Behavior:**
 - Scope: Backend-only? Frontend? Both? (recommend: match existing split)
 - Backwards compat: Support old API during transition? (recommend: yes, deprecation warning)
 - Performance: Any constraints or targets? (recommend: <100ms latency for endpoints)
@@ -97,10 +97,10 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 | Gate | Phase / Step | Auto-mode action |
 |---|---|---|
 | Complexity gate | Phase 1, Step 0 | Auto-proceed with full pipeline. Skip `AskUserQuestion`. Append `Phase 1 Step 0 — complexity gate → auto-proceed (full pipeline)` to `state.md` "Auto-mode decisions". Rationale: auto-mode runs are typically CI or non-interactive — fast-path redirect requires a human to run the new command, so auto-mode defaults to the heavier path the user already invoked. |
-| Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question; append one-liner per decision to `state.md` "Auto-mode decisions" |
-| Git workspace | Phase 1, Step 7 (in same batch) | Option A (new branch). If already on a feature branch (not `main`/`master`/`develop`), Option B |
+| Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question EXCEPT git workspace (see next row); append one-liner per decision to `state.md` "Auto-mode decisions" |
+| Git workspace | Phase 1, Step 7 (standalone) | **Always-WAIT.** Ask via `AskUserQuestion` even in auto-mode — where the change lands (new branch / current / worktree) is a deliberate user decision, not a gray-area default. Do NOT auto-pick Option A or Option B |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
-| Plan approval | Phase 3 | **Auto-approve.** Print plan summary (path + heading + step count + skeptic validation summary: N blockers, M warnings) and the line "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise." Skip `AskUserQuestion`. Proceed to Phase 4 |
+| Plan approval | Phase 3 | **Auto-approve with full-plan print.** Print the full plan content verbatim (mandatory — same as interactive mode, per Phase 3 header "present the full plan file (do NOT summarize)"), then print the skeptic validation summary (N blockers, M warnings) and the line "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise." Skip `AskUserQuestion`. Proceed to Phase 4 |
 | Compact prompt | Phase 3 (post-approval) | "Continue now" (skip compaction). Skip `AskUserQuestion` |
 | Stage C fix loop after 3 rounds | Phase 6 | **Always-WAIT.** Auto-shipping known CRITICAL/HIGH issues is unsafe. Surface the `AskUserQuestion` regardless of mode |
 | Suggest improvements | Phase 7, Step 3 | "Skip" (defer improvements; user can run `/geniro:follow-up` later) |
