@@ -393,7 +393,7 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 
 ### Step 4.5: Pre-Ship Visual Verification (WAIT — conditional, runs only if UI changed — auto: see implement-reference.md §Auto Mode Behavior)
 
-If any file in the "Files changed" list from Step 4 matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, `AskUserQuestion` with header "Smoke-test":
+If any file in the "Files changed" list from Step 4 matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, fire a STANDALONE `AskUserQuestion` with header "Smoke-test" as the ONLY question in that call — never batch it with Step 5's Ship Decision question, because the user must not be offered a commit/push choice until UI verification is resolved:
 - **Yes — walk through it** — drive Playwright MCP to smoke-test the change before shipping. Follow the full sequence in `implement-reference.md` §Pre-Ship Visual Verification.
 - **Skip — already verified** — record skip reason in `<task-dir>/state.md` and proceed to Step 5.
 
@@ -457,6 +457,7 @@ If "Delete": remove `<task-dir>/` recursively.
 | "Implementation is done, the user can test it" | Phase 4 is one of 7 phases. Follow the pipeline to completion. |
 | "I'll skip review since the agents already tested" | Agent self-reports are unreliable. Phase 6 exists to catch what agents miss. |
 | "The tweak is small, I'll skip the re-validation loop" | Every tweak re-runs at minimum Stage A. Small bugs introduced during tweaks are the hardest to catch later. |
+| "I'll batch Smoke-test and Ship Decision in one AskUserQuestion to save a round-trip" | Step 5 offers commit/push/PR — asking it alongside the UI-check lets the user commit before verifying UI. The Smoke-test question is a standalone gate; Step 5 fires only after verification is resolved (completed or skipped). |
 
 ---
 

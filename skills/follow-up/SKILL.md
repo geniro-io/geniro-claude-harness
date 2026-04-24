@@ -321,7 +321,7 @@ Show a summary:
 
 Runs only when BOTH conditions hold: (a) `git diff --name-only` contains at least one file matching the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, AND (b) Playwright MCP is available — check that `mcp__plugin_playwright_playwright__browser_navigate` is in your tool list. If either condition fails, skip silently to Step 1 and omit the Smoke-test line from the summary.
 
-When both hold, `AskUserQuestion` header "Smoke-test": "Yes — walk through it" / "Skip — go to review". On "Yes", follow the 8-step procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Pre-Ship Visual Verification verbatim (detect URL → baseline snapshot → console/network → targeted interaction → responsive sweep → visual record → cleanup). Append the result to the summary as the Smoke-test line, then proceed to Step 1 — do not re-show the summary.
+When both hold, fire a STANDALONE `AskUserQuestion` header "Smoke-test" as the only question in that call — never batch it with Step 3's Ship Decision question — options "Yes — walk through it" / "Skip — go to review". On "Yes", follow the 8-step procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Pre-Ship Visual Verification verbatim (detect URL → baseline snapshot → console/network → targeted interaction → responsive sweep → visual record → cleanup). Append the result to the summary as the Smoke-test line, then proceed to Step 1 — do not re-show the summary.
 
 ### Step 1: Review Gate (loop entry point)
 
