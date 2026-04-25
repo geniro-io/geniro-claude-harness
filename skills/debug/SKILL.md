@@ -15,6 +15,22 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 
 Every `Agent(...)` spawn in this skill MUST pass an explicit `model=` argument per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
+## Evidence Standard
+
+A hypothesis is **confirmed** ONLY when its `Result:` field cites one of these artifact kinds:
+
+| # | Kind | Example |
+|---|---|---|
+| 1 | File:line + verified snippet (orchestrator re-read confirms the text) | `src/cache/user.ts:42-58` snippet pasted |
+| 2 | Captured command / test / build output | `pnpm test src/cache/user.test.ts → 1 failing, AssertionError: ...` |
+| 3 | Log line or stack trace from the running system | `2026-04-01T12:34Z ERROR ... NullPointerException at ...` |
+| 4 | Query result against the actual datastore | `SELECT count(*) FROM sessions WHERE user_id=42 → 0 rows` |
+| 5 | User-provided artifact (screenshot, log paste, captured request body, env-var dump) | user pastes the request body that triggered the bug |
+
+Reasoning, "the symptom matches the hypothesis", "the agent reported confirmed", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only reproduction with a captured artifact (kind 2-4) confirms causation.
+
+If the orchestrator's tools cannot produce evidence for a hypothesis (no DB access, no production logs, no credentials, no environment access), do NOT mark it inconclusive by default — use the missing-data gate in Step 3 to ask the user for the artifact.
+
 # Debug: Scientific-Method Investigation
 
 Use this skill to systematically debug complex issues. Replaces guessing with evidence gathering and hypothesis testing. Each investigation is tracked so you can review what was tried and why.
@@ -113,10 +129,15 @@ Before investigating, check for relevant prior learnings:
 - **Consider infrastructure causes alongside code causes** — connection timeouts, resource exhaustion, DNS failures, container restarts, database connection pool limits, cloud service rate limits, and deployment-related changes (new config, changed env vars, scaled-down replicas) are common root causes that code inspection alone will miss. If symptoms include timeouts, intermittent failures, or errors that only appear in deployed environments, form at least one infrastructure hypothesis.
 
 ### 3. Test (10–30 min)
-- Design a minimal test for each hypothesis
+- Design a minimal test for each hypothesis. The test must produce a captured artifact per the Evidence Standard (kind 2–4) — a failing assertion, a log line, a query row count.
 - Add logging, breakpoints, or unit tests to gather evidence
 - Do NOT implement a fix yet—you're gathering data
-- Record results: confirmed, rejected, or inconclusive
+- **Missing-data gate:** if testing a hypothesis requires data the orchestrator's tools cannot reach (production logs, runtime state, third-party API responses, DB rows behind credentials, screenshots), do NOT mark the hypothesis inconclusive by default. Use the `AskUserQuestion` tool (do NOT output options as plain text — use the tool's structured UI) with header "Missing data" and 2-4 concrete options for the artifact you need. Examples:
+  - "Paste the failing log line at the time of the error" / "Paste the request body that triggered the error" / "I don't have it — mark inconclusive"
+  - "Run this query against the production DB and paste the result: `<query>`" / "I can't run that query" / "Skip this hypothesis"
+  - "Provide a screenshot of the broken state" / "I don't have it — skip"
+  Apply the same "ask-don't-guess" rule that already governs Step 1's reproduction-step ambiguity (see Step 1 above) — extend it to test data, not only repro steps.
+- Record results: confirmed, rejected, or inconclusive — every Result: field MUST cite an artifact per the Evidence Standard. "Confirmed" with a narrative-only Result is rejected.
 
 ### 4. Isolate (5–15 min)
 - Once hypothesis is confirmed, identify exact code location
@@ -130,9 +151,11 @@ Before investigating, check for relevant prior learnings:
 - If experiments modified non-test source to prove the hypothesis (e.g., added a temporary log line, patched a value), revert those experimental edits before escalation. The escalated skill applies the real fix cleanly.
 
 ### 6. Verify Root Cause (5–10 min)
-- Prove the proposed fix resolves the root cause using experiments only: apply the patch locally in a throwaway way (e.g., monkey-patch in a test, branch-local scratch edit you will revert), run the reproduction, confirm the bug disappears, then revert the experimental change.
+- The reproduction MUST be a re-runnable artifact whose output is captured by the orchestrator (a failing test, a script that returns non-zero, a curl command + captured response, a query + captured rows). Verbal "I clicked X and got Y" descriptions do NOT count as a re-runnable artifact — convert them into a re-runnable form (script / test / curl) before proceeding, or ask the user to paste the captured output.
+- Pre-fix: re-run the reproduction at least 2× and confirm the SAME error signature both times (same exception type + same failing assertion / same status code / same row count). Two divergent failures are NOT confirmation — they're either flakiness or two different bugs; investigate before continuing. (This is a lighter-weight version of adversarial mode's F→P 3× invariant — 2× because Step 3 already produced evidence; the 2× re-runs here just rule out flake, not the full 3× independence proof.)
+- Apply the patch locally in a throwaway way (monkey-patch in a test, branch-local scratch edit you will revert). Re-run the reproduction at least 2× post-fix and confirm the same-signature failure DISAPPEARS both times. Then revert the experimental change.
 - Do NOT run the full project test suite here — that belongs to the escalated skill. The goal is evidence that the proposed patch is correct, not CI-green.
-- Record the experimental evidence in `.geniro/debug/HYPOTHESES.md` under "Fix Evidence".
+- Record the experimental evidence in `.geniro/debug/HYPOTHESES.md` under "Fix Evidence" — paste the captured pre-fix output AND the captured post-fix output, not narrative summaries.
 - If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs, schemas, or controllers: note this in the escalation so the receiving skill runs codegen.
 
 ### 6.5. Present Findings & Escalate (WAIT)
@@ -173,6 +196,7 @@ The receiving skill pre-loads findings from `.geniro/debug/findings-state.md` �
 Only after the summary above is visible AND written to `.geniro/debug/findings-state.md`, use `AskUserQuestion` with header "Escalate" and these options:
 - **Trivial — run `/geniro:follow-up`; pre-load findings from `.geniro/debug/findings-state.md`** — ≤2 files, obvious target, no architecture or auth/permissions change.
 - **Non-trivial — run `/geniro:implement`; pre-load findings from `.geniro/debug/findings-state.md`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
+- **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger a follow-up `AskUserQuestion` with concrete options for the missing data (paste log line / run query / provide screenshot / dump env vars). When the data arrives, return to Step 3, do NOT escalate to fix mode yet.
 - **Leave it to me** — the user will apply the patch manually using the state file as reference. Skip to Step 7.
 
 Do NOT auto-invoke the next skill — surface the suggestion only. The user runs the slash command themselves; the state file is the handoff channel. You do NOT apply the patch yourself. Full-suite validation is the receiving skill's responsibility.
@@ -291,7 +315,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup/D
 
 These limits apply to scientific-method mode only. Adversarial mode inherits the agent-level stop rules defined in `agents/adversarial-tester-agent.md` (5 consecutive discards stop hypothesis generation; 10 authored tests is the hard cap per run).
 
-- **Hypothesis testing**: If 5 hypothesis tests across all hypotheses are inconclusive, stop and escalate to user with findings. May need domain expertise or more reproduction data.
+- **Hypothesis testing**: If 5 hypothesis tests across all hypotheses are inconclusive, do NOT escalate directly to the user with findings — first run the missing-data gate (Step 3, "Missing-data gate"). Use `AskUserQuestion` with header "Missing data" and concrete options for the specific artifacts that would flip an inconclusive into a result (logs, query output, screenshot, env-var dump, repro from a real environment). Only escalate to user-with-findings if the user explicitly says they cannot supply the artifact, in which case escalation may need domain expertise or more reproduction data.
 - **Fix attempts**: If 2 fix attempts fail verification, stop and use the `AskUserQuestion` tool (do NOT output options as plain text) to present findings with options: A) Try different approach, B) Escalate to /geniro:implement for deeper rework, C) Show investigation summary
 
 ## Git Constraint
@@ -360,6 +384,10 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "A finding improves an agent prompt, I'll include it in Step 8" | Plugin files are out of scope. Suggest only project-owned targets (CLAUDE.md, `.geniro/instructions/`, `.geniro/knowledge/learnings.jsonl`). |
 | "The findings are in HYPOTHESES.md, I'll just ask the escalation question" | HYPOTHESES.md is a scratchpad, not a user-facing report. Step 6.5a requires an explicit findings summary in chat AND persisted to `.geniro/debug/findings-state.md` before the escalation question — the user decides where to route based on the chat summary, and the receiving skill pre-loads from the state file. |
 | "I'll paste the full findings summary into the escalation command" | The escalation options reference `.geniro/debug/findings-state.md` by path — that file IS the handoff. Inlining the summary into the command bloats context and lets the two copies drift. File path only. |
+| "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. A hypothesis is confirmed only by reproduction with a captured artifact per the Evidence Standard, not by "the story fits". |
+| "I have no DB / log / production access — mark this hypothesis inconclusive" | Inconclusive-by-default is a fabrication shortcut. Run the Step 3 missing-data gate first: AskUserQuestion for the specific artifact. Only mark inconclusive if the user confirms they cannot supply it. |
+| "The user described the reproduction verbally, that's enough" | Verbal repro is a hypothesis seed, not a re-runnable artifact. Step 6 requires a captured artifact (failing test, script, curl + response). Convert verbal repro to a captured form, or ask the user to paste the actual output. |
+| "The agent reported the hypothesis confirmed — I'll trust it and move on" | Self-reported confirmation is evidence, not proof — the same rule that already governs adversarial mode (see existing row about F→P self-reports). The orchestrator MUST independently re-run the test / re-read the file:line / re-execute the query before advancing to Step 4 Isolate. |
 
 ## Cleanup
 
@@ -387,7 +415,7 @@ For each debug session, confirm the checklist for the mode that ran.
 - [ ] Findings summary (Step 6.5a) presented to user in chat AND persisted to `.geniro/debug/findings-state.md` before the escalation question
 - [ ] Escalation decision made via Step 6.5b AskUserQuestion with options referencing the state file by path (follow-up / implement / user-handles)
 - [ ] All experimental edits to non-test source reverted before handoff
-- [ ] Investigation documented for future reference
+- [ ] Investigation insights extracted to learnings.jsonl / project memory (Step 7) — HYPOTHESES.md is a working scratchpad and is removed during Cleanup
 - [ ] Cleanup completed (HYPOTHESES.md removed, temp files cleaned)
 
 ### Adversarial Mode
