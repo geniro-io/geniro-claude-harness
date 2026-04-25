@@ -569,13 +569,9 @@ Execute the user's chosen ship method:
 - **Commit only**: Stage relevant files, `git commit` with conventional message. Include doc updates, learning files, and improvement changes in the commit.
 - **Leave uncommitted**: `git add` changed files only, skip commit
 
-### Worktree Exit + Integration Updates
+### Integration Updates
 
-**Worktree:** If working in a worktree (from Phase 1 Step 10 option C):
-- After any commit option (commit, commit+push, commit+PR): call `ExitWorktree` with `action: "keep"` — the branch and worktree are preserved so the user can return for follow-up, PR review, or further pushes.
-- After leave uncommitted: warn that uncommitted changes remain in the worktree at `.claude/worktrees/<name>/`, then call `ExitWorktree` with `action: "keep"`.
-- Never use `action: "remove"` automatically — only if the user explicitly asks to abandon the worktree and discard changes.
-- If `ExitWorktree` reports uncommitted files and `action: "remove"` was requested, ask the user for confirmation before setting `discard_changes: true`.
+**Worktree:** If working in a worktree (from Phase 1 Step 10 option C), leave the session in it. Do NOT call `ExitWorktree` — the tool's contract is "do not call proactively, only when the user asks", and the runtime already prompts on session exit to keep or remove the worktree. After a "leave uncommitted" ship choice, tell the user the uncommitted changes remain at `.claude/worktrees/<name>/`. If the user later asks to exit the worktree, that is when `ExitWorktree` is invoked — outside this skill's flow.
 
 **Integrations:** If workflow files in `.geniro/workflow/` specify completion actions (status transitions, PR linking, comments), follow their instructions. Always ask the user before changing external state (issue status, comments). Never auto-update. If integration backend is unavailable, log warning and skip (non-blocking).
 

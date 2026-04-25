@@ -15,7 +15,6 @@ allowed-tools:
   - TodoWrite
   - WebSearch
   - EnterWorktree
-  - ExitWorktree
 argument-hint: "[description or issue tracker reference]"
 ---
 
@@ -427,13 +426,9 @@ Ask the user to describe the tweak. Classify by size (Big / Medium / Small), the
 
 Execute user's chosen method. See reference file for commit details per option.
 
-### Step 8: Worktree Exit + Integration Updates + Cleanup — auto: see implement-reference.md §Auto Mode Behavior
+### Step 8: Integration Updates + Cleanup — auto: see implement-reference.md §Auto Mode Behavior
 
-- **Worktree:** If in worktree, call `ExitWorktree` with the appropriate action:
-  - After commit+push or commit+PR: `ExitWorktree` with `action: "keep"` (branch needed for PR review / further work)
-  - After commit only: `ExitWorktree` with `action: "keep"` (user may want to push later)
-  - After leave uncommitted: warn user that changes remain in the worktree directory, then `ExitWorktree` with `action: "keep"`
-  - Only use `action: "remove"` if user explicitly says to abandon the work
+- **Worktree:** If working in a worktree, leave the session in it — do NOT call `ExitWorktree`. Per the tool's contract it is invoked only when the user explicitly asks to exit; the runtime already prompts on session exit to keep or remove the worktree. After "leave uncommitted", note that changes remain at `.claude/worktrees/<name>/` so the user knows where to find them.
 - **Integrations:** If workflow files specify completion actions (e.g., issue status updates), follow their instructions (see reference file for details)
 - **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
 - **State:** If milestone-mode AND any milestone remains non-`completed`, skip this step (pipeline is not complete yet). Otherwise append `Pipeline: COMPLETE` to `<task-dir>/state.md`. In milestone-mode when the LAST milestone completes, also set the master plan's `Status: completed` header.
