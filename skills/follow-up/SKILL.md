@@ -46,8 +46,9 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 2. **Workflow integrations & custom instructions** — check `.geniro/workflow/*.md` for active integrations and argument detection rules; apply to `$ARGUMENTS`. Follow matching workflow instructions (fetch issue context, status transitions). Load `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md` as hard constraints.
 3. **Read the change request** and identify likely files.
 4. **Codebase scan** (Glob/Grep) to find exact files and patterns.
-5. **Read the files** that will be modified.
-6. **Check state:** `git branch --show-current`, `git log --oneline -5`, `git status --short`.
+5. **Reuse Inventory** — search the change area for existing functions / components / types / hooks / helpers / configs the change could reuse; categorize each candidate REUSE-AS-IS / EXTEND / CREATE-NEW with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence — Rule of Three). Produce a CONVENTIONS_BRIEF + REUSE_INVENTORY pair to pre-inline into the Phase 2 implementer agent prompt. **Skipped in Trivial Fast Lane** — rely on the implementer's in-prompt verify-before-creating instruction (see follow-up-reference.md).
+6. **Read the files** that will be modified.
+7. **Check state:** `git branch --show-current`, `git log --oneline -5`, `git status --short`.
 
 ### Step 2: Complexity Assessment
 
@@ -385,6 +386,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 |---|---|
 | "The change is too small for full review" | Small changes cause production incidents too. Follow the process. |
 | "I already know how to do this" | Skills encode process knowledge beyond individual capability. Follow them. |
+| "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory in Step 1 (Glob/Grep for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / CREATE-NEW; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
 | "The tests are obviously fine" | Run them. "Obviously fine" is the #1 predictor of broken tests. |
 | "This doesn't need a complexity assessment" | The assessment takes 30 seconds. Skipping it risks building something that should be `/geniro:implement`. |
 | "I can do this in one step" | Multi-step exists for a reason. Each step catches different failures. |

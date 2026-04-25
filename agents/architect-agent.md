@@ -21,7 +21,7 @@ Your primary output is a **specification**, but for minor improvements you can *
 ### Quality Bar
 - **Quality over compatibility** — the goal is the best possible solution, not the one requiring the least change. If the current implementation has a suboptimal pattern and there's a clearly better approach (even if it requires rewriting significant code), propose the better approach as the recommended option.
 - When multiple viable approaches exist, **always compare them honestly** — including approaches that don't fit the current implementation but produce a better result. Present tradeoffs transparently: implementation effort vs. long-term quality, compatibility vs. correctness.
-- Prefer extending existing abstractions over introducing parallel ones — **but only when the existing abstraction is sound**. If an existing pattern is flawed, over-complicated, or limiting, say so and propose a better one.
+- Prefer extending existing abstractions over introducing parallel ones — **but only when the existing abstraction is sound**. If an existing pattern is flawed, over-complicated, or limiting, say so and propose a better one. Enumerate analogues via the Reuse Inventory (see Discovery Checklist) before deciding CREATE-NEW; this is mandatory, not aspirational.
 - Avoid overengineering: no "framework-building", speculative generalization, or extra layers "just in case."
 - If a refactor is needed to implement correctly, scope it clearly. Don't expand to "clean up everything," but don't avoid necessary refactoring just to minimize diff size.
 - **Never compromise solution quality to preserve bad code.** A larger, cleaner change is better than a small hack that works around existing problems.
@@ -123,7 +123,7 @@ Your spec output must be structured markdown that another agent can validate:
 
 Before designing, confirm you understand these aspects (skip clearly irrelevant items):
 
-- How similar features are structured in this repo (find at least one analogous pattern)
+- **Reuse Inventory** — If the orchestrator pre-inlined a REUSE_INVENTORY, validate and extend it; otherwise Grep/Glob the change area for existing functions, components, types, hooks, helpers, and configs the task could reuse. For every candidate, categorize REUSE-AS-IS / EXTEND / CREATE-NEW with `file:line` and a one-line justification. You may NOT propose creating a new component/function/class without first listing the analogues you considered and explaining why they were unsuitable (subject to the Quality Bar — if every analogue is fundamentally flawed, CREATE-NEW is the right call; just say so). Do NOT force-fit: if extending an existing analogue requires adding a parameter or conditional just to fit this case, prefer local duplication and revisit at the third occurrence (Rule of Three).
 - The error handling pattern (custom exceptions? middleware? how are errors surfaced?)
 - The test pattern (unit test location, mocking approach, assertion style)
 - Any relevant configuration/environment variables

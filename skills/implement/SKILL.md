@@ -108,7 +108,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 2. **Bind to feature row (if applicable).** If `$ARGUMENTS` matched rule 2 of the Auto-Detection Table (Geniro feature ID): look up the row in `.geniro/planning/FEATURES.md`; if status is `planned`, run `/geniro:features move <id> in-progress`; if `in-progress`, no action; if `done`/`blocked`, `AskUserQuestion` header "Feature" with options "Re-open and continue" / "Pick a different feature" / "Treat description as new work (skip feature link)". Persist `Feature: <id>` and `Spec-file: <path or "none">` to `<task-dir>/state.md` before Step 3 (carried forward in every later checkpoint). If no feature ID, `Feature:` is "none".
 3. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
 4. Scan codebase for relevant patterns, conventions, architecture
-5. **Convention Discovery:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area. Capture in CONVENTIONS_BRIEF section within spec file.
+5. **Convention Discovery & Reuse Inventory:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area; capture in CONVENTIONS_BRIEF. Then Grep/Glob the change area for existing functions, components, types, hooks, helpers, and configs that the task could reuse — categorize each candidate REUSE-AS-IS / EXTEND / CREATE-NEW with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence). Capture in REUSE_INVENTORY section within spec file. Pre-inline both into the architect-agent prompt in Phase 2.
 6. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 7.
 7. **MANDATORY: Resolve gray areas.** Read `Mode:` from `<task-dir>/state.md` (set in Step 1) and execute the matching sub-bullet. You MUST stop here and ask the user questions before proceeding (interactive mode). Do NOT synthesize the spec without user input first.
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
@@ -477,16 +477,15 @@ If "Delete": remove `<task-dir>/` recursively.
    Mark Phase 1 as `in_progress`. Update status as each phase completes.
 3. Begin Phase 1 (Discover)
 
-**Token conservation — delegate ALL implementation work:**
-The orchestrator's job is to coordinate, not to code. Every line of code the orchestrator writes wastes expensive context. Delegate ALL work to subagents — including deletions, cleanups, "simple" edits. If you catch yourself thinking "I'll just do this directly since it's simple" — that's the rationalization. Spawn an agent.
+**Token conservation — delegate ALL implementation work:** The orchestrator's job is to coordinate, not to code. Every line of code the orchestrator writes wastes expensive context. Delegate ALL work to subagents — including deletions, cleanups, "simple" edits. If you catch yourself thinking "I'll just do this directly since it's simple" — that's the rationalization. Spawn an agent.
 
 **Anti-rationalization:**
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll execute this directly since it's simple / just deletion / cleanup" | Orchestrator tokens are the most expensive resource. Delegate ALL implementation to subagents. |
 | "Steps X-Y are small, I'll handle them myself" | Every plan step becomes a WU. Group small related steps into one WU, but never execute as orchestrator. |
 | "The build failed, let me read the source and fix it quickly" | Run the check, copy the raw terminal output into a fixer agent prompt. Do NOT open source files, diagnose, search for types, or apply edits yourself. |
-| "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier is matched to task nature, not to risk appetite. Upgrading mechanical-task agents (docs, guidelines, design) to sonnet defeats the cost rationale and signals drift. If the task genuinely needs reasoning, re-classify it using the Subagent Model Tiering table — don't silently upsize. |
+| "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory first (Grep/Glob for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / CREATE-NEW; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
+| "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier matches task nature, not risk appetite. Upgrading mechanical-task agents (docs, guidelines, design) to sonnet defeats the cost rationale and signals drift. Re-classify via the Subagent Model Tiering table — don't silently upsize. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. Only sequence when outputs feed into next agent (e.g., plan → skeptic) or files overlap. |
 
 ---

@@ -154,13 +154,15 @@ When spawning any implementation agent, use this template:
 [Paste file contents you already read — saves agent from re-reading]
 [If Wave 2+: include relevant outputs from prior wave agents]
 
-## Project Context (for backend-agent / frontend-agent)
-[The backend-agent and frontend-agent read CLAUDE.md at runtime for project context.
-No additional context injection needed — the agents discover project context automatically.]
-
 ## Codebase Conventions
 [Paste the CONVENTIONS_BRIEF section from spec file — naming patterns, file structure, error handling, import style, test patterns. Include 1-2 exemplar file snippets showing the patterns to follow.]
 Match existing patterns exactly. Find the closest existing example and follow it.
+
+## Reuse Inventory (verify-before-creating)
+
+[paste REUSE_INVENTORY from spec.md inline]
+
+Before writing any new helper, component, type, or config: Grep the project for an analogue. If one exists, REUSE-AS-IS or EXTEND it instead of creating new. Only create new when the inventory categorized this candidate CREATE-NEW (with the architect's justification) — and even then, do NOT force-fit by adding a parameter or conditional to an existing helper just to reuse it; pragmatic local duplication is preferred until the third occurrence (Rule of Three).
 
 ## Design Conventions (when frontend files in scope)
 [If the spec's CONVENTIONS_BRIEF includes a DESIGN_CONVENTIONS subsection, paste it here. Frontend-agent uses this as anchor context for tokens, primitives, exemplars, scales — so design isn't re-discovered every cycle. If no design system was detectable, paste the greenfield baseline statement from the spec.]

@@ -156,6 +156,7 @@ PHASE: EVIDENCE GATHERING ONLY.
 - Skip Phase 2 (Refactoring Plan), Phase 3 (Atomic Application), and Phase 4 (Reporting) entirely.
 - Do NOT use Write or Edit tools during this invocation. You are producing raw evidence, not a plan.
 - Return smells + consumer counts as your final output.
+- For every detected smell, also run an **Existing Abstraction Audit**: Grep/Glob the project for utilities, services, hooks, or helpers that — if promoted, extended, or generalized — would eliminate the smell at its source rather than transforming the symptom. Note candidates as `extend-existing: <file:line> — <one-line justification>` alongside each smell. If a viable extension exists, the orchestrator may prefer it over the smell-local transformation. Do NOT force-fit: if extending the existing abstraction requires adding a parameter or conditional that complicates it, prefer the local transformation and flag for review.
 
 Run all 6 smell detection categories (duplication, long methods, god classes, dead code, tight coupling, type/import issues). For each smell, count consumers with Grep (files that import/reference the symbol).
 
@@ -337,10 +338,11 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | Your reasoning | Why it's wrong |
 |---|---|
 | "This smell is too small to fix" | If the plan says fix it, fix it. Small smells compound. |
-| "I'll batch multiple transformations" | One transformation per step. Always. |
+| "I'll batch multiple transformations" | One atomic transformation at a time. Always. |
 | "Tests are passing so I'll skip the blocked step protocol" | The protocol exists for the NEXT failure. Follow it. |
 | "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. |
 | "I'll skip reading project conventions" | You'll flag intentional patterns as smells. Read first. |
+| "This duplication needs a new shared helper" | Run the Existing Abstraction Audit first. If a utility / service / hook already exists nearby that could absorb this duplication via a small extension, prefer extending it. Only create a new shared helper when no analogue exists OR when extending the existing one would require adding a parameter or conditional that complicates it (Rule of Three: revisit at the third occurrence; until then prefer local duplication over forced abstraction). |
 | "All detected smells are real issues" | Generic smell categories flag intentional repo patterns. Without filtering against THIS repo's conventions, you'll refactor code that was designed that way on purpose. |
 | "This is just a refactor" | Refactors break things. Tests and review apply equally. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |

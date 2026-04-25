@@ -16,7 +16,8 @@ Agent(model="sonnet", prompt="""
 [describe the specific change needed]
 ## Pre-Inlined Context: [file contents from Phase 1]
 ## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4): [paste approved description verbatim; match it exactly; omit this section entirely if the gate did not run]
-## Codebase Conventions: match existing patterns exactly
+## Codebase Conventions: match existing patterns exactly. Before writing any new helper / component / type / config, Grep the project for an analogue first — REUSE-AS-IS or EXTEND existing code instead of creating new. If reuse requires adding a parameter or conditional to fit, prefer local duplication (Rule of Three).
+## Reuse Inventory (when supplied by Phase 1): [paste REUSE_INVENTORY if present; for Trivial Fast Lane it will be omitted — rely on the verify-before-creating instruction above]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: follow CLAUDE.md, do NOT git add/commit/push, run validation, report changes and issues
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
@@ -38,6 +39,8 @@ Agent(model="sonnet", prompt="""
 [changes for this group]
 ## Pre-Inlined Context: [file contents]
 ## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4 AND this group touches UI files): [paste approved description verbatim; match it exactly; omit this section entirely otherwise]
+## Codebase Conventions: match existing patterns exactly. Before writing any new helper / component / type / config, Grep the project for an analogue first — REUSE-AS-IS or EXTEND existing code instead of creating new. If reuse requires adding a parameter or conditional to fit, prefer local duplication (Rule of Three).
+## Reuse Inventory (when supplied by Phase 1): [paste REUSE_INVENTORY if present; for Trivial Fast Lane it will be omitted — rely on the verify-before-creating instruction above]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
