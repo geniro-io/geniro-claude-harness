@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 14 agents, 16 skills, and 8 safety hooks out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 14 agents, 15 skills, and 8 safety hooks out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -66,9 +66,11 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 ### Typical workflow
 
 ```
-  /geniro:plan         →  /geniro:implement   →  /geniro:follow-up
-  (optional, for          (8-phase pipeline      (small tweaks
-   bigger features)        with review)           after shipping)
+  /geniro:implement   →  /geniro:follow-up
+        ↑                 (small tweaks
+  /geniro:decompose        after shipping)
+  (for Big tasks —
+   splits into milestones)
 ```
 
 Want to go deeper on quality?
@@ -82,7 +84,7 @@ Want to go deeper on quality?
 
 Each skill reads from and writes to `.geniro/` so context survives across compaction, branches, and sessions:
 
-- **Plan → implement** — `/geniro:plan` drops a validated plan into `.geniro/planning/<branch>/`, `/geniro:implement` picks it up automatically.
+- **Plan → implement** — `/geniro:implement`'s Phase 2 (architect + skeptic) drops a validated plan into `.geniro/planning/<branch>/plan-<slug>.md` before coding starts; for Big tasks, `/geniro:decompose` produces a master plan plus per-milestone files in the same directory.
 - **Knowledge accumulates** — `/geniro:learnings` appends gotchas to `knowledge/learnings.jsonl`; future `/geniro:debug` and `/geniro:implement` runs grep it before investigating.
 - **Rules persist** — `/geniro:instructions` writes rules into `.geniro/instructions/`, and every relevant skill reads `global.md` + its own file on every run (so "always use snake_case for DB columns" only has to be said once).
 - **State survives compaction** — long pipelines checkpoint to `.geniro/follow-up-state.md` or the planning dir, so the next turn can resume exactly where it left off.
@@ -107,16 +109,6 @@ Eight-phase pipeline: discover scope, architect a solution, get your approval, i
 /geniro:implement add user authentication with JWT tokens
 /geniro:implement create a REST API for managing blog posts
 /geniro:implement integrate Stripe payments for subscriptions
-```
-
-### `/geniro:plan` — Implementation planning
-
-Creates a detailed file-level implementation plan validated by architect and skeptic agents. Use before `/geniro:implement` or standalone.
-
-```
-/geniro:plan migrate from REST to GraphQL
-/geniro:plan add role-based access control
-/geniro:plan review                          # list existing plans
 ```
 
 ### `/geniro:review` — Parallel multi-agent code review
@@ -304,10 +296,9 @@ geniro-claude-plugin/
 ├── .claude-plugin/
 │   └── plugin.json              # Plugin manifest
 ├── agents/                      # 14 specialized agent definitions
-├── skills/                      # 16 reusable workflow definitions
+├── skills/                      # 15 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── implement/               # 8-phase feature pipeline
-│   ├── plan/                    # Implementation planning
 │   ├── review/                  # 5–6 dimension code review
 │   ├── vendor/                  # Vendor into .claude/ for cloud runners
 │   └── ...

@@ -114,7 +114,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
    - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 7 row) for all gray areas EXCEPT git workspace. Log to `state.md` "Auto-mode decisions" section
    - **Assumptions mode:** Propose plan, let user correct
-   - **Plan-provided:** If a detailed plan exists in the conversation (from plan mode) or as a file (from `/geniro:plan`), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
+   - **Plan-provided:** If a detailed plan exists in the conversation (from Claude Code's built-in plan mode via Shift+Tab) or as a file (from `/geniro:decompose` or a prior `/geniro:implement` run), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
    - **Git workspace question is ALWAYS asked via `AskUserQuestion`**, regardless of mode (including auto-mode). Options: new branch / current branch / worktree. This is a deliberate exception to auto-mode's default-picking — where the implementation lands is a consequential decision the user must make explicitly. Ask it standalone (do not batch with other gray areas in auto-mode).
 8. Synthesize into spec document (only AFTER step 7). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
 9. Document assumptions in spec file
@@ -136,8 +136,8 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 **Pre-check: Existing plan or milestone detection.** Before spawning the architect, check for an existing plan OR a milestone reference from any source:
 
 1. **Milestone reference (highest priority)** — detect a request to implement a single milestone from a decomposed plan. Patterns: `milestone N` argument, milestone-file path, or `continue` with `Milestones:` state. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 2: Milestone Reference Detection for the full detection rules, skip-architect routing, and milestone-mode scope flag.
-2. **Conversation plan (plan mode):** If the conversation contains a structured implementation plan with file-level steps (from Claude Code's plan mode via Shift+Tab, or a prior planning discussion), extract it into `<task-dir>/plan-<slug>.md` following the structure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`. Set the header `Status: approved | Source: plan-mode`. Detection signal: the conversation has a multi-step plan with specific file paths and implementation details — not just a high-level discussion.
-3. **Plan files (from /geniro:plan or /geniro:decompose):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`. If the plan contains a `## Milestones` section (produced by `/geniro:decompose`) AND `$ARGUMENTS` did not name a specific milestone, use the milestone-mode continue-logic from rule 1 instead of the plan as a whole — warn the user: "This plan is decomposed into N milestones. Running `/geniro:implement continue` or `/geniro:implement milestone <N>` is required. Pick one now." then `AskUserQuestion` listing milestones by name with status.
+2. **Conversation plan (plan mode):** If the conversation contains a structured implementation plan with file-level steps (from Claude Code's plan mode via Shift+Tab, or a prior planning discussion), extract it into `<task-dir>/plan-<slug>.md` following the structure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`. Set the header `Status: approved | Source: plan-mode`. Detection signal: the conversation has a multi-step plan with specific file paths and implementation details — not just a high-level discussion.
+3. **Plan files (from /geniro:decompose or a prior /geniro:implement run):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`. If the plan contains a `## Milestones` section (produced by `/geniro:decompose`) AND `$ARGUMENTS` did not name a specific milestone, use the milestone-mode continue-logic from rule 1 instead of the plan as a whole — warn the user: "This plan is decomposed into N milestones. Running `/geniro:implement continue` or `/geniro:implement milestone <N>` is required. Pick one now." then `AskUserQuestion` listing milestones by name with status.
 4. **$ARGUMENTS plan:** If `$ARGUMENTS` contains or references a plan file path (not a milestone file — those are handled in rule 1), read and use it directly.
 
 **If a plan or milestone is found:** Skip architect-agent. Log: "Using existing plan: `<filename>`" or "Using milestone <N>: `<filename>`". Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion` (always-WAIT — see implement-reference.md §Auto Mode Behavior): A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
@@ -146,7 +146,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Architect flow:**
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md` for plan structure
+1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md` for plan structure
 2. **Spawn architect-agent** with `model="opus"` and spec + plan criteria + relevant codebase files (pre-inlined)
 3. **Spawn skeptic-agent** with plan + spec. Explicit instruction: "Write report to `<task-dir>/concerns.md`"
 4. If NEEDS REVISION: route back to architect. Max 3 iterations.
@@ -178,7 +178,7 @@ Otherwise, use the `AskUserQuestion` tool (do NOT output options as plain text):
 - B) **Adjust** — user describes changes
 - C) **Too large — split** — decompose into smaller pieces
 
-**Routing:** Approve -> Phase 4. Adjust -> architect revises, re-validate, re-present. Too large -> help decompose.
+**Routing:** Approve -> Phase 4. Adjust -> architect revises, re-validate, re-present. Too large -> stop here and tell the user to run `/geniro:decompose <task-dir>/plan-<slug>.md` — the task-dir's spec.md, plan, and concerns.md are preserved so `/geniro:decompose` can pick up where this stopped (skills cannot call skills, the user re-invokes).
 
 **After approval:** Add remaining phases to TodoWrite checklist:
 - Phase 4: Implement — decompose into WUs, execute waves
@@ -493,6 +493,6 @@ If "Delete": remove `<task-dir>/` recursively.
 ## REFERENCE
 
 - Agent templates, examples, error tables: `${CLAUDE_SKILL_DIR}/implement-reference.md`
-- Plan criteria: `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`
+- Plan criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`
 - Review criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, guidelines, +design when UI files changed)
 - Simplify criteria: `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`

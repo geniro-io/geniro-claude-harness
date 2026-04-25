@@ -192,8 +192,8 @@ After the map is generated, use the `AskUserQuestion` tool (do NOT output option
 - **Question:** "The codebase map is ready. What do you want to do next?"
 - **Header:** "Next step"
 - **Options:**
-  - label: "Plan a change" — description: "Run `/geniro:plan` to design an implementation plan with the map as context"
-  - label: "Start implementing" — description: "Run `/geniro:implement` if you already have a clear target to build"
+  - label: "Plan and implement a feature" — description: "Run `/geniro:implement <feature>` to design and build a feature (its Phase 2 architect+skeptic produces a plan you approve before code)"
+  - label: "Decompose a Big task" — description: "Run `/geniro:decompose` if the work is too large for a single implement run — splits into 3-7 milestones"
   - label: "Investigate specifics" — description: "Run `/geniro:investigate <question>` to dig deeper into a subsystem"
   - label: "Review feature backlog" — description: "Run `/geniro:features list` to see planned work"
 

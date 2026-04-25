@@ -1,6 +1,6 @@
 # Auto-Mode Signal Detection — Canonical Rule
 
-Single source of truth for detecting "auto mode" in `$ARGUMENTS` across skills that support it (`/geniro:implement`, `/geniro:plan`, `/geniro:decompose`).
+Single source of truth for detecting "auto mode" in `$ARGUMENTS` across skills that support it (`/geniro:implement`, `/geniro:decompose`).
 
 ## The rule
 

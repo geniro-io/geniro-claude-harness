@@ -55,11 +55,11 @@ Linear: [ISSUE-ID](https://linear.app/team/issue/ISSUE-ID)
 ```
 in the PR description body.
 
-## Plan Skill Behavior
+## Implement Skill Behavior
 
-When `/geniro:plan` receives a Linear issue ID or URL:
+When `/geniro:implement` receives a Linear issue ID or URL:
 1. Fetch the issue via MCP (same rules as above)
-2. Use title/description/acceptance criteria as planning input
+2. Use title/description/acceptance criteria as planning input for Phase 2 (architect+skeptic)
 3. If MCP unavailable: log warning, proceed with whatever description was provided
 
 ## MCP Setup

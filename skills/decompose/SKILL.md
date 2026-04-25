@@ -1,6 +1,6 @@
 ---
 name: geniro:decompose
-description: "Decompose a Big/complex task into 3-7 independently shippable milestones. Produces a master plan plus per-milestone detail files that /geniro:implement can consume one at a time via `/geniro:implement milestone <N>`. Use when /geniro:plan says 'too large' or when a single-shot /geniro:implement run would exceed context. Do NOT use for Small/Medium tasks (/geniro:plan is lighter) or when an approved non-staged plan already exists."
+description: "Decompose a Big/complex task into 3-7 independently shippable milestones. Produces a master plan plus per-milestone detail files that /geniro:implement can consume one at a time via `/geniro:implement milestone <N>`. Use when a single-shot /geniro:implement run would exceed context, or when the user picks 'Too large — split' at /geniro:implement's Phase 3 approval. Do NOT use for Small/Medium tasks (/geniro:implement handles them directly) or when an approved non-staged plan already exists."
 context: main
 model: inherit
 allowed-tools:
@@ -18,7 +18,7 @@ argument-hint: "[task description, existing plan path, or 'update <plan-file>' t
 
 # Decompose Skill
 
-Turn a Big task into 3-7 **independently shippable milestones**, each self-contained enough that a fresh `/geniro:implement milestone <N>` invocation can execute it with no memory of the other milestones. Used when `/geniro:plan` says "too large", when a single-shot `/geniro:implement` would exhaust context, or when the user invokes `/geniro:decompose` directly on a complex initiative.
+Turn a Big task into 3-7 **independently shippable milestones**, each self-contained enough that a fresh `/geniro:implement milestone <N>` invocation can execute it with no memory of the other milestones. Used when the user picks "Too large — split" at `/geniro:implement`'s Phase 3 approval, when a single-shot `/geniro:implement` would exhaust context, or when the user invokes `/geniro:decompose` directly on a complex initiative.
 
 **Output:**
 - The existing `.geniro/planning/<task-dir>/plan-<slug>.md` master plan, extended with a `## Milestones` section
@@ -71,10 +71,10 @@ Parse `$ARGUMENTS` to detect intent:
 
 ## When NOT to use this skill
 
-- Task classifies Small or Medium on the effort-scaling rubric (see `skills/plan/SKILL.md` §Effort Scaling). Use `/geniro:plan` — it's lighter and faster.
+- Task classifies Small or Medium on the effort-scaling rubric (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`). Use `/geniro:implement` directly — its Phase 2 includes architect+skeptic for Medium tasks (and `/geniro:follow-up` for trivial).
 - An approved non-staged plan already exists and re-staging would waste work. Run `/geniro:implement` on the existing plan instead.
 - The change is a bug fix. Use `/geniro:debug` for root cause and `/geniro:follow-up` for the patch.
-- Fewer than 3 meaningful shippable slices exist. Decomposition below 3 milestones is a false signal — run `/geniro:plan`.
+- Fewer than 3 meaningful shippable slices exist. Decomposition below 3 milestones is a false signal — fall back to `/geniro:implement` (its built-in architect Phase produces a single plan).
 
 ---
 
@@ -100,7 +100,7 @@ Decomposed Plans:
 
 ### Phase 1: Discover Context
 
-1. **Parse `$ARGUMENTS` and load workflow integrations** — same pattern as `skills/plan/SKILL.md` Phase 1 Step 1. Read `.geniro/workflow/*.md` integration files, detect issue-tracker refs, detect mode (auto/assumptions/interactive). Also load `.geniro/instructions/global.md` and `.geniro/instructions/decompose.md` (if present) and apply as constraints.
+1. **Parse `$ARGUMENTS` and load workflow integrations.** Read `.geniro/workflow/*.md` integration files, detect issue-tracker refs, detect mode (auto/assumptions/interactive). Also load `.geniro/instructions/global.md` and `.geniro/instructions/decompose.md` (if present) and apply as constraints.
 
 2. **Check for existing plan path in `$ARGUMENTS`.** If it's a path to an existing `plan-*.md`:
    - Read the plan file in full
@@ -116,12 +116,12 @@ Decomposed Plans:
 
 4. **Scan codebase** for relevant patterns, conventions, architecture (`README.md`, `CONTRIBUTING.md`, ADRs under `**/adr/**/*.md` or `**/decisions/**/*.md`, 2-3 exemplar files near the change area). CLAUDE.md is auto-loaded — skip re-reading.
 
-5. **Classify effort** using the rubric in `skills/plan/SKILL.md` §Effort Scaling (hard signals + 5-dimension complexity score). Decompose is valid ONLY when classification is **Big** (score 7+ OR any hard-escalation signal) AND one of:
+5. **Classify effort** using the rubric in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` (hard signals + 5-dimension complexity score). Decompose is valid ONLY when classification is **Big** (score 7+ OR any hard-escalation signal) AND one of:
    - A would-be single plan would have >15 steps
    - Complexity score is 9+
-   - The user explicitly invoked `/geniro:decompose` after `/geniro:plan` said "too large"
+   - The user explicitly invoked `/geniro:decompose` after `/geniro:implement`'s architect Phase reported "too large"
 
-   **If classification is Small or Medium**: STOP. Tell the user the computed score and recommend `/geniro:plan` instead. Do not proceed.
+   **If classification is Small or Medium**: STOP. Tell the user the computed score and recommend `/geniro:implement` directly instead. Do not proceed.
 
 6. **Identify gray areas** — ambiguities in scope, boundaries, integration surfaces, sequencing constraints.
 
@@ -134,7 +134,7 @@ Decomposed Plans:
 
 1. **Read criteria files:**
    - `${CLAUDE_SKILL_DIR}/decompose-criteria.md` — milestone schema and validation checklist
-   - `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md` — the underlying plan structure (master plan reuses it)
+   - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md` — the underlying plan structure (master plan reuses it)
 
 2. **Spawn architect-agent** via the Agent tool with `subagent_type: "architect-agent"`, `model="opus"`, in decomposition mode:
 
@@ -159,7 +159,7 @@ Decomposed Plans:
    [Pre-inlined: relevant file contents, exemplar files, conventions discovered]
 
    ## Plan Criteria (master plan structure)
-   [Pre-inline the FULL contents of `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`]
+   [Pre-inline the FULL contents of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`]
 
    ## Decompose Criteria (milestone schema + sizing rules + anti-patterns)
    [Pre-inline the FULL contents of `${CLAUDE_SKILL_DIR}/decompose-criteria.md`]
@@ -239,7 +239,7 @@ Wave: <wave number>
    [User's description + Phase 1 decisions]
 
    ## Validation Standard (8 base dimensions + mirage detection)
-   [Pre-inline "Validation Standard" from `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md`]
+   [Pre-inline "Validation Standard" from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`]
 
    ## Cross-Milestone Validation Dimensions (D9, D10)
    [Pre-inline the "Cross-Milestone Validation Dimensions" section from `${CLAUDE_SKILL_DIR}/decompose-criteria.md`]
@@ -299,7 +299,7 @@ Milestones: [1: pending, 2: pending, 3: pending, ...]
 DecomposedAt: 2026-04-22
 ```
 
-If state.md already exists (e.g., from a prior `/geniro:plan` run), preserve existing fields and add/overwrite the `Milestones:` line. Keep it a single file per task-dir — the pre-compact hook at `hooks/pre-compact-state-save.sh` globs `.geniro/planning/*/state.md` and expects one file per dir.
+If state.md already exists (e.g., from a prior `/geniro:implement` run), preserve existing fields and add/overwrite the `Milestones:` line. Keep it a single file per task-dir — the pre-compact hook at `hooks/pre-compact-state-save.sh` globs `.geniro/planning/*/state.md` and expects one file per dir.
 
 ---
 
@@ -329,13 +329,13 @@ If state.md already exists (e.g., from a prior `/geniro:plan` run), preserve exi
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "This task is only Medium, I'll decompose anyway — more structure never hurts" | Decompose is for Big tasks only (score 7+ with hard signal OR score 9+ OR >15 steps). Re-classify and use `/geniro:plan`. Over-decomposing adds orchestration cost with no benefit. |
+| "This task is only Medium, I'll decompose anyway — more structure never hurts" | Decompose is for Big tasks only (score 7+ with hard signal OR score 9+ OR >15 steps). Re-classify and use `/geniro:implement` directly (its Phase 2 architect+skeptic handles Medium tasks). Over-decomposing adds orchestration cost with no benefit. |
 | "I'll skip Phase 3 and let `/geniro:implement` decompose per-milestone later" | Pre-generating milestone files is the whole point. `/geniro:implement milestone N` assumes the file already exists and is self-contained. Without Phase 3, the fresh-subagent-per-milestone discipline breaks. |
 | "I'll make milestones horizontal — one for backend, one for frontend, one for tests" | Horizontal slices are not independently shippable (backend-only milestone has no user-visible change and no acceptance criterion). Vertical slices only — see decompose-criteria.md Anti-Patterns. |
 | "I'll spawn the milestone-detail agents one at a time so I can validate each before the next" | Spawn all milestone-detail Agent() calls in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Validation happens once in Phase 4 across the whole set. |
 | "The milestone files are short, I'll write them myself instead of spawning architect" | Orchestrator synthesizes — architect-agent authors plans. This is the hard no-orchestrator-edits rule. Opus-tier reasoning belongs in the agent spawn, not in orchestrator turn. |
 | "5 milestones already — I'll add a 6th for 'misc polish'" | Each milestone must be independently shippable with its own Acceptance Criteria. Polish belongs inside its owning milestone, or is the explicit last milestone (Setup → Foundational → Features → Polish) with concrete acceptance criteria like "docs updated, feature flag flipped, telemetry dashboards live". |
-| "Task has 2 meaningful slices — I'll decompose into 3 by splitting one slice" | <3 means the task isn't actually Big. Tell the user to use `/geniro:plan`. Forcing 3+ milestones creates non-serializable slices. |
+| "Task has 2 meaningful slices — I'll decompose into 3 by splitting one slice" | <3 means the task isn't actually Big. Tell the user to use `/geniro:implement` directly. Forcing 3+ milestones creates non-serializable slices. |
 
 ---
 
@@ -357,8 +357,8 @@ Decompose skill is complete when:
 
 | Error | Recovery |
 |-------|----------|
-| Task scores Small or Medium on effort scaling | Refuse to decompose. Report the computed score and recommend `/geniro:plan`. |
-| Architect proposes <3 milestones | Return to architect: "The task is too small to decompose (<3 slices). Re-assess effort; if still Big, identify additional shippable slices." If architect holds at <3, fall back to `/geniro:plan`. |
+| Task scores Small or Medium on effort scaling | Refuse to decompose. Report the computed score and recommend `/geniro:implement` directly (its Phase 2 architect+skeptic handles Medium tasks). |
+| Architect proposes <3 milestones | Return to architect: "The task is too small to decompose (<3 slices). Re-assess effort; if still Big, identify additional shippable slices." If architect holds at <3, fall back to `/geniro:implement` (its built-in architect Phase produces a single plan). |
 | Architect proposes >7 milestones | Return to architect: "Exceeds the 7-milestone cap. Merge adjacent slices that share a user-facing outcome." |
 | Adjacent same-wave milestones share a primary file | Return to architect: "Vertical-slice violation — milestones N and M share `<file>` in wave W. Re-partition to move one of them to a different wave or a different file boundary." |
 | Skeptic finds cross-milestone coverage gap (requirement dropped between milestones, D9) | Route to architect with the specific requirement; architect adds it to the owning milestone's Acceptance Criteria or Steps. |

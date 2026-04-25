@@ -1,6 +1,6 @@
 # Plan Criteria
 
-Guidelines for generating implementation plans. Referenced by the `/geniro:plan` skill and Phase 2 of `/geniro:implement`.
+Guidelines for generating implementation plans. Pre-inlined into architect-agent and skeptic-agent prompts by `/geniro:implement` (Phase 2) and `/geniro:decompose`. This is the canonical schema for plan files saved to `.geniro/planning/`.
 
 ## Plan File Naming
 

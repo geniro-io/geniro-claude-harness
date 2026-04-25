@@ -73,7 +73,7 @@ Match refactor depth to task risk. **File count is a supporting signal, not the 
 |------|----------|
 | **Small** | Skip Phase 3 relevance-filter (scope too narrow to matter). Skip Phase 5 independent reviewer. Proceed through Phases 1-5 with lightweight gates. |
 | **Medium** | Full pipeline as specified (relevance-filter + reviewer-agent). |
-| **Large** | Recommend running `/geniro:plan` first to produce an approved architectural plan; refactor then consumes that plan. If the user wants to proceed without a plan, require explicit confirmation via `AskUserQuestion` header "Scope": "Run /geniro:plan first" / "Proceed without a plan (risky)". On "Proceed without a plan", Large runs the Medium pipeline (full relevance-filter + independent reviewer-agent in Phase 5). The only difference is the user has accepted the added risk of proceeding without architectural review. |
+| **Large** | Recommend running `/geniro:decompose` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved plan. If the user wants to proceed without decomposition, require explicit confirmation via `AskUserQuestion` header "Scope": "Run /geniro:decompose first" (description: "Split the refactor into 3-7 milestones so each one can be reviewed and shipped independently") / "Proceed without a plan (risky)". On "Proceed without a plan", Large runs the Medium pipeline (full relevance-filter + independent reviewer-agent in Phase 5). The only difference is the user has accepted the added risk of proceeding without architectural review. |
 
 ### Hard Escalation Signals (any ONE escalates)
 
@@ -83,7 +83,7 @@ Match refactor depth to task risk. **File count is a supporting signal, not the 
 | New tests required to cover untested code | Add tests first via `/geniro:implement` or escalate |
 | Signature/semantics change on public API | Cross-stack coordination — use `/geniro:implement` |
 | Auth, crypto, or payment code touched | Owner review required — escalate |
-| Ambiguous intent (multiple valid shapes) | Needs `/geniro:plan` first |
+| Ambiguous intent (multiple valid shapes) | Use Claude Code's built-in plan mode (Shift+Tab twice) to draft an approach first, or escalate to `/geniro:implement` |
 | Config/migration regeneration needed | Runtime failure modes — use `/geniro:implement` |
 | Touching test assertions (not just test imports) | Not refactoring — use `/geniro:implement` |
 

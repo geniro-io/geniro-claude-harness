@@ -393,7 +393,7 @@ If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` 
 - **Header:** "Next step"
 - **Options:**
   - label: "Fix a bug I found" — description: "Run `/geniro:debug <symptom>` to investigate and propose a fix"
-  - label: "Implement a change (non-trivial)" — description: "Run `/geniro:plan` to design the change before building"
+  - label: "Implement a change (non-trivial)" — description: "Run `/geniro:implement` to design and build the change (its Phase 2 architect+skeptic produces a plan you approve before code)"
   - label: "Implement a quick change" — description: "Run `/geniro:follow-up <what to change>` for trivial/small fixes"
   - label: "Nothing — just wanted the answer" — description: "End here. Resume your prior work."
 

@@ -9,18 +9,18 @@ This file is the structure contract for decomposed plans. Architect-agent (decom
 Decompose is valid ONLY when classification is **Big** AND at least one additional gate fires:
 
 - (a) A would-be single plan would have **>15 steps**
-- (b) The complexity score (per `skills/plan/SKILL.md` §Effort Scaling — Assess Complexity Dimensions) is **9 or higher**
-- (c) The user explicitly invoked `/geniro:decompose` after `/geniro:plan` reported the task as "too large"
+- (b) The complexity score (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — Assess Complexity Dimensions) is **9 or 10 on the 0-10 scale**
+- (c) The user picked "Too large — split" at `/geniro:implement`'s Phase 3 approval gate
 
-See `skills/plan/SKILL.md` §Effort Scaling for the hard-escalation signals and the 5-dimension complexity-score table. Do NOT duplicate those tables here — plan-criteria.md is the canonical source (Canonical rules, no duplication).
+See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` for the hard-escalation signals and the 5-dimension complexity-score table. Do NOT duplicate those tables here — `skills/_shared/effort-scaling.md` is the canonical source (Canonical rules, no duplication).
 
-If the task classifies Small or Medium on effort scaling, decompose does not apply — use `/geniro:plan`.
+If the task classifies Small or Medium on effort scaling, decompose does not apply — use `/geniro:implement` directly (its Phase 2 architect+skeptic handles Medium tasks).
 
 ---
 
 ## Master Plan File — Extended Structure
 
-The master plan lives at `.geniro/planning/<task-dir>/plan-<slug>.md` (same file `/geniro:plan` writes and `/geniro:implement` detects). It follows the base structure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-criteria.md` PLUS a new `## Milestones` section placed **before `## Files Affected`**.
+The master plan lives at `.geniro/planning/<task-dir>/plan-<slug>.md` (the canonical task-dir plan path that `/geniro:implement` detects). It follows the base structure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md` PLUS a new `## Milestones` section placed **before `## Files Affected`**.
 
 Example of the new section:
 
@@ -101,7 +101,7 @@ _Pre-inlined at execution time by `/geniro:implement` from prior milestones' `##
 
 ## Milestone Sizing Rules (hard caps)
 
-- **3 ≤ milestone count ≤ 7.** Fewer than 3 means the task isn't actually Big — decline and use `/geniro:plan`. More than 7 means over-decomposed — merge adjacent slices.
+- **3 ≤ milestone count ≤ 7.** Fewer than 3 means the task isn't actually Big — decline and use `/geniro:implement` directly. More than 7 means over-decomposed — merge adjacent slices.
 - **Each milestone: 1-8 steps.** 9+ → split the milestone. 0 → merge with a neighbor.
 - **Each milestone: 1-12 files across all steps.** 13+ → split.
 - **Independently shippable.** Tests pass at the milestone boundary; the repo is deployable mid-sequence (feature may be behind a flag or gated route).
@@ -123,7 +123,7 @@ Setup and Polish are optional and should be omitted when not needed. The point i
 
 ## Cross-Milestone Validation Dimensions
 
-These extend skeptic-agent's 8 base dimensions (D1-D8 from `skills/plan/plan-criteria.md`) when validating decomposed plans.
+These extend skeptic-agent's 8 base dimensions (D1-D8 from `skills/_shared/plan-criteria.md`) when validating decomposed plans.
 
 ### D9. Milestone coverage
 Every requirement from the master plan's **Goal** and any spec referenced in **User Decisions** must be covered by at least one milestone's **Acceptance Criteria**. Silent drops between milestones are BLOCKER-severity.
