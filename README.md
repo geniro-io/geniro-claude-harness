@@ -210,6 +210,19 @@ Create, list, edit, validate, and delete project-specific rules that customize h
 /geniro:instructions delete no-orm-rule
 ```
 
+### `/geniro:actions` — Create and run custom workflow actions
+
+Scaffold custom workflow-helper actions (Slack pings, PR inspections, release summaries) into `.geniro/actions/` and run them through the parent skill. Custom actions are NOT top-level slash commands — they're only reachable through `/geniro:actions run`.
+
+```
+/geniro:actions list                                # show all custom actions
+/geniro:actions create pr-notify-slack              # interview-driven scaffold of a new action
+/geniro:actions run pr-notify-slack 1234            # invoke an action with positional args
+/geniro:actions delete pr-notify-slack              # remove a custom action
+```
+
+By default `.geniro/actions/` is committed (team-shared). Remove the `!.geniro/actions/` lines from `.gitignore` to keep them local-only.
+
 ### `/geniro:learnings` — Extract session learnings
 
 Captures patterns, gotchas, decisions, and anti-patterns from completed work into categorized memory with reusability gates.
