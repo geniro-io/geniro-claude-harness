@@ -21,6 +21,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:deep-simplify` | Three-pass parallel code review for reuse, quality, and efficiency |
 | `/geniro:refactor` | Restructure code with zero behavior change guarantee |
 | `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete |
+| `/geniro:actions` | Create and invoke custom workflow-helper actions stored in `.geniro/actions/` (Slack/PR/release automations) |
 | `/geniro:investigate` | Deep codebase Q&A with parallel research agents |
 | `/geniro:features` | Feature backlog management and spec creation |
 | `/geniro:onboard` | Rapid codebase mapping and orientation |

@@ -9,10 +9,18 @@
 .DS_Store
 Thumbs.db
 
-# Geniro runtime data (generated per-project, git-ignored)
+# Geniro runtime data (generated per-project, git-ignored by default)
 # Includes transient skill state: .geniro/debug/, .geniro/review-findings-state.md,
 # .geniro/follow-up-state.md, .geniro/refactor/state.md, .geniro/improve-template-state.md
-.geniro/
+# `.geniro/*` (asterisk form) is required so the !-negations below take effect.
+.geniro/*
+!.geniro/
+!.geniro/workflow/
+!.geniro/workflow/**
+!.geniro/instructions/
+!.geniro/instructions/**
+!.geniro/actions/
+!.geniro/actions/**
 
 # Node (if any tooling is added)
 node_modules/

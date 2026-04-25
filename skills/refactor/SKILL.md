@@ -5,7 +5,6 @@ context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
 argument-hint: "[what to refactor and why]"
-disable-model-invocation: false
 ---
 
 # Refactor with Test Verification

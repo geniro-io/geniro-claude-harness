@@ -297,7 +297,7 @@ Use the `AskUserQuestion` tool for each follow-up, tailored to the scope:
 
 ### Step 5: Generate the file
 
-Read the template from `${CLAUDE_SKILL_DIR}/../setup/workflow-templates/instructions-template.md` for structure reference.
+Read the template from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/instructions-template.md` for structure reference.
 
 Write the instruction file to `.geniro/instructions/{{scope}}.md`. Apply the writing principles
 from "Writing Effective Instructions" above:
