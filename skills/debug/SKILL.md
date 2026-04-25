@@ -55,7 +55,7 @@ $ARGUMENTS
   - Explicit diff range signals: `HEAD~N..HEAD`, `HEAD~N`, `main...HEAD`, a bare PR ref (`#1234` or GitHub PR URL), or a bare branch name used alongside any verify keyword
 - Otherwise → standard scientific-method flow (the `## Workflow: Observe → ...` section, unchanged). When in doubt (ambiguous input), default to scientific-method mode — the user can re-invoke with explicit adversarial phrasing if needed.
 
-**If `$ARGUMENTS` is empty**, ask the user via `AskUserQuestion` with header "Mode": "What are we doing?" with options "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)". The first three route to scientific-method mode (the selected option becomes the initial bug description seed); the fourth routes to Adversarial Mode. Do not proceed until the user answers.
+**If `$ARGUMENTS` is empty**, use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Mode": "What are we doing?" with options "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)". The first three route to scientific-method mode (the selected option becomes the initial bug description seed); the fourth routes to Adversarial Mode. Do not proceed until the user answers.
 
 ## Hypothesis Tracking Format
 
@@ -105,6 +105,10 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 
 > **Inconclusive** means the test could not distinguish whether the hypothesis is true or false. Common causes: (1) test environment differs from production, (2) bug is intermittent and didn't manifest, (3) test was too coarse to isolate this hypothesis, (4) multiple interacting causes mask effects. An inconclusive result is NOT a rejection — it means you need a better test or more data.
 
+## Universal Rule: All Choice Questions Use AskUserQuestion
+
+Every user-facing choice in this skill — including ad-hoc gates NOT explicitly enumerated below (e.g. "verify root cause or fall back to a band-aid?", "experiment needs a credential I don't have — how do you want to handle it?") — MUST go through the `AskUserQuestion` tool. The enumerated gates are examples, not an exhaustive list. If you're about to type `(A)... or (B)...` in chat, stop and call the tool instead.
+
 ## Workflow: Observe → Hypothesis → Test → Propose Fix → Escalate
 
 ### 0. Retrieve Prior Knowledge & Custom Instructions (1 min)
@@ -119,7 +123,7 @@ Before investigating, check for relevant prior learnings:
 - Gather error messages, logs, stack traces
 - Identify what changed (recent commit? config? user action?)
 - Record the exact steps to reproduce
-- **If reproduction steps are unclear or missing:** Use the `AskUserQuestion` tool to ask the user for specific details (environment, steps to trigger, expected vs actual behavior). Do NOT guess at reproduction — ask.
+- **If reproduction steps are unclear or missing:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to ask the user for specific details (environment, steps to trigger, expected vs actual behavior). Do NOT guess at reproduction — ask.
 
 ### 2. Hypothesize (5 min)
 - Based on observation, form 2–3 competing hypotheses
@@ -193,7 +197,7 @@ The receiving skill pre-loads findings from `.geniro/debug/findings-state.md` �
 
 #### 6.5b — Escalation Decision
 
-Only after the summary above is visible AND written to `.geniro/debug/findings-state.md`, use `AskUserQuestion` with header "Escalate" and these options:
+Only after the summary above is visible AND written to `.geniro/debug/findings-state.md`, use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Escalate" and these options:
 - **Trivial — run `/geniro:follow-up`; pre-load findings from `.geniro/debug/findings-state.md`** — ≤2 files, obvious target, no architecture or auth/permissions change.
 - **Non-trivial — run `/geniro:implement`; pre-load findings from `.geniro/debug/findings-state.md`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
 - **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger a follow-up `AskUserQuestion` with concrete options for the missing data (paste log line / run query / provide screenshot / dump env vars). When the data arrives, return to Step 3, do NOT escalate to fix mode yet.
@@ -216,7 +220,7 @@ After documenting, classify each finding by its **routing target**. ONLY route t
 | New/changed command discovered during debugging | **CLAUDE.md** | All agents read CLAUDE.md for commands |
 | Quality gate or workflow step the user enforced manually | **Custom instructions** (`.geniro/instructions/`) | Project-specific skill behavior rules |
 
-Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
+Present via the `AskUserQuestion` tool (do NOT output options as plain text) with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
 
 ## Adversarial Mode: Verify Last Changes
 
@@ -315,8 +319,11 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup/D
 
 These limits apply to scientific-method mode only. Adversarial mode inherits the agent-level stop rules defined in `agents/adversarial-tester-agent.md` (5 consecutive discards stop hypothesis generation; 10 authored tests is the hard cap per run).
 
-- **Hypothesis testing**: If 5 hypothesis tests across all hypotheses are inconclusive, do NOT escalate directly to the user with findings — first run the missing-data gate (Step 3, "Missing-data gate"). Use `AskUserQuestion` with header "Missing data" and concrete options for the specific artifacts that would flip an inconclusive into a result (logs, query output, screenshot, env-var dump, repro from a real environment). Only escalate to user-with-findings if the user explicitly says they cannot supply the artifact, in which case escalation may need domain expertise or more reproduction data.
-- **Fix attempts**: If 2 fix attempts fail verification, stop and use the `AskUserQuestion` tool (do NOT output options as plain text) to present findings with options: A) Try different approach, B) Escalate to /geniro:implement for deeper rework, C) Show investigation summary
+- **Hypothesis testing**: If 5 hypothesis tests across all hypotheses are inconclusive, do NOT escalate directly to the user with findings — first run the missing-data gate (Step 3, "Missing-data gate"). Use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Missing data" and concrete options for the specific artifacts that would flip an inconclusive into a result (logs, query output, screenshot, env-var dump, repro from a real environment). Only escalate to user-with-findings if the user explicitly says they cannot supply the artifact, in which case escalation may need domain expertise or more reproduction data.
+- **Fix attempts**: If 2 fix attempts fail verification, stop and present findings to the user via the `AskUserQuestion` tool (do NOT output options as plain text) with header "Fix-fail" and these options:
+  - **Try different approach** — go back to Step 2 (Hypothesize) with a fresh angle.
+  - **Escalate to /geniro:implement** — hand off for deeper architectural rework.
+  - **Show investigation summary** — print the current HYPOTHESES.md state and stop.
 
 ## Git Constraint
 
@@ -388,6 +395,7 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | Inconclusive-by-default is a fabrication shortcut. Run the Step 3 missing-data gate first: AskUserQuestion for the specific artifact. Only mark inconclusive if the user confirms they cannot supply it. |
 | "The user described the reproduction verbally, that's enough" | Verbal repro is a hypothesis seed, not a re-runnable artifact. Step 6 requires a captured artifact (failing test, script, curl + response). Convert verbal repro to a captured form, or ask the user to paste the actual output. |
 | "The agent reported the hypothesis confirmed — I'll trust it and move on" | Self-reported confirmation is evidence, not proof — the same rule that already governs adversarial mode (see existing row about F→P self-reports). The orchestrator MUST independently re-run the test / re-read the file:line / re-execute the query before advancing to Step 4 Isolate. |
+| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The Universal Rule at the top of this skill makes the tool mandatory for ANY choice question, not just the enumerated ones. Ad-hoc gates ("verify root cause vs band-aid", "need runtime data — proceed how?", "this hypothesis needs your input") are exactly when the rule fires hardest. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 
 ## Cleanup
 
