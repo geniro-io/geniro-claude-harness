@@ -1,6 +1,6 @@
 ---
 name: geniro:debug
-description: "Two modes — scientific-method bug investigation (default) or adversarial verify-changes (edge-case test authoring against a diff). Default: Observe → Hypothesize → Test → Isolate → Propose Fix → Verify Root Cause, then ESCALATE the proposed patch to /geniro:follow-up (trivial) or /geniro:implement (non-trivial). Adversarial: authors F→P failing tests against a diff via adversarial-tester-agent. This skill does NOT apply production fixes itself — it produces a report + proposed patch. Do NOT use for bugs with obvious root cause or already-understood fixes — use /geniro:follow-up directly."
+description: "Two modes — scientific-method bug investigation (default) or adversarial verify-changes (edge-case test authoring against a diff). Default: Observe → Hypothesize → Test → Isolate → Propose Fix → Author Reproduction Test & Verify, then ESCALATE the proposed patch to /geniro:follow-up (trivial) or /geniro:implement (non-trivial). Adversarial: authors F→P failing tests against a diff via adversarial-tester-agent. This skill does NOT apply production fixes itself — it produces a report + proposed patch. Do NOT use for bugs with obvious root cause or already-understood fixes — use /geniro:follow-up directly."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
@@ -38,7 +38,7 @@ Use this skill to systematically debug complex issues. Replaces guessing with ev
 ## The Scientific Debug Loop
 
 ```
-OBSERVE → HYPOTHESIZE → TEST → ISOLATE → PROPOSE FIX → VERIFY ROOT CAUSE → ESCALATE → DOCUMENT
+OBSERVE → HYPOTHESIZE → TEST → ISOLATE → PROPOSE FIX → AUTHOR REPRO TEST & VERIFY → ESCALATE → DOCUMENT
 ```
 
 This is not a suggestion—it's the required process. Do NOT skip steps or guess.
@@ -91,6 +91,9 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 
 ## Fix Evidence (experimental)
 [How the patch was verified locally (throwaway experiment), reproduction result, confirmation that experimental edits were reverted]
+
+## Reproduction Decision
+[Default: reproduction test authored at <project test path> — see "Fix Evidence" above for F→P run capture. Escape hatch only: orchestrator judged the bug non-reproducible at the test layer; user picked alternative regression guard via AskUserQuestion (assertion / fuzz seed / monitor / accepted-risk) — record the choice and the rationale.]
 
 ## Escalation
 [/geniro:follow-up or /geniro:implement; handoff via `.geniro/debug/findings-state.md`]
@@ -154,11 +157,12 @@ Before investigating, check for relevant prior learnings:
 - Do NOT refactor adjacent code.
 - If experiments modified non-test source to prove the hypothesis (e.g., added a temporary log line, patched a value), revert those experimental edits before escalation. The escalated skill applies the real fix cleanly.
 
-### 6. Verify Root Cause (5–10 min)
-- The reproduction MUST be a re-runnable artifact whose output is captured by the orchestrator (a failing test, a script that returns non-zero, a curl command + captured response, a query + captured rows). Verbal "I clicked X and got Y" descriptions do NOT count as a re-runnable artifact — convert them into a re-runnable form (script / test / curl) before proceeding, or ask the user to paste the captured output.
-- Pre-fix: re-run the reproduction at least 2× and confirm the SAME error signature both times (same exception type + same failing assertion / same status code / same row count). Two divergent failures are NOT confirmation — they're either flakiness or two different bugs; investigate before continuing. (This is a lighter-weight version of adversarial mode's F→P 3× invariant — 2× because Step 3 already produced evidence; the 2× re-runs here just rule out flake, not the full 3× independence proof.)
-- Apply the patch locally in a throwaway way (monkey-patch in a test, branch-local scratch edit you will revert). Re-run the reproduction at least 2× post-fix and confirm the same-signature failure DISAPPEARS both times. Then revert the experimental change.
-- Do NOT run the full project test suite here — that belongs to the escalated skill. The goal is evidence that the proposed patch is correct, not CI-green.
+### 6. Author Reproduction Test & Verify Root Cause (10–15 min)
+- **Author the reproduction as a unit or integration test in the project's test framework**, placed at the project's normal test path next to the source it covers (detect framework + naming convention from CLAUDE.md Essential Commands and an exemplar test file). Scripts, curl commands, and ad-hoc queries are NOT acceptable substitutes — they get deleted at Cleanup and leave no regression guard. The test stays on disk and ships with the fix as the regression gate.
+- **F→P invariant.** Pre-fix: run the authored test at least 2× and confirm the SAME failure signature both times (same exception type + same failing assertion / same status code / same row count). Two divergent failures are NOT confirmation — they're flakiness or two different bugs; investigate before continuing.
+- **Verify the proposed fix.** Apply the patch locally in a throwaway way (monkey-patch in the test, branch-local scratch edit you will revert). Re-run the authored test at least 2× post-fix and confirm the failure DISAPPEARS both times. Then revert the experimental fix — but the test stays on disk.
+- **Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Repro infeasible" and 2-4 concrete options for an alternative regression guard (e.g., "Add a runtime assertion at <file:line>" / "Author a fuzz seed that triggers it ~50% of runs" / "Add a monitor/alert in <observability tool>" / "I'll skip the regression guard — accept the risk"). Record the user's selection AND the rationale in `.geniro/debug/HYPOTHESES.md` under "Reproduction Decision". The default is mandatory; the escape hatch is opt-in with a paper trail.
+- Do NOT run the full project test suite here — that belongs to the escalated skill. The goal is the F→P-verified test artifact + evidence the proposed patch turns it green.
 - Record the experimental evidence in `.geniro/debug/HYPOTHESES.md` under "Fix Evidence" — paste the captured pre-fix output AND the captured post-fix output, not narrative summaries.
 - If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs, schemas, or controllers: note this in the escalation so the receiving skill runs codegen.
 
@@ -188,7 +192,7 @@ Output the following markdown block directly in the chat AND write the same bloc
 
 **Evidence the fix works:** [what happened when you applied the patch as a throwaway experiment in Step 6 — e.g., "bug stopped reproducing; experimental edits reverted"]
 
-**Tests that should pass after the fix:** [test names, criteria, or "new test needed: <description>"]
+**Reproduction test:** [path to authored test file, F→P status (e.g., "verified red on current code; verified green under throwaway patch"), or "escape hatch: <alternative guard + user-recorded rationale>"]
 
 **Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
 ```
@@ -331,13 +335,11 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. The orchestra
 
 ## Fix Constraint
 
-Do NOT apply the bug fix to production/source code. You MAY Write/Edit for **experiments only**:
-- Test files (new or existing) that reproduce or verify the bug
-- Debug logging, temporary print statements, or scratch scripts
-- `.geniro/debug/HYPOTHESES.md` and other investigation artifacts
-- Throwaway patches used in Step 6 to verify the root cause — these MUST be reverted before escalation
+Do NOT apply the bug fix to production/source code. You MAY Write/Edit for two distinct purposes:
+- **Deliverables (kept on disk, ship with the fix):** the reproduction test authored in Step 6, placed at the project's normal test path
+- **Experiments (reverted before escalation):** debug logging, temporary print statements, scratch scripts, throwaway patches used in Step 6 to verify the root cause, and `.geniro/debug/HYPOTHESES.md` working notes
 
-The actual fix is delivered as a **text proposal** (diff or before/after) and escalated via Step 6.5 to `/geniro:follow-up` (trivial) or `/geniro:implement` (non-trivial). This keeps architecture/review gates in play and preserves a clean audit trail.
+The actual fix is delivered as a **text proposal** (diff or before/after) and escalated via Step 6.5 to `/geniro:follow-up` (trivial) or `/geniro:implement` (non-trivial). The reproduction test is the regression guard the receiving skill turns green; this keeps architecture/review gates in play and preserves a clean audit trail.
 
 ## Isolation Techniques
 
@@ -394,6 +396,7 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. A hypothesis is confirmed only by reproduction with a captured artifact per the Evidence Standard, not by "the story fits". |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | Inconclusive-by-default is a fabrication shortcut. Run the Step 3 missing-data gate first: AskUserQuestion for the specific artifact. Only mark inconclusive if the user confirms they cannot supply it. |
 | "The user described the reproduction verbally, that's enough" | Verbal repro is a hypothesis seed, not a re-runnable artifact. Step 6 requires a captured artifact (failing test, script, curl + response). Convert verbal repro to a captured form, or ask the user to paste the actual output. |
+| "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at Cleanup and leave no regression guard. Step 6 mandates the reproduction be authored as a unit or integration test in the project's test framework — that test ships with the fix as the regression gate. The escape hatch is invoked by the orchestrator only when the bug is genuinely non-reproducible at the test layer (race conditions under load, environment-only, UI flake), with the user choosing the alternative guard via AskUserQuestion and the rationale recorded — not a way to skip Step 6 silently. |
 | "The agent reported the hypothesis confirmed — I'll trust it and move on" | Self-reported confirmation is evidence, not proof — the same rule that already governs adversarial mode (see existing row about F→P self-reports). The orchestrator MUST independently re-run the test / re-read the file:line / re-execute the query before advancing to Step 4 Isolate. |
 | "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The Universal Rule at the top of this skill makes the tool mandatory for ANY choice question, not just the enumerated ones. Ad-hoc gates ("verify root cause vs band-aid", "need runtime data — proceed how?", "this hypothesis needs your input") are exactly when the rule fires hardest. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 
@@ -401,7 +404,7 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 
 After the debug session completes (fix verified or escalated):
 - **Scientific-method mode only:** Remove `.geniro/debug/HYPOTHESES.md` — its useful content has already been saved to memory (root causes, gotchas, techniques). The file is a working scratchpad, not a permanent record.
-- **Scientific-method mode only:** Remove any temporary test files or debug scripts created during the session (adversarial mode authors keeper tests — those stay on disk).
+- **Scientific-method mode only:** Remove debug scripts, scratch reproductions, and ad-hoc curl/query files created during investigation. The Step 6 reproduction test (authored at the project's normal test path) STAYS on disk — it ships with the fix as the regression guard, same convention as adversarial mode's authored tests.
 - **Scientific-method mode only:** `.geniro/debug/findings-state.md` MUST remain on disk as the escalation handoff channel — do NOT delete it. It stays until the next debug run overwrites it (single file per branch, same as `/geniro:review`'s state artifact).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
 - **Adversarial mode:** `.geniro/debug/adversarial-tests.md` may remain as audit trail per plugin convention; authored test files stay on disk.
@@ -420,6 +423,7 @@ For each debug session, confirm the checklist for the mode that ran.
 - [ ] Root cause identified and confirmed (not guessed)
 - [ ] Proposed fix is minimal, targeted, and written as a text patch (not applied to source)
 - [ ] Proposed fix verified against the root cause via reverted experiments
+- [ ] Reproduction test authored at the project's normal test path, F→P verified, and survives Cleanup — OR escape hatch invoked with user-recorded alternative regression guard + rationale in HYPOTHESES.md "Reproduction Decision"
 - [ ] Findings summary (Step 6.5a) presented to user in chat AND persisted to `.geniro/debug/findings-state.md` before the escalation question
 - [ ] Escalation decision made via Step 6.5b AskUserQuestion with options referencing the state file by path (follow-up / implement / user-handles)
 - [ ] All experimental edits to non-test source reverted before handoff

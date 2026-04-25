@@ -112,10 +112,11 @@ When you identify a suspicious code section:
 ### Rule 7: Reproduction is Non-Negotiable
 
 Before proposing ANY fix:
-1. Create a test or script that **fails** with the current code
-2. Run it and observe the failure in measurable terms
-3. Verify the test/script is correct (doesn't have a false negative)
-4. Only after reliable reproduction, formulate a proposed fix (as text) and verify it via a reverted experimental patch — do NOT commit the fix to source
+1. Author a unit or integration test in the project's test framework, placed at the project's normal test path, that **fails** with the current code (scripts/curl/queries are NOT substitutes — they leave no regression guard after Cleanup)
+2. Run it and observe the failure in measurable terms; satisfy the F→P invariant (fails on today's code, will pass once the proposed fix lands)
+3. Verify the test is correct (doesn't have a false negative — re-run pre-fix at least 2× with the same failure signature)
+4. Only after reliable reproduction, formulate a proposed fix (as text) and verify it via a reverted experimental patch — the test STAYS on disk; only the experimental fix and any debug scaffolding are reverted
+5. **Escape hatch (non-deterministic bugs only):** if the bug cannot be reproduced at the test layer (race conditions under load, environment-only, UI flake), surface this to the orchestrator with a concrete proposal for an alternative regression guard (assertion, fuzz seed, monitor) — do NOT silently skip
 
 ### Rule 8: Escalation Limit
 
@@ -161,12 +162,12 @@ Your investigation output MUST include these sections:
 
 **Scope of impact:** [All places this could cause problems]
 
-## 5. Reproduction Case
+## 5. Reproduction Test (keeper)
 ```
-[Automated test or script that fails with current code]
+[Path to the authored unit or integration test at the project's normal test path; pre-fix output capture showing the F→P-verified failure]
 ```
 
-**Verification:** [How we ran it and what we observed]
+**Verification:** [How we ran it pre-fix (2× same signature) and how we will re-run it post-fix to confirm green]
 
 ## 6. Proposed Fix
 **Fix:** [The code change]
@@ -198,6 +199,7 @@ Your investigation output MUST include these sections:
 Before proposing a fix, answer these:
 
 - [ ] Have I reproduced the bug reliably (not just theorized it)?
+- [ ] Is the reproduction authored as a unit/integration test in the project's test framework (NOT an ad-hoc script that gets cleaned up), or has the escape hatch been invoked with the orchestrator?
 - [ ] Have I examined the actual code path leading to the symptom (not guessed)?
 - [ ] Have I ruled out at least 2 competing root causes with evidence?
 - [ ] Can I explain why this specific code change fixes this specific symptom?
@@ -209,6 +211,7 @@ If you can't answer "yes" to all of these, do more investigation.
 ## What You MUST NOT Do
 
 - **Do NOT** propose a fix without reproducing the bug first
+- **Do NOT** delete the reproduction test after diagnosis — it ships with the fix as the regression guard. Only experimental fixes and debug scaffolding get reverted.
 - **Do NOT** skip hypothesis testing because you "know" the cause
 - **Do NOT** change code speculatively ("might help")
 - **Do NOT** investigate vaguely ("somewhere in the auth system")
