@@ -19,10 +19,7 @@ argument-hint: "<issue description or area to improve>"
 
 # /improve-template — Template Investigation & Fix Pipeline
 
-You are the orchestrator for investigating and fixing issues in the geniro-claude-plugin.
-You coordinate research agents, cross-reference findings, present evidence to the user, and
-delegate implementation. You NEVER implement changes directly — except trivial fixes (1-2 lines,
-obvious target, no ambiguity). Everything else goes through subagents.
+You are the orchestrator for investigating and fixing issues in the geniro-claude-plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You NEVER implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
 **Template path:** (repo root — skills/, agents/, hooks/)
 **Report path:** `report.md` (354KB best-practices guide based on 14 production frameworks)
@@ -46,24 +43,31 @@ from the next incomplete phase. Ask the user if this is still the active improve
 
 ## Complexity Gate (before Phase 1)
 
-Classify the request before entering the pipeline:
+Classify the request — this picks both the pipeline depth AND which research sources Phase 1 spawns. Self-classify; do not spawn a triage subagent.
 
-- **Obvious bug fix** — user shows a screenshot or error, the broken file and fix are clear
-  (e.g., regex false positive, wrong path, typo). Skip to **Phase 1-fast**.
-- **Targeted improvement** — specific skill/agent/hook to improve, clear scope.
-  Run full pipeline (Phases 1-6).
-- **Open-ended investigation** — "make X better", broad area, unclear scope.
-  Run full pipeline (Phases 1-6).
+| Request type | Signals | Pipeline | Default research sources |
+|---|---|---|---|
+| **Obvious bug fix** | Screenshot/error shown; broken file & fix obvious (regex false positive, wrong path, typo, broken cross-reference) | **Phase 1-fast** | Codebase only — or 0 agents if fix is 1-2 lines and unambiguous |
+| **Targeted improvement** | Specific skill/agent/hook named; clear scope; user cites the file or behavior | Full pipeline | Codebase always; Report.md / Internet conditional on triggers below |
+| **Open-ended investigation** | "Make X better"; broad area; vague target; no specifics | Full pipeline | All three (codebase + report.md + internet) |
+
+### Research Selection Matrix
+
+**Codebase research** — always runs in the full pipeline. Reading current template state is mandatory.
+
+**Report.md research** — run when the change touches a pattern or structure (phase shape, agent-spawning syntax, anti-rationalization, cross-cutting consistency across N skills). Skip for trivial typo / wrong path / cross-reference repair / YAML-syntax error / pure reword that does not change semantics.
+
+**Internet research** — run when ANY of: a new skill / agent / hook is being added; a new pattern or behavior is being introduced (one not already in the template); an external SDK / API / tool / Claude Code feature is referenced; the request is abstract and lacks specifics ("make X better" with no concrete target). Skip when the request is internal-only logic of our skills, a reword/clarify/rename/reorder of existing instructions, or a bug fix the user has already located.
+
+Record the selected sources in the state checkpoint as `research-sources: [list]` so Phase 5 reviewers can see scope was narrowed by the matrix, not by oversight.
 
 ### Phase 1-fast: Quick Fix Path
 
-For obvious bug fixes only. The user already showed what's broken.
+For obvious bug fixes. The user already showed what's broken.
 
-1. Read the affected file(s) to confirm the bug
-2. Research the correct fix — spawn 1-2 agents if the fix isn't obvious:
-   - Internet agent: search for the correct pattern/syntax
-   - Codebase agent: check how similar cases are handled elsewhere in the template
-3. Present the fix to the user with evidence, then use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "Approve this fix or investigate deeper?" with options: "Approve — apply the fix" / "Investigate deeper — run full pipeline"
+1. Read the affected file(s) to confirm the bug; capture pre-fix content as the baseline for the Phase 5 review prompt
+2. Spawn the research sources the matrix selected (often Codebase only, sometimes none); note the selected sources in any checkpoint you write
+3. Present the fix with evidence, then use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "Approve this fix or investigate deeper?" with options: "Approve — apply the fix" / "Investigate deeper — run full pipeline"
 4. If approved: apply the fix (directly if 1-2 lines, subagent if more)
 5. Spawn a fresh review agent (Phase 5 Step 1) to verify
 6. Skip to Phase 6
@@ -72,20 +76,20 @@ For obvious bug fixes only. The user already showed what's broken.
 
 ## PHASE 1: INVESTIGATE (parallel research)
 
-**Purpose:** Gather evidence from three independent sources about the issue or improvement area.
+**Purpose:** Gather evidence from the research sources the Matrix selected — up to three independent sources (codebase / report.md / internet).
 
 **Input:** User describes an issue, shows a screenshot, or names an area to improve.
 
 ### Step 1: Parse the request
 
-Classify the request:
+Classify the request, then look up its research sources in the Matrix above:
 - **Bug fix** — something broken (screenshot, error, false positive). Extract: what happened, expected behavior, affected file(s).
 - **Improvement** — enhance existing behavior. Extract: which skill/agent/hook, what aspect.
-- **New capability** — add something missing. Extract: what, why, which files affected.
+- **New capability** — add something missing. Extract: what, why, which files affected. Internet research is mandatory here — new patterns require external evidence.
 
-### Step 2: Spawn 3 research agents in ONE response
+### Step 2: Spawn the selected research agents in ONE response
 
-All three agents run in parallel — multiple Agent() calls in the same assistant turn, NOT one per turn. Each gets a focused research scope with zero overlap.
+Spawn ONLY the agents the Matrix selected — all in the same assistant turn, NOT one per turn. Skipped sources are NOT failures; the matrix is the contract. Log omitted source(s) in the state checkpoint with the matching skip reason. The agent prompts below stay as written; just omit the agents you skip.
 Replace every `{{placeholder}}` with the actual content from Step 1 before spawning.
 
 ```
@@ -155,7 +159,7 @@ Return findings as a structured table. Do NOT suggest implementation — researc
 
 ### Step 3: Collect and record
 
-Wait for all 3 agents. Write key findings to state checkpoint.
+Wait for all spawned agents. Write key findings plus `research-sources: [list]` to the state checkpoint.
 
 ---
 
@@ -165,7 +169,7 @@ Wait for all 3 agents. Write key findings to state checkpoint.
 
 ### Step 1: Build a combined findings list
 
-Merge findings from all 3 research agents. Group by topic. Same finding from multiple sources = stronger evidence — note the convergence.
+Merge findings from the research agents that ran (1-3, depending on the Matrix). Group by topic. Same finding from multiple sources = stronger evidence — note the convergence. If only one source ran, evidence strength caps at what that source supports.
 
 ### Step 2: Filter each finding
 
@@ -263,7 +267,7 @@ For each challenged finding, spawn a research agent with: the finding descriptio
 (except trivial 1-2 line fixes where the target and change are unambiguous).
 
 ### Step 0: Capture baseline
-Before spawning implementation agents, read and record the current content of all files that will be modified. This baseline enables before/after comparison in Phase 5.
+Read and record the current content of all files that will be modified — Phase 5 needs this baseline for before/after comparison.
 
 ### Step 1: Group changes by file/module
 
@@ -426,13 +430,7 @@ Present to the user:
 
 ### Step 2: Extract learnings to memory
 
-Scan the conversation for:
-- User corrections ("actually, do X not Y")
-- Convention discoveries (patterns that weren't documented)
-- Blocked items or limitations encountered
-
-Before writing to memory, check if existing memory already covers the topic — update
-rather than duplicate. Skip this step entirely if nothing novel was discovered.
+Scan for user corrections, convention discoveries, and limitations encountered. Before writing, check if existing memory already covers the topic — update rather than duplicate. Skip if nothing novel was discovered.
 
 ### Step 3: Cleanup
 
@@ -461,11 +459,7 @@ If the user picks skip, print the suggested commit message and the `git add` / `
 
 ## Mid-flow User Input
 
-If the user interjects during any phase:
-- **Correction/context** ("actually, also check X", "that file moved to Y") — incorporate into current phase, note in state checkpoint
-- **Preference** ("use pattern X not Y") — apply at next decision point
-- **Blocker** ("stop, that's wrong") — halt current phase, present what you have, ask how to proceed
-- **New issue** ("also I noticed this other bug") — note it, finish current pipeline first, then ask if they want a second run
+If the user interjects mid-phase: corrections/context fold into the current phase (note in checkpoint); preferences apply at the next decision point; blockers halt the phase and you ask how to proceed; new issues are noted and queued for after the current pipeline completes.
 
 ---
 
@@ -477,17 +471,18 @@ If the user interjects during any phase:
 | "The research is clear enough, skip cross-referencing" | Phase 2 exists because Phase 1 agents have no context about each other's findings. Cross-referencing catches contradictions and duplicates. |
 | "The user will probably approve all, skip presenting" | Phase 3 is a WAIT gate. The user MUST see evidence and approve. No assumptions. |
 | "I'll reuse the implementation agent for review" | Fresh agents avoid anchoring bias. The reviewer must NOT have seen the implementation prompt. |
-| "One research agent is enough for this simple issue" | Three-source triangulation catches blind spots. Internet + report.md + codebase are independent knowledge sources. Exception: Phase 1-fast for obvious bugs. |
 | "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
 | "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 | "The findings are obviously good, skip the redundancy check" | Phase 2b exists because orchestrator self-filtering inherits the researcher's framing. A fresh subagent greps the target file for existing instructions and flags over-engineering — catches what the proposer cannot see. |
+| "I'll skip internet research because the request feels local" | Wrong unless the Matrix says skip. The triggers (new skill / new pattern / external API / abstract request) override your gut feel — internal-feeling requests can still introduce new patterns. |
+| "I'll run all 3 research agents to be safe even though it's a typo fix" | The Matrix is mandatory both ways. Over-research wastes context and inflates Phase 2 with irrelevant findings the orchestrator must then filter. |
 
 ## Definition of Done
 
 - [ ] Complexity gate applied (fast path or full pipeline)
-- [ ] Phase 1: Research agents completed (3 for full pipeline, 1-2 for fast path)
+- [ ] Phase 1: Research sources selected per Matrix; only those agents spawned (logged in state checkpoint)
 - [ ] Phase 2: Findings cross-referenced and filtered to evidence-backed only
 - [ ] Phase 2b: Redundancy & relevance validated via relevance-filter-agent subagent
 - [ ] Phase 3: Evidence table presented, user approved specific changes
