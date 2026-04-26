@@ -5,6 +5,7 @@
 
 const { execSync, spawn } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 // Detach into background on first run
@@ -22,7 +23,7 @@ if (!process.env.GENIRO_UPDATE_BG) {
   return;
 }
 
-const CACHE_DIR = path.join(process.env.HOME || '', '.claude', 'cache');
+const CACHE_DIR = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'geniro-update-check.json');
 function writeCache(data) {
   try {

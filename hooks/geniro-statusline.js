@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CACHE_FILE = path.join(os.homedir(), '.claude', 'cache', 'geniro-update-check.json');
+const CACHE_FILE = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'cache', 'geniro-update-check.json');
 
 let input = '';
 const stdinTimeout = setTimeout(() => process.exit(0), 3000);

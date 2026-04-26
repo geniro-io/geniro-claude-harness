@@ -62,11 +62,11 @@ your-project/
 
 **NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` character is NOT expanded by these tools — it creates a literal `~` directory in the working directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
 
-Before doing anything else, resolve the user's home directory:
+Before doing anything else, resolve the user's Claude config directory. Honor `CLAUDE_CONFIG_DIR` so users with a relocated config dir resolve correctly — falling back to `$HOME/.claude` when unset:
 ```bash
-echo "$HOME"
+echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 ```
-Store the output as `$USER_HOME` (e.g., `/Users/username`). Use `$USER_HOME` wherever you need the home directory path — never `~`.
+Store the output as `$CLAUDE_USER_DIR` (e.g., `/Users/username/.claude` or `/custom/claude-config`). Use `$CLAUDE_USER_DIR` wherever you would otherwise have written `~/.claude` or `$HOME/.claude` — never `~`. The literal home directory (without the `.claude` suffix) is rarely needed; if you do need it, use `$HOME` directly inside bash blocks (which expands correctly), but never `~` in tool arguments.
 
 ## Phase 0: Locate Template Source
 
@@ -425,23 +425,23 @@ If the user chose to create custom instructions in Phase 2.4:
 Copy the statusline script to a stable location and configure it in user settings. This ensures the statusline works across all projects and survives plugin version updates.
 
 ```bash
-# Resolve home directory (never use ~)
-USER_HOME=$(echo "$HOME")
+# Resolve Claude config dir, honoring CLAUDE_CONFIG_DIR (never use ~)
+CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
-# Copy statusline script to stable path
-mkdir -p "$USER_HOME/.claude/hooks"
-cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js" "$USER_HOME/.claude/hooks/geniro-statusline.js"
+# Copy statusline script to stable path under the active config dir
+mkdir -p "$CLAUDE_USER_DIR/hooks"
+cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js" "$CLAUDE_USER_DIR/hooks/geniro-statusline.js"
 ```
 
-Then check if `$USER_HOME/.claude/settings.json` already has a `statusLine` entry. If not, add one:
+Then check if `$CLAUDE_USER_DIR/settings.json` already has a `statusLine` entry. If not, add one:
 ```json
 "statusLine": {
   "type": "command",
-  "command": "node \"$USER_HOME/.claude/hooks/geniro-statusline.js\""
+  "command": "node \"$CLAUDE_USER_DIR/hooks/geniro-statusline.js\""
 }
 ```
 
-Use the actual resolved `$USER_HOME` path in the JSON (e.g., `/Users/username`), not the variable.
+Use the actual resolved `$CLAUDE_USER_DIR` path in the JSON (e.g., `/Users/username/.claude` or the user's relocated config dir), not the variable.
 
 If a `statusLine` entry already exists and points to `geniro-statusline.js`, leave it. If it points to something else, ask the user before replacing.
 
@@ -625,7 +625,7 @@ If `/geniro:setup` detects `$INSTALL_MODE` is `update`, it enters Feature Sync m
 - Check `.geniro/instructions/` → custom instructions present?
 - Check `.gitignore` → all required entries present? (`.geniro/*`, `!.geniro/`, `!.geniro/workflow/`, `!.geniro/workflow/**`, `!.geniro/instructions/`, `!.geniro/instructions/**`)
 - Check runtime directories: `.geniro/planning/`, `.geniro/debug/`, `.geniro/knowledge/`
-- Check StatusLine: `$USER_HOME/.claude/hooks/geniro-statusline.js` exists?
+- Check StatusLine: `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` exists?
 
 **Classify each item:**
 - **NEW** — in template but not in project (e.g., new workflow template added to plugin, instructions/ not set up)
