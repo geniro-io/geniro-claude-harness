@@ -42,7 +42,7 @@ No spawns escalate to `opus` — these reviewers are bounded scope. If a finding
 
 ### Step 1: Identify Changed Files
 
-If `$ARGUMENTS` contains "changed", run:
+Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and currently checked-out branch; do NOT invoke `gh pr list` or `git checkout` to discover targets. If `$ARGUMENTS` contains "changed", run:
 ```bash
 git diff --name-only origin/main...HEAD | grep -v node_modules | grep -v -E '(\.lock|package-lock)'
 ```

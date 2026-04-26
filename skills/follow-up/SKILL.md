@@ -48,7 +48,7 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 4. **Codebase scan** (Glob/Grep) to find exact files and patterns.
 5. **Reuse Inventory** — search the change area for existing functions / components / types / hooks / helpers / configs the change could reuse; categorize each candidate REUSE-AS-IS / EXTEND / CREATE-NEW with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence — Rule of Three). Produce a CONVENTIONS_BRIEF + REUSE_INVENTORY pair to pre-inline into the Phase 2 implementer agent prompt. **Skipped in Trivial Fast Lane** — rely on the implementer's in-prompt verify-before-creating instruction (see follow-up-reference.md).
 6. **Read the files** that will be modified.
-7. **Check state:** `git branch --show-current`, `git log --oneline -5`, `git status --short`.
+7. **Check state:** scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and currently checked-out branch; do NOT `gh pr list` or `git checkout` to discover targets. Run `git rev-parse --show-toplevel`, `git branch --show-current`, `git log --oneline -5`, `git status --short`.
 
 ### Step 2: Complexity Assessment
 
