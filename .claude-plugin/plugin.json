@@ -1,7 +1,7 @@
 {
   "name": "geniro-claude-plugin",
   "description": "Production-grade Claude Code harness with AI-driven setup, multi-agent skills, and safety hooks. Includes /setup for project-tailored configuration.",
-  "version": "1.51.0",
+  "version": "1.51.1",
   "author": {
     "name": "Geniro",
     "email": "hello@geniro.io"
