@@ -17,15 +17,15 @@ Reference file shared between `/geniro:deep-simplify` skill and `/geniro:impleme
 
 ## Pass A: Reuse & Duplication
 
+Before flagging duplication or recommending extraction, run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — Grep designated helper directories (`utils/`, `lib/`, `shared/`, `helpers/`, `services/`) for analogues that could be reused or extended instead of creating new code. Apply its Procedure, force-fit guard, and Rule of Three threshold to every Pass A finding.
+
 | Pattern | What to do |
 |---------|-----------|
-| **Duplicated logic across changed files** | Extract to a shared utility file in the nearest common module |
+| **Duplicated logic across changed files** | Extract to a shared utility file in the nearest common module — only if the audit returned NO-ANALOGUE and Rule of Three (≥3 distinct call sites) applies |
 | **Duplicated logic within a single file** | Extract to a private helper function in the same file |
-| **Re-implementation of existing utilities** | Replace with the existing utility (check `utils/`, shared packages, service methods in the same module) |
+| **Re-implementation of existing utilities** | Replace with the existing utility (the audit identifies analogues in `utils/`, `lib/`, `shared/`, `helpers/`, `services/` and barrel files) |
 | **Copy-pasted test setup** | Extract to a test helper or `beforeEach` block |
 | **Similar switch/if-else branches** | Consolidate using a map/lookup pattern |
-
-**Do NOT extract** if the "duplication" is only 2–3 lines or if extracting would make the code harder to follow (premature abstraction).
 
 **Do NOT remove** an export if it is re-exported from any `index.*` or barrel file — it is part of the module's public API regardless of whether you see internal consumers.
 

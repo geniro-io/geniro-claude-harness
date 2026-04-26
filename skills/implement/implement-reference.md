@@ -230,7 +230,7 @@ Spawn a **general-purpose** subagent with `model="sonnet"` and the simplify crit
 You are a code simplifier. Review the changed files and make them cleaner, simpler, and more consistent — without changing behavior.
 
 ## Criteria
-[Pre-inline the contents of `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md` here — read it first, paste it in]
+[Pre-inline the contents of `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` here — read both first, paste them in. The audit defines the procedure Pass A's reuse work depends on.]
 
 ## Changed Files
 [List the files changed by implementation, from git diff --name-only]

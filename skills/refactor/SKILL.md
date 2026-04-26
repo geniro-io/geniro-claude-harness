@@ -156,7 +156,7 @@ PHASE: EVIDENCE GATHERING ONLY.
 - Skip Phase 2 (Refactoring Plan), Phase 3 (Atomic Application), and Phase 4 (Reporting) entirely.
 - Do NOT use Write or Edit tools during this invocation. You are producing raw evidence, not a plan.
 - Return smells + consumer counts as your final output.
-- For every detected smell, also run an **Existing Abstraction Audit**: Grep/Glob the project for utilities, services, hooks, or helpers that — if promoted, extended, or generalized — would eliminate the smell at its source rather than transforming the symptom. Note candidates as `extend-existing: <file:line> — <one-line justification>` alongside each smell. If a viable extension exists, the orchestrator may prefer it over the smell-local transformation. Do NOT force-fit: if extending the existing abstraction requires adding a parameter or conditional that complicates it, prefer the local transformation and flag for review.
+- For every detected smell, also run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (Grep designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format (`reuse-as-is: <file:line>`, `extend-existing: <file:line> — <one-line justification>`, or `no-analogue: rule-of-three=<met|not-met>, call-sites=N`). If a viable extension exists, the orchestrator may prefer it over the smell-local transformation.
 
 Run all 6 smell detection categories (duplication, long methods, god classes, dead code, tight coupling, type/import issues). For each smell, count consumers with Grep (files that import/reference the symbol).
 

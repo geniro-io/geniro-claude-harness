@@ -86,7 +86,7 @@ Agent(model="sonnet", prompt="""
 You are a code reviewer focused on finding duplication and reuse opportunities.
 
 ## Criteria
-Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass A sections.
+Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass A sections. Pass A references the canonical Existing Abstraction Audit at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — read it as well, and run its audit Procedure before flagging any extraction or "duplicates existing utility" finding.
 
 ## Changed Files
 Read each of these files: [list file paths from Phase 1]
