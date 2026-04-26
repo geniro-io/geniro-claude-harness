@@ -168,11 +168,9 @@ If any file in the plan's affected-files list matches the UI-file detection rule
 2. Present complete plan content to user
 3. Add metadata: plan location, skeptic validation summary (N blockers, M warnings)
 
-**Gate:**
+**Gate:** Always-WAIT — applies in every mode, including `Mode: auto` (see `implement-reference.md` §Auto Mode Behavior, "Plan approval" row). Plan approval gates all Phase 4 code generation, so the LLM MUST get explicit user confirmation; never silently auto-approve.
 
-If `<task-dir>/state.md` shows `Mode: auto`: you MUST first print the full plan content verbatim (same as Step 2 above — the full plan must appear in the transcript, not just a summary or file reference), then print "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise.", append the decision to state.md "Auto-mode decisions" section, and proceed to Phase 4. Do NOT call `AskUserQuestion`. The full-plan print is mandatory in auto-mode too — a file path is not the plan content, and the user must be able to audit what was auto-approved.
-
-Otherwise, use the `AskUserQuestion` tool (do NOT output options as plain text):
+Use the `AskUserQuestion` tool (do NOT output options as plain text):
 - A) **Approve — start building**
 - B) **Adjust** — user describes changes
 - C) **Too large — split** — decompose into smaller pieces

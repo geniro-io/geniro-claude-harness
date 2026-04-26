@@ -36,7 +36,7 @@ Use `AskUserQuestion`:
 - **Header:** "Mode"
 - **Options:**
   - Label: "Interactive (Recommended)" / Description: "Full discovery — I'll ask about gray areas, confirm the architect's plan, and check before shipping."
-  - Label: "Auto mode" / Description: "Pick recommended defaults for gray areas and auto-approve the architect's plan. I still WAIT at the ship gate, the Stage C fix-loop after 3 rounds, and the Phase 7 Step 4.5 ship-anyway prompt — see §Auto Mode Behavior."
+  - Label: "Auto mode" / Description: "Pick recommended defaults for gray areas. I still WAIT at plan approval, the ship gate, the Stage C fix-loop after 3 rounds, and the Phase 7 Step 4.5 ship-anyway prompt — auto mode never silently approves a plan. See §Auto Mode Behavior."
   - Label: "Assumptions" / Description: "I'll propose a plan with my best guesses on gray areas — you correct anything wrong before architecting."
 
 Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode signal (rule 3) or assumptions-mode signal (rule 4). Persist the chosen mode in `<task-dir>/state.md` under a `Mode:` line so resumed runs and downstream phases read it without re-prompting.
@@ -100,7 +100,7 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 | Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question EXCEPT git workspace (see next row); append one-liner per decision to `state.md` "Auto-mode decisions" |
 | Git workspace | Phase 1, Step 7 (standalone) | **Always-WAIT.** Ask via `AskUserQuestion` even in auto-mode — where the change lands (new branch / current / worktree) is a deliberate user decision, not a gray-area default. Do NOT auto-pick Option A or Option B |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
-| Plan approval | Phase 3 | **Auto-approve with full-plan print.** Print the full plan content verbatim (mandatory — same as interactive mode, per Phase 3 header "present the full plan file (do NOT summarize)"), then print the skeptic validation summary (N blockers, M warnings) and the line "Auto-approved spec — see `<plan-file>`. Interrupt now if you want to revise." Skip `AskUserQuestion`. Proceed to Phase 4 |
+| Plan approval | Phase 3 | **Always-WAIT.** Print the full plan content verbatim (per Phase 3 header "present the full plan file (do NOT summarize)") and the skeptic validation summary (N blockers, M warnings), then ask via `AskUserQuestion` regardless of mode. Auto mode never silently approves a plan — plan approval gates all Phase 4 code generation, so the LLM MUST get explicit user confirmation |
 | Compact prompt | Phase 3 (post-approval) | "Continue now" (skip compaction). Skip `AskUserQuestion` |
 | Stage C fix loop after 3 rounds | Phase 6 | **Always-WAIT.** Auto-shipping known CRITICAL/HIGH issues is unsafe. Surface the `AskUserQuestion` regardless of mode |
 | Suggest improvements | Phase 7, Step 3 | "Skip" (defer improvements; user can run `/geniro:follow-up` later) |
