@@ -369,16 +369,7 @@ UPDATE existing memories instead of duplicating. Skip if nothing novel.
 
 ### Suggest Improvements (project scope only)
 
-Check if the refactoring revealed improvement opportunities. Route findings only to project-owned files — do NOT suggest edits to `${CLAUDE_PLUGIN_ROOT}/…`; the plugin is global and overwritten on update (use `/improve-template` for plugin changes).
-
-| What was discovered | Route to | Why |
-|---|---|---|
-| Undocumented convention used consistently across codebase | **CLAUDE.md** | All agents inherit CLAUDE.md conventions |
-| Surprising coupling between modules | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Architectural insight for future changes |
-| Pattern that should be enforced automatically in this project | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual memory |
-| Quality gate or constraint the user enforced manually | **Custom instructions** (`.geniro/instructions/`) | Project-specific skill behavior rules |
-
-Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
+Check if the refactoring revealed improvement opportunities. Follow the canonical routing in `skills/_shared/improvement-routing.md` — refactoring most often surfaces (a) **undocumented coding conventions / style patterns used consistently across the codebase** → route to **`.claude/rules/<scope>.md`** with `paths:` glob frontmatter (Anthropic-native, file-scoped — auto-loads when matching files are touched); (b) **surprising coupling between modules** → `learnings.jsonl`; (c) **patterns that should be auto-enforced** → project rules/hooks; (d) **skill-behavior constraints the user enforced manually during refactor** → `.geniro/instructions/refactor.md`. Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — use `/improve-template`.
 
 ## Task Tracking
 

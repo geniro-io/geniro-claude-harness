@@ -215,16 +215,7 @@ Do NOT auto-invoke the next skill — surface the suggestion only. The user runs
 
 ### 8. Suggest Improvements (project scope only)
 
-After documenting, classify each finding by its **routing target**. ONLY route to project-owned files — do NOT suggest edits to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`). The plugin is installed globally and overwritten on update; plugin maintenance is out of scope for debug.
-
-| What was discovered | Route to | Why |
-|---|---|---|
-| Docs described behavior that didn't match reality | **CLAUDE.md** or **docs** | Future agents need correct project info |
-| Non-obvious debugging insight or workaround | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Searchable by knowledge-retrieval-agent |
-| New/changed command discovered during debugging | **CLAUDE.md** | All agents read CLAUDE.md for commands |
-| Quality gate or workflow step the user enforced manually | **Custom instructions** (`.geniro/instructions/`) | Project-specific skill behavior rules |
-
-Present via the `AskUserQuestion` tool (do NOT output options as plain text) with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
+After documenting, follow the canonical routing in `skills/_shared/improvement-routing.md`. Debug runs typically surface: (a) **coding conventions / style or naming patterns discovered while reproducing the bug** → **`.claude/rules/<scope>.md`** with `paths:` glob frontmatter (Anthropic-native, file-scoped — auto-loads when matching files are touched); (b) **docs that described behavior not matching reality** → CLAUDE.md or project docs; (c) **new/changed commands discovered during debugging** → CLAUDE.md; (d) **non-obvious debugging insights or workarounds** → `learnings.jsonl`; (e) **skill-behavior quality gates / workflow steps the user enforced manually for debug runs** → `.geniro/instructions/debug.md`. Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — use `/improve-template`.
 
 ## Adversarial Mode: Verify Last Changes
 

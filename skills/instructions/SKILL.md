@@ -1,6 +1,6 @@
 ---
 name: geniro:instructions
-description: "Manage custom instruction files in .geniro/instructions/. Create, list, edit, validate, and delete project-specific rules that customize how skills behave."
+description: "Manage custom instruction files in .geniro/instructions/ — skill-behavior rules (extra workflow steps, quality gates, hard constraints applied at skill phase boundaries). For code rules / coding conventions, use Anthropic-native .claude/rules/<scope>.md with paths: glob instead. Create, list, edit, validate, and delete."
 context: main
 model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
@@ -9,8 +9,9 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 # Instructions: Custom Instruction Management
 
-Manage `.geniro/instructions/` files that customize how core skills behave. These files contain
-project-specific rules, additional workflow steps, and hard constraints applied at skill runtime.
+Manage `.geniro/instructions/` files — the home for **skill-behavior rules**: extra workflow steps, quality gates, and hard constraints applied at skill phase boundaries (e.g. "always run codegen after editing DTOs", "max PR size 500 lines"). These files load **when the matching skill runs**, not on every file edit.
+
+**For code rules / coding conventions / style or naming patterns / file-pattern constraints, use Anthropic-native `.claude/rules/<scope>.md` files with `paths:` YAML frontmatter instead** — those auto-load when Claude reads or writes a file matching the glob, which is the right trigger for code-shaped rules. CLAUDE.md is reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
 
 ## Supported Skills
 
@@ -198,12 +199,23 @@ from analysis of 14 production AI coding frameworks and real-world plugin usage.
 - **State the consequence** — "Database migrations must be backwards-compatible — breaking migrations block deploy"
 - **Constraints are hard limits** — skills treat these as non-negotiable. Use Rules for soft guidance
 
-### What NOT to put in instructions
+### What goes here vs. `.claude/rules/` vs. CLAUDE.md
 
-- Code patterns already in CLAUDE.md (duplication causes drift)
-- Tech stack info (detected automatically by setup)
-- Temporary rules (use conversation context instead)
-- Rules for skills that don't load instructions (onboard, investigate, features, etc.)
+`.geniro/instructions/<skill>.md` is for **skill-scoped** rules — they fire when the matching skill (`implement` / `plan` / `review` / `debug` / `follow-up` / `refactor`) starts a run. Use it for: extra workflow steps, quality gates, hard constraints the user enforces manually at skill phase boundaries.
+
+**Code rules / coding conventions / style or naming patterns / file-pattern constraints do NOT go here — they belong in `.claude/rules/<scope>.md` with `paths:` YAML frontmatter** (Anthropic-native, file-scoped — auto-loads when Claude reads or writes a file matching the glob). That trigger is the right one for code-shaped rules: they fire on every edit to matching files, not just when a Geniro skill runs.
+
+**CLAUDE.md is reserved for** always-loaded essentials only — commands, project structure, compaction-surviving global gates. Piling rules into CLAUDE.md dilutes compliance for every existing rule.
+
+**What NOT to put in `.geniro/instructions/`:**
+
+- **Code rules / coding conventions / style or naming patterns / file-pattern constraints** — use `.claude/rules/<scope>.md` with `paths:` glob instead (file-scoped, fires per-file, not per-skill)
+- **Tech stack info** — detected automatically by setup, lives in CLAUDE.md
+- **Build / test / lint / dev commands** — every-turn essentials, belong in CLAUDE.md
+- **Project structure facts** — every-turn essentials, belong in CLAUDE.md
+- **Compaction-surviving global gates** (e.g. "never commit without approval") — must stay in CLAUDE.md
+- **Temporary rules** — use conversation context instead
+- **Rules for skills that don't load instructions** — onboard, investigate, features, etc.
 
 ## Command: create
 

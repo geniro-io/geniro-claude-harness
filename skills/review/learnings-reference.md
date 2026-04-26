@@ -17,16 +17,7 @@ Before writing, check if an existing memory covers this topic — UPDATE rather 
 
 ### Suggest Improvements (project scope only)
 
-Route review findings only to project-owned files — do NOT suggest edits to `${CLAUDE_PLUGIN_ROOT}/…` (criteria files, agent prompts, plugin hooks are global and overwritten on update; use `/improve-template` for those).
-
-| What was discovered | Route to | Why |
-|---|---|---|
-| Recurring false positive revealing undocumented convention | **CLAUDE.md** | Document the convention so reviewers don't flag it |
-| Non-obvious insight about codebase quality | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Context for future reviews |
-| Security pattern that should be blocked automatically in this project | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual detection |
-| Review rule the user enforced manually (e.g., "always check X") | **Custom instructions** (`.geniro/instructions/review.md`) | Persists as review-specific rule |
-
-Present via `AskUserQuestion` with header "Improvements": "Apply all" / "Review one-by-one" / "Skip". Group by target. If no improvements found, skip silently.
+Follow the canonical routing in `skills/_shared/improvement-routing.md`. Review runs typically surface: (a) **recurring false positives revealing undocumented coding conventions / style or naming patterns** → **`.claude/rules/<scope>.md`** with `paths:` glob frontmatter (Anthropic-native, file-scoped — auto-loads when matching files are touched, so future reviewers see the convention; do NOT route to CLAUDE.md — code rules belong in scoped rules files, not always-loaded context); (b) **non-obvious insights about codebase quality** → `learnings.jsonl`; (c) **security patterns that should be auto-blocked** → project rules/hooks; (d) **skill-behavior review rules the user enforced manually** (e.g. "always check X in this skill") → `.geniro/instructions/review.md`. Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — use `/improve-template`.
 
 ## Example Workflow
 

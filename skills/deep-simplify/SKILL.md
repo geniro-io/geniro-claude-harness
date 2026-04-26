@@ -310,14 +310,15 @@ If any simplification pattern appeared 3+ times across files, save it as a `proj
 
 ### Suggest Improvements (project scope only)
 
-If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), suggest project-owned follow-up actions. Do NOT suggest edits to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/…`) — the plugin is global and overwritten on update; use `/improve-template` for plugin changes.
+If patterns were flagged but couldn't be safely fixed (P3 or skipped P2), follow the canonical routing in `skills/_shared/improvement-routing.md`. deep-simplify most often surfaces follow-up **actions** the user can run rather than routing-table entries — pair the canonical routing with these action suggestions:
 
 | Pattern type | Suggested action |
 |---|---|
 | Architectural issues (P3 items) | "Consider running `/geniro:refactor` on [module]" |
-| Recurring anti-patterns | "Add a project lint rule or CI check for [pattern]" |
+| Recurring anti-patterns auto-enforceable in this project | "Add a project lint rule or CI check for [pattern]" — per canonical, automated enforcement beats manual memory |
 | Missing utilities causing duplication | "Extract [utility] to shared project module" |
-| Quality gate the user enforced during review | "Add rule to `.geniro/instructions/` via `/geniro:instructions create`" |
+| Coding convention / style or naming pattern surfaced by simplification | "Add a `.claude/rules/<scope>.md` file with `paths:` glob frontmatter for the matching files" — per canonical, code rules go to Anthropic-native file-scoped rules files, not CLAUDE.md |
+| Skill-behavior quality gate the user enforced during review | "Add rule to `.geniro/instructions/<skill>.md` via `/geniro:instructions create`" — per canonical, skill-behavior rules go to Geniro instructions files |
 
 ### Ship Guidance
 
