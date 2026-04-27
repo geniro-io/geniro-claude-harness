@@ -39,8 +39,9 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 
 ### Phase 1: Collect Context & Triage
 - **Scope:** follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. When `$ARGUMENTS` is empty, target = current cwd's working tree (unstaged + staged changes). NEVER invoke `gh pr list` or any other PR-discovery command to invent a target — PR mode triggers ONLY on the explicit PR-ref forms enumerated below.
-- Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName` for base/head context, then feed the result into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
+- Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName,body,title` for base/head context plus PR body+title (the PR body feeds PLAN CONTEXT below). Then feed the result into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
 - Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/review.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
+- **Collect PLAN CONTEXT** (optional) from these sources in priority order: (a) PR body+title from `gh pr view`; (b) `--plan <path>` flag in `$ARGUMENTS`; (c) auto-discovered `docs/spec.md`/`docs/plan.md`/`PLAN.md`/`SPEC.md`. Concat non-empty sources, cap ~3000 chars. See `${CLAUDE_SKILL_DIR}/plan-context-reference.md` for schema, decision-marker convention, and example. If nothing resolves, PLAN CONTEXT renders as `none` in every prompt below.
 - Read changed files and understand modifications
 - Build context map of what changed and why
 - Identify file types and affected modules
@@ -73,7 +74,7 @@ Also read `CLAUDE.md` at the project root for tech stack context — use this to
 
 #### Standard Mode (small diff)
 
-Spawn all five reviewer agents in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. **Spawn the design reviewer (6th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.**
+Spawn all five reviewer agents in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. **Spawn the design reviewer (6th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.** Every reviewer prompt carries a `PLAN CONTEXT:` field (Phase 1 collected; renders as `none` when empty) and this exact alignment-tag instruction appended at the end of the prompt body: `Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.`
 
 ```
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -82,6 +83,7 @@ CRITERIA: [content of bugs-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 DIFF CONTEXT: [git diff summary showing what changed — used to tag findings as [NEW] vs [PRE-EXISTING]]
+PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for bugs and correctness. Do not cross into other dimensions.
 """)
 
@@ -91,6 +93,7 @@ CRITERIA: [content of security-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 DIFF CONTEXT: [git diff summary]
+PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for security vulnerabilities. Do not cross into other dimensions.
 """)
 
@@ -100,6 +103,7 @@ CRITERIA: [content of architecture-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 DIFF CONTEXT: [git diff summary]
+PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for architecture and design patterns. Do not cross into other dimensions.
 """)
 
@@ -109,6 +113,7 @@ CRITERIA: [content of tests-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 DIFF CONTEXT: [git diff summary]
+PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for test quality and coverage. Do not cross into other dimensions.
 """)
 
@@ -118,6 +123,7 @@ CRITERIA: [content of guidelines-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 DIFF CONTEXT: [git diff summary]
+PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for style, naming, and guideline compliance. Do not cross into other dimensions.
 """)
 
@@ -128,6 +134,7 @@ CRITERIA: [content of design-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 DIFF CONTEXT: [git diff summary]
+PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
 """)
 ```
@@ -167,7 +174,7 @@ Not every batch needs all 5–6 dimensions. Skip irrelevant ones to save tokens.
 
 **Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
 
-Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests and `model="haiku"` for guidelines/design. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging.
+Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests and `model="haiku"` for guidelines/design. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, and the same alignment-tag instruction as standard mode.
 
 ```
 Example for 15 files, 3 batches:
@@ -210,6 +217,7 @@ FINDINGS: [all findings from all reviewers (5 or 6), in their original format]
 CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
+PLAN CONTEXT: [content from Phase 1, or "none"]
 
 Gather evidence for each finding against this repo's actual patterns:
 1. Convention alignment — does the suggestion match how this repo already works?
@@ -220,7 +228,7 @@ Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/
 """)
 ```
 
-**Orchestrator tagging:** After the dossier returns, synthesize it yourself per finding: weigh convention-alignment, over-engineering, and pattern-frequency evidence against severity and judge the finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4 (Judge Pass). FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 as KEEP (fail-open); Phase 4 judge and Phase 4b validation still run normally on fail-open findings — only the convention-relevance layer is skipped.
+**Orchestrator tagging:** After the dossier returns, synthesize it yourself per finding: weigh convention-alignment, over-engineering, and pattern-frequency evidence against severity and judge the finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4 (Judge Pass). FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 as KEEP (fail-open); Phase 4 judge and Phase 4b validation still run normally on fail-open findings — only the convention-relevance layer is skipped. When fail-open triggers, surface "relevance-filter fail-open — convention check skipped for this run" under `## Caveats` in the final report.
 
 ### Phase 4: Judge Pass
 
@@ -228,6 +236,8 @@ Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/
 
 **If batched mode:** First deduplicate findings across batches — the same issue may be flagged by multiple batch reviewers if it spans modules. Merge duplicates, keeping the highest confidence score.
 
+- **Step −1: Truncation check.** For each reviewer output, scan for the required `## Dimension Summary` footer (defined in `reviewer-agent.md` output template). If absent, the reviewer ran out of turns mid-analysis: mark that dimension as TRUNCATED, surface in the final report under `## Caveats`, and recommend re-running the dimension with higher maxTurns. Do not silently accept partial output.
+- **Step 0: Intent reconciliation.** For each finding tagged `[DIVERGES-FROM-PLAN]`, verify the divergence against PLAN CONTEXT. If the plan explicitly authorizes the divergence (e.g., D-09), demote to decision-type `[INTENT-CHECK]` and exclude from CRITICAL/HIGH severity. If the plan contradicts the finding (genuine divergence), keep as bug. Findings already tagged `[ALIGNS-WITH-PLAN]` exit the bug pipeline directly to `[INTENT-CHECK]`.
 - Read each finding's source context (file + line range)
 - Validate: does the issue actually exist? Check for mitigating context
 - Preserve [NEW]/[PRE-EXISTING] tags from reviewers — findings in changed lines are [NEW], findings in unchanged code are [PRE-EXISTING]. Prioritize [NEW] findings in the report.
@@ -284,7 +294,7 @@ Do NOT review for other issues — validate this ONE finding only.
 **Process results:**
 - CONFIRMED findings: keep in final report at original severity
 - REJECTED findings: demote to "Filtered by validation" section (visible but not actionable)
-- If a validator fails to complete: keep the finding (fail-open)
+- If a validator fails to complete: keep the finding (fail-open). Note "[dimension] validator failed for finding '<short title>' — kept fail-open" under `## Caveats` in the final report.
 
 ## Input Formats
 
@@ -306,6 +316,7 @@ Do NOT review for other issues — validate this ONE finding only.
 ### [CRITICAL] [NEW] Issue Title
 - File: path/to/file.js:42-48
 - Severity: [security|logic|performance]
+- Decision Type: one of [FIX-NOW] mechanical/low-risk, [TESTABLE] edge case worth a test, [PRODUCT-DECISION] multiple valid paths needing human triage, [INTENT-CHECK] verify against plan before treating as bug (auto-applied by Phase 4 Step 0). Defs+examples: see plan-context-reference.md.
 - Finding: [specific description]
 - Evidence: [code snippet or pattern]
 - Recommendation: [action to take]
@@ -317,8 +328,13 @@ Do NOT review for other issues — validate this ONE finding only.
 ## Medium Priority Issues
 [Same format]
 
+## Intent Checks (verify against plan before treating as bugs)
+[Findings auto-demoted from `[DIVERGES-FROM-PLAN-*]` or `[ALIGNS-WITH-PLAN-*]` by Phase 4 Step 0. Each entry cites the plan decision (e.g., D-09) and the apparent divergence. Human triage decides whether the divergence is intentional (close), a doc gap (update plan), or a real bug (re-elevate to MEDIUM/HIGH). Omit section when empty.]
+
 ## Filtered by Relevance (not applicable to this repo)
 [List of findings that were filtered with 1-line reasons — e.g., "over-engineering for this repo's complexity level", "contradicts established repo pattern"]
+
+## Caveats (TRUNCATED dimensions from Phase 4 Step −1; subagent failures, e.g., relevance-filter fail-open or per-finding validator fail-open — omit section when empty)
 
 ## Review Confidence
 - Bugs analysis: 92%
@@ -409,14 +425,23 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 - build: pass | fail | not-run
 - suggested next stage: /geniro:implement | /geniro:follow-up | none
 
+# Per-finding line schema (used by CRITICAL, HIGH, MEDIUM, and Intent sections — `decision:` applies to ALL severities, not just CRITICAL):
+#   - [NEW|PRE-EXISTING] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN%
+
 ## CRITICAL
-- [NEW] path/to/file.ext:42-48 — <description> — recommendation: <action> — confidence: 95%
+- [NEW] path/to/file.ext:42-48 — <description> — decision: FIX-NOW — recommendation: <action> — confidence: 95%
 - ...
 
 ## HIGH
+- [NEW] path/to/file.ext:80-92 — <description> — decision: PRODUCT-DECISION — recommendation: <action> — confidence: 88%
 - ...
 
 ## MEDIUM
+- [NEW] path/to/file.ext:120-125 — <description> — decision: TESTABLE — recommendation: <action> — confidence: 82%
+- ...
+
+## Intent
+- [NEW] path/to/file.ext:200-210 — <description> — decision: INTENT-CHECK — plan-citation: D-09 "<one-line decision quote>" — recommendation: <verify or close> — confidence: 90%
 - ...
 
 ## Filtered
@@ -449,14 +474,14 @@ Do NOT auto-invoke the next skill — surface the suggestion only. The user runs
 ## Definition of Done
 
 Code review is complete when:
-- [ ] Phase 1 context collected (files read, changes understood)
-- [ ] Phase 2 reviewers spawned and executed in parallel
+- [ ] Phase 1 context collected (files read, changes understood, PLAN CONTEXT resolved from PR body / `--plan` / project files / none)
+- [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT + alignment-tag instruction
 - [ ] All applicable reviewer dimensions completed (5 in standard mode, +1 design when UI files present; up to 18 parallel agents across batches in batched mode)
-- [ ] Phase 3 relevance filter applied (findings checked against repo conventions and complexity)
-- [ ] Phase 4 judge validation complete (findings verified)
+- [ ] Phase 3 relevance filter applied (findings checked against repo conventions, complexity, and PLAN CONTEXT)
+- [ ] Phase 4 judge validation complete (findings verified) — Step −1 truncation check ran (truncated dimensions in `## Caveats`); Step 0 intent reconciliation ran (plan-authorized divergences demoted to `[INTENT-CHECK]`)
 - [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
 - [ ] Confidence scoring applied (>=80 threshold)
-- [ ] Issues classified by severity (Critical, High, Medium)
+- [ ] Issues classified by severity (Critical, High, Medium) and Decision Type ([FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK])
 - [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context
 - [ ] Review summary generated with all findings
 - [ ] Output delivered with actionable recommendations
@@ -481,5 +506,5 @@ Code review is complete when:
 | "I can merge confidently without addressing CRITICAL findings" | CRITICAL issues MUST be fixed before shipping. They are non-negotiable. |
 | "I can skip writing the state file — the user can copy from chat" | The state file is the only handoff channel that survives compaction or session end. Findings in chat alone cannot reach the next skill. |
 | "Findings are obvious — skip the AskUserQuestion and just tell them to run /implement" | Severity-driven recommendation is a structured choice (the user may want fast-lane follow-up for small scope, or to handle manually). Always offer the question; never assume. |
-
----
+| "No PR body / no plan file, so PLAN CONTEXT collection is pointless — skip it" | The Phase 1 step is cheap and renders `none` when nothing resolves. Skipping it means future PRs that do have a plan get silently ignored, and reviewers can't tag `[ALIGNS-WITH-PLAN]` even when a `--plan` flag was passed. Always run the resolution. |
+| "A reviewer's output is missing the `## Dimension Summary` footer but the findings look complete — accept it" | Truncation often clips the last (and most synthesized) finding. Phase 4 Step −1 exists precisely to flag this; mark the dimension TRUNCATED in `## Caveats` and recommend re-running with higher maxTurns. Do not silently accept partial output. |

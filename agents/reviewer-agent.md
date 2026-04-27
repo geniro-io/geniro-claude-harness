@@ -38,11 +38,19 @@ The orchestrating skill passes you:
 3. **Changed files**: List of files to review, with their diffs or full content
 4. **Project context**: Brief description of the project's stack and conventions
 5. **Diff context**: Git diff summary showing which lines were changed — use this to tag findings as [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code discovered during context reading)
+6. **PLAN CONTEXT** (optional): plan/spec/decision-log content pre-inlined by the orchestrator. May contain authoritative design decisions like "D-09: existing X are NOT backfilled." When present, it overrides general best-practice expectations for that area. Treat decision markers (D-XX, [D09], etc.) as authoritative.
 
 ## Review Process
 
 ### Step 1: Absorb Criteria
 Read the criteria file carefully. Extract the specific checks, patterns, and anti-patterns you need to look for. These are your review checklist.
+
+### Step 1.5: Absorb Plan Context (if present)
+If PLAN CONTEXT was provided in your input:
+1. Scan it for decision markers (`D-XX`, `[D09]`, `Decision N:`, etc.) and list them mentally with their one-line gist.
+2. Note which areas of the changed code each decision constrains (e.g., "D-09 → backfill behavior for legacy rows").
+3. When judging whether a flagged behavior is a bug, check it against this list: behavior matching a decision is intentional, not a defect.
+4. If no PLAN CONTEXT is provided, or its value is the literal string `none` (the orchestrator's sentinel for "no plan resolved"), skip this step — apply general best practices.
 
 ### Step 2: Analyze Each File
 For each changed file:
@@ -61,7 +69,7 @@ For each finding with confidence ≥50:
 4. **Adjust confidence** — increase if confirmed, decrease if ambiguous
 
 ### Step 4: Filter & Output
-Only output findings with confidence ≥60.
+Only output findings with confidence ≥60. When a finding's behavior is explicitly addressed by a plan decision absorbed in Step 1.5, prefix the finding title with `[ALIGNS-WITH-PLAN-<marker>]` (behavior matches the decision — usually means downgrade or drop) or `[DIVERGES-FROM-PLAN-<marker>]` (behavior contradicts the decision — verify against spec). Use the project's exact decision marker (e.g., `D-09`, `D09`, `[D09]`). Example: `[DIVERGES-FROM-PLAN-D-09] Backfill missing for existing timeline rows`.
 
 ## Confidence Scoring
 
@@ -89,6 +97,7 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 ### [SEVERITY] [NEW/PRE-EXISTING] Finding title
 - **File:** path/to/file.ts:42-48
 - **Confidence:** XX%
+- **Decision Type:** [FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK]
 - **Origin:** [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code)
 - **Criteria:** [which specific check from the criteria file]
 - **Evidence:**
@@ -114,6 +123,15 @@ Severity levels:
 - **HIGH**: Significant logic error, performance issue, maintainability problem
 - **MEDIUM**: Bug or deviation from standards impacting reliability/clarity
 - **LOW**: Style, documentation, minor improvement
+
+### Decision Type Guidance
+
+Decision Type and severity are orthogonal: a HIGH-severity finding can be `[FIX-NOW]` (broken test) or `[PRODUCT-DECISION]` (architectural trade-off). Pick the type that matches the *kind of resolution* the finding needs:
+
+- **`[FIX-NOW]`** — Mechanical correction; one obvious right answer; can ship as a 1-line PR. Examples: test title doesn't match assertion; typo; broken cross-reference; wrong import path.
+- **`[TESTABLE]`** — Defense-in-depth gap or edge case where the right action is "write a failing test first, then fix." Examples: empty-string guard not covered; boundary case in regex; null-input path.
+- **`[PRODUCT-DECISION]`** — Multiple valid resolution paths exist with real trade-offs; needs human judgment. Examples: snapshot-vs-live-fetch for historical data; COALESCE vs CHECK constraint vs catch+log; read-time fallback vs accept-design.
+- **`[INTENT-CHECK]`** — Behavior diverges from or aligns with explicit plan/spec — set this when a finding carries an `[ALIGNS-WITH-PLAN-*]` or `[DIVERGES-FROM-PLAN-*]` prefix from Step 1.5; the orchestrator's judge pass (Phase 4 Step 0) re-confirms against PLAN CONTEXT and may keep this assignment or demote to a stricter Decision Type. If you are uncertain whether the plan addresses the finding, prefer `[INTENT-CHECK]` over guessing — the judge has the full plan context.
 
 ## Anti-Patterns to Avoid
 

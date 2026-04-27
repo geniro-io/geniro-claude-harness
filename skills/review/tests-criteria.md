@@ -303,6 +303,9 @@ If the answer is yes, the test is worthless — it's testing mocks, trivial wiri
 
 ## Severity Guidelines
 
-- **CRITICAL**: No tests for critical business logic, no error handling tests
-- **HIGH**: Coverage gap for modified code, missing edge case tests, integration gap
-- **MEDIUM**: Missing tests for nice-to-have scenarios, minor coverage improvement, test quality issue
+- **CRITICAL**: No tests for critical business logic; no error-handling tests on payment/auth/data-write paths; assertions test the wrong thing (false confidence) on a critical path
+- **HIGH**: Test gap on a critical-path or high-blast-radius behavior — auth, payments, data writes/migrations, security validators, public API contracts, irreversible operations. Or: a test exists but its assertions are too weak to catch the regression it was added to prevent (deletion-test failure on critical code)
+- **MEDIUM**: Routine coverage gap on modified code (new util, new helper, new branch); missing edge-case test for non-critical-path code; weak assertions on non-critical code; integration-test placement or organization issue; missing boundary test that wouldn't cause production impact
+- **LOW**: Style of tests, naming, organization, or minor coverage improvement on glue/wiring code
+
+**Calibration rule:** When in doubt between HIGH and MEDIUM, default to MEDIUM. HIGH requires a specific blast-radius justification in the finding's "Why this matters" line. Routine "missing test for new function" findings are MEDIUM unless that function is in a critical path.

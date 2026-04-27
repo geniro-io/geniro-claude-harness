@@ -26,6 +26,7 @@ The orchestrating skill passes you:
 2. **Changed files**: List of files under review with their paths
 3. **Project context**: CLAUDE.md content, tech stack, conventions
 4. **Convention files**: Content of CONTRIBUTING.md, ADRs, or other convention docs (if they exist)
+5. **PLAN CONTEXT** (optional): plan/spec/decision-log content pre-inlined by the orchestrator. May contain authoritative design decisions (e.g., "D-09: existing X are NOT backfilled."). When present, evaluate findings against it to detect intent-divergence false positives.
 
 ## Evaluation Process
 
@@ -75,6 +76,16 @@ Is the "problem" actually an intentional repo pattern?
 
 **Verdict**: ISOLATED (finding likely valid) / WIDESPREAD (likely intentional, filter it)
 
+#### Check 4: Intent Alignment (only when PLAN CONTEXT is provided)
+
+- Scan PLAN CONTEXT for decision markers (D-XX, [D09], "Decision N:", etc.).
+- For each finding, check whether its flagged behavior is explicitly addressed by a plan decision.
+- If a decision authorizes the flagged behavior (e.g., reviewer flags "missing backfill" but plan says D-09: NOT backfilled), the finding is intent-aligned — return verdict ALIGNED with the marker.
+- If a decision contradicts the flagged behavior (e.g., reviewer flags "stale roles" but plan says D-04: roles must be live), the finding is intent-confirmed — return verdict CONFIRMED.
+- If no decision touches the finding's area, return UNADDRESSED.
+
+**Verdict**: `ALIGNED-D-<marker>` / `CONFIRMED-D-<marker>` / `UNADDRESSED`. Skip this check entirely when PLAN CONTEXT is empty, missing, or has the literal value `none` (the orchestrator's sentinel for "no plan resolved").
+
 ### Step 3: Compile Evidence Dossier
 
 For each finding, combine the three check verdicts into a structured evidence record. Do NOT issue a KEEP/FILTER verdict — present the evidence so the orchestrating skill can decide.
@@ -101,6 +112,7 @@ Return the evaluation in this exact structure (the orchestrating skill's judge p
 - **Convention check:** [ALIGNS/CONTRADICTS/NEUTRAL] — [1-line evidence]
 - **Over-engineering check:** [APPROPRIATE/OVER-ENGINEERED] — [1-line reason]
 - **Pattern check:** [ISOLATED/WIDESPREAD] — [evidence, e.g., "N files use this pattern"]
+- **Intent check:** [ALIGNED-D-<marker> | CONFIRMED-D-<marker> | UNADDRESSED | n/a (no plan context)] — [1-line evidence — quote the relevant plan decision verbatim if cited]
 - **Safety override:** [true/false] — true for CRITICAL severity findings
 - **Evidence summary:** [1-2 sentence synthesis of the three checks — the facts the orchestrator needs to decide]
 
@@ -109,6 +121,7 @@ Return the evaluation in this exact structure (the orchestrating skill's judge p
 - By convention check: [ALIGNS: N, CONTRADICTS: M, NEUTRAL: K]
 - By over-engineering check: [APPROPRIATE: N, OVER-ENGINEERED: M]
 - By pattern check: [ISOLATED: N, WIDESPREAD: M]
+- By intent check: [ALIGNED: N, CONFIRMED: M, UNADDRESSED: K, n/a: L]
 - Safety overrides: [N CRITICAL findings flagged]
 ```
 
@@ -126,6 +139,9 @@ Return the evaluation in this exact structure (the orchestrating skill's judge p
 ### Convention Invention
 - Do NOT infer conventions from 1-2 files — need 3+ files showing the same pattern
 - If the repo is too small for convention detection, note this and keep more findings
+
+### Plan Override Misuse
+- Do NOT use the intent check to ALIGN a finding when the plan only tangentially mentions the area. Require an explicit decision marker that addresses the same behavior the finding flags. If in doubt, return UNADDRESSED.
 
 ### Scope Expansion
 - Do NOT produce new findings you discovered while checking conventions
