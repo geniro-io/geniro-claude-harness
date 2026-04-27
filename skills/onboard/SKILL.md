@@ -227,7 +227,8 @@ For each onboarding, confirm:
 - Need to explain architecture to someone else
 
 **Don't use:**
-- Quick bug fix in familiar code → use `/geniro:follow-up` or `/geniro:debug`
+- Quick bug fix in familiar code → use `/geniro:follow-up`
+- Bug with unclear root cause → use `/geniro:debug` (investigates and proposes; hands the fix to `/geniro:follow-up` or `/geniro:implement`)
 - Need full implementation guidance → use `/geniro:implement`
 - Just need to answer a specific question → ask directly
 

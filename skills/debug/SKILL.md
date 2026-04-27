@@ -153,14 +153,13 @@ Before investigating, check for relevant prior learnings:
 
 ### 5. Propose Fix (5–15 min)
 - Formulate the minimal fix for the root cause as a **text proposal**: file path(s), exact change (unified diff or before/after snippet), and a one-sentence rationale.
-- Do NOT write the fix to production/source files. Write/Edit are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/debug/` artifacts) — not for applying the proposed patch.
+- Do NOT write the fix to production/source files. Write/Edit are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/debug/` artifacts) — not for applying the proposed patch. If any experiment modified non-test source (e.g., a temporary log line, patched value), revert those edits before escalation; the escalated skill applies the real fix cleanly.
 - Do NOT refactor adjacent code.
-- If experiments modified non-test source to prove the hypothesis (e.g., added a temporary log line, patched a value), revert those experimental edits before escalation. The escalated skill applies the real fix cleanly.
 
 ### 6. Author Reproduction Test & Verify Root Cause (10–15 min)
 - **Author the reproduction as a unit or integration test in the project's test framework**, placed at the project's normal test path next to the source it covers (detect framework + naming convention from CLAUDE.md Essential Commands and an exemplar test file). Scripts, curl commands, and ad-hoc queries are NOT acceptable substitutes — they get deleted at Cleanup and leave no regression guard. The test stays on disk and ships with the fix as the regression gate.
 - **F→P invariant.** Pre-fix: run the authored test at least 2× and confirm the SAME failure signature both times (same exception type + same failing assertion / same status code / same row count). Two divergent failures are NOT confirmation — they're flakiness or two different bugs; investigate before continuing.
-- **Verify the proposed fix.** Apply the patch locally in a throwaway way (monkey-patch in the test, branch-local scratch edit you will revert). Re-run the authored test at least 2× post-fix and confirm the failure DISAPPEARS both times. Then revert the experimental fix — but the test stays on disk.
+- **Verify the proposed fix — monkey-patch in the test by default; production-source edits are an explicit escape hatch.** Apply the patch locally as a monkey-patch inside the authored test file (mock, fixture, test-local shim, or a throwaway helper imported only by the test) — NOT by editing production/source files. Re-run the authored test at least 2× post-fix and confirm the failure DISAPPEARS both times. If the bug genuinely cannot be verified without editing production source (the patch lives in a hard-to-mock chain — DI container, framework hook, native module, generated code), treat each such edit as an explicit escape hatch: list every touched production file under "Verification edits to revert:" in the Phase 6.5a findings, confirm each is reverted before escalation, and re-run `git diff` to prove the working tree contains only the reproduction test. The reproduction test stays on disk; production source must end Phase 6 unchanged.
 - **Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Repro infeasible" and 2-4 concrete options for an alternative regression guard (e.g., "Add a runtime assertion at <file:line>" / "Author a fuzz seed that triggers it ~50% of runs" / "Add a monitor/alert in <observability tool>" / "I'll skip the regression guard — accept the risk"). Record the user's selection AND the rationale in `.geniro/debug/HYPOTHESES.md` under "Reproduction Decision". The default is mandatory; the escape hatch is opt-in with a paper trail.
 - Do NOT run the full project test suite here — that belongs to the escalated skill. The goal is the F→P-verified test artifact + evidence the proposed patch turns it green.
 - Record the experimental evidence in `.geniro/debug/HYPOTHESES.md` under "Fix Evidence" — paste the captured pre-fix output AND the captured post-fix output, not narrative summaries.
@@ -177,6 +176,8 @@ Output the following markdown block directly in the chat AND write the same bloc
 ```markdown
 ## Debug Findings
 
+**Why escalating to <target>:** [one sentence — which target (`/geniro:follow-up` trivial / `/geniro:implement` non-trivial) and the concrete reason this scope fits it; user makes the final routing choice in 6.5b.]
+
 **Root cause:** [one sentence, plain language — why the bug happens]
 
 **Reproduction:** [exact steps that trigger the bug]
@@ -190,7 +191,7 @@ Output the following markdown block directly in the chat AND write the same bloc
 - Change: [unified diff or before/after snippet]
 - Rationale: [one sentence tying the change to the root cause]
 
-**Evidence the fix works:** [what happened when you applied the patch as a throwaway experiment in Step 6 — e.g., "bug stopped reproducing; experimental edits reverted"]
+**Evidence the fix works:** [what happened when you applied the patch in Step 6 — e.g., "failing test went green under in-test monkey-patch; production source untouched" (default), or "<n> production files edited as escape hatch and reverted; bug stopped reproducing"]
 
 **Reproduction test:** [path to authored test file, F→P status (e.g., "verified red on current code; verified green under throwaway patch"), or "escape hatch: <alternative guard + user-recorded rationale>"]
 
@@ -373,7 +374,6 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "It looks right, no need to test" | "Looks right" is the #1 predictor of broken fixes. Run the tests. |
 | "Let me fix these three things at once" | Multi-variable changes make it impossible to know what worked. Test one hypothesis at a time. |
 | "The error message says X, so it must be X" | Error messages lie. Verify with logs, debuggers, and traces. |
-| "I'll document it later" | You won't. Document the root cause and fix while the context is fresh. |
 | "The fix is one line, I'll just write it and escalate nothing" | Escalate every fix. One-line fixes go to `/geniro:follow-up`; the architecture/review gate still applies. |
 | "I added experimental logging and while I'm here I'll patch the bug too" | Experiments and fixes are separate deliverables. Revert experimental edits; escalate the proposed patch. |
 | "The user said just fix it" | If the user explicitly overrides, pick "Leave it to me" in Step 6.5 and produce the patch as text — still do NOT write it to source. The user applies it manually. |

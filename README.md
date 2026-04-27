@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 14 agents, 15 skills, and 8 safety hooks out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 15 agents, 17 skills, and 8 hooks out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -45,7 +45,7 @@ Add to your repo's `.claude/settings.json` so teammates get prompted to install:
    /geniro:review
    ```
 
-From there, pick the right skill for each task: `/geniro:debug` for bugs, `/geniro:follow-up` for small tweaks, `/geniro:refactor` for restructuring, `/geniro:investigate` for codebase Q&A.
+From there, pick the right skill for each task: `/geniro:debug` to investigate bugs (proposes the fix; hands it to `/geniro:follow-up` or `/geniro:implement`), `/geniro:follow-up` for small tweaks, `/geniro:refactor` for restructuring, `/geniro:investigate` for codebase Q&A.
 
 ## How it works
 
@@ -123,7 +123,7 @@ Spawns 5–6 specialized reviewers (bugs, security, architecture, tests, guideli
 
 ### `/geniro:debug` — Scientific-method bug investigation
 
-Systematic debugging: observe, hypothesize, test, isolate, fix, verify. Tracks all hypotheses and rejects speculation.
+Systematic debugging: observe → hypothesize → test → isolate → propose fix → author repro test & verify → escalate → document. Never applies the fix itself; escalates to `/geniro:follow-up` or `/geniro:implement`. Tracks all hypotheses and rejects speculation.
 
 ```
 /geniro:debug login returns 500 after password reset
