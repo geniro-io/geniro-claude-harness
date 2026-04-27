@@ -1,6 +1,6 @@
 ---
 name: geniro:decompose
-description: "Decompose a Big/complex task into 3-7 independently shippable milestones. Produces a master plan plus per-milestone detail files that /geniro:implement can consume one at a time via `/geniro:implement milestone <N>`. Use when a single-shot /geniro:implement run would exceed context, or when the user picks 'Too large — split' at /geniro:implement's Phase 3 approval. Do NOT use for Small/Medium tasks (/geniro:implement handles them directly) or when an approved non-staged plan already exists."
+description: "Use when a Big/complex task would exceed a single /geniro:implement run's context budget, or when /geniro:implement's Phase 3 sizing prompts a split. Produces 3-7 shippable milestones consumed via `/geniro:implement milestone <N>`. Skip for Small/Medium tasks — /geniro:implement handles those directly."
 context: main
 model: inherit
 allowed-tools:

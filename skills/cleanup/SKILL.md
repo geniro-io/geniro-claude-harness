@@ -1,6 +1,6 @@
 ---
 name: geniro:cleanup
-description: "Remove all geniro-claude-plugin files from the project. Uses plugin state to preserve user-created files. Includes confirmation before any deletion."
+description: "Use when uninstalling the plugin from this project. Removes all geniro-claude-plugin files; preserves user-created files via plugin state; confirms before any deletion."
 context: main
 model: inherit
 allowed-tools: [Bash, AskUserQuestion, Read, Glob, Grep]

@@ -432,6 +432,9 @@ Based on cross-framework consensus, these are the most universally useful skill 
 | **Use `disable-model-invocation: true` for dangerous skills** | Deploy, push, delete skills should only be invocable by the user, never auto-triggered by Claude | Claude Forge |
 | **Use `argument-hint` for autocomplete** | Shows expected argument format in the `/` menu (e.g., `"[issue-number]"`, `"<phase> [--auto]"`) | GSD, Claude Forge |
 | **Namespace skills for large collections** | GSD uses `gsd:*`, SuperClaude uses `sc:*`. Prevents name collisions and groups related skills | GSD, SuperClaude |
+| **Hard 1024-char description cap; soft 250-char target** | Anthropic's spec hard-caps `description` at 1024 chars; the routing registry truncates beyond ~250 chars. Combined `description + when_to_use` truncated at 1,536 chars in Claude Code skill listing | [agentskills.io spec](https://agentskills.io/specification), [Claude Code skills docs](https://code.claude.com/docs/en/skills), Anthropic skill-creator |
+| **Categorical "Skip for…" tail is optional, not default** | Add a terminal scope-narrowing clause (≤4 named neighbor types) ONLY when an adjacent skill creates routing collisions. Bare positive descriptions are the default. Per-query negative lists are anti-patterns — they overfit | Anthropic ships this in production: `docx` ("Do NOT use for PDFs, spreadsheets, Google Docs…"), `xlsx` ("Do NOT trigger when… even if tabular data is involved"), `claude-api` (uses TRIGGER:/SKIP: structural keywords). [agentskills.io optimizing-descriptions](https://agentskills.io/skill-creation/optimizing-descriptions) |
+| **Be "pushy" on positive triggers** | Anthropic notes Claude tends to UNDER-trigger skills. Front-load trigger keywords; include "even if the user doesn't explicitly say X" phrasings; name file extensions and casual aliases | Anthropic skill-creator (`SKILL.md` line 67), [improve_description.py](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/improve_description.py) |
 
 ### Skill composition patterns
 
@@ -985,7 +988,7 @@ Match existing patterns exactly. Find the closest existing example and follow it
 | **Orchestrator Kit** | 1 Task = 1 Agent via speckit.implement | Sequential pipeline | Per-agent context |
 | **claude-pipeline** | Per-task `claude -p` calls with JSON schemas | Sequential with parallelizable substeps | CLI isolation |
 
-**Key insight (report line 1154):** "Isolate at the code-writing boundary, not the orchestration boundary." The orchestrator needs shared context for routing decisions. Implementation agents need isolation for clean reasoning.
+**Key insight (report line 1354):** "Isolate at the code-writing boundary, not the orchestration boundary." The orchestrator needs shared context for routing decisions. Implementation agents need isolation for clean reasoning.
 
 #### Phase 4: Validate (automated)
 
@@ -3164,7 +3167,7 @@ skills/implement/
 | 2 | Architect → Validate | Simplified — approval moved out | Reference project (separate Approval phase) |
 | 3 | **Approval (WAIT)** | **NEW** — structured summary with per-task files, user decisions carried forward, risk assessment | Reference project production, Metaswarm (Design Review Gate), Superpowers (per-section approval) |
 | 4 | Implement (delegated) | Enhanced — scope-aware wave ordering | Reference project (API→codegen→Web ordering) |
-| 5 | Validate (automated) | Enhanced — startup check + test granularity | Reference project (runtime check), report line 968 (startup check recommendation) |
+| 5 | Validate (automated) | Enhanced — startup check + test granularity | Reference project (runtime check), report line 1003 (startup check recommendation) |
 | 6 | **Simplify (automated)** | **NEW** — spawns subagent with shared criteria, reverts if CI breaks | Reference project (Phase 8), report audit v4 (simplify rated 9/10) |
 | 7 | Review (with fix loops) | Enhanced — inline parallel review, no skill-calls-skill | Skill composition fix |
 | 8 | **Ship & Finalize (WAIT)** | **NEW (merged)** — adjustment routing + docs + learnings + improvements + cleanup | Reference project (Ship + Finalize phases) |
@@ -3180,11 +3183,11 @@ The template previously bundled approval into Phase 2 as a brief "Should I proce
 6. Risk assessment
 7. Validation summary (mirages detected)
 
-This gives the user enough context for informed approval without reading the full spec. The report's Human-in-the-loop section (line 1088) identifies spec approval as a **mandatory gate**.
+This gives the user enough context for informed approval without reading the full spec. The report's Human-in-the-loop section (line 1119) identifies spec approval as a **mandatory gate**.
 
 #### Phase 5: Validate (enhanced) — rationale
 
-**Runtime startup check (Step 4):** Static checks (lint, build, test) miss DI failures, missing providers, env validation crashes. The reference project's production experience and the report's recommended pipeline (line 968-973) both confirm this. Boot the app for 15 seconds, check for runtime errors, kill.
+**Runtime startup check (Step 4):** Static checks (lint, build, test) miss DI failures, missing providers, env validation crashes. The reference project's production experience and the report's recommended pipeline (line 1000-1008) both confirm this. Boot the app for 15 seconds, check for runtime errors, kill.
 
 **Test coverage granularity (Step 5):** Replaced the generic "test coverage check" with structured 3-tier coverage:
 - **5a: Unit tests** — adjacent to changed source files, always checked
@@ -3199,7 +3202,7 @@ Uses the shared reference pattern: `simplify-criteria.md` contains the 3 analysi
 
 Safe by design: if full-check fails after simplification, all changes are reverted (`git checkout -- .`).
 
-Report audit v4 (line 3615) rated simplify 9/10 after the rewrite: "the most dramatic improvement — the previous 89-line version was essentially a basic checklist."
+Report audit v4 (line 3264) rated simplify 9/10 after the rewrite: "the most dramatic improvement — the previous 89-line version was essentially a basic checklist."
 
 #### Phase 8: Ship & Finalize (new) — rationale
 
@@ -3388,13 +3391,13 @@ After the initial 6-fix rewrite, a self-review pass found 5 additional logical i
 
 **Problem:** The old refactor skill had backpressure (`source .claude/hooks/backpressure.sh && run_silent "Tests" "<cmd>"`). The rewrite dropped it — agent runs tests with raw output that could flood its 60-turn context window.
 
-**Research:** `backpressure.sh` already exists in the template at `hooks/backpressure.sh`. Report line 3254 confirms it was previously integrated into the refactor skill. On success: outputs "Tests passed" (~5 tokens). On failure: outputs only errors, capped at 150 lines. The HumanLayer comparison (report line 131 area) identified the lack of backpressure as a key gap.
+**Research:** `backpressure.sh` already exists in the template at `hooks/backpressure.sh`. Report line 2973 confirms it was previously integrated into the refactor skill. On success: outputs "Tests passed" (~5 tokens). On failure: outputs only errors, capped at 150 lines. The HumanLayer comparison (report line 2965 area) identified the lack of backpressure as a key gap.
 
 **Fix:** Added backpressure to agent Phase 3 test commands (pre-check and post-check) with fallback to `tail -80` if unavailable. Also added backpressure reference to skill Phase 4 execution prompt.
 
 **Evidence:**
 - Template `hooks/backpressure.sh` — existing implementation
-- Report line 3254 — "Integrated into 5 skills (implement, follow-up, refactor, simplify, debug)"
+- Report line 2973 — "Integrated into 5 skills (implement, follow-up, refactor, simplify, debug)"
 - Community research: test output flooding is a known context-rot vector in long agent sessions
 
 #### Issue 3: TypeScript-specific grep example (LOW)
@@ -3427,7 +3430,7 @@ After the initial 6-fix rewrite, a self-review pass found 5 additional logical i
 
 **Problem:** Skill Phase 2 spawns refactor-agent with "ANALYSIS ONLY — do NOT make any changes yet." But the agent definition has Phase 3 (Atomic Application) as part of its natural flow. Prompt-level mode overrides are unreliable.
 
-**Research:** Report line 2241 documents the exact failure mode: "Claude tends to shortcut pipeline phases when changes seem 'simple'" — the inverse (executing when told not to) is equally possible. The implement skill handles this by using **different agents** for different phases (architect-agent for planning, backend/frontend-agent for execution). Two solutions considered:
+**Research:** Report line 2269 documents the exact failure mode: "Claude tends to shortcut pipeline phases when changes seem 'simple'" — the inverse (executing when told not to) is equally possible. The implement skill handles this by using **different agents** for different phases (architect-agent for planning, backend/frontend-agent for execution). Two solutions considered:
 
 - **Option A**: Split into separate `refactor-analyzer-agent.md` (read-only tools) and `refactor-agent.md` (full tools). Structurally safe — analyzer physically cannot write.
 - **Option B**: Keep one agent, add explicit phase-skip + tool-restriction instructions to prompt. Simpler, relies on prompt compliance but with multiple reinforcing instructions.
@@ -3437,7 +3440,7 @@ Chose Option B — the architect-agent works similarly (has Write/Edit but is to
 **Fix:** Expanded Phase 2 prompt from vague "ANALYSIS ONLY" to explicit instructions: "Execute ONLY your Phase 1 and Phase 2. Skip Phase 3 and Phase 4 entirely. Do NOT use Write or Edit tools during this invocation. Return the plan as your final output."
 
 **Evidence:**
-- Report line 2241 — documents pipeline phase shortcutting failure mode
+- Report line 2269 — documents pipeline phase shortcutting failure mode
 - Template `implement/SKILL.md` — uses different agents per phase (architect, backend, frontend)
 - Template `architect-agent.md` — works correctly with prompt-level "plan only" instruction (validates Option B)
 - smartscope.blog: "Claude Code 2.0 Checkpoint Patterns" — mode-specific invocations as a design pattern
@@ -3536,7 +3539,7 @@ Chose Option B — the architect-agent works similarly (has Write/Edit but is to
 
 **Fix:** Added "Build Verification (parallel with reviewers, both modes)" section after criteria file loading. Uses backpressure.sh with fallback. Feeds pass/fail result into judge pass — a failing build is automatically a CRITICAL [NEW] finding.
 
-**Evidence:** [CI/CD Best Practices](https://www.blazemeter.com/blog/ci-cd-best-practices-improve-code-quality); report.md line 3254 (backpressure integration); [Parallel Code Review Skill](https://playbooks.com/skills/dgalarza/claude-code-workflows/parallel-code-review)
+**Evidence:** [CI/CD Best Practices](https://www.blazemeter.com/blog/ci-cd-best-practices-improve-code-quality); report.md line 2973 (backpressure integration); [Parallel Code Review Skill](https://playbooks.com/skills/dgalarza/claude-code-workflows/parallel-code-review)
 
 #### Fix 5 (LOW): Orchestrator identity instruction
 
@@ -3576,7 +3579,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 **Problem:** The `#### For both modes: Read criteria files first` section appeared AFTER the Standard Mode and Batched Mode Agent() code blocks that already reference `[content of bugs-criteria.md]`. The heading says "first" but its position says "after" — a sequencing contradiction.
 
-**Research:** Every other skill in the template loads reference files before spawning agents. Implement skill (line 167): "pre-inlined — read them first, paste contents." Refactor skill: Phase 1 reads all files, Phase 2 spawns agent. report.md line 207: "Pass pre-read file contents in the prompt" — core GSD/Citadel pattern. report.md line 1010: "Pre-read review criteria files" listed before spawning.
+**Research:** Every other skill in the template loads reference files before spawning agents. Implement skill (line 167): "pre-inlined — read them first, paste contents." Refactor skill: Phase 1 reads all files, Phase 2 spawns agent. report.md line 231: "Pass pre-read file contents in the prompt" — core GSD/Citadel pattern. report.md line 1037: "Pre-read review criteria files" listed before spawning.
 
 **Fix:** Moved criteria loading to `#### Step 0: Load criteria files (both modes)` BEFORE Standard Mode. Removed the old misplaced section.
 
@@ -3592,7 +3595,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 **Problem:** Agent() prompts say `CHANGED FILES: [list of files with their full content]` but reviewer-agent Step 2 says "Read the full file" — appears to duplicate work.
 
-**Research:** report.md line 207, 418, 828 all confirm pre-inlining is the correct pattern. The "5x duplication" isn't real — each agent has its own context window. The agent's Read is for surrounding context (imports, dependencies) not already in the prompt.
+**Research:** report.md line 231, 445, 855 all confirm pre-inlining is the correct pattern. The "5x duplication" isn't real — each agent has its own context window. The agent's Read is for surrounding context (imports, dependencies) not already in the prompt.
 
 **Fix:** Added clarifying note to reviewer-agent Step 2: "The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided."
 
@@ -3600,7 +3603,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 **Problem:** Checklist covered confidence scoring and severity but not origin tagging — a first-class feature of the review output.
 
-**Research:** report.md line 405: "Every skill needs a Definition of Done section" with clear exit criteria. report.md line 2978: precedent for fixing incomplete DoD sections.
+**Research:** report.md line 429: "Every skill needs a Definition of Done section" with clear exit criteria. report.md line 2928: precedent for fixing incomplete DoD sections.
 
 **Fix:** Added checklist item: `- [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context`
 
@@ -3664,14 +3667,14 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 | # | Sev | Fix | Evidence |
 |---|---|---|---|
-| S1 | HIGH | Added `$ARGUMENTS` + empty-argument AskUserQuestion handling | All other skills use $ARGUMENTS; report line 474 |
-| S2 | HIGH | Added Phase 0: Initialize (dir creation, duplicate detection, prior context) | Report line 2973; implement skill has same pattern |
+| S1 | HIGH | Added `$ARGUMENTS` + empty-argument AskUserQuestion handling | All other skills use $ARGUMENTS; report line 500 |
+| S2 | HIGH | Added Phase 0: Initialize (dir creation, duplicate detection, prior context) | implement skill has same pattern (see `skills/implement/SKILL.md` Phase 0); report.md citation stale — original "line 2973" content drifted out in subsequent audits |
 | S3 | MED | Added confirmation step when no gray areas (not silent auto-proceed) | GSD discuss-phase auto-mode pattern; safety-first |
 | S4 | MED | Added AskUserQuestion empty-answer plain-text fallback | 6+ active Claude Code bugs: #10400, #29733, #10229, #29547, #12672 |
 | S5 | MED | Added multiSelect for gray area triage | AskUserQuestion multiSelect confirmed as real parameter |
-| S6 | MED | Added Scope Creep Guard (observational, not enforcing) | Report line 181 (skeptic-agent flags scope creep); O'Reilly AI agent guardrails |
+| S6 | MED | Added Scope Creep Guard (observational, not enforcing) | Report line 204 (skeptic-agent flags scope creep); O'Reilly AI agent guardrails |
 | S8 | MED | Changed to dynamic `<feature-name>-spec.md` naming | Previous FEATURE_SPEC.md would overwrite on second run |
-| S9 | MED | Added max 2 follow-up question rounds | Report line 713 (max 3 rounds standard); 2 for spec since simpler than fix loops |
+| S9 | MED | Added max 2 follow-up question rounds | Report line 758 (max 3 rounds standard); 2 for spec since simpler than fix loops |
 
 **Rejected:** S7 (YAML frontmatter in spec output) — frontmatter is for Claude Code infra files, not user-facing spec documents. No other planning artifact uses it.
 
@@ -3689,7 +3692,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 | # | Sev | Fix | Evidence |
 |---|---|---|---|
-| D1 | HIGH | Added "Do NOT use for..." exclusions to frontmatter description | Report line 4452: explicit exclusions improve routing 20%→90% |
+| D1 | HIGH | Added categorical "Skip for…" tail to frontmatter description (named adjacent /geniro:follow-up) | Anthropic ships this pattern in production `docx`, `xlsx`, `claude-api` skills (see [agentskills.io optimizing-descriptions](https://agentskills.io/skill-creation/optimizing-descriptions): "Add specificity about what the skill does *not* do, or clarify the boundary between this skill and adjacent capabilities") |
 | D2 | HIGH | Added typed memory categories to Document step (project/feedback) | Follow-up skill pattern; arXiv:2512.13564 confirms typed memory effectiveness |
 | D4 | MED | Defined "inconclusive" + fixed status flow to branching notation | MIT/UCSD debugging courseware; internal inconsistency fixed |
 | D5 | MED | Added conditional codegen check in Step 6 Verify | Follow-up skill Phase 3 Step 3 pattern; conditional to avoid noise |
@@ -3701,7 +3704,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 | # | Sev | Fix | Evidence |
 |---|---|---|---|
-| T1 | HIGH | Extracted `conflict-resolution.md` (241 lines) + `verification-checks.md` (41 lines) | Report line 70: "SKILL.md should be under 500 lines." Reduced from 855→589 lines (31%) |
+| T1 | HIGH | Extracted `conflict-resolution.md` (241 lines) + `verification-checks.md` (41 lines) | Report line 80: "SKILL.md should be under 500 lines." Reduced from 855→589 lines (31%) |
 | T2 | MED | Report note: /upgrade skill was consolidated into setup's Re-Running flow | Skills cannot call skills (known limitation); setup already has merge algorithm |
 | T3 | MED | Added AskUserQuestion fallback for undetectable projects in Phase 1.1 | Edge case: empty repos, documentation-only repos, unsupported languages |
 
@@ -3711,7 +3714,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 
 | # | Sev | Fix | Evidence |
 |---|---|---|---|
-| O1 | HIGH | Added "Do NOT use for..." exclusions to description | Follow-up pattern; fp8.co routing research |
+| O1 | HIGH | Added categorical "Skip for…" tail to description (named adjacent /geniro:investigate, /geniro:debug) | Anthropic's `docx`/`xlsx` skills ship terminal `Do NOT use for…` clauses naming adjacent skills; agentskills.io optimizing-descriptions endorses categorical scope-narrowing for routing-collision skills |
 | O2 | HIGH | Fixed DoD contradiction: <2000→<1000 lines, added --focus escape hatch | Internal inconsistency between compliance section and DoD |
 | O3 | MED | Changed `model: opus` → `model: sonnet` | Sonnet achieves 97-99% of Opus coding at 5x lower cost; scanning doesn't need deep reasoning |
 | O4 | MED | Added Arguments section defining --depth and --focus | argument-hint advertised flags but never defined them |
@@ -3723,7 +3726,7 @@ The template's flat architecture (skill spawns 5 leaf agents directly) is the co
 |---|---|---|---|
 | L1 | HIGH | Added "Relationship to Built-in Memory" section | Report lines 2200-2212: native memory for preferences, JSONL for structured technical learnings |
 | L2 | HIGH | Aligned JSONL schema between skill and knowledge-retrieval-agent | Schema mismatch: skill had `session`/`verified`, agent expected `context`/`timestamp` |
-| L3 | MED | Rewrote description: "Use when..." + "Do NOT use for..." | Report line 404: description pattern |
+| L3 | MED | Rewrote description: "Use when…" opener + terminal "Skip for…" (named "trivial sessions with no surprises") | Report line 427 (canonical Skill design rule: "Description says 'Use when...'"); Anthropic skill-creator ([improve_description.py](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/improve_description.py)) recommends imperative "Use when" framing |
 | L4 | MED | Added `files`/`keywords` tags to JSONL schema | Report lines 2106-2127: Metaswarm selective retrieval pattern |
 | L5 | MED | Made session documents optional Phase 4 with `--no-session-doc` flag | Clarified ownership; session docs are secondary output, not always needed |
 
@@ -3852,13 +3855,13 @@ From cross-referencing the explore audit, report.md findings, and internet resea
 | 2 | Multi-dimensional effort scaling (replacing file count) | SWE-bench, FeatureBench, follow-up skill pattern |
 | 3 | Mode detection (auto/assumptions/interactive) | report.md lines 798-804, consistency with implement skill |
 | 4 | Deduplicated validation checklist (single source in plan-criteria.md) | Audit inconsistency: drift risk from two copies |
-| 5 | Empty $ARGUMENTS handling | report.md line 4549 pattern |
-| 6 | Definition of Done section | report.md line 407: standard across all skills |
+| 5 | Empty $ARGUMENTS handling | report.md line 4549 (stale — content removed in subsequent audits) pattern |
+| 6 | Definition of Done section | report.md line 429: standard across all skills |
 | 7 | Max iteration escalation with user options | Audit: implement has escalation, plan skill didn't |
 | 8 | Rollback field on every plan step | Galileo/Zylos research: 80% faster recovery |
 | 9 | Progressive delivery for Large tasks | report.md lines 3619, 3925-3936; Codex plan mode |
 | 10 | Prior context loading (existing plans, specs, learnings) | report.md lines 2973-2974 |
-| 11 | Mirage detection (skeptic must grep for file/function existence) | report.md line 210: "skeptic validates against real codebase" |
+| 11 | Mirage detection (skeptic must grep for file/function existence) | report.md line 232: "skeptic validates against real codebase" |
 
 ### Plan Skill Structure (from Frameworks Research)
 

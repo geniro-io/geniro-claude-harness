@@ -1,6 +1,6 @@
 ---
 name: improve-template
-description: "Investigate issues in geniro-claude-plugin, research fixes, and implement after approval"
+description: "Use when modifying the geniro-claude-plugin itself — fix a Geniro skill, agent, hook, or report.md. Researches via parallel agents (codebase + report.md + internet), presents evidence, implements after approval. Skip for general codebase Q&A (/geniro:investigate) or app-code bugs (/geniro:debug)."
 context: main
 model: inherit
 allowed-tools:

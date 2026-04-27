@@ -1,6 +1,6 @@
 ---
 name: geniro:follow-up
-description: "Use when making small post-implementation changes that skip architecture. Assesses complexity (trivial/small/medium), implements, validates, reviews, ships. Escalates to /geniro:implement if scope is too large. Do NOT use for new features, new entities, new endpoints/pages, auth/permissions changes, new modules, or changes requiring architecture decisions."
+description: "Use when making small post-implementation changes that skip architecture (bug fixes, tweaks, doc updates). Assesses trivial/small/medium scope, implements, validates, reviews, ships. Skip for new features, new modules, auth/permissions changes, or anything needing architecture — use /geniro:implement."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch]

@@ -1,6 +1,6 @@
 ---
 name: geniro:setup
-description: "AI-driven project setup. Analyzes your codebase, interviews you about preferences, and generates a tailored CLAUDE.md — specific to your project's language, framework, and conventions."
+description: "Use when starting on a new codebase or after vendoring/onboarding the plugin. Analyzes the repo, interviews you about conventions, and generates a tailored CLAUDE.md with detected tech stack, commands, and project rules."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]

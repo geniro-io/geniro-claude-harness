@@ -1,6 +1,6 @@
 ---
 name: geniro:features
-description: "Feature backlog management and spec creation. Track features with status, priority, complexity. Create detailed specs with codebase scouting, adaptive questioning, and auto-registration."
+description: "Use when managing a feature backlog or writing a detailed spec for what to build next. Tracks status/priority/complexity; creates specs via codebase scouting, adaptive questioning, and auto-registration."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, WebSearch]

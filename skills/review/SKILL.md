@@ -1,6 +1,6 @@
 ---
 name: geniro:review
-description: "Parallel multi-agent code review with 5–6 specialized reviewers (bugs, security, architecture, tests, guidelines, +design when UI files present). Confidence-scored findings automatically filtered. Use for comprehensive code quality assessment."
+description: "Use when you want a comprehensive code review of pending changes. Spawns 5–6 parallel reviewers (bugs, security, architecture, tests, guidelines, +design when UI files present) with confidence-scored findings automatically filtered."
 context: main
 model: inherit
 allowed-tools:

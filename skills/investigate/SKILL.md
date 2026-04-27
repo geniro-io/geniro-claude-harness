@@ -1,6 +1,6 @@
 ---
 name: geniro:investigate
-description: "Deep investigation of codebase questions with parallel research agents. Analyzes repo structure, code behavior, git history, and internet sources to produce evidence-backed answers. Do NOT use for bug fixes (/geniro:debug), implementation (/geniro:implement), or codebase orientation (/geniro:onboard)."
+description: "Use when answering deep codebase questions that need evidence — repo structure, code behavior, git history, or internet sources. Parallel research agents produce cited answers. Skip for bug fixes (/geniro:debug) or codebase mapping (/geniro:onboard)."
 context: main
 model: inherit
 allowed-tools: [Read, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, WebFetch]

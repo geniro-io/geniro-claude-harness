@@ -7,14 +7,14 @@ This file is the canonical template for a `/geniro:actions create` output. The p
 | Variable | Source | Example |
 |---|---|---|
 | `{{name}}` | user-provided action name (kebab-case, ≤64 chars) | `pr-notify-slack` |
-| `{{description}}` | derived from interview Q1 + Q2; MUST start with "Use when" and stay ≤250 chars | `Use when a PR is opened and you want to summarize it in #eng-reviews. Do NOT use for force-pushed branches.` |
+| `{{description}}` | derived from interview Q1 + Q2; MUST start with "Use when" and stay ≤250 chars; optional terminal "Skip for …" clause (≤4 categorical items) only when an adjacent action exists | `Use when a PR is opened and you want to summarize it in #eng-reviews. Skip for force-pushed branches.` |
 | `{{model}}` | inferred from complexity; default `inherit` | `inherit` |
 | `{{allowed_tools}}` | derived from Q3 (output/side-effects) | `[Read, Bash(gh *), AskUserQuestion]` |
 | `{{argument_hint}}` | derived from interview; describe expected positional args | `[pr_number]` |
 | `{{created}}` | ISO date at write time | `2026-04-25` |
 | `{{purpose}}` | first-paragraph prose synthesized from Q1 | one short paragraph |
 | `{{when_to_use}}` | bullet list synthesized from Q2 | 2–4 bullets |
-| `{{when_not_to_use}}` | optional — list "Do NOT use for…" exclusions if Q2 surfaced any | 0–3 bullets, or "(none)" |
+| `{{when_not_to_use}}` | optional — list "Skip for…" exclusions if Q2 surfaced an adjacent-action collision | 0–3 bullets, or "(none)" |
 | `{{steps}}` | numbered list synthesized from Q1 + Q3 | 3–8 numbered items |
 | `{{output_summary}}` | 1-line description of what the user sees when the action completes | one line |
 | `{{test_cases}}` | optional from Q4 | 1–2 short test cases or "(skipped)" |
@@ -61,7 +61,7 @@ created-by: geniro:actions
 
 ## Authoring rules (applied during synthesis)
 
-- **Description** starts with "Use when …"; the optional "Do NOT use for …" clause is encouraged for actions that are easy to misroute. Keep total length ≤250 chars.
+- **Description** starts with "Use when …". A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions. Anthropic ships this pattern in `docx`/`xlsx`/`claude-api`; bare descriptions are the default. Keep total length ≤250 chars.
 - **Steps** are numbered and concrete. Each step names the tool or shell command (e.g., "Run `gh pr view {{argument}} --json title,body`"), not vague verbs ("look at the PR").
 - **One-level deep**: if a step needs sub-detail, inline it; do NOT chain to another `.md` file. Claude's partial reads can miss content nested through references.
 - **Secrets**: never inline tokens. Reference env vars (e.g., `$SLACK_BOT_TOKEN`). The Geniro file-protection hook blocks `.env`/`*.key`/`*.pem` writes; the secret-scanning hook flags leaked tokens in output.

@@ -1,6 +1,6 @@
 ---
 name: geniro:actions
-description: "Create and invoke custom workflow-helper actions stored at .geniro/actions/. Use when you want to scaffold a reusable workflow (Slack/PR/release automations) or run a previously-created action. Do NOT use for editing core Geniro skills — use /improve-template for that."
+description: "Use when scaffolding a reusable workflow-helper (Slack/PR/release automations) or invoking a previously-created action. Stored at .geniro/actions/. Skip for editing core Geniro skills — use /improve-template for that."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]

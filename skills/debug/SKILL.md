@@ -1,6 +1,6 @@
 ---
 name: geniro:debug
-description: "Two modes — scientific-method bug investigation (default) or adversarial verify-changes (edge-case test authoring against a diff). Default: Observe → Hypothesize → Test → Isolate → Propose Fix → Author Reproduction Test & Verify, then ESCALATE the proposed patch to /geniro:follow-up (trivial) or /geniro:implement (non-trivial). Adversarial: authors F→P failing tests against a diff via adversarial-tester-agent. This skill does NOT apply production fixes itself — it produces a report + proposed patch. Do NOT use for bugs with obvious root cause or already-understood fixes — use /geniro:follow-up directly."
+description: "Use when a bug needs systematic investigation — observe, hypothesize, test, isolate, propose fix, author reproduction test. Then escalates to /geniro:follow-up or /geniro:implement to apply the patch. Adversarial mode authors F→P tests against a diff. Skip for bugs with obvious root cause — use /geniro:follow-up directly."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]

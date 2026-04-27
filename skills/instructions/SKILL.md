@@ -1,6 +1,6 @@
 ---
 name: geniro:instructions
-description: "Manage custom instruction files in .geniro/instructions/ — skill-behavior rules (extra workflow steps, quality gates, hard constraints applied at skill phase boundaries). For code rules / coding conventions, use Anthropic-native .claude/rules/<scope>.md with paths: glob instead. Create, list, edit, validate, and delete."
+description: "Use when adding skill-behavior rules (extra phase steps, quality gates, hard constraints) that apply at Geniro skill phase boundaries. Create, list, edit, validate, delete. For coding conventions, use .claude/rules/<scope>.md with paths: glob instead."
 context: main
 model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]

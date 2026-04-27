@@ -1,6 +1,6 @@
 ---
 name: geniro:vendor
-description: "Copy the plugin into .claude/ with a geniro- prefix for cloud runners that can't use the marketplace. Translates hooks.json into .claude/settings.json, rewrites \${CLAUDE_PLUGIN_ROOT} references, and extends .geniro/.geniro-state.json with a vendor manifest so /geniro:setup can detect drift and resync on plugin updates."
+description: "Use when running on a cloud runner / CI / offline environment that can't reach the plugin marketplace. Vendors the plugin into .claude/ with a geniro- prefix; /geniro:setup detects drift and resyncs on later plugin updates."
 context: main
 model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]

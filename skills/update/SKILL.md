@@ -1,6 +1,6 @@
 ---
 name: geniro:update
-description: "Update the geniro-claude-plugin to the latest version. Run when the status line shows an update is available."
+description: "Use when the status line shows a plugin update is available, or to manually pull the latest geniro-claude-plugin version."
 context: main
 model: inherit
 allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep, Agent]

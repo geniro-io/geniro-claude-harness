@@ -1,6 +1,6 @@
 ---
 name: geniro:deep-simplify
-description: "Three-pass parallel code review. Spawns 3 subagents (reuse, quality, efficiency) on changed files, aggregates findings by severity, applies P1/P2 fixes, reverts if CI breaks. Zero behavior change guaranteed."
+description: "Use when changed files need a quality polish pass after implementation, before review. Three parallel subagents check reuse, quality, efficiency. Applies P1/P2 fixes; reverts if CI breaks. Zero behavior change guaranteed."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
