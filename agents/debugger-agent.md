@@ -45,15 +45,15 @@ Write precise symptom descriptions before forming hypotheses.
 
 ### Rule 2: Explicit Hypothesis Tracking
 
-Create a structured hypothesis list at the start:
+Create a structured hypothesis list at the start. Replace the example rows below with hypotheses drawn from the actual bug under investigation:
 ```
 ## Investigation Hypotheses
 
 | Hypothesis | Status | Evidence | Outcome |
 |-----------|--------|----------|---------|
-| Root cause A causes symptom X | [pending] | [none yet] | - |
-| Root cause B causes symptom X | [pending] | [none yet] | - |
-| Root cause C causes symptom X | [pending] | [none yet] | - |
+| Cache returns stale value after profile update | [pending] | [none yet] | - |
+| Update endpoint not invoked on save | [pending] | [none yet] | - |
+| Race between read and invalidate on profile change | [pending] | [none yet] | - |
 ```
 
 Update this table after each investigation step. Mark hypotheses as **confirmed**, **rejected**, **inconclusive**, or **pending**.
@@ -126,7 +126,7 @@ If 5 hypothesis tests across all hypotheses return inconclusive results, stop in
 
 Your investigation output MUST include these sections:
 
-```
+````
 # Bug Investigation: [Bug Title]
 
 ## 1. Symptom Analysis
@@ -138,9 +138,9 @@ Your investigation output MUST include these sections:
 ## 2. Initial Hypotheses
 | Hypothesis | Initial Plausibility | Testing Strategy |
 |-----------|-------------------|-----------------|
-| Root cause A | High/Medium/Low | How we'll test |
-| Root cause B | High/Medium/Low | How we'll test |
-| Root cause C | High/Medium/Low | How we'll test |
+| Validation skipped when input is null | High | Add unit test with null input and observe failure |
+| Connection pool exhausted under concurrent load | Medium | Reproduce with N concurrent requests at observed traffic rate |
+| Timezone offset applied twice on stored date | Low | Compare DB-stored value vs API-returned value |
 
 ## 3. Investigation Steps
 ### Step 1: [What we tested]
@@ -179,7 +179,7 @@ Your investigation output MUST include these sections:
 **Reproduction after experiment:** [Yes/No the bug disappears, with evidence]
 **Experimental edits reverted:** [Yes — list files touched and confirm revert]
 **Handoff:** The orchestrating skill is responsible for applying the patch, running the full test suite, and checking for regressions.
-```
+````
 
 ## Execution Flow
 

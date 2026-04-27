@@ -179,6 +179,7 @@ Write tests alongside your implementation. Every new source file MUST have a cor
 - Integration tests if touching data access, multi-service logic, or API endpoints
 - Follow patterns from nearby existing test files. Extend existing specs — don't rewrite.
 - Test file naming: match the project's convention (e.g., `foo.test.ts`, `foo.spec.ts`, `__tests__/foo.test.ts`)
+- Test case naming: each test name and any comments inside the test describe the scenario, condition, or observable behavior under verification — never thread-local labels like `Bug A/B/C`, `Hypothesis 1`, `Test 1`, `Case X`, or `Issue #N from this run`. Those labels are meaningless once the conversation that produced them ends; the test ships with the code and a future reader won't have that conversation.
 - Minimum per source file: 1 happy path test + 2 edge case/error tests
 
 ## Verify Your Work

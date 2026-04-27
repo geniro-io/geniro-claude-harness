@@ -73,6 +73,7 @@ grep -n "jest.mock\|sinon.stub\|mock\|spy" test_file.js
 
 **Red flags:**
 - Test names: "test1", "shouldWork", "test_function"
+- Thread-local labels in test names: "Bug A/B/C", "Hypothesis 1/2", "Test 1", "Case X", "Issue #N from this run" — these are specific but meaningless once the originating conversation ends; same red flag for comments inside the test
 - Setup takes more lines than the actual test
 - Many mocks/stubs per test (indicates tight coupling)
 - Tests that fail intermittently
