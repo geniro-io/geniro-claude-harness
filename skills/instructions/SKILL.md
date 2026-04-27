@@ -15,18 +15,19 @@ Manage `.geniro/instructions/` files — the home for **skill-behavior rules**: 
 
 ## Supported Skills
 
-Six skills load custom instructions at startup:
+Seven skills load custom instructions at startup:
 
 | Skill | Per-skill file | Key phases for "Additional Steps" |
 |-------|---------------|-----------------------------------|
 | **implement** | `implement.md` | After PHASE 1 (Discover), After PHASE 4 (Implement), After PHASE 6 (Review & Validate), Before PHASE 7 (Ship & Finalize) |
-| **plan** | `plan.md` | After Phase 1 (Discover Context), After Phase 2 (Generate Plan), After Phase 3 (Validate Plan) |
+| **decompose** | `decompose.md` | After Phase 1 (Discover Context), After Phase 2 (Generate Master Plan + Milestone List), After Phase 4 (Validate) |
 | **review** | `review.md` | After Phase 1 (Collect Context), After Phase 4 (Judge Pass), After Phase 5 (Learn) |
 | **debug** | `debug.md` | After step 1 (Observe), After step 5 (Fix), After step 6 (Verify) |
 | **follow-up** | `follow-up.md` | After Phase 2 (Implement), After Phase 5 (Review), Before Phase 6 (Ship) |
 | **refactor** | `refactor.md` | After Phase 2 (Analyze & Plan), After Phase 4 (Execute), After Phase 5 (Review Results) |
+| **deep-simplify** | `deep-simplify.md` | After Phase 3 (Aggregate), After Phase 4 (Fix), Before Phase 5 (Verify) |
 
-`global.md` applies to **all six** skills above.
+`global.md` applies to **all seven** skills above.
 
 ## File Structure
 
@@ -71,12 +72,12 @@ If no arguments are provided, default to `list`.
 
 Extract scope(s) from the arguments:
 
-- Explicit scope names: "global", "review", "implement", "plan", "debug", "follow-up", "refactor"
+- Explicit scope names: "global", "review", "implement", "decompose", "debug", "follow-up", "refactor", "deep-simplify"
 - Contextual references: "add a rule to review" → scope=review, action=edit; "create debug instructions" → scope=debug, action=create
-- Multi-scope indicators: "all", "every", "global and review", "implement and plan" → collect all mentioned scopes into a list
+- Multi-scope indicators: "all", "every", "global and review", "implement and decompose" → collect all mentioned scopes into a list
 - "all" or "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create)
 
-Valid scopes: `global`, `implement`, `plan`, `review`, `debug`, `follow-up`, `refactor`.
+Valid scopes: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`.
 
 ### Ambiguity Resolution
 
@@ -92,17 +93,18 @@ If the action is unclear, use the `AskUserQuestion` tool:
 If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool:
 - **Question:** "Which instruction file?"
 - **Options:**
-  - label: "global" — description: "Rules that apply to all 6 skills"
+  - label: "global" — description: "Rules that apply to all 7 skills"
   - label: "review" — description: "Customize code review behavior"
   - label: "implement" — description: "Customize implementation workflow"
-  - label: "plan" — description: "Customize planning workflow"
+  - label: "decompose" — description: "Customize decomposition workflow"
   - label: "debug" — description: "Customize debugging workflow"
   - label: "follow-up" — description: "Customize follow-up workflow"
   - label: "refactor" — description: "Customize refactoring workflow"
+  - label: "deep-simplify" — description: "Customize parallel-review behavior"
 
 ### Scope Validation
 
-Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `plan`, `review`, `debug`, `follow-up`, `refactor`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
+Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
 
 After resolving intent and scope(s), if multiple scopes were detected, proceed to **Batch Mode**. Otherwise, proceed to the resolved command section below.
 
@@ -115,13 +117,14 @@ When multiple scopes are detected (e.g., "edit global and review", "add rules to
 If the user said "all" or the scope list is ambiguous, use the `AskUserQuestion` tool with `multiSelect: true`:
 - **Question:** "Which instruction files do you want to target?"
 - **Options** (filter to existing files only for edit/validate/delete):
-  - label: "global" — description: "Rules for all 6 skills"
+  - label: "global" — description: "Rules for all 7 skills"
   - label: "implement" — description: "Implementation workflow"
-  - label: "plan" — description: "Planning workflow"
+  - label: "decompose" — description: "Decomposition workflow"
   - label: "review" — description: "Code review"
   - label: "debug" — description: "Debugging workflow"
   - label: "follow-up" — description: "Follow-up workflow"
   - label: "refactor" — description: "Refactoring workflow"
+  - label: "deep-simplify" — description: "Parallel-review workflow"
 
 ### Execution
 
@@ -167,7 +170,7 @@ If files exist, show a table:
 
 | File | Scope | Affects Skills | Sections |
 |------|-------|----------------|----------|
-| global.md | All skills | implement, plan, review, debug, follow-up, refactor | Rules (3), Steps (1), Constraints (2) |
+| global.md | All skills | implement, decompose, review, debug, follow-up, refactor, deep-simplify | Rules (3), Steps (1), Constraints (2) |
 | review.md | review only | review | Rules (5), Steps (0), Constraints (1) |
 ```
 
@@ -201,7 +204,7 @@ from analysis of 14 production AI coding frameworks and real-world plugin usage.
 
 ### What goes here vs. `.claude/rules/` vs. CLAUDE.md
 
-`.geniro/instructions/<skill>.md` is for **skill-scoped** rules — they fire when the matching skill (`implement` / `plan` / `review` / `debug` / `follow-up` / `refactor`) starts a run. Use it for: extra workflow steps, quality gates, hard constraints the user enforces manually at skill phase boundaries.
+`.geniro/instructions/<skill>.md` is for **skill-scoped** rules — they fire when the matching skill (`implement` / `decompose` / `review` / `debug` / `follow-up` / `refactor` / `deep-simplify`) starts a run. Use it for: extra workflow steps, quality gates, hard constraints the user enforces manually at skill phase boundaries.
 
 **Code rules / coding conventions / style or naming patterns / file-pattern constraints do NOT go here — they belong in `.claude/rules/<scope>.md` with `paths:` YAML frontmatter** (Anthropic-native, file-scoped — auto-loads when Claude reads or writes a file matching the glob). That trigger is the right one for code-shaped rules: they fire on every edit to matching files, not just when a Geniro skill runs.
 
@@ -280,7 +283,7 @@ Use the `AskUserQuestion` tool for each follow-up, tailored to the scope:
   - label: "Post-implementation" — description: "Validation steps after code changes"
   - label: "Custom" — description: "Describe your own rules"
 
-**plan** — Question: "What must plans always include?"
+**decompose** — Question: "What must plans always include?"
 - Options:
   - label: "Scope constraints" — description: "Maximum complexity, required breakdown"
   - label: "Required sections" — description: "Risk analysis, rollback plan, dependencies"
@@ -305,6 +308,13 @@ Use the `AskUserQuestion` tool for each follow-up, tailored to the scope:
   - label: "Protected areas" — description: "Files or modules that must not change"
   - label: "Test requirements" — description: "Required test coverage before/after"
   - label: "Scope limits" — description: "Maximum files changed, complexity limits"
+  - label: "Custom" — description: "Describe your own rules"
+
+**deep-simplify** — Question: "What parallel-review rules apply?"
+- Options:
+  - label: "Severity gates" — description: "Which severity levels to fix vs report"
+  - label: "Scope limits" — description: "Maximum fixes per run, file exclusions"
+  - label: "Verification rules" — description: "Required validation before keeping fixes"
   - label: "Custom" — description: "Describe your own rules"
 
 ### Step 5: Generate the file
@@ -375,7 +385,7 @@ For each file, check:
 1. **Structure** — file contains `## Rules`, `## Additional Steps`, and `## Constraints` sections
 2. **Phase names** — any `### <phase>` headers under "Additional Steps" match the valid phase names from the Supported Skills table above
 3. **Non-empty content** — at least one section has actual content (not just comment placeholders)
-4. **Scope validity** — filename (without `.md`) matches a valid scope: `global`, `implement`, `plan`, `review`, `debug`, `follow-up`, `refactor`
+4. **Scope validity** — filename (without `.md`) matches a valid scope: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`
 
 ### Step 3: Report results
 

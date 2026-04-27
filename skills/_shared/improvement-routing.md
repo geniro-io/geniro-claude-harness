@@ -37,7 +37,7 @@ CLAUDE.md is loaded **every turn for every agent**, so its budget is finite — 
 | Mechanism | Path | Triggers when | Use for |
 |---|---|---|---|
 | **Anthropic-native rules file** | `.claude/rules/<scope>.md` with `paths: [glob, ...]` frontmatter | Claude reads/writes a file matching the glob | Code rules, coding conventions, style/naming patterns, file-pattern constraints, language-specific rules |
-| **Geniro instructions file** | `.geniro/instructions/<skill>.md` (or `global.md`) | The matching skill (`implement` / `plan` / `review` / `debug` / `follow-up` / `refactor`) starts a run | Skill-behavior customization: extra workflow steps, quality gates, hard constraints applied at skill phase boundaries |
+| **Geniro instructions file** | `.geniro/instructions/<skill>.md` (or `global.md`) | The matching skill (`implement` / `decompose` / `review` / `debug` / `follow-up` / `refactor` / `deep-simplify`) starts a run | Skill-behavior customization: extra workflow steps, quality gates, hard constraints applied at skill phase boundaries |
 
 The two are complementary, not overlapping: a file-scoped code rule fires on every edit to matching files; a skill-scoped instruction fires only when the user invokes that skill. Choose based on **what triggers the rule**: the file being touched (file-scoped) vs. the skill being run (skill-scoped).
 

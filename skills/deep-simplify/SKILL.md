@@ -61,6 +61,10 @@ Exclude: test files (`*.spec.*`, `*.test.*`, `*.int.*`, `*.cy.*`), generated cod
 
 Do NOT read file contents — agents have their own 200K context windows and will read files themselves. Do NOT pre-read criteria — agents read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` directly.
 
+### Step 3: Load Custom Instructions
+
+Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/deep-simplify.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
+
 ---
 
 ### Mode Selection

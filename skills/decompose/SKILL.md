@@ -100,7 +100,7 @@ Decomposed Plans:
 
 ### Phase 1: Discover Context
 
-1. **Parse `$ARGUMENTS` and load workflow integrations.** Read `.geniro/workflow/*.md` integration files, detect issue-tracker refs, detect mode (auto/assumptions/interactive). Also load `.geniro/instructions/global.md` and `.geniro/instructions/decompose.md` (if present) and apply as constraints.
+1. **Parse `$ARGUMENTS` and load workflow integrations.** Read `.geniro/workflow/*.md` integration files, detect issue-tracker refs, detect mode (auto/assumptions/interactive). Also load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/decompose.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 
 2. **Check for existing plan path in `$ARGUMENTS`.** If it's a path to an existing `plan-*.md`:
    - Read the plan file in full
