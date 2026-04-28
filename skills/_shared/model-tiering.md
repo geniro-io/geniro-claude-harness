@@ -38,7 +38,7 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 ## Hard rules (override the table)
 
 - **Architect work always uses `opus`.** Architectural decisions, new-feature planning, multi-file design, threat modeling. Encoded in `agents/architect-agent.md` frontmatter AND must be set explicitly (`model="opus"`) at every spawn site so the choice survives any future change to the agent default.
-- **Read-only / classifier agents stay on `haiku`** regardless of caller: `knowledge-agent`, `doc-agent`, `knowledge-retrieval-agent`.
+- **Read-only / classifier agents stay on `haiku`** regardless of caller: `knowledge-retrieval-agent`.
 - **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests) or `haiku` for rubric dimensions (guidelines, design). Synthesis of review findings may use the orchestrator's model.
 
 ## How skills reference this

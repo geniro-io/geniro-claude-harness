@@ -36,7 +36,7 @@ Post a structured summary of a GitHub pull request to Slack `#eng-reviews` so re
 
 ## Output
 
-A confirmation line with the Slack message timestamp and a permalink, e.g. "Posted to #eng-reviews at 2026-04-25T14:32:11Z — https://geniro.slack.com/archives/CXXX/pYYY".
+A confirmation line with the Slack message timestamp and a permalink, e.g. "Posted to #eng-reviews at 2026-04-25T14:32:11Z — https://<your-workspace>.slack.com/archives/CXXX/pYYY".
 
 ## Test cases
 

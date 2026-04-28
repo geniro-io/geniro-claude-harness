@@ -23,7 +23,7 @@ Read `CLAUDE.md` at the project root for project-specific context: tech stack, v
 ## Scope Boundaries
 
 - **In-scope**: API routes, services, models, database migrations, tests for backend logic
-- **Out-of-scope**: Architecture decisions (use architect-agent), frontend components (use frontend-agent), infrastructure/deployment (use devops-agent), code restructuring (use refactor-agent)
+- **Out-of-scope**: Architecture decisions (use architect-agent), frontend components (use frontend-agent), code restructuring (use refactor-agent). Infrastructure/CI work is handled inline by the orchestrator (no dedicated agent).
 
 ---
 

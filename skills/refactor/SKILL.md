@@ -50,6 +50,8 @@ If any delegated agent fails (timeout, error, empty/garbage result): retry once 
 
 ## Complexity Gate
 
+**Refactor uses a deliberately different complexity rubric** than the canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`. Zero-behavior-change refactors have different risk drivers — test coverage in scope and public-surface footprint matter more than reversibility (which is always low for a refactor by definition). The hard escalation signals are also refactor-specific (e.g. "behavioral change required" forces escalation OUT of refactor entirely). Tiers below are refactor-local: **Small / Medium / Large**.
+
 Match refactor depth to task risk. **File count is a supporting signal, not the primary gate.** Score the task across five dimensions, then check for any hard escalation signal.
 
 ### Step 1: Score Complexity Dimensions
@@ -359,7 +361,7 @@ After refactoring is complete, extract knowledge and suggest improvements.
 
 ### Extract Learnings
 
-Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it.
+Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it.
 
 **Refactor-specific triggers (supplemental bias, not replacement rubric):**
 - Blocked transformations → `project` memory (architectural pressure points)

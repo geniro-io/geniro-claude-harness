@@ -72,14 +72,14 @@ Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode
 
 **When the gate FIRES:** none of the skip conditions apply AND `$ARGUMENTS` is a natural-language request describing the change.
 
-**Signals used (reuse follow-up's rubric — do NOT duplicate):**
+**Signals used (canonical rubric — do NOT duplicate):**
 
-Read `skills/follow-up/SKILL.md` §"Step 2: Complexity Assessment" for the canonical 9 hard escalation signals and the Trivial/Small/Medium/Too-large tiers. Apply those definitions here verbatim. If that file moves, update this reference — the rubric must live in exactly one place.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` for the canonical 9 hard escalation signals and the Trivial/Small/Medium/Big tiers. Apply those definitions here verbatim.
 
 **Decision procedure:**
 
-1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of follow-up's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1, no prompt. Do NOT offer the fast-path.
-2. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per follow-up's Trivial definition (see §"Step 2: Complexity Assessment" in `skills/follow-up/SKILL.md`). If unclear, proceed silently to Step 1 — the gate only fires on a clear Trivial signal.
+1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of effort-scaling's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1, no prompt. Do NOT offer the fast-path.
+2. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per effort-scaling's Trivial definition (score 0 + 1-2 files + single module + unambiguous intent — see `skills/_shared/effort-scaling.md` Step 2). If unclear, proceed silently to Step 1 — the gate only fires on a clear Trivial signal.
 3. **If Trivial AND no hard signals:** use `AskUserQuestion` with header "Skill" and these options (present in this order — the user explicitly invoked `/geniro:implement`, so list it first):
    - "Continue with /geniro:implement — full architect review"
    - "Hand off to /geniro:follow-up — lighter pipeline for Trivial changes"
@@ -171,7 +171,7 @@ Match existing patterns exactly. Find the closest existing example and follow it
 
 [paste REUSE_INVENTORY from spec.md inline]
 
-Before writing any new helper, component, type, or config: Grep the project for an analogue. If one exists, REUSE-AS-IS or EXTEND it instead of creating new. Only create new when the inventory categorized this candidate CREATE-NEW (with the architect's justification) — and even then, do NOT force-fit by adding a parameter or conditional to an existing helper just to reuse it; pragmatic local duplication is preferred until the third occurrence (Rule of Three).
+Before writing any new helper, component, type, or config: Grep the project for an analogue. If one exists, REUSE-AS-IS or EXTEND it instead of creating new. Only create new when the inventory categorized this candidate NO-ANALOGUE (with the architect's justification) — and even then, do NOT force-fit by adding a parameter or conditional to an existing helper just to reuse it; pragmatic local duplication is preferred until the third occurrence (Rule of Three).
 
 ## Design Conventions (when frontend files in scope)
 [If the spec's CONVENTIONS_BRIEF includes a DESIGN_CONVENTIONS subsection, paste it here. Frontend-agent uses this as anchor context for tokens, primitives, exemplars, scales — so design isn't re-discovered every cycle. If no design system was detectable, paste the greenfield baseline statement from the spec.]

@@ -3,17 +3,7 @@ name: improve-template
 description: "Use when modifying the geniro-claude-plugin itself — fix a Geniro skill, agent, hook, or report.md. Researches via parallel agents (codebase + report.md + internet), presents evidence, implements after approval. Skip for general codebase Q&A (/geniro:investigate) or app-code bugs (/geniro:debug)."
 context: main
 model: inherit
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Agent
-  - AskUserQuestion
-  - WebSearch
-  - WebFetch
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, WebFetch]
 argument-hint: "<issue description or area to improve>"
 ---
 

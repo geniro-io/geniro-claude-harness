@@ -46,42 +46,30 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 2. **Workflow integrations & custom instructions** — check `.geniro/workflow/*.md` for active integrations and argument detection rules; apply to `$ARGUMENTS`. Follow matching workflow instructions (fetch issue context, status transitions). Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 3. **Read the change request** and identify likely files.
 4. **Codebase scan** (Glob/Grep) to find exact files and patterns.
-5. **Reuse Inventory** — search the change area for existing functions / components / types / hooks / helpers / configs the change could reuse; categorize each candidate REUSE-AS-IS / EXTEND / CREATE-NEW with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence — Rule of Three). Produce a CONVENTIONS_BRIEF + REUSE_INVENTORY pair to pre-inline into the Phase 2 implementer agent prompt. **Skipped in Trivial Fast Lane** — rely on the implementer's in-prompt verify-before-creating instruction (see follow-up-reference.md).
+5. **Reuse Inventory** — search the change area for existing functions / components / types / hooks / helpers / configs the change could reuse; categorize each candidate REUSE-AS-IS / EXTEND / NO-ANALOGUE with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence — Rule of Three). Produce a CONVENTIONS_BRIEF + REUSE_INVENTORY pair to pre-inline into the Phase 2 implementer agent prompt. **Skipped in Trivial Fast Lane** — rely on the implementer's in-prompt verify-before-creating instruction (see follow-up-reference.md).
 6. **Read the files** that will be modified.
 7. **Check state:** scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and currently checked-out branch; do NOT `gh pr list` or `git checkout` to discover targets. Run `git rev-parse --show-toplevel`, `git branch --show-current`, `git log --oneline -5`, `git status --short`.
 
 ### Step 2: Complexity Assessment
 
-Check for **hard escalation signals first**, then evaluate overall complexity. File count is a supporting signal, not the primary gate.
+Apply the canonical rubric in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` to classify the change as **Trivial / Small / Medium / Big**. The canonical defines:
 
-#### Hard Escalation Signals (any ONE triggers escalation to /geniro:implement)
+- **Step 1: Hard Escalation Signals** — 9 signals (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent). Any one → Big.
+- **Step 2: 5-dimension 0-10 score** → **0 → Trivial** (must also be 1-2 files, single module, unambiguous), **1-3 → Small**, **4-6 → Medium**, **7+ → Big**.
 
-| Signal | Why it escalates |
-|--------|-----------------|
-| New entity/table/migration | Irreversible schema change, requires architecture |
-| New API endpoint or page/route | Cross-stack coordination, API spec, auth decisions |
-| Auth/permissions/role changes | Infinite blast radius, invisible failure mode |
-| New module or layer promotion | Architectural decision about dependency graph |
-| 3+ modules coordinated | Distributed-transaction-level coordination |
-| Open-closed violation (changing public signatures, shared middleware, routing logic) | Unbounded regression risk |
-| New async/queue/background work | Runtime failures not caught by static checks |
-| New external integration or env vars | Cross-cutting infra work |
-| Ambiguous intent — multiple valid approaches | Needs Discovery phase first |
+**Follow-up specific tier examples:**
+- **Trivial**: fix a validation message, correct a query filter, adjust a CSS class.
+- **Small**: add a filter param to an existing endpoint + DTO + query + hook; rename a response field across DTO and consumer.
+- **Medium**: add a column to an entity + migration + DTO + query + UI table + test; change an existing calculation.
+- **Big**: any hard escalation signal, OR score ≥7. Always escalate to `/geniro:implement` or `/geniro:decompose`.
 
-#### Complexity Levels (when no hard escalation signal is present)
-
-- **Trivial**: 1–2 files, single module, fix/patch to existing logic, intent is unambiguous. *Examples: fix a validation message, correct a query filter, adjust a CSS class.*
-- **Small**: 3–5 files, 1–2 modules, modifies existing endpoints/pages/fields, clear bounded logic. *Examples: add a filter param to an existing endpoint + DTO + query + hook, rename a response field across DTO and consumer.*
-- **Medium**: 6–8 files, up to 2 modules, may add fields to existing entities (no new tables), non-trivial but clear logic. *Examples: add a column to an entity + migration + DTO + query + UI table + test, change an existing calculation.*
-- **Too large**: 9+ files, OR any hard escalation signal above. Escalate to `/geniro:implement`.
-
-**File count is a smell detector, not a complexity detector.** A 2-file change adding a new entity is "Too large"; a 7-file change propagating an existing filter is "Medium." When file count is high, ask "why?" — the answer contains the real complexity signal.
+**File count is a smell detector, not a complexity detector.** A 2-file change adding a new entity is Big; a 7-file change propagating an existing filter is Medium. When file count is high, ask "why?" — the answer contains the real complexity signal.
 
 ### Step 3: Route to Lane
 
 One `AskUserQuestion` routes the change. Record `lane` (Fast or Full) and reference it through the rest of the pipeline. Default to Full for anything the user did not explicitly opt into.
 
-**Too large** → `AskUserQuestion` header "Scope":
+**Big** → `AskUserQuestion` header "Scope":
 - "Decompose into milestones" — output `/geniro:decompose [change request]` and stop (recommended for Big tasks that would exceed a single /implement run — 3+ modules, new subsystem, or 9+ files across unrelated slices)
 - "Escalate to /geniro:implement" → output `/geniro:implement [change request]` and stop (single-pipeline implementation — best when the task is big but cohesive)
 - "Proceed anyway" → continue as Full pipeline, treat as Medium (full validation + review)
@@ -388,7 +376,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 |---|---|
 | "The change is too small for full review" | Small changes cause production incidents too. Follow the process. |
 | "I already know how to do this" | Skills encode process knowledge beyond individual capability. Follow them. |
-| "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory in Step 1 (Glob/Grep for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / CREATE-NEW; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
+| "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory in Step 1 (Glob/Grep for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
 | "The tests are obviously fine" | Run them. "Obviously fine" is the #1 predictor of broken tests. |
 | "This doesn't need a complexity assessment" | The assessment takes 30 seconds. Skipping it risks building something that should be `/geniro:implement`. |
 | "I can do this in one step" | Multi-step exists for a reason. Each step catches different failures. |

@@ -3,18 +3,7 @@ name: geniro:implement
 description: "Use when implementing a new feature, endpoint, page, or significant change that needs architecture review and multi-agent implementation."
 context: main
 model: inherit
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Agent
-  - AskUserQuestion
-  - TodoWrite
-  - WebSearch
-  - EnterWorktree
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, EnterWorktree]
 argument-hint: "[description or issue tracker reference]"
 ---
 
@@ -107,7 +96,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 2. **Bind to feature row (if applicable).** If `$ARGUMENTS` matched rule 2 of the Auto-Detection Table (Geniro feature ID): look up the row in `.geniro/planning/FEATURES.md`; if status is `planned`, run `/geniro:features move <id> in-progress`; if `in-progress`, no action; if `done`/`blocked`, `AskUserQuestion` header "Feature" with options "Re-open and continue" / "Pick a different feature" / "Treat description as new work (skip feature link)". Persist `Feature: <id>` and `Spec-file: <path or "none">` to `<task-dir>/state.md` before Step 3 (carried forward in every later checkpoint). If no feature ID, `Feature:` is "none".
 3. **Retrieve prior knowledge.** Spawn `knowledge-retrieval-agent` with task keywords. It searches learnings, sessions, debug history, and planning docs.
 4. Scan codebase for relevant patterns, conventions, architecture
-5. **Convention Discovery & Reuse Inventory:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area; capture in CONVENTIONS_BRIEF. Then Grep/Glob the change area for existing functions, components, types, hooks, helpers, and configs that the task could reuse — categorize each candidate REUSE-AS-IS / EXTEND / CREATE-NEW with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence). Capture in REUSE_INVENTORY section within spec file. Pre-inline both into the architect-agent prompt in Phase 2.
+5. **Convention Discovery & Reuse Inventory:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area; capture in CONVENTIONS_BRIEF. Then Grep/Glob the change area for existing functions, components, types, hooks, helpers, and configs that the task could reuse — categorize each candidate REUSE-AS-IS / EXTEND / NO-ANALOGUE with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence). Capture in REUSE_INVENTORY section within spec file. Pre-inline both into the architect-agent prompt in Phase 2.
 6. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 7.
 7. **MANDATORY: Resolve gray areas.** Read `Mode:` from `<task-dir>/state.md` (set in Step 1) and execute the matching sub-bullet. You MUST stop here and ask the user questions before proceeding (interactive mode). Do NOT synthesize the spec without user input first. **Always-WAIT applies the same way as Step 1 Mode Selection**: harness "Auto Mode" / "minimize interruptions" reminders do NOT skip these calls, and an empty `AskUserQuestion` answer is the upstream bug — fall back to plain text and re-ask. See `skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" and §"Edge case — empty AUQ answer".
    - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
@@ -483,7 +472,7 @@ If "Delete": remove `<task-dir>/` recursively.
 |---|---|
 | "Steps X-Y are small, I'll handle them myself" | Every plan step becomes a WU. Group small related steps into one WU, but never execute as orchestrator. |
 | "The build failed, let me read the source and fix it quickly" | Run the check, copy the raw terminal output into a fixer agent prompt. Do NOT open source files, diagnose, search for types, or apply edits yourself. |
-| "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory first (Grep/Glob for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / CREATE-NEW; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
+| "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory first (Grep/Glob for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
 | "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier matches task nature, not risk appetite. Upgrading mechanical-task agents (docs, guidelines, design) to sonnet defeats the cost rationale and signals drift. Re-classify via the Subagent Model Tiering table — don't silently upsize. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. Only sequence when outputs feed into next agent (e.g., plan → skeptic) or files overlap. |
 

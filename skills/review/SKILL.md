@@ -3,14 +3,7 @@ name: geniro:review
 description: "Use when you want a comprehensive code review of pending changes. Spawns 5–6 parallel reviewers (bugs, security, architecture, tests, guidelines, +design when UI files present) with confidence-scored findings automatically filtered."
 context: main
 model: inherit
-allowed-tools:
-  - Read
-  - Glob
-  - Grep
-  - Bash
-  - Agent
-  - AskUserQuestion
-  - WebSearch
+allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch]
 argument-hint: "[files, diff range, branch, or PR ref (#N, URL)]"
 ---
 

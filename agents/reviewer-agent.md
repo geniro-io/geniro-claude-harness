@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Focused single-dimension code reviewer. Receives a criteria file and set of changed files, reviews deeply against that one dimension, produces confidence-scored findings. Designed to be spawned in parallel by the /review skill — 5 instances, each checking one dimension (bugs, security, architecture, tests, guidelines)."
+description: "Focused single-dimension code reviewer. Receives a criteria file and changed files, reviews deeply against that one dimension, produces confidence-scored findings. Spawned in parallel — 5 reviewers (bugs, security, architecture, tests, guidelines) +1 design when UI files present. Spawned by /geniro:review, /geniro:implement Phase 6, /geniro:follow-up Phase 5, and /geniro:refactor Phase 5."
 tools: [Read, Glob, Grep, Bash]
 model: sonnet
 maxTurns: 80

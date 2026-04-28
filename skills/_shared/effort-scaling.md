@@ -1,8 +1,10 @@
 # Effort Scaling
 
-Canonical complexity rubric for routing tasks to the correct pipeline depth. Used by `/geniro:implement` (Phase 1 routing) and `/geniro:decompose` (Big task gate, <3-milestone fallback).
+Canonical complexity rubric for routing tasks to the correct pipeline depth. Used by `/geniro:implement` (Phase 1 routing), `/geniro:follow-up` (Step 2 complexity assessment), and `/geniro:decompose` (Big task gate, <3-milestone fallback). `/geniro:refactor` uses a deliberate override that reweights dimensions toward zero-behavior-change concerns — see `skills/refactor/SKILL.md` §"Complexity Gate".
 
 Match planning depth to task complexity. **File count is a smell detector, not a complexity detector.** A 2-file migration + API contract change is Big. A 10-file rename propagation is Small.
+
+Tiers: **Trivial / Small / Medium / Big**. Big always escalates out of the calling skill (e.g. `/follow-up` routes Big to `/implement` or `/decompose`).
 
 ## Step 1: Check for Hard Escalation Signals
 
@@ -35,7 +37,8 @@ If no hard signals, score these dimensions:
 | **Pattern availability** | Strong exemplar exists in codebase | Partial pattern, needs adaptation | No existing pattern, greenfield design |
 
 **Score: sum of all dimensions (0-10)**
-- **0-3 → Small**
+- **0 → Trivial** (must ALSO be 1-2 files, single module, unambiguous intent — otherwise round up to Small)
+- **1-3 → Small**
 - **4-6 → Medium**
 - **7+ → Big**
 
@@ -43,6 +46,7 @@ If no hard signals, score these dimensions:
 
 | Size | Planning Depth |
 |------|----------------|
+| **Trivial** | Fast lane: collapse simplify + reviewer phases; orchestrator-direct diff review; state.md tracking only. Used by `/follow-up` Fast Lane. Not a `/implement` tier — `/implement` rounds Trivial up to Small. |
 | **Small** | Lightweight plan: Goal + Approach + Steps (no wave grouping, no test scenarios table). Skip skeptic validation. Full plan print at approval is still mandatory. |
 | **Medium** | Standard plan: full structure from `plan-criteria.md`. Architect + skeptic validation. |
 | **Big** | Full architect + skeptic plan, single pass. If score 9+ or >15 steps → hand off to `/geniro:decompose` for milestone decomposition. |

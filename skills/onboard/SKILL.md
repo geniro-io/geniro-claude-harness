@@ -3,7 +3,7 @@ name: geniro:onboard
 description: "Use when starting fresh in an unfamiliar codebase and need rapid orientation. Scans structure and conventions; produces CODEBASE_MAP.md with architecture, module graph, critical paths, entry points. Skip for specific Q&A (/geniro:investigate) or bug investigation (/geniro:debug)."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: area to focus on, e.g. 'backend', 'auth module']"
 ---
 

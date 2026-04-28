@@ -3,16 +3,7 @@ name: geniro:decompose
 description: "Use when a Big/complex task would exceed a single /geniro:implement run's context budget, or when /geniro:implement's Phase 3 sizing prompts a split. Produces 3-7 shippable milestones consumed via `/geniro:implement milestone <N>`. Skip for Small/Medium tasks — /geniro:implement handles those directly."
 context: main
 model: inherit
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Agent
-  - AskUserQuestion
-  - WebSearch
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
 argument-hint: "[task description, existing plan path, or 'update <plan-file>' to re-decompose]"
 ---
 

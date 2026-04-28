@@ -22,7 +22,7 @@ Bias hard toward **flow, architectural, and recurring-mistake** learnings — th
 | **G. Trivial / obvious** | NO | "Use TypeScript strict mode" |
 | **H. One-shot facts that won't recur** | NO | "PR #234 had a typo in the README" |
 
-**Mapping tiers to JSONL `category`:** A/C → `pattern` or `anti-pattern`; B → `pattern` or `gotcha`; D → `decision`. The schema is defined in `agents/knowledge-agent.md` Principle 5.
+**Mapping tiers to JSONL `category`:** A/C → `pattern` or `anti-pattern`; B → `pattern` or `gotcha`; D → `decision`. See "JSONL schema" appendix below for the per-category field structure.
 
 ## Quality gates (apply in order — fail any → drop)
 
@@ -85,3 +85,131 @@ Each consumer uses the canonical opener verbatim:
 > Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it.
 
 Then add skill-specific context (where to save, when to skip).
+
+---
+
+## JSONL schema
+
+Single source of truth for the structure of `.geniro/knowledge/learnings.jsonl` entries (consumed by `/geniro:learnings` and the auto-extraction step in `/implement`, `/follow-up`, `/debug`).
+
+### Base entry format
+
+Each entry is a single-line JSON object:
+
+```json
+{
+  "id": "L1",
+  "category": "pattern|gotcha|anti-pattern|decision|recipe",
+  "learning": "One-sentence specific learning",
+  "verified": true,
+  "session": "2026-04-03-batch-optimization",
+  "source": "Code inspection + testing",
+  "counter": 0,
+  "files": ["batch-processor.ts"],
+  "keywords": ["performance", "async", "javascript"],
+  "context": "Discovered when optimizing batch-processor.ts",
+  "code_example": "// optional: code snippet showing the pattern"
+}
+```
+
+### Validation checklist
+
+Before storing, an entry must pass:
+
+- [ ] **Reusable across ≥2 contexts?** (Not pinned to a single file or identifier.)
+- [ ] **Has a concrete trigger condition?** (WHEN does this fire? Concrete trigger ≠ narrow scope.)
+- [ ] **Survived the Generalize pre-pass?** (Restated one level up. If you can't, drop.)
+- [ ] **Verified?** (User feedback, tests, or direct observation — not speculation.)
+- [ ] **Actionable?** (A future agent can read this and take concrete action in a different context.)
+- [ ] **Non-obvious?** (A teammate cannot derive it by reading the affected code.)
+
+If any check fails, drop the entry (or revise it until it passes).
+
+### Per-category field structures
+
+#### Pattern entries (recurring solution to a common problem)
+
+```json
+{
+  "type": "pattern",
+  "title": "Middleware authentication chain pattern",
+  "description": "Stack of auth middleware evaluators, each can reject or pass to next.",
+  "when_to_use": "When multiple authentication strategies (JWT, OAuth, API key) are supported",
+  "implementation": "Use Express middleware composition with early-return on failure",
+  "example_file": "auth/middleware.ts",
+  "trade_offs": "Increased indirection vs. clarity and testability"
+}
+```
+
+#### Gotcha entries (surprising behavior or edge case that caused bugs)
+
+```json
+{
+  "type": "gotcha",
+  "title": "Database connection pool exhaustion under load",
+  "description": "Without connection.end() in finally block, connections leak and pool exhausts",
+  "how_discovered": "Production incident: timeouts after 5 minutes under load",
+  "root_cause": "Promise rejection bypassed finally block cleanup",
+  "solution": "Use connection pool with built-in timeout and always close in finally",
+  "file_reference": "db/connection.ts (lines 12-28)",
+  "severity": "Critical"
+}
+```
+
+#### Anti-pattern entries (what NOT to do and why)
+
+```json
+{
+  "type": "anti-pattern",
+  "title": "Synchronous file reads in request handlers",
+  "description": "Using fs.readFileSync() in Express route handlers blocks event loop",
+  "why_bad": "All concurrent requests wait for disk I/O, causing cascading timeouts",
+  "what_to_do_instead": "Use fs.promises.readFile() with async/await",
+  "impact": "100ms disk read blocks all traffic; with async, unrelated requests proceed",
+  "example_wrong": "const data = fs.readFileSync(path); res.json(data);",
+  "example_right": "const data = await fs.promises.readFile(path); res.json(data);"
+}
+```
+
+#### Decision entries (architectural or technology choices)
+
+```json
+{
+  "type": "decision",
+  "title": "Chose PostgreSQL over MongoDB for user data",
+  "context": "Building user management service, needed transactions and schema enforcement",
+  "options_considered": [
+    { "option": "MongoDB", "pros": "flexible schema, horizontal scaling", "cons": "no transactions, eventual consistency" },
+    { "option": "PostgreSQL", "pros": "transactions, schema enforcement, ACID", "cons": "vertical scaling, operational overhead" }
+  ],
+  "decision": "PostgreSQL",
+  "rationale": "User data requires ACID guarantees; schema enforcement prevents bugs",
+  "trade_offs": "Higher operational complexity, but eliminates class of data consistency bugs",
+  "date": "2024-03-15",
+  "decision_maker": "Tech lead review"
+}
+```
+
+#### Recipe entries (step-by-step instructions for common tasks)
+
+```json
+{
+  "type": "recipe",
+  "title": "How to add a new API endpoint",
+  "steps": [
+    "1. Define request/response types in types/api.ts",
+    "2. Add route to routes/index.ts with auth middleware",
+    "3. Implement handler in handlers/[name].ts",
+    "4. Add integration test in tests/integration/[name].test.ts",
+    "5. Update API docs in docs/api.md",
+    "6. Run type check and linter before PR"
+  ],
+  "checklist": ["Types defined", "Route added", "Handler implemented", "Tests pass", "Docs updated"],
+  "typical_time": "30-45 minutes",
+  "common_mistakes": [
+    "Forgetting to add route to main router",
+    "Skipping type definitions and adding any",
+    "Not testing error cases"
+  ]
+}
+```
