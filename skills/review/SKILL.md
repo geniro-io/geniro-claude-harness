@@ -33,6 +33,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 | `reviewer-agent` (bugs, security, architecture, tests) | `sonnet` | Reasoning-heavy review |
 | `reviewer-agent` (guidelines, design) | `haiku` | Rubric-based — pattern matching against checklist |
 | `relevance-filter-agent` | `sonnet` | Adversarial validation against repo conventions |
+| `adversarial-tester-agent` (Phase 4c only) | `sonnet` | Code-reasoning test authoring; matches agent's frontmatter pin |
 | Per-finding validation sub-agents (CRITICAL/HIGH) | `sonnet` | Reasoning about whether finding is real |
 
 ## Review Process
@@ -296,6 +297,82 @@ Do NOT review for other issues — validate this ONE finding only.
 - REJECTED findings: demote to "Filtered by validation" section (visible but not actionable)
 - If a validator fails to complete: keep the finding (fail-open). Note "[dimension] validator failed for finding '<short title>' — kept fail-open" under `## Caveats` in the final report.
 
+### Phase 4c: Test-Confirmation Gate (optional, user-gated)
+
+**Purpose:** Reduce false positives by asking the user whether to spawn `adversarial-tester-agent` to author failing tests that confirm review findings. Tests that fail today on independent orchestrator re-run (F→P-confirmed) tag the corresponding finding `[CONFIRMED-BY-TEST]` and stay in the report. Tests that pass today (agent's `discarded-cannot-repro` signal) demote the finding to the `## Filtered` section with `[CHALLENGED-BY-TEST]` — finding stays visible to the user, deprioritized but not deleted. The skill MUST NEVER spawn the agent without explicit user approval — the gate is the load-bearing safety property, and inline gates degrade to "this counts as approval".
+
+**Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline runs Phase 6 Stage D's adversarial test-author against the same diff; running it twice double-spawns the same agent against the same surface).
+
+**Step 1: Filter findings by decision-type.**
+
+Eligible findings: any finding whose `decision:` is `[TESTABLE]`, plus CRITICAL or HIGH findings whose `decision:` is `[FIX-NOW]` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type). Excluded: `[PRODUCT-DECISION]` (multiple valid resolutions — no single behavior to assert), `[INTENT-CHECK]` (plan conformance, not runtime), and `[FIX-NOW]` findings whose description names typos / cross-references / wrong import paths (no runtime behavior to test against). Use the decision-type taxonomy as defined in `${CLAUDE_SKILL_DIR}/plan-context-reference.md`.
+
+If the eligible-findings set is empty after filtering, skip the rest of Phase 4c entirely — do NOT show an `AskUserQuestion`. Proceed to Phase 5.
+
+**Step 2: User-approval gate (mandatory before any agent spawn).**
+
+Use `AskUserQuestion` (do NOT print options as plain text — the tool provides a structured UI) with header "Test-gate":
+
+- **Question:** "Author failing tests to confirm review findings? Tests that pass today demote the corresponding finding to ## Filtered (kept visible, not deleted). The skill never writes tests without your approval."
+- **Options:**
+  - "Author tests for all eligible findings"
+  - "Let me pick which findings"
+  - "Skip — don't author tests"
+
+If user picks **"Skip"**, proceed to Phase 5 (no spawn, no state changes, no caveats).
+
+If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings by `path:line — short title — decision: <type>`. AskUserQuestion has a 4-option cap; when more than 4 eligible findings exist, batch them across multiple chained questions (≤4 per call) — never drop or merge options to fit a single question. Aggregate selections across all calls into the eligible set. Filter to the user's union selection. If user deselects all, treat as "Skip" and proceed to Phase 5.
+
+**Step 3: Spawn the adversarial-tester-agent.**
+
+Spawn ONE `adversarial-tester-agent` (model="sonnet" per the canonical model-tiering rule) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required.
+
+```
+Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+CHANGED FILES: [list of changed file paths with full content — pre-inlined from Phase 1]
+DIFF: [git diff summary]
+SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md (READ at runtime; do not expect it inlined)
+PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1-2 exemplar test files inlined]
+PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line — description — decision-type — severity]
+OUTPUT PATH: .geniro/review-findings-adversarial.md
+
+For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in the orchestrator's downstream processing). You may also generate fresh hypotheses from the diff per your normal Step 2 workflow; treat seeded findings as priority-1 and fresh hypotheses as priority-2 within your hard cap of 10 authored tests.
+""")
+```
+
+**Step 4: Independent re-verification by the orchestrator.**
+
+For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (a single re-run; the agent already did 3× flake check). Use `backpressure.sh` to keep failing-test output from flooding context:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Test-gate re-run" "<project test command from CLAUDE.md> <test path>"
+```
+
+If `backpressure.sh` is unavailable, run directly: `<project test command> <test path> 2>&1 | tail -80`.
+
+Capture exit code:
+- Non-zero (red) → test STILL fails on independent re-run → keep authored test on disk; tag the corresponding finding `[CONFIRMED-BY-TEST]`.
+- Zero (green) → test passes on independent re-run despite agent reporting it red → likely flake or framework issue. Note "[test path] flipped green on independent re-run" under `## Caveats`. Do NOT delete the test (the user reviews authored tests in Phase 6); do NOT tag the finding `[CONFIRMED-BY-TEST]`.
+
+Never trust the agent's red/green claim alone — the orchestrator's independent re-run IS the gate.
+
+**Step 5: Demote-don't-delete logic for findings whose tests cannot reproduce.**
+
+For each eligible finding, correlate to the agent's report by matching its `Targeted source` field against the finding's `path:lines` (proximity match — same file, overlapping line range). Then act per this table:
+
+| Agent's report block | Action on the matching review finding |
+|---|---|
+| `### Authored Failing Tests` (F→P-confirmed by orchestrator re-run in Step 4) | Tag finding `[CONFIRMED-BY-TEST]` in its severity section. Annotate per-finding line with `confirmed-by: <test path>`. Keep severity unchanged. |
+| `### Discarded Hypotheses` with reason "passed on current code" | DEMOTE: remove from current severity section; add to `## Filtered` with reason `test-gate-cannot-reproduce`. Tag `[CHALLENGED-BY-TEST]`. Preserve original severity in the line so the user can re-elevate if they disagree with the test. |
+| `### Inconclusive` (flaky / framework limitation) | Keep finding unchanged in its severity section. No tag. (The signal is "agent could not decide", not "finding is wrong".) |
+| No matching hypothesis at all | Keep finding unchanged. Agent did not attempt this finding (likely deprioritized below the hard cap of 10 authored tests). Orchestrator does NOT infer either way. |
+
+The demote-don't-delete rule is non-negotiable: a green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test fails for the wrong reason ([PoC-Gym, arXiv 2602.04165](https://arxiv.org/html/2602.04165v1)). Preserving the finding in `## Filtered` lets the user re-elevate it if they disagree with the test.
+
+**Step 6: Fail-open.**
+
+If the adversarial-tester-agent fails to complete, returns malformed output, its report cannot be parsed, or the orchestrator's Step 4 re-run command itself errors (test framework not installed, exec error), do NOT revoke any findings and do NOT add `[CONFIRMED-BY-TEST]` tags. Surface "test-gate fail-open — bug confirmation skipped for this run" under `## Caveats` in the final report. Mirrors Phase 4b validator and relevance-filter fail-open semantics.
+
 ## Input Formats
 
 - **Files**: `review src/auth.js src/db.js`
@@ -426,7 +503,9 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 - suggested next stage: /geniro:implement | /geniro:follow-up | none
 
 # Per-finding line schema (used by CRITICAL, HIGH, MEDIUM, and Intent sections — `decision:` applies to ALL severities, not just CRITICAL):
-#   - [NEW|PRE-EXISTING] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN%
+#   - [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN%
+#   - [CONFIRMED-BY-TEST] is appended by Phase 4c when the orchestrator's independent re-run confirms the agent-authored test fails today; line also gains `confirmed-by: <test path>`.
+#   - [CHALLENGED-BY-TEST] appears only in the `## Filtered` section (finding moved there by Phase 4c when the test passed on current code); the original severity is preserved in-line so the user can re-elevate.
 
 ## CRITICAL
 - [NEW] path/to/file.ext:42-48 — <description> — decision: FIX-NOW — recommendation: <action> — confidence: 95%
@@ -445,7 +524,12 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 - ...
 
 ## Filtered
-- path:line — <description> — reason: relevance | validation | confidence-below-threshold
+- path:line — <description> — reason: relevance | validation | confidence-below-threshold | test-gate-cannot-reproduce
+- [CHALLENGED-BY-TEST] path:line — <description> — reason: test-gate-cannot-reproduce — original-severity: <CRITICAL|HIGH|MEDIUM> — challenged-by: <test path>
+
+## Authored Tests (Phase 4c — AI-authored, F→P-verified, ready for triage by user)
+- path/to/foo.edge.test.ts — confirms: <finding path:line> — confidence: NN%
+- path/to/bar.async.test.ts — confirms: <finding path:line> — confidence: NN%
 ````
 
 Write the file even when zero actionable findings remain (empty severity sections, `suggested next stage: none`) — the artifact's existence signals "review ran, nothing to fix" to downstream skills and resumed sessions.
@@ -471,6 +555,17 @@ Use `AskUserQuestion` (do NOT print options as plain text) with header "Remediat
 
 Do NOT auto-invoke the next skill — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel.
 
+**When `## Authored Tests` is non-empty, fire a separate `AskUserQuestion` with header "Failing tests"** — chained after the Remediate question when Remediate fires; standalone immediately after the Phase 6 entry condition otherwise (cap-extension pattern: chain questions, do not split or drop existing options). **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline owns its own commit decision) OR when the `## Authored Tests` section is empty.
+
+- **Question:** "How should the N failing tests authored by Phase 4c be handled? They are AI-authored — review before merging."
+- **Header:** "Failing tests"
+- **Options:**
+  - "Leave uncommitted (Recommended)" — tests stay on disk for the user to review and stage manually; safe default for review-stage artifacts
+  - "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), creates a commit `test(review-gate): add N failing tests confirming review findings (AI-authored — review before merging)` via HEREDOC
+  - "Commit + push to current branch's upstream" — same as commit-only, then `git push`. If the branch has no upstream, surface the exact `git push -u origin <branch>` command and ask the user to confirm before running it.
+
+Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
+
 ## Definition of Done
 
 Code review is complete when:
@@ -480,6 +575,8 @@ Code review is complete when:
 - [ ] Phase 3 relevance filter applied (findings checked against repo conventions, complexity, and PLAN CONTEXT)
 - [ ] Phase 4 judge validation complete (findings verified) — Step −1 truncation check ran (truncated dimensions in `## Caveats`); Step 0 intent reconciliation ran (plan-authorized divergences demoted to `[INTENT-CHECK]`)
 - [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
+- [ ] Phase 4c test-confirmation gate evaluated (skipped when no eligible findings, called as sub-phase of /geniro:implement, or user declines)
+- [ ] Phase 4c fail-open caveat surfaced under `## Caveats` if the adversarial-tester-agent failed or its report could not be parsed
 - [ ] Confidence scoring applied (>=80 threshold)
 - [ ] Issues classified by severity (Critical, High, Medium) and Decision Type ([FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK])
 - [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context
@@ -489,6 +586,7 @@ Code review is complete when:
 - [ ] Improvement suggestions presented (standalone invocations only)
 - [ ] Phase 5 state artifact written to `.geniro/review-findings-state.md`
 - [ ] Phase 6 remediation suggestion presented via `AskUserQuestion` (standalone invocations only)
+- [ ] Phase 6 authored-tests handoff offered when `## Authored Tests` is non-empty (standalone invocations only)
 
 ---
 
@@ -508,3 +606,6 @@ Code review is complete when:
 | "Findings are obvious — skip the AskUserQuestion and just tell them to run /implement" | Severity-driven recommendation is a structured choice (the user may want fast-lane follow-up for small scope, or to handle manually). Always offer the question; never assume. |
 | "No PR body / no plan file, so PLAN CONTEXT collection is pointless — skip it" | The Phase 1 step is cheap and renders `none` when nothing resolves. Skipping it means future PRs that do have a plan get silently ignored, and reviewers can't tag `[ALIGNS-WITH-PLAN]` even when a `--plan` flag was passed. Always run the resolution. |
 | "A reviewer's output is missing the `## Dimension Summary` footer but the findings look complete — accept it" | Truncation often clips the last (and most synthesized) finding. Phase 4 Step −1 exists precisely to flag this; mark the dimension TRUNCATED in `## Caveats` and recommend re-running with higher maxTurns. Do not silently accept partial output. |
+| "Findings are obvious — skip the Phase 4c test gate" | Phase 4c is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4b's read-only validation. Always offer the gate when eligible findings exist; the user can decline, but the offer is not yours to skip. |
+| "I'll spawn the adversarial-tester-agent and ask the user to confirm later" | Inline gates rationalize away into "this counts as approval". Skill MUST `AskUserQuestion` BEFORE spawning. The two-step gate (skill asks → on YES, spawn) is the only rationalization-resistant variant. Spawning first and asking second is exactly the failure mode the user-approval rule exists to prevent. |
+| "The test passes today, so the finding is fake — delete it" | Demote, do not delete. A green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test fails for the wrong reason ([PoC-Gym, arXiv 2602.04165](https://arxiv.org/html/2602.04165v1) documents this failure mode). Move the finding to `## Filtered` with `[CHALLENGED-BY-TEST]` and original severity preserved so the user can re-elevate it if they disagree with the test. |
