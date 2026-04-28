@@ -105,7 +105,8 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
   [2-5 lines of code showing the problem]
   ```
 - **Why this matters:** [1 sentence explaining the impact]
-- **Suggested fix:** [concrete improvement, not vague advice]
+- **Suggested fix:** [concrete improvement, not vague advice. For `[PRODUCT-DECISION]` findings, this field is a *synthesis* — list each valid path here in plain text so the orchestrator can read both the synthesis AND the structured options below.]
+- **Options:** [REQUIRED ONLY when Decision Type is `[PRODUCT-DECISION]`; OMIT this field entirely for FIX-NOW / TESTABLE / INTENT-CHECK findings — those have one obvious right answer]. Enumerate the valid resolution paths the orchestrator should surface to the user via `AskUserQuestion`. Format: a markdown sub-list with one bullet per option. Each bullet is `<short label> — <one-line description of the trade-off>`. Cap at 4 options (matches `AskUserQuestion`'s 4-option ceiling) — if more genuinely valid paths exist, list the 4 most distinct AND add a final line `(more-options-exist: chain-follow-up)` so the orchestrator knows to chain a second `AskUserQuestion` call.
 
 ### [SEVERITY] [NEW/PRE-EXISTING] Next finding...
 [same format]
@@ -130,7 +131,7 @@ Decision Type and severity are orthogonal: a HIGH-severity finding can be `[FIX-
 
 - **`[FIX-NOW]`** — Mechanical correction; one obvious right answer; can ship as a 1-line PR. Examples: test title doesn't match assertion; typo; broken cross-reference; wrong import path.
 - **`[TESTABLE]`** — Defense-in-depth gap or edge case where the right action is "write a failing test first, then fix." Examples: empty-string guard not covered; boundary case in regex; null-input path.
-- **`[PRODUCT-DECISION]`** — Multiple valid resolution paths exist with real trade-offs; needs human judgment. Examples: snapshot-vs-live-fetch for historical data; COALESCE vs CHECK constraint vs catch+log; read-time fallback vs accept-design.
+- **`[PRODUCT-DECISION]`** — Multiple valid resolution paths exist with real trade-offs; needs human judgment. When you tag a finding `[PRODUCT-DECISION]`, you MUST also populate the `Options:` field in the Output Format above with 2-4 enumerated paths (label + one-line trade-off per path) — orchestrating skills feed those options into `AskUserQuestion` and require structured input, not a free-text string. The `Suggested fix:` field becomes a *synthesis* (e.g., "Option A or Option B — see Options below"), not a single chosen path. Examples: snapshot-vs-live-fetch for historical data; COALESCE vs CHECK constraint vs catch+log; read-time fallback vs accept-design.
 - **`[INTENT-CHECK]`** — Behavior diverges from or aligns with explicit plan/spec — set this when a finding carries an `[ALIGNS-WITH-PLAN-*]` or `[DIVERGES-FROM-PLAN-*]` prefix from Step 1.5; the orchestrator's judge pass (Phase 4 Step 0) re-confirms against PLAN CONTEXT and may keep this assignment or demote to a stricter Decision Type. If you are uncertain whether the plan addresses the finding, prefer `[INTENT-CHECK]` over guessing — the judge has the full plan context.
 
 ## Anti-Patterns to Avoid

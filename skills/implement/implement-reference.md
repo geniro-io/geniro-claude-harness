@@ -111,6 +111,7 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 | Plan approval | Phase 3 | **Always-WAIT.** Print the full plan content verbatim (per Phase 3 header "present the full plan file (do NOT summarize)") and the skeptic validation summary (N blockers, M warnings), then ask via `AskUserQuestion` regardless of mode. Auto mode never silently approves a plan — plan approval gates all Phase 4 code generation, so the LLM MUST get explicit user confirmation |
 | Compact prompt | Phase 3 (post-approval) | "Continue now" (skip compaction). Skip `AskUserQuestion` |
 | Stage C fix loop after 3 rounds | Phase 6 | **Always-WAIT.** Auto-shipping known CRITICAL/HIGH issues is unsafe. Surface the `AskUserQuestion` regardless of mode |
+| `[PRODUCT-DECISION]` finding encountered | Phase 6 Stage C fix loop (this skill) + consumer skills (`/review` Phase 6, `/follow-up` Phase 5, `/refactor` Phase 5, `/debug` Step 5) | **Always-WAIT.** Auto-shipping a chosen-but-not-authorized product path is unsafe. When any finding has `decision: PRODUCT-DECISION`, fire `AskUserQuestion` with the finding's enumerated `Options:` (per the schema in `agents/reviewer-agent.md` §Output Format) BEFORE any fix-path selection. Empty answer = upstream Claude Code bug — fall back to plain text and re-ask; never auto-default. Auto-mode does NOT auto-resolve — multi-path resolution is a user judgment call, not a gray-area default. When >4 options exist, chain `AskUserQuestion` calls per the cap-extension pattern in `skills/review/SKILL.md` Phase 6 "Failing tests" block — never split or drop options to fit a single question. **Refactor variant:** in `/refactor` Phase 5, the AUQ presents escalation choices (Run /implement / Revert / Document) instead of the finding's `Options:` — refactor's zero-behavior-change constitution forbids picking a fix-path in-skill, so a multi-path finding is escalated, not gated-and-fixed. |
 | Suggest improvements | Phase 7, Step 3 | "Skip" (defer improvements; user can run `/geniro:follow-up` later) |
 | Pre-Ship Visual Verification | Phase 7, Step 4.5 | "Skip — already verified". If Step 4.5 itself was forced and surfaced issues, the follow-up question is **always-WAIT** (auto-shipping UI regressions is unsafe) |
 | Ship decision | Phase 7, Step 5 | **Always-WAIT.** Controls commit/push/PR. User must explicitly choose |
@@ -383,7 +384,7 @@ Only reached after Stage B passes.
 
    After the dossier returns, synthesize it yourself: weigh evidence against severity and tag each finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP. Only KEEP findings proceed to the fix loop. If the agent fails, pass all findings through as KEEP (fail-open).
 
-6. **Output:** Write `<task-dir>/review-feedback.md` with KEEP findings by file and severity. Note FILTERED findings separately for transparency.
+6. **Output:** Write `<task-dir>/review-feedback.md` with KEEP findings by file and severity. For each `[PRODUCT-DECISION]` finding, preserve the reviewer-agent's `Options:` sub-list verbatim — the Fix Loop Pre-step below reads it to populate `AskUserQuestion`. Note FILTERED findings separately for transparency.
 
 ---
 
@@ -391,16 +392,18 @@ Only reached after Stage B passes.
 
 After Stage C produces findings:
 
-1. **Spawn a NEW fixer agent** (same agent type as the original WU — e.g., `backend-agent`). Do NOT reuse the original Phase 4 agent instance — it no longer exists and its context was full of implementation reasoning. A fresh agent with targeted context is more effective. Provide:
-   - The specific review findings from `<task-dir>/review-feedback.md` (only CRITICAL/HIGH items)
+1. **Pre-step — Open-decision gate (Always-WAIT).** Before spawning the fixer, scan `<task-dir>/review-feedback.md` for any KEEP finding with `decision: PRODUCT-DECISION`. For each such finding, fire `AskUserQuestion` with header "Open decision" presenting that finding's enumerated `Options:` (from the reviewer-agent schema). Replace the finding's free-text `recommendation:` with the user's chosen option text in the file before continuing. Use the chained-AUQ pattern when >4 options exist (see `skills/review/SKILL.md` Phase 6 "Failing tests" block). This gate is **Always-WAIT** in every mode (see §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row) — empty answer = upstream bug, fall back to plain text and re-ask. Skip this pre-step only when zero PRODUCT-DECISION findings remain after Phase 4 judge filtering.
+
+2. **Spawn a NEW fixer agent** (same agent type as the original WU — e.g., `backend-agent`). Do NOT reuse the original Phase 4 agent instance — it no longer exists and its context was full of implementation reasoning. A fresh agent with targeted context is more effective. Provide:
+   - The specific review findings from `<task-dir>/review-feedback.md` (only CRITICAL/HIGH items, with PRODUCT-DECISION findings now carrying user-chosen `recommendation:` from the pre-step above)
    - Current file contents (pre-inlined — the code as it exists NOW, not as it was planned)
    - Spec file and conventions brief for reference
    - Instruction: "Fix these specific issues. Do NOT refactor beyond what's needed to resolve each finding."
    - The agents read CLAUDE.md at runtime for project context — no separate context injection needed.
 
-2. **Re-run Stage A** (autofix + full check + codegen if schema changed).
+3. **Re-run Stage A** (autofix + full check + codegen if schema changed).
 
-3. **Spawn FRESH reviewer agents** for re-review in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Never reuse previous reviewer instances (anchoring bias: reviewers anchor to their prior findings instead of evaluating code as-is). Only re-review dimensions that had CRITICAL/HIGH findings in the previous round (saves tokens). For each dimension that had findings:
+4. **Spawn FRESH reviewer agents** for re-review in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Never reuse previous reviewer instances (anchoring bias: reviewers anchor to their prior findings instead of evaluating code as-is). Only re-review dimensions that had CRITICAL/HIGH findings in the previous round (saves tokens). For each dimension that had findings:
 
    ```
    Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -414,9 +417,9 @@ After Stage C produces findings:
    """, description="Re-review: [dimension]")
    ```
 
-4. If the same error persists across 2+ rounds with no progress -> escalate to re-architecture (Phase 2) with failure context
+5. If the same error persists across 2+ rounds with no progress -> escalate to re-architecture (Phase 2) with failure context
 
-5. **After 3 rounds:** Stop iterating. Present a structured handoff:
+6. **After 3 rounds:** Stop iterating. Present a structured handoff:
    - List what was fixed vs. what remains
    - Classify remaining issues: spec gap (-> needs re-architecture) vs. code quality (-> `/geniro:follow-up` later)
    - Use the `AskUserQuestion` tool (do NOT output options as plain text) to present: A) Ship as-is with known issues documented, B) Re-run Phase 2 (re-architect the approach), C) Create `/geniro:follow-up` tasks for remaining items

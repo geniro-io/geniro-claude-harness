@@ -505,6 +505,7 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 
 # Per-finding line schema (used by CRITICAL, HIGH, MEDIUM, and Intent sections — `decision:` applies to ALL severities, not just CRITICAL):
 #   - [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN%
+#   - When `decision: PRODUCT-DECISION`, the line is followed by an indented `options:` sub-list (one bullet per option, copied verbatim from the reviewer-agent's `Options:` field — see `agents/reviewer-agent.md` §Output Format). Phase 6 Step 0 (and downstream `/follow-up`/`/implement` consumers) read this sub-list to populate `AskUserQuestion`. The user's chosen option text replaces the line's `recommendation:` field; the `options:` sub-list itself is preserved as audit trail.
 #   - [CONFIRMED-BY-TEST] is appended by Phase 4c when the orchestrator's independent re-run confirms the agent-authored test fails today; line also gains `confirmed-by: <test path>`.
 #   - [CHALLENGED-BY-TEST] appears only in the `## Filtered` section (finding moved there by Phase 4c when the test passed on current code); the original severity is preserved in-line so the user can re-elevate.
 
@@ -514,6 +515,9 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 
 ## HIGH
 - [NEW] path/to/file.ext:80-92 — <description> — decision: PRODUCT-DECISION — recommendation: <action> — confidence: 88%
+  options:
+    - <Label A> — <one-line trade-off>
+    - <Label B> — <one-line trade-off>
 - ...
 
 ## MEDIUM
@@ -544,6 +548,20 @@ See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for the full procedure (extract
 ## Phase 6: Suggest Remediation
 
 After Phase 5b, surface the next skill to fix what was found. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent owns its own fix loop), or when there are no actionable findings (CRITICAL + HIGH + MEDIUM all zero after Phase 4b).
+
+**Step 0: Open-decision gate (per-finding, Always-WAIT).** Before recommending which skill to run, surface every `decision: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; you NEVER pick on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
+
+For each kept finding with `decision: PRODUCT-DECISION` (read from `.geniro/review-findings-state.md`):
+
+1. Read the finding's `Options:` field from the reviewer-agent's output (the schema requires 2-4 enumerated paths for PRODUCT-DECISION findings — see `agents/reviewer-agent.md` §Output Format).
+2. Fire `AskUserQuestion` with header "Open decision" — question text: "How do you want to resolve `<finding short title>` at `<path:lines>`?" — options: the enumerated paths from the finding's `Options:` field (label + one-line description per option).
+3. Update the finding line in `.geniro/review-findings-state.md`: replace the `recommendation:` field with the user's chosen option text. Preserve all other fields. The state file is the handoff to the next skill, so the chosen path travels with the finding.
+
+When more than 4 PRODUCT-DECISION findings exist, OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`, chain `AskUserQuestion` calls per the cap-extension pattern documented in the "Failing tests" `AskUserQuestion` block later in Phase 6 — chain questions; never split or drop options.
+
+This gate is **Always-WAIT** in every mode (see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row). If `AskUserQuestion` returns an empty answer, fall back to plain text and re-ask — never default to the reviewer's synthesis.
+
+Skip this Step 0 entirely when zero PRODUCT-DECISION findings remain after Phase 4 judge.
 
 **Severity-driven recommendation (must match the Phase 5 state file):**
 - Any CRITICAL OR ≥2 HIGH findings → recommend `/geniro:implement` (full multi-agent pipeline, architecture-aware fixes)
@@ -586,6 +604,7 @@ Code review is complete when:
 - [ ] Learnings extracted (standalone invocations only)
 - [ ] Improvement suggestions presented (standalone invocations only)
 - [ ] Phase 5 state artifact written to `.geniro/review-findings-state.md`
+- [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT) — user chose resolution path before remediation routing; standalone invocations only
 - [ ] Phase 6 remediation suggestion presented via `AskUserQuestion` (standalone invocations only)
 - [ ] Phase 6 authored-tests handoff offered when `## Authored Tests` is non-empty (standalone invocations only)
 
@@ -610,3 +629,4 @@ Code review is complete when:
 | "Findings are obvious — skip the Phase 4c test gate" | Phase 4c is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4b's read-only validation. Always offer the gate when eligible findings exist; the user can decline, but the offer is not yours to skip. |
 | "I'll spawn the adversarial-tester-agent and ask the user to confirm later" | Inline gates rationalize away into "this counts as approval". Skill MUST `AskUserQuestion` BEFORE spawning. The two-step gate (skill asks → on YES, spawn) is the only rationalization-resistant variant. Spawning first and asking second is exactly the failure mode the user-approval rule exists to prevent. |
 | "The test passes today, so the finding is fake — delete it" | Demote, do not delete. A green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test fails for the wrong reason ([PoC-Gym, arXiv 2602.04165](https://arxiv.org/html/2602.04165v1) documents this failure mode). Move the finding to `## Filtered` with `[CHALLENGED-BY-TEST]` and original severity preserved so the user can re-elevate it if they disagree with the test. |
+| "The reviewer's `recommendation:` field is obvious — I'll just route to the next skill without asking the user about each `[PRODUCT-DECISION]` finding" | `[PRODUCT-DECISION]` findings have multiple valid resolution paths by definition (see `agents/reviewer-agent.md` §Decision Type Guidance). The `recommendation:` field on a multi-path finding is a synthesis, not the chosen path. The orchestrator NEVER picks on the user's behalf — Phase 6 Step 0 (always-WAIT) presents enumerated `Options:` to the user via `AskUserQuestion` BEFORE any remediation routing. Skipping the per-finding gate ships a product decision the user did not authorize. |

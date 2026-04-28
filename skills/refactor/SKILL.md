@@ -292,7 +292,8 @@ Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Return find
 ```
 
 **Orchestrator disposition logic:**
-- **Any CRITICAL or HIGH** → fix loop (max 1 round): spawn fresh refactor-agent to address specific findings, re-review with fresh reviewer.
+- **Any finding with `decision: PRODUCT-DECISION`** → ESCALATE, do NOT fix in-skill. A multi-path finding implies multiple valid behaviors, and refactor guarantees zero behavior change. Surface every PRODUCT-DECISION finding to the user via `AskUserQuestion` with header "Escalate" — options: "Run /geniro:implement on this finding (Recommended)" / "Revert this refactor and start over" / "Document and ship as-is — accept the open decision". Do NOT spawn the refactor-agent fix loop for these findings; gate-and-fix would silently ship a product decision the user did not authorize. This gate is **Always-WAIT** in every tier (Small / Medium / Large — see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row). Fire one `AskUserQuestion` per finding (3 escalation options); chain across findings — never batch multiple findings into a single question.
+- **Any CRITICAL or HIGH (non-PRODUCT-DECISION)** → fix loop (max 1 round): spawn fresh refactor-agent to address specific findings, re-review with fresh reviewer.
 - **Only MEDIUM** → note in completion summary; proceed.
 - **None** → proceed.
 
@@ -350,6 +351,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:follow-up` or `/geniro:implement` and stay in refactor scope. |
 | "This change is obviously safe" | "Obviously safe" is the #1 predictor of broken builds. Run validation. |
 | "I'll upgrade this sonnet spawn to opus just to be safe" | Model tier is task-nature-matched, not risk-appetite-matched. Re-classify via Subagent Model Tiering table; don't silently upsize. |
+| "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition (see `agents/reviewer-agent.md` §Decision Type Guidance) — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 5 Step 2 disposition logic ESCALATES PRODUCT-DECISION findings to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself spawning the refactor-agent for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 
 ## Learn & Improve
 
@@ -402,6 +404,7 @@ Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level
 - [ ] Baseline validation passed
 - [ ] State persisted and cleaned up
 - [ ] Independent reviewer ran (Medium+ only)
+- [ ] PRODUCT-DECISION findings escalated to `/geniro:implement` (always-WAIT) — refactor's zero-behavior-change constitution means multi-path findings are NOT fixed in-skill
 - [ ] Completion summary presented
 
 ## Example invocations

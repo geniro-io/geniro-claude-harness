@@ -296,6 +296,8 @@ Capture the changed file list from the diff against the base branch (resolved pe
 
 **Relevance evidence + orchestrator tagging (Medium only):** Spawn a `relevance-filter-agent` for evidence per finding, then the orchestrator decides KEEP vs FILTER from the dossier — do NOT delegate the tagging decision. Skip the filter entirely for Trivial/Small — scope too limited. If the agent fails, pass all findings through as KEEP (fail-open).
 
+**Open-decision gate (per-finding, Always-WAIT).** Before any disposition decision, scan the kept findings for `decision: PRODUCT-DECISION` items. For each one, fire `AskUserQuestion` with header "Open decision" presenting that finding's enumerated `Options:` (per the reviewer-agent schema at `agents/reviewer-agent.md` §Output Format). Replace the finding's `recommendation:` field with the user's chosen option text before continuing. Use the chained-AUQ pattern when >4 options exist or when an `Options:` field carries `(more-options-exist: chain-follow-up)` — never split or drop options. This gate is **Always-WAIT** in every mode and lane (Fast included — see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row). Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask, never default to the reviewer's synthesis. Skip this gate only when zero PRODUCT-DECISION findings remain after the relevance filter.
+
 Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity). Then the orchestrator synthesizes findings and decides the disposition:
 
 - **Any CRITICAL or HIGH finding (kept)** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If findings persist after the fix round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
@@ -406,6 +408,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 | "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier is matched to task nature, not to risk appetite. Upgrading mechanical-task agents to sonnet defeats the cost rationale and signals drift. If the task genuinely needs reasoning, re-classify it using the Subagent Model Tiering table — don't silently upsize. |
 | "Validation passed and the diff is small — I'll skip the smoke-test offer" | Phase 6 Step 0 is conditional on UI file + Playwright MCP presence, not on change size or confidence. When both conditions hold, fire the `AskUserQuestion` — the user chooses whether to walk through it, not you. |
 | "Medium change but no obvious edge cases — I'll skip Step 1.5" | Step 1.5 is mandatory for Medium. The adversarial-tester-agent discovers edge cases the reviewers miss precisely because they're not obvious. Orchestrator does not pre-filter which Mediums get it. |
+| "The finding's `recommendation:` field reads as obvious — I'll route it into the fix loop without asking the user about each `[PRODUCT-DECISION]`" | `[PRODUCT-DECISION]` findings have multiple valid resolution paths by definition (see `agents/reviewer-agent.md` §Decision Type Guidance). The `recommendation:` field on a multi-path finding is a synthesis, not the chosen path. Phase 5 Step 2's open-decision gate is Always-WAIT (see implement-reference.md §Auto Mode Behavior) — fire `AskUserQuestion` per finding BEFORE fix delegation. Picking one path silently ships a product decision the user did not authorize. Applies in Fast Lane too — Fast Lane collapses optional phases, not safety gates. |
 
 ---
 
@@ -421,6 +424,7 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 - [ ] Simplification run (Medium Full) or skipped (Trivial/Small/Fast Lane)
 - [ ] All tests pass; no type/lint errors
 - [ ] Code quality reviewed
+- [ ] Open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT) — user chose resolution path before fix delegation
 - [ ] Relevance filter applied (Medium only)
 - [ ] Adversarial edge-case tests run (Medium only) or skipped (Trivial/Small/Fast Lane)
 - [ ] User approved before shipping

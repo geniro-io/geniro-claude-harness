@@ -339,7 +339,7 @@ Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet 
 
 **Action:** Spawn 5–6 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, guidelines, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
 
-Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-dir>/review-feedback.md`.
+Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-dir>/review-feedback.md`. Findings tagged `decision: PRODUCT-DECISION` flow through to the Fix Loop where the open-decision gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row) presents enumerated options to the user before any fixer agent spawns.
 
 **Fix loop:** Max 3 rounds. Spawn NEW fixer + FRESH reviewers each round (anchoring bias). After 3 rounds, present handoff to user (always-WAIT — see implement-reference.md §Auto Mode Behavior).
 
@@ -456,6 +456,7 @@ If "Delete": remove `<task-dir>/` recursively.
 | "I'll skip review since the agents already tested" | Agent self-reports are unreliable. Phase 6 exists to catch what agents miss. |
 | "The tweak is small, I'll skip the re-validation loop" | Every tweak re-runs at minimum Stage A. Small bugs introduced during tweaks are the hardest to catch later. |
 | "I'll batch Smoke-test and Ship Decision in one AskUserQuestion to save a round-trip" | Step 5 offers commit/push/PR — asking it alongside the UI-check lets the user commit before verifying UI. The Smoke-test question is a standalone gate; Step 5 fires only after verification is resolved (completed or skipped). |
+| "I'll auto-pick the recommended fix path for this `[PRODUCT-DECISION]` finding — the recommendation field is obvious" | `[PRODUCT-DECISION]` is Always-WAIT (see implement-reference.md §Auto Mode Behavior). The `recommendation:` field on a multi-path finding is a synthesis of valid options — not the chosen path. Pick one and you've shipped a product decision the user did not authorize. |
 
 ---
 
