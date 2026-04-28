@@ -15,7 +15,7 @@ If both a Linear reference and a plain description are present, use both (fetch 
 
 When a Linear reference is detected:
 
-1. Fetch the issue via Linear MCP: extract title, description, acceptance criteria, labels, priority
+1. Fetch the issue via Linear MCP: extract title, description, acceptance criteria, labels, priority, assignee
 2. Use the fetched context to inform discovery/planning — treat it as supplementary input alongside the user's description
 3. **If Linear MCP is unavailable:** log a warning and proceed without issue context (non-blocking). Do NOT fail the pipeline.
 
@@ -24,10 +24,19 @@ When a Linear reference is detected:
 **Never update Linear issue status automatically.** Always ask the user first using `AskUserQuestion`.
 
 ### On task start (implement/follow-up Phase 1)
-After fetching the issue, ask:
-- Header: "Linear Status"
-- Question: "Move [ISSUE-ID] to In Progress?"
-- Options: "Yes — move to In Progress" / "No — leave current status"
+After fetching the issue, send the applicable prompts below in a single `AskUserQuestion` call. Always include the status question; include the assignment question only when the fetched `assignee` field is null (respect any existing assignment — never overwrite it).
+
+1. Status prompt (always):
+   - Header: "Linear Status"
+   - Question: "Move [ISSUE-ID] to In Progress?"
+   - Options: "Yes — move to In Progress" / "No — leave current status"
+
+2. Assignment prompt (only if `assignee` is null):
+   - Header: "Linear Assignee"
+   - Question: "Assign [ISSUE-ID] to you?"
+   - Options: "Yes — assign to me" / "No — leave unassigned"
+
+If the user accepts assignment, call `update_issue({ id: "[ISSUE-ID]", assigneeId: "me" })` — Linear MCP resolves `"me"` to the authenticated user, no separate user lookup needed.
 
 ### On task completion (implement Phase 7 / follow-up Phase 6)
 After the user approves shipping:
@@ -57,10 +66,7 @@ in the PR description body.
 
 ## Implement Skill Behavior
 
-When `/geniro:implement` receives a Linear issue ID or URL:
-1. Fetch the issue via MCP (same rules as above)
-2. Use title/description/acceptance criteria as planning input for Phase 2 (architect+skeptic)
-3. If MCP unavailable: log warning, proceed with whatever description was provided
+When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching Issue Context` above — the fetched title/description/acceptance criteria flow into Phase 2 (architect+skeptic) as planning input.
 
 ## MCP Setup
 
