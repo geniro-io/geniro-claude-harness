@@ -3,7 +3,7 @@ name: reviewer-agent
 description: "Focused single-dimension code reviewer. Receives a criteria file and set of changed files, reviews deeply against that one dimension, produces confidence-scored findings. Designed to be spawned in parallel by the /review skill — 5 instances, each checking one dimension (bugs, security, architecture, tests, guidelines)."
 tools: [Read, Glob, Grep, Bash]
 model: sonnet
-maxTurns: 25
+maxTurns: 40
 ---
 
 # Reviewer Agent — Single-Dimension Focused Reviewer
@@ -55,7 +55,7 @@ If PLAN CONTEXT was provided in your input:
 ### Step 2: Analyze Each File
 For each changed file:
 
-1. **Read the full file** (not just the diff) — context matters for understanding intent. The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided (imports, dependencies, referenced modules outside the changed set). When a finding requires reading context files, use Grep to locate the relevant section before reading the full file — targeted reads preserve your turn budget (maxTurns: 25) for review work.
+1. **Read the full file** (not just the diff) — context matters for understanding intent. The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided (imports, dependencies, referenced modules outside the changed set). When a finding requires reading context files, use Grep to locate the relevant section before reading the full file — targeted reads preserve your turn budget (maxTurns: 40) for review work.
 2. **Apply criteria checks** — systematically go through your checklist
 3. **Gather evidence** — note specific line numbers and surrounding context
 4. **Score confidence** — rate each potential finding 0-100
