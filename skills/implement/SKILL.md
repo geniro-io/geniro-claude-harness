@@ -261,7 +261,7 @@ Strictly limited to 1-2 line registrations. If >3 lines or any logic -> delegate
 
 **Action:** Check that tests were actually created for new/changed source files.
 
-1. Get the list of changed source files: `git diff --name-only main...HEAD | grep -v test | grep -v spec | grep -v node_modules`
+1. Get the list of changed source files (resolve the base per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 — do NOT hardcode `main`): `BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || (git rev-parse --verify main >/dev/null 2>&1 && echo main) || echo master); git diff --name-only "$BASE"...HEAD | grep -v test | grep -v spec | grep -v node_modules`
 2. For each new source file, verify a corresponding test file exists (same directory or `__tests__/` directory, matching the project's test file naming convention)
 3. If any source file is missing tests, spawn a fixer agent with:
    - The source file contents (pre-inlined)

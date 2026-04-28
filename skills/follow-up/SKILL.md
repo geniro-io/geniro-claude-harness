@@ -264,7 +264,7 @@ Validation accumulated fix-loop context. Before spawning reviewers:
 
 ### Step 1: Code Review
 
-Capture the changed file list from the diff against main.
+Capture the changed file list from the diff against the base branch (resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 — typically `origin/main` or `origin/master`, do NOT hardcode `main`).
 
 **Trivial (any lane) and Small (Fast Lane):** Review the diff yourself — no subagent. Check for: typos in the fix, accidental deletions, logic inversion, missed second occurrence. If anything looks off, delegate the fix to an agent and re-validate. Do NOT fix code directly. If ambiguous or potentially CRITICAL, escalate to a single Sonnet reviewer (Fast Lane escape hatch).
 

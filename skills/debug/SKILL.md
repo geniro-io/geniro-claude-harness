@@ -229,10 +229,10 @@ Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff
 
 Resolve the diff scope using the same multi-form parser as `/geniro:review` Phase 1 (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §Phase 1: Collect Context & Triage — do NOT duplicate the parser here).
 
-**Default when no explicit range is passed:** scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and the currently checked-out branch; do NOT invoke `gh pr list` or `git checkout` to discover targets. Compute `git diff main...HEAD` (covers everything on the current branch not on main) and `git diff --name-only main...HEAD` for the file list. If the branch is `main`, fall back to `HEAD~1..HEAD`. Include uncommitted work via a trailing `git diff` (unstaged) + `git diff --cached` (staged) snapshot when present.
+**Default when no explicit range is passed:** scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and the currently checked-out branch; do NOT invoke `gh pr list` or `git checkout` to discover targets. Resolve the base branch per scope-anchor rule #3 (`git symbolic-ref --short refs/remotes/origin/HEAD` → typically `origin/main` or `origin/master`; fall back to local `main`/`master` if no remote — do NOT hardcode `main`). Compute `git diff <base>...HEAD` (covers everything on the current branch not on the base) and `git diff --name-only <base>...HEAD` for the file list. If the current branch IS the base branch, fall back to `HEAD~1..HEAD`. Include uncommitted work via a trailing `git diff` (unstaged) + `git diff --cached` (staged) snapshot when present.
 
 **Supported shapes:**
-- Bare keyword (`"verify last changes"`) → default (`main...HEAD`, or `HEAD~1..HEAD` if on main)
+- Bare keyword (`"verify last changes"`) → default (`<base>...HEAD` per scope-anchor rule #3, or `HEAD~1..HEAD` if currently on the base branch)
 - Explicit range (`HEAD~3..HEAD`, `abc123..def456`)
 - Branch (`feat/foo...HEAD`)
 - PR ref (strip leading `#`, resolve via `gh pr diff <number-or-url>`)

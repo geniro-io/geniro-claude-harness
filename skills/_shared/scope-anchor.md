@@ -10,7 +10,13 @@ Concretely, when no target is supplied in `$ARGUMENTS`:
 
 1. Use `git rev-parse --show-toplevel` to anchor to the current worktree's root.
 2. Use `git branch --show-current` to anchor to the currently checked-out branch.
-3. Targetable artifacts are: unstaged changes (`git status --short`), staged changes, and the diff of the current branch against `origin/main` (or `main` if no remote) — i.e., `git diff main...HEAD` and `git diff` for working tree.
+3. Targetable artifacts in priority order:
+   - **Working tree (highest priority):** unstaged + staged changes (`git status --short`, `git diff`, `git diff --cached`).
+   - **Branch diff (only if working tree is clean):** diff of the current branch against its **base branch** — `git diff <base>...HEAD`. The base branch is resolved as follows, in order:
+     - (a) if the invocation supplies an explicit PR ref, the base is `gh pr view <ref> --json baseRefName`'s `baseRefName` (the actual base of that PR, which is NOT necessarily `main`);
+     - (b) otherwise, the base is the remote's default branch via `git symbolic-ref --short refs/remotes/origin/HEAD` (typically `origin/main` or `origin/master` — whichever the remote actually points HEAD at);
+     - (c) if no remote or `origin/HEAD` is unset, fall back to whichever of local `main` / `master` exists.
+   - **No-op (if the branch is even with the base):** there is nothing to review — report "no changes to review against <base>" and stop. Do NOT widen the search to other branches or PRs to invent something to operate on.
 4. The user's `pwd` at skill invocation is authoritative — even if a sibling worktree exists, do NOT switch to it.
 
 ## Forbidden discovery moves (when no target was supplied)
@@ -33,3 +39,4 @@ If the user **explicitly** names a target (a PR ref, a branch name, a diff range
 | "There are no changes on the current branch, so I'll fall back to the latest PR" | If there's nothing to operate on, report that and stop. Inventing a target is worse than no-op-ing. |
 | "The user's cwd is a worktree but main has more recent changes — I'll switch" | The cwd is authoritative. Different worktrees represent intentionally separate workstreams. Never switch. |
 | "I'll silently `git fetch` and compare against `origin/main` even if there's no remote" | Read-only `git fetch` is fine when a remote exists; if there is no remote, fall back to local `main` ref. Never invent a remote. |
+| "Harness Auto Mode is active, so I'll preface my scope decision with 'Auto mode → proceeding without prompting'" | Scope-anchor is deterministic — there is no user gate to skip. Importing harness Auto Mode framing implies a non-existent question and makes users think the skill has an auto mode it does not (most skills don't). Just report the resolved target. See `skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" → "Rule (transcript framing)". |

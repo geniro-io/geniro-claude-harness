@@ -42,9 +42,10 @@ No spawns escalate to `opus` — these reviewers are bounded scope. If a finding
 
 ### Step 1: Identify Changed Files
 
-Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and currently checked-out branch; do NOT invoke `gh pr list` or `git checkout` to discover targets. If `$ARGUMENTS` contains "changed", run:
+Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and currently checked-out branch; do NOT invoke `gh pr list` or `git checkout` to discover targets. If `$ARGUMENTS` contains "changed", resolve the base branch per scope-anchor rule #3 (`git symbolic-ref --short refs/remotes/origin/HEAD` → typically `origin/main` or `origin/master`; fall back to local `main`/`master` if no remote), then run:
 ```bash
-git diff --name-only origin/main...HEAD | grep -v node_modules | grep -v -E '(\.lock|package-lock)'
+BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || (git rev-parse --verify main >/dev/null 2>&1 && echo main) || echo master)
+git diff --name-only "$BASE"...HEAD | grep -v node_modules | grep -v -E '(\.lock|package-lock)'
 ```
 
 Otherwise, treat `$ARGUMENTS` as a list of specific files or directories.
