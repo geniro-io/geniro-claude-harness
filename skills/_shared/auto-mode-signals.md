@@ -27,3 +27,13 @@ Match ONLY unambiguous urgency phrases — `"just do it"`, `"ASAP"`, `"no questi
 Add this one-liner near the auto-mode detection rule in any skill that supports it:
 
 > **Auto-mode signal detection:** Follow `skills/_shared/auto-mode-signals.md`.
+
+## Not a per-skill trigger: harness "Auto Mode"
+
+Claude Code (the CLI) has a runtime feature called **Auto Mode** that injects a system reminder ("## Auto Mode Active … Minimize interruptions — Prefer making reasonable assumptions over asking questions for routine decisions"). This is **NOT** a skill-level auto-mode signal.
+
+Per Anthropic engineering ("Claude Code auto mode: a safer way to skip permissions"), the harness Auto Mode is a **permission classifier** — it scopes tool-use approvals, not skill control flow. The "minimize interruptions" line is a soft model nudge for *routine* decisions; it does NOT instruct the model to skip clarifying-question tools like `AskUserQuestion`, and it does NOT translate to a per-skill pipeline-mode answer.
+
+**Rule:** Skills that support an `auto` pipeline-mode (`/geniro:implement`, `/geniro:decompose`) MUST detect it ONLY from the three canonical phrases above in `$ARGUMENTS`. Do NOT promote the harness "Auto Mode Active" reminder, the user's permission-mode setting, or any environment signal into a per-skill auto-mode trigger. The skill's Mode Selection / gray-area `AskUserQuestion` calls fire regardless of harness Auto Mode state.
+
+**Edge case — empty AUQ answer:** Upstream Claude Code bugs (#29547, #30523, #47114) can cause `AskUserQuestion` to silently auto-resolve with an empty answer when the tool is in a skill's `allowed-tools`. An empty answer is **not** a user choice — fall back to plain-text and re-ask. Do NOT promote empty to "auto."

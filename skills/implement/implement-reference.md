@@ -25,21 +25,29 @@ This file contains templates, examples, error tables, and detailed procedures re
 2. **Geniro feature ID** — pattern `^F\d+(\s|$)` at start of `$ARGUMENTS`. Read `.geniro/planning/FEATURES.md` if present and look up the matching row. If FEATURES.md is missing or the ID is not found, treat the rest of `$ARGUMENTS` as a plain description and warn the user once. If found, capture the row's description and spec-file path (from the Notes column) — these get persisted to `state.md` (see SKILL.md Phase 1).
 3. **Auto-mode signals** — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` for the canonical phrase list. If any canonical phrase is matched, skip interactive questions, pick recommended defaults for non-workspace gray areas. `"auto"` and `"quick"` are NOT triggers — they collide with common technical vocabulary (`auto-save`, `quick-action`).
 4. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
-5. **No special signals** — explicitly ask the user which mode to use (see "Mode Selection prompt" below). Default to interactive
+5. **No special signals** — MUST ask the user which mode to use via `AskUserQuestion` (see "Mode Selection prompt" below). This is **Always-WAIT**: do NOT silently default to a mode even when a harness "Auto Mode" / "minimize interruptions" system reminder is active — the harness Auto Mode is a permission classifier, not a per-skill mode answer. Default-to-recommend is interactive
 
 If a workflow integration's backend (e.g., MCP) is unavailable, log a warning and proceed without — all integrations are non-blocking.
 
-**Mode Selection prompt** (fires from Step 1 of SKILL.md when no explicit signal was detected in `$ARGUMENTS`):
+**Mode Selection prompt** (Always-WAIT — MUST fire from Step 1 of SKILL.md when no explicit signal was detected in `$ARGUMENTS`. Do NOT skip even when a harness-level "Auto Mode" / "minimize interruptions" system reminder is present — the harness Auto Mode is a permission classifier, not a per-skill mode answer; the three skill modes have user-distinguishable trade-offs and the choice gates 8+ downstream WAIT gates. If `AskUserQuestion` returns an empty answer, fall back to plain-text and re-ask):
 
 Use `AskUserQuestion`:
 - **Question:** "How should I run this implementation?"
 - **Header:** "Mode"
 - **Options:**
   - Label: "Interactive (Recommended)" / Description: "Full discovery — I'll ask about gray areas, confirm the architect's plan, and check before shipping."
-  - Label: "Auto mode" / Description: "Pick recommended defaults for gray areas. I still WAIT at plan approval, the ship gate, the Stage C fix-loop after 3 rounds, and the Phase 7 Step 4.5 ship-anyway prompt — auto mode never silently approves a plan. See §Auto Mode Behavior."
+  - Label: "Auto mode" / Description: "Pick recommended defaults for gray areas. I still WAIT at git workspace, existing-plan skeptic blockers, plan approval, Stage C fix-loop after 3 rounds, Pre-Ship Visual Verification follow-up, and the ship decision — auto mode never silently approves a plan. See §Auto Mode Behavior for the full list."
   - Label: "Assumptions" / Description: "I'll propose a plan with my best guesses on gray areas — you correct anything wrong before architecting."
 
 Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode signal (rule 3) or assumptions-mode signal (rule 4). Persist the chosen mode in `<task-dir>/state.md` under a `Mode:` line so resumed runs and downstream phases read it without re-prompting.
+
+**Anti-rationalization (Mode Selection prompt):**
+
+| Reasoning | Why it's wrong |
+|---|---|
+| "Harness 'Auto Mode' is on — user must want auto, skip the prompt" | Harness Auto Mode is a permission classifier (Anthropic engineering: claude-code auto mode), not a per-skill mode answer. The three modes (Interactive / Auto / Assumptions) have user-distinguishable trade-offs — Assumptions exists specifically for users who want a plan with explicit guesses to correct, which auto-defaulting to "Auto" loses. |
+| "The user picked auto last time, just pick it again" | Mode is per-run, not per-user. Re-asking each invocation is the contract. Memory of past choices is not a substitute for the current `AskUserQuestion`. |
+| "AskUserQuestion returned empty, treat as 'auto'" | Empty answer is the upstream Claude Code bug (#29547), not a user choice. Fall back to plain text and re-ask. Do NOT pick any default on empty. |
 
 **Example discovery questions (interactive mode, batch 3-5). IMPORTANT — in interactive mode, include the git workspace question in this same batch (do NOT defer it to a separate prompt). In auto-mode, the git workspace question is asked standalone via `AskUserQuestion` regardless of mode — see §Auto Mode Behavior:**
 - Scope: Backend-only? Frontend? Both? (recommend: match existing split)
