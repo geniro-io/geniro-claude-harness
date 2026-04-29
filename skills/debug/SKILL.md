@@ -261,6 +261,9 @@ Apply the same skip-matrix philosophy as `skills/follow-up/SKILL.md` Step 1.5 (s
 Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Debug — Verify Changes)
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ### Diff (changed files + contents)
 [Pre-inline `git diff <resolved-range>` output AND full contents of every changed source file from Step 1]
 
@@ -283,6 +286,8 @@ Every test you keep MUST fail 3 times in a row on the current code. If it passes
 
 ### Scope
 Diff-only — the orchestrator resolved the scope above. Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Adversarial tests: /geniro:debug verify-changes")
 ```
 

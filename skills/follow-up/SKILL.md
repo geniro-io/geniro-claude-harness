@@ -161,11 +161,14 @@ Spawn a **general-purpose** subagent with `model: "sonnet"`. The agent reads its
 ```
 Agent(model="sonnet", prompt="""
 ## Task: Simplify Changed Files
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 Make changed files cleaner, simpler, more consistent — without changing behavior.
 Read and apply `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`
 Changed files: [list from git diff --name-only]
 Apply P1+P2 findings, report P3 only. Zero behavior change. Do NOT git add/commit/push.
 Do NOT modify files outside changed list. Never delete or weaken test assertions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Simplify: changed files")
 ```
 
@@ -199,6 +202,8 @@ Spawn a validation agent that runs the project's check suite. The agent runs com
 ```
 Agent(model="haiku", prompt="""
 ## Task: Run Full Validation Suite
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 Run the project's validation commands and report pass/fail results.
 
 ## Steps
@@ -222,6 +227,8 @@ Return EXACTLY this structure:
 - Do NOT run git add/commit/push
 - Do NOT fix any issues — only report them
 - Capture full error output for any failures
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Validate: full check suite")
 ```
 

@@ -134,6 +134,9 @@ Decomposed Plans:
 
    Operate in DECOMPOSITION mode per your Decomposition Mode section.
 
+   WORKTREE: [from `git rev-parse --show-toplevel`]
+   BRANCH: [from `git branch --show-current`]
+
    Produce:
    (a) A master plan body that follows the structure in Plan Criteria (pre-inlined below), PLUS a new `## Milestones` section placed before `## Files Affected`.
    (b) The `## Milestones` section listing 3-7 milestones. Each row: number, name, one-sentence goal, upstream dependency milestone numbers (or "none"), wave number for parallelism, and a one-line rationale for why this slice is independently shippable.
@@ -161,6 +164,8 @@ Decomposed Plans:
    - Vertical slices only — NO "backend milestone" / "frontend milestone" / "tests milestone"
    - 3 ≤ milestone count ≤ 7, hard cap
    - Write the master plan file yourself using the Write tool — do NOT return it as text only
+
+   Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
    ```
 
 3. **Post-write verification.** Glob the task dir for `plan-<slug>.md` to confirm architect wrote it. If missing, retry once with explicit "Write the file at <path>". If still missing, fall back to treating the architect's response as the plan body and Write it yourself.
@@ -179,6 +184,9 @@ Per-milestone Agent call with `subagent_type: "architect-agent"`, `model="opus"`
 ## Task: Generate Milestone Detail File
 
 Operate in DECOMPOSITION mode per your Decomposition Mode section.
+
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 Write a self-contained milestone detail file at: `.geniro/planning/<task-dir>/milestone-<N>-<slug>.md`
 
@@ -207,6 +215,8 @@ Wave: <wave number>
 - Include `## Prior Milestones Context` as an EMPTY slot — pre-inlining happens at /geniro:implement time, not now
 - Set Status header to `pending`
 - Write the file yourself using the Write tool — do NOT return it as text only
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 ```
 
 **Post-write verification.** Glob for `milestone-*-*.md` in the task dir. Confirm one file per milestone. Retry any missing file once with explicit "Write the file at <path>".
@@ -219,6 +229,9 @@ Wave: <wave number>
    ## Task: Validate Decomposed Plan
 
    Review this decomposed plan against the 8-dimension validation checklist from plan-criteria.md AND the 2 additional cross-milestone dimensions from decompose-criteria.md (pre-inlined below).
+
+   WORKTREE: [from `git rev-parse --show-toplevel`]
+   BRANCH: [from `git branch --show-current`]
 
    ## Master Plan
    [Pre-inline the full master plan]
@@ -245,6 +258,8 @@ Wave: <wave number>
    - Cross-milestone coverage gaps (D9): any requirement in master Goal not covered by any milestone's Acceptance Criteria
    - Cross-milestone dependency-ordering violations (D10): forward references, circular deps, milestones in wrong wave
    - Do NOT emit an overall verdict — the orchestrating skill decides
+
+   Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
    ```
 
 2. **Read the validation report.** If the file is missing, re-spawn the skeptic with an explicit "Write the file" instruction; if it still fails, treat as "needs revision" with the failure noted.

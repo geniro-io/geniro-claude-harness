@@ -90,6 +90,9 @@ Agent(model="sonnet", prompt="""
 
 You are a code reviewer focused on finding duplication and reuse opportunities.
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ## Criteria
 Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass A sections. Pass A references the canonical Existing Abstraction Audit at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — read it as well, and run its audit Procedure before flagging any extraction or "duplicates existing utility" finding.
 
@@ -114,6 +117,8 @@ Also read each file's immediate neighbors (imports from same module) for reuse c
 Return a JSON array:
 [{"file": "path", "line": N, "pattern": "name", "severity": "P1|P2|P3", "description": "what", "fix": "how"}]
 If no findings, return: []
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Review: reuse & duplication")
 ```
 
@@ -124,6 +129,9 @@ Agent(model="sonnet", prompt="""
 ## Task: Quality & Readability Review
 
 You are a code reviewer focused on readability, naming, and AI-generated anti-patterns.
+
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 ## Criteria
 Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass B (+ AI Anti-Patterns + Frontend tables) sections.
@@ -150,6 +158,8 @@ Also read each file's immediate neighbors (imports from same module) for reuse c
 Return a JSON array:
 [{"file": "path", "line": N, "pattern": "name", "severity": "P1|P2|P3", "description": "what", "fix": "how"}]
 If no findings, return: []
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Review: quality & readability")
 ```
 
@@ -160,6 +170,9 @@ Agent(model="sonnet", prompt="""
 ## Task: Efficiency & Patterns Review
 
 You are a code reviewer focused on unnecessary complexity and inefficient patterns.
+
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 ## Criteria
 Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass C sections.
@@ -184,6 +197,8 @@ Also read each file's immediate neighbors (imports from same module) for reuse c
 Return a JSON array:
 [{"file": "path", "line": N, "pattern": "name", "severity": "P1|P2|P3", "description": "what", "fix": "how"}]
 If no findings, return: []
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Review: efficiency & patterns")
 ```
 
@@ -205,6 +220,8 @@ Collect findings from all 3 agents. Merge into a single list:
    Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
    FINDINGS: [aggregated P1/P2 findings in JSON format]
    CHANGED FILES: [list of changed file paths — the agent reads files itself]
+   WORKTREE: [from `git rev-parse --show-toplevel`]
+   BRANCH: [from `git branch --show-current`]
    PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
    CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
 
@@ -214,6 +231,8 @@ Collect findings from all 3 agents. Merge into a single list:
    3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
 
    Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD, safety_override for CRITICAL findings). Do NOT tag findings KEEP or FILTER — return evidence only; the orchestrator decides.
+
+   Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
    """)
    ```
 
@@ -230,6 +249,9 @@ Agent(model="sonnet", prompt="""
 ## Task: Apply Simplification Fixes
 Apply the following categorized fixes. Batch all changes, do NOT validate between fixes.
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ## P1 Fixes (must apply)
 [paste P1 findings from Phase 3 aggregation]
 
@@ -245,6 +267,8 @@ Read each file before editing: [list unique file paths from P1+P2 findings]
 - If source changes break test imports/references: update imports only. Never change test assertions.
 - Do NOT run git add/commit/push
 - Report: files modified, fixes applied, fixes skipped with reason
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Apply: simplify fixes")
 ```
 
@@ -258,6 +282,9 @@ Delegate validation to an agent. Do NOT run build/lint/test commands yourself.
 Agent(model="sonnet", prompt="""
 ## Task: Verify Simplification Changes
 Run the project's full validation suite and report results.
+
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 ## Steps
 1. Run autofix (lint --fix / format) from CLAUDE.md or package.json
@@ -277,6 +304,8 @@ Return EXACTLY:
 ## Requirements
 - Do NOT run git add/commit/push
 - Do NOT fix issues beyond reverting the problematic simplification
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Verify: post-simplify validation")
 ```
 

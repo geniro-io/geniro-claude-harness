@@ -153,6 +153,9 @@ When spawning any implementation agent, use this template:
 ## Task — Work Unit [WU-N]
 [Copy the relevant Steps from the plan file for this WU — NOT the entire plan, just this WU's steps with their files, details, and verify criteria]
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ## Definition of Done
 - [ ] [File X created/modified with specific content]
 - [ ] [Test file Y created with unit/integration tests for all new logic]
@@ -212,6 +215,8 @@ After all checks pass, include this structured section at the end of your respon
 - Do NOT modify files outside your WU scope: [list files]
 - Do NOT add abstractions, wrappers, or patterns not present in the exemplar files — a separate simplification pass handles code quality
 - Report: files changed, **test files created**, what was done, test results, checks report, any issues encountered
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 ```
 
 ---
@@ -239,6 +244,9 @@ Spawn a **general-purpose** subagent with `model="sonnet"` and the simplify crit
 
 You are a code simplifier. Review the changed files and make them cleaner, simpler, and more consistent — without changing behavior.
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ## Criteria
 [Pre-inline the contents of `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` here — read both first, paste them in. The audit defines the procedure Pass A's reuse work depends on.]
 
@@ -258,6 +266,8 @@ You are a code simplifier. Review the changed files and make them cleaner, simpl
 - Do NOT modify files outside the changed file list (unless extracting a shared utility)
 - Never delete or weaken test assertions
 - Report: files modified, fixes applied, P3 notes
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 ```
 
 ---
@@ -302,6 +312,9 @@ Spawn a **general-purpose** subagent with `model="sonnet"` to verify spec compli
 
 Check whether the implementation matches the spec requirements.
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ## Spec
 [Pre-inline contents of <task-dir>/spec.md]
 
@@ -319,6 +332,8 @@ Check whether the implementation matches the spec requirements.
 2. For each acceptance criterion in Definition of Done, verify it passes
 3. Produce a compliance report: requirement -> PASS/FAIL with evidence (file:line)
 4. Write your report to `<task-dir>/compliance.md`
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 ```
 
 Read `<task-dir>/compliance.md` after the agent completes. If ANY requirement is unmet -> spawn a fixer agent with the specific gaps and affected files pre-inlined. Do NOT read source files, diagnose gaps, or apply fixes yourself — delegate to the agent. Do NOT proceed to Stage C until gaps are resolved.
@@ -330,7 +345,7 @@ Read `<task-dir>/compliance.md` after the agent completes. If ANY requirement is
 
 Only reached after Stage B passes.
 
-1. **Collect context:** Capture the changed file list (`git diff --name-only main...HEAD`), read all changed files, build a summary of what changed and why.
+1. **Collect context:** Capture the changed file list (`git diff --name-only <base>...HEAD` where <base> resolves per skills/_shared/scope-anchor.md rule 3), read all changed files, build a summary of what changed and why.
 
 2. **Load review criteria:** Pre-read these criteria files from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md` — logic errors, null checks, off-by-one, state issues
@@ -368,6 +383,8 @@ Only reached after Stage B passes.
 
    ```
    Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
+   WORKTREE: [from `git rev-parse --show-toplevel`]
+   BRANCH: [from `git branch --show-current`]
    FINDINGS: [aggregated CRITICAL/HIGH findings from all reviewers]
    CHANGED FILES: [list of changed file paths — the agent reads files itself]
    PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
@@ -379,6 +396,8 @@ Only reached after Stage B passes.
    3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
 
    Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD, safety_override for CRITICAL findings). Do NOT tag findings KEEP or FILTER — return evidence only; the orchestrator decides.
+
+   Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
    """)
    ```
 
@@ -407,13 +426,17 @@ After Stage C produces findings:
 
    ```
    Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+   WORKTREE: [from `git rev-parse --show-toplevel`]
+   BRANCH: [from `git branch --show-current`]
    DIMENSION: [bugs|security|architecture|tests|guidelines|design]
    CRITERIA (pre-inlined): [content of <dimension>-criteria.md]
    CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content AFTER the fix round — NOT the pre-fix version]
-   DIFF CONTEXT: [paste `git diff main...HEAD` output reflecting the post-fix state]
+   DIFF CONTEXT: [paste `git diff <base>...HEAD` output reflecting the post-fix state where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master)]
    PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
    PREVIOUS ROUND FINDINGS: [paste the CRITICAL/HIGH findings from the prior reviewer output for this dimension — so you can verify whether each was actually resolved, not just moved]
    Review ONLY for [dimension]. For each prior-round finding, tag: RESOLVED / PARTIALLY-RESOLVED / NOT-RESOLVED / REGRESSED. Also report any NEW findings introduced by the fix round.
+
+   Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
    """, description="Re-review: [dimension]")
    ```
 
@@ -442,8 +465,11 @@ Only reached after the Stage C Fix Loop exits cleanly (zero remaining CRITICAL/H
 Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ### Diff (changed files + contents)
-[Pre-inline `git diff main...HEAD` output AND full contents of every changed source file]
+[Pre-inline `git diff <base>...HEAD` output AND full contents of every changed source file, where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master)]
 
 ### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
 `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
@@ -464,6 +490,8 @@ Every test you keep MUST fail 3 times in a row on the current code. If it passes
 
 ### Scope
 Diff-only. Do NOT author tests for files outside the changed-files list.
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Adversarial tests: edge-case hunt")
 ```
 

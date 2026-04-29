@@ -77,9 +77,12 @@ DIMENSION: bugs
 CRITERIA: [content of bugs-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary showing what changed — used to tag findings as [NEW] vs [PRE-EXISTING]]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for bugs and correctness. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -87,9 +90,12 @@ DIMENSION: security
 CRITERIA: [content of security-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for security vulnerabilities. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -97,9 +103,12 @@ DIMENSION: architecture
 CRITERIA: [content of architecture-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for architecture and design patterns. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -107,9 +116,12 @@ DIMENSION: tests
 CRITERIA: [content of tests-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for test quality and coverage. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 
 Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
@@ -117,9 +129,12 @@ DIMENSION: guidelines
 CRITERIA: [content of guidelines-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for style, naming, and guideline compliance. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 
 # Conditional — spawn ONLY if at least one changed file matches the UI-file detection rule below.
@@ -128,9 +143,12 @@ DIMENSION: design
 CRITERIA: [content of design-criteria.md]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -211,6 +229,8 @@ Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
 FINDINGS: [all findings from all reviewers (5 or 6), in their original format]
 CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 
@@ -220,6 +240,7 @@ Gather evidence for each finding against this repo's actual patterns:
 3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
 
 Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD, safety_override for CRITICAL findings). Do NOT tag findings KEEP or FILTER — return evidence only; the orchestrator decides.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -273,6 +294,8 @@ TASK: Validate a single review finding. You are an independent validator — con
 
 FINDING: [severity, dimension, file:line, description, evidence]
 FILE CONTENT: [full content of the affected file]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [relevant diff hunk]
 
 You must:
@@ -283,6 +306,7 @@ You must:
 5. Verdict: CONFIRMED (issue is real, with reproduction evidence if step 4 ran) or REJECTED (false positive, explain why)
 
 Do NOT review for other issues — validate this ONE finding only.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -324,6 +348,8 @@ Spawn ONE `adversarial-tester-agent` (model="sonnet" per the canonical model-tie
 ```
 Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
 CHANGED FILES: [list of changed file paths with full content — pre-inlined from Phase 1]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 DIFF: [git diff summary]
 SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md (READ at runtime; do not expect it inlined)
 PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1-2 exemplar test files inlined]
@@ -331,6 +357,7 @@ PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line �
 OUTPUT PATH: .geniro/review-findings-adversarial.md
 
 For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in the orchestrator's downstream processing). You may also generate fresh hypotheses from the diff per your normal Step 2 workflow; treat seeded findings as priority-1 and fresh hypotheses as priority-2 within your hard cap of 10 authored tests.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 

@@ -476,6 +476,8 @@ them with fresh eyes.
 
 DETECTED STACK: [language, framework, ORM, test runner, linter]
 PROJECT ROOT: [path]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 ## What to check
 
@@ -513,6 +515,8 @@ ISSUES FOUND:
 - [INFO] <file>: <description> — minor, optional fix
 
 If no issues found, return: "ALL CHECKS PASSED — configuration is ready to commit."
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Verify setup output", model="sonnet")
 ```
 

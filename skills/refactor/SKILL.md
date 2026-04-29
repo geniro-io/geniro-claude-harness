@@ -150,6 +150,9 @@ WHAT TO REFACTOR: $ARGUMENTS
 FILES IN SCOPE:
 [list the files you read in Phase 1]
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 PROJECT CONVENTIONS:
 [paste any relevant conventions from CLAUDE.md or project docs]
 
@@ -168,6 +171,8 @@ Return as a flat list:
 - Public surface notes: [smells that change public API signature, module export, or shared type — orchestrator will treat these as HIGH risk regardless of consumer count]
 
 Do NOT classify risk (LOW/MEDIUM/HIGH). Do NOT order the smells. Do NOT flag steps for user confirmation. Those are orchestrator decisions.
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -192,6 +197,8 @@ Update `state.md`: `phase: 2`, `smells-detected: N`, `tier: <Small|Medium|Large>
 Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
 FINDINGS: [smells detected by refactor-agent, with file:line references and risk levels]
 CHANGED FILES: [files in refactoring scope from Phase 1]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
 
@@ -201,6 +208,8 @@ Gather evidence for each detected smell against this repo's actual patterns:
 3. Intentional pattern — does the flagged pattern exist deliberately in 3+ other files?
 
 Return an evidence dossier per smell (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD). Do NOT tag smells KEEP or FILTER — return evidence only; the orchestrator decides.
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -227,6 +236,9 @@ You are executing a refactoring plan. Your task:
 APPROVED PLAN:
 [paste the plan from Phase 2, marking any HIGH steps the user rejected]
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 VALIDATION COMMAND: [test command from CLAUDE.md]
 AUTOFIX COMMAND: [autofix command from CLAUDE.md, if any]
 BACKPRESSURE: source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<validation_cmd>". If unavailable, pipe through tail -80.
@@ -241,6 +253,8 @@ CRITICAL RULES:
 - No git operations (no add, commit, push, checkout)
 
 Return a structured report of what was applied, what was blocked, and final validation status.
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -272,6 +286,9 @@ Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 ## Review: Refactor Diff
 This is a refactor — behavior MUST be unchanged. CI already passed. Focus on invariants, not style.
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 DIFF: [paste git diff output]
 AGENT SELF-REPORT: [refactor-agent's structured report]
 PROJECT CONVENTIONS: [paste relevant conventions from CLAUDE.md]
@@ -290,6 +307,8 @@ Read and apply these criteria files:
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
 
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Return findings as evidence. Do NOT emit an overall verdict — the orchestrating skill synthesizes findings and decides disposition.
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Review: refactor diff")
 ```
 

@@ -15,12 +15,15 @@ Agent(model="sonnet", prompt="""
 ## Task
 [describe the specific change needed]
 ## Pre-Inlined Context: [file contents from Phase 1]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 ## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4): [paste approved description verbatim; match it exactly; omit this section entirely if the gate did not run]
 ## Codebase Conventions: match existing patterns exactly. Before writing any new helper / component / type / config, Grep the project for an analogue first — REUSE-AS-IS or EXTEND existing code instead of creating new. If reuse requires adding a parameter or conditional to fit, prefer local duplication (Rule of Three).
 ## Reuse Inventory (when supplied by Phase 1): [paste REUSE_INVENTORY if present; for Trivial Fast Lane it will be omitted — rely on the verify-before-creating instruction above]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: follow CLAUDE.md, do NOT git add/commit/push, run validation, report changes and issues
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -38,12 +41,15 @@ Agent(model="sonnet", prompt="""
 ## Task — Group N: [module/layer name]
 [changes for this group]
 ## Pre-Inlined Context: [file contents]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 ## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4 AND this group touches UI files): [paste approved description verbatim; match it exactly; omit this section entirely otherwise]
 ## Codebase Conventions: match existing patterns exactly. Before writing any new helper / component / type / config, Grep the project for an analogue first — REUSE-AS-IS or EXTEND existing code instead of creating new. If reuse requires adding a parameter or conditional to fit, prefer local duplication (Rule of Three).
 ## Reuse Inventory (when supplied by Phase 1): [paste REUSE_INVENTORY if present; for Trivial Fast Lane it will be omitted — rely on the verify-before-creating instruction above]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Implement [group N]")
 # Repeat the Agent(...) block per group — all in the same assistant turn.
 ```
@@ -62,7 +68,9 @@ Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 This is a follow-up change — focus on correctness and regressions. CI already passed. Keep review proportional to change size.
 
 CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its complete content — use the file contents already in orchestrator context from Phase 1]
-DIFF CONTEXT: [paste `git diff main...HEAD` output — used to tag findings as [NEW] vs [PRE-EXISTING]]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master) — used to tag findings as [NEW] vs [PRE-EXISTING]]
 CHANGE SUMMARY: [summary]
 
 ## Review Criteria
@@ -77,6 +85,7 @@ Read and apply the criteria files (5, +design when UI files changed) from `${CLA
 Review across all listed criteria files (5, or 6 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH.
 
 Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / APPROVED / APPROVED WITH MINOR) — the orchestrating skill synthesizes findings across all reviewers and decides.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Review: follow-up change")
 ```
 
@@ -88,25 +97,31 @@ Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / 
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: Bugs & Correctness
 CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its complete content — from Phase 1 orchestrator context]
-DIFF CONTEXT: [paste `git diff main...HEAD` output — used to tag findings as [NEW] vs [PRE-EXISTING]]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master) — used to tag findings as [NEW] vs [PRE-EXISTING]]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.
 
 ## Review Criteria
 Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Review: bugs")
 
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: Security & Edge Cases
 CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its complete content — from Phase 1 orchestrator context]
-DIFF CONTEXT: [paste `git diff main...HEAD` output — used to tag findings as [NEW] vs [PRE-EXISTING]]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master) — used to tag findings as [NEW] vs [PRE-EXISTING]]
 CHANGE SUMMARY: [summary]
 This is a follow-up change. CI already passed. Keep review proportional.
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH. Return findings as evidence; do NOT emit an overall verdict — the orchestrating skill synthesizes across reviewers and decides.
 
 ## Review Criteria
 Read and apply this criteria file: `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md`
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Review: security")
 ```
 
@@ -123,8 +138,11 @@ Spawn the new agent AFTER the Step 1 reviewers return, BEFORE Step 2 aggregation
 Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Follow-Up — Medium)
 
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+
 ### Diff (changed files + contents)
-[Pre-inline `git diff main...HEAD` output AND full contents of every changed source file from Phase 1]
+[Pre-inline `git diff <base>...HEAD` output where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master) AND full contents of every changed source file from Phase 1]
 
 ### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
 `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
@@ -145,6 +163,8 @@ Every test you keep MUST fail 3 times in a row on the current code. If it passes
 
 ### Scope
 Diff-only (Medium = 6-8 files). Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Adversarial tests: follow-up Medium")
 ```
 

@@ -88,12 +88,14 @@ Replace every `{{placeholder}}` with actual content before spawning.
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
 ```
-Agent(prompt="""
+Agent(model="sonnet", prompt="""
 ## Task: Codebase Investigation
 Answer the following question by analyzing the codebase:
 
 **Question:** {{user's question}}
 **Target area:** {{files/modules/patterns to focus on}}
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 ### Investigation strategy:
 1. Find all files relevant to the question (Glob for patterns, Grep for keywords)
@@ -114,18 +116,21 @@ For each relevant discovery:
 **Gaps:** [what you couldn't determine from code alone]
 
 Do NOT speculate. If the code doesn't answer a sub-question, list it as a gap.
-""", description="Investigate: codebase analysis", model="sonnet")
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""", description="Investigate: codebase analysis")
 ```
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
 ```
-Agent(prompt="""
+Agent(model="sonnet", prompt="""
 ## Task: Git History Investigation
 Research the git history to answer:
 
 **Question:** {{user's question}}
 **Target area:** {{files/modules to focus on}}
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 ### Investigation strategy:
 1. `git log --oneline -30 -- {{target files}}` — recent changes
@@ -146,18 +151,21 @@ For each relevant discovery:
 **Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions]
 
 Do NOT speculate about intent beyond what commit messages state.
-""", description="Investigate: git history", model="sonnet")
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""", description="Investigate: git history")
 ```
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
 ```
-Agent(prompt="""
+Agent(model="sonnet", prompt="""
 ## Task: Internet Research
 Research external sources to help answer:
 
 **Question:** {{user's question}}
 **Target area:** {{technologies, patterns, or concepts involved}}
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 ### Investigation strategy:
 1. Use WebSearch for each query. Use WebFetch to read full page content when a search result looks highly relevant.
@@ -180,7 +188,8 @@ For each relevant discovery:
 **Disagreements:** [where sources conflict, if applicable]
 
 Report facts with sources. Flag opinions as opinions.
-""", description="Investigate: internet research", model="sonnet")
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""", description="Investigate: internet research")
 ```
 
 ## Phase 2.5: Verify (orchestrator re-checks each load-bearing claim)
@@ -332,12 +341,14 @@ Spawn a fresh review agent to verify the draft answer. This agent must NOT have 
 Default the verifier to `sonnet` (well-scoped: check references, flag over-claims). Only escalate to `opus` if the user explicitly opted in to deep synthesis for an ambiguous cross-subsystem question — otherwise keep `sonnet`.
 
 ```
-Agent(prompt="""
+Agent(model="sonnet", prompt="""
 ## Task: Verify Investigation Answer
 Review this answer for accuracy, completeness, and honesty. You were NOT involved
 in the research — verify with fresh eyes.
 
 **Original question:** {{user's question}}
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
 
 **Draft answer:**
 {{full draft answer from Phase 3}}
@@ -357,7 +368,8 @@ in the research — verify with fresh eyes.
 - Suggested fix
 
 If no issues: report "VERIFIED — answer is accurate and complete"
-""", description="Review: verify investigation answer", model="sonnet")
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""", description="Review: verify investigation answer")
 ```
 
 ### Process review results:
