@@ -61,9 +61,9 @@ Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode
 
 ## Phase 1 Step 0: Complexity Gate
 
-**Purpose:** Catch Trivial tasks at entry and suggest the lighter `/geniro:follow-up` skill before spending opus tokens on architect-agent and Phase 1 Discovery.
+**Purpose:** Classify the request and ask the user whether to run Full pipeline or Light Mode for Trivial tasks. Light Mode skips Phase 2 (architect+skeptic), Phase 5 (simplify), Phase 6 Stage B (spec compliance), and Phase 6 Stage D (adversarial-tester) — but keeps the full Stage C reviewer grid, knowledge retrieval, and ship gates. See §"Light Mode Semantics" below for the full delta.
 
-**When to SKIP the gate (any of these applies → proceed straight to Step 1, no prompt):**
+**When to SKIP the gate (any of these applies → proceed straight to Step 1, Lane defaults to `full`, no prompt):**
 1. Milestone reference detected (Auto-Detection Table rule 0 matched).
 2. On-disk plan-file path present in `$ARGUMENTS` (handled by Phase 2 pre-check rule 4).
 3. Plan-mode conversation plan is active (handled by Phase 2 pre-check rule 2).
@@ -78,23 +78,59 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` for the canonical 
 
 **Decision procedure:**
 
-1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of effort-scaling's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1, no prompt. Do NOT offer the fast-path.
-2. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per effort-scaling's Trivial definition (score 0 + 1-2 files + single module + unambiguous intent — see `skills/_shared/effort-scaling.md` Step 2). If unclear, proceed silently to Step 1 — the gate only fires on a clear Trivial signal.
-3. **If Trivial AND no hard signals:** use `AskUserQuestion` with header "Skill" and these options (present in this order — the user explicitly invoked `/geniro:implement`, so list it first):
-   - "Continue with /geniro:implement — full architect review"
-   - "Hand off to /geniro:follow-up — lighter pipeline for Trivial changes"
-4. **If user picks follow-up:** print `/geniro:follow-up <original-request>` as the exact command to run next and STOP the pipeline. Do NOT create a task directory — the pipeline is aborted before any state is written.
-5. **If user picks implement (or gate did not fire):** proceed to Step 1, which creates the task directory. After Step 1 writes the `Mode:` line, append `Phase 1 Step 0: full pipeline` as an additional line in `state.md`. (If the gate was skipped, use `Phase 1 Step 0: skipped — <reason>` instead, where reason is one of: `milestone`, `plan-path`, `plan-mode`, `resume`.)
-6. **If not clearly Trivial (Small/Medium/unclear):** proceed silently to Step 1 without prompting. The gate is biased toward the heavier path — only fires on clear Trivial signal.
+1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of effort-scaling's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1 with `Lane: full`, no prompt. Do NOT offer Light Mode — Light Mode is unavailable when any hard signal is present.
+2. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per effort-scaling's Trivial definition (score 0 + 1-2 files + single module + unambiguous intent — see `skills/_shared/effort-scaling.md` Step 2). If unclear, proceed silently to Step 1 with `Lane: full` — the gate only fires on a clear Trivial signal.
+3. **If Trivial AND no hard signals:** use `AskUserQuestion` with header "Lane" — pass the two options as separate `label` and `description` fields (do NOT cram the description into the label):
+   - **Label:** "Light Mode (Recommended)" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep knowledge retrieval, lightweight plan + approval, full Stage C review grid (5–6 reviewers + relevance-filter), and ship gates. ~70% cheaper, ~30% faster."
+   - **Label:** "Full pipeline" / **Description:** "Architect + skeptic + every Phase 6 stage. Choose this when you want maximum architectural rigor even on small changes."
+4. **Persist the choice.** After Step 1 writes the `Mode:` line to state.md, append `Lane: <light|full>` and `Phase 1 Step 0: <full pipeline | light mode | full pipeline (forced — hard signal)>`. (If the gate was skipped before reaching the AUQ branch, use `Phase 1 Step 0: skipped — <reason>` instead, where reason is one of: `milestone`, `plan-path`, `plan-mode`, `resume`. Hard-signal forcing is NOT a "skipped" reason — the gate fires and runs Step 1 of the decision procedure; it just bypasses the AUQ branch in Step 3 and proceeds with `Lane: full`. The `Lane:` line is always written — `light` only when the user explicitly picks it, `full` in every other case.)
+5. **If not clearly Trivial (Small/Medium/unclear):** proceed silently to Step 1 with `Lane: full` — do NOT prompt. The gate is biased toward the heavier lane — only fires on clear Trivial signal.
 
 **Anti-rationalization:**
 
 | Reasoning | Why it's wrong |
 |---|---|
-| "Looks Trivial enough, skip even with a hard signal" | Hard signals override size. A 1-file auth change is Medium-complexity minimum. |
+| "Looks Trivial enough, skip even with a hard signal" | Hard signals override size. A 1-file auth change is Medium-complexity minimum — Light Mode is unavailable. |
 | "User said it's simple, trust them" | User-stated simplicity is not a signal — apply the rubric objectively. |
-| "Skip the prompt, just redirect to follow-up" | The gate is a `AskUserQuestion` WAIT. User must confirm — they may want architect review even for a typo. |
-| "Also offer /geniro:debug as an option" | Out of scope for this gate. Debug has its own entry via `/geniro:debug`. |
+| "Skip the prompt, just pick Light Mode silently" | The gate is an `AskUserQuestion` WAIT. User must confirm — they may want architect review even for a typo. Silent routing removes the safety gate. |
+| "Pick Light Mode by default for Trivial" | Default is Full for anything the user did not explicitly opt into. Recommend Light Mode in the AUQ description, but the user's explicit answer decides. |
+| "Also offer /geniro:follow-up as an option" | Out of scope for this gate. /follow-up is its own skill with its own entry. /implement Light Mode stays in /implement. |
+
+---
+
+## Light Mode Semantics
+
+What Light Mode changes within /implement. Read this when `Lane: light` is set in state.md.
+
+**Skipped in Light Mode:**
+- Phase 2 — architect-agent + skeptic-agent. Replaced with: orchestrator writes a Small-tier lightweight plan to `<task-dir>/plan-<slug>.md` directly, using Phase 1's spec.md + knowledge-retrieval output + Reuse Inventory as input. Plan structure: Goal + Approach + Steps per `_shared/effort-scaling.md` Step 3 "Small" tier.
+- Phase 5 — simplify agent. Code quality is covered by Stage C reviewers in Light Mode.
+- Phase 6 Stage B — spec-compliance subagent. Light Mode has no architect-produced spec contract to verify; the lightweight plan's Goal + Steps are validated against the diff in Stage C.
+- Phase 6 Stage D — adversarial-tester-agent. Stage C tests-dimension reviewer still runs (it REPORTS gaps); Stage D's F→P-authoring is the cost-trade in Light Mode.
+
+**NEVER skipped in Light Mode (these run identically to Full):**
+- Phase 1 Step 3 — knowledge-retrieval-agent
+- Phase 1 Step 5 — Convention Discovery + Reuse Inventory
+- Phase 1 Step 7 — gray-area resolution AUQ + git workspace setup
+- Phase 3 — plan approval gate (presents the lightweight plan; user can still pick Adjust / Too large)
+- Phase 4 — backend/frontend parallel waves; Zero Direct Edits applies at every lane
+- Phase 6 Stage A — automated checks (build + lint + test + codegen + runtime startup)
+- **Phase 6 Stage C — full 5–6 parallel reviewer agents + relevance-filter-agent** (the safety contract for Light Mode hinges on writer/reviewer separation; never collapse Stage C in Light Mode)
+- Phase 6 Fix Loop (max 3 rounds, fresh fixers + fresh reviewers)
+- Phase 7 — Pre-Ship Visual Verification, ship decision, learnings, doc updates
+
+**Hard escalation signals make Light Mode unavailable** — Phase 1 Step 0 silently forces `Lane: full` when any of the 9 hard signals from `_shared/effort-scaling.md` Step 1 fire.
+
+**Mid-flight escalation:** If Phase 4 reveals signals that should have forced Full (e.g., the implementation requires a migration that wasn't visible in `$ARGUMENTS`), the Phase 4 fix loop and Stage C reviewers are the safety net — they catch the issue at review time. There is no in-flight `light → full` lane switch; the user re-invokes /implement with the corrected request when re-architecture is needed (matching Phase 7 Step 6 Big tweak path).
+
+**Anti-rationalization:**
+
+| Reasoning | Why it's wrong |
+|---|---|
+| "Phase 6 Stage C is heavy too — collapse to 1 reviewer for Light Mode" | Stage C is the safety contract for Light Mode. Architect-skip is acceptable BECAUSE writer/reviewer separation is preserved at review time. Collapsing Stage C removes the contract — at that point you should be in /follow-up Fast Lane, not /implement Light Mode. |
+| "I'll write the lightweight plan as I implement" | Plan must be written and approved at Phase 3 BEFORE Phase 4 begins. Light Mode reduces plan depth (Small structure), not plan timing. |
+| "Phase 1 Step 5 Reuse Inventory is heavy — skip it in Light Mode" | Reuse Inventory IS the convention-discovery substitute for the architect's pattern-research. Skipping it in Light Mode means agents in Phase 4 reinvent helpers — a worse outcome than Full. |
+| "Skip the gray-area AUQ in Light Mode — Trivial tasks have no gray areas" | Trivial tasks routinely have unstated gray areas (which file location? which existing helper to extend?). Phase 1 Step 7 stays mandatory; Light Mode does not change interaction style. |
 
 ---
 
@@ -104,7 +140,7 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 
 | Gate | Phase / Step | Auto-mode action |
 |---|---|---|
-| Complexity gate | Phase 1, Step 0 | Auto-proceed with full pipeline. Skip `AskUserQuestion`. Append `Phase 1 Step 0 — complexity gate → auto-proceed (full pipeline)` to `state.md` "Auto-mode decisions". Rationale: auto-mode runs are typically CI or non-interactive — fast-path redirect requires a human to run the new command, so auto-mode defaults to the heavier path the user already invoked. |
+| Complexity gate (Lane Selection) | Phase 1, Step 0 | **Always-WAIT.** Fire `AskUserQuestion` with the Lane options (Light Mode / Full pipeline) regardless of auto-mode. Lane choice gates ~5 downstream phases (Phase 2, 5, 6 Stage B, 6 Stage D) and has user-distinguishable trade-offs (depth vs. speed) — same shape as plan approval and ship decision. Do NOT auto-default. If hard escalation signals fire, the gate is bypassed silently to `Lane: full` — that's not an auto-mode override, it's the rubric forcing Full. Empty AUQ answer = upstream Claude Code bug — fall back to plain text and re-ask. |
 | Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question EXCEPT git workspace (see next row); append one-liner per decision to `state.md` "Auto-mode decisions" |
 | Git workspace | Phase 1, Step 7 (standalone) | **Always-WAIT.** Ask via `AskUserQuestion` even in auto-mode — where the change lands (new branch / current / worktree) is a deliberate user decision, not a gray-area default. Do NOT auto-pick Option A or Option B |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |

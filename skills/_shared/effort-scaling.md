@@ -46,7 +46,7 @@ If no hard signals, score these dimensions:
 
 | Size | Planning Depth |
 |------|----------------|
-| **Trivial** | Fast lane: collapse simplify + reviewer phases; orchestrator-direct diff review; state.md tracking only. Used by `/follow-up` Fast Lane. Not a `/implement` tier — `/implement` rounds Trivial up to Small. |
+| **Trivial** | Two flavors: (a) `/follow-up` Fast Lane — collapse simplify + reviewer phases; orchestrator-direct diff review; state.md tracking only. (b) `/implement` Light Mode — skip Phase 2 architect/skeptic + Phase 5 simplify + Phase 6 Stage B/D, but keep the full Stage C reviewer grid; orchestrator writes a Small-tier lightweight plan instead of architect. Choose `/follow-up` Fast Lane for trivial post-implementation tweaks (no review needed); choose `/implement` Light Mode when you want full multi-reviewer review on a small new change. Both ALWAYS ask the user before going light. |
 | **Small** | Lightweight plan: Goal + Approach + Steps (no wave grouping, no test scenarios table). Skip skeptic validation. Full plan print at approval is still mandatory. |
 | **Medium** | Standard plan: full structure from `plan-criteria.md`. Architect + skeptic validation. |
 | **Big** | Full architect + skeptic plan, single pass. If score 9+ or >15 steps → hand off to `/geniro:decompose` for milestone decomposition. |

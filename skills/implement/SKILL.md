@@ -14,13 +14,13 @@ argument-hint: "[description or issue tracker reference]"
 **The ONLY code you write directly:** Phase 4 Step 5 hotspot micro-edits (1-2 line registrations in routing/config/barrel files). Everything else is delegated.
 
 **PHASES:**
-1. Discover (WAIT) — eliminate ambiguity, produce spec
-2. Architect + Validate — architect proposes, skeptic validates
-3. Approval (WAIT) — present plan, user confirms before coding starts
-4. Implement (delegated) — backend/frontend agents execute scope
-5. Simplify (delegated) — simplify agent cleans changed files, revert if CI breaks
-6. Review & Validate (delegated) — spec compliance agent, 5–6 reviewer agents, fix loops
-7. Ship & Finalize (WAIT) — finalize (docs, learnings, improvements), then ship decision + commit
+1. Discover (WAIT) — eliminate ambiguity, produce spec; Phase 1 Step 0 selects Lane (full / light)
+2. Architect + Validate — architect proposes, skeptic validates; **Light Lane: skipped** — orchestrator writes Small-tier lightweight plan instead
+3. Approval (WAIT) — present plan, user confirms before coding starts (runs in both lanes)
+4. Implement (delegated) — backend/frontend agents execute scope (runs in both lanes)
+5. Simplify (delegated) — simplify agent cleans changed files, revert if CI breaks; **Light Lane: skipped**
+6. Review & Validate (delegated) — Stage A automated checks, Stage B spec compliance, Stage C 5–6 reviewers, Stage D adversarial-tester; **Light Lane: skips Stage B and Stage D — keeps Stage A and the full Stage C review grid**
+7. Ship & Finalize (WAIT) — finalize (docs, learnings, improvements), then ship decision + commit (runs in both lanes)
 
 **Reference material** (templates, examples, error tables): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` when you reach each phase. Do NOT load the entire file upfront — read the relevant section at the relevant phase.
 
@@ -56,6 +56,8 @@ Derive `<branch-name>` from git branch. Create at start of Phase 1. All artifact
 ```
 Feature: <F<n> if Geniro feature ID, else "none">
 Spec-file: <FEATURES.md Notes-column path, else "none">
+Mode: <interactive|auto|assumptions> — set by Phase 1 Step 1, controls auto-mode behavior at every WAIT gate
+Lane: <full|light> — set by Phase 1 Step 0, controls Phase 2/5/6 Stage B/D skip predicates (full = all phases run; light = architect+skeptic+simplify+spec-compliance+adversarial skipped, Stage C reviewer grid kept)
 Milestones: <"none" | "[1: pending, 2: pending, ...]" — populated by /geniro:decompose and updated by this skill as milestones complete>
 Phase [N] completed: [phase name]
 Completed phases: [1, 2, ..., N]
@@ -87,7 +89,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Action:** Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 1: Auto-Detection Table" for argument parsing rules.
 
-**Step 0 — Complexity Gate (fast-path check).** Before any discovery work, check whether this request is truly `/geniro:implement`-scope. Skip this gate entirely when: a milestone was detected (Auto-Detection Table rule 0), a plan-file path is present in `$ARGUMENTS` (handled by Phase 2 pre-check rule 4), a plan-mode conversation is active (Phase 2 pre-check rule 2), or `state.md` already contains a `Phase 1 Step 0:` line (resume / second-run already decided). Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate" — if the task is Trivial with no hard escalation signals, ask the user whether to hand off to `/geniro:follow-up`. Default is "proceed with full pipeline" for anything uncertain. (auto-mode: see `implement-reference.md` §Auto Mode Behavior)
+**Step 0 — Complexity Gate (Lane Selection).** Before any discovery work, classify the request and ask the user whether to run Full pipeline or Light Mode (architect+skeptic skipped). Skip this gate entirely when: a milestone was detected (Auto-Detection Table rule 0), a plan-file path is present in `$ARGUMENTS` (handled by Phase 2 pre-check rule 4), a plan-mode conversation is active (Phase 2 pre-check rule 2), or `state.md` already contains a `Phase 1 Step 0:` line (resume / second-run already decided). Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate". If any hard escalation signal from `_shared/effort-scaling.md` Step 1 fires, Light Mode is unavailable — proceed silently to full pipeline. Default for anything uncertain: Full pipeline. Persist `Lane: <full|light>` to `state.md`. (auto-mode: see `implement-reference.md` §Auto Mode Behavior)
 
 **Steps:**
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
@@ -133,9 +135,11 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 3. **Plan files (from /geniro:decompose or a prior /geniro:implement run):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`. If the plan contains a `## Milestones` section (produced by `/geniro:decompose`) AND `$ARGUMENTS` did not name a specific milestone, use the milestone-mode continue-logic from rule 1 instead of the plan as a whole — warn the user: "This plan is decomposed into N milestones. Running `/geniro:implement continue` or `/geniro:implement milestone <N>` is required. Pick one now." then `AskUserQuestion` listing milestones by name with status.
 4. **$ARGUMENTS plan:** If `$ARGUMENTS` contains or references a plan file path (not a milestone file — those are handled in rule 1), read and use it directly.
 
-**If a plan or milestone is found:** Skip architect-agent. Log: "Using existing plan: `<filename>`" or "Using milestone <N>: `<filename>`". Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion` (always-WAIT — see implement-reference.md §Auto Mode Behavior): A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
+**Routing (apply the FIRST matching rule):**
 
-**If no plan or milestone found:** Run the full architect flow below.
+1. **If `state.md` shows `Lane: light`:** Skip Phase 2 architect + skeptic entirely. The orchestrator writes a Small-tier lightweight plan directly to `<task-dir>/plan-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` Step 3 "Small" tier: Goal + Approach + Steps (no wave grouping, no test scenarios table). Use Phase 1's spec.md, knowledge-retrieval output, and Reuse Inventory as the input. Header: `Status: approved | Source: light-lane`. Skip skeptic-agent. Proceed to Phase 3.
+2. **If a plan or milestone is found** (rules 1-4 above matched): Skip architect-agent. Log: "Using existing plan: `<filename>`" or "Using milestone <N>: `<filename>`". Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion` (always-WAIT — see implement-reference.md §Auto Mode Behavior): A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
+3. **If no plan or milestone found AND `Lane: full`:** Run the full architect flow below.
 
 **Architect flow:**
 
@@ -171,10 +175,10 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text):
 
 **Routing:** Approve -> Phase 4. Adjust -> architect revises, re-validate, re-present. Too large -> stop here and tell the user to run `/geniro:decompose <task-dir>/plan-<slug>.md` — the task-dir's spec.md, plan, and concerns.md are preserved so `/geniro:decompose` can pick up where this stopped (skills cannot call skills, the user re-invokes).
 
-**After approval:** Add remaining phases to TodoWrite checklist:
+**After approval:** Add remaining phases to TodoWrite checklist. Under `Lane: light` (read from state.md), omit phases that Light Mode skips — see `implement-reference.md` §Light Mode Semantics for the full skip list:
 - Phase 4: Implement — decompose into WUs, execute waves
-- Phase 5: Simplify — spawn simplify agent on changed files
-- Phase 6: Review & Validate — automated checks, spec compliance, code quality
+- Phase 5: Simplify — spawn simplify agent on changed files (omit under Lane:light)
+- Phase 6: Review & Validate — Stage A automated checks, Stage B spec compliance (omit under Lane:light), Stage C code quality, Stage D adversarial tests (omit under Lane:light)
 - Phase 7: Ship & Finalize — finalize (docs, learnings), then ship decision
 
 **Checkpoint:** Write to `<task-dir>/state.md`: "Phase 3 completed. Plan approved."
@@ -277,6 +281,8 @@ Strictly limited to 1-2 line registrations. If >3 lines or any logic -> delegate
 
 **Purpose:** Code quality pass on changed files — catch AI-generated anti-patterns.
 
+**Lane gate:** If `state.md` shows `Lane: light`, skip Phase 5 entirely. Append to `state.md`: "Phase 5 skipped — Lane: light (Light Mode skips simplify per implement-reference.md §Light Mode Semantics)." Proceed to Phase 6.
+
 **Action:** Spawn simplify agent. Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 5: Simplify Agent Template" for the agent prompt.
 
 ### Step 1: Spawn simplify agent
@@ -312,11 +318,13 @@ Read `${CLAUDE_SKILL_DIR}/implement-reference.md` sections "Phase 6: Stage A", "
 
 ### Stage A — Automated Checks
 
-Run autofix, full check (build + lint + test), codegen check, runtime startup check. If any fails, forward the raw error output to a fixer agent — do NOT read source files, diagnose, or fix it yourself. Max 2 attempts, then continue to Stage B with failures noted.
+Run autofix, full check (build + lint + test), codegen check, runtime startup check. If any fails, forward the raw error output to a fixer agent — do NOT read source files, diagnose, or fix it yourself. Max 2 attempts, then continue to the next stage with failures noted (Stage B in Full pipeline; Stage C in Light Mode since Stage B is skipped).
 
 **Checkpoint:** Update `<task-dir>/state.md`: "Phase 6 Stage A completed."
 
 ### Stage B — Spec Compliance
+
+**Lane gate:** If `state.md` shows `Lane: light`, skip Stage B entirely. Light Mode does not run architect+skeptic and therefore has no full spec.md/plan-spec contract to verify — the lightweight plan from Phase 2 already lists Goal + Approach + Steps; Stage C reviewers verify code-against-plan via the diff. Append to `state.md`: "Phase 6 Stage B skipped — Lane: light." Proceed to Stage C.
 
 **Action:** Spawn spec-compliance subagent using the template from the reference file. Pre-inline spec, plan, changed files.
 
@@ -345,7 +353,7 @@ Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-di
 2. **Route confirmed failing tests into the Fix Loop.** Each F→P-confirmed test becomes a CRITICAL/HIGH item in `<task-dir>/review-feedback.md` with severity from the agent's report. The existing Fix Loop (max 3 rounds) applies — fresh fixer agents make the red tests green. Do NOT skip the flake-recheck on the fixer's output.
 3. **Scope hard cap.** The agent authors at most 10 tests per run. If the agent reported hitting the cap with more hypotheses pending, append the overflow to the Phase 7 Step 4 summary under "Deferred ideas" rather than expanding this run.
 
-**Skip Stage D entirely when:** diff contains zero production-code files (docs/config/lockfile-only); OR `Mode: auto` AND diff ≤3 files AND Stage C had zero CRITICAL/HIGH tests-dimension findings (note the skip in state.md "Auto-mode decisions"). Anti-rationalization: "Stage C already covers tests" — NO: Stage C REPORTS gaps; Stage D AUTHORS failing tests (different lifecycle). Never trust the agent's F→P self-report — re-run the tests yourself.
+**Skip Stage D entirely when:** `state.md` shows `Lane: light` (Light Mode skips Stage D — append "Phase 6 Stage D skipped — Lane: light" to state.md); OR diff contains zero production-code files (docs/config/lockfile-only); OR `Mode: auto` AND diff ≤3 files AND Stage C had zero CRITICAL/HIGH tests-dimension findings (note the skip in state.md "Auto-mode decisions"). Anti-rationalization: "Stage C already covers tests" — NO: Stage C REPORTS gaps; Stage D AUTHORS failing tests (different lifecycle). Never trust the agent's F→P self-report — re-run the tests yourself.
 
 **Checkpoint:** Update `<task-dir>/state.md`: if Stage D ran, write "Phase 6 completed. All stages passed."; if skipped, write "Phase 6 Stage D skipped — <reason>" then "Phase 6 completed."
 
@@ -354,9 +362,9 @@ Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-di
 ## PHASE 7: SHIP & FINALIZE (WAIT)
 
 **Precondition — do NOT enter Phase 7 until ALL of these are true:**
-- Phase 5 completed — check `state.md` for "Phase 5 completed"
+- Phase 5 completed or skipped with logged reason — check `state.md` for "Phase 5 completed" OR "Phase 5 skipped"
 - Phase 6 Stage A completed — check `state.md`
-- Phase 6 Stage B completed — check `state.md`
+- Phase 6 Stage B completed or skipped with logged reason — check `state.md` for "Stage B completed" OR "Stage B skipped"
 - Phase 6 Stage C completed — check `state.md`
 - Phase 6 Stage D completed or skipped with logged reason — check `state.md`
 

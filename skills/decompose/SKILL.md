@@ -62,7 +62,7 @@ Parse `$ARGUMENTS` to detect intent:
 
 ## When NOT to use this skill
 
-- Task classifies Small or Medium on the effort-scaling rubric (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`). Use `/geniro:implement` directly — its Phase 2 includes architect+skeptic for Medium tasks (and `/geniro:follow-up` for trivial).
+- Task classifies Trivial, Small, or Medium on the effort-scaling rubric (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`). Use `/geniro:implement` directly — its Phase 2 includes architect+skeptic for Small/Medium, and Phase 1 Step 0 offers Light Mode (architect-skip + full Stage C review) for Trivial. Use `/geniro:follow-up` for trivial post-implementation tweaks where review can be skipped.
 - An approved non-staged plan already exists and re-staging would waste work. Run `/geniro:implement` on the existing plan instead.
 - The change is a bug fix. Use `/geniro:debug` for root cause and `/geniro:follow-up` for the patch.
 - Fewer than 3 meaningful shippable slices exist. Decomposition below 3 milestones is a false signal — fall back to `/geniro:implement` (its built-in architect Phase produces a single plan).
