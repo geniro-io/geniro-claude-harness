@@ -599,9 +599,9 @@ Do NOT auto-invoke the next skill — surface the suggestion only. The user runs
 - **Question:** "How should the N failing tests authored by Phase 4c be handled? They are AI-authored — review before merging."
 - **Header:** "Failing tests"
 - **Options:**
-  - "Leave uncommitted (Recommended)" — tests stay on disk for the user to review and stage manually; safe default for review-stage artifacts
-  - "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), creates a commit `test(review-gate): add N failing tests confirming review findings (AI-authored — review before merging)` via HEREDOC
+  - "Commit failing tests on current branch (Recommended)" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. Keeps the failing tests on the same branch where review ran so the chosen remediation skill picks them up immediately.
   - "Commit + push to current branch's upstream" — same as commit-only, then `git push`. If the branch has no upstream, surface the exact `git push -u origin <branch>` command and ask the user to confirm before running it.
+  - "Leave uncommitted" — tests stay on disk for the user to review and stage manually.
 
 Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
 
