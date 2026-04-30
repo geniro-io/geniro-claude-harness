@@ -81,7 +81,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` for the canonical 
 1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of effort-scaling's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1 with `Lane: full`, no prompt. Do NOT offer Light Mode — Light Mode is unavailable when any hard signal is present.
 2. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per effort-scaling's Trivial definition (score 0 + 1-2 files + single module + unambiguous intent — see `skills/_shared/effort-scaling.md` Step 2). If unclear, proceed silently to Step 1 with `Lane: full` — the gate only fires on a clear Trivial signal.
 3. **If Trivial AND no hard signals:** use `AskUserQuestion` with header "Lane" — pass the two options as separate `label` and `description` fields (do NOT cram the description into the label):
-   - **Label:** "Light Mode (Recommended)" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep knowledge retrieval, lightweight plan + approval, full Stage C review grid (5–6 reviewers + relevance-filter), and ship gates. ~70% cheaper, ~30% faster."
+   - **Label:** "Light Mode (Recommended)" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep knowledge retrieval, lightweight plan + approval, full Stage C review grid (6–7 reviewers + relevance-filter), and ship gates. ~70% cheaper, ~30% faster."
    - **Label:** "Full pipeline" / **Description:** "Architect + skeptic + every Phase 6 stage. Choose this when you want maximum architectural rigor even on small changes."
 4. **Persist the choice.** After Step 1 writes the `Mode:` line to state.md, append `Lane: <light|full>` and `Phase 1 Step 0: <full pipeline | light mode | full pipeline (forced — hard signal)>`. (If the gate was skipped before reaching the AUQ branch, use `Phase 1 Step 0: skipped — <reason>` instead, where reason is one of: `milestone`, `plan-path`, `plan-mode`, `resume`. Hard-signal forcing is NOT a "skipped" reason — the gate fires and runs Step 1 of the decision procedure; it just bypasses the AUQ branch in Step 3 and proceeds with `Lane: full`. The `Lane:` line is always written — `light` only when the user explicitly picks it, `full` in every other case.)
 5. **If not clearly Trivial (Small/Medium/unclear):** proceed silently to Step 1 with `Lane: full` — do NOT prompt. The gate is biased toward the heavier lane — only fires on clear Trivial signal.
@@ -115,7 +115,7 @@ What Light Mode changes within /implement. Read this when `Lane: light` is set i
 - Phase 3 — plan approval gate (presents the lightweight plan; user can still pick Adjust / Too large)
 - Phase 4 — backend/frontend parallel waves; Zero Direct Edits applies at every lane
 - Phase 6 Stage A — automated checks (build + lint + test + codegen + runtime startup)
-- **Phase 6 Stage C — full 5–6 parallel reviewer agents + relevance-filter-agent** (the safety contract for Light Mode hinges on writer/reviewer separation; never collapse Stage C in Light Mode)
+- **Phase 6 Stage C — full 6–7 parallel reviewer agents + relevance-filter-agent** (the safety contract for Light Mode hinges on writer/reviewer separation; never collapse Stage C in Light Mode)
 - Phase 6 Fix Loop (max 3 rounds, fresh fixers + fresh reviewers)
 - Phase 7 — Pre-Ship Visual Verification, ship decision, learnings, doc updates
 
@@ -389,9 +389,10 @@ Only reached after Stage B passes.
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` — design patterns, modularity, coupling
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` — coverage gaps, missing edge cases, test quality
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` — style, naming, documentation, compliance
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` — codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal)
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — only when changed files include UI per the UI-file detection rule in `skills/review/SKILL.md`)
 
-3. **Spawn 5 or 6 parallel reviewer agents** (5 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — each with `subagent_type: "reviewer-agent"`:
+3. **Spawn 6 or 7 parallel reviewer agents** (6 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — each with `subagent_type: "reviewer-agent"`:
 
    | Agent | Model | Criteria File | Focus |
    |-------|-------|--------------|-------|
@@ -400,9 +401,10 @@ Only reached after Stage B passes.
    | 3 | `sonnet` | architecture-criteria.md | Patterns, modularity, coupling |
    | 4 | `sonnet` | tests-criteria.md | Coverage gaps, edge cases, test quality |
    | 5 | `haiku` | guidelines-criteria.md | Style, naming, documentation |
-   | 6 | `haiku` | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
+   | 6 | `sonnet` | conventions-criteria.md | Codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal) |
+   | 7 | `haiku` | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
 
-   Row 6 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). The Model column is authoritative — pass it as `model="..."` at each spawn; the `reviewer-agent` frontmatter default is `sonnet` and the spawn-time value overrides it.
+   Row 7 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). The Model column is authoritative — pass it as `model="..."` at each spawn; the `reviewer-agent` frontmatter default is `sonnet` and the spawn-time value overrides it.
 
    Each reviewer gets:
    - Its criteria file content (pre-inlined — one dimension per agent, no cross-reviewing)
@@ -464,7 +466,7 @@ After Stage C produces findings:
    Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
    WORKTREE: [from `git rev-parse --show-toplevel`]
    BRANCH: [from `git branch --show-current`]
-   DIMENSION: [bugs|security|architecture|tests|guidelines|design]
+   DIMENSION: [bugs|security|architecture|tests|guidelines|conventions|design]
    CRITERIA (pre-inlined): [content of <dimension>-criteria.md]
    CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content AFTER the fix round — NOT the pre-fix version]
    DIFF CONTEXT: [paste `git diff <base>...HEAD` output reflecting the post-fix state where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master)]

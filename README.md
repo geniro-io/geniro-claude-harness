@@ -77,9 +77,10 @@ Want to go deeper on quality?
 
 ```
   /geniro:deep-simplify   →   /geniro:review
-  (reuse/quality/efficiency   (5–6 parallel reviewers:
+  (reuse/quality/efficiency   (6–7 parallel reviewers:
    — zero behavior change)     bugs, security, architecture,
-                               tests, guidelines, +design)
+                               tests, guidelines,
+                               conventions, +design)
 ```
 
 Each skill reads from and writes to `.geniro/` so context survives across compaction, branches, and sessions:
@@ -113,7 +114,7 @@ Eight-phase pipeline: discover scope, architect a solution, get your approval, i
 
 ### `/geniro:review` — Parallel multi-agent code review
 
-Spawns 5–6 specialized reviewers (bugs, security, architecture, tests, guidelines, +design when UI files are present) in parallel with confidence-scored findings.
+Spawns 6–7 specialized reviewers (bugs, security, architecture, tests, guidelines, conventions, +design when UI files are present) in parallel with confidence-scored findings.
 
 ```
 /geniro:review                               # review uncommitted changes
@@ -262,7 +263,7 @@ Updates to the latest version. The status line shows an arrow when updates are a
 4. **Implement** — Backend and frontend agents build in parallel
 5. **Validate** — Automated checks (lint, build, test, startup)
 6. **Simplify** — 3 parallel agents review for reuse, quality, efficiency
-7. **Review** — Code quality review across 5–6 dimensions with fix cycles
+7. **Review** — Code quality review across 6–7 dimensions with fix cycles
 8. **Ship** — Present results; you decide to commit/push/PR
 
 ## Safety Hooks
@@ -299,7 +300,7 @@ geniro-claude-plugin/
 ├── skills/                      # 15 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── implement/               # 8-phase feature pipeline
-│   ├── review/                  # 5–6 dimension code review
+│   ├── review/                  # 6–7 dimension code review
 │   ├── vendor/                  # Vendor into .claude/ for cloud runners
 │   └── ...
 ├── hooks/                       # 7 safety hooks + statusline + update check

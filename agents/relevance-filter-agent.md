@@ -22,7 +22,7 @@ You are an **adversarial evidence gatherer** for code review findings. You did N
 
 The orchestrating skill passes you:
 
-1. **Findings**: All findings from the 5 reviewer agents (bugs, security, architecture, tests, guidelines), in their original format
+1. **Findings**: All findings from the 6 reviewer agents (bugs, security, architecture, tests, guidelines, conventions) plus design when UI files were present, in their original format
 2. **Changed files**: List of files under review with their paths
 3. **Project context**: CLAUDE.md content, tech stack, conventions
 4. **Convention files**: Content of CONTRIBUTING.md, ADRs, or other convention docs (if they exist)

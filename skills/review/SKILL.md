@@ -1,6 +1,6 @@
 ---
 name: geniro:review
-description: "Use when you want a comprehensive code review of pending changes. Spawns 5–6 parallel reviewers (bugs, security, architecture, tests, guidelines, +design when UI files present) with confidence-scored findings automatically filtered."
+description: "Use when you want a comprehensive code review of pending changes. Spawns 6–7 parallel reviewers (bugs, security, architecture, tests, guidelines, conventions, +design when UI files present) with confidence-scored findings automatically filtered."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch]
@@ -9,7 +9,7 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)]"
 
 # Code Review Skill
 
-Comprehensive code review using parallel multi-agent analysis. 5–6 specialized reviewers examine code changes simultaneously (design reviewer added when UI files are present), then a relevance filter validates findings against repo conventions and complexity level, and a judge pass confidence-scores and aggregates the results.
+Comprehensive code review using parallel multi-agent analysis. 6–7 specialized reviewers examine code changes simultaneously (design reviewer added when UI files are present), then a relevance filter validates findings against repo conventions and complexity level, and a judge pass confidence-scores and aggregates the results.
 
 ## Your Role — Orchestrate, Don't Review
 
@@ -23,7 +23,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 
 | Spawn | Tier | Why |
 |---|---|---|
-| `reviewer-agent` (bugs, security, architecture, tests) | `sonnet` | Reasoning-heavy review |
+| `reviewer-agent` (bugs, security, architecture, tests, conventions) | `sonnet` | Reasoning-heavy review |
 | `reviewer-agent` (guidelines, design) | `haiku` | Rubric-based — pattern matching against checklist |
 | `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning to weigh repo-convention evidence against reviewer findings |
 | `adversarial-tester-agent` (Phase 4c only) | `sonnet` | Code-reasoning test authoring; matches agent's frontmatter pin |
@@ -51,7 +51,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 
 **Determine review mode based on diff size:**
 
-**Small diff (≤8 substantive files, ≤400 LOC):** Standard mode — 5 reviewers (+1 design when UI files present, see detection rule below), each sees ALL files.
+**Small diff (≤8 substantive files, ≤400 LOC):** Standard mode — 6 reviewers (+1 design when UI files present, see detection rule below), each sees ALL files.
 
 **Large diff (>8 substantive files or >400 LOC):** Batched mode — split files into batches, spawn reviewers per batch.
 
@@ -63,13 +63,14 @@ Before spawning any reviewers, read these criteria files — their content is pr
 - `${CLAUDE_SKILL_DIR}/architecture-criteria.md`
 - `${CLAUDE_SKILL_DIR}/tests-criteria.md`
 - `${CLAUDE_SKILL_DIR}/guidelines-criteria.md`
+- `${CLAUDE_SKILL_DIR}/conventions-criteria.md`
 - `${CLAUDE_SKILL_DIR}/design-criteria.md` (conditional — only loaded when the UI-file detection rule below matches at least one changed file)
 
 Also read `CLAUDE.md` at the project root for tech stack context — use this to interpret criteria in the context of the project's language and framework.
 
 #### Standard Mode (small diff)
 
-Spawn all five reviewer agents in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. **Spawn the design reviewer (6th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.** Every reviewer prompt carries a `PLAN CONTEXT:` field (Phase 1 collected; renders as `none` when empty) and this exact alignment-tag instruction appended at the end of the prompt body: `Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.`
+Spawn all six reviewer agents in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. **Spawn the design reviewer (7th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.** Every reviewer prompt carries a `PLAN CONTEXT:` field (Phase 1 collected; renders as `none` when empty) and this exact alignment-tag instruction appended at the end of the prompt body: `Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.`
 
 ```
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -137,6 +138,19 @@ Review ONLY for style, naming, and guideline compliance. Do not cross into other
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+DIMENSION: conventions
+CRITERIA: [content of conventions-criteria.md]
+CHANGED FILES: [list of files with their full content]
+PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+DIFF CONTEXT: [git diff summary]
+PLAN CONTEXT: [content from Phase 1, or "none"]
+Review ONLY for codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal). Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""")
+
 # Conditional — spawn ONLY if at least one changed file matches the UI-file detection rule below.
 Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
 DIMENSION: design
@@ -162,9 +176,10 @@ Used by the conditional design reviewer. A file is considered a UI file if its p
 3. **Architecture Reviewer** — Design patterns, modularity, coupling, tech debt
 4. **Tests Reviewer** — Coverage gaps, missing edge cases, test quality
 5. **Guidelines Reviewer** — Style, naming, documentation, compliance
-6. **Design Reviewer (conditional)** — Visual/UX quality: token conformance, spacing/type scale, state completeness, WCAG AA contrast, responsive coverage, exemplar drift. Fires only when the diff contains UI files (see detection rule above).
+6. **Conventions Reviewer** (always fires) — Codebase-pattern conformance: statistical inference of repo-modal patterns (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency). Flags deviations only when ≥80% of N≥3 siblings agree on a pattern; skips ambiguous splits to avoid bikeshedding. Self-suppresses (emits zero findings) when fewer than 3 sibling files exist for inference.
+7. **Design Reviewer (conditional)** — Visual/UX quality: token conformance, spacing/type scale, state completeness, WCAG AA contrast, responsive coverage, exemplar drift. Fires only when the diff contains UI files (see detection rule above).
 
-**Model routing:** Guidelines and design use `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, and tests use `sonnet` (accuracy-critical). In batched mode, apply the same model per dimension.
+**Model routing:** Guidelines and design use `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, and conventions use `sonnet` (accuracy-critical — conventions performs statistical pattern inference). In batched mode, apply the same model per dimension.
 
 #### Batched Mode (large diff)
 
@@ -179,26 +194,26 @@ Used by the conditional design reviewer. A file is considered a UI file if its p
 - Example: 15 files → Batch A (auth: controller + middleware + test), Batch B (API: routes + validators + serializers), Batch C (infra: config + migrations + seeds)
 
 **Step 2: Determine which dimensions apply per batch.**
-Not every batch needs all 5–6 dimensions. Skip irrelevant ones to save tokens. Use the UI-file detection rule above to decide whether a batch gets the design dimension:
-- Test-only batch → skip security, architecture, design. Run: bugs, tests, guidelines
-- Config/infra batch → skip tests, design. Run: security, architecture, guidelines
-- UI component batch → skip security (unless auth-related). Run: bugs, architecture, tests, guidelines, design
-- API/auth batch → all 5 dimensions (design only if it also contains UI files — rare)
+Not every batch needs all 6–7 dimensions. Skip irrelevant ones to save tokens. Use the UI-file detection rule above to decide whether a batch gets the design dimension:
+- Test-only batch → skip security, architecture, design. Run: bugs, tests, guidelines, conventions
+- Config/infra batch → skip tests, design. Run: security, architecture, guidelines, conventions
+- UI component batch → skip security (unless auth-related). Run: bugs, architecture, tests, guidelines, conventions, design
+- API/auth batch → all 6 dimensions (design only if it also contains UI files — rare)
 
 **Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
 
-Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests and `model="haiku"` for guidelines/design. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, and the same alignment-tag instruction as standard mode.
+Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/conventions and `model="haiku"` for guidelines/design. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, and the same alignment-tag instruction as standard mode.
 
 ```
 Example for 15 files, 3 batches:
-  Batch A (auth module, 5 files):   bugs-A, security-A, architecture-A, tests-A, guidelines-A       → 5 agents
-  Batch B (UI components, 5 files): bugs-B, architecture-B, tests-B, guidelines-B, design-B         → 5 agents (no security; +design)
-  Batch C (test utilities, 5 files): bugs-C, tests-C, guidelines-C                                  → 3 agents (no security/arch/design)
-  Total: 13 agents (vs 5 in standard mode, but each has 1/3 the files = much higher accuracy)
+  Batch A (auth module, 5 files):   bugs-A, security-A, architecture-A, tests-A, guidelines-A, conventions-A       → 6 agents
+  Batch B (UI components, 5 files): bugs-B, architecture-B, tests-B, guidelines-B, conventions-B, design-B         → 6 agents (no security; +design)
+  Batch C (test utilities, 5 files): bugs-C, tests-C, guidelines-C, conventions-C                                   → 4 agents (no security/arch/design)
+  Total: 16 agents (vs 6 in standard mode, but each has 1/3 the files = much higher accuracy)
 ```
 
 **Constraints:**
-- Max **18 parallel agents** (5 batches × up to 6 dimensions when UI files present)
+- Max **35 parallel agents** (5 batches × up to 7 dimensions when UI files present)
 - Each agent gets: criteria file + its batch's file contents only + brief summary of other batches for cross-reference context
 - All agents spawned in ONE message for parallel execution
 
@@ -226,7 +241,7 @@ Spawn the relevance-filter-agent for evidence gathering:
 
 ```
 Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
-FINDINGS: [all findings from all reviewers (5 or 6), in their original format]
+FINDINGS: [all findings from all reviewers (6 or 7), in their original format]
 CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -440,6 +455,7 @@ If the adversarial-tester-agent fails to complete, returns malformed output, its
 - Architecture analysis: 85%
 - Tests analysis: 90%
 - Guidelines analysis: 94%
+- Conventions analysis: 87%
 - Design analysis: XX% (when UI files present)
 - Judge validation: 89%
 ```
@@ -466,7 +482,7 @@ These rules expand the Phase 4 judge scoring. Baseline is always the reviewer's 
 
 ## Parallel Execution Strategy
 
-All 5–6 reviewers (+1 design when UI files present) are spawned as independent `reviewer-agent` instances via the Agent tool:
+All 6–7 reviewers (+1 design when UI files present) are spawned as independent `reviewer-agent` instances via the Agent tool:
 - Each agent receives ONE criteria file, the changed files, and the diff context
 - All reviewers (or more in batched mode) are spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn
 - Each reviewer is a leaf agent — it cannot spawn sub-agents (by design)
@@ -610,7 +626,7 @@ Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook f
 Code review is complete when:
 - [ ] Phase 1 context collected (files read, changes understood, PLAN CONTEXT resolved from PR body / `--plan` / project files / none)
 - [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT + alignment-tag instruction
-- [ ] All applicable reviewer dimensions completed (5 in standard mode, +1 design when UI files present; up to 18 parallel agents across batches in batched mode)
+- [ ] All applicable reviewer dimensions completed (6 in standard mode, +1 design when UI files present; up to 35 parallel agents across batches in batched mode)
 - [ ] Phase 3 relevance filter applied (findings checked against repo conventions, complexity, and PLAN CONTEXT)
 - [ ] Phase 4 judge validation complete (findings verified) — Step −1 truncation check ran (truncated dimensions in `## Caveats`); Step 0 intent reconciliation ran (plan-authorized divergences demoted to `[INTENT-CHECK]`)
 - [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
@@ -635,7 +651,7 @@ Code review is complete when:
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I can skip context gathering" | Without understanding what changed and why, you'll produce false positives and miss real issues. |
-| "I'll review all aspects myself instead of spawning the reviewer agents" | Serial review misses perspective. All 5–6 specialized reviewers MUST execute in parallel. |
+| "I'll review all aspects myself instead of spawning the reviewer agents" | Serial review misses perspective. All 6–7 specialized reviewers MUST execute in parallel. |
 | "The reviewers found good stuff, skip relevance filtering" | Reviewers apply general best practices — without checking against THIS repo's patterns, you'll report over-engineering suggestions and convention-contradicting findings that waste engineer time. |
 | "The reviewers found good stuff, skip judge validation" | Unfiltered findings create report fatigue. Only >=80 confidence findings provide signal. |
 | "I can tell this is a real issue without reading the source" | Always validate findings in context — check the actual file and lines before reporting. |

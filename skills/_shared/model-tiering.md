@@ -11,7 +11,7 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 | Task nature | Model |
 |---|---|
 | Mechanical edit, template-based doc patching, rubric-based review (guidelines, design), CLI orchestration, structured PASS/FAIL classification, dedup checks, observation extraction | `haiku` |
-| Code reasoning, implementation, bugs/security/architecture/tests review, spec compliance, simplify pass, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
+| Code reasoning, implementation, bugs/security/architecture/tests/conventions review, spec compliance, simplify pass, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
 | Architecture design, multi-file planning, deep hypothesis-driven debugging, threat modeling, novel-domain greenfield work | `opus` |
 
 ## Escalation signals (pick `opus` from the start)
@@ -39,7 +39,7 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 
 - **Architect work always uses `opus`.** Architectural decisions, new-feature planning, multi-file design, threat modeling. Encoded in `agents/architect-agent.md` frontmatter AND must be set explicitly (`model="opus"`) at every spawn site so the choice survives any future change to the agent default.
 - **Read-only / classifier agents stay on `haiku`** regardless of caller: `knowledge-retrieval-agent`.
-- **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests) or `haiku` for rubric dimensions (guidelines, design).
+- **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests, conventions) or `haiku` for rubric dimensions (guidelines, design).
 - **Synthesis-of-review-findings agents** (e.g., `relevance-filter-agent`) use `model="inherit"` per the carve-out above so the synthesis tier mirrors the orchestrator's KEEP/FILTER tier — they are NOT reviewer agents and the "never use `opus`" rule does not apply.
 
 ## How skills reference this

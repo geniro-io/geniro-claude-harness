@@ -74,15 +74,16 @@ DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per s
 CHANGE SUMMARY: [summary]
 
 ## Review Criteria
-Read and apply the criteria files (5, +design when UI files changed) from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
+Read and apply the criteria files (6, +design when UI files changed) from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` (self-suppresses when fewer than 3 sibling files exist for modal inference — emits zero findings rather than spawning a useless reviewer)
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — when changed files include UI; see UI-file detection rule in skills/review/SKILL.md)
 
-Review across all listed criteria files (5, or 6 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH.
+Review across all listed criteria files (6, or 7 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Skip MEDIUM — only report CRITICAL and HIGH.
 
 Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / APPROVED / APPROVED WITH MINOR) — the orchestrating skill synthesizes findings across all reviewers and decides.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -126,7 +127,8 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 ```
 
 Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Reads `architecture-criteria.md`, `tests-criteria.md`, `guidelines-criteria.md` under `${CLAUDE_PLUGIN_ROOT}/skills/review/`.
-Add a 4th reviewer with `model='haiku'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
+Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`). Below the N≥3 threshold the modal-inference is unreliable and the criteria file suppresses findings internally — skipping the spawn saves the call.
+Add an additional reviewer with `model='haiku'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
 
 ---
 

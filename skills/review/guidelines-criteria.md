@@ -178,6 +178,8 @@ grep -n "Object\|Function" file.ts
 
 ### 8. Consistency with Codebase (Convention Guard)
 
+> **Boundary with conventions-criteria.md:** §8 below covers single-exemplar rubric comparison (find ONE closest existing file, diff the patterns). Statistical N-file modal inference (sample 5-10 siblings, compute the dominant pattern, flag divergences when modal frequency ≥ 80%) is owned by the **conventions** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`. If a finding fits both rubrics, prefer conventions — its sample-paths + modal-frequency evidence is more actionable.
+
 This is the most important guideline dimension — AI-generated code's #1 failure mode is introducing new patterns that differ from the repo's existing conventions ("convention drift").
 
 - Different patterns than rest of codebase
@@ -233,6 +235,7 @@ find . -path "*/adr/*.md" -o -path "*/decisions/*.md" 2>/dev/null | head -10
 - New utility function duplicates an existing one under a different name
 - Code uses a library/package not in package.json when an existing dep does the same thing
 - Test file structure doesn't match existing test files (describe/it vs test(), file naming)
+- Pattern requires N-file statistical inference (5 of 7 siblings use approach A, this PR uses C) — defer to the conventions reviewer; do NOT emit such findings from guidelines.
 
 **Red flags:**
 - New code using different naming style
