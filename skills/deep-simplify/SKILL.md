@@ -25,16 +25,16 @@ If any delegated agent fails (timeout, error, empty/garbage result): retry once 
 
 Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
 
-**Skill-specific mapping** — all three review dimensions are reasoning-heavy (require code understanding to spot duplication, dead code, perf smells), so all stay on `sonnet`:
+**Skill-specific mapping** — the three review dimensions are reasoning-heavy (require code understanding to spot duplication, dead code, perf smells), so they stay on `sonnet`; the relevance-filter inherits the orchestrator's tier so its convention-weighing reasoning matches the orchestrator's KEEP/FILTER judgment:
 
 | Spawn | Tier | Rationale |
 |---|---|---|
 | Reuse reviewer | `sonnet` | Detecting duplication needs cross-file reasoning |
 | Quality reviewer | `sonnet` | Identifying dead code / smells needs intent reasoning |
 | Efficiency reviewer | `sonnet` | Spotting perf issues needs algorithmic reasoning |
-| `relevance-filter-agent` | `sonnet` | Adversarial validation against repo conventions |
+| `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning to weigh repo-convention evidence against simplification findings |
 
-No spawns escalate to `opus` — these reviewers are bounded scope. If a finding requires architectural rework, the user invokes `/geniro:refactor` or `/geniro:implement`.
+No reviewer dimension escalates to `opus` — these reviewers are bounded scope. If a finding requires architectural rework, the user invokes `/geniro:refactor` or `/geniro:implement`.
 
 ---
 
@@ -217,7 +217,7 @@ Collect findings from all 3 agents. Merge into a single list:
 5. **Relevance evidence gathering + orchestrator decision** — spawn `relevance-filter-agent` to gather convention/over-engineering/pattern evidence per finding, then **you (the orchestrator) decide KEEP vs FILTER yourself** using the dossier. This is orchestrator work — do NOT delegate the tagging decision.
 
    ```
-   Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
+   Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
    FINDINGS: [aggregated P1/P2 findings in JSON format]
    CHANGED FILES: [list of changed file paths — the agent reads files itself]
    WORKTREE: [from `git rev-parse --show-toplevel`]

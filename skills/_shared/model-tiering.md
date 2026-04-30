@@ -4,7 +4,7 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 
 ## The rule
 
-**Every `Agent(...)` spawn MUST specify `model=` explicitly.** Never rely on the agent's frontmatter default or the orchestrator's `inherit` — both let the caller's expensive model leak into mechanical subagents (see Claude Code issue #26179, #29768).
+**Every `Agent(...)` spawn MUST specify `model=` explicitly.** Pick a hardcoded tier (`haiku` / `sonnet` / `opus`) for mechanical or bounded-scope subagents — relying on the agent's frontmatter default or `inherit` lets the caller's expensive model leak into work that doesn't need it (see Claude Code issue #26179, #29768). **Carve-out for reasoning-grade synthesis subagents that mirror orchestrator judgment** (e.g., `relevance-filter-agent` weighing repo-convention evidence to inform the orchestrator's KEEP/FILTER decision): `model="inherit"` is allowed so the synthesis tier matches the orchestrator's tier — the bug-leak concern doesn't apply when the inherited tier is the intended one. The carve-out is narrow: it covers synthesis-of-review-findings work only, not reviewer agents themselves and not mechanical leaf agents.
 
 ## Tier table
 
@@ -39,7 +39,8 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 
 - **Architect work always uses `opus`.** Architectural decisions, new-feature planning, multi-file design, threat modeling. Encoded in `agents/architect-agent.md` frontmatter AND must be set explicitly (`model="opus"`) at every spawn site so the choice survives any future change to the agent default.
 - **Read-only / classifier agents stay on `haiku`** regardless of caller: `knowledge-retrieval-agent`.
-- **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests) or `haiku` for rubric dimensions (guidelines, design). Synthesis of review findings may use the orchestrator's model.
+- **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests) or `haiku` for rubric dimensions (guidelines, design).
+- **Synthesis-of-review-findings agents** (e.g., `relevance-filter-agent`) use `model="inherit"` per the carve-out above so the synthesis tier mirrors the orchestrator's KEEP/FILTER tier — they are NOT reviewer agents and the "never use `opus`" rule does not apply.
 
 ## How skills reference this
 

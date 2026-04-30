@@ -418,7 +418,7 @@ Only reached after Stage B passes.
 5. **Relevance evidence + orchestrator tagging:** Spawn a `relevance-filter-agent` to gather evidence per CRITICAL/HIGH finding, then **you (the orchestrator) decide KEEP vs FILTER yourself** from the dossier — do NOT delegate the tagging decision:
 
    ```
-   Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
+   Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
    WORKTREE: [from `git rev-parse --show-toplevel`]
    BRANCH: [from `git branch --show-current`]
    FINDINGS: [aggregated CRITICAL/HIGH findings from all reviewers]

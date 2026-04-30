@@ -25,7 +25,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 |---|---|---|
 | `reviewer-agent` (bugs, security, architecture, tests) | `sonnet` | Reasoning-heavy review |
 | `reviewer-agent` (guidelines, design) | `haiku` | Rubric-based — pattern matching against checklist |
-| `relevance-filter-agent` | `sonnet` | Adversarial validation against repo conventions |
+| `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning to weigh repo-convention evidence against reviewer findings |
 | `adversarial-tester-agent` (Phase 4c only) | `sonnet` | Code-reasoning test authoring; matches agent's frontmatter pin |
 | Per-finding validation sub-agents (CRITICAL/HIGH) | `sonnet` | Reasoning about whether finding is real |
 
@@ -225,7 +225,7 @@ After reviewers complete, spawn a **relevance-filter-agent** to gather conventio
 Spawn the relevance-filter-agent for evidence gathering:
 
 ```
-Agent(subagent_type="relevance-filter-agent", model="sonnet", prompt="""
+Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
 FINDINGS: [all findings from all reviewers (5 or 6), in their original format]
 CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]

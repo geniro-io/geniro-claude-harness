@@ -2,7 +2,7 @@
 name: relevance-filter-agent
 description: "Adversarial relevance evidence gatherer for code review findings. Checks each finding against actual repo conventions, patterns, and complexity level, and returns a structured evidence dossier. The orchestrating skill (not this agent) decides KEEP vs FILTER."
 tools: [Read, Glob, Grep, Bash]
-model: sonnet
+model: inherit
 maxTurns: 40
 ---
 
