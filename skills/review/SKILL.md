@@ -34,7 +34,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 ### Phase 1: Collect Context & Triage
 - **Scope:** follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for target resolution (working tree → branch-vs-base diff → no-op). The base branch is whatever scope-anchor resolves it to (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files") — do NOT preface it with harness "Auto Mode" framing. NEVER invoke `gh pr list` or any other PR-discovery command to invent a target — PR mode triggers ONLY on the explicit PR-ref forms enumerated below.
 - **Harness Auto Mode handling:** `/geniro:review` has NO auto mode of its own. Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" — do NOT promote the harness "Auto Mode Active" reminder into transcript framing (e.g., never announce "Auto mode → proceeding without prompting"). Scope resolution and Phase 4c's user-approval gate are governed by their own rules regardless of harness Auto Mode state.
-- Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName,body,title` for base/head context plus PR body+title (the PR body feeds PLAN CONTEXT below). Then feed the result into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
+- Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url` for base/head context, head SHA pin, PR URL, plus PR body+title (the PR body feeds PLAN CONTEXT below). Capture the original PR ref (the `#N` / digits / URL form the user passed), the `headRefOid` value, and the canonical `url` — all three are persisted to the Phase 5 state file so Phase 6's PR-comment gate can fire without re-detection (the `headRefOid` is what Phase 6 pins as `commit_id` on the GitHub reviews API call to prevent line-anchor drift if the PR is updated mid-review). Then feed the diff into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
 - Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/review.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 - **Collect PLAN CONTEXT** (optional) from these sources in priority order: (a) PR body+title from `gh pr view`; (b) `--plan <path>` flag in `$ARGUMENTS`; (c) auto-discovered `docs/spec.md`/`docs/plan.md`/`PLAN.md`/`SPEC.md`. Concat non-empty sources, cap ~3000 chars. See `${CLAUDE_SKILL_DIR}/plan-context-reference.md` for schema, decision-marker convention, and example. If nothing resolves, PLAN CONTEXT renders as `none` in every prompt below.
 - Read changed files and understand modifications
@@ -534,16 +534,20 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 ## Summary
 - branch: <current branch>
 - input: <files | diff range | PR ref>
+- pr-ref: <#N | full PR URL | none>           # populated only when input was a PR ref; consumed by Phase 6 PR-comment gate as the gating predicate (none = gate skipped). When reading state files written by older versions of this skill that predate the field, treat the missing key as `pr-ref: none` and skip the PR-comment gate.
+- pr-url: <https://github.com/.../pull/N | none>  # canonical URL from `gh pr view --json url`; used in user-facing messages and as the audit-trail link for `posted-to-pr:` markers
+- pr-head-sha: <40-char SHA | none>           # `headRefOid` snapshotted at Phase 1; pinned as `commit_id` on the GitHub reviews API call to prevent line-anchor drift if the PR updates mid-review
 - files analyzed: N
 - counts: CRITICAL=X, HIGH=Y, MEDIUM=Z
 - build: pass | fail | not-run
 - suggested next stage: /geniro:implement | /geniro:follow-up | none
 
 # Per-finding line schema (used by CRITICAL, HIGH, MEDIUM, and Intent sections — `decision:` applies to ALL severities, not just CRITICAL):
-#   - [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN%
+#   - [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN%
 #   - When `decision: PRODUCT-DECISION`, the line is followed by an indented `options:` sub-list (one bullet per option, copied verbatim from the reviewer-agent's `Options:` field — see `agents/reviewer-agent.md` §Output Format). Phase 6 Step 0 (and downstream `/follow-up`/`/implement` consumers) read this sub-list to populate `AskUserQuestion`. The user's chosen option text replaces the line's `recommendation:` field; the `options:` sub-list itself is preserved as audit trail.
 #   - [CONFIRMED-BY-TEST] is appended by Phase 4c when the orchestrator's independent re-run confirms the agent-authored test fails today; line also gains `confirmed-by: <test path>`.
 #   - [CHALLENGED-BY-TEST] appears only in the `## Filtered` section (finding moved there by Phase 4c when the test passed on current code); the original severity is preserved in-line so the user can re-elevate.
+#   - [POSTED-TO-PR] is appended by Phase 6's PR-comment gate after a finding has been successfully posted to the PR; line also gains `posted-to-pr: <inline-comment-URL>`. The orchestrator MUST skip findings already carrying this tag on subsequent runs of `/geniro:review` against the same PR — this is the idempotency contract that prevents duplicate comments on re-runs (no API hash-diff needed; the marker IS the dedupe key).
 
 ## CRITICAL
 - [NEW] path/to/file.ext:42-48 — <description> — decision: FIX-NOW — recommendation: <action> — confidence: 95%
@@ -621,6 +625,64 @@ Do NOT auto-invoke the next skill — surface the suggestion only. The user runs
 
 Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
 
+**Phase 6 final gate — PR-comment posting (Always-WAIT, two-step, PR-ref-only).** When the Phase 5 state file's `## Summary` carries a non-`none` `pr-ref:` value (i.e., the original `$ARGUMENTS` was a PR ref — `#N`, bare digits, or full PR URL — captured at Phase 1) AND at least one finding remains unposted (i.e., kept by Phase 4 judge / Phase 4b validator / Phase 4c test gate AND not already tagged `[POSTED-TO-PR]` from a prior run), surface a final gate offering to post findings as PR comments. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline owns its own PR-handling decisions), when `pr-ref: none`, OR when zero unposted findings remain.
+
+Chained position: fires AFTER the "Failing tests" question when authored tests exist; otherwise standalone after "Remediate". The chain stays within the cap-extension convention (each individual prompt has 2 options — well under the 4-option cap).
+
+**Step 1 — Consent gate (Q1):** Use `AskUserQuestion` (do NOT print options as plain text) with header "PR comments":
+
+- **Question:** "Post the N kept findings as inline comments on PR `<pr-ref>`? Posting is an external write to a public surface — the skill never posts without explicit approval."
+- **Options:**
+  - "Yes — post findings as PR comments"
+  - "Skip — I'll handle it manually (Recommended)"
+
+The "Skip" default is recommended because PR comments are public and irreversible. If user picks **Skip**, write nothing, mark no findings posted, proceed to Phase 6 cleanup.
+
+**Step 2 — Granularity gate (Q2, fires only on Yes):** Chain a second `AskUserQuestion` with header "Post mode":
+
+- **Question:** "Send all kept findings in a single batched review, or pick which ones to post?"
+- **Options:**
+  - "Send all (Recommended)" — single batched review event reduces notification noise (one PR-author notification instead of N) and dodges secondary rate limits
+  - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include
+
+**Step 3 — Pick loop (fires only on "Pick one-by-one"):** Chain `AskUserQuestion` calls, each with `multiSelect: true`, presenting eligible findings as options. Each option label: `<severity-badge> path:line — <short title>`. Each option description: the finding's `recommendation:` field plus `confidence: NN%`. AskUserQuestion has a 4-option cap; when more than 4 eligible findings exist, batch them across multiple chained questions (≤4 per call) — never drop or merge options to fit a single question (cap-extension pattern, identical to Phase 4c Step 2). Aggregate selections across all calls into the post set. If the user deselects all (or returns empty answers across the whole chain), treat as Skip and proceed without posting.
+
+**Step 4 — Post via the GitHub reviews API.** Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url` (canonical form `https://github.com/<owner>/<repo>/pull/<N>` — extract with e.g. `awk -F/ '{print $4"/"$5}'` for `owner/repo` and `awk -F/ '{print $7}'` for `<number>`; the `pr-ref` field is preserved verbatim from user input and is NOT parsed in this step). Pass the snapshotted `pr-head-sha` as `commit_id`. ONE `gh api` call posts the entire review (Send-all mode = N comments in one review event; Pick mode = the user-selected subset in one review event). Use `event: COMMENT` only — never `APPROVE` or `REQUEST_CHANGES` (the skill is a reviewer, not an authorizer).
+
+The full review body is composed as JSON via `jq` and piped to `gh api --input -` (the `gh` flags `-f` / `--raw-field` send STATIC SCALAR string parameters and CANNOT carry a nested array — a JSON body with `comments[]` MUST be passed via `--input`):
+
+```bash
+jq -nc \
+  --arg sha "<pr-head-sha>" \
+  --arg body "Geniro review — <N> findings (CRITICAL: X, HIGH: Y, MEDIUM: Z)" \
+  --argjson comments '<comments-json>' \
+  '{commit_id: $sha, event: "COMMENT", body: $body, comments: $comments}' \
+  | gh api --method POST "/repos/<owner>/<repo>/pulls/<number>/reviews" --input -
+```
+
+The `<comments-json>` array is built from the post set. Each element:
+
+```json
+{
+  "path": "<file path relative to repo root>",
+  "line": <last line in finding's path:lines range — comment anchor>,
+  "side": "RIGHT",
+  "start_line": <first line in finding's path:lines range, ONLY when range spans multiple lines; OMIT for single-line findings>,
+  "start_side": "RIGHT",
+  "body": "**<SEVERITY>** [decision-type] — <description>\n\n**Recommendation:** <recommendation>\n\n*Confidence: NN%*"
+}
+```
+
+Range anchoring: GitHub's reviews API requires `line` (end of range) and accepts optional `start_line` + `start_side` to highlight a multi-line span. For a single-line finding (`path:42`), include only `line: 42`. For a range (`path:42-48`), include `line: 48`, `start_line: 42`, `start_side: "RIGHT"` so the inline comment highlights the full range in the GitHub UI. Build the comment object accordingly per finding — do NOT emit `start_line` for single-line findings (GitHub rejects `start_line == line`).
+
+Pull the `body` fields (description, recommendation, confidence, decision-type, severity) from the in-memory finding records as they exist before Phase 5 truncation — the state-file lines drop richer fields (Evidence, Why-this-matters) that the orchestrator may want to include in the comment body. Severity-badge rendering: `**CRITICAL**` (red emphasis) / `**HIGH**` (bold) / `**MEDIUM**` (italic-bold). Decision-type tag in brackets after severity: `[FIX-NOW]` / `[TESTABLE]` / `[PRODUCT-DECISION]` / `[INTENT-CHECK]`.
+
+**Step 5 — Persist `[POSTED-TO-PR]` markers.** Parse the API response (a `comments` array on the returned review object, each element carrying an `html_url`); for each posted comment, append `[POSTED-TO-PR]` to the corresponding finding's tag list and add `posted-to-pr: <html_url>` to the line in `.geniro/review-findings-state.md`. This is the idempotency contract — the next `/geniro:review` run against the same PR reads these markers and excludes already-posted findings from Step 1's "N unposted findings" count, preventing duplicates without a server-side hash check.
+
+**Step 6 — Posting-failure semantics.** If the `gh api` call fails (non-zero exit, HTTP error, missing scopes, secondary rate limit with 403/429), surface the error verbatim to the user and stop — do not retry, do not fall back to a different endpoint, do not bypass with `--no-verify`-style flags, do not silently downgrade to top-level `gh pr comment` (which loses inline anchoring). No partial state is written: leave the per-finding `[POSTED-TO-PR]` tags off entirely so the user can re-run cleanly after fixing the underlying issue. Mirrors existing `gh` failure handling at SKILL.md Phase 1 (gh-unavailable surface-and-stop).
+
+**Empty-answer handling (universal).** If `AskUserQuestion` returns an empty answer at any of the three prompts, fall back to plain text and re-ask once — never promote empty to a default Yes. After one re-ask, if still empty, treat as Skip and proceed without posting.
+
 ## Definition of Done
 
 Code review is complete when:
@@ -643,6 +705,8 @@ Code review is complete when:
 - [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT) — user chose resolution path before remediation routing; standalone invocations only
 - [ ] Phase 6 remediation suggestion presented via `AskUserQuestion` (standalone invocations only)
 - [ ] Phase 6 authored-tests handoff offered when `## Authored Tests` is non-empty (standalone invocations only)
+- [ ] Phase 6 PR-comment gate fired (always-WAIT, two-step) when `pr-ref:` non-`none` AND at least one finding remains unposted; standalone invocations only — skipped silently when `pr-ref: none`, when zero unposted findings remain, or when `/geniro:review` runs as sub-phase of `/geniro:implement`
+- [ ] Posted findings tagged `[POSTED-TO-PR]` with `posted-to-pr: <comment-url>` in `.geniro/review-findings-state.md` so re-runs are idempotent
 
 ---
 
@@ -666,3 +730,6 @@ Code review is complete when:
 | "I'll spawn the adversarial-tester-agent and ask the user to confirm later" | Inline gates rationalize away into "this counts as approval". Skill MUST `AskUserQuestion` BEFORE spawning. The two-step gate (skill asks → on YES, spawn) is the only rationalization-resistant variant. Spawning first and asking second is exactly the failure mode the user-approval rule exists to prevent. |
 | "The test passes today, so the finding is fake — delete it" | Demote, do not delete. A green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test fails for the wrong reason ([PoC-Gym, arXiv 2602.04165](https://arxiv.org/html/2602.04165v1) documents this failure mode). Move the finding to `## Filtered` with `[CHALLENGED-BY-TEST]` and original severity preserved so the user can re-elevate it if they disagree with the test. |
 | "The reviewer's `recommendation:` field is obvious — I'll just route to the next skill without asking the user about each `[PRODUCT-DECISION]` finding" | `[PRODUCT-DECISION]` findings have multiple valid resolution paths by definition (see `agents/reviewer-agent.md` §Decision Type Guidance). The `recommendation:` field on a multi-path finding is a synthesis, not the chosen path. The orchestrator NEVER picks on the user's behalf — Phase 6 Step 0 (always-WAIT) presents enumerated `Options:` to the user via `AskUserQuestion` BEFORE any remediation routing. Skipping the per-finding gate ships a product decision the user did not authorize. |
+| "The findings look obviously postable — I'll just batch-post them to the PR and tell the user after" | Posting to a PR is an external write to a public surface — the same audience-expanding action class as `gh pr create` and `git push`. Inline gates rationalize away into "this counts as approval". The skill MUST `AskUserQuestion` BEFORE the `gh api` call. The two-step gate (skill asks Yes/Skip → on YES, posts) is the only rationalization-resistant variant; posting first and asking second is exactly the failure mode the user-approval rule exists to prevent. |
+| "User picked Pick-one-by-one and findings are obviously postable — I'll just include them all and skip the per-finding multiSelect" | The whole point of Pick mode is that the user wants per-finding control; overriding it ships a posting decision they did not authorize. Always render the chained `multiSelect: true` AskUserQuestion calls (≤4 options each, cap-extension chained when more), aggregate the selections, post only the union. If the user deselects all, treat as Skip and post nothing. |
+| "The user already ran `/geniro:review` against this PR yesterday and approved posting — I'll skip the gate this time" | Permissions don't carry across runs. The state file's `[POSTED-TO-PR]` markers are an idempotency contract (skip already-posted findings on re-run), NOT a blanket re-authorization for new findings. Every run that has at least one unposted finding fires the consent gate from scratch. |
