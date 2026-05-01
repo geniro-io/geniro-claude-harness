@@ -97,6 +97,16 @@ Declare ONE concrete way the user (or CI) verifies this milestone shipped correc
 
 If you cannot fill in one of the four, the milestone is NOT standalone-verifiable — re-partition before shipping the decomposition.
 
+## Tracer-Bullet Layer Checklist
+Per the layer checklist in "Milestone Sizing Rules" below. Mark each layer touched (✓), skipped-with-reason (`N/A — <reason>`), or omitted (a milestone that fails this is NOT a tracer bullet — re-partition).
+
+- [ ] **Schema / migration**: ✓ | N/A — <reason>
+- [ ] **API / interface**: ✓ | N/A — <reason>
+- [ ] **Business logic / handler**: ✓ | N/A — <reason>
+- [ ] **UI / surface**: ✓ | N/A — <reason>
+- [ ] **Tests**: ✓ (always required for new behavior; N/A only when no new behavior is introduced — rare)
+- [ ] **Docs**: ✓ | N/A — <reason>
+
 ## Upstream Dependencies
 - Milestone <N-1>: [what it produced that this milestone relies on — types, tables, endpoints, contracts]
 - (repeat per upstream)
@@ -156,7 +166,7 @@ For each milestone, confirm it touches every layer that the slice's behavior cha
 
 A milestone that touches only schema (no API), or only API (no UI when the slice is user-facing), or only logic (no tests) is NOT a tracer bullet — it's a horizontal slice. Re-partition.
 
-If a layer genuinely doesn't apply to the slice (e.g., a backend-only data-model change with no UI), explicitly note "N/A — <reason>" in the milestone's `## Standalone-Verifiability` section so reviewers know the layer was considered and rejected, not forgotten.
+If a layer genuinely doesn't apply to the slice (e.g., a backend-only data-model change with no UI), explicitly mark "N/A — <reason>" in the milestone's `## Tracer-Bullet Layer Checklist` section (NOT in Standalone-Verifiability — those are separate concerns: D11 declares the verification path, the layer checklist declares the layer coverage). Reviewers (D11 + tracer-bullet check in skeptic) read both sections to confirm the slice was considered and rejected per layer, not forgotten.
 
 ### Suggested starting taxonomy (adapt, don't force)
 

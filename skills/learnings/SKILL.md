@@ -48,7 +48,7 @@ Append-only JSON Lines file (one JSON object per line):
 
 **Fields:**
 - **id**: Auto-incremented (L1, L2, L3...)
-- **category**: pattern | gotcha | decision | anti-pattern
+- **category**: `pattern` | `gotcha` | `decision` | `anti-pattern` | `architectural-prevention` | `recipe`. The full list — including the per-category field structures — is the canonical schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/learnings-extraction.md` § JSONL schema. `architectural-prevention` is for post-mortem design insights (e.g., from `/geniro:debug` Step 8) where the learning names a specific design change that would prevent a *class* of issue, not just the instance. `recipe` is for step-by-step instructions for common tasks. Use the canonical schema as the source of truth — if this list and the canonical disagree, the canonical wins.
 - **learning**: One-sentence, specific learning
 - **verified**: true (confirmed) | false (hypothesis)
 - **session**: Date and topic of session where learned

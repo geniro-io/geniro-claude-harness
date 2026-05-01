@@ -67,6 +67,13 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 **Description:** [What's broken and how to reproduce]
 **Severity:** Critical | High | Medium | Low
 
+## Feedback Loop
+**Command:** [exact command/script that reproduces — written by Step 1.5]
+**Expected output:** [what happens on a working system]
+**Actual output:** [captured artifact — error / log line / wrong value]
+**Re-run cost:** [seconds; flag if >30s]
+**Determinism:** [3-run signature comparison; flag if divergent]
+
 ## Hypothesis 1
 - **Hypothesis:** Cache not invalidating on user role change
 - **Evidence For:** User sees stale permissions after role update

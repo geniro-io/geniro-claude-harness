@@ -51,7 +51,7 @@ Skips Architecture Patterns, Conventions, Tech Debt sections — those live in t
 3. For each file, read imports and exported symbols; build a 1-hop dependency graph (in/out) — do NOT recurse.
 4. Grep the rest of the project for callers of the focus area's exported symbols (1-3 entry points; stop at 5).
 5. Write `.geniro/planning/focus-<area>.md` using the 3-section template (Focus Area / Module Relationships (focus-only) / Critical Paths (focus-only)).
-6. Skip the Definition of Done items below that don't apply (#3, #4, #5, #6, #7) — quick mode only requires items #1, #2, #8, #10. Print the output file path and stop.
+6. Quick mode uses its own Definition of Done — see "Quick-Mode Definition of Done" below — not the standard 10-item DoD which is scoped to full CODEBASE_MAP.md generation. Print the output file path and stop.
 
 ### 1. Scan (5–10 min)
 - List directories and file counts
@@ -219,7 +219,7 @@ After the map is generated, use the `AskUserQuestion` tool (do NOT output option
 
 ---
 
-## Definition of Done
+## Definition of Done — Full Mode (no `--quick` flag)
 
 For each onboarding, confirm:
 
@@ -233,6 +233,17 @@ For each onboarding, confirm:
 - [ ] Entry points listed (how to run, test, deploy)
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use --focus for large repos)
 - [ ] User routed to a next-step command via AskUserQuestion
+
+## Quick-Mode Definition of Done (`--focus X --quick`)
+
+For quick-mode invocations, confirm:
+
+- [ ] `--focus <area>` was provided alongside `--quick` (validation in Quick-mode bypass step 1)
+- [ ] Focus glob enumerated ≤30 files (or user narrowed when exceeded)
+- [ ] `.geniro/planning/focus-<area>.md` created with the 3-section template (Focus Area + Module Relationships (focus-only) + Critical Paths (focus-only))
+- [ ] Module Relationships limited to 1-hop dependencies (no recursion)
+- [ ] Critical Paths captured 1-3 entry points (max 5)
+- [ ] Output file path printed to user (no AskUserQuestion next-step routing in quick mode — caller skill drives next action)
 
 ---
 
