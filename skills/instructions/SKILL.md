@@ -202,6 +202,16 @@ from analysis of 14 production AI coding frameworks and real-world plugin usage.
 - **State the consequence** — "Database migrations must be backwards-compatible — breaking migrations block deploy"
 - **Constraints are hard limits** — skills treat these as non-negotiable. Use Rules for soft guidance
 
+### File-size guidance — consider splitting at 300 lines
+
+Instruction files load fully into the consuming skill's context every run. As they grow, two failure modes emerge: (1) the consuming skill burns budget on rules it never fires, and (2) the file becomes unscannable so the user can't audit it. **Soft guidance: when an instruction file passes ~300 lines, consider splitting.**
+
+Two ways to split:
+- **By scope**: if `global.md` covers rules that only apply during certain skills, move them into the matching `<skill>.md` files. Example: a "always run codegen after editing DTOs" rule moves out of `global.md` into `implement.md` (and `follow-up.md` if relevant).
+- **By topic**: if a single skill's instruction file mixes concerns (e.g., review covers severity thresholds AND security-specific checks AND PR-comment formatting), keep one as the main file and link to companion files for the others. Cap the main file at ~150-200 lines so the rules a skill sees on every run stay focused.
+
+This is guidance, not enforcement. A 350-line file that's well-organized and all-load-bearing is fine. The trigger is "the file became hard to scan or has dead rules" — not the line count itself. Skills that author skills (e.g., `/improve-template create-skill`) should also follow this guidance.
+
 ### What goes here vs. `.claude/rules/` vs. CLAUDE.md
 
 `.geniro/instructions/<skill>.md` is for **skill-scoped** rules — they fire when the matching skill (`implement` / `decompose` / `review` / `debug` / `follow-up` / `refactor` / `deep-simplify`) starts a run. Use it for: extra workflow steps, quality gates, hard constraints the user enforces manually at skill phase boundaries.

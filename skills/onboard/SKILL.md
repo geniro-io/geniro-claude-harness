@@ -15,11 +15,12 @@ Use this skill to quickly understand a new or unfamiliar codebase. Generates a s
 
 - `--depth N`: Limit directory scanning to N levels deep (default: unlimited). Useful for large monorepos where full traversal is too slow.
 - `--focus area1,area2,...`: Concentrate mapping on specified areas/modules. Other areas get summary-level coverage only.
+- `--quick`: Mid-task focused-map mode (must be combined with `--focus`). Skips the full 8-section CODEBASE_MAP.md template and produces a 1-page focused map of the focus area only — Module Relationships + Critical Paths + Entry Points. Use when another skill (`/geniro:debug`, `/geniro:implement`) gets lost in unfamiliar code mid-session and needs orientation without rebuilding the whole map.
 - No arguments: Full codebase scan with automatic depth based on repo size.
 
 ## Outputs
 
-**Primary artifact:** `.geniro/planning/CODEBASE_MAP.md`
+**Primary artifact (default mode):** `.geniro/planning/CODEBASE_MAP.md`
 
 Contains:
 1. **Project Overview** – Name, purpose, language/stack, entry points
@@ -31,7 +32,26 @@ Contains:
 7. **Critical Paths** – User request flow, deployment pipeline, job system
 8. **Tech Debt & Notes** – Gotchas, legacy code, anti-patterns
 
+**Quick mode artifact (`--focus X --quick`):** `.geniro/planning/focus-<area>.md`
+
+Contains only 3 sections, designed to fit on one page:
+
+1. **Focus Area** – What was scoped (file globs / module names) + 1-sentence purpose
+2. **Module Relationships (focus-only)** – Direct dependencies in/out of the focus area; nothing beyond 1 hop
+3. **Critical Paths (focus-only)** – 1-3 entry points or call-sites where the focus area is invoked
+
+Skips Architecture Patterns, Conventions, Tech Debt sections — those live in the full CODEBASE_MAP.md when it exists. Quick mode is meant to be re-runnable cheaply (≤5 minutes) every time a skill loses orientation in a new area.
+
 ## Workflow: Scan → Map → Reference
+
+**Quick-mode bypass:** if `--quick` is set, skip the full Scan → Map → Reference workflow below. Run the abbreviated quick-mode flow:
+
+1. Validate `--focus <area>` is also set (required for `--quick`); if missing, prompt the user to add it.
+2. Use Glob to enumerate files matching the focus glob (max 30 files; if exceeded, refuse and ask the user to narrow `--focus`).
+3. For each file, read imports and exported symbols; build a 1-hop dependency graph (in/out) — do NOT recurse.
+4. Grep the rest of the project for callers of the focus area's exported symbols (1-3 entry points; stop at 5).
+5. Write `.geniro/planning/focus-<area>.md` using the 3-section template (Focus Area / Module Relationships (focus-only) / Critical Paths (focus-only)).
+6. Skip the Definition of Done items below that don't apply (#3, #4, #5, #6, #7) — quick mode only requires items #1, #2, #8, #10. Print the output file path and stop.
 
 ### 1. Scan (5–10 min)
 - List directories and file counts
@@ -262,3 +282,17 @@ For each onboarding, confirm:
 → Understand current schema and relationships
 → Use map to plan where new feature fits
 → Trace existing data flow patterns
+
+### Example 4: Mid-task orientation (quick mode)
+```
+/geniro:onboard --focus auth/oauth --quick
+```
+→ Skip 8-section template; produce focus-oauth.md (≤1 page)
+→ List only files importing/imported-by oauth module
+→ Trace 1-3 entry points (login route, refresh handler, etc.)
+→ Use during /geniro:debug or /geniro:implement when lost in a subsystem
+→ Re-runnable cheaply — no need to update full CODEBASE_MAP.md
+
+## Mid-task usage from other skills
+
+`/geniro:debug` Step 4 (Isolate) and `/geniro:implement` Phase 4 (Implement) can suggest the user run `/geniro:onboard --focus <area> --quick` when an agent reports lost-in-codebase symptoms. Quick mode is intentionally cheap so other skills can recommend it without budget concerns. The output file (`focus-<area>.md`) lives alongside `CODEBASE_MAP.md` in `.geniro/planning/` — it does not replace the full map.

@@ -159,6 +159,7 @@ From the request and codebase, list specific **ambiguities** that block implemen
 - New table? Schema changes?
 - Async work needed? (jobs, webhooks, polling)
 - Cache/performance concerns?
+- **Module boundaries** — what NEW interface should exist, what should be ABSORBED into existing modules, where the SEAMS sit (use vocabulary from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md`)
 
 **Integration:**
 - Does this talk to external systems?
@@ -230,6 +231,18 @@ Create a `<feature-name>-spec.md` file in `.geniro/planning/` (e.g., `notificati
 - [Out of scope: related work not included]
 
 ## Requirements
+
+### Modules & Interfaces
+List the deep modules this feature introduces or extends. Use vocabulary from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` (depth, seam, adapter, leverage, locality).
+
+For each module:
+- **Name**: [module identifier — what callers will reference]
+- **Public interface**: [the smallest possible surface — function signatures, exported types, REST endpoints, CLI flags]
+- **Hidden behavior**: [what the implementation absorbs so callers don't have to think about it — rate-limiting, caching, retry, validation, etc.]
+- **Seam to existing code**: [where this module connects to the codebase; one-hop max]
+- **Reuse?** REUSE-AS-IS / EXTEND existing module / NO-ANALOGUE (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`)
+
+If this feature is purely additive UI/data with no new interface surface, write "No new modules — extends [existing module]" and skip the per-module breakdown.
 
 ### UI/UX
 - [Location]: [where in the app]

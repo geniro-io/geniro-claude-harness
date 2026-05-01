@@ -38,7 +38,7 @@ Use this skill to systematically debug complex issues. Replaces guessing with ev
 ## The Scientific Debug Loop
 
 ```
-OBSERVE → HYPOTHESIZE → TEST → ISOLATE → PROPOSE FIX → AUTHOR REPRO TEST & VERIFY → ESCALATE → DOCUMENT
+OBSERVE → BUILD FEEDBACK LOOP → HYPOTHESIZE → TEST → ISOLATE → PROPOSE FIX → AUTHOR REPRO TEST & VERIFY → ESCALATE → DOCUMENT
 ```
 
 This is not a suggestion—it's the required process. Do NOT skip steps or guess.
@@ -112,7 +112,7 @@ Store hypotheses in `.geniro/debug/HYPOTHESES.md`:
 
 Every user-facing choice in this skill — including ad-hoc gates NOT explicitly enumerated below (e.g. "verify root cause or fall back to a band-aid?", "experiment needs a credential I don't have — how do you want to handle it?") — MUST go through the `AskUserQuestion` tool. The enumerated gates are examples, not an exhaustive list. If you're about to type `(A)... or (B)...` in chat, stop and call the tool instead.
 
-## Workflow: Observe → Hypothesis → Test → Propose Fix → Escalate
+## Workflow: Observe → Build Feedback Loop → Hypothesis → Test → Propose Fix → Escalate
 
 ### 0. Retrieve Prior Knowledge & Custom Instructions (1 min)
 Before investigating, check for relevant prior learnings:
@@ -128,9 +128,45 @@ Before investigating, check for relevant prior learnings:
 - Record the exact steps to reproduce
 - **If reproduction steps are unclear or missing:** Use the `AskUserQuestion` tool (do NOT output options as plain text) to ask the user for specific details (environment, steps to trigger, expected vs actual behavior). Do NOT guess at reproduction — ask.
 
+### 1.5. Build Feedback Loop (5–10 min) — REQUIRED before Step 2
+
+A feedback loop is a fast, deterministic signal that reproduces the bug AND can be re-run cheaply (≤30 seconds, ideally ≤5 seconds). The whole hypothesis-test cycle in Steps 2-3 iterates on this signal — without one, every hypothesis test is slow and every result is noisy.
+
+**This is NOT the project's reproduction test from Step 6.** Step 6 authors a unit/integration test in the project framework and ships with the fix as the regression guard. Step 1.5 builds a fast-iteration scratch signal so Steps 2-3 can move quickly. The two are separate deliverables: the Step 6 test STAYS on disk; the Step 1.5 scratch signal is reverted at Cleanup.
+
+**Pick the cheapest option that reliably reproduces:**
+
+| Option | Use when | Example |
+|---|---|---|
+| Failing assertion in REPL / test runner | Bug is in pure logic, no I/O | `node -e "require('./src/cache').compute(...) // expect 5, got 7"` |
+| `curl` against running dev server | Bug is in HTTP/API behavior | `curl -X POST localhost:3000/api/foo -d '{...}' -i` |
+| SQL query against test DB | Bug is in query/migration logic | `psql -c "SELECT * FROM users WHERE ..."` |
+| Headless browser script | Bug is UI-rendered | Playwright snippet that takes one screenshot |
+| Differential test (good vs bad commit) | Regression — works at commit X, broken now | `git checkout <good>; <repro>; git checkout <bad>; <repro>` |
+| Fuzz / loop reproducer | Bug is intermittent | `for i in {1..100}; do <repro>; done | grep ERROR` |
+| Manual click-through script | Genuinely UI-only with no automation seam | numbered steps in HYPOTHESES.md (use as fallback only) |
+
+**Quality bar — the loop must be:**
+- **Fast**: re-runs in seconds, not minutes. If the only loop you can build takes 5 minutes per cycle, hypothesis testing will be unbearable. Stop and ask: "can I shrink the scope (smaller payload, in-memory mock, skip auth) to make this faster?"
+- **Deterministic**: same input → same observed failure, every time. If 3 consecutive runs produce 3 different signatures, you have a flake or two bugs — note this in HYPOTHESES.md before continuing; Step 2 hypotheses must distinguish "intermittent failure" from "two bugs."
+- **Captured**: produces an artifact that satisfies the Evidence Standard (kind 2-4) — failing assertion, log line, query result. "I see it crash" is not a captured artifact.
+
+**Save the loop in HYPOTHESES.md** under a `## Feedback Loop` section between "Description" and "Hypothesis 1":
+
+```markdown
+## Feedback Loop
+**Command:** `<exact command or script that reproduces>`
+**Expected output:** `<what happens on a working system>`
+**Actual output:** `<paste captured artifact — error, log line, wrong value>`
+**Re-run cost:** `<seconds; flag if >30s>`
+**Determinism:** `<3-run signature comparison; flag if divergent>`
+```
+
+If you cannot build a feedback loop in 10 minutes, do NOT proceed to Step 2 by guessing — fire the missing-data gate via `AskUserQuestion` (header "Repro signal", options like "Paste a failing log line" / "Run this command and paste output" / "I can't repro — escalate to user-with-context"). Hypothesis testing without a reliable loop is guessing.
+
 ### 2. Hypothesize (5 min)
-- Based on observation, form 2–3 competing hypotheses
-- Each hypothesis must be testable
+- Based on observation AND the feedback-loop output (Step 1.5), form 2–3 competing hypotheses
+- Each hypothesis must be testable AGAINST THE FEEDBACK LOOP — Step 3's tests will toggle one variable, re-run the loop, observe whether the captured signature changes
 - Avoid "it's probably X" without evidence
 - Write hypotheses in `.geniro/debug/HYPOTHESES.md`
 - **Consider infrastructure causes alongside code causes** — connection timeouts, resource exhaustion, DNS failures, container restarts, database connection pool limits, cloud service rate limits, and deployment-related changes (new config, changed env vars, scaled-down replicas) are common root causes that code inspection alone will miss. If symptoms include timeouts, intermittent failures, or errors that only appear in deployed environments, form at least one infrastructure hypothesis.
@@ -404,7 +440,7 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 
 After the debug session completes (fix verified or escalated):
 - **Scientific-method mode only:** Remove `.geniro/debug/HYPOTHESES.md` — its useful content has already been saved to memory (root causes, gotchas, techniques). The file is a working scratchpad, not a permanent record.
-- **Scientific-method mode only:** Remove debug scripts, scratch reproductions, and ad-hoc curl/query files created during investigation. The Step 6 reproduction test (authored at the project's normal test path) STAYS on disk — it ships with the fix as the regression guard, same convention as adversarial mode's authored tests.
+- **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the Step 1.5 feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. The Step 6 reproduction test (authored at the project's normal test path) STAYS on disk — it ships with the fix as the regression guard, same convention as adversarial mode's authored tests. The Step 1.5 loop is intentionally throwaway; if its content was load-bearing for the fix, it has already been promoted to the Step 6 test.
 - **Scientific-method mode only:** `.geniro/debug/findings-state.md` MUST remain on disk as the escalation handoff channel — do NOT delete it. It stays until the next debug run overwrites it (single file per branch, same as `/geniro:review`'s state artifact).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
 - **Adversarial mode:** `.geniro/debug/adversarial-tests.md` may remain as audit trail per plugin convention; authored test files stay on disk.
@@ -418,6 +454,7 @@ For each debug session, confirm the checklist for the mode that ran.
 ### Scientific-Method Mode
 
 - [ ] Bug reproduced consistently with clear steps
+- [ ] **Step 1.5 feedback loop built**: command + expected output + captured artifact recorded in HYPOTHESES.md `## Feedback Loop` section; re-run cost ≤30s preferred (flag if longer); 3-run determinism check passed (or divergence noted before hypotheses)
 - [ ] All hypotheses recorded in `.geniro/debug/HYPOTHESES.md`
 - [ ] Each hypothesis has a test plan and result
 - [ ] Root cause identified and confirmed (not guessed)

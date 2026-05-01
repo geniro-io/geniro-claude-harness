@@ -66,6 +66,26 @@ Scan the target codebase for:
 - Inconsistent error handling or null-safety patterns
 - Report: code quality impacts
 
+#### Deepening Opportunities
+**Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first** to ground the vocabulary (depth, seam, adapter, leverage, locality, deep vs shallow modules).
+
+This lens is orthogonal to the 6 smell categories above — it asks "is this module **shallow** when it could be **deep**?" rather than "is there a smell?" A shallow module exposes nearly all its internal complexity through a wide interface; a deep module hides a lot of behavior behind a small interface.
+
+Look for:
+- **Wide-interface modules with low internal logic** — e.g., a util file with 12 exported helpers each used once. The exports are the interface; the implementation is trivial. Consider absorbing the callers' logic INTO the module so the module hides more behavior behind fewer exports.
+- **Pass-through wrappers / leaky abstractions** — modules that re-export third-party types or expose adapter internals. These widen the seam without adding depth. Either deepen (absorb more behavior) or remove the wrapper.
+- **Repeated cross-call orchestration at call sites** — same 3-4 module calls in sequence, repeated across files. The orchestration belongs INSIDE one of those modules (deepening it) or in a new orchestrator module (narrowing the seam at every caller).
+- **High-leverage code with shallow implementation** — types or functions imported by 30+ files but with trivial internal logic. The leverage is wasted; deepening would let callers offload more responsibility.
+
+For each deepening opportunity, report:
+- **Module**: file:line of the current shallow module
+- **Current interface size**: count of exported symbols
+- **Proposed deepening**: what behavior to absorb (1-2 sentences)
+- **Affected call sites**: count of consumers (use Grep — this drives risk classification per Step 2)
+- **Vocabulary tag**: which terms apply (depth / seam / adapter / leverage / locality)
+
+Deepening findings are subject to the same Step 2 Change Impact Scoring as smells. They are typically MEDIUM or HIGH risk because they touch the seam between modules and their consumers — flag accordingly.
+
 ### Step 2: Change Impact Scoring
 
 For each detected smell, score its change impact before including it in the plan:
