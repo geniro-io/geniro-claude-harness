@@ -293,7 +293,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
    - D) **Split further** — a milestone is still too big; re-partition it
 
 5. **Route based on answer:**
-   - **A:** Write `state.md` with `Milestones: [1: pending, 2: pending, 3: pending, ...]`, update master plan header `Status: draft` → `Status: approved`, tell the user: "Decomposition approved. Run `/geniro:implement milestone 1` (or `/geniro:implement .geniro/planning/<task-dir>/milestone-1-<slug>.md` for the explicit path). After each milestone ships, `/geniro:implement continue` picks up the next pending milestone automatically."
+   - **A:** Write `state.md` with `Milestones: [1: pending (HITL), 2: pending (AFK), 3: pending (HITL), ...]` (status + Mode tag per the format defined in decompose-criteria.md HITL/AFK section), update master plan header `Status: draft` → `Status: approved`, tell the user: "Decomposition approved. Run `/geniro:implement milestone 1` (or `/geniro:implement .geniro/planning/<task-dir>/milestone-1-<slug>.md` for the explicit path). After each milestone ships, `/geniro:implement continue` picks up the next pending milestone automatically."
    - **B:** Collect feedback, route to architect revision (Phase 2 or Phase 3 depending on scope), re-validate, re-present. Max 3 rounds.
    - **C:** Architect re-partitions: merge the adjacent milestones named by the user, regenerate affected milestone files, re-validate.
    - **D:** Architect re-partitions the named milestone into 2-3 slices (respecting the 7-milestone cap across the whole set), regenerate files, re-validate.
