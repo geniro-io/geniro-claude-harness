@@ -245,7 +245,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
    ## Validation Standard (8 base dimensions + mirage detection)
    [Pre-inline "Validation Standard" from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`]
 
-   ## Cross-Milestone Validation Dimensions (D9, D10)
+   ## Cross-Milestone Validation Dimensions (D9, D10, D11)
    [Pre-inline the "Cross-Milestone Validation Dimensions" section from `${CLAUDE_SKILL_DIR}/decompose-criteria.md`]
 
    ## Output File
@@ -253,10 +253,13 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
    You MUST write this file using the Write tool — do NOT just return the report as text.
 
    ## Report Contents
-   - For each dimension (D1-D10): findings with evidence (file:line, grep/glob results), classified BLOCKER or WARNING with confidence
+   - For each dimension (D1-D11): findings with evidence (file:line, grep/glob results), classified BLOCKER or WARNING with confidence
    - Mirages (hallucinated files/functions/packages) — always BLOCKER
    - Cross-milestone coverage gaps (D9): any requirement in master Goal not covered by any milestone's Acceptance Criteria
    - Cross-milestone dependency-ordering violations (D10): forward references, circular deps, milestones in wrong wave
+   - Standalone-verifiability gaps (D11): missing or empty `## Standalone-Verifiability (D11)` section, or a declared verification path that depends on a later milestone
+   - Tracer-bullet layer-checklist failures: a milestone whose declared scope is user-facing but skips UI, or persists data but skips schema, etc. (BLOCKER unless N/A is documented in the milestone)
+   - HITL/AFK Mode tag missing from a milestone (BLOCKER) or AFK assigned to a milestone that fails the AFK criteria in decompose-criteria.md (WARNING — orchestrator surfaces for user override)
    - Do NOT emit an overall verdict — the orchestrating skill decides
 
    Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -265,8 +268,8 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 2. **Read the validation report.** If the file is missing, re-spawn the skeptic with an explicit "Write the file" instruction; if it still fails, treat as "needs revision" with the failure noted.
 
 3. **Orchestrator synthesis — decide disposition yourself:**
-   - Any BLOCKER (mirage, dropped requirement across milestones, forward dep, non-serializable slice, shared primary file in same wave) → NEEDS REVISION.
-   - WARNINGS only → proceed to Phase 5, surface warnings in the approval step.
+   - Any BLOCKER (mirage, dropped requirement across milestones, forward dep, non-serializable slice, shared primary file in same wave, missing D11 verification path, missing HITL/AFK Mode tag, tracer-bullet layer skip without N/A) → NEEDS REVISION.
+   - WARNINGS only → proceed to Phase 5, surface warnings in the approval step (includes AFK-on-risky-milestone warnings — user can override).
    - Zero blockers and warnings → proceed to Phase 5 as PASS.
 
 4. **If NEEDS REVISION:** Route feedback to architect-agent with specific blockers. Architect revises the master plan and/or affected milestone files. Re-run skeptic. **Max 3 revision rounds.** If exhausted, use `AskUserQuestion` (do NOT output options as plain text): A) Approve as-is with known issues noted. B) Abandon this approach, start fresh. C) I'll fix the plan manually.
@@ -275,7 +278,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 1. **Read the master plan + all milestone files** from the task dir.
 
-2. **Present the milestone summary** — do NOT paste every milestone file in full. For each milestone, output: number, name, goal, upstream deps, wave, file list (count), acceptance-criteria count, verify-command list. Link each milestone file path so the user can open it.
+2. **Present the milestone summary** — do NOT paste every milestone file in full. For each milestone, output: number, name, goal, upstream deps, wave, **Mode (HITL/AFK)**, **Standalone-Verifiability path (one line — URL/CLI/UI/behavior)**, file list (count), acceptance-criteria count, verify-command list. Link each milestone file path so the user can open it. Surface any WARNING-level "AFK assigned to risky milestone" findings from skeptic so the user can override the Mode tag during approval.
 
 3. **Add metadata:**
    - "Master plan: `.geniro/planning/<task-dir>/plan-<slug>.md`"
@@ -284,8 +287,8 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
    - If warnings from skeptic: list them
 
 4. **Ask for approval** using `AskUserQuestion` (do NOT output options as plain text):
-   - A) **Approve all milestones** — ready for `/geniro:implement milestone 1`
-   - B) **Adjust** — describe what to change (routes back to architect for revision)
+   - A) **Approve all milestones (Mode tags as shown)** — ready for `/geniro:implement milestone 1`. AFK milestones will run with `Lane: light` + auto mode; HITL milestones with `Lane: full` + interactive mode.
+   - B) **Adjust** — describe what to change. Use this to flip a milestone's HITL/AFK Mode tag, change a Standalone-Verifiability path, rename, reorder, or revise scope. Routes back to architect for revision.
    - C) **Merge milestones** — too granular, combine adjacent slices
    - D) **Split further** — a milestone is still too big; re-partition it
 
@@ -301,9 +304,11 @@ Write (or update) `.geniro/planning/<task-dir>/state.md` to include at minimum:
 
 ```
 Plan: plan-<slug>.md
-Milestones: [1: pending, 2: pending, 3: pending, ...]
+Milestones: [1: pending (AFK), 2: pending (HITL), 3: pending (HITL), ...]
 DecomposedAt: 2026-04-22
 ```
+
+Per-milestone Mode tag (HITL or AFK) is included in the roll-up so `/geniro:implement` can pick the right Lane without re-reading the milestone file. Format: `<N>: <status> (<Mode>)`.
 
 If state.md already exists (e.g., from a prior `/geniro:implement` run), preserve existing fields and add/overwrite the `Milestones:` line. Keep it a single file per task-dir — the pre-compact hook at `hooks/pre-compact-state-save.sh` globs `.geniro/planning/*/state.md` and expects one file per dir.
 

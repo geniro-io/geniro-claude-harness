@@ -75,6 +75,25 @@ From the question, extract:
   - **Skip Git** when the question is about current code behavior only and does not ask about history, evolution, rationale, or recent changes — and the classified row does not include Git.
   - **Skip Internet** when the question is fully internal — our code, our patterns, our commits — and does not reference external libraries, frameworks, standards, best practices, alternatives, or security advisories — and the classified row does not include Internet.
 
+### Step 2.5: Glossary-mismatch check (WAIT if mismatch found)
+
+CLAUDE.md is auto-loaded and may contain a "Domain Context" section (added by `/geniro:setup` Phase 3.1) listing domain entities, safety rules, and API contracts. Before Phase 2 spawn, check whether the user's question uses terms that conflict with the documented glossary — investigating with the wrong vocabulary returns the wrong answer.
+
+Procedure:
+
+1. **Extract domain terms from the question** — proper-noun-shaped tokens, role names, entity names (e.g., "tenant", "workspace", "task", "invoice"). Skip generic technical terms ("function", "endpoint", "cache").
+2. **Grep the auto-loaded CLAUDE.md content for each term**. Look for: definition lines (`**Tenant** — ...`), entity lists (`Domain entities: Tenants, Workspaces, ...`), and safety-rule mentions.
+3. **Classify each match:**
+   - **No match** — the term may be new domain vocabulary (route to Phase 5 auto-extract); proceed without challenge.
+   - **Exact match** — the user's term aligns with the glossary; proceed.
+   - **Mismatch** — the user's term appears in the glossary but the question's usage suggests a different meaning (e.g., user says "workspace" meaning "browser tab" but glossary defines "workspace" as "tenant container"). FIRE the gate.
+4. **If mismatch found:** use `AskUserQuestion` with header "Glossary" before spawning Phase 2 agents:
+   - **Question**: "Your CLAUDE.md defines `<term>` as `<glossary definition>`. Your question seems to use `<term>` as `<inferred usage>`. Which one should I investigate?"
+   - **Options**: "Use the glossary definition" / "Use my new meaning (and note the divergence in the answer)" / "Both — these are genuinely different concepts that share a name (please pick disambiguating names)"
+5. Record the resolution in the answer's Sources section so the synthesized answer carries the disambiguation forward.
+
+Skip this step entirely when CLAUDE.md has no Domain Context section, when the question has no domain-shaped terms, or when all terms are exact matches. When in doubt, skip — false positives waste user time more than false negatives waste investigation budget.
+
 Before spawning agents, check `.geniro/knowledge/learnings.jsonl` for existing answers to this question or closely related topics (Grep with keywords from the question). If a comprehensive answer exists, present it and ask the user if they want fresh investigation.
 
 If the question is ambiguous, use the `AskUserQuestion` tool to clarify scope before spawning agents. Ask one focused question, not multiple.
@@ -394,11 +413,25 @@ Present the synthesized, reviewed answer to the user. Include:
 Use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Follow-up" and question "Want to dig deeper?" with options:
 - "Dive deeper into [specific aspect]" — re-run with narrower scope
 - "I have a follow-up question" — start a new investigation
-- "Save key findings to memory" — persist important discoveries
+- "Save key findings to memory" — persist important discoveries (see Step 2a for routing — learnings.jsonl, ADR, OR CLAUDE.md Domain Context)
 - "Done — answer is sufficient"
 
+### Step 2a: Save-routing (when user picks "Save key findings to memory")
+
+Before writing to a single store, classify each finding to its proper destination per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`:
+
+1. **Domain-vocabulary findings** — the investigation surfaced a new domain entity, role, or business-rule term that wasn't in CLAUDE.md's Domain Context. Examples: "the codebase calls X a `Tenant` but production calls it a `Workspace`" / "there's a hidden `BillingAccount` entity that wraps `Subscription`+`PaymentMethod`+`Invoice`."
+   - Route: **CLAUDE.md** "Domain Context" section.
+   - Method: present the proposed addition (1-3 lines per term) via `AskUserQuestion` with header "Domain term", options "Add to CLAUDE.md (Recommended)" / "Save as learning instead" / "Skip — not durable enough".
+   - On approval: read CLAUDE.md, locate the Domain Context section, propose Edit; if no Domain Context section exists, ask whether to create one before editing.
+2. **Architectural decisions meeting all 3 ADR criteria** (hard to reverse + surprising + genuine trade-offs) — route to **ADR** per `_shared/improvement-routing.md` § ADR target. Draft the ADR using the template; ask user before creating `docs/adr/` if the directory doesn't exist.
+3. **Reusable technical insights** (gotchas, lightweight architectural decisions, surprising coupling) — route to **`.geniro/knowledge/learnings.jsonl`** following `_shared/learnings-extraction.md`. Apply the Reflect → Abstract → Generalize pre-pass.
+4. **User preferences about how to collaborate** — route to **auto-memory** (`feedback_*`).
+
+Findings can route to multiple stores when they're load-bearing in different ways (e.g., a domain term that's also an ADR-worthy decision). Do NOT batch all findings into one save action — present them grouped by target so the user sees what goes where.
+
 If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). Max 2 dive-deeper rounds — track the count in your own scratchpad; if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
-If user wants to save findings: extract non-obvious architectural insights, design rationale, or gotchas. Save as `project` memory. Before writing, check if an existing memory covers this topic — UPDATE rather than duplicate.
+If user wants to save findings: follow Step 2a save-routing (above) — classify each finding to CLAUDE.md Domain Context (new domain terms), ADR (architectural decisions meeting 3 criteria), `.geniro/knowledge/learnings.jsonl` (reusable insights), or auto-memory (collaboration preferences). Do NOT default everything to learnings.jsonl. Before writing to any store, check if an existing entry covers the topic — UPDATE rather than duplicate.
 
 If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` to route them to any follow-up action the investigation surfaced. Skip this second question if the user already indicated they are done with the topic entirely.
 - **Question:** "Anything to act on from this investigation?"
@@ -432,11 +465,12 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `
 ## Definition of Done
 
 - [ ] Question classified and scoped (Phase 1)
+- [ ] Glossary-mismatch check executed against CLAUDE.md Domain Context (Phase 1 Step 2.5); resolved via AskUserQuestion if mismatch found
 - [ ] Parallel research agents completed (Phase 2)
 - [ ] Findings cross-referenced and synthesized (Phase 3)
 - [ ] Answer self-reviewed by fresh agent (Phase 4)
 - [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 5)
-- [ ] Follow-up offered to user
+- [ ] Follow-up offered to user; if user picks "Save key findings", findings routed per Step 2a (CLAUDE.md / ADR / learnings.jsonl / memory) NOT defaulted to a single store
 
 ---
 
