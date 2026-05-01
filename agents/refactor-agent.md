@@ -154,7 +154,9 @@ For each transformation:
 
 1. **Re-read the target** — read the current file(s) before making changes (in case earlier steps altered them)
 
-2. **Pre-condition check** — run tests via backpressure to preserve context:
+2. **Pre-condition check** — required only when one of the following holds: (a) this is the FIRST transformation in the plan (no `last_post_check` recorded yet), OR (b) `last_post_check` is unset OR `last_post_check == REVERTED` (the previous step entered the Blocked Step Protocol and was reverted — the revert touched the working tree but no post-condition was successfully recorded, so the baseline must be re-verified before the next transformation), OR (c) anything other than this agent's transformations has touched the working tree since the last post-check (e.g., user interrupt that the orchestrator routed back). For step 2..N when `last_post_check == PASS`, **skip the pre-condition test** — the post-condition of the previous step already verified the same baseline (no edits intervene between consecutive transformations in this strictly-sequential atomic protocol). Skipping eliminates ~50% of test runs in the typical N-step plan (2N → N+1). **Test command selection:** if CLAUDE.md's Essential Commands section defines `<test_cmd_affected>` (an incremental command that targets only tests affected by the current diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`), use it for both the per-step pre-check and per-step post-check below — these are tight per-step gates, not regression gates. The orchestrating skill (e.g., /geniro:refactor Phase 1 Step 7 baseline; /geniro:refactor Phase 4) keeps `<test_cmd>` (full suite) as the regression gate. If `<test_cmd_affected>` is not defined in CLAUDE.md, fall back to `<test_cmd>` (current behavior).
+
+   When the pre-condition IS required, run tests via backpressure to preserve context:
    ```bash
    source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check" "[test command from prompt]"
    ```
@@ -168,14 +170,17 @@ For each transformation:
    source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Post-check" "[test command from prompt]"
    ```
    If backpressure is unavailable: `[test command] 2>&1 | tail -80`
+   Record the result as `last_post_check: PASS|FAIL` for the next iteration's Step 2 skip predicate.
 
 5. **Result handling**:
-   - **Tests pass**: Log transformation as complete, move to next step
-   - **Tests fail**: Enter the Blocked Step Protocol (below)
+   - **Tests pass**: Log transformation as complete, set `last_post_check = PASS`, move to next step (which will use the skip predicate above to skip its pre-check)
+   - **Tests fail**: Enter the Blocked Step Protocol (below) — when the protocol's revert action restores the baseline, set `last_post_check = REVERTED` so the next step's pre-check predicate (b) triggers and re-runs the baseline
 
 ### Blocked Step Protocol
 
 When a transformation fails tests:
+
+For all attempt re-runs below, use the same test command selection as Step 2 / Step 4 above (`<test_cmd_affected>` if CLAUDE.md defines it, else the supplied test command). Each attempt runs the test ONCE — there is no separate pre-check/post-check pair, since the protocol enters from an already-failed post-condition.
 
 1. **Attempt 1**: Analyze failure, fix the issue, re-run tests
 2. **Attempt 2**: Try a different approach to the same transformation, re-run tests

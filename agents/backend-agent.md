@@ -62,7 +62,7 @@ Read `CLAUDE.md` at the project root for project-specific context: tech stack, v
 
 ### 5. Run quality checks
 - Format code using the project's linter/formatter (from Project Context, or detect from README/package.json/Makefile)
-- Verify no regressions: run full test suite
+- Verify no regressions: run the project's test command. Prefer `<test_cmd_affected>` from CLAUDE.md's Essential Commands if defined (an incremental command targeting only tests affected by your diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `go test ./<changed-pkg>/...`); fall back to `<test_cmd>` (full suite) if `<test_cmd_affected>` is not defined. The orchestrating skill runs the full-suite regression gate separately at its review/validation phase — your Verify step is the agent-side gate, not the regression gate.
 - Check for any database migration requirements
 - Report any new dependencies added
 
@@ -127,6 +127,8 @@ When the task completes, provide a report containing:
 - Test runner output or summary
 - Coverage metrics if available
 - Any new test files created
+
+- **Checks Report:** at the END of your return, emit a `## Checks Report` block listing per-command pass/fail (`build: PASS|FAIL`, `lint: PASS|FAIL`, `test: PASS|FAIL`, `typecheck: PASS|FAIL|SKIP`). The orchestrator's downstream cache rule (Phase 6 Stage A in /implement, Phase 4 Step 1 in /follow-up) consumes this report and skips redundant re-runs when all PASS.
 
 ---
 

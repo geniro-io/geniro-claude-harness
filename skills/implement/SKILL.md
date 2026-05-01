@@ -254,8 +254,8 @@ Strictly limited to 1-2 line registrations. If >3 lines or any logic -> delegate
 
 ### Step 5: Post-wave validation
 
-- Run **build + test** — pass/fail gate only. Do NOT include lint (Phase 5 handles that).
-- If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
+- **If only one wave was arranged in Step 2** (i.e., Step 3 ran exactly once — Trivial/Small Full Lane plans typically), skip Step 5 entirely: Step 3's quick-gate after the single wave is the post-wave gate by construction. Append "Phase 4 Step 5 skipped — single wave; Step 3 quick-gate is the post-wave gate" to `<task-dir>/state.md` and proceed.
+- **For multi-wave runs**, Step 5 still serves as the inter-wave regression gate. Run **build + test** — pass/fail gate only. Do NOT include lint (Phase 5 handles that). If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
 
 ### Step 6: Test creation verification
 
@@ -300,9 +300,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a 
 
 ### Step 2: Verify after simplification
 
-1. Run lint/format fix
-2. Run build + lint + test
-3. **If checks fail:** revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 6.
+1. Read the simplify-agent's `## Checks Report` from its return (the agent ran autofix + build + lint + test as part of its Definition of Done — see `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 5: Simplify Agent Template").
+2. **If the report shows any FAIL or is missing:** revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 6.
+3. **Otherwise:** the simplify-agent's PASS verdict carries forward into Phase 6 Stage A's cache check (see `implement-reference.md` §"Phase 6: Stage A — Automated Checks Detail"). Do NOT re-run build/lint/test here — that would duplicate Stage A.
 
 **Anti-rationalization:**
 | Your reasoning | Why it's wrong |

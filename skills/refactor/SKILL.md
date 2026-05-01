@@ -239,7 +239,8 @@ APPROVED PLAN:
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
-VALIDATION COMMAND: [test command from CLAUDE.md]
+PER-STEP TEST COMMAND: [<test_cmd_affected> from CLAUDE.md if defined, else <test_cmd>] — agent uses this for per-step pre-condition and post-condition checks
+REGRESSION TEST COMMAND: [<test_cmd> from CLAUDE.md] — full suite; the orchestrator runs this separately for Phase 1 baseline / Phase 4 final regression gate; the agent does NOT need to invoke it
 AUTOFIX COMMAND: [autofix command from CLAUDE.md, if any]
 BACKPRESSURE: source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<validation_cmd>". If unavailable, pipe through tail -80.
 

@@ -384,6 +384,15 @@ BRANCH: [from `git branch --show-current`]
 3. Classify findings as P1/P2/P3
 4. Apply P1 and P2 fixes. Skip P3 (report only).
 5. Report what was changed using the Completion Report format from the criteria
+6. Run the project's autofix command (lint --fix / format) per CLAUDE.md, then run build + lint + test. Capture pass/fail per command. Emit a `## Checks Report` block at the END of your return with the format:
+   ```
+   ## Checks Report
+   - autofix: PASS|FAIL [error summary if FAIL]
+   - build: PASS|FAIL [error summary if FAIL]
+   - lint: PASS|FAIL [error summary if FAIL]
+   - test: PASS|FAIL [error summary if FAIL]
+   ```
+   Do NOT skip this step. The orchestrator's Phase 6 Stage A cache rule depends on this report.
 
 ## Requirements
 - Zero behavior change — preserve exact inputs, outputs, side effects
@@ -391,6 +400,8 @@ BRANCH: [from `git branch --show-current`]
 - Do NOT modify files outside the changed file list (unless extracting a shared utility)
 - Never delete or weaken test assertions
 - Report: files modified, fixes applied, P3 notes
+- Emit `## Checks Report` per Step 6 — without it, Phase 6 Stage A re-runs build/lint/test redundantly
+- If your edits break tests/lint/build, do NOT mask the failure — report FAIL honestly. The orchestrator will revert your changes; that is the safe, correct outcome.
 
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 ```
@@ -399,7 +410,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ## Phase 6: Stage A — Automated Checks Detail
 
-Before running checks, inspect implementation agent reports for a `## Checks Report` section. If ALL agents reported PASS for build, lint, and test AND no code was modified after their checks ran (no simplification step in Phase 5 modified files, no fixer agents touched code), skip Steps 1–2 below — proceed directly to Step 3 (codegen check). If any agent reported FAIL, or any agent's report is missing a Checks Report, or code was modified after the agents ran (simplification in Phase 5 modified files, or a fixer agent touched code), run all checks below.
+Before running checks, inspect implementation agent reports for `## Checks Report` sections. The cache fires (skip Steps 1–2 below — proceed directly to Step 3 codegen check) when ALL of the following hold: (a) every Phase 4 implementation agent reported PASS for build, lint, and test; (b) if Phase 5 simplify-agent ran, it ALSO reported PASS for autofix, build, lint, and test in its Checks Report (the simplify pass is now a Checks-Report producer per the Phase 5 template above); (c) no code was modified AFTER the last reporting agent (no fixer agent touched code, no orchestrator hotspot edits since). If any of the three conditions fails — any FAIL, any missing Checks Report, or any later code mutation — run all checks below.
 
 If checks need to run: delegate the **fix** to an implementer agent — do not fix code yourself.
 

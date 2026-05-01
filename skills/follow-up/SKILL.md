@@ -165,17 +165,24 @@ Agent(model="sonnet", prompt="""
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 Make changed files cleaner, simpler, more consistent — without changing behavior.
-Read and apply `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`
+Read and apply both `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` (the audit defines the procedure Pass A's reuse work depends on).
 Changed files: [list from git diff --name-only]
 Apply P1+P2 findings, report P3 only. Zero behavior change. Do NOT git add/commit/push.
 Do NOT modify files outside changed list. Never delete or weaken test assertions.
+After applying fixes, run the project's autofix (lint --fix / format), then build + lint + test (commands from CLAUDE.md). Emit a `## Checks Report` block at the END of your return:
+  ## Checks Report
+  - autofix: PASS|FAIL [error summary if FAIL]
+  - build: PASS|FAIL [error summary if FAIL]
+  - lint: PASS|FAIL [error summary if FAIL]
+  - test: PASS|FAIL [error summary if FAIL]
+Do NOT skip this — Phase 4 Step 1's cache rule depends on it. If your edits break checks, report FAIL honestly; the orchestrator will revert your changes (that is the safe, correct outcome).
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """, description="Simplify: changed files")
 ```
 
 ### Step 2: Verify after simplification
 
-Spawn a validation agent (Phase 4 Step 2 template) to check simplification didn't break anything. If FAIL: revert (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 4.
+Read the simplify-agent's `## Checks Report` from its return. If any line shows FAIL or the report is missing: revert (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 4. Otherwise the simplify-agent's PASS verdict carries forward into Phase 4 Step 1's cache check — do NOT spawn a separate validation agent here, that would duplicate Phase 4.
 
 **→ You MUST proceed to Phase 4 (Validate). DO NOT present a summary or ask "anything else?" — validation has not run yet.**
 
@@ -183,7 +190,7 @@ Spawn a validation agent (Phase 4 Step 2 template) to check simplification didn'
 
 ## Phase 4: Validate
 
-**Your role:** verify the diff matches expectations, delegate heavy validation only if needed. First check agent reports for a `## Checks Report`. If ALL agents reported PASS for build+lint+test AND no code changed after their checks (Phase 3 skipped or didn't run), skip Step 2 — proceed to Step 3. If any FAIL, any missing Checks Report, or Phase 3 touched files, spawn the validation agent in Step 2. You do NOT run build/lint/test yourself or read source code.
+**Your role:** verify the diff matches expectations, delegate heavy validation only if needed. First check agent reports for `## Checks Report` sections. The cache fires (skip Step 2 — proceed to Step 3) when ALL of the following hold: (a) every Phase 2 implementation agent reported PASS for build+lint+test; (b) if Phase 3 simplify-agent ran, it ALSO reported PASS for autofix, build, lint, and test in its Checks Report (the simplify pass is now a Checks-Report producer per the Phase 3 prompt template above); (c) no code was modified AFTER the last reporting agent (no fixer agent touched code, no orchestrator edits since). If any of the three fails — any FAIL, any missing Checks Report, or any later code mutation — spawn the validation agent in Step 2. You do NOT run build/lint/test yourself or read source code.
 
 ### Step 1: Diff Check
 

@@ -153,6 +153,7 @@ Three-source priority:
 Map each discovered command to these categories:
 - `build`, `test`, `lint`, `typecheck`, `format_fix`, `lint_fix`, `start`
 - `codegen`, `e2e`, `preflight`, `migrate`, `seed`
+- `test_affected` (optional) — incremental test command targeting only tests affected by the current diff (e.g., `npm test -- --findRelatedTests <files>` for Jest, `vitest --changed` for Vitest, `pytest --testmon` for pytest, `nx affected:test` for Nx, `go test ./<changed-pkg>/...` for Go). Detect from package.json scripts or test-runner config; if not discoverable, leave undefined and downstream agents fall back to `test`.
 
 ### 1.3 Architecture & Convention Scan
 
@@ -421,7 +422,7 @@ Read `${CLAUDE_SKILL_DIR}/reference/CLAUDE.md.example` as a structural guide. Ge
 
 1. **Project Overview** — Brief description from README/docs
 2. **Tech Stack** — All detected technologies (language, framework, ORM, etc.)
-3. **Essential Commands** — All validation commands discovered in Phase 1.2 (build, test, lint, typecheck, format_fix, lint_fix, start, codegen, etc.)
+3. **Essential Commands** — All validation commands discovered in Phase 1.2 (build, test, test_affected (optional — incremental test command for diff-aware runs, e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`, `go test ./<changed-pkg>/...`; when defined, `/geniro:implement` and `/geniro:follow-up` agents use it for per-WU/per-step Verify steps and fall back to `test` otherwise), lint, typecheck, format_fix, lint_fix, start, codegen, etc.)
 4. **Architecture** — Detected patterns (layered, hexagonal, etc.), directory structure
 5. **Conventions** — From $PROJECT_KNOWLEDGE: naming, error handling, PR process
 6. **Domain Context** — From $PROJECT_KNOWLEDGE: key entities, safety rules, API patterns

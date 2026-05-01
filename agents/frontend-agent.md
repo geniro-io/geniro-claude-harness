@@ -136,7 +136,7 @@ What it CAN do, and what you should actually use:
 2. Write integration tests for component behavior, including the state matrix entries that matter (loading / empty / error, plus disabled/focused for interactive elements)
 3. Write E2E tests for critical workflows (if applicable) — do not duplicate coverage the integration layer already has
 4. Assert against semantic roles, not CSS classes — `getByRole('button', { name: ... })` over `getByTestId`
-5. Run the project's test command and fix failures
+5. Run the project's test command and fix failures. Prefer `<test_cmd_affected>` from CLAUDE.md's Essential Commands if defined (an incremental command targeting only tests affected by your diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `jest --findRelatedTests <files>`); fall back to `<test_cmd>` (full suite) if not defined. The orchestrating skill runs the full-suite regression gate separately at its review/validation phase.
 6. Verify test coverage meets project standards
 
 ### Phase 5: Report
@@ -225,6 +225,8 @@ Coverage: XX% (lines/branches/functions)
 ## Assumptions & Notes
 [Design decisions, deviations from spec, blockers]
 ```
+
+- **Checks Report:** at the END of your return, emit a `## Checks Report` block listing per-command pass/fail (`build: PASS|FAIL`, `lint: PASS|FAIL`, `test: PASS|FAIL`, `typecheck: PASS|FAIL|SKIP`). The orchestrator's downstream cache rule (Phase 6 Stage A in /implement, Phase 4 Step 1 in /follow-up) consumes this report and skips redundant re-runs when all PASS.
 
 ---
 
