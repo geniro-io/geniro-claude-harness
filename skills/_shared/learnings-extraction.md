@@ -14,6 +14,7 @@ Bias hard toward **flow, architectural, and recurring-mistake** learnings — th
 | Tier | Save? | Examples (good shape) |
 |------|-------|----------------------|
 | **A. Architectural / cross-cutting** | YES — primary target | "Auth state must be derived from server session, never duplicated to client storage" / "Background job retries amplify rate-limit failures — debounce upstream" |
+| **A2. Architectural-prevention (post-mortem)** | YES — high signal from `/debug` and `/refactor` | "Cache invalidation bug would not occur if cacheKey were derived from a single source of truth — extract to a CacheKey value type at the seam" / "This race condition class disappears if writes go through a single serialized actor — use the existing JobQueue adapter for new write paths" |
 | **B. Flow / process** | YES | "Migrations on this codebase must be tested against a production-shape dataset, not the seed file" / "When CI fails on snapshot tests, regenerate locally before debugging — flakes are common" |
 | **C. Recurring-mistake patterns** | YES | "Treating null and undefined as interchangeable causes silent bugs in this stack" / "Adding feature flags without an off-ramp accumulates dead branches" |
 | **D. User corrections of approach** | YES (high-signal) | "User prefers small bundled PRs over salami-slicing for refactors in this area" |
@@ -22,7 +23,13 @@ Bias hard toward **flow, architectural, and recurring-mistake** learnings — th
 | **G. Trivial / obvious** | NO | "Use TypeScript strict mode" |
 | **H. One-shot facts that won't recur** | NO | "PR #234 had a typo in the README" |
 
-**Mapping tiers to JSONL `category`:** A/C → `pattern` or `anti-pattern`; B → `pattern` or `gotcha`; D → `decision`. See "JSONL schema" appendix below for the per-category field structure.
+**Mapping tiers to JSONL `category`:** A/C → `pattern` or `anti-pattern`; A2 → `architectural-prevention` (new category, see schema below); B → `pattern` or `gotcha`; D → `decision`. See "JSONL schema" appendix below for the per-category field structure.
+
+### When A2 (architectural-prevention) fires
+
+Tier A2 is the canonical capture for **post-mortem insights from `/geniro:debug` Step 8 and `/geniro:refactor` Phase 6** — situations where a confirmed root cause OR a surfaced refactor opportunity points to a *design change* that would prevent the *class* of issue. Unlike Tier A (which states an architectural rule), A2 names the specific design change as the prevention. Use the canonical vocabulary from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` (depth, seam, adapter, leverage, locality) to describe the change so multiple skills can recognize and apply it.
+
+**Promotion to ADR:** if the prevention design meets the ADR criteria in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` (hard to reverse + surprising + genuine trade-offs), the learning entry SHOULD also propose an ADR. The two are not mutually exclusive: the learning is the searchable summary; the ADR is the durable record.
 
 ## Quality gates (apply in order — fail any → drop)
 
@@ -99,7 +106,7 @@ Each entry is a single-line JSON object:
 ```json
 {
   "id": "L1",
-  "category": "pattern|gotcha|anti-pattern|decision|recipe",
+  "category": "pattern|gotcha|anti-pattern|architectural-prevention|decision|recipe",
   "learning": "One-sentence specific learning",
   "verified": true,
   "session": "2026-04-03-batch-optimization",
@@ -170,6 +177,24 @@ If any check fails, drop the entry (or revise it until it passes).
   "example_right": "const data = await fs.promises.readFile(path); res.json(data);"
 }
 ```
+
+#### Architectural-prevention entries (post-mortem design insight)
+
+```json
+{
+  "type": "architectural-prevention",
+  "title": "Cache-key drift across consumers caused stale-permission bug",
+  "trigger_event": "User-permission cache returned stale data after role change",
+  "root_cause": "Each consumer constructs cacheKey independently; one omitted userId",
+  "design_change": "Extract CacheKey value type at the cache seam; consumers must build keys via the type's constructor (deepens the cache module, narrows the seam)",
+  "vocabulary": ["seam", "depth", "adapter"],
+  "prevents_class_of": "Cache-correctness bugs from drifted key construction",
+  "promote_to_adr": false,
+  "files_affected_at_root_cause": ["src/cache/user.ts", "src/services/permission.ts"]
+}
+```
+
+Set `promote_to_adr: true` when the design change meets all 3 ADR criteria from `improvement-routing.md`. The receiving skill then proposes an ADR alongside the learning entry.
 
 #### Decision entries (architectural or technology choices)
 
