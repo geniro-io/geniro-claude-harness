@@ -4,14 +4,14 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 
 ## The rule
 
-**Every `Agent(...)` spawn MUST specify `model=` explicitly.** Pick a hardcoded tier (`haiku` / `sonnet` / `opus`) for mechanical or bounded-scope subagents — relying on the agent's frontmatter default or `inherit` lets the caller's expensive model leak into work that doesn't need it (see Claude Code issue #26179, #29768). **Carve-out for reasoning-grade synthesis subagents that mirror orchestrator judgment** (e.g., `relevance-filter-agent` weighing repo-convention evidence to inform the orchestrator's KEEP/FILTER decision): `model="inherit"` is allowed so the synthesis tier matches the orchestrator's tier — the bug-leak concern doesn't apply when the inherited tier is the intended one. The carve-out is narrow: it covers synthesis-of-review-findings work only, not reviewer agents themselves and not mechanical leaf agents.
+**Every `Agent(...)` spawn MUST specify `model=` explicitly.** Pick a hardcoded tier (`haiku` / `sonnet` / `opus`) for mechanical or bounded-scope subagents — relying on the agent's frontmatter default or `inherit` lets the caller's expensive model leak into work that doesn't need it (see Claude Code issue #26179, #29768). **Carve-out for reasoning-grade subagents that mirror orchestrator judgment**: `model="inherit"` is allowed so the synthesis/verification tier matches the orchestrator's tier — the bug-leak concern doesn't apply when the inherited tier is the intended one. The carve-out covers three categories: (a) synthesis-of-review-findings work (e.g., `relevance-filter-agent` weighing repo-convention evidence to inform KEEP/FILTER decisions); (b) per-finding validation sub-agents that independently confirm CRITICAL/HIGH findings (decisions inherit the same severity-stakes as the orchestrator's KEEP call); (c) reasoning-grade test authoring (e.g., `adversarial-tester-agent`'s F→P-verified test generation across edge cases). The carve-out does NOT cover reviewer agents themselves, mechanical leaf agents, or rubric-based work.
 
 ## Tier table
 
 | Task nature | Model |
 |---|---|
-| Mechanical edit, template-based doc patching, rubric-based review (guidelines, design), CLI orchestration, structured PASS/FAIL classification, dedup checks, observation extraction | `haiku` |
-| Code reasoning, implementation, bugs/security/architecture/tests/conventions review, spec compliance, simplify pass, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
+| Mechanical edit, template-based doc patching, rubric-based review (guidelines), CLI orchestration, structured PASS/FAIL classification, dedup checks, observation extraction | `haiku` |
+| Code reasoning, implementation, bugs/security/architecture/tests/conventions/design review, spec compliance, simplify pass, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
 | Architecture design, multi-file planning, deep hypothesis-driven debugging, threat modeling, novel-domain greenfield work | `opus` |
 
 ## Escalation signals (pick `opus` from the start)
@@ -39,8 +39,8 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 
 - **Architect work always uses `opus`.** Architectural decisions, new-feature planning, multi-file design, threat modeling. Encoded in `agents/architect-agent.md` frontmatter AND must be set explicitly (`model="opus"`) at every spawn site so the choice survives any future change to the agent default.
 - **Read-only / classifier agents stay on `haiku`** regardless of caller: `knowledge-retrieval-agent`.
-- **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests, conventions) or `haiku` for rubric dimensions (guidelines, design).
-- **Synthesis-of-review-findings agents** (e.g., `relevance-filter-agent`) use `model="inherit"` per the carve-out above so the synthesis tier mirrors the orchestrator's KEEP/FILTER tier — they are NOT reviewer agents and the "never use `opus`" rule does not apply.
+- **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests, conventions, design) or `haiku` for rubric dimensions (guidelines). Design weighs visual/UX reasoning beyond pure rubric matching (token conformance, WCAG checks, exemplar drift, responsive coverage) — `sonnet` is the accuracy-floor.
+- **Reasoning-grade carve-out agents** use `model="inherit"` so the tier mirrors the orchestrator's. Three covered categories: synthesis-of-review-findings (e.g., `relevance-filter-agent`); per-finding validators that independently confirm CRITICAL/HIGH findings; reasoning-grade test authors (e.g., `adversarial-tester-agent`). They are NOT reviewer agents and the "never use `opus`" rule does not apply.
 
 ## How skills reference this
 

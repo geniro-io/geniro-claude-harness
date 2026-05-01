@@ -491,7 +491,7 @@ Only reached after Stage B passes.
    | 4 | `sonnet` | tests-criteria.md | Coverage gaps, edge cases, test quality |
    | 5 | `haiku` | guidelines-criteria.md | Style, naming, documentation |
    | 6 | `sonnet` | conventions-criteria.md | Codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal) |
-   | 7 | `haiku` | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
+   | 7 | `sonnet` | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
 
    Row 7 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). The Model column is authoritative — pass it as `model="..."` at each spawn; the `reviewer-agent` frontmatter default is `sonnet` and the spawn-time value overrides it.
 
@@ -589,7 +589,7 @@ Only reached after the Stage C Fix Loop exits cleanly (zero remaining CRITICAL/H
 **Spawn template:**
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+Agent(subagent_type="adversarial-tester-agent", model="inherit", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring
 
 WORKTREE: [from `git rev-parse --show-toplevel`]

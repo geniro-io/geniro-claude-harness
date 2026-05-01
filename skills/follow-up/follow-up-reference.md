@@ -128,7 +128,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Reads `architecture-criteria.md`, `tests-criteria.md`, `guidelines-criteria.md` under `${CLAUDE_PLUGIN_ROOT}/skills/review/`.
 Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`). Below the N≥3 threshold the modal-inference is unreliable and the criteria file suppresses findings internally — skipping the spawn saves the call.
-Add an additional reviewer with `model='haiku'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
+Add an additional reviewer with `model='sonnet'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
 
 ---
 
@@ -137,7 +137,7 @@ Add an additional reviewer with `model='haiku'` for the design dimension when ch
 Spawn the new agent AFTER the Step 1 reviewers return, BEFORE Step 2 aggregation.
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+Agent(subagent_type="adversarial-tester-agent", model="inherit", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Follow-Up — Medium)
 
 WORKTREE: [from `git rev-parse --show-toplevel`]

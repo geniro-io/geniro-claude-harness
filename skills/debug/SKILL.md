@@ -11,7 +11,7 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 
 | Subagent | Model | Why |
 |---|---|---|
-| `adversarial-tester-agent` | `sonnet` | Matches existing call sites in `/geniro:implement` Phase 6 Stage D and `/geniro:follow-up` Medium Phase 5. Test-authoring + F→P verification workload is well-suited to sonnet's latency/cost profile. |
+| `adversarial-tester-agent` | `inherit` | Carve-out — reasoning-grade test authoring. Matches the canonical rule in `skills/_shared/model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 6 Stage D, `/geniro:follow-up` Medium Phase 5. Synthesis tier mirrors the orchestrator's; the agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 Every `Agent(...)` spawn in this skill MUST pass an explicit `model=` argument per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
@@ -301,7 +301,7 @@ Apply the same skip-matrix philosophy as `skills/follow-up/SKILL.md` Step 1.5 (s
 ### E. Spawn Template
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+Agent(subagent_type="adversarial-tester-agent", model="inherit", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Debug — Verify Changes)
 
 WORKTREE: [from `git rev-parse --show-toplevel`]

@@ -2,7 +2,7 @@
 name: adversarial-tester-agent
 description: "Adversarial edge-case hunter and failing-test author. Given a diff, generates edge-case hypotheses, authors unit/integration tests that reproduce confirmed bugs (F→P verified: red today), and returns structured findings plus a list of written test-file paths. Never modifies production code. Spawned by /geniro:implement Phase 6 Stage D, /geniro:follow-up Medium lane Phase 5, /geniro:debug Adversarial Mode (verify-changes), and /geniro:review Phase 4c (test-confirmation gate)."
 tools: [Read, Write, Edit, Bash, Glob, Grep]
-model: sonnet
+model: inherit
 maxTurns: 60
 ---
 

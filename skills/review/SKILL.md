@@ -23,11 +23,11 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 
 | Spawn | Tier | Why |
 |---|---|---|
-| `reviewer-agent` (bugs, security, architecture, tests, conventions) | `sonnet` | Reasoning-heavy review |
-| `reviewer-agent` (guidelines, design) | `haiku` | Rubric-based — pattern matching against checklist |
-| `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning to weigh repo-convention evidence against reviewer findings |
-| `adversarial-tester-agent` (Phase 4c only) | `sonnet` | Code-reasoning test authoring; matches agent's frontmatter pin |
-| Per-finding validation sub-agents (CRITICAL/HIGH) | `sonnet` | Reasoning about whether finding is real |
+| `reviewer-agent` (bugs, security, architecture, tests, conventions, design) | `sonnet` | Reasoning-heavy review (design covers visual/UX reasoning, token conformance, WCAG checks) |
+| `reviewer-agent` (guidelines) | `haiku` | Rubric-based — pattern matching against checklist |
+| `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning to weigh repo-convention evidence against reviewer findings (carve-out) |
+| `adversarial-tester-agent` (Phase 4c only) | `inherit` | Reasoning-grade test authoring — synthesis tier mirrors orchestrator (carve-out) |
+| Per-finding validation sub-agents (CRITICAL/HIGH) | `inherit` | Reasoning-grade verification — synthesis tier mirrors orchestrator (carve-out) |
 
 ## Review Process
 
@@ -152,7 +152,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 """)
 
 # Conditional — spawn ONLY if at least one changed file matches the UI-file detection rule below.
-Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: design
 CRITERIA: [content of design-criteria.md]
 CHANGED FILES: [list of files with their full content]
@@ -179,7 +179,7 @@ Used by the conditional design reviewer. A file is considered a UI file if its p
 6. **Conventions Reviewer** (always fires) — Codebase-pattern conformance: statistical inference of repo-modal patterns (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency). Flags deviations only when ≥80% of N≥3 siblings agree on a pattern; skips ambiguous splits to avoid bikeshedding. Self-suppresses (emits zero findings) when fewer than 3 sibling files exist for inference.
 7. **Design Reviewer (conditional)** — Visual/UX quality: token conformance, spacing/type scale, state completeness, WCAG AA contrast, responsive coverage, exemplar drift. Fires only when the diff contains UI files (see detection rule above).
 
-**Model routing:** Guidelines and design use `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, and conventions use `sonnet` (accuracy-critical — conventions performs statistical pattern inference). In batched mode, apply the same model per dimension.
+**Model routing:** Guidelines uses `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, conventions, and design use `sonnet` (accuracy-critical — conventions performs statistical pattern inference; design weighs visual/UX reasoning beyond pure rubric matching). In batched mode, apply the same model per dimension.
 
 #### Batched Mode (large diff)
 
@@ -202,7 +202,7 @@ Not every batch needs all 6–7 dimensions. Skip irrelevant ones to save tokens.
 
 **Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
 
-Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/conventions and `model="haiku"` for guidelines/design. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, and the same alignment-tag instruction as standard mode.
+Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/conventions/design and `model="haiku"` for guidelines. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, and the same alignment-tag instruction as standard mode.
 
 ```
 Example for 15 files, 3 batches:
@@ -304,7 +304,7 @@ For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validati
 Spawn all validators in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn:
 
 ```
-Agent(subagent_type="general-purpose", model="sonnet", prompt="""
+Agent(subagent_type="general-purpose", model="inherit", prompt="""
 TASK: Validate a single review finding. You are an independent validator — confirm or reject this finding. You have Read, Glob, Grep, and Bash available for reproduction in step 4.
 
 FINDING: [severity, dimension, file:line, description, evidence]
@@ -358,10 +358,10 @@ If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect:
 
 **Step 3: Spawn the adversarial-tester-agent.**
 
-Spawn ONE `adversarial-tester-agent` (model="sonnet" per the canonical model-tiering rule) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required.
+Spawn ONE `adversarial-tester-agent` (model="inherit" per the canonical model-tiering carve-out — reasoning-grade test authoring mirrors orchestrator tier) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required.
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model="sonnet", prompt="""
+Agent(subagent_type="adversarial-tester-agent", model="inherit", prompt="""
 CHANGED FILES: [list of changed file paths with full content — pre-inlined from Phase 1]
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]

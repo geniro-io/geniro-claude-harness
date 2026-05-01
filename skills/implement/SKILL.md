@@ -34,8 +34,9 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 
 | Where used in this skill | Tier |
 |---|---|
-| Phase 7 doc updates, Phase 6 Stage C guidelines & design reviewers | `haiku` |
-| backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers, Phase 6 Stage D adversarial-tester-agent, relevance-filter | `sonnet` |
+| Phase 7 doc updates, Phase 6 Stage C guidelines reviewer | `haiku` |
+| backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers (incl. design when UI files present) | `sonnet` |
+| Phase 6 Stage D adversarial-tester-agent, relevance-filter (carve-out — synthesis tier mirrors orchestrator) | `inherit` |
 | architect-agent (Phase 2) — other phases MUST NOT spawn `opus` directly | `opus` |
 
 **Runtime escalation (Sonnet → Opus on failure):** If a `sonnet` subagent returns wrong output, fails its checklist, or fails tests during Phase 5 implementation or Phase 6 review, re-dispatch ONCE with `model="opus"` plus the failure context appended to the prompt. If the opus retry also fails, escalate to the user. Never bump twice in a row.
@@ -354,7 +355,7 @@ Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-di
 
 **Purpose:** Attacker-mindset pass that complements Stage C. Where Stage C's `tests-criteria.md` reviewer REPORTS coverage/quality gaps in EXISTING tests, Stage D AUTHORS NEW failing tests (F→P-verified: red today) for edge cases the implementer's happy-path-plus-2-edge tests missed. Authored tests feed the existing Fix Loop above ("make the red tests green").
 
-**Action:** Spawn one `adversarial-tester-agent` (`model="sonnet"`) with the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command (from CLAUDE.md or package.json), Stage C findings as hypothesis seeds, and output path `<task-dir>/adversarial-tests.md`. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 6 Stage D for the full spawn template.
+**Action:** Spawn one `adversarial-tester-agent` (`model="inherit"` per canonical model-tiering carve-out — reasoning-grade test authoring mirrors orchestrator tier) with the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command (from CLAUDE.md or package.json), Stage C findings as hypothesis seeds, and output path `<task-dir>/adversarial-tests.md`. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 6 Stage D for the full spawn template.
 
 **Orchestrator responsibilities after the agent returns:**
 1. **Re-verify F→P independently.** Run the authored tests yourself — do NOT trust the agent's self-report. Any test that passes today is removed from scope; log it and continue.
@@ -489,7 +490,7 @@ If "Delete": remove `<task-dir>/` recursively.
 | "Steps X-Y are small, I'll handle them myself" | Every plan step becomes a WU. Group small related steps into one WU, but never execute as orchestrator. |
 | "The build failed, let me read the source and fix it quickly" | Run the check, copy the raw terminal output into a fixer agent prompt. Do NOT open source files, diagnose, search for types, or apply edits yourself. |
 | "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory first (Grep/Glob for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
-| "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier matches task nature, not risk appetite. Upgrading mechanical-task agents (docs, guidelines, design) to sonnet defeats the cost rationale and signals drift. Re-classify via the Subagent Model Tiering table — don't silently upsize. |
+| "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier matches task nature, not risk appetite. Upgrading mechanical-task agents (docs, guidelines) to sonnet defeats the cost rationale and signals drift. Re-classify via the Subagent Model Tiering table — don't silently upsize. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. Only sequence when outputs feed into next agent (e.g., plan → skeptic) or files overlap. |
 
 ---

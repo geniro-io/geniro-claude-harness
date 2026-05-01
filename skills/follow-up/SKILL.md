@@ -25,8 +25,9 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 
 | Where used in this skill | Tier |
 |---|---|
-| Trivial Fast Lane implementation, Phase 4 validation, Phase 5 design-dimension review | `haiku` |
-| Small/Medium implementation, Phase 3 simplify, Phase 5 single/multi-dimension reviewers, Phase 5 Step 1.5 adversarial-tester-agent (Medium only) | `sonnet` |
+| Trivial Fast Lane implementation, Phase 4 validation | `haiku` |
+| Small/Medium implementation, Phase 3 simplify, Phase 5 single/multi-dimension reviewers (incl. design when UI files present) | `sonnet` |
+| Phase 5 Step 1.5 adversarial-tester-agent (Medium only, carve-out — synthesis tier mirrors orchestrator) | `inherit` |
 
 ## Change Request
 
@@ -263,13 +264,13 @@ Capture the changed file list from the diff against the base branch (resolved pe
 
 **Trivial (any lane) and Small (Fast Lane):** Review the diff yourself — no subagent. Check for: typos in the fix, accidental deletions, logic inversion, missed second occurrence. If anything looks off, delegate the fix to an agent and re-validate. Do NOT fix code directly. If ambiguous or potentially CRITICAL, escalate to a single Sonnet reviewer (Fast Lane escape hatch).
 
-**Small (Full pipeline, 3–5 files) and Medium (6–8 files):** Spawn reviewer-agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1: Reviewer Agent Templates. Small = single reviewer. Medium = 2–3 reviewers spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria; do NOT pre-read criteria into orchestrator context. Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (the criteria file's modal-inference is meaningful only with N≥3 samples; below that threshold the reviewer suppresses findings internally and the spawn is wasted). Add an additional `haiku` reviewer for the design dimension when changed files include UI.
+**Small (Full pipeline, 3–5 files) and Medium (6–8 files):** Spawn reviewer-agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1: Reviewer Agent Templates. Small = single reviewer. Medium = 2–3 reviewers spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria; do NOT pre-read criteria into orchestrator context. Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (the criteria file's modal-inference is meaningful only with N≥3 samples; below that threshold the reviewer suppresses findings internally and the spawn is wasted). Add an additional `sonnet` reviewer for the design dimension when changed files include UI.
 
 ### Step 1.5: Adversarial Edge-Case Tests (Medium only — skipped for Trivial, Small, and all Fast Lane runs)
 
 **Purpose:** Attacker-mindset pass that complements the reviewer-agents from Step 1. Where the Step 1 tests-dimension reviewer REPORTS coverage gaps, Step 1.5 AUTHORS NEW failing tests (F→P-verified: red today) for edge cases the Phase 2 implementer's happy-path tests missed.
 
-**Action:** Spawn one `adversarial-tester-agent` (`model="sonnet"`) using the template in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1.5: Adversarial Tester Template. Pre-inline the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command, and Step 1 findings as hypothesis seeds.
+**Action:** Spawn one `adversarial-tester-agent` (`model="inherit"` per canonical model-tiering carve-out — reasoning-grade test authoring mirrors orchestrator tier) using the template in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1.5: Adversarial Tester Template. Pre-inline the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command, and Step 1 findings as hypothesis seeds.
 
 **Orchestrator responsibilities after the agent returns:**
 1. **Independently re-run the authored tests** — do NOT trust the agent's F→P self-report. Any test that passes today is deleted and removed from scope.
