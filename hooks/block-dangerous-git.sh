@@ -29,7 +29,10 @@ fi
 
 # Pad the command with leading/trailing whitespace so flag matchers like
 # [[:space:]]-f[[:space:]] reliably hit -f even at start/end of string.
-PADDED=" $COMMAND "
+# Also collapse newlines to spaces so multi-line commands (heredocs, line-continuation,
+# embedded \n) don't slip past line-oriented grep matching — a force-push on line 1
+# of a multi-line command must still trigger the block.
+PADDED=" ${COMMAND//$'\n'/ } "
 
 # Find the nearest .geniro/safety.json walking up from cwd
 find_safety_json() {
