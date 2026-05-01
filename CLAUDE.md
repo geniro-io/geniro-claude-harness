@@ -39,7 +39,20 @@ This plugin provides safety hooks that run automatically:
 - **Database guard** — prevents unsafe database operations
 - **File protection** — blocks writes to `.env`, `*.key`, `*.pem`, lock files
 - **Secret scanning** — scans inputs and outputs for leaked secrets
+- **Git guardrails** — blocks destructive git operations (force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, filter-branch, update-ref -d)
 - **Compaction state** — preserves critical state across context compaction
+
+### Per-project allowlist for git guardrails
+
+Create `.geniro/safety.json` in your project to opt out of specific git-guardrail patterns:
+
+```json
+{
+  "allow_patterns": ["force-push-with-lease", "clean-fd"]
+}
+```
+
+Pattern IDs: `force-push`, `force-push-with-lease`, `reset-hard`, `branch-delete-force`, `clean-fd`, `checkout-mass-discard`, `restore-mass-discard`, `update-ref-delete`, `filter-branch`. The allowlist is read from the nearest `.geniro/safety.json` walking up from the cwd.
 
 ## Optional MCP Dependencies
 
