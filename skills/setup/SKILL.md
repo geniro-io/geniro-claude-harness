@@ -177,6 +177,31 @@ Check for pre-existing configuration:
 - `AGENTS.md`, `.agents.md` (generic agent instructions — read for context)
 - `.editorconfig`, `.prettierrc`, `eslint.config.*`
 
+#### Issue tracker detection
+
+Detect the project's issue tracker so Phase 2.3 can offer the right integration. Inspect (in order; first match wins):
+
+1. **`git remote get-url origin`**:
+   - Contains `github.com` → tentative `github-issues` (most projects use it; confirm in Phase 2.3)
+   - Contains `gitlab.com` or `gitlab.<custom>` → tentative `gitlab-issues`
+   - Contains `bitbucket.org` → tentative `bitbucket-issues`
+   - Contains `git.<custom>` (self-hosted) → `unknown-self-hosted` — ask in Phase 2.3
+   - No remote / file remote → `none-detected`
+2. **Linear signals** (override #1 if present — many GitHub-hosted repos use Linear instead of Issues):
+   - `.linear/` directory exists
+   - `package.json` includes `@linear/sdk` or `@linear/codegen`
+   - `.geniro/workflow/linear.md` already present (re-install on existing project)
+3. **Jira signals** (override #1):
+   - `.jira/` directory exists
+   - any tracked file matches `*.jira.yml`, `jira-config.json`
+4. **GitHub Issues confirmation signals** (strengthen #1 → confirmed):
+   - `.github/ISSUE_TEMPLATE/` directory with templates
+   - PRs/commits reference `#123` issue numbers (sample `git log --oneline -50 | grep '#[0-9]'`)
+5. **GitLab Issues confirmation signals** (strengthen #1 → confirmed):
+   - `.gitlab/issue_templates/` directory with templates
+
+Store the result as `$ISSUE_TRACKER` for Phase 2.3 (one of: `github-issues` / `gitlab-issues` / `bitbucket-issues` / `linear` / `jira` / `unknown-self-hosted` / `none-detected`). Strength values: `confirmed` (signals from step 4-5 fired), `tentative` (only step 1 fired), `none-detected` (no remote, no signals).
+
 Route based on `$INSTALL_MODE` and `$VENDOR_MODE` detected in Phase 0:
 
 - **`fresh`**: No existing plugin files. Continue to Phase 2 (User Interview) as normal.
@@ -325,17 +350,33 @@ D) Mixed / no clear pattern yet
 
 **Frontend design anchors** (only if frontend exists): ask for (a) 1-3 named exemplar component files the frontend-agent should visually mirror, and (b) opt-in aesthetic direction for greenfield work (e.g., "minimal/editorial") or "stay on universal baseline" if the project is already matured.
 
-### 2.3 Optional Integrations
+### 2.3 Optional Integrations — Issue Tracker
 
-Use the `AskUserQuestion` tool to ask:
+Use the `AskUserQuestion` tool with header "Tracker" to ask which issue tracker the project uses (the recommended default reflects the `$ISSUE_TRACKER` value detected in Phase 1.4):
 
-```
-Would you like to enable Linear integration?
+| Detected ($ISSUE_TRACKER) | Recommended-first option | Other options |
+|---|---|---|
+| `linear` | "Linear (Recommended — detected)" | GitHub Issues / Skip / GitLab Issues |
+| `github-issues` confirmed | "GitHub Issues (Recommended — detected via .github/ISSUE_TEMPLATE/)" | Linear / Skip / GitLab Issues |
+| `gitlab-issues` confirmed | "GitLab Issues (Recommended — detected via .gitlab/issue_templates/)" | GitHub Issues / Linear / Skip |
+| `github-issues` tentative (remote only) | "GitHub Issues (Recommended — based on git remote)" | Linear / Skip / GitLab Issues |
+| `gitlab-issues` tentative | "GitLab Issues (Recommended)" | Linear / GitHub Issues / Skip |
+| `jira` | "Jira (detected, no built-in workflow yet)" | GitHub Issues / Linear / Skip |
+| `bitbucket-issues` | "Bitbucket Issues (detected, no built-in workflow yet)" | GitHub Issues / Linear / Skip |
+| `unknown-self-hosted` | "Pick one" — no recommendation; show GitHub Issues / GitLab Issues / Linear / Skip evenly |
+| `none-detected` | "Skip — no tracker (Recommended)" | GitHub Issues / GitLab Issues / Linear |
 
-Enabling Linear creates a workflow file (.geniro/workflow/linear.md) that adapts skill behavior — /geniro:implement will auto-detect Linear issue IDs and URLs, fetch issue context, and link commits to issues.
-```
+Question text: "Which issue tracker does this project use? The integration adds a workflow file to `.geniro/workflow/` that adapts skill behavior — issue-ID detection in `$ARGUMENTS`, fetching issue context, posting AI-disclosure-prefixed comments, linking commits, and (for `/geniro:features triage`) updating triage state on the external issue."
 
-Options: "Enable Linear" / "Skip for now"
+**Per-tracker behavior on selection:**
+
+- **Linear** → install `.geniro/workflow/linear.md` from `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md`; instruct user to run `claude mcp add --transport http linear https://mcp.linear.app/mcp`.
+- **GitHub Issues** → install `.geniro/workflow/github-issues.md` from `${CLAUDE_SKILL_DIR}/workflow-templates/github-issues.md` if the template exists; if not, write a stub file with TODO sections matching the linear.md structure (Argument Detection, Fetching Issue Context, Status Transitions, AI-Disclosure Prefix, Commit Message Format, PR Description) and note "GitHub Issues integration is partial — workflow file is a stub; please customize for your team's labeling conventions."
+- **GitLab Issues** → same as GitHub Issues, write a stub if no template.
+- **Jira / Bitbucket Issues** → no built-in workflow file; report "No built-in workflow for this tracker. You can author one at `.geniro/workflow/<tracker>.md` using `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md` as a structural example." Skip integration without blocking setup.
+- **Skip** → no workflow file written.
+
+Store the user's selection as `$ISSUE_TRACKER_CHOICE` for Phase 3.2 file generation.
 
 ### 2.4 Custom Instructions
 
@@ -405,14 +446,25 @@ C) Skip — I'll write it myself
 
 ### 3.2 Create Workflow Files (if integrations selected)
 
-For each integration the user enabled in Phase 2.3, create the corresponding workflow file:
+Based on `$ISSUE_TRACKER_CHOICE` from Phase 2.3:
 
 **Linear:**
 1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md`
 2. Copy it to `.geniro/workflow/linear.md` (create the directory if needed: `mkdir -p .geniro/workflow`)
 3. Inform the user to run: `claude mcp add --transport http linear https://mcp.linear.app/mcp`
 
-Future integrations follow the same pattern: read from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md`, copy to `.geniro/workflow/<name>.md`.
+**GitHub Issues:**
+1. Check for `${CLAUDE_SKILL_DIR}/workflow-templates/github-issues.md`. If present, copy it to `.geniro/workflow/github-issues.md`.
+2. If absent, write a stub file at `.geniro/workflow/github-issues.md` with the same section headings as linear.md (Argument Detection, Fetching Issue Context, Status Transitions, AI-Disclosure Prefix, Commit Message Format, PR Description) and TODO placeholders for each section. Add a header note: "Stub file — please populate with your team's GitHub Issues conventions. See `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` for the structural example."
+3. Inform the user: "GitHub Issues integration installed as a stub. The `gh` CLI is the recommended interface; no MCP setup needed."
+
+**GitLab Issues:**
+1. Same pattern as GitHub Issues but for `gitlab-issues.md`.
+2. Inform the user: "GitLab Issues integration installed as a stub. The `glab` CLI is the recommended interface; no MCP setup needed."
+
+**Skip / Jira / Bitbucket / unsupported:** no workflow file written.
+
+Future integrations follow the same pattern: read from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md` if present, otherwise write a stub. All workflow files MUST include the AI-Disclosure Prefix section so `/geniro:features triage` and `/geniro:implement` know what prefix to use when posting tracker comments.
 
 **Custom Instructions:**
 If the user chose to create custom instructions in Phase 2.4:
@@ -565,7 +617,7 @@ Write the state file:
   "installed_at": "ISO-8601 timestamp",
   "install_mode": "fresh|update",
   "features_enabled": {
-    "linear": true,
+    "issue_tracker": "linear|github-issues|gitlab-issues|jira|bitbucket-issues|none",
     "custom_instructions": true
   },
   "files": {

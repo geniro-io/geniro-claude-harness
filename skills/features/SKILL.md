@@ -19,6 +19,7 @@ Use this skill to manage a project feature backlog and create detailed specifica
 | **next** | `/geniro:features next` | Show highest-priority unstarted feature ready for work |
 | **add** | `/geniro:features add [description]` | Add a new planned feature; auto-assigns next ID and priority |
 | **spec** | `/geniro:features spec [id or description]` | Full spec pipeline — scout codebase, identify gray areas, ask questions, write spec, register in backlog |
+| **triage** | `/geniro:features triage [id]` | AI-driven triage: gather context → recommend category → grill → apply outcome (ready-for-agent / ready-for-human / needs-info / wontfix). For bugs, attempts reproduction or routes to `/geniro:debug`. |
 | **move** | `/geniro:features move [id] [status]` | Transition a feature's status (planned→in-progress→done, or blocked) |
 | **complete** | `/geniro:features complete [id]` | Mark feature as done; explain what was completed |
 | **status** | `/geniro:features status` | Quick summary: total, in-progress, done, blocked count |
@@ -28,21 +29,25 @@ Use this skill to manage a project feature backlog and create detailed specifica
 Features stored in `.geniro/planning/FEATURES.md`:
 
 ```
-| ID | Description | Status | Priority | Complexity | Notes |
-|----|-------------|--------|----------|------------|-------|
-| F1 | Core auth system | done | P0 | XL | Shipped v1.0 |
-| F2 | Email notifications | in-progress | P1 | M | Needs SMTP config |
-| F3 | Admin dashboard | planned | P2 | L | Spec: admin-dashboard-spec.md |
-| F4 | Payment integration | blocked | P1 | XL | Blocked on legal review |
+| ID | Description | Category | Status | Triage | Priority | Complexity | Notes |
+|----|-------------|----------|--------|--------|----------|------------|-------|
+| F1 | Core auth system | enhancement | done | ready-for-agent | P0 | XL | Shipped v1.0 |
+| F2 | Email notifications | enhancement | in-progress | ready-for-human | P1 | M | Needs SMTP config |
+| F3 | Admin dashboard | enhancement | planned | ready-for-agent | P2 | L | Spec: admin-dashboard-spec.md |
+| F4 | Payment integration | bug | blocked | needs-info | P1 | XL | Blocked on legal review |
 ```
 
 **Fields:**
 - **ID**: Auto-incremented (F1, F2, F3...)
 - **Description**: One-sentence feature goal
+- **Category**: `bug` (something is broken vs the intended/specified behavior) or `enhancement` (new behavior or improvement). Set by `/geniro:features triage`; defaults to `enhancement` for new entries created by `add`.
 - **Status**: `planned` → `in-progress` → `done` (or `blocked` if stuck)
+- **Triage**: `needs-triage` (default for new entries, awaiting `/geniro:features triage`) | `needs-info` (blocked on user/reporter for clarifying info) | `ready-for-agent` (scope clear; an agent like `/geniro:implement` can pick it up autonomously) | `ready-for-human` (scope clear but needs human judgment in implementation — auth/payments/UX/cross-stack) | `wontfix` (rejected after triage; kept for searchability)
 - **Priority**: P0 (critical), P1 (high), P2 (medium), P3 (low)
 - **Complexity**: XS, S, M, L, XL estimate
-- **Notes**: Blockers, dependencies, spec file links
+- **Notes**: Blockers, dependencies, spec file links, triage rationale (1 line)
+
+**Backwards compatibility:** existing FEATURES.md tables without `Category` and `Triage` columns are read as `enhancement` + `needs-triage` defaults. The `list`, `next`, `add`, `move`, `complete`, and `status` commands work without `Category`/`Triage` populated; only `triage` reads/writes them.
 
 ## Workflow: Add → Track → Complete
 
@@ -87,6 +92,120 @@ Before displaying the features table, scan for orphan specs:
    ```
 4. If user agrees to auto-register, create new FEATURES.md rows with status=planned and Notes linking to the spec file
 5. Then display the full features table grouped by status
+
+---
+
+## `triage` Subcommand: AI-Driven Triage Pipeline
+
+### Feature ID
+
+`$ARGUMENTS` (after the `triage` keyword) — feature ID like `F3` or `next` (auto-pick the highest-priority `needs-triage` entry).
+
+**If `$ARGUMENTS` is empty**, ask via `AskUserQuestion` with header "Triage": "Which feature to triage?" with options "Next needs-triage entry (auto-pick)" / "I'll provide an ID" / "Cancel".
+
+**If feature ID not in FEATURES.md**: report "F<id> not found in FEATURES.md" and stop.
+
+**If feature is already triaged (Triage != needs-triage)**: ask via `AskUserQuestion` "F<id> is already triaged as `<current-triage>`. Re-triage anyway?" with options "Yes — re-triage" / "Skip" / "Show current triage rationale from Notes".
+
+### Step 1: Gather context (5 min)
+
+1. Read the feature row in FEATURES.md (Description, Category if set, Notes).
+2. If a spec file is linked in Notes, read it.
+3. Check `.geniro/knowledge/learnings.jsonl` for related patterns/gotchas (Grep with description keywords).
+4. If `.geniro/planning/<task-dir>/` exists for this feature, read `spec.md` and `state.md`.
+
+### Step 2: Recommend Category (bug vs enhancement)
+
+Apply this rubric — pick the FIRST that matches:
+
+| Signal | Category |
+|---|---|
+| Description names a broken behavior, error, regression, or "X stopped working" | `bug` |
+| Description references existing entity behaving wrong | `bug` |
+| Description proposes new functionality or capability | `enhancement` |
+| Description proposes optimization / refactor / cleanup of working code | `enhancement` |
+| Ambiguous | Ask user via AskUserQuestion (header "Category", options: "Bug — something is broken vs intended behavior" / "Enhancement — new behavior or improvement") |
+
+Auto-select if signals are strong; otherwise ask. Record the recommendation; user can override at Step 6.
+
+### Step 3: Reproduce (bugs only)
+
+If Category is `bug`:
+1. Scout the codebase for the affected area (Grep for entity names, file paths mentioned in description).
+2. **If reproduction steps are clear AND scoped to ≤5 minutes:** attempt reproduction inline (run a query, hit an endpoint, read the suspect code path).
+3. **If reproduction is non-trivial:** offer routing via AskUserQuestion (header "Reproduce", options: "Route to /geniro:debug for systematic investigation (Recommended)" / "Skip reproduction — triage from description alone" / "I'll repro and report back").
+4. **If reproduction succeeds:** capture the artifact (failing assertion, log line, screenshot reference) in the triage record (Step 6 Notes column).
+5. **If reproduction fails / cannot reproduce in ≤5 minutes / requires user environment:** mark Triage `needs-info` and proceed to Step 4 to gather missing data.
+
+### Step 4: Grill (close gaps before applying outcome)
+
+Identify gaps that block triage:
+
+- **Missing scope** — what exactly is in vs out?
+- **Missing acceptance criteria** — how do we know it's done?
+- **Missing reproduction** (bugs) — what are the exact steps + environment?
+- **Missing rationale** — why is this priority? what does it unblock?
+
+For each gap, ask via `AskUserQuestion` (one question per gap, max 3 gaps per round, max 2 rounds total). After 2 rounds, if gaps remain, mark Triage `needs-info` and write the outstanding questions into Notes per the template below.
+
+### Step 5: Apply Outcome (recommend + ask)
+
+Synthesize the triage outcome from Steps 1-4:
+
+| Outcome | When | Effect |
+|---|---|---|
+| `ready-for-agent` | Scope clear + acceptance criteria defined + low product-decision risk + no auth/payments/UX subjective judgment | Triage column = ready-for-agent; Status stays `planned` (or moves to `in-progress` only if user explicitly starts work). Feature can be picked up by `/geniro:implement` without a human gate. |
+| `ready-for-human` | Scope clear + acceptance criteria defined + needs human judgment in implementation (UX, cross-stack contracts, auth/payments, ambiguous trade-offs) | Triage = ready-for-human; Status stays `planned`. Implementation should NOT be started by an autonomous agent. |
+| `needs-info` | Gaps remain after Step 4 grilling | Triage = needs-info; Status moves to `blocked`. Notes populated with structured needs-info template (below). |
+| `wontfix` | After triage, the feature is rejected (out of scope, conflicts with constraint, duplicate) | Triage = wontfix; Status moves to `done` (closed without ship); Notes captures rejection rationale (1 line). |
+
+Recommend ONE outcome to the user via `AskUserQuestion` with header "Outcome", listing all 4 with the recommended one first labeled "(Recommended)".
+
+### Step 6: Apply changes to FEATURES.md
+
+After user approves the outcome:
+
+1. Update the feature row's `Category` and `Triage` columns.
+2. Update `Status` if the outcome dictates (`needs-info` → `blocked`; `wontfix` → `done`; otherwise unchanged).
+3. Append a 1-line triage rationale to Notes: `Triaged YYYY-MM-DD: <outcome> — <rationale>`.
+4. If outcome was `needs-info`, write the structured template into Notes (multi-line — use `<br>` or newlines per FEATURES.md's existing convention):
+
+```
+## Needs-info template
+
+**Established facts (don't ask again):**
+- [bullet — what we already know from triage]
+- [bullet]
+
+**Outstanding questions:**
+- [Q1 — specific, answerable]
+- [Q2]
+
+**To unblock:** answer outstanding questions, then run `/geniro:features triage F<id>` again to re-triage.
+```
+
+This ensures resumed triage sessions don't lose prior work.
+
+### Step 7: Post to issue tracker (if integration active)
+
+If `.geniro/workflow/<tracker>.md` exists (Linear, GitHub Issues, etc.) AND the feature is linked to an external issue (via Notes column "Linear: ENG-123" / "GH: #456" pattern):
+
+1. Read the workflow file's AI-disclosure rules and comment-format rules.
+2. Compose a triage comment summarizing: outcome, category, rationale, next step.
+3. **Prefix the comment with the AI-disclosure marker** specified in the workflow file (e.g., `[AI-generated by Geniro] ` for Linear). Never post AI-authored content to the tracker without the prefix.
+4. Post via the tracker's MCP (if available); skip silently with a warning if MCP unavailable.
+
+### Step 8: Confirm and close
+
+Report to the user:
+- F<id> triage outcome: <outcome>
+- Category: <bug | enhancement>
+- Status now: <planned | blocked | done>
+- Next action: pick one based on outcome:
+  - `ready-for-agent` → "Run `/geniro:features spec F<id>` if no spec exists, or `/geniro:implement F<id>` directly."
+  - `ready-for-human` → "Manual implementation; the feature is queued in FEATURES.md."
+  - `needs-info` → "Answer the outstanding questions in Notes, then re-run `/geniro:features triage F<id>`."
+  - `wontfix` → "Closed as wontfix. Rationale in Notes."
 
 ---
 
@@ -404,11 +523,19 @@ Registered as F5 in FEATURES.md with `Notes: Spec: notification-center-spec.md`.
 For each skill invocation, confirm:
 
 - [ ] Feature file (`.geniro/planning/FEATURES.md`) exists and is readable
-- [ ] All features have ID, description, status, priority, complexity
+- [ ] All features have ID, description, status, priority, complexity (Category and Triage default to `enhancement` and `needs-triage` for entries created before triage existed)
 - [ ] Requested command executed correctly
 - [ ] Output is clear and actionable
 - [ ] File updated if any changes made
 - [ ] Status transitions are valid (planned→in-progress→done, or blocked)
+- [ ] (triage command) Step 1 context gathered (FEATURES.md row + linked spec + relevant learnings + planning task-dir if present)
+- [ ] (triage command) Category recommended (bug/enhancement) with rubric or asked via AskUserQuestion when ambiguous
+- [ ] (triage command) Bugs: reproduction attempted inline OR routed to `/geniro:debug` OR escalated as `needs-info` with reason
+- [ ] (triage command) Gaps grilled (max 2 rounds) before applying outcome
+- [ ] (triage command) Outcome (ready-for-agent / ready-for-human / needs-info / wontfix) recommended via AskUserQuestion; user approved before any FEATURES.md write
+- [ ] (triage command) FEATURES.md row updated: Category + Triage + Status (if outcome dictates) + 1-line rationale appended to Notes
+- [ ] (triage command) `needs-info` outcomes write the structured template (Established facts / Outstanding questions / To unblock) into Notes
+- [ ] (triage command) If issue-tracker integration active and feature linked to external issue: triage comment posted with the workflow file's AI-disclosure prefix; never post AI-authored content without the prefix
 - [ ] (spec command) Codebase scouted; patterns documented
 - [ ] (spec command) Gray areas identified (3–6 concrete questions)
 - [ ] (spec command) Questions asked and answered by user
