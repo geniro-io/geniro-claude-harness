@@ -63,12 +63,16 @@ NEVER output questions as plain text — always use the `AskUserQuestion` tool a
 
 If `$ARGUMENTS` is empty, default to `list`.
 
-### Name detection
+### Name / query detection
 
-Any non-action token after the action verb is treated as the action name (kebab-case). Example:
-`/geniro:actions create slack-release-ping` → `action=create, name=slack-release-ping`. Trailing
-positional arguments after the name (e.g., `run my-action arg1 arg2`) are passed to Phase 4 as
-extra context.
+The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`/`delete`:
+
+- **`create`** — the next non-verb token MUST be a kebab-case slug (lowercase letters, digits, hyphens; ≤64 chars; not a reserved word; no leading/trailing hyphen). Anything else fails the Phase 0 name-validation re-ask loop.
+- **`run` and `delete`** — the non-verb remainder is treated as a **resolution input** that may be either:
+  1. an exact kebab slug (e.g., `slack-release-ping`) — fast path, resolved by file-existence check; OR
+  2. a free-text description (e.g., `"post release notes to slack"`, `finalize my pr`) — routed through Phase 4.0 "Resolve target" which matches against installed actions' (slug, description) pairs and confirms the chosen action via AskUserQuestion before any execution.
+
+  An input is treated as a free-text description when it is multi-word, quoted, contains uppercase or whitespace, or fails the kebab regex. A single-token kebab input that does not resolve to an existing file also falls through to free-text matching (the user may have typed an approximate slug). Trailing positional arguments AFTER the resolved action name are still passed as extra context to Phase 4.4.
 
 ### Ambiguity resolution
 
@@ -158,9 +162,14 @@ If `.geniro/actions/<name>.md` already exists, use the `AskUserQuestion` tool:
   - label: "Version it" — description: "Rename existing to `<name>-v1.md`, then write a new `<name>.md`"
   - label: "Cancel" — description: "Leave the existing file untouched and stop"
 
-On **Edit in place**: print the absolute path, instruct the user to edit it, then re-run the
-Phase 3.6 validation gate against the resulting file. Do not proceed past validation until the
-user signals they're done.
+On **Edit in place**: print the absolute path, instruct the user to edit it externally, then use the `AskUserQuestion` tool to wait for the user's "done" signal:
+
+- **Question:** "Have you finished editing `<absolute-path>`?"
+- **Options:**
+  - label: "Done — re-run validation" — description: "Re-read the file and run the Phase 3.6 validation gate against the resulting content"
+  - label: "Cancel" — description: "Stop without re-validating; leave the file as the user left it"
+
+On **Done**, re-run the Phase 3.6 validation gate against the file. On **Cancel**, stop.
 
 On **Version it**: `mv .geniro/actions/<name>.md .geniro/actions/<name>-v1.md`, then continue to
 3.2.
@@ -281,27 +290,80 @@ Created `.geniro/actions/<name>.md`. Run with `/geniro:actions run <name>`.
 > `context: fork` in its frontmatter, future versions may dispatch to a subagent — for now, the
 > orchestrator follows the action steps directly in the current session.
 
+### Phase 4.0: Resolve target by name-or-description (shared by `run` and `delete`)
+
+Both `run` and `delete` call into this resolver before they touch any action file. The resolver returns three named values: `<resolved-path>` (absolute or repo-relative), `<resolved-slug>` (basename of `<resolved-path>` minus `.md`), and `<source>` (`local` or `main-worktree`). All downstream phases (4.2, 4.3, 4.5, 5.2, 5.3) consume `<resolved-slug>` for display/rm and `<resolved-path>` for Read. The resolver NEVER auto-executes — every selection passes through AskUserQuestion.
+
+#### Step 1: Build the registry index
+
+Glob `./.geniro/actions/*.md` to get the **local** registry. For each file, Read the frontmatter and extract `name` and `description`.
+
+Detect worktree state:
+
+```bash
+git rev-parse --show-toplevel    # current worktree root
+git worktree list --porcelain    # first `worktree <path>` entry is the main worktree
+```
+
+If the current `--show-toplevel` differs from the first `worktree` entry in the porcelain listing, the user is in a **linked worktree**. In that case, also Glob `<main-worktree-root>/.geniro/actions/*.md` and extract `name` + `description` for each. Tag each entry with `<source>` (`local` or `main-worktree`). When the same slug exists in both, **local wins** — drop the main-worktree entry from the candidate list.
+
+If `git rev-parse` fails (not a git repo) or the porcelain listing has only one entry (single worktree), there is no main-worktree fallback — the registry is just `local`.
+
+#### Step 2: Exact-slug fast path
+
+If the user's input is a valid kebab slug AND an entry with `name == <input>` exists in the merged registry:
+
+- **Source = local:** return `(<resolved-path>, <resolved-slug>, local)` immediately. No AskUserQuestion required.
+- **Source = main-worktree, sub-command = `run`:** show a confirmation via AskUserQuestion before returning.
+  - **Question:** "`<input>` was not found in this worktree's `.geniro/actions/`. The action `<input>` exists in the main worktree at `<main-worktree-root>/.geniro/actions/<input>.md`. Use it?"
+  - **Options:**
+    - label: "Use the main-worktree copy" — description: "Read the action from the main worktree (read-only). Execution still happens in this worktree."
+    - label: "Cancel" — description: "Stop. The action is not available in this worktree."
+  - On confirm, return `(<main-worktree-path>, <input>, main-worktree)`. On cancel, stop the whole sub-command.
+- **Source = main-worktree, sub-command = `delete`:** skip the "Use the main-worktree copy?" gate (it's the wrong question for `delete`). Return `(<main-worktree-path>, <input>, main-worktree)` directly so Step 4 can fire the single source-aware refuse-and-surface gate.
+
+#### Step 3: Free-text matching path
+
+If Step 2 did not resolve (input is not a valid kebab slug, OR the input is a slug but no matching `name` exists in the merged registry), score every entry against the user's input by semantic fit between the input and the entry's `description` (and secondarily its `name`). The orchestrator does this scoring directly in-context — there is no external scorer.
+
+Take the top **N=4** candidates by score. If the merged registry has fewer than 2 entries, skip the picker (≤1 candidate) and return immediately if there's exactly one match; if zero, print one of the following and stop:
+- If the main-worktree fallback was checked (linked worktree, multiple worktrees in `git worktree list`): `No custom actions in this worktree's registry, and none in the main worktree's registry either. Run \`/geniro:actions create <name>\` first.`
+- Otherwise (single worktree or `git rev-parse` failed): `No custom actions in registry. Run \`/geniro:actions create <name>\` first.`
+
+Present an AskUserQuestion picker with up to 4 options (one per candidate):
+
+- **Question:** "Which action did you mean by \"<input>\"?"
+- **Options (one per candidate, in score order):**
+  - label: `<slug>` — description: `<first 80 chars of the action's description, prefixed with "[main]" if source=main-worktree>`
+- The 4th option (or sooner, if fewer than 3 strong candidates) MUST be:
+  - label: "Other" — description: "Describe more specifically — re-prompt with a refined query"
+
+When an "Other" option is selected, AskUserQuestion will surface free-text input from the user; treat that as a refined query and loop back into Step 3 with the new input. Cap the loop at **3 rounds**; after the third round, surface "Could not narrow down — try `/geniro:actions list` for the exact slugs" and stop.
+
+**Cap-extension when >4 candidates:** if more than 4 candidates have non-trivial scores, chain a second AskUserQuestion call. Use the canonical chained-AskUserQuestion pattern from `skills/review/SKILL.md` Phase 4c — batch candidates into ≤4 per call, never drop or merge candidates to fit one question. The first question asks the user to narrow to a coarse group ("Which area?" with ≤4 grouped options); the second presents the ≤4 candidates inside the chosen group.
+
+When the user picks a specific slug, return `(<resolved-path>, <resolved-slug>, <source>)`. If the chosen path's source is `main-worktree` AND the sub-command is `run`, fire the same Step 2 confirmation gate ("Use the main-worktree copy?") before returning. For `delete`, skip the confirmation here and let Step 4 handle the refuse-and-surface.
+
+#### Step 4: Source-aware destructive-op guard (delete only)
+
+For the `delete` sub-command, AFTER resolution, if `<source> == main-worktree`, do NOT proceed with the `rm`. Use AskUserQuestion:
+
+- **Question:** "Action `<slug>` lives in the main worktree at `<main-worktree-root>/.geniro/actions/<slug>.md`. Deleting it from a linked worktree would modify a sibling tree. How do you want to proceed?"
+- **Options:**
+  - label: "Cancel — I'll switch to main and re-run" — description: "Stop. Switch to the main worktree (`cd <main-worktree-root>`) and re-run `/geniro:actions delete <slug>`."
+  - label: "Cancel — keep the action" — description: "Stop without deleting."
+
+Both options stop. There is no "delete from main anyway" option — that's the canonical scope-anchor behavior (sibling worktrees represent intentionally separate workstreams).
+
 ### Phase 4.1: Resolve target
 
-If `<name>` was not provided, scan `.geniro/actions/*.md` (same Glob as Phase 2) and use the
-`AskUserQuestion` tool with one option per file (label = action name, description = the action's
-`description` field):
+Call **Phase 4.0** (resolve by name-or-description). Phase 4.0 handles the empty-input, exact-slug, free-text, and main-worktree-fallback cases — Phase 4.1 itself only consumes the returned `(<resolved-path>, <resolved-slug>, <source>)` tuple.
 
-- **Question:** "Which action do you want to run?"
-- **Options:** one label per existing action (with its description as the option description).
-
-If `.geniro/actions/<name>.md` does not exist, print:
-
-```
-Action `<name>` not found. Available: <comma-separated list>.
-```
-
-…and stop.
+If `<source> == main-worktree`, the orchestrator has already confirmed the user wants to read the main-worktree copy in Phase 4.0 Step 2 (or Step 3's tail confirm). Phase 4.4 will execute INLINE in the current worktree using the action body loaded from `<resolved-path>`; no files in the main worktree are written.
 
 ### Phase 4.2: Read + parse
 
-Read `.geniro/actions/<name>.md`. Parse the frontmatter (`description`, `model`, `allowed-tools`,
-`argument-hint`, `created`). Hold the body steps in memory for Phase 4.4.
+Read `<resolved-path>` (returned from Phase 4.0 — may be inside the current worktree's `.geniro/actions/` or, when `<source> == main-worktree`, the main worktree's path). Parse the frontmatter (`description`, `model`, `allowed-tools`, `argument-hint`, `created`). Hold the body steps in memory for Phase 4.4.
 
 ### Phase 4.3: Confirmation gate
 
@@ -312,7 +374,7 @@ Trigger this gate **only if any of the following are true**:
 
 When triggered, use the `AskUserQuestion` tool:
 
-- **Question:** "About to run `<name>` with these tools: [list]. Side-effecting operations may be triggered. Proceed?"
+- **Question:** "About to run `<resolved-slug>` with these tools: [list]. Side-effecting operations may be triggered. Proceed?"
 - **Options:**
   - label: "Run it" — description: "Execute the action steps now"
   - label: "Cancel" — description: "Don't run; stop here"
@@ -326,40 +388,49 @@ runtime — there is no subagent dispatch in v1. Pass any extra positional `$ARG
 action name) as input context, inlined into the action's prompt under a "User-supplied input"
 heading the action steps can reference.
 
-**Tool-scope contract.** Before executing each step, intersect the action's frontmatter
-`allowed-tools` with the orchestrator's own `allowed-tools`. Refuse any step that would call a
-tool outside that intersection — surface the gap via the `AskUserQuestion` tool with options
-"Skip this step" / "Cancel the run". Do NOT silently call tools the action did not declare.
+**Tool-scope contract.** BEFORE running any step, intersect the action's frontmatter `allowed-tools` with the orchestrator's own `allowed-tools` ONCE and identify every step whose required tools fall outside the intersection. If any gaps exist, surface them all in a single `AskUserQuestion` call before execution begins:
+
+- **Question:** "The action declares <N> step(s) using tools outside this run's tool scope: [list step numbers + missing tools]. How should I proceed?"
+- **Options:**
+  - label: "Skip the affected steps and run the rest" — description: "Execute steps within scope; mark out-of-scope steps as skipped in the Phase 4.5 wrap-up"
+  - label: "Cancel the run" — description: "Stop before any step executes"
+
+If no gaps exist, proceed without asking. Do NOT call any tool the action did not declare in `allowed-tools`, and do NOT re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
 
 ### Phase 4.5: Wrap-up
 
 When the action completes, print a brief summary:
 
 ```
-Action `<name>` complete.
+Action `<resolved-slug>` complete.
 
 Steps run: <count>
+Steps skipped: <list, or "none">  # populated when Phase 4.4's tool-scope gate dropped out-of-scope steps
 Files changed: <list, or "none">
 External calls: <list, or "none">
 ```
 
 ## Phase 5: Command `delete`
 
-### Step 1: Confirm
+### Step 1: Resolve + source-guard
+
+Call **Phase 4.0** (resolve by name-or-description). Phase 4.0's Step 4 enforces the source-aware destructive-op guard: if the resolved action lives in the main worktree (`<source> == main-worktree`), Phase 4.0 surfaces an AskUserQuestion that stops the run regardless of which option the user picks. Phase 5 only continues here when `<source> == local`.
+
+### Step 2: Confirm
 
 Use the `AskUserQuestion` tool:
 
-- **Question:** "Delete `.geniro/actions/<name>.md`? This cannot be undone unless the file is committed to git."
+- **Question:** "Delete `.geniro/actions/<resolved-slug>.md`? This cannot be undone unless the file is committed to git."
 - **Options:**
   - label: "Delete the file" — description: "Permanently remove this action"
   - label: "Cancel" — description: "Keep the file unchanged"
 
-### Step 2: Execute
+### Step 3: Execute
 
 If confirmed:
 
 ```bash
-rm -f .geniro/actions/<name>.md
+rm -f .geniro/actions/<resolved-slug>.md
 ```
 
 If the directory is now empty, silently clean up:
@@ -368,7 +439,7 @@ If the directory is now empty, silently clean up:
 rmdir .geniro/actions/ 2>/dev/null
 ```
 
-Print: "Deleted `.geniro/actions/<name>.md`."
+Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
 
 ## Anti-rationalization table
 
@@ -382,6 +453,8 @@ Print: "Deleted `.geniro/actions/<name>.md`."
 | "I'll spawn a subagent to execute the action" | Not in v1 — Mode 2 is inline-only. Adding subagent dispatch is deferred until a real action proves it's needed. |
 | "I'll output the questions as plain text instead of using `AskUserQuestion`" | No — every WAIT gate uses the `AskUserQuestion` tool. Plain text doesn't block. |
 | "The `.gitignore` re-include lines are unnecessary if the user wants actions ignored" | No — default is committed (team-shareable). Users who want ignored can remove the re-include manually. Don't pre-decide for them. |
+| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. The orchestrator owns judgment, not auto-pick. Silent fuzzy execution is the picker analog of performative agreement. |
+| "I'll silently delete the action from the main worktree even though I'm in a linked worktree" | No — `delete` from a linked worktree refuses-and-surfaces. Sibling worktrees represent intentionally separate workstreams (see `skills/_shared/scope-anchor.md` § Anti-rationalization); the user must switch to main and re-run. |
 
 ## Definition of Done
 
@@ -393,3 +466,6 @@ Print: "Deleted `.geniro/actions/<name>.md`."
 - [ ] `.gitignore` re-include rules added on first action created (idempotent)
 - [ ] No `{{placeholder}}` left in any written file
 - [ ] File written has frontmatter `created` and `created-by: geniro:actions`
+- [ ] If `run`/`delete` received free-text input, Phase 4.0 resolved it via AskUserQuestion before any execution
+- [ ] Worktree fallback for `run` consulted the main worktree only when local registry didn't resolve, and the loaded path was confirmed via AskUserQuestion before executing
+- [ ] `delete` refused to remove actions from a sibling worktree (main-worktree source → refuse-and-surface)

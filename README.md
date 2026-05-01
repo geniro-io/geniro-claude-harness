@@ -208,13 +208,14 @@ Create, list, edit, validate, and delete project-specific rules that customize h
 Scaffold custom workflow-helper actions (Slack pings, PR inspections, release summaries) into `.geniro/actions/` and run them through the parent skill. Custom actions are NOT top-level slash commands — they're only reachable through `/geniro:actions run`.
 
 ```
-/geniro:actions list                                # show all custom actions
-/geniro:actions create pr-notify-slack              # interview-driven scaffold of a new action
-/geniro:actions run pr-notify-slack 1234            # invoke an action with positional args
-/geniro:actions delete pr-notify-slack              # remove a custom action
+/geniro:actions list                                       # show all custom actions
+/geniro:actions create pr-notify-slack                     # interview-driven scaffold of a new action
+/geniro:actions run pr-notify-slack 1234                   # invoke by exact slug + positional args
+/geniro:actions run "post release notes to slack"          # invoke by free-text description (resolved via picker)
+/geniro:actions delete pr-notify-slack                     # remove a custom action
 ```
 
-By default `.geniro/actions/` is committed (team-shared). Remove the `!.geniro/actions/` lines from `.gitignore` to keep them local-only.
+By default `.geniro/actions/` is committed (team-shared). Remove the `!.geniro/actions/` lines from `.gitignore` to keep them local-only. When invoked from a linked git worktree, `run` falls back to the main worktree's registry (with confirmation) if the action isn't present locally; `delete` refuses cross-worktree deletion and asks you to switch to main first.
 
 ### `/geniro:learnings` — Extract session learnings
 
