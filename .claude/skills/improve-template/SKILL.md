@@ -488,7 +488,7 @@ your existing validation infrastructure (validation gate + relevance-filter
    - (Optional, if applicable) **Subagents**: "Does this skill spawn subagents? Which existing agent definitions, or new ones?"
    - (Optional, if applicable) **Workflow file integration**: "Should this skill read from `.geniro/workflow/*.md` (Linear, GitHub Issues, etc.)?"
 
-4. **Pre-existing-instruction check.** Spawn `relevance-filter-agent` (sonnet) with: the proposed skill's purpose + trigger + outputs + the existing skills inventory (`Glob skills/**/SKILL.md` summary). The agent's job: identify any existing skill that already does this OR overlaps significantly. Returns a dossier — orchestrator decides KEEP (proceed) or REJECT (route the user to the existing skill instead). Without this check, the codebase accumulates near-duplicate skills.
+4. **Pre-existing-instruction check.** Spawn a generic Agent (no `subagent_type` — `relevance-filter-agent`'s input contract assumes review findings, not skill descriptions, so it's the wrong tool here) with `model="sonnet"` and a focused prompt: pre-inline (a) the proposed skill's purpose + trigger + outputs, (b) the existing skills inventory (`Glob skills/**/SKILL.md` summary as a list of `name | description-first-line` pairs), (c) the project-local skills inventory (`Glob .claude/skills/**/SKILL.md`). The agent's task: read each existing skill's full description (and the first 30 lines of any with significant trigger overlap), then return a structured table with columns `name | overlap-level (none|partial|significant) | overlap-rationale | recommendation (proceed | extend-existing | reject)`. The orchestrator decides KEEP (proceed to Phase B) or REJECT (route the user to the existing skill instead). Without this check, the codebase accumulates near-duplicate skills.
 
 ### Phase B: Draft (one author-agent spawn, then validate)
 
@@ -582,7 +582,7 @@ If the user interjects mid-phase: corrections/context fold into the current phas
 - [ ] Phase A: Skill kind asked (plugin-facing / project-local / plugin-internal helper)
 - [ ] Phase A: Official Skills authoring docs fetched once and cached
 - [ ] Phase A: 3-5 sequential AskUserQuestion calls completed (trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow)
-- [ ] Phase A: Pre-existing-instruction check via relevance-filter-agent — duplicates rejected, user routed to existing skill if overlap
+- [ ] Phase A: Pre-existing-instruction check via generic Agent (sonnet) — overlap table reviewed; duplicates rejected, user routed to existing skill if overlap
 - [ ] Phase B: Author agent spawned with interview transcript + constraints + 1-2 exemplar SKILL.md files; SKILL.md written to disk
 - [ ] Phase B: Phase 4 Step 3 validation gate run including 6 description-format checks
 - [ ] Phase C: Fresh review agent spawned; 8-item create-skill review checklist applied; blockers fixed (max 1 round)

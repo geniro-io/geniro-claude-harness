@@ -4,7 +4,7 @@ description: "Use when managing a feature backlog or writing a detailed spec for
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, WebSearch]
-argument-hint: "[command: list|next|add|spec|complete|move|status] [optional: id or description]"
+argument-hint: "[command: list|next|add|spec|triage|complete|move|status] [optional: id or description]"
 ---
 
 # Features: Backlog Management & Spec Creation

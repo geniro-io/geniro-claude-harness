@@ -718,6 +718,8 @@ Execute the user's chosen ship method:
 
 **Integrations:** If workflow files in `.geniro/workflow/` specify completion actions (status transitions, PR linking, comments), follow their instructions. Always ask the user before changing external state (issue status, comments). Never auto-update. If integration backend is unavailable, log warning and skip (non-blocking).
 
+**AI-disclosure prefix on authored tracker comments:** When the workflow file contains an `## AI-Disclosure Prefix` section (Linear template ships with one; setup-generated stubs include it as a TODO section), apply the documented prefix to any comment text the skill AUTHORS before posting via the tracker MCP. Status-only updates (e.g., transitioning state without a comment body), assignee-only updates, commit messages, and PR descriptions are excluded per the section's exclusion list. If the workflow file's AI-Disclosure section is still a TODO stub (no concrete prefix string filled in), skip authoring comments entirely — post only status-only updates — and report the missing configuration to the user once at the end of Phase 7 Step 8.
+
 ### Cleanup
 
 Run cleanup directly (no agent needed):
