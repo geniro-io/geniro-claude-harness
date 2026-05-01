@@ -2,6 +2,82 @@
 
 Test coverage analysis, edge case handling, test quality, and critical path coverage assessment.
 
+## Test Design Philosophy (canonical)
+
+This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every Stage C tests-dimension reviewer (`/geniro:review`, `/geniro:implement` Phase 6 Stage C, `/geniro:refactor` Phase 5 reviewer, `/geniro:deep-simplify` aggregation), the `adversarial-tester-agent` when authoring F→P tests (`/geniro:implement` Stage D, `/geniro:debug` Adversarial Mode), and the `/geniro:debug` Step 6 reproduction-test author. Write the test according to these principles; review the test against them.
+
+### 1. Tests describe behavior, not implementation
+
+A test should read like a specification of what the system does for a user — not a description of how the code is structured internally. The test name + assertions should make the capability obvious to a reader who has never seen the implementation.
+
+- **Good (behavior)**: `test_user_can_checkout_with_valid_cart` / `expect(orderTotal).toBe(42.50)` / `assert response.status_code == 401 when token expired`
+- **Bad (implementation)**: `test_internal_helper_returns_array` / `expect(spy).toHaveBeenCalledWith(...)` / `assert mockDB.query.mock_calls[0].args[0] == "SELECT ..."`
+
+The test that verifies implementation breaks every time you refactor the implementation. The test that verifies behavior survives refactors and catches behavior regressions.
+
+### 2. Public interface only
+
+Tests reach the system through the same surfaces real callers use — public functions, exported types, REST endpoints, CLI commands. Reaching through private members, internal helpers, or "test-only" backdoors breaks the spec contract: the test passes when the interface is broken (because it's calling around the interface) or fails when the interface is intact (because internal restructuring shifted the private member).
+
+- **Good**: HTTP test calls `POST /api/orders` and asserts on the response.
+- **Bad**: Test imports `_calculateOrderTotal` directly and asserts on its return.
+- **Exception**: pure-function utility modules whose public API IS the function set under test — test those functions directly.
+
+If a behavior is hard to test through the public interface, the seam is wrong (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` — narrow seams over wide seams). Fix the seam, not the test framework.
+
+### 3. The "would survive a refactor" rule
+
+Before keeping a test, ask: "if I rename internal functions, move private state around, switch the implementation language of this module — does this test still pass IF behavior is unchanged?" If no, the test is testing implementation. Either rewrite it to verify the behavior it actually cared about, or delete it.
+
+This is the single highest-leverage rule for test quality. Tests that fail a refactor without a behavior change are net-negative — they slow refactoring without protecting the user-visible contract.
+
+### 4. Mocking discipline
+
+Mocks fall into three tiers:
+
+| Tier | Use when | Example |
+|---|---|---|
+| **External boundary** (allowed) | Mock services your code does not own — third-party APIs, payment processors, email senders, the wall clock | Mock `stripe.charges.create` — you don't control Stripe; you don't want tests calling production |
+| **Internal boundary, expensive** (case-by-case) | Mock owned-by-you modules ONLY when running them in tests is genuinely too slow / too stateful (DB, Redis, S3) — and even then, prefer in-memory test doubles or test containers | Mock the database layer in unit tests; use a real test database in integration tests |
+| **Internal collaborators, cheap** (FORBIDDEN) | Do NOT mock pure functions, internal helpers, classes you wrote and could just instantiate | Mocking `OrderCalculator` inside a test of `CheckoutService` couples the test to the wiring; refactor breaks it for no behavior change |
+
+**Smell — over-mocking**: more than 3-4 mocks per test usually means the test has been rewritten to match the implementation's structure rather than the system's behavior. Either the test is testing implementation (Rule 1 violation) or the module being tested is too coupled to its collaborators (the design is the bug — narrower seams + dependency injection at the boundary, not mocks at every internal call).
+
+**Smell — verifying mock interactions**: assertions like `expect(mockUserRepo.save).toHaveBeenCalledWith(...)` test what the implementation does, not what the system produces. Replace with an assertion on the observable outcome (the saved user comes back when you GET /users/<id>; the side effect happened in the system).
+
+### 5. Test names as specifications
+
+Test names are the index into the spec the test suite encodes. Read the test names alone (without bodies) — does the list tell you what the system does? If yes, the names are doing their job. If you have to read every body to know what's covered, the names are noise.
+
+- **Good name format**: `<actor>_<can_do_thing>_when_<condition>` — `user_can_checkout_when_cart_has_at_least_one_item` / `api_returns_401_when_token_is_expired`
+- **Bad name format**: `<function>_<works>` / `<bug-id>_<passes>` — `calculateTotal_works` / `bug_C_regression`
+- **Anti-pattern: thread-local labels** — `Bug A/B/C`, `Hypothesis 1`, `regression from review run`, `confirmed by debug-skill run` — meaningful in the conversation that authored them, meaningless once the conversation ends. Tests outlive conversations; names must be self-contained.
+
+### 6. Tests that fail meaningfully
+
+When a test fails, the failure message + the test name must tell a maintainer (a) what behavior broke, (b) what input triggered it, and (c) what the actual vs expected outcome was. A test that fails with `AssertionError: expected true got false` is a test that wastes the next maintainer's time.
+
+- Use assertion libraries that produce diff-shaped messages (`expect(actual).toEqual(expected)` not `expect(condition).toBe(true)`)
+- Name the inputs in the test's setup so they appear in the failure stack
+- For parameterized / table-driven tests, ensure each row's identifier prints in the failure
+- Prefer one assertion per behavioral claim — a test that checks 5 unrelated things produces failures that don't localize the bug
+
+### 7. F→P invariant for new tests
+
+Every newly-authored test must demonstrate red-then-green at least once before being committed:
+
+1. **Red**: run the test against current code BEFORE the change → it must fail with the failure signature you expect (the test is real).
+2. **Green**: run the test against code WITH the change → it must pass.
+
+A test that passes the first time you run it (without any production change) is testing something that already works — either it's redundant with existing coverage OR it's not actually exercising the new behavior. Investigate before committing. This rule applies to:
+- New tests authored during `/geniro:implement` Phase 4
+- Reproduction tests authored during `/geniro:debug` Step 6
+- F→P tests authored during `/geniro:debug` Adversarial Mode and `/geniro:implement` Stage D
+
+`/geniro:debug` Adversarial Mode and `/geniro:implement` Stage D both enforce F→P with 3-run determinism checks; the `adversarial-tester-agent` deletes tests that pass on current code.
+
+## What to Check
+
 ## What to Check
 
 ### 1. Coverage Gaps

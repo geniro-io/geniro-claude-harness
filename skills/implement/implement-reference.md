@@ -61,7 +61,7 @@ Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode
 
 ## Phase 1 Step 0: Complexity Gate
 
-**Purpose:** Classify the request and ask the user whether to run Full pipeline or Light Mode for Trivial tasks. Light Mode skips Phase 2 (architect+skeptic), Phase 5 (simplify), Phase 6 Stage B (spec compliance), and Phase 6 Stage D (adversarial-tester) — but keeps the full Stage C reviewer grid, knowledge retrieval, and ship gates. See §"Light Mode Semantics" below for the full delta.
+**Purpose:** Classify the request and ask the user which Lane to run: Full pipeline, Light Mode (Trivial tasks), or TDD Mode (small focused features where the user wants RED→GREEN-per-behavior discipline). Each Lane has different skip/keep semantics — see §"Light Mode Semantics" and §"TDD Mode Semantics" below for the full deltas.
 
 **When to SKIP the gate (any of these applies → proceed straight to Step 1, Lane defaults to `full`, no prompt):**
 1. Milestone reference detected (Auto-Detection Table rule 0 matched).
@@ -78,13 +78,22 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` for the canonical 
 
 **Decision procedure:**
 
-1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of effort-scaling's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1 with `Lane: full`, no prompt. Do NOT offer Light Mode — Light Mode is unavailable when any hard signal is present.
-2. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per effort-scaling's Trivial definition (score 0 + 1-2 files + single module + unambiguous intent — see `skills/_shared/effort-scaling.md` Step 2). If unclear, proceed silently to Step 1 with `Lane: full` — the gate only fires on a clear Trivial signal.
-3. **If Trivial AND no hard signals:** use `AskUserQuestion` with header "Lane" — pass the two options as separate `label` and `description` fields (do NOT cram the description into the label):
-   - **Label:** "Light Mode (Recommended)" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep knowledge retrieval, lightweight plan + approval, full Stage C review grid (6–7 reviewers + relevance-filter), and ship gates. ~70% cheaper, ~30% faster."
-   - **Label:** "Full pipeline" / **Description:** "Architect + skeptic + every Phase 6 stage. Choose this when you want maximum architectural rigor even on small changes."
-4. **Persist the choice.** After Step 1 writes the `Mode:` line to state.md, append `Lane: <light|full>` and `Phase 1 Step 0: <full pipeline | light mode | full pipeline (forced — hard signal)>`. (If the gate was skipped before reaching the AUQ branch, use `Phase 1 Step 0: skipped — <reason>` instead, where reason is one of: `milestone`, `plan-path`, `plan-mode`, `resume`. Hard-signal forcing is NOT a "skipped" reason — the gate fires and runs Step 1 of the decision procedure; it just bypasses the AUQ branch in Step 3 and proceeds with `Lane: full`. The `Lane:` line is always written — `light` only when the user explicitly picks it, `full` in every other case.)
-5. **If not clearly Trivial (Small/Medium/unclear):** proceed silently to Step 1 with `Lane: full` — do NOT prompt. The gate is biased toward the heavier lane — only fires on clear Trivial signal.
+1. **Hard-signal scan.** Read `$ARGUMENTS` and any obvious file mentions. If any of effort-scaling's 9 hard escalation signals fire (new entity/table/migration, new endpoint/page, auth/permissions, new module, 3+ modules, open-closed violation, new async/queue, new external integration, ambiguous intent) → proceed silently to Step 1 with `Lane: full`, no prompt. Do NOT offer Light Mode OR TDD Mode — both are unavailable when any hard signal is present (Light Mode skips architect; TDD Mode skips the parallel-waves model — neither is safe under hard escalation).
+2. **Explicit-TDD signal scan.** If `$ARGUMENTS` contains an explicit TDD request (`tdd`, `test-driven`, `red-green`, `RED→GREEN`, `behavior-by-behavior`, `one test at a time`) AND no hard signal fired AND scope is Small (1 module, ≤5 distinct behaviors, ≤8 files) → present TDD Mode as the recommended option (see Step 4 below). TDD Mode is opt-in via this signal OR via the "Pick Lane" UI in Step 4 — it is NEVER the silent default.
+3. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per effort-scaling's Trivial definition (score 0 + 1-2 files + single module + unambiguous intent — see `skills/_shared/effort-scaling.md` Step 2). If unclear, proceed silently to Step 1 with `Lane: full` — the gate only fires on a clear Trivial signal.
+4. **If Trivial OR explicit-TDD signal AND no hard signals:** use `AskUserQuestion` with header "Lane" — pass the options as separate `label` and `description` fields. Composition depends on which signal fired:
+   - **Trivial only (no TDD signal):** present 2 options:
+     - **Label:** "Light Mode (Recommended)" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep knowledge retrieval, lightweight plan + approval, full Stage C review grid (6–7 reviewers + relevance-filter), and ship gates. ~70% cheaper, ~30% faster."
+     - **Label:** "Full pipeline" / **Description:** "Architect + skeptic + every Phase 6 stage. Choose this when you want maximum architectural rigor even on small changes."
+   - **Explicit TDD signal AND Trivial:** present 3 options (TDD recommended):
+     - **Label:** "TDD Mode (Recommended)" / **Description:** "RED→GREEN per behavior; sequential WUs (one test at a time); pre-code interface-design gate; refactor-after-green per cycle. Best for small focused features where you want behavior-incremental verification. Skips Phase 6 Stage D adversarial-tester (every behavior is already F→P-verified)."
+     - **Label:** "Light Mode" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep parallel waves + Stage C review. Faster than TDD for trivial changes that don't benefit from behavior-incremental design."
+     - **Label:** "Full pipeline" / **Description:** "Architect + skeptic + parallel waves + every Phase 6 stage. Choose for maximum architectural rigor."
+   - **Explicit TDD signal AND Small (not Trivial):** present 2 options:
+     - **Label:** "TDD Mode (Recommended)" / **Description:** "RED→GREEN per behavior; sequential WUs; pre-code interface-design gate. Recommended for the explicit TDD request. Phase 2 architect still runs (validates the test list + interface design)."
+     - **Label:** "Full pipeline" / **Description:** "Standard parallel-waves implementation. Use if you want architect + parallel WU execution despite asking for TDD."
+5. **Persist the choice.** After Step 1 writes the `Mode:` line to state.md, append `Lane: <light|full|tdd>` and `Phase 1 Step 0: <full pipeline | light mode | tdd mode | full pipeline (forced — hard signal)>`. (If the gate was skipped before reaching the AUQ branch, use `Phase 1 Step 0: skipped — <reason>` instead, where reason is one of: `milestone`, `plan-path`, `plan-mode`, `resume`. Hard-signal forcing is NOT a "skipped" reason — the gate fires and runs Step 1 of the decision procedure; it just bypasses the AUQ branch in Step 4 and proceeds with `Lane: full`. The `Lane:` line is always written — `light`/`tdd` only when the user explicitly picks it, `full` in every other case.)
+6. **If not clearly Trivial AND no explicit-TDD signal (Small/Medium/unclear):** proceed silently to Step 1 with `Lane: full` — do NOT prompt. The gate is biased toward the heavier lane — only fires on clear Trivial signal or explicit-TDD signal.
 
 **Anti-rationalization:**
 
@@ -134,13 +143,93 @@ What Light Mode changes within /implement. Read this when `Lane: light` is set i
 
 ---
 
+## TDD Mode Semantics
+
+What TDD Mode changes within /implement. Read this when `Lane: tdd` is set in state.md.
+
+**Constitution:** TDD Mode replaces the parallel-waves model in Phase 4 with sequential RED→GREEN per behavior. Each behavior is one test, then one implementation, then verify. This trades parallelism for behavior-incremental discipline — best for small features where the user wants the test list itself to drive the design.
+
+**Skipped in TDD Mode:**
+- Phase 4 parallel waves — replaced with sequential RED→GREEN cycles (one test at a time, see "Phase 4 in TDD Mode" below).
+- Phase 6 Stage D — adversarial-tester-agent. Every behavior in TDD Mode is already F→P-verified at authoring time (RED before GREEN); adding a second F→P pass is redundant. Stage C tests-dimension reviewer still runs.
+
+**Modified in TDD Mode:**
+- Phase 1 Step 5 — Reuse Inventory still runs, but its scope expands to include "what existing public interfaces does the test list need to call?" The test list IS the design exploration; reuse decisions feed it.
+- Phase 2 — architect-agent runs (Phase 2 is NOT skipped in TDD Mode; it produces the test list + interface design + ordering). Architect output is structured differently: instead of a Steps table grouped by file, it produces a numbered behavior list (each behavior = one future test). Skeptic validates the behavior list for coverage + ordering.
+- Phase 3 — gains Interface-Design Pre-Approval Gate (see "Interface-Design Pre-Approval Gate (Lane:tdd only)" below). User confirms the public interface signatures BEFORE plan approval. Plan approval still gates code generation; interface gate gates plan presentation.
+- Phase 4 — see "Phase 4 in TDD Mode" below.
+- Phase 5 — Simplify still runs but is scoped per-cycle (after each RED→GREEN, optional micro-refactor with `git stash` checkpoint). The whole-feature simplify pass is REPLACED by per-cycle passes.
+- Phase 6 Stage A/B/C — run as in Full Lane.
+
+**NEVER skipped in TDD Mode (run identically to Full):**
+- Phase 1 Step 3 — knowledge-retrieval-agent
+- Phase 1 Step 7 — gray-area resolution AUQ + git workspace setup
+- Phase 3 — plan approval gate (presents the behavior list + interface design)
+- Phase 6 Stage A — automated checks
+- Phase 6 Stage C — full reviewer grid + relevance-filter
+- Phase 7 — ship gates, learnings, doc updates
+
+**Hard escalation signals make TDD Mode unavailable** — Phase 1 Step 0 silently forces `Lane: full` when any of the 9 hard signals fire. TDD Mode's sequential model cannot keep up with cross-stack coordination at hard-signal scale.
+
+### Phase 4 in TDD Mode
+
+Replace the standard parallel-waves model with sequential cycles. The architect's behavior list (from Phase 2) drives the cycle ordering.
+
+For each behavior in the architect's numbered list:
+
+1. **Re-read the behavior** — what does this cycle add? What's the assertion?
+2. **RED — author the test.** Spawn ONE backend or frontend agent (matched to the behavior's surface) with a single instruction: "Author one test for behavior #N: <behavior text>. Use the public interface signatures from the approved Interface-Design (in `<task-dir>/interface.md`). Do NOT touch implementation. The test MUST fail on current code."
+3. **Verify RED.** Orchestrator runs the test; confirm failure with a real-looking signature (`AssertionError: ...` or equivalent). If the test passes on current code, REJECT — the test is testing existing behavior, not the new behavior. Re-spawn the test author with the rejection reason.
+4. **GREEN — minimal implementation.** Spawn ONE agent with: "Make test #N pass with minimal code. Do NOT add anything not required by this test. Do NOT anticipate behavior #N+1."
+5. **Verify GREEN.** Orchestrator runs the test + the full project test suite; confirm both pass. If the new test passes but other tests fail, the implementation regressed — fixer agent loop (max 1 round), then escalate.
+6. **REFACTOR (optional, post-GREEN).** If the cycle's GREEN code introduces obvious duplication or muddies an interface, spawn a focused refactor agent. Constraint: refactor preserves all tests green. If refactor breaks anything, `git stash` the refactor and continue to next behavior.
+7. **Update state.md** — append `Cycle <N> completed: <behavior summary>` so resume picks up at cycle N+1.
+
+**Cycle ordering is DETERMINED by the architect's list** — orchestrator does NOT re-order. If the architect's list has dependencies (cycle 5 depends on cycle 3), the architect should have ordered them correctly; the skeptic validates.
+
+**Parallelism is OFF in TDD Mode** — agents are spawned sequentially. The whole point is per-behavior RED→GREEN verification; parallelism breaks the discipline.
+
+**Hotspot files (registrations) still happen** — but inside the cycle that introduces the behavior they expose, not in a separate "hotspot wave."
+
+### Interface-Design Pre-Approval Gate (Lane:tdd only)
+
+Before Phase 3's plan approval gate, fire a SECOND `AskUserQuestion` with header "Interface" — only when `Lane: tdd`.
+
+Procedure:
+1. Read the architect's behavior list (Phase 2 output).
+2. Read the architect's proposed public interface signatures (function names, parameter types, return shapes, error modes — for each module the test list will exercise).
+3. Format as a single code block per module: signature lines + 1-line "behaviors that exercise this interface" each.
+4. Fire `AskUserQuestion` with header "Interface" and 3 options:
+   - **Label:** "Interfaces look right — proceed to plan approval (Recommended)" / **Description:** "Phase 3 plan approval will follow next."
+   - **Label:** "Adjust interfaces" / **Description:** "Describe what to change. Architect re-runs with the corrections; interface gate re-fires."
+   - **Label:** "Restart Phase 2" / **Description:** "The interface design is fundamentally wrong. Architect re-runs from scratch."
+
+5. **If user picks "Interfaces look right"**: write the approved interface to `<task-dir>/interface.md` (canonical reference for all Phase 4 cycles); proceed to Phase 3 plan approval.
+6. **If user picks "Adjust"**: collect adjustment via plain text (NOT a second AUQ — gives the user freeform feedback); re-spawn architect with the corrections; re-fire the interface gate. Max 3 adjustment rounds; after 3, present the final state via plain text and ask "Approve as-is or restart?"
+7. **If user picks "Restart"**: re-run Phase 2 architect from scratch; re-fire the interface gate. Max 1 restart per session — if interface design is still wrong after a full restart, the request is too ambiguous for TDD Mode → escalate to Full Lane.
+
+This gate is **Always-WAIT** in `Lane: tdd` — the interface design is the foundational decision in TDD; getting it wrong cascades into every cycle. Auto Mode does NOT auto-default — see Auto Mode Behavior table.
+
+### Anti-rationalization (TDD Mode)
+
+| Reasoning | Why it's wrong |
+|---|---|
+| "TDD is just writing tests first — I'll spawn parallel WUs as usual and call it TDD" | TDD's discipline is RED→GREEN-per-behavior, not "tests first." Parallel WUs let test N pass while implementation N+1 is in flight — that's not TDD, that's standard implementation with tests. Sequential cycles or no TDD. |
+| "The architect's behavior list has 8 behaviors — that's too many for sequential. I'll batch 2-3 per cycle" | Each cycle is ONE behavior. Batching is the horizontal-slicing anti-pattern (write all tests then all impl) that produces "tests of the shape of things, not actual behavior" — see `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` Test Design Philosophy §1-2. If 8 behaviors is too many, the scope is too large for TDD Mode — escalate to Full. |
+| "I'll skip the interface gate — the architect's plan already has signatures" | The interface gate is what makes TDD Mode work. Without explicit interface confirmation BEFORE the cycle starts, every cycle re-litigates the signature and the test churn explodes. Always-WAIT — fire the gate. |
+| "Stage D is also F→P; I'll keep it for extra safety" | Every test in TDD Mode is already F→P-verified at the cycle boundary. Stage D's value-add is "tests for missed edges" — but TDD Mode's behavior list is the spec the user explicitly approved at the interface gate, so missed edges are a spec gap, not a test gap. Skip Stage D; if the user wants more edges, they re-invoke /implement after the TDD run. |
+| "Refactor-after-green is optional — skip it to ship faster" | Skipping the refactor step accumulates the design debt that TDD specifically prevents. Even a 30-second refactor (rename a poorly-named local, extract a duplicated helper) compounds into a clean codebase across cycles. Don't skip — use `git stash` on regressions if needed. |
+
+---
+
 ## Auto Mode Behavior
 
 Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `Mode: auto` (set either by rule 3 of §Phase 1 Auto-Detection Table or by the Mode Selection prompt). Skill orchestrator MUST read `Mode:` from state.md at every gate and consult this table — do not auto-resolve gates not listed here.
 
 | Gate | Phase / Step | Auto-mode action |
 |---|---|---|
-| Complexity gate (Lane Selection) | Phase 1, Step 0 | **Always-WAIT.** Fire `AskUserQuestion` with the Lane options (Light Mode / Full pipeline) regardless of auto-mode. Lane choice gates ~5 downstream phases (Phase 2, 5, 6 Stage B, 6 Stage D) and has user-distinguishable trade-offs (depth vs. speed) — same shape as plan approval and ship decision. Do NOT auto-default. If hard escalation signals fire, the gate is bypassed silently to `Lane: full` — that's not an auto-mode override, it's the rubric forcing Full. Empty AUQ answer = upstream Claude Code bug — fall back to plain text and re-ask. |
+| Complexity gate (Lane Selection) | Phase 1, Step 0 | **Always-WAIT.** Fire `AskUserQuestion` with the Lane options (Light Mode / TDD Mode / Full pipeline — composition depends on signals per Phase 1 Step 0 Decision Procedure) regardless of auto-mode. Lane choice gates ~5 downstream phases (Phase 2, 5, 6 Stage B, 6 Stage D) and has user-distinguishable trade-offs (depth vs. speed vs. behavior-discipline) — same shape as plan approval and ship decision. Do NOT auto-default. If hard escalation signals fire, the gate is bypassed silently to `Lane: full` — that's not an auto-mode override, it's the rubric forcing Full. Empty AUQ answer = upstream Claude Code bug — fall back to plain text and re-ask. |
+| Interface-design pre-approval gate | Phase 3 (TDD Mode only) | **Always-WAIT.** Fire `AskUserQuestion` with header "Interface" with the 3 options from §"Interface-Design Pre-Approval Gate (Lane:tdd only)" — proceed / adjust / restart. Auto Mode does NOT auto-default — interface design is the foundational decision that drives every TDD cycle; getting it wrong cascades. Empty AUQ answer = upstream Claude Code bug — fall back to plain text and re-ask. |
 | Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question EXCEPT git workspace (see next row); append one-liner per decision to `state.md` "Auto-mode decisions" |
 | Git workspace | Phase 1, Step 7 (standalone) | **Always-WAIT.** Ask via `AskUserQuestion` even in auto-mode — where the change lands (new branch / current / worktree) is a deliberate user decision, not a gray-area default. Do NOT auto-pick Option A or Option B |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
@@ -701,6 +790,13 @@ Milestone status update (milestone-mode only): If this run executed a single mil
 - `$ARGUMENTS` is `continue` AND `<task-dir>/state.md` contains a `Milestones:` field — pick the first milestone with status `pending` or `in-progress` and load its file.
 
 If a milestone file loads, also load the master plan (`<task-dir>/plan-<slug>.md`) for its Goal + Approach + Implementation Notes. The master plan's per-step details are NOT pre-inlined — only the milestone file is authoritative for what to execute. Skip architect-agent. Set mode flag `milestone-mode: true` for Phase 4 scope constraint (only files listed in the milestone's Files Affected table may change). Run skeptic-agent on the milestone file (skeptic pre-inlines the master plan and prior-milestone Implementation Notes for context). Proceed to Phase 3 with the milestone's Goal as the presented summary.
+
+**HITL/AFK Mode tag → Lane translation (milestone-mode only):** Read the milestone file's status header for `Mode: HITL | AFK` (set by `/geniro:decompose` per `decompose-criteria.md` HITL/AFK Mode classification). If absent, fall back to reading the master plan's `## Milestones` table row. Apply this translation BEFORE Phase 1 Step 0:
+- `Mode: AFK` → set `Lane: light` and `Mode: auto` in state.md, write `Phase 1 Step 0: skipped — milestone (AFK -> light)`. The Phase 1 Step 0 Complexity Gate AskUserQuestion is BYPASSED (the decompose author + user already approved AFK at decompose time).
+- `Mode: HITL` → set `Lane: full` and `Mode: interactive` in state.md, write `Phase 1 Step 0: skipped — milestone (HITL -> full)`. Phase 1 Step 0 Complexity Gate is BYPASSED.
+- `Mode:` field missing AND no master-plan row → fall back to running Phase 1 Step 0 normally (treat as un-decomposed task). This preserves backwards compatibility with milestone files written before the HITL/AFK Mode tag existed.
+
+This translation is the contract `/geniro:decompose` and `/geniro:implement` agreed on at HITL/AFK introduction: decompose-time judgment about per-milestone risk drives execution-time Lane selection. The user can still override at the Phase 3 plan-approval gate (the plan presentation surfaces the resolved Lane); HITL milestones cannot be silently downgraded by `$ARGUMENTS` auto signals.
 
 ---
 

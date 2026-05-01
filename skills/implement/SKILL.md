@@ -14,13 +14,13 @@ argument-hint: "[description or issue tracker reference]"
 **The ONLY code you write directly:** Phase 4 Step 5 hotspot micro-edits (1-2 line registrations in routing/config/barrel files). Everything else is delegated.
 
 **PHASES:**
-1. Discover (WAIT) — eliminate ambiguity, produce spec; Phase 1 Step 0 selects Lane (full / light)
-2. Architect + Validate — architect proposes, skeptic validates; **Light Lane: skipped** — orchestrator writes Small-tier lightweight plan instead
-3. Approval (WAIT) — present plan, user confirms before coding starts (runs in both lanes)
-4. Implement (delegated) — backend/frontend agents execute scope (runs in both lanes)
-5. Simplify (delegated) — simplify agent cleans changed files, revert if CI breaks; **Light Lane: skipped**
-6. Review & Validate (delegated) — Stage A automated checks, Stage B spec compliance, Stage C 6–7 reviewers, Stage D adversarial-tester; **Light Lane: skips Stage B and Stage D — keeps Stage A and the full Stage C review grid**
-7. Ship & Finalize (WAIT) — finalize (docs, learnings, improvements), then ship decision + commit (runs in both lanes)
+1. Discover (WAIT) — eliminate ambiguity, produce spec; Phase 1 Step 0 selects Lane (full / light / tdd)
+2. Architect + Validate — architect proposes, skeptic validates; **Light Lane: skipped** — orchestrator writes Small-tier lightweight plan instead. **TDD Lane: architect produces a numbered behavior list + interface signatures** (not a Steps table)
+3. Approval (WAIT) — present plan, user confirms before coding starts. **TDD Lane: Interface-Design Pre-Approval Gate fires BEFORE the plan-approval AUQ** (runs in all lanes)
+4. Implement (delegated) — backend/frontend agents execute scope. **TDD Lane: sequential RED→GREEN per behavior** (one test → one impl → repeat) instead of parallel waves
+5. Simplify (delegated) — simplify agent cleans changed files, revert if CI breaks; **Light Lane: skipped**. **TDD Lane: per-cycle micro-refactor** instead of whole-feature pass
+6. Review & Validate (delegated) — Stage A automated checks, Stage B spec compliance, Stage C 6–7 reviewers, Stage D adversarial-tester; **Light Lane: skips Stage B and Stage D — keeps Stage A and the full Stage C review grid**. **TDD Lane: skips Stage D** (every behavior is already F→P-verified at cycle authoring time); keeps Stages A/B/C
+7. Ship & Finalize (WAIT) — finalize (docs, learnings, improvements), then ship decision + commit (runs in all lanes)
 
 **Reference material** (templates, examples, error tables): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` when you reach each phase. Do NOT load the entire file upfront — read the relevant section at the relevant phase.
 
@@ -57,7 +57,7 @@ Derive `<branch-name>` from git branch. Create at start of Phase 1. All artifact
 Feature: <F<n> if Geniro feature ID, else "none">
 Spec-file: <FEATURES.md Notes-column path, else "none">
 Mode: <interactive|auto|assumptions> — set by Phase 1 Step 1, controls auto-mode behavior at every WAIT gate
-Lane: <full|light> — set by Phase 1 Step 0, controls Phase 2/5/6 Stage B/D skip predicates (full = all phases run; light = architect+skeptic+simplify+spec-compliance+adversarial skipped, Stage C reviewer grid kept)
+Lane: <full|light|tdd> — set by Phase 1 Step 0, controls Phase 2/4/5/6 Stage B/D skip predicates and Phase 4 execution model (full = all phases run with parallel waves; light = architect+skeptic+simplify+spec-compliance+adversarial skipped, Stage C reviewer grid kept; tdd = sequential RED→GREEN per behavior in Phase 4, interface-design gate added in Phase 3, Stage D skipped, simplify becomes per-cycle micro-refactor)
 Milestones: <"none" | "[1: pending, 2: pending, ...]" — populated by /geniro:decompose and updated by this skill as milestones complete>
 Phase [N] completed: [phase name]
 Completed phases: [1, 2, ..., N]
@@ -89,7 +89,7 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Action:** Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 1: Auto-Detection Table" for argument parsing rules.
 
-**Step 0 — Complexity Gate (Lane Selection).** Before any discovery work, classify the request and ask the user whether to run Full pipeline or Light Mode (architect+skeptic skipped). Skip this gate entirely when: a milestone was detected (Auto-Detection Table rule 0), a plan-file path is present in `$ARGUMENTS` (handled by Phase 2 pre-check rule 4), a plan-mode conversation is active (Phase 2 pre-check rule 2), or `state.md` already contains a `Phase 1 Step 0:` line (resume / second-run already decided). Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate". If any hard escalation signal from `_shared/effort-scaling.md` Step 1 fires, Light Mode is unavailable — proceed silently to full pipeline. Default for anything uncertain: Full pipeline. Persist `Lane: <full|light>` to `state.md`. (auto-mode: see `implement-reference.md` §Auto Mode Behavior)
+**Step 0 — Complexity Gate (Lane Selection).** Before any discovery work, classify the request and ask the user which Lane to run: Full pipeline / Light Mode (architect+skeptic skipped, Trivial only) / TDD Mode (sequential RED→GREEN per behavior, opt-in via explicit signal AND ≤Small scope). Skip this gate entirely when: a milestone was detected (Auto-Detection Table rule 0 — note that decompose-set HITL/AFK Mode tag determines Lane automatically per `decompose-criteria.md` HITL/AFK section), a plan-file path is present in `$ARGUMENTS` (handled by Phase 2 pre-check rule 4), a plan-mode conversation is active (Phase 2 pre-check rule 2), or `state.md` already contains a `Phase 1 Step 0:` line (resume / second-run already decided). Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate". If any hard escalation signal from `_shared/effort-scaling.md` Step 1 fires, Light Mode AND TDD Mode are both unavailable — proceed silently to full pipeline. Default for anything uncertain: Full pipeline. Persist `Lane: <full|light|tdd>` to `state.md`. (auto-mode: see `implement-reference.md` §Auto Mode Behavior)
 
 **Steps:**
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
@@ -158,6 +158,10 @@ At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> conti
 
 **Action:** Read and present the full plan file (do NOT summarize).
 
+### Interface-Design Pre-Approval Gate (conditional — Lane:tdd only — runs BEFORE the UI Preview Gate)
+
+If `state.md` shows `Lane: tdd`, run the procedure in `implement-reference.md` §"Interface-Design Pre-Approval Gate (Lane:tdd only)" before any other Phase 3 step. The gate fires `AskUserQuestion` with header "Interface" presenting the architect's proposed public-interface signatures (one code block per module + 1-line "behaviors that exercise this interface") with 3 options: "Interfaces look right (Recommended)" / "Adjust interfaces" / "Restart Phase 2". On "Interfaces look right", write `<task-dir>/interface.md` (canonical reference for all Phase 4 cycles) and proceed to UI Preview Gate (next). On "Adjust" or "Restart", route per the procedure's max-rounds logic. This gate is **Always-WAIT** in Lane:tdd; auto-mode does NOT auto-default. Skip this section entirely when Lane is `full` or `light`.
+
 ### UI Preview Gate (conditional — runs before Step 1 below)
 
 If any file in the plan's affected-files list matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, run the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` BEFORE the numbered steps below. Pre-inline the spec, plan, and 1-2 exemplar UI files; save the approved description to `<task-dir>/ui-preview.md`. Phase 4 Work Unit agents that touch UI files pick it up via the `## UI Intent` slot in the Phase 4 Agent Delegation Template (see `implement-reference.md`). If the user picks "Adjust the plan instead" inside the procedure, fire `AskUserQuestion` with header "Adjust" to capture what to change, then run the Adjust path below (architect revises with that context, re-validate, re-present). Skip this section entirely when no affected file matches.
@@ -201,9 +205,11 @@ If the user picks "Continue now": continue normally to Phase 4.
 
 ## PHASE 4: IMPLEMENT
 
-**Purpose:** Execute architecture with parallel agents.
+**Purpose:** Execute architecture with parallel agents (Full + Light Lanes) OR sequential RED→GREEN per behavior (TDD Lane).
 
-**Action:** Decompose plan into Work Units, arrange into waves, spawn agents.
+**Lane gate:** If `state.md` shows `Lane: tdd`, REPLACE the rest of this phase with the sequential cycle procedure in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 4 in TDD Mode". The TDD procedure replaces parallel waves with one-test-at-a-time RED→GREEN→Refactor cycles, ordered by the architect's behavior list; it does NOT use the Work Unit / Wave / Hotspot model below. Append `Phase 4 (TDD Mode): cycle <N> completed: <behavior summary>` to state.md after each cycle so resume picks up at the next behavior. Test-creation verification (Step 6 below) is REDUNDANT under TDD Mode (every behavior is F→P-verified at cycle authoring); skip it.
+
+**Action (Full + Light Lanes):** Decompose plan into Work Units, arrange into waves, spawn agents.
 
 Read `${CLAUDE_SKILL_DIR}/implement-reference.md` sections "Phase 4: Decomposition Example", "Phase 4: Agent Delegation Template", and "Phase 4: Error Handling" for templates and examples.
 
@@ -281,9 +287,11 @@ Strictly limited to 1-2 line registrations. If >3 lines or any logic -> delegate
 
 **Purpose:** Code quality pass on changed files — catch AI-generated anti-patterns.
 
-**Lane gate:** If `state.md` shows `Lane: light`, skip Phase 5 entirely. Append to `state.md`: "Phase 5 skipped — Lane: light (Light Mode skips simplify per implement-reference.md §Light Mode Semantics)." Proceed to Phase 6.
+**Lane gate:** 
+- If `state.md` shows `Lane: light`, skip Phase 5 entirely. Append to `state.md`: "Phase 5 skipped — Lane: light (Light Mode skips simplify per implement-reference.md §Light Mode Semantics)." Proceed to Phase 6.
+- If `state.md` shows `Lane: tdd`, the whole-feature simplify pass is REPLACED by per-cycle micro-refactors that ran during Phase 4 (step 6 of each TDD cycle). Skip the spawn below; append to `state.md`: "Phase 5 skipped — Lane: tdd (per-cycle micro-refactor in Phase 4 cycles, see Phase 4 (TDD Mode) cycle log)." Proceed to Phase 6.
 
-**Action:** Spawn simplify agent. Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 5: Simplify Agent Template" for the agent prompt.
+**Action (Full Lane only):** Spawn simplify agent. Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 5: Simplify Agent Template" for the agent prompt.
 
 ### Step 1: Spawn simplify agent
 
@@ -353,7 +361,7 @@ Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-di
 2. **Route confirmed failing tests into the Fix Loop.** Each F→P-confirmed test becomes a CRITICAL/HIGH item in `<task-dir>/review-feedback.md` with severity from the agent's report. The existing Fix Loop (max 3 rounds) applies — fresh fixer agents make the red tests green. Do NOT skip the flake-recheck on the fixer's output.
 3. **Scope hard cap.** The agent authors at most 10 tests per run. If the agent reported hitting the cap with more hypotheses pending, append the overflow to the Phase 7 Step 4 summary under "Deferred ideas" rather than expanding this run.
 
-**Skip Stage D entirely when:** `state.md` shows `Lane: light` (Light Mode skips Stage D — append "Phase 6 Stage D skipped — Lane: light" to state.md); OR diff contains zero production-code files (docs/config/lockfile-only); OR `Mode: auto` AND diff ≤3 files AND Stage C had zero CRITICAL/HIGH tests-dimension findings (note the skip in state.md "Auto-mode decisions"). Anti-rationalization: "Stage C already covers tests" — NO: Stage C REPORTS gaps; Stage D AUTHORS failing tests (different lifecycle). Never trust the agent's F→P self-report — re-run the tests yourself.
+**Skip Stage D entirely when:** `state.md` shows `Lane: light` (Light Mode skips Stage D — append "Phase 6 Stage D skipped — Lane: light" to state.md); OR `state.md` shows `Lane: tdd` (TDD Mode every-behavior-already-F→P-verified at cycle authoring — append "Phase 6 Stage D skipped — Lane: tdd (every behavior F→P-verified during Phase 4 cycles)" to state.md); OR diff contains zero production-code files (docs/config/lockfile-only); OR `Mode: auto` AND diff ≤3 files AND Stage C had zero CRITICAL/HIGH tests-dimension findings (note the skip in state.md "Auto-mode decisions"). Anti-rationalization: "Stage C already covers tests" — NO: Stage C REPORTS gaps; Stage D AUTHORS failing tests (different lifecycle). Never trust the agent's F→P self-report — re-run the tests yourself.
 
 **Checkpoint:** Update `<task-dir>/state.md`: if Stage D ran, write "Phase 6 completed. All stages passed."; if skipped, write "Phase 6 Stage D skipped — <reason>" then "Phase 6 completed."
 
