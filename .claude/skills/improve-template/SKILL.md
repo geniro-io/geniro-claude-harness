@@ -31,7 +31,18 @@ from the next incomplete phase. Ask the user if this is still the active improve
 
 ---
 
-## Complexity Gate (before Phase 1)
+## Mode Detection (before Complexity Gate)
+
+Detect whether the user wants to **fix/improve an existing skill** (default mode) or **author a new skill** (`create-skill` mode). Triggers for create-skill mode:
+
+- `$ARGUMENTS` matches `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill`
+- `$ARGUMENTS` describes a capability that does not yet exist (no SKILL.md matches the named scope)
+
+If create-skill mode is detected, route to the **create-skill flow** below — skip the Complexity Gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
+
+---
+
+## Complexity Gate (before Phase 1) — improve-existing-skill mode only
 
 Classify the request — this picks both the pipeline depth AND which research sources Phase 1 spawns. Self-classify; do not spawn a triage subagent.
 
@@ -447,6 +458,85 @@ If the user picks skip, print the suggested commit message and the `git add` / `
 
 ---
 
+## Create-Skill Mode (3-phase author flow)
+
+When Mode Detection routes to create-skill, run this flow instead of the
+Investigate → Filter → Implement pipeline. Adapted from Pocock's
+`write-a-skill` (3-phase: Gather requirements → Draft → Review) but uses
+your existing validation infrastructure (validation gate + relevance-filter
++ self-review) for production rigor.
+
+### Phase A: Gather Requirements (interactive)
+
+1. **Determine target.** Ask via `AskUserQuestion` with header "Skill kind":
+   - **Plugin-facing** (`/geniro:<name>`) — adds to `skills/<name>/SKILL.md` in the plugin
+   - **Project-local** (`/<name>`) — adds to `.claude/skills/<name>/SKILL.md` in the user's project
+   - **Plugin-internal helper** (no slash invocation) — `_shared/<name>.md` referenced by other skills
+
+2. **Read the official Skills authoring docs once** to ground recommendations:
+   - WebFetch `https://docs.claude.com/en/docs/claude-code/skills` — Claude Code Skills overview
+   - WebFetch `https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills` — Anthropic's authoring guidance
+   - Cache in conversation context; do NOT re-fetch within the session.
+
+3. **Interview the user** via 3-5 sequential `AskUserQuestion` calls (one question per AUQ — don't batch in this phase, the answers compound):
+   - **Trigger**: "What should activate this skill? (1-3 phrases or contexts users would describe)" — collect to use in the description's "Use when" clause
+   - **Anti-trigger**: "When should this skill explicitly NOT fire?" — collect to use in description's "Skip for" clause
+   - **Inputs**: "What does the skill receive? ($ARGUMENTS shape, files, conversation context)"
+   - **Outputs**: "What artifacts does it produce? (files written, commits made, comments posted, AskUserQuestion gates fired)"
+   - **Tools needed**: "Which Claude Code tools does the skill need? (Read, Write, Edit, Bash, Grep, Glob, Agent, AskUserQuestion, WebSearch, WebFetch, TodoWrite, MCP servers)"
+   - (Optional, if applicable) **Subagents**: "Does this skill spawn subagents? Which existing agent definitions, or new ones?"
+   - (Optional, if applicable) **Workflow file integration**: "Should this skill read from `.geniro/workflow/*.md` (Linear, GitHub Issues, etc.)?"
+
+4. **Pre-existing-instruction check.** Spawn `relevance-filter-agent` (sonnet) with: the proposed skill's purpose + trigger + outputs + the existing skills inventory (`Glob skills/**/SKILL.md` summary). The agent's job: identify any existing skill that already does this OR overlaps significantly. Returns a dossier — orchestrator decides KEEP (proceed) or REJECT (route the user to the existing skill instead). Without this check, the codebase accumulates near-duplicate skills.
+
+### Phase B: Draft (one author-agent spawn, then validate)
+
+1. **Spawn an author agent** (`model: opus`, general-purpose) with:
+   - The full Phase A interview transcript (pre-inlined)
+   - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
+   - Constraints (pre-inlined): description rules from Phase 4 validator below + 300-line guidance from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md` § File-size guidance + reference depth ≤2 levels + edit-in-place principle
+   - 1-2 exemplar SKILL.md files closest in shape to the proposed skill (e.g., for a small command-style skill, point at `instructions/SKILL.md`; for a multi-phase pipeline, point at `refactor/SKILL.md`)
+   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description MUST be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. SKILL.md ≤300 lines preferred (split to companion files if larger)."
+
+2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the new description-format checks (see "Description-format validator" below).
+
+### Phase C: Review (fresh agent, your existing pattern)
+
+Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
+- All Phase A interview answers reflected in the SKILL.md
+- Description meets all 6 format rules (validator checks 1-6 below)
+- SKILL.md ≤300 lines OR has companion files split logically
+- No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
+- No invented `${CLAUDE_PLUGIN_ROOT}/...` references (every cited path actually exists)
+- Frontmatter valid (name, description, allowed-tools, model)
+- `When to Use` section explicit and matches the description's triggers
+- `Examples` section concrete (not "use this for things")
+
+Process review results per the existing Phase 5 routing (Blockers → fresh fix agent, max 1 round).
+
+### Phase D: Report & Commit (reuse Phase 6)
+
+Same Phase 6 as improve-existing-skill mode. Skip Step 3 cleanup (no state file written for create-skill — the 3-phase flow is short enough to fit in conversation context).
+
+---
+
+## Description-format validator (Phase 4 Step 3 extension)
+
+Adds 6 format checks to the existing Phase 4 validation gate. Applies to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
+
+For each changed/created SKILL.md, check the YAML `description:` field:
+
+1. **Length ≤1024 chars**: Anthropic's hard limit on description budget. Warning if violated (not blocker — content matters more than character count, and some skills genuinely need the room).
+2. **Third person**: description should read as "use when X" / "the skill does Y" — NOT "I will X" / "you should X". Check: grep for `\b(I |my |me |you |your )\b` in the description; if matches, flag as warning.
+3. **"Use when" trigger clause**: description should include a phrase like "Use when …" / "Use for …" / "Trigger when …" — names the conditions that activate the skill. Required (warning if missing).
+4. **"Skip for" anti-trigger clause** (recommended, not required): "Skip for X — use Y instead" — disambiguates against neighbor skills. Adds a recommendation note when missing; not a warning.
+5. **No `{{placeholder}}` patterns**: residual template variables. Blocker if found.
+6. **Single line OR clean multi-line YAML**: description must parse as valid YAML; check for unescaped quotes or unbalanced `|` `>` indicators that break frontmatter parsing. Blocker if YAML invalid.
+
+Report results in the existing Phase 4 validation summary. Warnings do not block; blockers route to a fresh fix agent (max 1 round) per existing Phase 4 routing.
+
+---
+
 ## Mid-flow User Input
 
 If the user interjects mid-phase: corrections/context fold into the current phase (note in checkpoint); preferences apply at the next decision point; blockers halt the phase and you ask how to proceed; new issues are noted and queued for after the current pipeline completes.
@@ -471,14 +561,29 @@ If the user interjects mid-phase: corrections/context fold into the current phas
 
 ## Definition of Done
 
+### improve-existing-skill mode
+- [ ] Mode Detection routed to improve-existing-skill (no create-skill triggers in $ARGUMENTS)
 - [ ] Complexity gate applied (fast path or full pipeline)
 - [ ] Phase 1: Research sources selected per Matrix; only those agents spawned (logged in state checkpoint)
 - [ ] Phase 2: Findings cross-referenced and filtered to evidence-backed only
 - [ ] Phase 2b: Redundancy & relevance validated via relevance-filter-agent subagent
 - [ ] Phase 3: Evidence table presented, user approved specific changes
 - [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
+- [ ] Phase 4 Step 3 validation gate: 5 standard checks PLUS 6 description-format checks (length / third person / Use-when clause / Skip-for clause / no placeholders / valid YAML) for any changed SKILL.md
 - [ ] Phase 5: Independent review by fresh agent passed
 - [ ] Phase 6: Summary presented, state file cleaned up
 - [ ] Phase 6: Commit & push offered to the user (Step 4)
-- [ ] All changed SKILL.md files under 500 lines
+- [ ] All changed SKILL.md files under 500 lines (preferred: ≤300 with companion files split)
 - [ ] No scope creep beyond approved changes
+
+### create-skill mode
+- [ ] Mode Detection routed to create-skill (explicit trigger OR named scope does not exist)
+- [ ] Phase A: Skill kind asked (plugin-facing / project-local / plugin-internal helper)
+- [ ] Phase A: Official Skills authoring docs fetched once and cached
+- [ ] Phase A: 3-5 sequential AskUserQuestion calls completed (trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow)
+- [ ] Phase A: Pre-existing-instruction check via relevance-filter-agent — duplicates rejected, user routed to existing skill if overlap
+- [ ] Phase B: Author agent spawned with interview transcript + constraints + 1-2 exemplar SKILL.md files; SKILL.md written to disk
+- [ ] Phase B: Phase 4 Step 3 validation gate run including 6 description-format checks
+- [ ] Phase C: Fresh review agent spawned; 8-item create-skill review checklist applied; blockers fixed (max 1 round)
+- [ ] Phase D: Phase 6 Summary + Commit & push offered
+- [ ] Created SKILL.md ≤300 lines OR split to companion files
