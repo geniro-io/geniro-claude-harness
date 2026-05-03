@@ -49,7 +49,7 @@ Skip the prompt entirely if `$ARGUMENTS` already contained an explicit auto-mode
 | "The user picked auto last time, just pick it again" | Mode is per-run, not per-user. Re-asking each invocation is the contract. Memory of past choices is not a substitute for the current `AskUserQuestion`. |
 | "AskUserQuestion returned empty, treat as 'auto'" | Empty answer is the upstream Claude Code bug (#29547), not a user choice. Fall back to plain text and re-ask. Do NOT pick any default on empty. |
 
-**Example discovery questions (interactive mode, batch 3-5). IMPORTANT — in interactive mode, include the git workspace question in this same batch (do NOT defer it to a separate prompt). In auto-mode, the git workspace question is asked standalone via `AskUserQuestion` regardless of mode — see §Auto Mode Behavior:**
+**Example discovery gray-area questions (interactive mode, batch 3-5). The git workspace question is NOT in this batch — it fires earlier as part of the upfront always-WAIT consolidated AUQ alongside Mode + Lane + Feature (see SKILL.md §Phase 1 Step 7 git-workspace bullet); the "Git workspace" line at the end of the list below is kept for canonical option-text reference. In auto-mode the gray-area batch is silent (defaults applied per §Auto Mode Behavior); the git workspace question still fires upfront in the consolidated AUQ:**
 - Scope: Backend-only? Frontend? Both? (recommend: match existing split)
 - Backwards compat: Support old API during transition? (recommend: yes, deprecation warning)
 - Performance: Any constraints or targets? (recommend: <100ms latency for endpoints)
@@ -120,7 +120,7 @@ What Light Mode changes within /implement. Read this when `Lane: light` is set i
 **NEVER skipped in Light Mode (these run identically to Full):**
 - Phase 1 Step 3 — knowledge-retrieval-agent
 - Phase 1 Step 5 — Convention Discovery + Reuse Inventory
-- Phase 1 Step 7 — gray-area resolution AUQ + git workspace setup
+- Phase 1 Step 7 — gray-area resolution AUQ (git workspace AUQ fires upstream in the Phase 1 Startup Consolidation; only the git workspace **setup** at Step 10 happens here in pipeline-order)
 - Phase 3 — plan approval gate (presents the lightweight plan; user can still pick Adjust / Too large)
 - Phase 4 — backend/frontend parallel waves; Zero Direct Edits applies at every lane
 - Phase 6 Stage A — automated checks (build + lint + test + codegen + runtime startup)
@@ -163,7 +163,7 @@ What TDD Mode changes within /implement. Read this when `Lane: tdd` is set in st
 
 **NEVER skipped in TDD Mode (run identically to Full):**
 - Phase 1 Step 3 — knowledge-retrieval-agent
-- Phase 1 Step 7 — gray-area resolution AUQ + git workspace setup
+- Phase 1 Step 7 — gray-area resolution AUQ (git workspace AUQ fires upstream in the Phase 1 Startup Consolidation; only the git workspace **setup** at Step 10 happens here in pipeline-order)
 - Phase 3 — plan approval gate (presents the behavior list + interface design)
 - Phase 6 Stage A — automated checks
 - Phase 6 Stage C — full reviewer grid + relevance-filter
@@ -230,8 +230,8 @@ Canonical table for what every WAIT gate does when `<task-dir>/state.md` shows `
 |---|---|---|
 | Complexity gate (Lane Selection) | Phase 1, Step 0 | **Always-WAIT.** Fire `AskUserQuestion` with the Lane options (Light Mode / TDD Mode / Full pipeline — composition depends on signals per Phase 1 Step 0 Decision Procedure) regardless of auto-mode. Lane choice gates ~5 downstream phases (Phase 2, 5, 6 Stage B, 6 Stage D) and has user-distinguishable trade-offs (depth vs. speed vs. behavior-discipline) — same shape as plan approval and ship decision. Do NOT auto-default. If hard escalation signals fire, the gate is bypassed silently to `Lane: full` — that's not an auto-mode override, it's the rubric forcing Full. Empty AUQ answer = upstream Claude Code bug — fall back to plain text and re-ask. |
 | Interface-design pre-approval gate | Phase 3 (TDD Mode only) | **Always-WAIT.** Fire `AskUserQuestion` with header "Interface" with the 3 options from §"Interface-Design Pre-Approval Gate (Lane:tdd only)" — proceed / adjust / restart. Auto Mode does NOT auto-default — interface design is the foundational decision that drives every TDD cycle; getting it wrong cascades. Empty AUQ answer = upstream Claude Code bug — fall back to plain text and re-ask. |
-| Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each question EXCEPT git workspace (see next row); append one-liner per decision to `state.md` "Auto-mode decisions" |
-| Git workspace | Phase 1, Step 7 (standalone) | **Always-WAIT.** Ask via `AskUserQuestion` even in auto-mode — where the change lands (new branch / current / worktree) is a deliberate user decision, not a gray-area default. Do NOT auto-pick Option A or Option B |
+| Gray-area resolution | Phase 1, Step 7 | Pick recommended default for each gray-area question; do NOT include git workspace here — it's resolved upstream in the Phase 1 Startup Consolidation AUQ (see Git workspace row below). Append one-liner per gray-area decision to `state.md` "Auto-mode decisions" |
+| Git workspace | Phase 1 (upfront consolidated AUQ) | **Always-WAIT.** Asked via `AskUserQuestion` even in auto-mode — where the change lands (new branch / current / worktree) is a deliberate user decision, not a gray-area default. Do NOT auto-pick Option A or Option B. Batched into the upfront always-WAIT AUQ call alongside Mode/Lane/Feature when those apply (see SKILL.md §Phase 1 Step 7 git-workspace bullet) — one consolidated call instead of 2-4 sequential prompts. |
 | Existing-plan skeptic blockers | Phase 2 pre-check | Always-WAIT (auto-using a flagged plan is unsafe — user must see the concerns) |
 | Plan approval | Phase 3 | **Always-WAIT.** Print the full plan content verbatim (per Phase 3 header "present the full plan file (do NOT summarize)") and the skeptic validation summary (N blockers, M warnings), then ask via `AskUserQuestion` regardless of mode. Auto mode never silently approves a plan — plan approval gates all Phase 4 code generation, so the LLM MUST get explicit user confirmation |
 | Compact prompt | Phase 3 (post-approval) | "Continue now" (skip compaction). Skip `AskUserQuestion` |
