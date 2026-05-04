@@ -102,10 +102,13 @@ When you feel yourself reaching for one of these justifications, treat it as a r
 
 ## Output Schema
 
-Write the report to the orchestrator's output path in exactly this shape. The orchestrator parses it, so deviations break the downstream handoff — preserve headings, field names, and the per-finding block structure verbatim.
+Write the report to the orchestrator's output path in exactly this shape. The orchestrator parses it, so deviations break the downstream handoff — preserve headings, field names, the top-level Source branch / Source worktree fields, and the per-finding block structure verbatim.
 
 ```
 ## Adversarial Test Report — N hypotheses, M authored tests
+
+**Source branch:** [BRANCH from spawn template]
+**Source worktree:** [WORKTREE from spawn template]
 
 ### Authored Failing Tests (F→P verified)
 

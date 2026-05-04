@@ -216,10 +216,14 @@ Before asking where to route the fix, you MUST present a human-readable findings
 
 #### 6.5a — Present Findings Summary & Persist State
 
-Output the following markdown block directly in the chat AND write the same block to `.geniro/debug/findings-state.md` (single file per branch, overwritten on each run — mirrors the `/geniro:review` state-artifact convention). Fill with the actual values from your investigation. Use "none" for any field that truly doesn't apply — don't omit fields. Prepend an ISO-8601 timestamp header (`# Debug Findings — <timestamp>`) to the file version so downstream skills and resumed sessions can tell stale artifacts from fresh ones.
+Output the following markdown block directly in the chat AND write the same block to `.geniro/debug/findings-state.md` (single file per branch, overwritten on each run — mirrors the `/geniro:review` state-artifact convention). Fill with the actual values from your investigation. Use "none" for any field that truly doesn't apply — don't omit fields. Prepend an ISO-8601 timestamp header (`# Debug Findings — <timestamp>`) to the file version so downstream skills and resumed sessions can tell stale artifacts from fresh ones. Capture `Source branch:` from `git branch --show-current` and `Source worktree:` from `git rev-parse --show-toplevel` so consumer skills (`/geniro:follow-up`, `/geniro:implement`) can detect when the user later starts work in a different worktree or branch — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` for the consumer contract.
 
 ```markdown
 ## Debug Findings
+
+**Source branch:** [from `git branch --show-current` — the branch debug ran on]
+
+**Source worktree:** [from `git rev-parse --show-toplevel` — absolute path]
 
 **Why escalating to <target>:** [one sentence — which target (`/geniro:follow-up` trivial / `/geniro:implement` non-trivial) and the concrete reason this scope fits it; user makes the final routing choice in 6.5b.]
 
@@ -238,7 +242,7 @@ Output the following markdown block directly in the chat AND write the same bloc
 
 **Evidence the fix works:** [what happened when you applied the patch in Step 6 — e.g., "failing test went green under in-test monkey-patch; production source untouched" (default), or "<n> production files edited as escape hatch and reverted; bug stopped reproducing"]
 
-**Reproduction test:** [path to authored test file, F→P status (e.g., "verified red on current code; verified green under throwaway patch"), or "escape hatch: <alternative guard + user-recorded rationale>"]
+**Reproduction test:** [<path>, <F→P status — example: "verified red on current code; verified green under throwaway patch"> — OR — "escape hatch: <alternative guard with rationale>"]
 
 **Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
 ```
@@ -248,8 +252,8 @@ The receiving skill pre-loads findings from `.geniro/debug/findings-state.md` �
 #### 6.5b — Escalation Decision
 
 Only after the summary above is visible AND written to `.geniro/debug/findings-state.md`, use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Escalate" and these options:
-- **Trivial — run `/geniro:follow-up`; pre-load findings from `.geniro/debug/findings-state.md`** — ≤2 files, obvious target, no architecture or auth/permissions change.
-- **Non-trivial — run `/geniro:implement`; pre-load findings from `.geniro/debug/findings-state.md`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
+- **Trivial — run `/geniro:follow-up`; pre-load findings from `.geniro/debug/findings-state.md`; suggests relocating authored tests if you switch branch/worktree** — ≤2 files, obvious target, no architecture or auth/permissions change.
+- **Non-trivial — run `/geniro:implement`; pre-load findings from `.geniro/debug/findings-state.md`; suggests relocating authored tests if you switch branch/worktree** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
 - **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger a follow-up `AskUserQuestion` with concrete options for the missing data (paste log line / run query / provide screenshot / dump env vars). When the data arrives, return to Step 3, do NOT escalate to fix mode yet.
 - **Leave it to me** — the user will apply the patch manually using the state file as reference. Skip to Step 7.
 
