@@ -26,7 +26,7 @@ Use this skill to manage a project feature backlog and create detailed specifica
 
 ## Data Format
 
-Features stored in `.geniro/planning/FEATURES.md`:
+Features stored in `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the registry is cross-session and must survive worktree teardown):
 
 ```
 | ID | Description | Category | Status | Triage | Priority | Complexity | Notes |
@@ -111,7 +111,7 @@ Before displaying the features table, scan for orphan specs:
 
 1. Read the feature row in FEATURES.md (Description, Category if set, Notes).
 2. If a spec file is linked in Notes, read it.
-3. Check `.geniro/knowledge/learnings.jsonl` for related patterns/gotchas (Grep with description keywords).
+3. Check `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` for related patterns/gotchas (Grep with description keywords).
 4. If `.geniro/planning/<task-dir>/` exists for this feature, read `spec.md` and `state.md`.
 
 ### Step 2: Recommend Category (bug vs enhancement)
@@ -425,7 +425,7 @@ Before registering, quick-check the spec's architectural proposals against the c
 
 After writing the spec file, update the backlog:
 
-1. Read `.geniro/planning/FEATURES.md` (create if missing)
+1. Read `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (create if missing)
 2. **If an existing feature ID was provided** (e.g., `/geniro:features spec F3`): update that row's Notes column to link the spec file (e.g., `Spec: notification-center-spec.md`)
 3. **If a description was provided** (e.g., `/geniro:features spec Add notifications`): create a new row with:
    - Next auto-incremented ID
@@ -522,7 +522,7 @@ Registered as F5 in FEATURES.md with `Notes: Spec: notification-center-spec.md`.
 
 For each skill invocation, confirm:
 
-- [ ] Feature file (`.geniro/planning/FEATURES.md`) exists and is readable
+- [ ] Feature file (`<PRIMARY_ROOT>/.geniro/planning/FEATURES.md`, path resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`) exists and is readable
 - [ ] All features have ID, description, status, priority, complexity (Category and Triage default to `enhancement` and `needs-triage` for entries created before triage existed)
 - [ ] Requested command executed correctly
 - [ ] Output is clear and actionable

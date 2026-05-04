@@ -20,7 +20,7 @@ Use this skill to quickly understand a new or unfamiliar codebase. Generates a s
 
 ## Outputs
 
-**Primary artifact (default mode):** `.geniro/planning/CODEBASE_MAP.md`
+**Primary artifact (default mode):** `<PRIMARY_ROOT>/.geniro/planning/CODEBASE_MAP.md` — resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees and isn't lost when a linked worktree is removed.
 
 Contains:
 1. **Project Overview** – Name, purpose, language/stack, entry points
@@ -32,7 +32,7 @@ Contains:
 7. **Critical Paths** – User request flow, deployment pipeline, job system
 8. **Tech Debt & Notes** – Gotchas, legacy code, anti-patterns
 
-**Quick mode artifact (`--focus X --quick`):** `.geniro/planning/focus-<area>.md`
+**Quick mode artifact (`--focus X --quick`):** `<PRIMARY_ROOT>/.geniro/planning/focus-<area>.md` — same `<PRIMARY_ROOT>` resolution as the primary artifact above.
 
 Contains only 3 sections, designed to fit on one page:
 
@@ -50,7 +50,7 @@ Skips Architecture Patterns, Conventions, Tech Debt sections — those live in t
 2. Use Glob to enumerate files matching the focus glob (max 30 files; if exceeded, refuse and ask the user to narrow `--focus`).
 3. For each file, read imports and exported symbols; build a 1-hop dependency graph (in/out) — do NOT recurse.
 4. Grep the rest of the project for callers of the focus area's exported symbols (1-3 entry points; stop at 5).
-5. Write `.geniro/planning/focus-<area>.md` using the 3-section template (Focus Area / Module Relationships (focus-only) / Critical Paths (focus-only)).
+5. Write `<PRIMARY_ROOT>/.geniro/planning/focus-<area>.md` using the 3-section template (Focus Area / Module Relationships (focus-only) / Critical Paths (focus-only)).
 6. Quick mode uses its own Definition of Done — see "Quick-Mode Definition of Done" below — not the standard 10-item DoD which is scoped to full CODEBASE_MAP.md generation. Print the output file path and stop.
 
 ### 1. Scan (5–10 min)
@@ -223,7 +223,7 @@ After the map is generated, use the `AskUserQuestion` tool (do NOT output option
 
 For each onboarding, confirm:
 
-- [ ] CODEBASE_MAP.md created in .geniro/planning/ directory
+- [ ] CODEBASE_MAP.md created at `<PRIMARY_ROOT>/.geniro/planning/CODEBASE_MAP.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
 - [ ] Project overview section completed
 - [ ] Directory structure documented with key folders
 - [ ] At least 3 critical paths traced and documented
@@ -240,7 +240,7 @@ For quick-mode invocations, confirm:
 
 - [ ] `--focus <area>` was provided alongside `--quick` (validation in Quick-mode bypass step 1)
 - [ ] Focus glob enumerated ≤30 files (or user narrowed when exceeded)
-- [ ] `.geniro/planning/focus-<area>.md` created with the 3-section template (Focus Area + Module Relationships (focus-only) + Critical Paths (focus-only))
+- [ ] `<PRIMARY_ROOT>/.geniro/planning/focus-<area>.md` created with the 3-section template (Focus Area + Module Relationships (focus-only) + Critical Paths (focus-only))
 - [ ] Module Relationships limited to 1-hop dependencies (no recursion)
 - [ ] Critical Paths captured 1-3 entry points (max 5)
 - [ ] Output file path printed to user (no AskUserQuestion next-step routing in quick mode — caller skill drives next action)
@@ -306,4 +306,4 @@ For quick-mode invocations, confirm:
 
 ## Mid-task usage from other skills
 
-`/geniro:debug` Step 4 (Isolate) and `/geniro:implement` Phase 4 (Implement) can suggest the user run `/geniro:onboard --focus <area> --quick` when an agent reports lost-in-codebase symptoms. Quick mode is intentionally cheap so other skills can recommend it without budget concerns. The output file (`focus-<area>.md`) lives alongside `CODEBASE_MAP.md` in `.geniro/planning/` — it does not replace the full map.
+`/geniro:debug` Step 4 (Isolate) and `/geniro:implement` Phase 4 (Implement) can suggest the user run `/geniro:onboard --focus <area> --quick` when an agent reports lost-in-codebase symptoms. Quick mode is intentionally cheap so other skills can recommend it without budget concerns. The output file (`focus-<area>.md`) lives alongside `CODEBASE_MAP.md` at `<PRIMARY_ROOT>/.geniro/planning/` — it does not replace the full map.

@@ -12,8 +12,8 @@ When a skill's end-of-flow "Suggest Improvements" step finds a project-scope imp
 | **Code rule / coding convention / style or naming pattern / file-pattern constraint** | **`.claude/rules/<scope>.md`** with YAML frontmatter `paths: [glob, ...]` (Anthropic-native, **file-scoped** — auto-loads only when Claude reads/writes a matching file) | **Loaded only when the matching files are touched — keeps CLAUDE.md lean and avoids "rule bloat" that dilutes compliance for every CLAUDE.md rule. The native Claude Code analog of Cursor's `.mdc` auto-attach.** |
 | Quality gate, workflow step, or hard constraint the user enforced for **skill behavior** (e.g. "always run codegen after editing DTOs", "max PR size 500 lines") | **`.geniro/instructions/<skill>.md`** (or `global.md` if cross-skill) | Geniro-specific **skill-scoped** — loads when the matching skill runs, not on every file edit |
 | Pattern that should be enforced automatically without LLM judgment | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual memory |
-| Non-obvious gotcha, workaround, or debugging insight | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Searchable by knowledge-retrieval-agent across sessions |
-| Architectural decision with rationale (lightweight, internal) | **Knowledge** (`.geniro/knowledge/learnings.jsonl`) | Provides context for future changes in the same area |
+| Non-obvious gotcha, workaround, or debugging insight | **Knowledge** (`.geniro/knowledge/learnings.jsonl`, path resolved per `_shared/primary-worktree.md`) | Searchable by knowledge-retrieval-agent across sessions |
+| Architectural decision with rationale (lightweight, internal) | **Knowledge** (`.geniro/knowledge/learnings.jsonl`, path resolved per `_shared/primary-worktree.md`) | Provides context for future changes in the same area |
 | Architectural decision that is **(1) hard to reverse, (2) surprising without context, AND (3) the result of genuine trade-offs** — including refactor candidates explicitly REJECTED with rationale | **ADR** (`docs/adr/NNNN-<slug>.md` or `docs/decisions/NNNN-<slug>.md`) | Survives team turnover and shipped code; the durable record for "why we chose / rejected X" when learnings.jsonl is too transient |
 | User preference or correction about how to collaborate | **Memory** (native auto-memory) | Auto-retrieved by Claude in future sessions |
 
@@ -26,7 +26,7 @@ Apply in order — first match wins:
 3. **Is it a quality gate / workflow step / hard constraint that should fire when a particular skill runs (not per-file)?** → **`.geniro/instructions/<skill>.md`** (skill-scoped, Geniro-specific)
 4. **Is it a project-wide command, structure fact, or compaction-surviving gate that every agent needs every turn?** → **CLAUDE.md**
 5. **Is it an architectural decision that is hard to reverse AND surprising without context AND the result of genuine trade-offs (including a refactor candidate explicitly REJECTED with rationale)?** → **ADR** (`docs/adr/` or `docs/decisions/` — see ADR rules below)
-6. **Is it a reusable technical insight (gotcha, lightweight architectural decision, surprising coupling)?** → **Knowledge** (`.geniro/knowledge/learnings.jsonl`)
+6. **Is it a reusable technical insight (gotcha, lightweight architectural decision, surprising coupling)?** → **Knowledge** (`.geniro/knowledge/learnings.jsonl` — path resolved per `_shared/primary-worktree.md`)
 7. **Is it a user preference or correction about how to collaborate?** → **Memory** (native auto-memory)
 8. **Uncertain** → default to **Knowledge** (lowest risk, still searchable)
 

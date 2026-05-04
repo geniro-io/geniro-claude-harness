@@ -2,14 +2,14 @@
 
 **Status:** Authoritative for `/geniro:follow-up` and `/geniro:implement` Phase 1.
 
-When `/geniro:debug` ran earlier in the same project, it left state files at `.geniro/debug/findings-state.md` (scientific mode) and/or `.geniro/debug/adversarial-tests.md` (adversarial mode) — and authored regression tests at the project's normal test paths. Consumer skills MUST detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations).
+When `/geniro:debug` ran earlier in the same project, it left state files at `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` (scientific mode) and/or `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md` (adversarial mode) — and authored regression tests at the project's normal test paths. Consumer skills MUST detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations).
 
 ## Step 1: Scan
 
-Glob both paths from the project root (the toplevel returned by `git rev-parse --show-toplevel`). For each that exists, read fully.
+Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the state files always live in the primary worktree's `.geniro/debug/` regardless of where this scan runs from. Glob both paths and, for each that exists, read fully.
 
-- `.geniro/debug/findings-state.md`
-- `.geniro/debug/adversarial-tests.md`
+- `<PRIMARY_ROOT>/.geniro/debug/findings-state.md`
+- `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md`
 
 If neither exists, this whole file is a no-op — skip to your next step.
 

@@ -79,7 +79,7 @@ For each learning, ask:
 Drop learnings that fail these gates.
 
 ### 3. Store
-Append to `.geniro/knowledge/learnings.jsonl` with:
+Append to `.geniro/knowledge/learnings.jsonl` (resolve the path prefix via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — writes must land in the main worktree). Each entry has:
 - Auto-incremented ID (L1, L2, L3...)
 - Clear one-sentence learning
 - Verified flag
@@ -112,7 +112,7 @@ For each improvement session, confirm:
 - [ ] 3–5 learnings extracted (or 0 if session had no new insights)
 - [ ] Each learning passes quality gates (specific, verified, non-trivial, reusable)
 - [ ] Learnings.jsonl checked for duplicates
-- [ ] New learnings appended to `.geniro/knowledge/learnings.jsonl`
+- [ ] New learnings appended to `.geniro/knowledge/learnings.jsonl` (path prefix resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A)
 - [ ] Each learning has: id, category, verified, session, source
 - [ ] No generic or unverified lessons stored
 
@@ -167,75 +167,25 @@ All three pass quality gates and get added to learnings.jsonl.
 
 ---
 
-## Phase 4: Session Document (optional)
+## Retrieval
 
-Create a session summary document **only if** the session was complex enough to warrant one (multi-step debugging, architectural decisions, significant discoveries). Skip for simple bug fixes or straightforward implementations.
-
-### Session Document Format
-
-Write to `.geniro/knowledge/sessions/YYYY-MM-DD-<topic>.md`:
-
-```markdown
-# Session: [Topic]
-**Date:** YYYY-MM-DD
-**Type:** feature | debug | refactor | investigation
-**Status:** completed | partial | blocked
-
-## Summary
-[2-3 sentences: what was done, what was the outcome]
-
-## Key Decisions
-- [Decision 1]: [rationale]
-- [Decision 2]: [rationale]
-
-## Discoveries
-- [What was learned about the codebase]
-- [Unexpected behaviors found]
-- [Patterns identified]
-
-## Files Changed
-- `path/to/file.ts` — [what changed and why]
-
-## Unresolved Items
-- [Anything left open for future sessions]
-
-## Related
-- Learnings: [L12, L45] (IDs from learnings.jsonl)
-- Debug: [.geniro/debug/HYPOTHESES.md] (if debugging was involved)
-- Spec: [.geniro/planning/<branch-name>/spec.md] (if implementation was involved)
-```
-
-### When to Create Session Documents
-
-- After any `/geniro:implement` session — captures architecture decisions, conventions discovered, and integration notes
-- After any `/geniro:debug` session — captures root cause, misleading signals, and environment-specific quirks
-- After any `/geniro:refactor` session — captures what was restructured and why
-- After significant `/geniro:follow-up` sessions — captures any non-obvious fixes or discoveries
-- **Not needed** for trivial changes (typo fixes, config tweaks)
-
-### Retrieval
-
-Future sessions can search these documents via the `knowledge-retrieval-agent`:
+Future sessions search learnings via the `knowledge-retrieval-agent`:
 - Pipeline skills like `/geniro:implement` and `/geniro:debug` spawn it automatically before starting work
-- It searches learnings.jsonl, session artifacts, debug history, and planning docs
+- It searches learnings.jsonl, debug history, and planning docs (path prefixes resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`)
 - Returns condensed, citation-rich findings so you don't re-discover known information
 
 Add retrieval to the start of complex skills (implement, debug, refactor) — check what's already known before starting fresh.
 
-## Learning Lifecycle
+**High-counter learnings** (referenced multiple times) are most valuable.
+**Zero-counter learnings** might be outdated and can be pruned.
+
+### Lifecycle
 
 ```
 Session → Extract → Validate → Store → Use → Reference → Increment Counter
-    ↓                            ↓
-Session Doc                  learnings.jsonl
-    ↓                            ↑
-  sessions/                 knowledge-retrieval-agent
-    ↓___________________________|
-         (cross-session retrieval)
+                                  ↓                   ↑
+                            learnings.jsonl ←── knowledge-retrieval-agent
 ```
-
-**High-counter learnings** (referenced multiple times) are most valuable.
-**Zero-counter learnings** might be outdated and can be pruned.
 
 ## Tips for High-Quality Learnings
 

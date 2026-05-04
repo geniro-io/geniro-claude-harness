@@ -155,7 +155,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 
 For skills running findings end-to-end in one invocation (`/geniro:review`), the orchestrator has the full reviewer-agent output in-memory and pulls Evidence / Why-matters / Suggested-fix / Confidence / Origin directly.
 
-For cross-skill consumers (`/geniro:follow-up` Phase 5 Step 2, `/geniro:implement` Phase 6 Fix-Loop pre-step), findings arrive via the `<task-dir>/review-feedback.md` artifact (or `.geniro/review-findings-state.md` for `/follow-up`). Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema for the persisted shape.
+For cross-skill consumers (`/geniro:follow-up` Phase 5 Step 2, `/geniro:implement` Phase 6 Fix-Loop pre-step), findings arrive via the `<task-dir>/review-feedback.md` artifact (or `<PRIMARY_ROOT>/.geniro/review-findings-state.md` for `/follow-up`). Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema for the persisted shape.
 
 For `/geniro:debug` Step 5 / Step 6 gates, body fields come from `.geniro/debug/HYPOTHESES.md` (the confirmed hypothesis's "Isolate" + "Fix Evidence" + "Reproduction Decision" sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
 

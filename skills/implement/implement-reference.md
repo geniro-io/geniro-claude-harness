@@ -15,14 +15,14 @@ This file contains templates, examples, error tables, and detailed procedures re
 | `/geniro:implement ENG-123` | Issue tracker reference (from workflow) | Fetches issue via configured integration, uses as context |
 | `/geniro:implement https://linear.app/team/issue/ENG-123` | Issue tracker URL (from workflow) | Extracts issue ID, fetches via configured integration |
 | `/geniro:implement ENG-123 add OAuth login` | Issue reference + description | Fetches issue, supplements with description |
-| `/geniro:implement F3` or `/geniro:implement F3 add OAuth login` | Geniro feature ID (`F<n>`) | Read `.geniro/planning/FEATURES.md`, look up the row for the matching ID, use its description (and linked spec file in the Notes column, if present) as the implementation target |
+| `/geniro:implement F3` or `/geniro:implement F3 add OAuth login` | Geniro feature ID (`F<n>`) | Read `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), look up the row for the matching ID, use its description (and linked spec file in the Notes column, if present) as the implementation target |
 | `/geniro:implement just do it` or `ASAP` | Urgency signals | Auto mode: skip interactive questions |
 | `/geniro:implement I think we should add OAuth` | Tentative language | Assumptions mode: propose plan |
 
 **Detection rules (checked in order):**
 0. **Milestone reference** — patterns (checked in priority order): (a) `^milestone\s+(\d+)\b` at start of `$ARGUMENTS`, (b) `$ARGUMENTS` references a path ending in `milestone-<N>-*.md`, (c) `$ARGUMENTS` equals `continue` AND `<task-dir>/state.md` contains a `Milestones:` field. If any matches, load the milestone file via Phase 2 pre-check rule 1 and skip remaining rules. Milestone detection takes priority over workflow files and feature IDs because the user explicitly pointed at a specific unit of work.
 1. Check `.geniro/workflow/*.md` for argument detection patterns. Apply them in order before falling through to mode signal detection.
-2. **Geniro feature ID** — pattern `^F\d+(\s|$)` at start of `$ARGUMENTS`. Read `.geniro/planning/FEATURES.md` if present and look up the matching row. If FEATURES.md is missing or the ID is not found, treat the rest of `$ARGUMENTS` as a plain description and warn the user once. If found, capture the row's description and spec-file path (from the Notes column) — these get persisted to `state.md` (see SKILL.md Phase 1).
+2. **Geniro feature ID** — pattern `^F\d+(\s|$)` at start of `$ARGUMENTS`. Read `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (`<PRIMARY_ROOT>` resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`) if present and look up the matching row. If FEATURES.md is missing or the ID is not found, treat the rest of `$ARGUMENTS` as a plain description and warn the user once. If found, capture the row's description and spec-file path (from the Notes column) — these get persisted to `state.md` (see SKILL.md Phase 1).
 3. **Auto-mode signals** — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` for the canonical phrase list. If any canonical phrase is matched, skip interactive questions, pick recommended defaults for non-workspace gray areas. `"auto"` and `"quick"` are NOT triggers — they collide with common technical vocabulary (`auto-save`, `quick-action`).
 4. **Assumptions-mode signals** — tentative language like "I think", "maybe", "what if", "should we" -> propose plan with assumptions, let user correct
 5. **No special signals** — MUST ask the user which mode to use via `AskUserQuestion` (see "Mode Selection prompt" below). This is **Always-WAIT**: do NOT silently default to a mode even when a harness "Auto Mode" / "minimize interruptions" system reminder is active — the harness Auto Mode is a permission classifier, not a per-skill mode answer. Default-to-recommend is interactive
@@ -683,7 +683,7 @@ If updates needed, delegate to a subagent (e.g., general-purpose with `model="ha
 
 Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it.
 
-Save the generalized form to `.geniro/knowledge/learnings.jsonl` and/or memory (route per the canonical's "Storage routing" section). Write a session summary to `.geniro/knowledge/sessions/YYYY-MM-DD-<feature-name>.md` with: summary, key decisions, discoveries, files changed, unresolved items.
+Save the generalized form to `.geniro/knowledge/learnings.jsonl` and/or memory (route per the canonical's "Storage routing" section, including the primary-worktree path resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`).
 
 UPDATE existing entries rather than append duplicates. Skip the entire step if nothing genuinely novel was discovered — empty extraction is the correct outcome for routine sessions.
 
@@ -739,7 +739,7 @@ Run cleanup directly (no agent needed):
 ```bash
 rm -rf <task-dir>  # e.g., .geniro/planning/feat-eng-123-add-oauth/
 ```
-This deletes `spec.md`, `state.md`, `notes.md`, `notes-resolved.md`, `concerns.md`, `review-feedback.md`, `plan-*.md`, and any other files created during the pipeline. These artifacts served their purpose during the pipeline run — the commit message, PR description, learnings file, and session summary are the durable records.
+This deletes `spec.md`, `state.md`, `notes.md`, `notes-resolved.md`, `concerns.md`, `review-feedback.md`, `plan-*.md`, and any other files created during the pipeline. These artifacts served their purpose during the pipeline run — the commit message, PR description, and learnings file are the durable records.
 
 **Temp files** — remove temporary screenshots, .tmp, .bak, debug-* files (not in node_modules or .git). Kill orphaned processes on agent ports (avoid touching standard dev ports). Remove stray .log files.
 
