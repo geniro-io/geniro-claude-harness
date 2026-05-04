@@ -262,7 +262,7 @@ Hook translation runs in three ordered steps: (1) back up and stage `.claude/set
 
 4. Validate the result: `python3 -m json.tool .claude/settings.json >/dev/null` (or `jq empty .claude/settings.json`). If validation fails, restore from `settings.json.pre-vendor-backup` and stop.
 
-The merged `hooks` block must keep every plugin matcher (`PreToolUse` for Bash and Edit|Write, `PostToolUse`, `PreCompact`, `SessionStart`, `PostCompact`) and every `timeout` and `statusMessage` field. Only the `command` strings change. Example translation for the `db-guard` entry:
+The merged `hooks` block must keep every plugin matcher (`PreToolUse` for Bash and Edit|Write, `PostToolUse`, `SessionStart`, `PostCompact`) and every `timeout` and `statusMessage` field. Only the `command` strings change. Example translation for the `db-guard` entry:
 
 - Source: `"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/db-guard.sh"`
 - Vendored: `".claude/hooks/geniro-db-guard.sh"`

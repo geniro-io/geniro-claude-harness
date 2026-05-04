@@ -40,7 +40,7 @@ This plugin provides safety hooks that run automatically:
 - **File protection** — blocks writes to `.env`, `*.key`, `*.pem`, lock files
 - **Secret scanning** — scans inputs and outputs for leaked secrets
 - **Git guardrails** — blocks destructive git operations (force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, filter-branch, update-ref -d)
-- **Compaction state** — preserves critical state across context compaction
+- **Post-compaction recovery** — emits resume instructions and re-read suggestions after context compaction
 
 ### Per-project allowlist for git guardrails
 

@@ -56,7 +56,7 @@ NOTIFICATION=$(jq -n \
       "spec_file": $spec_file,
       "feature_anchor": $feature_anchor,
       "suggested_files": (
-        ["CLAUDE.md", ".geniro/state/pre-compact-snapshot.json", ".geniro/planning/FEATURES.md"]
+        ["CLAUDE.md", ".geniro/planning/FEATURES.md"]
         + (if $spec_file != "" and $spec_file != "none" then [$spec_file] else [] end)
       ),
       "note": "Compaction lost SKILL.md instructions and conversation nuance. Re-read files before proceeding."

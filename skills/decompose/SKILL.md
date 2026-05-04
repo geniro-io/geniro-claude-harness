@@ -101,8 +101,7 @@ Decomposed Plans:
 3. **Load prior context.** Before scanning fresh:
    - Existing plans in `.geniro/planning/plan-*.md` and `.geniro/planning/*/plan-*.md`
    - Existing specs in `.geniro/planning/*/spec.md`
-   - Learnings in `.geniro/knowledge/learnings.jsonl` — gotchas relevant to this area
-   - Prior session summaries in `.geniro/knowledge/sessions/`
+   - Learnings in `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` — gotchas relevant to this area (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A)
    - FEATURES.md if present — known backlog items that may overlap
 
 4. **Scan codebase** for relevant patterns, conventions, architecture (`README.md`, `CONTRIBUTING.md`, ADRs under `**/adr/**/*.md` or `**/decisions/**/*.md`, 2-3 exemplar files near the change area). CLAUDE.md is auto-loaded — skip re-reading.
@@ -310,7 +309,7 @@ DecomposedAt: 2026-04-22
 
 Per-milestone Mode tag (HITL or AFK) is included in the roll-up so `/geniro:implement` can pick the right Lane without re-reading the milestone file. Format: `<N>: <status> (<Mode>)`.
 
-If state.md already exists (e.g., from a prior `/geniro:implement` run), preserve existing fields and add/overwrite the `Milestones:` line. Keep it a single file per task-dir — the pre-compact hook at `hooks/pre-compact-state-save.sh` globs `.geniro/planning/*/state.md` and expects one file per dir.
+If state.md already exists (e.g., from a prior `/geniro:implement` run), preserve existing fields and add/overwrite the `Milestones:` line. Keep it a single file per task-dir — the post-compact hook at `hooks/post-compact-notification.sh` globs `.geniro/planning/*/state.md` and expects one file per dir.
 
 ---
 
@@ -389,5 +388,5 @@ Decompose skill is complete when:
 | "The user just wants a quick split, skip discovery" | Discovery catches gray areas in shipping order and pilot surface that define milestone boundaries. Skip it and you will produce a sequence the user rejects. |
 | "Phase 2 and Phase 3 can be one agent call" | Phase 2 produces the milestone list; Phase 3 produces self-contained files. Collapsing them into one spawn produces shallow milestone files with no upstream-dependency summaries. Fresh-subagent-per-milestone is load-bearing. |
 | "Skip skeptic — architect already thought about dependencies" | D9 (coverage) and D10 (ordering) catch exactly the errors architects make when generating 5+ milestones in one pass. Skipping is how requirements get silently dropped. |
-| "I can put `## Milestones` in a separate file instead of the master plan" | The master plan is the single file that `/geniro:implement` appends `## Implementation Notes (Milestone N)` to. Splitting breaks the appendix contract and the pre-compact hook's one-file-per-dir assumption. |
+| "I can put `## Milestones` in a separate file instead of the master plan" | The master plan is the single file that `/geniro:implement` appends `## Implementation Notes (Milestone N)` to. Splitting breaks the appendix contract and the post-compact hook's one-file-per-dir assumption. |
 | "User said 'just approve everything' — skip the approval step" | The approval step is where the user catches mis-partitioning. Skipping it is how non-serializable decompositions reach `/geniro:implement` and waste real code generation. |
