@@ -45,6 +45,8 @@ This is not a suggestion—it's the required process. Do NOT skip steps or guess
 
 ## Input
 
+Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/debug.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints throughout the run.
+
 $ARGUMENTS
 
 **Mode routing (inspect `$ARGUMENTS` BEFORE the empty-check):**
@@ -121,11 +123,10 @@ Every user-facing choice in this skill — including ad-hoc gates NOT explicitly
 
 ## Workflow: Observe → Build Feedback Loop → Hypothesis → Test → Propose Fix → Escalate
 
-### 0. Retrieve Prior Knowledge & Custom Instructions (1 min)
+### 0. Retrieve Prior Knowledge (1 min)
 Before investigating, check for relevant prior learnings:
 - Scan `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` for gotchas and patterns related to the affected area (use Grep with keywords from the bug description). Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 - If relevant learnings exist, use them to inform initial hypotheses — don't re-discover known issues
-- Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/debug.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 
 ### 1. Observe (5 min)
 - Reproduce the bug consistently
@@ -194,7 +195,7 @@ If you cannot build a feedback loop in 10 minutes, do NOT proceed to Step 2 by g
 - Understand why the bug happens (not just where)
 
 ### 5. Propose Fix (5–15 min)
-- **Multi-path fix gate (Always-WAIT, per Universal Rule).** If the confirmed root cause has more than one valid fix path with real trade-offs (e.g., snapshot-vs-live-fetch, COALESCE vs CHECK constraint vs catch+log, fix-at-source vs fix-at-call-site), do NOT pick one and write a single text proposal. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored). Set `header: "Fix path"`. Render the `question` text with the confirmed root cause's `path:lines` and hypothesis title; render each option's `preview` with the investigation context (Root cause / Evidence from "Fix Evidence" / hypothesis-confirmed status / hypothesis number from `.geniro/debug/HYPOTHESES.md`) so the user can compare fix paths against the same evidence. Each option's `label` (1-5 words) names the path; `description` carries the one-line trade-off. Record the user's choice in `.geniro/debug/HYPOTHESES.md` under "Proposed Fix" before drafting the unified diff. The single-text-proposal default below applies ONLY when there is one obvious right fix; multi-path is the explicit branch the Universal Rule (above, line 111-113) requires the tool for. Empty `AskUserQuestion` answer = upstream bug — fall back to plain text and re-ask. This is symmetric with `[PRODUCT-DECISION]` handling in the rest of the pipeline (see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row).
+- **Multi-path fix gate (Always-WAIT, per Universal Rule).** If the confirmed root cause has more than one valid fix path with real trade-offs (e.g., snapshot-vs-live-fetch, COALESCE vs CHECK constraint vs catch+log, fix-at-source vs fix-at-call-site), do NOT pick one and write a single text proposal. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored). Set `header: "Fix path"`. Render the `question` text with the confirmed root cause's `path:lines` and hypothesis title; render each option's `preview` with the investigation context (Root cause / Evidence from "Fix Evidence" / hypothesis-confirmed status / hypothesis number from `.geniro/debug/HYPOTHESES.md`) so the user can compare fix paths against the same evidence. Each option's `label` (1-5 words) names the path; `description` carries the one-line trade-off. Record the user's choice in `.geniro/debug/HYPOTHESES.md` under "Proposed Fix" before drafting the unified diff. The single-text-proposal default below applies ONLY when there is one obvious right fix; multi-path is the explicit branch the § Universal Rule above requires the tool for. Empty `AskUserQuestion` answer = upstream bug — fall back to plain text and re-ask. This is symmetric with `[PRODUCT-DECISION]` handling in the rest of the pipeline (see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row).
 - Formulate the minimal fix for the root cause as a **text proposal**: file path(s), exact change (unified diff or before/after snippet), and a one-sentence rationale.
 - Do NOT write the fix to production/source files. Write/Edit are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/debug/` artifacts) — not for applying the proposed patch. If any experiment modified non-test source (e.g., a temporary log line, patched value), revert those edits before escalation; the escalated skill applies the real fix cleanly.
 - Do NOT refactor adjacent code.
@@ -444,7 +445,7 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "The agent reported the hypothesis confirmed — I'll trust it and move on" | Self-reported confirmation is evidence, not proof — the same rule that already governs adversarial mode (see existing row about F→P self-reports). The orchestrator MUST independently re-run the test / re-read the file:line / re-execute the query before advancing to Step 4 Isolate. |
 | "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The Universal Rule at the top of this skill makes the tool mandatory for ANY choice question, not just the enumerated ones. Ad-hoc gates ("verify root cause vs band-aid", "need runtime data — proceed how?", "this hypothesis needs your input") are exactly when the rule fires hardest. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 | "I'll name the reproduction test after the confirmed hypothesis number from `HYPOTHESES.md` — it's the cleanest reference back to the investigation." | `HYPOTHESES.md` gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. The test name AND any comments inside it must describe the bug behavior on their own. |
-| "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | Step 5's multi-path fix gate (Always-WAIT, per Universal Rule at lines 111-113) requires `AskUserQuestion` whenever the root cause has more than one valid fix path with real trade-offs. The single-text-proposal default applies only when one fix is obviously right. Picking one path silently ships a product decision the user did not authorize. If you catch yourself reasoning "Option A is cleaner / more idiomatic / smaller diff" — that's the rationalization; both options are valid by your own evidence, and the user picks. |
+| "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | Step 5's multi-path fix gate (Always-WAIT, per § Universal Rule above) requires `AskUserQuestion` whenever the root cause has more than one valid fix path with real trade-offs. The single-text-proposal default applies only when one fix is obviously right. Picking one path silently ships a product decision the user did not authorize. If you catch yourself reasoning "Option A is cleaner / more idiomatic / smaller diff" — that's the rationalization; both options are valid by your own evidence, and the user picks. |
 
 ## Cleanup
 
