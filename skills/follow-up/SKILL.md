@@ -278,7 +278,7 @@ Capture the changed file list from the diff against the base branch (resolved pe
 
 **Purpose:** Attacker-mindset pass that complements the reviewer-agents from Step 1. Where the Step 1 tests-dimension reviewer REPORTS coverage gaps, Step 1.5 AUTHORS NEW failing tests (F→P-verified: red today) for edge cases the Phase 2 implementer's happy-path tests missed.
 
-**Action:** Spawn one `adversarial-tester-agent` (`model="inherit"` per canonical model-tiering carve-out — reasoning-grade test authoring mirrors orchestrator tier) using the template in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1.5: Adversarial Tester Template. Pre-inline the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command, and Step 1 findings as hypothesis seeds.
+**Action:** Spawn one `adversarial-tester-agent` (per canonical model-tiering carve-out — frontmatter-declared `model: inherit`, omit `model=` at the spawn site to mirror orchestrator tier; reasoning-grade test authoring) using the template in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1.5: Adversarial Tester Template. Pre-inline the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command, and Step 1 findings as hypothesis seeds.
 
 **Orchestrator responsibilities after the agent returns:**
 1. **Independently re-run the authored tests** — do NOT trust the agent's F→P self-report. Any test that passes today is deleted and removed from scope.

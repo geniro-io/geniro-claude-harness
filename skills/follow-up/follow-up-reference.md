@@ -137,7 +137,7 @@ Add an additional reviewer with `model='sonnet'` for the design dimension when c
 Spawn the new agent AFTER the Step 1 reviewers return, BEFORE Step 2 aggregation.
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model="inherit", prompt="""
+Agent(subagent_type="adversarial-tester-agent", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Follow-Up — Medium)
 
 WORKTREE: [from `git rev-parse --show-toplevel`]

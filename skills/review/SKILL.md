@@ -240,7 +240,7 @@ After reviewers complete, spawn a **relevance-filter-agent** to gather conventio
 Spawn the relevance-filter-agent for evidence gathering:
 
 ```
-Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
+Agent(subagent_type="relevance-filter-agent", prompt="""
 FINDINGS: [all findings from all reviewers (6 or 7), in their original format]
 CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
@@ -304,7 +304,7 @@ For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validati
 Spawn all validators in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn:
 
 ```
-Agent(subagent_type="general-purpose", model="inherit", prompt="""
+Agent(subagent_type="general-purpose", prompt="""
 TASK: Validate a single review finding. You are an independent validator — confirm or reject this finding. You have Read, Glob, Grep, and Bash available for reproduction in step 4.
 
 FINDING: [severity, dimension, file:line, description, evidence]
@@ -358,10 +358,10 @@ If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect:
 
 **Step 3: Spawn the adversarial-tester-agent.**
 
-Spawn ONE `adversarial-tester-agent` (model="inherit" per the canonical model-tiering carve-out — reasoning-grade test authoring mirrors orchestrator tier) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required.
+Spawn ONE `adversarial-tester-agent` (per the canonical model-tiering carve-out — frontmatter-declared `model: inherit`, omit `model=` at the spawn site to mirror orchestrator tier; reasoning-grade test authoring) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required.
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model="inherit", prompt="""
+Agent(subagent_type="adversarial-tester-agent", prompt="""
 CHANGED FILES: [list of changed file paths with full content — pre-inlined from Phase 1]
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]

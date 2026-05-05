@@ -304,7 +304,7 @@ Apply the same skip-matrix philosophy as `skills/follow-up/SKILL.md` Step 1.5 (s
 ### E. Spawn Template
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model="inherit", prompt="""
+Agent(subagent_type="adversarial-tester-agent", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Debug — Verify Changes)
 
 WORKTREE: [from `git rev-parse --show-toplevel`]

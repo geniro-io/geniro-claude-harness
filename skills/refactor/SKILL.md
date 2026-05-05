@@ -194,7 +194,7 @@ Update `state.md`: `phase: 2`, `smells-detected: N`, `tier: <Small|Medium|Large>
 **Relevance evidence + orchestrator tagging** (Medium and Large only — Small skips this step): Before presenting the plan, spawn a `relevance-filter-agent` to gather evidence on detected smells against repo conventions, then **you (the orchestrator) decide KEEP vs FILTER yourself** from the dossier — do NOT delegate the tagging decision:
 
 ```
-Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
+Agent(subagent_type="relevance-filter-agent", prompt="""
 FINDINGS: [smells detected by refactor-agent, with file:line references and risk levels]
 CHANGED FILES: [files in refactoring scope from Phase 1]
 WORKTREE: [from `git rev-parse --show-toplevel`]

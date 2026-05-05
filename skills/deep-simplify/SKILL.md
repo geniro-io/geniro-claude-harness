@@ -217,7 +217,7 @@ Collect findings from all 3 agents. Merge into a single list:
 5. **Relevance evidence gathering + orchestrator decision** — spawn `relevance-filter-agent` to gather convention/over-engineering/pattern evidence per finding, then **you (the orchestrator) decide KEEP vs FILTER yourself** using the dossier. This is orchestrator work — do NOT delegate the tagging decision.
 
    ```
-   Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
+   Agent(subagent_type="relevance-filter-agent", prompt="""
    FINDINGS: [aggregated P1/P2 findings in JSON format]
    CHANGED FILES: [list of changed file paths — the agent reads files itself]
    WORKTREE: [from `git rev-parse --show-toplevel`]
