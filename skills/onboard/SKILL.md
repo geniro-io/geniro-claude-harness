@@ -44,6 +44,8 @@ Skips Architecture Patterns, Conventions, Tech Debt sections — those live in t
 
 ## Workflow: Scan → Map → Reference
 
+**Step 0 — Load custom instructions:** Load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run. Phase-specific "Additional Steps" entries may not have matching phases here — apply where they fit, otherwise skip.
+
 **Quick-mode bypass:** if `--quick` is set, skip the full Scan → Map → Reference workflow below. Run the abbreviated quick-mode flow:
 
 1. Validate `--focus <area>` is also set (required for `--quick`); if missing, prompt the user to add it.

@@ -15,19 +15,22 @@ Manage `.geniro/instructions/` files — the home for **skill-behavior rules**: 
 
 ## Supported Skills
 
-Seven skills load custom instructions at startup:
+`global.md` loads in **every** Geniro skill that does real user work — its **Rules** and **Constraints** apply project-wide (lifecycle skills like `setup`, `instructions`, `cleanup`, `update`, `vendor` are excluded). Per-skill instruction files (`<skill>.md`) load only in the seven phase-bearing pipeline skills below, where "Additional Steps" entries map to named phases.
 
-| Skill | Per-skill file | Key phases for "Additional Steps" |
-|-------|---------------|-----------------------------------|
-| **implement** | `implement.md` | After PHASE 1 (Discover), After PHASE 4 (Implement), After PHASE 6 (Review & Validate), Before PHASE 7 (Ship & Finalize) |
-| **decompose** | `decompose.md` | After Phase 1 (Discover Context), After Phase 2 (Generate Master Plan + Milestone List), After Phase 4 (Validate) |
-| **review** | `review.md` | After Phase 1 (Collect Context), After Phase 4 (Judge Pass), After Phase 5 (Learn) |
-| **debug** | `debug.md` | After step 1 (Observe), After step 5 (Fix), After step 6 (Verify) |
-| **follow-up** | `follow-up.md` | After Phase 2 (Implement), After Phase 5 (Review), Before Phase 6 (Ship) |
-| **refactor** | `refactor.md` | After Phase 2 (Analyze & Plan), After Phase 4 (Execute), After Phase 5 (Review Results) |
-| **deep-simplify** | `deep-simplify.md` | After Phase 3 (Aggregate), After Phase 4 (Fix), Before Phase 5 (Verify) |
-
-`global.md` applies to **all seven** skills above.
+| Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
+|-------|---|---------------|-----------------------------------|
+| **implement** | ✓ | `implement.md` | After PHASE 1 (Discover), After PHASE 4 (Implement), After PHASE 6 (Review & Validate), Before PHASE 7 (Ship & Finalize) |
+| **decompose** | ✓ | `decompose.md` | After Phase 1 (Discover Context), After Phase 2 (Generate Master Plan + Milestone List), After Phase 4 (Validate) |
+| **review** | ✓ | `review.md` | After Phase 1 (Collect Context), After Phase 4 (Judge Pass), After Phase 5 (Learn) |
+| **debug** | ✓ | `debug.md` | After step 1 (Observe), After step 5 (Fix), After step 6 (Verify) |
+| **follow-up** | ✓ | `follow-up.md` | After Phase 2 (Implement), After Phase 5 (Review), Before Phase 6 (Ship) |
+| **refactor** | ✓ | `refactor.md` | After Phase 2 (Analyze & Plan), After Phase 4 (Execute), After Phase 5 (Review Results) |
+| **deep-simplify** | ✓ | `deep-simplify.md` | After Phase 3 (Aggregate), After Phase 4 (Fix), Before Phase 5 (Verify) |
+| **investigate** | ✓ | — | Rules/Constraints only (no per-skill file; phase-boundary "Additional Steps" not supported) |
+| **onboard** | ✓ | — | Rules/Constraints only |
+| **learnings** | ✓ | — | Rules/Constraints only |
+| **features** | ✓ | — | Rules/Constraints only |
+| **actions** | ✓ | — | Rules/Constraints only |
 
 ## File Structure
 
@@ -170,7 +173,7 @@ If files exist, show a table:
 
 | File | Scope | Affects Skills | Sections |
 |------|-------|----------------|----------|
-| global.md | All skills | implement, decompose, review, debug, follow-up, refactor, deep-simplify | Rules (3), Steps (1), Constraints (2) |
+| global.md | All work skills | implement, decompose, review, debug, follow-up, refactor, deep-simplify, investigate, onboard, learnings, features, actions | Rules (3), Steps (1), Constraints (2) |
 | review.md | review only | review | Rules (5), Steps (0), Constraints (1) |
 ```
 

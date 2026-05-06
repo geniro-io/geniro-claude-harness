@@ -59,6 +59,9 @@ Append-only JSON Lines file (one JSON object per line):
 
 ## Workflow: Extract → Validate → Store
 
+### 0. Load custom instructions
+Load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run (e.g., a project-wide rule about what kinds of learnings to keep or skip). Phase-specific "Additional Steps" entries may not have matching phases here — apply where they fit, otherwise skip.
+
 ### 1. Extract (5–10 min)
 Review the session conversation and identify:
 - Did the user correct you? → Learning

@@ -51,6 +51,9 @@ Features stored in `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (resolve `<PRIM
 
 ## Workflow: Add → Track → Complete
 
+### 0. Load custom instructions (every sub-command)
+Before processing any sub-command, load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run (e.g., backlog hygiene rules, default-priority policies, required spec sections). Phase-specific "Additional Steps" entries may not have matching phases here — apply where they fit, otherwise skip.
+
 ### 1. Add Feature
 ```
 /geniro:features add Implement dark mode toggle in settings

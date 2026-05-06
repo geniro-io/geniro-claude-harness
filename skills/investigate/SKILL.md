@@ -49,6 +49,10 @@ $ARGUMENTS
 
 ## Phase 1: Classify & Scope
 
+### Step 0: Load custom instructions
+
+Load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run (e.g., "always cite file:line", "never query prod without the read-replica proxy"). Phase-specific "Additional Steps" entries may not have matching phases in this skill — apply where they fit, otherwise skip.
+
 ### Step 1: Parse the question
 
 Classify into one of. The "Agents needed" column is the literal spawn set — 1, 2, or 3 agents.
