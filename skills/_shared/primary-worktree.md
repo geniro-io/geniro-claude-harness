@@ -1,9 +1,6 @@
----
-name: primary-worktree
-description: "Canonical resolver for cross-session persistent state. Ensures writes/reads land in the main repo's working tree even when the session is in a linked worktree (the gitignored `.geniro/*` would otherwise be lost on `git worktree remove`)."
----
-
 # Primary-worktree resolution for persistent state
+
+Canonical resolver for cross-session persistent state. Ensures writes/reads land in the main repo's working tree even when the session is in a linked worktree (the gitignored `.geniro/*` would otherwise be lost on `git worktree remove`).
 
 ## Why this exists
 

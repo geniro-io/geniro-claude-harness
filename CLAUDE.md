@@ -33,6 +33,12 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 
 **NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` is NOT expanded by these tools and creates a literal `~` directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or fully resolved absolute paths for project files.
 
+## Custom Agent Invocation
+
+When a skill spawns a plugin-defined agent (`reviewer-agent`, `relevance-filter-agent`, `adversarial-tester-agent`, `refactor-agent`, `architect-agent`, `skeptic-agent`, `knowledge-retrieval-agent`, `backend-agent`, `frontend-agent`) via the `Agent(subagent_type="<name>", ...)` tool, the bare-name form resolves only when the plugin is marketplace-installed in interactive Claude Code or when the project has been `/geniro:vendor`-ed. In Claude Code SDK / harness / cloud runners the plugin's `agents/` directory is not registered and the call hard-errors with `Agent type '<name>' not found. Available agents: …`.
+
+**Apply the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every plugin-agent spawn site.** Attempt the bare name first; on "not found", re-attempt as `Agent(subagent_type="general-purpose", ...)` with the agent's `.md` body (frontmatter stripped) prepended to the prompt. Do NOT use the `<plugin-name>:<agent-name>` prefix for programmatic `Task()`/`Agent()` invocation — that form is for UI typeahead only. This is the agent-registration layer; it is independent of the MCP-tool degradation noted in §Optional MCP Dependencies below.
+
 ## Safety Hooks (Active)
 
 This plugin provides safety hooks that run automatically:

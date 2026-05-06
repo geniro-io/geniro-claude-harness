@@ -28,7 +28,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (refactor, relevance-filter, reviewer), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
 
 **Skill-specific mapping** — refactor work is mostly mechanical pattern application; Sonnet handles ~90% of cases:
 

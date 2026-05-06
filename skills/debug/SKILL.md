@@ -13,7 +13,7 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 |---|---|---|
 | `adversarial-tester-agent` | `inherit` | Carve-out — reasoning-grade test authoring. Matches the canonical rule in `skills/_shared/model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 6 Stage D, `/geniro:follow-up` Medium Phase 5. Synthesis tier mirrors the orchestrator's; the agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
-Every `Agent(...)` spawn in this skill MUST pass an explicit `model=` argument per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
+Every `Agent(...)` spawn in this skill MUST pass an explicit `model=` argument per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. For plugin-defined subagents (adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
 
 ## Evidence Standard
 

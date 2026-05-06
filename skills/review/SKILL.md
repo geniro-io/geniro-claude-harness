@@ -17,7 +17,7 @@ You are a **coordinator**. You delegate review work to `reviewer-agent` instance
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (reviewer, relevance-filter, adversarial-tester), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
 
 **Skill-specific mapping** — reviewer dimension drives model choice:
 
