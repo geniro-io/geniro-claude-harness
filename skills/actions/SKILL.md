@@ -4,7 +4,7 @@ description: "Use when scaffolding a reusable workflow-helper (Slack/PR/release 
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
-argument-hint: "[create|list|run|delete] [name] [...args]"
+argument-hint: "[create|list|edit|run|delete] [name] [...args]"
 ---
 
 # Actions: Custom Workflow-Helper Management
@@ -20,6 +20,7 @@ editable here — use `/improve-template` for those.
 |-------------|---------|---------|
 | `list` | show, view, ls, current | Print the table of installed actions |
 | `create` | new, scaffold, make, add | Interview-driven scaffold for a new action |
+| `edit` | change, modify, update, tweak, adjust | Open an existing action for external editing, then re-validate |
 | `run` | invoke, exec, execute, do | Read an action file and follow its steps inline |
 | `delete` | remove, rm, drop | Remove an action file (with confirmation) |
 
@@ -60,6 +61,7 @@ NEVER output questions as plain text — always use the `AskUserQuestion` tool a
 |--------|---------|---------|
 | List | show, view, list, ls, current | `list` |
 | Create | create, new, scaffold, make, add | `create` |
+| Edit | edit, change, modify, update, tweak, adjust | `edit` |
 | Run | run, invoke, exec, execute, do | `run` |
 | Delete | delete, remove, rm, drop | `delete` |
 
@@ -78,8 +80,9 @@ The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`
 
 ### Ambiguity resolution
 
-If the action verb is unclear or missing (and the input was not empty), use the `AskUserQuestion`
-tool:
+**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the first token is a kebab slug that exact-matches an existing action file in the registry (`.geniro/actions/<token>.md` exists locally, OR — when in a linked worktree — in the main worktree's `.geniro/actions/`), default to `run` with that token as the resolved target. The remaining tokens after the slug pass to Phase 4.4 as positional arguments under "User-supplied input". Do NOT ask the user — typing a known slug is itself the answer to "what do you want to do?" The natural intent of `/geniro:actions <slug>` is to run that action. This is a positive resolution rule (the Phase 0 analog of the Phase 4.0 Step 2 exact-slug fast path), not an exception to the default-prompt path. When the slug resolves to the main worktree's registry, Phase 4.0 Step 2's cross-worktree confirmation gate ("Use the main-worktree copy?") still fires before execution — the Phase 0 fast path skips the verb-disambiguation prompt only, not the cross-worktree gate.
+
+**Otherwise**, if the action verb is unclear or missing (and the input was not empty), use the `AskUserQuestion` tool:
 
 - **Question:** "What would you like to do with custom actions?"
 - **Options:**
@@ -94,7 +97,7 @@ When the resolved action is `create`, validate the name before continuing:
 
 - Must be **kebab-case** (lowercase letters, digits, and hyphens only).
 - Must be **≤64 characters**.
-- Must NOT be a reserved word: `anthropic`, `claude`, `geniro`.
+- Must NOT be a reserved word: `anthropic`, `claude`, `geniro`, `list`, `create`, `edit`, `run`, `delete` (the canonical sub-command verbs — using one as a slug would shadow the verb in Phase 0 detection and make the action unrunnable via the bare-slug fast path).
 - Must NOT begin or end with a hyphen.
 
 If the name is missing or invalid, use the `AskUserQuestion` tool:
@@ -115,6 +118,7 @@ Once `action` (and `name`, where applicable) are resolved, branch:
 - `list` → Phase 2
 - `create` → Phase 3
 - `run` → Phase 4
+- `edit` → Phase 6
 - `delete` → Phase 5
 
 ## Phase 2: Command `list`
@@ -171,7 +175,7 @@ On **Edit in place**: print the absolute path, instruct the user to edit it exte
   - label: "Done — re-run validation" — description: "Re-read the file and run the Phase 3.6 validation gate against the resulting content"
   - label: "Cancel" — description: "Stop without re-validating; leave the file as the user left it"
 
-On **Done**, re-run the Phase 3.6 validation gate against the file. On **Cancel**, stop.
+On **Done**, re-run the Phase 3.6 validation gate against the file with **entry mode = `edit-in-place`** (so a validation failure leaves the existing file intact instead of `rm -f`-ing it — the file pre-existed this run, and destroying it on failure would lose user work). On **Cancel**, stop.
 
 On **Version it**: `mv .geniro/actions/<name>.md .geniro/actions/<name>-v1.md`, then continue to
 3.2.
@@ -274,11 +278,12 @@ check fails:
 5. **File is <500 lines** (`wc -l .geniro/actions/<name>.md`).
 6. **Body has at least one numbered step** — typically a `## Steps` section with numbered items.
 
-If any check fails, surface the specific failure (which check, which line, what was expected),
-delete the just-written file with `rm -f .geniro/actions/<name>.md`, and stop. Tell the user to
-re-run `/geniro:actions create <name>` and refine the inputs in the Phase 3.4 preview round.
-Do NOT auto-fix the written file — the synthesis happens in Phase 3.4 (where the user can
-preview and edit), not in post-write patching.
+If any check fails, surface the specific failure (which check, which line, what was expected) and stop. The on-failure rollback depends on **entry mode** (callers — Phase 3.5, Phase 3.1 "Edit in place", Phase 6 — pass this in):
+
+- **Entry mode `create`** (Phase 3.5 just wrote the file from a Phase 3.4 draft): delete the just-written file with `rm -f .geniro/actions/<name>.md`. Tell the user to re-run `/geniro:actions create <name>` and refine the inputs in the Phase 3.4 preview round. The rollback is safe because the file did not exist before this run.
+- **Entry mode `edit-in-place`** (Phase 3.1 "Edit in place" branch OR Phase 6 "Command edit" — the file existed before this run): do NOT delete the file. Leave it as the user left it. Tell the user to re-run `/geniro:actions edit <name>` (or for the create-collision branch, re-trigger via `/geniro:actions create <name>` and pick "Edit in place" again) to fix the validation failure.
+
+Do NOT auto-fix the written file in either mode — the synthesis happens in Phase 3.4 (where the user can preview and edit) for `create`, or in the user's external editor for `edit-in-place`, not in post-write patching.
 
 After all six checks pass, print:
 
@@ -332,12 +337,11 @@ Take the top **N=4** candidates by score. If the merged registry has fewer than 
 - If the main-worktree fallback was checked (linked worktree, multiple worktrees in `git worktree list`): `No custom actions in this worktree's registry, and none in the main worktree's registry either. Run \`/geniro:actions create <name>\` first.`
 - Otherwise (single worktree or `git rev-parse` failed): `No custom actions in registry. Run \`/geniro:actions create <name>\` first.`
 
-Present an AskUserQuestion picker with up to 4 options (one per candidate):
+Present an AskUserQuestion picker with up to **3 candidate options plus a final "Other" option** (4 total, matching the AskUserQuestion 4-option cap). When fewer than 3 strong candidates exist, "Other" appears at the 2nd or 3rd slot rather than always at the 4th — the cap is the ceiling, not a quota:
 
 - **Question:** "Which action did you mean by \"<input>\"?"
-- **Options (one per candidate, in score order):**
+- **Options (top-3 candidates in score order, then "Other" as the final slot):**
   - label: `<slug>` — description: `<first 80 chars of the action's description, prefixed with "[main]" if source=main-worktree>`
-- The 4th option (or sooner, if fewer than 3 strong candidates) MUST be:
   - label: "Other" — description: "Describe more specifically — re-prompt with a refined query"
 
 When an "Other" option is selected, AskUserQuestion will surface free-text input from the user; treat that as a refined query and loop back into Step 3 with the new input. Cap the loop at **3 rounds**; after the third round, surface "Could not narrow down — try `/geniro:actions list` for the exact slugs" and stop.
@@ -443,12 +447,52 @@ rmdir .geniro/actions/ 2>/dev/null
 
 Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
 
+## Phase 6: Command `edit`
+
+### Step 1: Resolve target
+
+Call **Phase 4.0** (resolve by name-or-description). The resolver returns `(<resolved-path>, <resolved-slug>, <source>)`.
+
+If `<source> == main-worktree`, refuse-and-surface the same way Phase 5 does for `delete`: editing a sibling worktree's action would modify a separate workstream. Use the `AskUserQuestion` tool:
+
+- **Question:** "Action `<resolved-slug>` lives in the main worktree at `<main-worktree-root>/.geniro/actions/<resolved-slug>.md`. Editing it from a linked worktree would modify a sibling tree. How do you want to proceed?"
+- **Options:**
+  - label: "Cancel — I'll switch to main and re-run" — description: "Stop. Switch to the main worktree (`cd <main-worktree-root>`) and re-run `/geniro:actions edit <resolved-slug>`."
+  - label: "Cancel — keep the file unchanged" — description: "Stop without editing."
+
+Both options stop. Phase 6 only continues when `<source> == local`.
+
+### Step 2: Open for external editing
+
+Print the absolute path:
+
+```
+Edit: <absolute-path-to-resolved-file>
+```
+
+Then use the `AskUserQuestion` tool to wait for the user's "done" signal:
+
+- **Question:** "Have you finished editing `<absolute-path>`?"
+- **Options:**
+  - label: "Done — re-run validation" — description: "Re-read the file and run the Phase 3.6 validation checks (1-6) against the resulting content"
+  - label: "Cancel" — description: "Stop without re-validating; leave the file as the user left it"
+
+### Step 3: Re-validate (on Done)
+
+Re-run the **Phase 3.6 validation gate** with **entry mode = `edit-in-place`**. Phase 3.6's parametric failure path surfaces the specific failure and stops without `rm -f` — the file pre-existed this run, so the user's edit (or the original content if they made no change) stays on disk. The user can re-run `/geniro:actions edit <resolved-slug>` to fix and re-validate.
+
+After all six checks pass, print:
+
+```
+Edited `.geniro/actions/<resolved-slug>.md`. Run with `/geniro:actions run <resolved-slug>`.
+```
+
 ## Anti-rationalization table
 
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I'll just edit a core Geniro skill instead of creating a custom action" | No — core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
-| "I'll silently overwrite the existing action file" | No — present edit/version/cancel via `AskUserQuestion`. Silent overwrite destroys committed work. |
+| "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via `AskUserQuestion` (Phase 3.1). For top-level `edit`, route through Phase 6 (resolve, external-edit, re-validate without `rm -f`). Silent overwrite destroys committed work. |
 | "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably; vague descriptions break Mode 2 routing. |
 | "The four interview questions are overkill for a small action" | No — they're the official skill-creator questions; even small actions need a clear purpose, trigger, and output documented in the file. |
 | "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. Plain `.md` files at `.geniro/actions/` do not register. |
@@ -456,6 +500,8 @@ Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
 | "I'll output the questions as plain text instead of using `AskUserQuestion`" | No — every WAIT gate uses the `AskUserQuestion` tool. Plain text doesn't block. |
 | "The `.gitignore` re-include lines are unnecessary if the user wants actions ignored" | No — default is committed (team-shareable). Users who want ignored can remove the re-include manually. Don't pre-decide for them. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. The orchestrator owns judgment, not auto-pick. Silent fuzzy execution is the picker analog of performative agreement. |
+| "I'll ask 'what do you want to do' even when the user typed a known slug" | No — when `$ARGUMENTS` lacks a verb but the first token is an exact kebab slug in the registry, default to `run` (Phase 0 bare-slug fast path). Typing a known slug IS the answer; re-asking violates "skip questions already answered". The 4-option picker is reserved for genuinely ambiguous input (no verb AND no slug match). Exact-slug match is categorically different from the fuzzy match the row above forbids. |
+| "I'll re-use Phase 3.6's `rm -f` failure behavior unconditionally" | No — Phase 3.6's failure path is **parametric on entry mode**. `create` (Phase 3.5 just wrote the file from a Phase 3.4 draft) → `rm -f` rollback is correct because the file didn't exist before this run. `edit-in-place` (Phase 3.1 "Edit in place" OR Phase 6 "Command edit" — the file pre-existed this run) → leave the file as the user left it. The user's pre-existing work must be preserved on failure. |
 | "I'll silently delete the action from the main worktree even though I'm in a linked worktree" | No — `delete` from a linked worktree refuses-and-surfaces. Sibling worktrees represent intentionally separate workstreams (see `skills/_shared/scope-anchor.md` § Anti-rationalization); the user must switch to main and re-run. |
 
 ## Definition of Done
@@ -464,6 +510,7 @@ Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
 - [ ] If `create`: 4-question interview completed, draft previewed and approved, file written, all 6 validation checks passed
 - [ ] If `run`: action file located and read, confirmation gate (when needed), action steps executed inline
 - [ ] If `delete`: confirmed via `AskUserQuestion` before removal
+- [ ] If `edit`: target resolved (or refused if main-worktree), absolute path printed, AskUserQuestion "Done" gate fired, Phase 3.6 checks 1-6 re-run on Done, file NOT deleted on validation failure
 - [ ] All user interactions used `AskUserQuestion` — no plain-text questions
 - [ ] `.gitignore` re-include rules added on first action created (idempotent)
 - [ ] No `{{placeholder}}` left in any written file
