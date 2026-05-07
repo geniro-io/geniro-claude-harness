@@ -302,10 +302,11 @@ Capture the changed file list from the diff against the base branch (resolved pe
 
 **Open-decision gate (per-finding, Always-WAIT).** Before any disposition decision, scan the kept findings for `decision: PRODUCT-DECISION` items. For each one, fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (set `header: "Open decision"`). Read the finding's `Options:` sub-list AND the body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) from `<PRIMARY_ROOT>/.geniro/review-findings-state.md` per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 — the body fields populate `preview` per option, giving the user enough context to actually pick a resolution path. Replace the finding's `recommendation:` field with the user's chosen option text before continuing; preserve `options:` / `evidence:` / `why-matters:` / `suggested-fix:` as audit trail. Use the chained-AUQ pattern when >4 options exist or when an `Options:` field carries `(more-options-exist: chain-follow-up)` — never split or drop options. This gate is **Always-WAIT** in every mode and lane (Fast included — see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row). Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask, never default to the reviewer's synthesis. Skip this gate only when zero PRODUCT-DECISION findings remain after the relevance filter.
 
-Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity). Then the orchestrator synthesizes findings and decides the disposition:
+Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity). Persist `<PRIMARY_ROOT>/.geniro/review-findings-state.md` with body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`, `confidence:`, `origin:`) for EVERY finding regardless of severity — the open-decision gate above and the MEDIUM inclusion gate below both read these. Then the orchestrator synthesizes findings and decides the disposition:
 
-- **Any CRITICAL or HIGH finding (kept)** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If findings persist after the fix round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
-- **Zero CRITICAL, zero HIGH findings** → proceed directly; note any MEDIUM findings in Ship summary.
+- **MEDIUM inclusion gate (Always-WAIT, fires only when MEDIUM findings exist).** Before deciding fix-loop entry, fire the gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. User-promoted MEDIUMs join the fix-loop pool alongside any CRITICAL/HIGH; deferred MEDIUMs flow to the Phase 6 Ship summary. Skip silently when zero MEDIUMs.
+- **Any CRITICAL or HIGH finding (kept), OR any user-promoted MEDIUMs** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If findings persist after the fix round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
+- **Zero kept findings (no CRITICAL, no HIGH, and no user-promoted MEDIUMs)** → proceed directly; deferred MEDIUMs surface in the Ship summary.
 
 Disposition is an orchestrator decision based on aggregated evidence, not a reviewer verdict.
 
@@ -322,6 +323,7 @@ Show a summary:
 - Validation: PASS/FAIL
 - Review: [disposition — "proceeded directly" / "1 HIGH fixed inline" / "fix-loop completed"]
 - Test coverage: [covered / gaps noted / tests added]
+- Deferred MEDIUM: [N — list `path:line — short-title` per deferred MEDIUM from the Phase 5 Step 2 MEDIUM inclusion gate; omit this line entirely when zero MEDIUMs were deferred]
 - Smoke-test: [PASS / issues noted / skipped / n/a]   ← include only when Step 0 ran
 
 ### Step 0: Pre-Ship Smoke Test (conditional — runs for Fast AND Full lanes before Review Gate)

@@ -355,7 +355,7 @@ Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet 
 
 **Action:** Spawn 6–7 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, guidelines, conventions, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
 
-Aggregate findings. Drop Medium. Pass CRITICAL/HIGH to fix loop. Write `<task-dir>/review-feedback.md`. Findings tagged `decision: PRODUCT-DECISION` flow through to the Fix Loop where the open-decision gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row) presents enumerated options to the user before any fixer agent spawns.
+Aggregate findings. Pass CRITICAL/HIGH to fix loop; preserve MEDIUM findings (do NOT auto-drop) for the user-gated inclusion check at the top of the Fix Loop — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Write `<task-dir>/review-feedback.md` with body sub-fields persisted for both CRITICAL/HIGH and MEDIUM rows so the gate can render bodies correctly. Findings tagged `decision: PRODUCT-DECISION` flow through to the Fix Loop where the open-decision gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row) presents enumerated options to the user before any fixer agent spawns; MEDIUM findings flow through to the same Fix Loop where the MEDIUM inclusion gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `MEDIUM findings present in fix-loop entry` row) lets the user pick which (if any) to include.
 
 **Fix loop:** Max 3 rounds. Spawn NEW fixer + FRESH reviewers each round (anchoring bias). After 3 rounds, present handoff to user (always-WAIT — see implement-reference.md §Auto Mode Behavior).
 
@@ -404,7 +404,7 @@ These steps run BEFORE presenting the ship decision. They cannot be skipped.
 1. **Features implemented** (list)
 2. **Files changed** (grouped by area: backend/frontend/tests/config)
 3. **Tests added/modified**
-4. **Review feedback addressed** (count of issues fixed)
+4. **Review feedback addressed** (count of issues fixed; for any deferred MEDIUMs from the Phase 6 Stage C MEDIUM inclusion gate, also report `Deferred MEDIUM: N — see <task-dir>/review-feedback.md ## Deferred MEDIUM` so the user has a documented backlog)
 5. **Validation results** (lint, build, test, startup, codegen — pass/fail each)
 6. **Learnings extracted** (count, or "none")
 7. **Deferred ideas** (if any)
