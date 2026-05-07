@@ -95,11 +95,14 @@ Any signal → `AskUserQuestion` header "Scope": "Escalate to suggested skill" /
 
 ## State & Resume Semantics
 
-On skill start, `Glob(".geniro/refactor/state.md")`. If present, read it and offer resume via `AskUserQuestion` header "Resume": "Resume from phase [N]" / "Start fresh (discard state)". Otherwise create it with an initial header after Phase 1.
+On skill start, compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules, then `Glob(".geniro/refactor/state-<slug>.md")`. If present, run the consumer flow per the helper § Consumer contract (Case A/B/C/D handling). After that returns "proceed", offer resume via `AskUserQuestion` header "Resume": "Resume from phase [N]" / "Start fresh (discard state)". Otherwise create the state file with an initial header after Phase 1.
 
-**State file schema (`.geniro/refactor/state.md`):**
+**State file schema (`.geniro/refactor/state-<slug>.md`):**
 
 ```
+Branch: <git branch --show-current OR detached-<short-sha>>
+Worktree: <git rev-parse --show-toplevel>
+Timestamp: <ISO-8601 UTC>
 phase: 1|2|3|4|5
 tier: Small|Medium|Large
 scope-files: [...]
@@ -109,7 +112,7 @@ steps-completed: [...]
 steps-blocked: [...]
 ```
 
-State is written on all tiers for consistency. Only strategic compact points are tier-gated (Medium/Large only).
+State is written on all tiers for consistency. Only strategic compact points are tier-gated (Medium/Large only). Capital `Branch:`/`Worktree:`/`Timestamp:` are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Producer contract — they let the consumer detect cross-branch collisions on resume.
 
 **Strategic compact points:**
 
@@ -117,7 +120,7 @@ State is written on all tiers for consistency. Only strategic compact points are
   > Plan ready. I recommend `/compact` now to free context for execution. After compacting, type `/geniro:refactor continue` to resume from Phase 3.
 - **After Phase 4** (execution complete, before Phase 5 review): same pattern, resume from Phase 5.
 
-**On resume:** read state.md and the scope-files list, skip to the next incomplete phase. The state file is cleaned up at the end of Phase 5.
+**On resume:** read `.geniro/refactor/state-<slug>.md` and the scope-files list, skip to the next incomplete phase. The state file is cleaned up at the end of Phase 5 per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — delete only the current branch's slug.
 
 ---
 
@@ -135,7 +138,7 @@ State is written on all tiers for consistency. Only strategic compact points are
 **Step 7 (final): Baseline validation.** Run the project's validation suite once (read command from CLAUDE.md).
 - If red: `AskUserQuestion` header "Baseline": "Fix the broken tests first (stop refactoring)" / "Proceed anyway — existing failures are out of scope (risky)". Default to stop.
 - If no tests exist at all: escalate immediately — "Cannot refactor safely without tests. Use `/geniro:implement` to add coverage first."
-- If tests green: record the passing-state fingerprint (test count) in `state.md` and proceed.
+- If tests green: record the passing-state fingerprint (test count) in `.geniro/refactor/state-<slug>.md` and proceed.
 
 ### Phase 2: Analyze (subagent) + Plan (orchestrator)
 
@@ -187,7 +190,7 @@ After the agent returns, the orchestrator builds the plan:
 3. **Mark HIGH-risk steps for user confirmation** (presented via `AskUserQuestion` in Phase 3).
 4. **Build the final plan** with: smells, ordered steps, risk per step, consumer counts, files that will change, what will NOT change (public APIs, DB schema, test behavior), and `max_risk` (max across all step risks, used to select execution model in Phase 4).
 
-Update `state.md`: `phase: 2`, `smells-detected: N`, `tier: <Small|Medium|Large>`.
+Update `.geniro/refactor/state-<slug>.md`: `phase: 2`, `smells-detected: N`, `tier: <Small|Medium|Large>`.
 
 ### Phase 3: Approval
 
@@ -219,7 +222,7 @@ Review the agent's plan:
 - If any steps are **HIGH risk**: present them to user via `AskUserQuestion` and wait for confirmation before proceeding
 - If all steps are LOW/MEDIUM: present the plan summary and proceed
 
-Update `state.md`: `phase: 3`, `plan-approved: true`.
+Update `.geniro/refactor/state-<slug>.md`: `phase: 3`, `plan-approved: true`.
 
 **Strategic Compact Point (Medium and Large only).** See "State & Resume Semantics" above. After compaction, resume from Phase 4.
 
@@ -261,7 +264,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 **Session-level cap:** After execution returns, count the ratio of BLOCKED to executed steps (post-user-rejection; i.e., denominator = approved plan steps minus user-rejected HIGH-risk steps). If ≥30% BLOCKED: stop and escalate via `AskUserQuestion` header "Stuck": "Keep what worked and escalate the rest" / "Revert all changes" / "Force-continue (not recommended)". Do NOT proceed to Phase 5 automatically when this cap triggers.
 
-Update `state.md`: `phase: 4`, `steps-completed: [...]`, `steps-blocked: [...]`.
+Update `.geniro/refactor/state-<slug>.md`: `phase: 4`, `steps-completed: [...]`, `steps-blocked: [...]`.
 
 **Strategic Compact Point (Medium and Large only).** See "State & Resume Semantics" above. After compaction, resume from Phase 5.
 
@@ -352,9 +355,9 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 - [P3 item or user-rejected HIGH step]
 ```
 
-Delete `.geniro/refactor/state.md` at the very end of Phase 5.
+Delete `.geniro/refactor/state-<slug>.md` at the very end of Phase 5 per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — delete only the current branch's slug, leave other branches' state files intact. Also `rm -f .geniro/refactor/state.md 2>/dev/null` to clear any pre-upgrade legacy state file (idempotent; the file may not exist).
 
-After deleting state.md, tell the user explicitly: "Refactor complete — the diff is in your working tree. Commit it yourself, or run `/geniro:follow-up` to ship with a review gate."
+After deleting the state file, tell the user explicitly: "Refactor complete — the diff is in your working tree. Commit it yourself, or run `/geniro:follow-up` to ship with a review gate."
 
 ## Git Constraint
 

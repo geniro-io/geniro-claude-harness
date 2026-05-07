@@ -49,7 +49,7 @@ Grep across all JSONL files in subdirectories.
 
 ### 3. Debug History
 ```
-<DEBUG_ROOT>/HYPOTHESES.md
+<DEBUG_ROOT>/HYPOTHESES-*.md
 <DEBUG_ROOT>/*.md
 ```
 
@@ -79,7 +79,7 @@ Return a condensed summary:
 - [decision] — Source: decisions/architectural-decisions.jsonl
 
 ### Prior Debug History
-- [hypothesis/result] — Source: debug/HYPOTHESES.md
+- [hypothesis/result] — Source: debug/HYPOTHESES-<branch>.md
 
 ### No Results
 "No prior knowledge found for '{query}'."

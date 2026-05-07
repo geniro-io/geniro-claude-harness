@@ -18,8 +18,55 @@ TASK_DIR=""
 FEATURE_ID=""
 SPEC_FILE=""
 FEATURE_ANCHOR=""
-# Pick most-recently-modified state.md (handles concurrent pipelines via worktrees / parallel sessions)
-state_file=$(ls -t ./.geniro/planning/*/state.md 2>/dev/null | head -1 || true)
+# Pick the active pipeline state.md using a three-tier branch-aware strategy:
+#   1. Direct directory match — tries .geniro/planning/<slug>/state.md (slug form) AND
+#      .geniro/planning/<branch>/state.md (original branch name). The branch-name lookup handles
+#      task-dirs with a '/' in the branch name (e.g. feat/ci-22-foo → planning/feat/ci-22-foo/).
+#   2. Branch:-field grep — recursively search all state.md files for a 'Branch:' line matching
+#      the current branch (mtime tiebreak among multiple matches). Handles arbitrary task-dir depth.
+#   3. Mtime fallback — most-recently-modified state.md found via recursive find (preserves
+#      behavior for older pipelines written before the Branch: field existed).
+state_file=""
+branch="$(git branch --show-current 2>/dev/null || true)"
+if [ -z "${branch:-}" ]; then
+  branch="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
+slug="${slug:0:60}"
+slug="${slug%-}"
+
+# Tier 1: direct directory match — try slug form first, then original branch name (handles feat/foo)
+if [ -n "${slug:-}" ] && [ -f "./.geniro/planning/$slug/state.md" ]; then
+  state_file="./.geniro/planning/$slug/state.md"
+elif [ -n "${branch:-}" ] && [ -f "./.geniro/planning/$branch/state.md" ]; then
+  state_file="./.geniro/planning/$branch/state.md"
+fi
+
+# Tier 2: grep Branch: field across all state.md files (mtime-ordered for tiebreak)
+# Uses recursive find so task-dirs with '/' in branch names (e.g. feat/ci-22-foo) are included.
+_state_candidates() {
+  find ./.geniro/planning -name 'state.md' -type f 2>/dev/null | while IFS= read -r p; do
+    mtime=$(stat -f '%m' "$p" 2>/dev/null || stat -c '%Y' "$p" 2>/dev/null || true)
+    [ -n "$mtime" ] && printf '%s %s\n' "$mtime" "$p"
+  done | sort -rn | cut -d' ' -f2-
+}
+if [ -z "$state_file" ] && [ -n "${branch:-}" ]; then
+  while IFS= read -r candidate; do
+    [ -z "$candidate" ] && continue
+    branch_field=$(grep -m1 '^Branch:' "$candidate" 2>/dev/null | sed 's/^Branch:[[:space:]]*//' || true)
+    if [ -n "$branch_field" ] && [ "$branch_field" = "$branch" ]; then
+      state_file="$candidate"
+      break
+    fi
+  done <<EOF
+$(_state_candidates)
+EOF
+fi
+
+# Tier 3: mtime fallback (legacy pipelines without Branch: field)
+if [ -z "$state_file" ]; then
+  state_file=$(_state_candidates | head -1 || true)
+fi
 if [ -n "$state_file" ] && [ -f "$state_file" ]; then
   TASK_DIR=$(dirname "$state_file")
   FEATURE_ID=$(grep -m1 '^Feature:' "$state_file" 2>/dev/null | sed 's/^Feature:[[:space:]]*//' || echo "")

@@ -57,6 +57,8 @@ Derive `<branch-name>` from git branch. Create at start of Phase 1. All artifact
 ```
 Feature: <F<n> if Geniro feature ID, else "none">
 Spec-file: <FEATURES.md Notes-column path, else "none">
+Branch: <git branch --show-current OR detached-<short-sha>>
+Worktree: <git rev-parse --show-toplevel>
 Mode: <interactive|auto|assumptions> — set by Phase 1 Step 1, controls auto-mode behavior at every WAIT gate
 Lane: <full|light|tdd> — set by Phase 1 Step 0, controls Phase 2/4/5/6 Stage B/D skip predicates and Phase 4 execution model (full = all phases run with parallel waves; light = architect+skeptic+simplify+spec-compliance+adversarial skipped, Stage C reviewer grid kept; tdd = sequential RED→GREEN per behavior in Phase 4, interface-design gate added in Phase 3, Stage D skipped, simplify becomes per-cycle micro-refactor)
 Milestones: <"none" | "[1: pending, 2: pending, ...]" — populated by /geniro:decompose and updated by this skill as milestones complete>

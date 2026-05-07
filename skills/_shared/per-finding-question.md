@@ -97,7 +97,7 @@ Used by:
 - `/geniro:debug` Step 5 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
 - `/geniro:debug` Step 6 escape hatch (Repro infeasible — alternative regression-guard picker when the bug is non-deterministic)
 
-Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/debug/HYPOTHESES.md` instead of the reviewer-agent output.
+Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/debug/HYPOTHESES-<slug>.md` (slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules) instead of the reviewer-agent output.
 
 ### Required AUQ shape
 
@@ -112,7 +112,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
   How do you want to <resolve | regression-guard> this?
   ```
 
-  Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/debug/HYPOTHESES.md` (the confirmed hypothesis's "Isolate" file:line + title + "Fix Evidence" pre-fix output).
+  Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/debug/HYPOTHESES-<slug>.md` (the confirmed hypothesis's "Isolate" file:line + title + "Fix Evidence" pre-fix output).
 - **`options[]`** — one per fix path (Step 5) or per alternative regression guard (Step 6):
   - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
   - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
@@ -126,7 +126,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
     ## Evidence
 
     ```<lang>
-    <2-5 lines from the failing-test output OR captured pre-fix snippet from HYPOTHESES.md "Fix Evidence">
+    <2-5 lines from the failing-test output OR captured pre-fix snippet from HYPOTHESES-<slug>.md "Fix Evidence">
     ```
 
     ## Reproduction status
@@ -135,21 +135,21 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 
     ## Hypothesis
 
-    Hypothesis <number> from `.geniro/debug/HYPOTHESES.md`
+    Hypothesis <number> from `.geniro/debug/HYPOTHESES-<slug>.md`
     ````
 
   Render the same `preview` body on every option for the same investigation — the body is per-investigation, not per-option.
 
 ### Source-field map
 
-| AUQ field | `.geniro/debug/HYPOTHESES.md` field |
+| AUQ field | `.geniro/debug/HYPOTHESES-<slug>.md` field |
 |-----------|--------------------------------------|
 | `path:lines` in `question` | confirmed hypothesis's "Isolate" section (file:line of root cause) |
 | `<hypothesis title>` in `question` | confirmed hypothesis's title |
 | `<observed failure>` in `question` | first line of confirmed hypothesis's "Fix Evidence" → captured pre-fix output |
 | `preview` Evidence codeblock | full captured pre-fix output (2-5 lines) from "Fix Evidence" |
 | `preview` Reproduction status | "Hypothesis confirmed at Step 4; reproduction test pending Step 6" (Step 5 multi-path fix gate) OR "Reproduction infeasible — <reason from Reproduction Decision>" (Step 6 escape hatch) |
-| `preview` Hypothesis number | hypothesis ID from `HYPOTHESES.md` |
+| `preview` Hypothesis number | hypothesis ID from `HYPOTHESES-<slug>.md` |
 
 ## Where the body fields come from
 
@@ -157,7 +157,7 @@ For skills running findings end-to-end in one invocation (`/geniro:review`), the
 
 For cross-skill consumers (`/geniro:follow-up` Phase 5 Step 2, `/geniro:implement` Phase 6 Fix-Loop pre-step), findings arrive via the `<task-dir>/review-feedback.md` artifact (or `<PRIMARY_ROOT>/.geniro/review-findings-state.md` for `/follow-up`). Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema for the persisted shape.
 
-For `/geniro:debug` Step 5 / Step 6 gates, body fields come from `.geniro/debug/HYPOTHESES.md` (the confirmed hypothesis's "Isolate" + "Fix Evidence" + "Reproduction Decision" sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
+For `/geniro:debug` Step 5 / Step 6 gates, body fields come from `.geniro/debug/HYPOTHESES-<slug>.md` (the confirmed hypothesis's "Isolate" + "Fix Evidence" + "Reproduction Decision" sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
 
 ## Why this exists
 

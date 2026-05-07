@@ -135,18 +135,21 @@ After agents report done, verify completion — do NOT read source code for corr
 
 After agents complete, context is loaded with pre-inlined file contents and reports. Before validation/review, checkpoint and suggest compaction:
 
-1. Write state to `.geniro/follow-up-state.md`:
+1. Write state to `.geniro/follow-up/state-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules):
    ```
+   Branch: <git branch --show-current OR detached-<short-sha>>
+   Worktree: <git rev-parse --show-toplevel>
+   Timestamp: <ISO-8601 UTC>
    complexity: [trivial/small/medium]
    change: [one-line description]
    phase: 2-complete
    changed-files: [list from git diff --name-only]
-   branch: [current branch]
    ```
+   Capital `Branch:`/`Worktree:`/`Timestamp:` are mandatory per the helper's `## Producer contract`.
 2. Tell the user:
    > Implementation complete. I recommend `/compact` now to free context for validation and review. After compacting, type `/geniro:follow-up continue` to resume from Phase 3.
 
-**After compaction (or if skipped):** Read `.geniro/follow-up-state.md` and `git diff --name-only` to restore context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
+**After compaction (or if skipped):** Resume per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Consumer contract — read `.geniro/follow-up/state-<slug>.md`, run Case A/B/C/D mismatch handling, then `git diff --name-only` to restore changed-file context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
 
 **DO NOT present a summary or ask "anything else?" here. Phases 3-6 have not run yet.**
 
@@ -254,11 +257,11 @@ If the validation agent reports failures:
 
 Validation accumulated fix-loop context. Before spawning reviewers:
 
-1. Update `.geniro/follow-up-state.md`: set `phase: 4-complete`
+1. Update `.geniro/follow-up/state-<slug>.md` (same slug used at the Phase 2 checkpoint per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules): set `phase: 4-complete` and refresh `Timestamp:` per the helper's `## Producer contract`.
 2. Tell the user:
    > Validation passed. For best review quality I recommend `/compact`. After compacting, type `/geniro:follow-up continue` to resume review.
 
-**After compaction (or if skipped):** Read `.geniro/follow-up-state.md` and `git diff --name-only` to restore context.
+**After compaction (or if skipped):** Resume per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Consumer contract — read `.geniro/follow-up/state-<slug>.md`, run Case A/B/C/D mismatch handling, then `git diff --name-only` to restore changed-file context.
 
 **→ You MUST proceed to Phase 5 (Review). DO NOT present results or ask "anything else?" — review has not run yet.**
 
@@ -382,7 +385,7 @@ If `.geniro/workflow/*.md` specifies completion actions (issue status, PR linkin
 
 ### Cleanup
 
-Kill orphaned background processes from validation (startup checks, dev servers, etc.).
+Kill orphaned background processes from validation (startup checks, dev servers, etc.). Delete `.geniro/follow-up/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — only the current branch's slug; never glob the whole `.geniro/follow-up/` directory. Also `rm -f .geniro/follow-up-state.md 2>/dev/null` to clear any pre-upgrade legacy state file (idempotent; the file may not exist).
 
 **→ Pipeline complete.**
 

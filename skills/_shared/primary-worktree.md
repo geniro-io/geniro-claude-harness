@@ -61,9 +61,7 @@ These are intended to outlive any single task. The resolver applies to both read
 These are intentionally ephemeral with the current task. Promoting them to the resolver would introduce false durability where none is wanted.
 
 - `.geniro/planning/<task-dir>/*` — spec.md, plan-*.md, state.md, concerns.md, notes.md, milestone-*.md. Removed at `/implement` Phase 7 cleanup.
-- `.geniro/debug/HYPOTHESES.md` — deleted at `/debug` cleanup.
-- `.geniro/follow-up-state.md`, `.geniro/refactor/state.md`, `.geniro/improve-template-state.md` — within-skill resume-from-compaction state.
-- `.geniro/state/pre-compact-snapshot.json` — per-session compaction snapshot.
+- `.geniro/follow-up/state-<slug>.md`, `.geniro/refactor/state-<slug>.md`, `.geniro/improve-template/state-<slug>.md`, `.geniro/debug/HYPOTHESES-<slug>.md` — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
 
 If a within-skill state file is later promoted to cross-session use, add it to the cross-session table above.
 
@@ -75,7 +73,7 @@ If a within-skill state file is later promoted to cross-session use, add it to t
 | "I'll commit the file in the worktree to preserve it" | `.geniro/*` is gitignored — `git add` is a no-op. Even if not, the commit lands on the feature branch, not main. |
 | "I'll make `.geniro/knowledge/` not gitignored" | Different fix, different problem. Knowledge bleeds across feature branches → merge conflicts. The resolver writes to main's tree without involving any branch. |
 | "The subagent has no Bash, so it'll just resolve the path itself" | It can't. Mode B requires the orchestrator pre-resolve and inline. Cwd-relative paths in a Bash-less agent's prompt are a spawn-prompt bug. |
-| "I'll apply the resolver to within-skill state files for safety" | Don't. Those are intentionally task-scoped. Adding the resolver promotes them to cross-session, which they're not, and breaks the cleanup contract. |
+| "I'll apply the resolver to within-skill state files for safety" | Don't. Those are intentionally task-scoped. Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` instead — it solves their parallel-session collision via branch slug + Branch/Worktree/Timestamp headers + Case-C mismatch AUQ, while keeping the cleanup contract intact. |
 | "`git rev-parse` might fail — better to error out" | Falling back to cwd-relative is correct: non-git projects have no linked-worktree problem, so cwd-relative is durable there. |
 
 ## Definition of Done
