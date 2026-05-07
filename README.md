@@ -205,7 +205,7 @@ Create, list, edit, validate, and delete project-specific rules that customize h
 
 ### `/geniro:actions` — Create, edit, run, and remove custom workflow actions
 
-Scaffold custom workflow-helper actions (Slack pings, PR inspections, release summaries) into `.geniro/actions/` and run, edit, or delete them through the parent skill. Custom actions are NOT top-level slash commands — they're only reachable through `/geniro:actions run`.
+Scaffold custom workflow-helper actions (Slack pings, PR inspections, release summaries) into `.geniro/actions/` and run, edit, or delete them through the parent skill. Custom actions are NOT top-level slash commands — they're only reachable through `/geniro:actions <verb>` (e.g., `run` to execute the body, `edit` to modify the file, `delete` to remove it). The bare-slug fast path `/geniro:actions <slug>` is shorthand for `run <slug>` when the slug exists.
 
 ```
 /geniro:actions list                                       # show all custom actions
