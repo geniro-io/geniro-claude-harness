@@ -83,7 +83,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` for the canonical 
 3. **Trivial assessment.** Otherwise, estimate whether the request reads as Trivial per effort-scaling's Trivial definition (score 0 + 1-2 files + single module + unambiguous intent — see `skills/_shared/effort-scaling.md` Step 2). If unclear, proceed silently to Step 1 with `Lane: full` — the gate only fires on a clear Trivial signal.
 4. **If Trivial OR explicit-TDD signal AND no hard signals:** use `AskUserQuestion` with header "Lane" — pass the options as separate `label` and `description` fields. Composition depends on which signal fired:
    - **Trivial only (no TDD signal):** present 2 options:
-     - **Label:** "Light Mode (Recommended)" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep knowledge retrieval, lightweight plan + approval, full Stage C review grid (6–7 reviewers + relevance-filter), and ship gates. ~70% cheaper, ~30% faster."
+     - **Label:** "Light Mode (Recommended)" / **Description:** "Skip architect + simplify + spec-compliance + adversarial-tester. Keep knowledge retrieval, lightweight plan + approval, full Stage C review grid (7–8 reviewers + relevance-filter), and ship gates. ~70% cheaper, ~30% faster."
      - **Label:** "Full pipeline" / **Description:** "Architect + skeptic + every Phase 6 stage. Choose this when you want maximum architectural rigor even on small changes."
    - **Explicit TDD signal AND Trivial:** present 3 options (TDD recommended):
      - **Label:** "TDD Mode (Recommended)" / **Description:** "RED→GREEN per behavior; sequential WUs (one test at a time); pre-code interface-design gate; refactor-after-green per cycle. Best for small focused features where you want behavior-incremental verification. Skips Phase 6 Stage D adversarial-tester (every behavior is already F→P-verified)."
@@ -124,7 +124,7 @@ What Light Mode changes within /implement. Read this when `Lane: light` is set i
 - Phase 3 — plan approval gate (presents the lightweight plan; user can still pick Adjust / Too large)
 - Phase 4 — backend/frontend parallel waves; Zero Direct Edits applies at every lane
 - Phase 6 Stage A — automated checks (build + lint + test + codegen + runtime startup)
-- **Phase 6 Stage C — full 6–7 parallel reviewer agents + relevance-filter-agent** (the safety contract for Light Mode hinges on writer/reviewer separation; never collapse Stage C in Light Mode)
+- **Phase 6 Stage C — full 7–8 parallel reviewer agents + relevance-filter-agent** (the safety contract for Light Mode hinges on writer/reviewer separation; never collapse Stage C in Light Mode)
 - Phase 6 Fix Loop (max 3 rounds, fresh fixers + fresh reviewers)
 - Phase 7 — Pre-Ship Visual Verification, ship decision, learnings, doc updates
 
@@ -489,11 +489,12 @@ Only reached after Stage B passes.
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md` — injection, auth/authz, secrets, crypto
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` — design patterns, modularity, coupling
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` — coverage gaps, missing edge cases, test quality
+   - `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md` — ORM hydration skip (lean/raw/disableIdentityMap/HYDRATE_ARRAY/projections), React re-render hygiene, frontend bundle/asset perf, async parallelization, bulk ops
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` — style, naming, documentation, compliance
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` — codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal)
    - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — only when changed files include UI per the UI-file detection rule in `skills/review/SKILL.md`)
 
-3. **Spawn 6 or 7 parallel reviewer agents** (6 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — each with `subagent_type: "reviewer-agent"`:
+3. **Spawn 7 or 8 parallel reviewer agents** (7 always, +1 design when UI files are in the changed-files list — see UI-file detection rule in `skills/review/SKILL.md`) in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — each with `subagent_type: "reviewer-agent"`:
 
    | Agent | Model | Criteria File | Focus |
    |-------|-------|--------------|-------|
@@ -501,11 +502,12 @@ Only reached after Stage B passes.
    | 2 | `sonnet` | security-criteria.md | Injection, auth/authz, secrets, validation |
    | 3 | `sonnet` | architecture-criteria.md | Patterns, modularity, coupling |
    | 4 | `sonnet` | tests-criteria.md | Coverage gaps, edge cases, test quality |
-   | 5 | `haiku` | guidelines-criteria.md | Style, naming, documentation |
-   | 6 | `sonnet` | conventions-criteria.md | Codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal) |
-   | 7 | `sonnet` | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
+   | 5 | `sonnet` | optimizations-criteria.md | ORM hydration skip, projection, React re-render hygiene, bundle/asset perf, async parallelization, bulk ops |
+   | 6 | `haiku` | guidelines-criteria.md | Style, naming, documentation |
+   | 7 | `sonnet` | conventions-criteria.md | Codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal) |
+   | 8 | `sonnet` | design-criteria.md (conditional) | Visual quality: tokens, spacing/type scale, state completeness, WCAG AA, responsive, exemplar drift |
 
-   Row 7 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). The Model column is authoritative — pass it as `model="..."` at each spawn; the `reviewer-agent` frontmatter default is `sonnet` and the spawn-time value overrides it.
+   Row 8 fires only when at least one changed file is a UI file (see detection rule in `skills/review/SKILL.md`). The Model column is authoritative — pass it as `model="..."` at each spawn; the `reviewer-agent` frontmatter default is `sonnet` and the spawn-time value overrides it.
 
    Each reviewer gets:
    - Its criteria file content (pre-inlined — one dimension per agent, no cross-reviewing)
@@ -569,7 +571,7 @@ After Stage C produces findings:
    Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
    WORKTREE: [from `git rev-parse --show-toplevel`]
    BRANCH: [from `git branch --show-current`]
-   DIMENSION: [bugs|security|architecture|tests|guidelines|conventions|design]
+   DIMENSION: [bugs|security|architecture|tests|optimizations|guidelines|conventions|design]
    CRITERIA (pre-inlined): [content of <dimension>-criteria.md]
    CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content AFTER the fix round — NOT the pre-fix version]
    DIFF CONTEXT: [paste `git diff <base>...HEAD` output reflecting the post-fix state where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master)]

@@ -19,7 +19,7 @@ argument-hint: "[description or issue tracker reference]"
 3. Approval (WAIT) — present plan, user confirms before coding starts. **TDD Lane: Interface-Design Pre-Approval Gate fires BEFORE the plan-approval AUQ** (runs in all lanes)
 4. Implement (delegated) — backend/frontend agents execute scope. **TDD Lane: sequential RED→GREEN per behavior** (one test → one impl → repeat) instead of parallel waves
 5. Simplify (delegated) — simplify agent cleans changed files, revert if CI breaks; **Light Lane: skipped**. **TDD Lane: per-cycle micro-refactor** instead of whole-feature pass
-6. Review & Validate (delegated) — Stage A automated checks, Stage B spec compliance, Stage C 6–7 reviewers, Stage D adversarial-tester; **Light Lane: skips Stage B and Stage D — keeps Stage A and the full Stage C review grid**. **TDD Lane: skips Stage D** (every behavior is already F→P-verified at cycle authoring time); keeps Stages A/B/C
+6. Review & Validate (delegated) — Stage A automated checks, Stage B spec compliance, Stage C 7–8 reviewers, Stage D adversarial-tester; **Light Lane: skips Stage B and Stage D — keeps Stage A and the full Stage C review grid**. **TDD Lane: skips Stage D** (every behavior is already F→P-verified at cycle authoring time); keeps Stages A/B/C
 7. Ship & Finalize (WAIT) — finalize (docs, learnings, improvements), then ship decision + commit (runs in all lanes)
 
 **Reference material** (templates, examples, error tables): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` when you reach each phase. Do NOT load the entire file upfront — read the relevant section at the relevant phase.
@@ -353,7 +353,7 @@ Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet 
 
 ### Stage C — Code Quality
 
-**Action:** Spawn 6–7 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, guidelines, conventions, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
+**Action:** Spawn 7–8 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, optimizations, guidelines, conventions, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
 
 Aggregate findings. Pass CRITICAL/HIGH to fix loop; preserve MEDIUM findings (do NOT auto-drop) for the user-gated inclusion check at the top of the Fix Loop — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Write `<task-dir>/review-feedback.md` with body sub-fields persisted for both CRITICAL/HIGH and MEDIUM rows so the gate can render bodies correctly. Findings tagged `decision: PRODUCT-DECISION` flow through to the Fix Loop where the open-decision gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row) presents enumerated options to the user before any fixer agent spawns; MEDIUM findings flow through to the same Fix Loop where the MEDIUM inclusion gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `MEDIUM findings present in fix-loop entry` row) lets the user pick which (if any) to include.
 
@@ -510,5 +510,5 @@ If "Delete": remove `<task-dir>/` recursively.
 
 - Agent templates, examples, error tables: `${CLAUDE_SKILL_DIR}/implement-reference.md`
 - Plan criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`
-- Review criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, guidelines, conventions, +design when UI files changed)
+- Review criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files changed)
 - Simplify criteria: `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`

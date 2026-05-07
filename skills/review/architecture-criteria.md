@@ -120,6 +120,9 @@ wc -l file.js | awk '$1 > 500 {print $0}'
 - Different error handling per layer
 
 ### 6. Performance & Scalability
+
+> **Boundary with optimizations-criteria.md:** §6 below owns architecture-level perf concerns — N+1 query patterns, ORM eager-loading, missing caching/memoization, missing pagination on unbounded queries, sync I/O in async context, O(n²) algorithms. ORM hydration-skip mechanisms (`.lean()`, `disableIdentityMap`, `raw:true`, `getRawMany()`, `HYDRATE_ARRAY`, `.values()`, `.pluck()`), column/field projection on the wire, React re-render hygiene, frontend bundle/asset perf, async parallelization, and per-row → bulk INSERT/UPDATE rewrites are owned by the **optimizations** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md`. If a finding fits both, prefer optimizations when the fix is a query-shape change; prefer architecture when the fix is a module-level redesign (caching layer, pagination contract).
+
 - N+1 query patterns (queries inside loops instead of batched/joined queries)
 - Inefficient algorithms (O(n²) where O(n) possible)
 - Unnecessary data loading/processing

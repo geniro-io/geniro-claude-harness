@@ -25,11 +25,12 @@ Follow the canonical routing in `skills/_shared/improvement-routing.md`. Review 
 $ review src/auth/login.js src/auth/logout.js
 Analyzing 2 files with 47 lines changed...
 
-Spawning parallel reviewers (6–7, +design when UI files present):
+Spawning parallel reviewers (7–8, +design when UI files present):
   - Bugs reviewer (async pattern detection)
   - Security reviewer (injection points, auth flows)
   - Architecture reviewer (module dependencies)
   - Tests reviewer (coverage analysis)
+  - Optimizations reviewer (ORM hydration, projection, bundle/asset perf)
   - Guidelines reviewer (code style)
   - Conventions reviewer (sibling-pattern modal inference)
 

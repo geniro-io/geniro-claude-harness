@@ -74,16 +74,17 @@ DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per s
 CHANGE SUMMARY: [summary]
 
 ## Review Criteria
-Read and apply the criteria files (6, +design when UI files changed) from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
+Read and apply the criteria files (7, +design when UI files changed) from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` (self-suppresses when fewer than 3 sibling files exist for modal inference — emits zero findings rather than spawning a useless reviewer)
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional — when changed files include UI; see UI-file detection rule in skills/review/SKILL.md)
 
-Review across all listed criteria files (6, or 7 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Report ALL severity tiers — the orchestrating skill applies the MEDIUM inclusion gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`) so the user picks which MEDIUMs to include in the fix loop.
+Review across all listed criteria files (7, or 8 when design is included for UI changes). Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Report ALL severity tiers — the orchestrating skill applies the MEDIUM inclusion gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`) so the user picks which MEDIUMs to include in the fix loop.
 
 Return findings as evidence. Do NOT emit an overall verdict (CHANGES REQUIRED / APPROVED / APPROVED WITH MINOR) — the orchestrating skill synthesizes findings across all reviewers and decides.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -128,6 +129,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Reads `architecture-criteria.md`, `tests-criteria.md`, `guidelines-criteria.md` under `${CLAUDE_PLUGIN_ROOT}/skills/review/`.
 Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`). Below the N≥3 threshold the modal-inference is unreliable and the criteria file suppresses findings internally — skipping the spawn saves the call.
+Add a `sonnet` reviewer for the optimizations dimension when changed files include DB queries, ORM read-paths, hot loops, frontend bundle entry points, or React lists (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md`). Skip otherwise — Medium-tier perf wins matter only when the diff actually touches a perf-sensitive surface.
 Add an additional reviewer with `model='sonnet'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
 
 ---
