@@ -115,7 +115,7 @@ Eight-phase pipeline: discover scope, architect a solution, get your approval, i
 
 ### `/geniro:review` — Parallel multi-agent code review
 
-Spawns 7–8 specialized reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files are present) in parallel with confidence-scored findings. Optional **TDD mode** authors a failing test that reproduces each bug-class finding (F→P verified — red today, green after fix) and gates PR comments on confirmed findings only.
+Spawns 7–8 specialized reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files are present) in parallel with confidence-scored findings. Optional **TDD mode** authors a failing test that reproduces each bug-class finding (F→P verified — red today, green after fix) and gates PR comments on confirmed findings only. On PR-ref input, prompts to run the review in a dedicated `.claude/worktrees/pr-<N>-review/` worktree so any authored tests or commits land on the PR's head branch — silently reuses an existing worktree if one is already in `git worktree list`, or if the session is already inside the matching one.
 
 ```
 /geniro:review                               # review uncommitted changes
