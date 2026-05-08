@@ -115,12 +115,13 @@ Eight-phase pipeline: discover scope, architect a solution, get your approval, i
 
 ### `/geniro:review` — Parallel multi-agent code review
 
-Spawns 7–8 specialized reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files are present) in parallel with confidence-scored findings.
+Spawns 7–8 specialized reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files are present) in parallel with confidence-scored findings. Optional **TDD mode** authors a failing test that reproduces each bug-class finding (F→P verified — red today, green after fix) and gates PR comments on confirmed findings only.
 
 ```
 /geniro:review                               # review uncommitted changes
 /geniro:review src/auth/ src/middleware/      # review specific files/dirs
 /geniro:review HEAD~3..HEAD                   # review a commit range
+/geniro:review #1234 --tdd                    # PR review with TDD-mode posting gate
 ```
 
 ### `/geniro:debug` — Scientific-method bug investigation

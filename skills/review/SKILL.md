@@ -4,7 +4,7 @@ description: "Use when you want a comprehensive code review of pending changes. 
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch]
-argument-hint: "[files, diff range, branch, or PR ref (#N, URL)]"
+argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--tdd]"
 ---
 
 # Code Review Skill
@@ -37,6 +37,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 - Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url` for base/head context, head SHA pin, PR URL, plus PR body+title (the PR body feeds PLAN CONTEXT below). Capture the original PR ref (the `#N` / digits / URL form the user passed), the `headRefOid` value, and the canonical `url` — all three are persisted to the Phase 5 state file so Phase 6's PR-comment gate can fire without re-detection (the `headRefOid` is what Phase 6 pins as `commit_id` on the GitHub reviews API call to prevent line-anchor drift if the PR is updated mid-review). Then feed the diff into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
 - Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/review.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 - **Collect PLAN CONTEXT** (optional) from these sources in priority order: (a) PR body+title from `gh pr view`; (b) `--plan <path>` flag in `$ARGUMENTS`; (c) auto-discovered `docs/spec.md`/`docs/plan.md`/`PLAN.md`/`SPEC.md`. Concat non-empty sources, cap ~3000 chars. See `${CLAUDE_SKILL_DIR}/plan-context-reference.md` for schema, decision-marker convention, and example. If nothing resolves, PLAN CONTEXT renders as `none` in every prompt below.
+- **Detect mode**: scan `$ARGUMENTS` for `--tdd` (TDD mode — auto-author failing tests gates which findings get posted to PR) and `--standard` (explicit Standard mode). When neither flag is present, surface a startup `AskUserQuestion` after triage (see Phase 1 Step "Mode AUQ" below). Persist the resolved value to the Phase 5 state file's `mode:` line so Phase 4c and Phase 6 can read it without re-detection.
 - Read changed files and understand modifications
 - Build context map of what changed and why
 - Identify file types and affected modules
@@ -46,6 +47,16 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 - **Trivial**: Renames, formatting-only, import reordering, generated files, lock files → skip full review (mention in summary as "triaged out")
 - **Substantive**: Logic changes, new code, API changes, security-sensitive → full review
 - This can be done inline by the orchestrator (read each diff hunk, classify) — no subagent needed.
+
+**Mode AUQ (fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`).** After triage, surface a single `AskUserQuestion` (do NOT print options as plain text) so the user can opt into TDD mode if they want comments gated on F→P-verified failing tests. When either flag is in `$ARGUMENTS`, the flag wins — the AUQ is skipped entirely. When the AUQ fires, capture the answer and persist it to the Phase 5 state file's `mode:` field.
+
+- **Header:** "Review mode"
+- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings backed by an F→P-verified failing test)?"
+- **Options:**
+  - "Standard review (Recommended)" — current behavior; Phase 4c gate is opt-in per-run as today; Phase 6 posts all kept findings.
+  - "TDD review (auto-author failing tests for findings)" — Phase 4c gate's Recommended option flips to "Author tests for all eligible findings" (you still confirm with one keystroke — the gate is non-negotiable per Phase 4c Step 2). Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.
+
+If the user declines to answer (empty answer), default to Standard. The user's `--tdd`/`--standard` flag, if present, always overrides this AUQ. See `${CLAUDE_SKILL_DIR}/tdd-mode-reference.md` for what TDD mode flips, edge cases (no eligible findings, all tests pass green, `--tdd` with `--plan` or with sub-phase invocation), the F→P contract scope, and rollback notes.
 
 ### Phase 2: Spawn Sub-Reviewers (Parallel, Adaptive Batching)
 
@@ -353,17 +364,19 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 **Step 1: Filter findings by decision-type.**
 
-Eligible findings: any finding whose `decision:` is `[TESTABLE]`, plus CRITICAL or HIGH findings whose `decision:` is `[FIX-NOW]` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type). Excluded: `[PRODUCT-DECISION]` (multiple valid resolutions — no single behavior to assert), `[INTENT-CHECK]` (plan conformance, not runtime), and `[FIX-NOW]` findings whose description names typos / cross-references / wrong import paths (no runtime behavior to test against). Use the decision-type taxonomy as defined in `${CLAUDE_SKILL_DIR}/plan-context-reference.md`.
+Eligible findings: any finding whose `decision:` is `TESTABLE`, plus CRITICAL or HIGH findings whose `decision:` is `FIX-NOW` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type). Excluded: findings whose `decision:` is `PRODUCT-DECISION` (multiple valid resolutions — no single behavior to assert), `INTENT-CHECK` (plan conformance, not runtime), and `FIX-NOW` findings whose description names typos / cross-references / wrong import paths (no runtime behavior to test against — see "Runtime-behavior classification" rule below). Use the decision-type taxonomy as defined in `${CLAUDE_SKILL_DIR}/plan-context-reference.md`.
 
 If the eligible-findings set is empty after filtering, skip the rest of Phase 4c entirely — do NOT show an `AskUserQuestion`. Proceed to Phase 5.
 
+**Runtime-behavior classification (canonical rule, used by both Phase 4c Step 1 and Phase 6 Step 3.5).** A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query). A `FIX-NOW` finding's description is NON-runtime ("typo-class") if it cites: typo / spelling, cross-reference (link, anchor, ref number), wrong import path, dead code that compiles, comment-only edits, formatting, lint-style issues. Phase 4c Step 1 uses this rule to exclude non-runtime FIX-NOW from eligibility (no behavior to test against). Phase 6 Step 3.5 uses the same rule to retain non-runtime FIX-NOW findings in the TDD-mode post set (no test to gate on — they post directly). The rule is intentionally prose-based and decided at orchestrator-evaluation time; the per-finding line schema does NOT carry a persisted `runtime-class:` tag — both phases evaluate the rule fresh against the same finding description, so they cannot diverge.
+
 **Step 2: User-approval gate (mandatory before any agent spawn).**
 
-Use `AskUserQuestion` (do NOT print options as plain text — the tool provides a structured UI) with header "Test-gate":
+Use `AskUserQuestion` (do NOT print options as plain text — the tool provides a structured UI) with header "Test-gate". When the state-file `mode:` is `tdd`, render the first option's label as `"Author tests for all eligible findings (Recommended)"` (literal `(Recommended)` suffix on the label string itself, matching the canonical pattern at the Phase 1 Mode AUQ); in Standard mode, render the same option without the suffix. The gate itself is non-negotiable in every mode — the Phase 4c invariant ("this skill MUST NEVER spawn the agent without explicit user approval — the gate is the load-bearing safety property, and inline gates degrade to 'this counts as approval'") is the load-bearing safety property; mode flips only the highlighted default.
 
 - **Question:** "Author failing tests to confirm review findings? Tests that pass today demote the corresponding finding to ## Filtered (kept visible, not deleted). The skill never writes tests without your approval."
 - **Options:**
-  - "Author tests for all eligible findings"
+  - "Author tests for all eligible findings" — first option's literal label gains a ` (Recommended)` suffix when `mode: tdd` per the preamble above
   - "Let me pick which findings"
   - "Skip — don't author tests"
 
@@ -373,7 +386,7 @@ If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect:
 
 **Step 3: Spawn the adversarial-tester-agent.**
 
-Spawn ONE `adversarial-tester-agent` (per the canonical model-tiering carve-out — frontmatter-declared `model: inherit`, omit `model=` at the spawn site to mirror orchestrator tier; reasoning-grade test authoring) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required.
+Spawn ONE `adversarial-tester-agent` (per the canonical model-tiering carve-out — frontmatter-declared `model: inherit`, omit `model=` at the spawn site to mirror orchestrator tier; reasoning-grade test authoring) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required. **Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A (subagent without Bash) before sending the prompt: substitute the absolute path into `OUTPUT PATH:` below, and use the same resolved path on every subsequent read in Steps 4 and 5. The agent treats the path as a literal — passing the unresolved placeholder creates a literal `<PRIMARY_ROOT>` directory.**
 
 ```
 Agent(subagent_type="adversarial-tester-agent", prompt="""
@@ -384,7 +397,7 @@ DIFF: [git diff summary]
 SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md (READ at runtime; do not expect it inlined)
 PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1-2 exemplar test files inlined]
 PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line — description — decision-type — severity]
-OUTPUT PATH: .geniro/review-findings-adversarial.md
+OUTPUT PATH: <PRIMARY_ROOT>/.geniro/review-findings-adversarial.md
 
 For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in the orchestrator's downstream processing). You may also generate fresh hypotheses from the diff per your normal Step 2 workflow; treat seeded findings as priority-1 and fresh hypotheses as priority-2 within your hard cap of 10 authored tests.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -549,6 +562,7 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 
 ## Summary
 - branch: <current branch>
+- mode: <standard | tdd>                       # set by Phase 1 mode-flag detection or Mode AUQ; consumed by Phase 4c default-highlighting and Phase 6 PR-comment filter. Default `standard` when neither flag nor AUQ resolved.
 - input: <files | diff range | PR ref>
 - pr-ref: <#N | full PR URL | none>           # populated only when input was a PR ref; consumed by Phase 6 PR-comment gate as the gating predicate (none = gate skipped). When reading state files written by older versions of this skill that predate the field, treat the missing key as `pr-ref: none` and skip the PR-comment gate.
 - pr-url: <https://github.com/.../pull/N | none>  # canonical URL from `gh pr view --json url`; used in user-facing messages and as the audit-trail link for `posted-to-pr:` markers
@@ -640,8 +654,8 @@ Do NOT auto-invoke the next skill — surface the suggestion only. The user runs
 - **Question:** "How should the N failing tests authored by Phase 4c be handled? They are AI-authored — review before merging."
 - **Header:** "Failing tests"
 - **Options:**
-  - "Commit failing tests on current branch (Recommended)" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. Keeps the failing tests on the same branch where review ran so the chosen remediation skill picks them up immediately.
-  - "Commit + push to current branch's upstream" — same as commit-only, then `git push`. If the branch has no upstream, surface the exact `git push -u origin <branch>` command and ask the user to confirm before running it.
+  - "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. Keeps the failing tests on the same branch where review ran so the chosen remediation skill picks them up immediately. **Recommended in Standard mode and in TDD mode without a PR ref.**
+  - "Commit + push to current branch's upstream" — same as commit-only, then `git push`. If the branch has no upstream, surface the exact `git push -u origin <branch>` command and ask the user to confirm before running it. **Recommended in TDD mode when a PR ref is present** (so the failing tests appear on the PR alongside the inline comments — the gate stays mandatory; mode only flips which option is highlighted).
   - "Leave uncommitted" — tests stay on disk for the user to review and stage manually.
 
 Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
@@ -667,6 +681,8 @@ The "Skip" default is recommended because PR comments are public and irreversibl
   - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include
 
 **Step 3 — Pick loop (fires only on "Pick one-by-one"):** Chain `AskUserQuestion` calls, each with `multiSelect: true`, presenting eligible findings as options. Each option's `label`: `<severity-badge> path:line — <short title>`. Each option's `description`: the finding's `recommendation:` field plus `confidence: NN%`. Each option's `preview`: the finding's full body (Evidence / Suggested-fix / Confidence / Origin) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop — pull the body fields from in-memory reviewer-agent output (Phase 6 PR-comment runs in the same invocation that produced findings). AskUserQuestion has a 4-option cap; when more than 4 eligible findings exist, batch them across multiple chained questions (≤4 per call) — never drop or merge options to fit a single question (cap-extension pattern, identical to Phase 4c Step 2). Aggregate selections across all calls into the post set. If the user deselects all (or returns empty answers across the whole chain), treat as Skip and proceed without posting.
+
+**Step 3.5 — TDD-mode post-set filter.** When the state-file `mode:` is `tdd`, filter the post set so that findings whose `decision:` is `TESTABLE` and which lack a `[CONFIRMED-BY-TEST]` tag are excluded (they remain visible in the local report's severity sections; they are not posted to the PR). Findings retained for posting in TDD mode: (a) any finding tagged `[CONFIRMED-BY-TEST]`, regardless of decision-type; (b) any finding whose `decision:` is `PRODUCT-DECISION` or `INTENT-CHECK` (no executable behavior to gate on); (c) findings whose `decision:` is `FIX-NOW` AND which match the "Runtime-behavior classification" rule's NON-runtime branch (no runtime behavior to test against — see Phase 4c Step 1's classification rule, the single source of truth). When the filter empties the post set, fall back to Skip semantics — do not post anything; surface "TDD mode: no F→P-confirmed findings — nothing posted to PR" once in chat. In Standard mode (`mode: standard`), this step is a no-op — every kept finding stays in the post set as today.
 
 **Step 4 — Post via the GitHub reviews API.** Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url` (canonical form `https://github.com/<owner>/<repo>/pull/<N>` — extract with e.g. `awk -F/ '{print $4"/"$5}'` for `owner/repo` and `awk -F/ '{print $7}'` for `<number>`; the `pr-ref` field is preserved verbatim from user input and is NOT parsed in this step). Pass the snapshotted `pr-head-sha` as `commit_id`. ONE `gh api` call posts the entire review (Send-all mode = N comments in one review event; Pick mode = the user-selected subset in one review event). Use `event: COMMENT` only — never `APPROVE` or `REQUEST_CHANGES` (the skill is a reviewer, not an authorizer).
 
@@ -696,7 +712,7 @@ The `<comments-json>` array is built from the post set. Each element:
 
 Range anchoring: GitHub's reviews API requires `line` (end of range) and accepts optional `start_line` + `start_side` to highlight a multi-line span. For a single-line finding (`path:42`), include only `line: 42`. For a range (`path:42-48`), include `line: 48`, `start_line: 42`, `start_side: "RIGHT"` so the inline comment highlights the full range in the GitHub UI. Build the comment object accordingly per finding — do NOT emit `start_line` for single-line findings (GitHub rejects `start_line == line`).
 
-Pull the `body` fields (description, recommendation, confidence, decision-type, severity) from the in-memory finding records — Phase 6 PR-comment posting runs in the same invocation that produced findings, so the full reviewer-agent output (including Evidence and Why-this-matters) is available without needing the state file. PRODUCT-DECISION rows additionally persist `evidence:`, `why-matters:`, `suggested-fix:` to the state file for cross-skill consumers (`/follow-up`, `/implement`) per the Phase 5 per-finding line schema; non-PRODUCT-DECISION rows do not persist body fields because no cross-skill AUQ surface needs them. Severity-badge rendering: `**CRITICAL**` (red emphasis) / `**HIGH**` (bold) / `**MEDIUM**` (italic-bold). Decision-type tag in brackets after severity: `[FIX-NOW]` / `[TESTABLE]` / `[PRODUCT-DECISION]` / `[INTENT-CHECK]`.
+Pull the `body` fields (description, recommendation, confidence, decision-type, severity) from the in-memory finding records — Phase 6 PR-comment posting runs in the same invocation that produced findings, so the full reviewer-agent output (including Evidence and Why-this-matters) is available without needing the state file. **For findings tagged `[CONFIRMED-BY-TEST]`, append `\n\n**Failing test:** \`<test-path>\`` to the rendered `body` string, pulling `<test-path>` from the finding's `confirmed-by:` field in the state file. This applies in both Standard and TDD modes — wherever a confirming test exists, surfacing the test path is signal for the PR reviewer.** PRODUCT-DECISION rows additionally persist `evidence:`, `why-matters:`, `suggested-fix:` to the state file for cross-skill consumers (`/follow-up`, `/implement`) per the Phase 5 per-finding line schema; non-PRODUCT-DECISION rows do not persist body fields because no cross-skill AUQ surface needs them. Severity-badge rendering: `**CRITICAL**` (red emphasis) / `**HIGH**` (bold) / `**MEDIUM**` (italic-bold). Decision-type tag in brackets after severity: `[FIX-NOW]` / `[TESTABLE]` / `[PRODUCT-DECISION]` / `[INTENT-CHECK]`.
 
 **Step 5 — Persist `[POSTED-TO-PR]` markers.** Parse the API response (a `comments` array on the returned review object, each element carrying an `html_url`); for each posted comment, append `[POSTED-TO-PR]` to the corresponding finding's tag list and add `posted-to-pr: <html_url>` to the line in `<PRIMARY_ROOT>/.geniro/review-findings-state.md`. This is the idempotency contract — the next `/geniro:review` run against the same PR reads these markers and excludes already-posted findings from Step 1's "N unposted findings" count, preventing duplicates without a server-side hash check.
 
@@ -715,6 +731,9 @@ Code review is complete when:
 - [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
 - [ ] Phase 4c test-confirmation gate evaluated (skipped when no eligible findings, called as sub-phase of /geniro:implement, or user declines)
 - [ ] Phase 4c fail-open caveat surfaced under `## Caveats` if the adversarial-tester-agent failed or its report could not be parsed
+- [ ] TDD mode only: Phase 1 mode-flag detection ran (`--tdd` / `--standard` / Mode AUQ) and `mode:` persisted to the Phase 5 state file
+- [ ] TDD mode only: Phase 4c Step 2 AUQ rendered "Author tests for all eligible findings" with the `(Recommended)` suffix — gate itself fired exactly as in Standard mode (the Phase 4c invariant "this skill MUST NEVER spawn the agent without explicit user approval" was honored), N/A when no eligible findings exist or Phase 4c was skipped per Step 1
+- [ ] TDD mode only: Phase 6 Step 3.5 post-set filter applied — only `[CONFIRMED-BY-TEST]` findings + `[INTENT-CHECK]` + `[PRODUCT-DECISION]` + `[FIX-NOW]`-typo-class were eligible for posting
 - [ ] Confidence scoring applied (>=80 threshold)
 - [ ] Issues classified by severity (Critical, High, Medium) and Decision Type ([FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK])
 - [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context
@@ -754,3 +773,4 @@ Code review is complete when:
 | "The findings look obviously postable — I'll just batch-post them to the PR and tell the user after" | Posting to a PR is an external write to a public surface — the same audience-expanding action class as `gh pr create` and `git push`. Inline gates rationalize away into "this counts as approval". The skill MUST `AskUserQuestion` BEFORE the `gh api` call. The two-step gate (skill asks Yes/Skip → on YES, posts) is the only rationalization-resistant variant; posting first and asking second is exactly the failure mode the user-approval rule exists to prevent. |
 | "User picked Pick-one-by-one and findings are obviously postable — I'll just include them all and skip the per-finding multiSelect" | The whole point of Pick mode is that the user wants per-finding control; overriding it ships a posting decision they did not authorize. Always render the chained `multiSelect: true` AskUserQuestion calls (≤4 options each, cap-extension chained when more), aggregate the selections, post only the union. If the user deselects all, treat as Skip and post nothing. |
 | "The user already ran `/geniro:review` against this PR yesterday and approved posting — I'll skip the gate this time" | Permissions don't carry across runs. The state file's `[POSTED-TO-PR]` markers are an idempotency contract (skip already-posted findings on re-run), NOT a blanket re-authorization for new findings. Every run that has at least one unposted finding fires the consent gate from scratch. |
+| "TDD mode is on, the user clearly wants tests authored — I'll skip the Phase 4c AUQ this time" | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable: this skill MUST `AskUserQuestion` BEFORE spawning `adversarial-tester-agent` in EVERY mode (see Phase 4c Step 2 — "this skill MUST NEVER spawn the agent without explicit user approval — the gate is the load-bearing safety property, and inline gates degrade to 'this counts as approval'"). Mode is a default-selection signal, not consent. The two-step gate (skill asks → on YES, spawn) is the only rationalization-resistant variant — pre-answering "because mode=tdd" rationalizes the gate away exactly as the "I'll spawn the adversarial-tester-agent and ask the user to confirm later" Compliance row above warns. |
