@@ -22,5 +22,9 @@ Thumbs.db
 !.geniro/actions/
 !.geniro/actions/**
 
+# Claude Code agent / runtime artifacts (worktrees created by Agent + EnterWorktree
+# can leave gitlink pointers if accidentally staged — exclude the directory entirely).
+.claude/worktrees/
+
 # Node (if any tooling is added)
 node_modules/
