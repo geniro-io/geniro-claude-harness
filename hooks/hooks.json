@@ -18,6 +18,11 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-dangerous-git.sh",
             "statusMessage": "Checking for destructive git operations..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-geniro-deletion.sh",
+            "statusMessage": "Checking for unsafe .geniro/ deletions..."
           }
         ]
       },

@@ -44,7 +44,7 @@ Determine what needs to change, how complex it is, and whether this skill can ha
 ### Step 1: Context Scan
 
 1. **Prior planning context** — `Glob(".geniro/planning/*/")`, match current branch. If found, read `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`, `review-feedback.md` to avoid re-discovery or contradicting prior decisions.
-2. **Debug handoff** — follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to scan for `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` and `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). If either is found, surface the detection summary in Phase 1 context AND, if any authored test file is missing from the current working tree, surface the suggestion block from that file. Suggest only — never auto-run `git checkout` or `cp` on the user's behalf.
+2. **Debug handoff** — follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to scan for `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` and `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). If either is found, surface the detection summary in Phase 1 context AND, if any authored test file is missing from the current working tree, surface the suggestion block from that file. Suggest only — never auto-run `git checkout` or `cp` on the user's behalf.
 3. **Workflow integrations & custom instructions** — check `.geniro/workflow/*.md` for active integrations and argument detection rules; apply to `$ARGUMENTS`. Follow matching workflow instructions (fetch issue context, status transitions). Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 4. **Read the change request** and identify likely files.
 5. **Codebase scan** (Glob/Grep) to find exact files and patterns.
@@ -135,7 +135,7 @@ After agents report done, verify completion — do NOT read source code for corr
 
 After agents complete, context is loaded with pre-inlined file contents and reports. Before validation/review, checkpoint and suggest compaction:
 
-1. Write state to `.geniro/follow-up/state-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules):
+1. Write state to `.geniro/state/follow-up/state-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules):
    ```
    Branch: <git branch --show-current OR detached-<short-sha>>
    Worktree: <git rev-parse --show-toplevel>
@@ -149,7 +149,7 @@ After agents complete, context is loaded with pre-inlined file contents and repo
 2. Tell the user:
    > Implementation complete. I recommend `/compact` now to free context for validation and review. After compacting, type `/geniro:follow-up continue` to resume from Phase 3.
 
-**After compaction (or if skipped):** Resume per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Consumer contract — read `.geniro/follow-up/state-<slug>.md`, run Case A/B/C/D mismatch handling, then `git diff --name-only` to restore changed-file context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
+**After compaction (or if skipped):** Resume per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Consumer contract — read `.geniro/state/follow-up/state-<slug>.md`, run Case A/B/C/D mismatch handling, then `git diff --name-only` to restore changed-file context. Proceed to Phase 3 (Medium) or Phase 4 (Small).
 
 **DO NOT present a summary or ask "anything else?" here. Phases 3-6 have not run yet.**
 
@@ -257,11 +257,11 @@ If the validation agent reports failures:
 
 Validation accumulated fix-loop context. Before spawning reviewers:
 
-1. Update `.geniro/follow-up/state-<slug>.md` (same slug used at the Phase 2 checkpoint per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules): set `phase: 4-complete` and refresh `Timestamp:` per the helper's `## Producer contract`.
+1. Update `.geniro/state/follow-up/state-<slug>.md` (same slug used at the Phase 2 checkpoint per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules): set `phase: 4-complete` and refresh `Timestamp:` per the helper's `## Producer contract`.
 2. Tell the user:
    > Validation passed. For best review quality I recommend `/compact`. After compacting, type `/geniro:follow-up continue` to resume review.
 
-**After compaction (or if skipped):** Resume per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Consumer contract — read `.geniro/follow-up/state-<slug>.md`, run Case A/B/C/D mismatch handling, then `git diff --name-only` to restore changed-file context.
+**After compaction (or if skipped):** Resume per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Consumer contract — read `.geniro/state/follow-up/state-<slug>.md`, run Case A/B/C/D mismatch handling, then `git diff --name-only` to restore changed-file context.
 
 **→ You MUST proceed to Phase 5 (Review). DO NOT present results or ask "anything else?" — review has not run yet.**
 
@@ -303,9 +303,9 @@ Capture the changed file list from the diff against the base branch (resolved pe
 
 **Relevance evidence + orchestrator tagging (Medium only):** Spawn a `relevance-filter-agent` for evidence per finding, then the orchestrator decides KEEP vs FILTER from the dossier — do NOT delegate the tagging decision. Skip the filter entirely for Trivial/Small — scope too limited. If the agent fails, pass all findings through as KEEP (fail-open).
 
-**Open-decision gate (per-finding, Always-WAIT).** Before any disposition decision, scan the kept findings for `decision: PRODUCT-DECISION` items. For each one, fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (set `header: "Open decision"`). Read the finding's `Options:` sub-list AND the body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) from `<PRIMARY_ROOT>/.geniro/review-findings-state.md` per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 — the body fields populate `preview` per option, giving the user enough context to actually pick a resolution path. Replace the finding's `recommendation:` field with the user's chosen option text before continuing; preserve `options:` / `evidence:` / `why-matters:` / `suggested-fix:` as audit trail. Use the chained-AUQ pattern when >4 options exist or when an `Options:` field carries `(more-options-exist: chain-follow-up)` — never split or drop options. This gate is **Always-WAIT** in every mode and lane (Fast included — see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row). Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask, never default to the reviewer's synthesis. Skip this gate only when zero PRODUCT-DECISION findings remain after the relevance filter.
+**Open-decision gate (per-finding, Always-WAIT).** Before any disposition decision, scan the kept findings for `decision: PRODUCT-DECISION` items. For each one, fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (set `header: "Open decision"`). Read the finding's `Options:` sub-list AND the body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) from `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 — the body fields populate `preview` per option, giving the user enough context to actually pick a resolution path. Replace the finding's `recommendation:` field with the user's chosen option text before continuing; preserve `options:` / `evidence:` / `why-matters:` / `suggested-fix:` as audit trail. Use the chained-AUQ pattern when >4 options exist or when an `Options:` field carries `(more-options-exist: chain-follow-up)` — never split or drop options. This gate is **Always-WAIT** in every mode and lane (Fast included — see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row). Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask, never default to the reviewer's synthesis. Skip this gate only when zero PRODUCT-DECISION findings remain after the relevance filter.
 
-Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity). Persist `<PRIMARY_ROOT>/.geniro/review-findings-state.md` with body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`, `confidence:`, `origin:`) for EVERY finding regardless of severity — the open-decision gate above and the MEDIUM inclusion gate below both read these. Then the orchestrator synthesizes findings and decides the disposition:
+Aggregate findings. Deduplicate (same file:line across reviewers = single finding, highest severity). Persist `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` with body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`, `confidence:`, `origin:`) for EVERY finding regardless of severity — the open-decision gate above and the MEDIUM inclusion gate below both read these. Then the orchestrator synthesizes findings and decides the disposition:
 
 - **MEDIUM inclusion gate (Always-WAIT, fires only when MEDIUM findings exist).** Before deciding fix-loop entry, fire the gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. User-promoted MEDIUMs join the fix-loop pool alongside any CRITICAL/HIGH; deferred MEDIUMs flow to the Phase 6 Ship summary. Skip silently when zero MEDIUMs.
 - **Any CRITICAL or HIGH finding (kept), OR any user-promoted MEDIUMs** → fix loop: delegate to fresh agent, re-validate (Step 2 only), re-review with **fresh** reviewer (avoid anchoring). Max 1 fix round for follow-ups. If findings persist after the fix round: `AskUserQuestion` header "Review": "Try different approach" / "Accept with known issues" / "Escalate to /geniro:implement".
@@ -385,7 +385,11 @@ If `.geniro/workflow/*.md` specifies completion actions (issue status, PR linkin
 
 ### Cleanup
 
-Kill orphaned background processes from validation (startup checks, dev servers, etc.). Delete `.geniro/follow-up/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — only the current branch's slug; never glob the whole `.geniro/follow-up/` directory. Also `rm -f .geniro/follow-up-state.md 2>/dev/null` to clear any pre-upgrade legacy state file (idempotent; the file may not exist).
+Kill orphaned background processes from validation (startup checks, dev servers, etc.). Delete `.geniro/state/follow-up/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — only the current branch's slug; never glob the whole `.geniro/state/follow-up/` directory. Also clear two generations of legacy state files (best-effort; either may not exist):
+```bash
+rm -f ".geniro/follow-up/state-${slug}.md" 2>/dev/null  # intermediate legacy: pre-state-dir, slug-scoped
+rm -f .geniro/follow-up-state.md           2>/dev/null  # original legacy: pre-slug, non-scoped
+```
 
 **→ Pipeline complete.**
 

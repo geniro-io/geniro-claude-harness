@@ -90,12 +90,44 @@ Execute deletion in order. Prefer `rm -f` for individual files and `rmdir` for e
 
 ### 3.1 Remove plugin runtime directory
 
-Remove `.geniro/` contents file-by-file, then remove empty directories:
+Remove `.geniro/` contents file-by-file via Python `pathlib.Path.unlink()`, then collapse empty directories. Per-file deletion is required because the `block-geniro-deletion.sh` hook (correctly) blocks `rm -rf .geniro/` and `find .geniro/ -delete` — those bulk patterns are exactly what cleanup must NOT use, since they're indistinguishable from accidental data loss when invoked outside this skill. If `files.user_created` was parsed from `.geniro/.geniro-state.json` in Phase 1.1, exclude those paths so user-authored content the user explicitly chose to keep is preserved.
 
 ```bash
-# Remove all files inside .geniro/ recursively, then empty dirs
-find .geniro/ -type f -delete 2>/dev/null
-find .geniro/ -type d -empty -delete 2>/dev/null
+python3 <<'PY'
+import json, pathlib
+root = pathlib.Path(".geniro")
+if not root.exists():
+    raise SystemExit(0)
+
+# Honor the user_created allowlist from .geniro-state.json (if present).
+preserve = set()
+state_path = root / ".geniro-state.json"
+if state_path.is_file():
+    try:
+        state = json.loads(state_path.read_text())
+        for entry in state.get("files", {}).get("user_created", []) or []:
+            preserve.add(str(pathlib.Path(entry).resolve()))
+    except (json.JSONDecodeError, OSError):
+        pass
+
+for p in sorted(root.rglob("*"), reverse=True):
+    if p.is_file() and str(p.resolve()) not in preserve:
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    elif p.is_dir():
+        try:
+            p.rmdir()  # only succeeds if empty
+        except OSError:
+            pass
+
+# Remove .geniro/ itself only if it's now empty (preserved user files would block this).
+try:
+    root.rmdir()
+except OSError:
+    pass
+PY
 ```
 
 ### 3.1.5 Remove vendored overlay (only if `mode == "vendored"`)
