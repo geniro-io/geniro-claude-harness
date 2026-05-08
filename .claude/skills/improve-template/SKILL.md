@@ -31,7 +31,7 @@ Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering
 
 ## State Persistence
 
-After completing each phase, write a checkpoint to `.geniro/improve-template/state-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules):
+After completing each phase, write a checkpoint to `.geniro/state/improve-template/state-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules):
 ```
 Branch: <git branch --show-current OR detached-<short-sha>>
 Worktree: <git rev-parse --show-toplevel>
@@ -44,7 +44,7 @@ Files to change: [list]
 
 Capital `Branch:`/`Worktree:`/`Timestamp:` are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Producer contract.
 
-On skill start: compute `<slug>` per the helper § Slug rules, then `Glob(".geniro/improve-template/state-<slug>.md")`. If present, run the helper § Consumer contract (Case A/B/C/D mismatch handling). After "proceed", read the file and resume from the next incomplete phase. Ask the user if this is still the active improvement or a new one.
+On skill start: compute `<slug>` per the helper § Slug rules, then `Glob(".geniro/state/improve-template/state-<slug>.md")`. If present, run the helper § Consumer contract (Case A/B/C/D mismatch handling). After "proceed", read the file and resume from the next incomplete phase. Ask the user if this is still the active improvement or a new one.
 
 ---
 
@@ -456,7 +456,11 @@ Scan for user corrections, convention discoveries, and limitations encountered. 
 
 ### Step 3: Cleanup
 
-Remove `.geniro/improve-template/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — delete only the current branch's slug, never globbing all state-*.md files. Also `rm -f .geniro/improve-template-state.md 2>/dev/null` to clear any pre-upgrade legacy state file (idempotent; the file may not exist).
+Remove `.geniro/state/improve-template/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — delete only the current branch's slug, never globbing all state-*.md files. Also clear two generations of legacy state files (best-effort; either may not exist):
+```bash
+rm -f ".geniro/improve-template/state-${slug}.md" 2>/dev/null  # intermediate legacy: pre-state-dir, slug-scoped
+rm -f .geniro/improve-template-state.md           2>/dev/null  # original legacy: pre-slug, non-scoped
+```
 
 ### Step 4: Suggest commit & push
 

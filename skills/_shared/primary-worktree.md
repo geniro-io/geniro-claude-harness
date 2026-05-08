@@ -50,9 +50,9 @@ These are intended to outlive any single task. The resolver applies to both read
 | Artifact | Producer(s) | Consumer(s) | Notes |
 |---|---|---|---|
 | `.geniro/knowledge/learnings.jsonl` | `/learnings`, `/implement` Phase 7, `/follow-up` Phase 6, `/debug` Step 7, `/refactor` Phase 6, `/investigate` Step 2a | `knowledge-retrieval-agent`, `/refactor` Phase 1, `/decompose`, `/debug` Step 1, `/features` triage, `/investigate` Step 1 | structured corpus |
-| `.geniro/debug/findings-state.md` | `/debug` Step 6.5a | `/follow-up`, `/implement` Phase 1 Step 1 | carries `Source branch:` / `Source worktree:` already; resolver removes the need to copy across worktrees |
-| `.geniro/debug/adversarial-tests.md` | `/debug` adversarial mode | `/follow-up`, `/implement` Phase 1 Step 1 | same handoff |
-| `.geniro/review-findings-state.md` | `/review` | `/follow-up`, `/implement` Phase 6 fix-loop | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
+| `.geniro/state/debug/findings-state.md` | `/debug` Step 6.5a | `/follow-up`, `/implement` Phase 1 Step 1 | carries `Source branch:` / `Source worktree:` already; resolver removes the need to copy across worktrees |
+| `.geniro/state/debug/adversarial-tests.md` | `/debug` adversarial mode | `/follow-up`, `/implement` Phase 1 Step 1 | same handoff |
+| `.geniro/state/review-findings-state.md` | `/review` | `/follow-up`, `/implement` Phase 6 fix-loop | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
 | `.geniro/planning/FEATURES.md` | `/features` (CRUD) | `/implement` (binding), `/decompose` | persistent registry |
 | `.geniro/planning/CODEBASE_MAP.md`, `.geniro/planning/focus-<area>.md` | `/onboard` | every skill that consults the map | persistent orientation artifacts |
 
@@ -61,7 +61,7 @@ These are intended to outlive any single task. The resolver applies to both read
 These are intentionally ephemeral with the current task. Promoting them to the resolver would introduce false durability where none is wanted.
 
 - `.geniro/planning/<task-dir>/*` — spec.md, plan-*.md, state.md, concerns.md, notes.md, milestone-*.md. Removed at `/implement` Phase 7 cleanup.
-- `.geniro/follow-up/state-<slug>.md`, `.geniro/refactor/state-<slug>.md`, `.geniro/improve-template/state-<slug>.md`, `.geniro/debug/HYPOTHESES-<slug>.md` — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
+- `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/state-<slug>.md`, `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/debug/HYPOTHESES-<slug>.md` — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
 
 If a within-skill state file is later promoted to cross-session use, add it to the cross-session table above.
 

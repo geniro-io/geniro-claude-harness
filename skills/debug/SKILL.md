@@ -61,7 +61,7 @@ $ARGUMENTS
 
 ## Hypothesis Tracking Format
 
-Store hypotheses in `.geniro/debug/HYPOTHESES-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules):
+Store hypotheses in `.geniro/state/debug/HYPOTHESES-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules):
 
 ```markdown
 Branch: <git branch --show-current OR detached-<short-sha>>
@@ -109,7 +109,7 @@ Timestamp: <ISO-8601 UTC>
 [Default: reproduction test authored at <project test path> — see "Fix Evidence" above for F→P run capture. Escape hatch only: orchestrator judged the bug non-reproducible at the test layer; user picked alternative regression guard via AskUserQuestion (assertion / fuzz seed / monitor / accepted-risk) — record the choice and the rationale.]
 
 ## Escalation
-[/geniro:follow-up or /geniro:implement; handoff via `<PRIMARY_ROOT>/.geniro/debug/findings-state.md`]
+[/geniro:follow-up or /geniro:implement; handoff via `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md`]
 ```
 
 (Capital `Branch:`/`Worktree:`/`Timestamp:` headers at top are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Producer contract — they let consumers on resume detect when the file targets a different branch than the current session.)
@@ -181,7 +181,7 @@ If you cannot build a feedback loop in 10 minutes, do NOT proceed to Step 2 by g
 - Based on observation AND the feedback-loop output (Step 1.5), form 2–3 competing hypotheses
 - Each hypothesis must be testable AGAINST THE FEEDBACK LOOP — Step 3's tests will toggle one variable, re-run the loop, observe whether the captured signature changes
 - Avoid "it's probably X" without evidence
-- Write hypotheses in `.geniro/debug/HYPOTHESES-<slug>.md`
+- Write hypotheses in `.geniro/state/debug/HYPOTHESES-<slug>.md`
 - **Consider infrastructure causes alongside code causes** — connection timeouts, resource exhaustion, DNS failures, container restarts, database connection pool limits, cloud service rate limits, and deployment-related changes (new config, changed env vars, scaled-down replicas) are common root causes that code inspection alone will miss. If symptoms include timeouts, intermittent failures, or errors that only appear in deployed environments, form at least one infrastructure hypothesis.
 
 ### 3. Test (10–30 min)
@@ -201,9 +201,9 @@ If you cannot build a feedback loop in 10 minutes, do NOT proceed to Step 2 by g
 - Understand why the bug happens (not just where)
 
 ### 5. Propose Fix (5–15 min)
-- **Multi-path fix gate (Always-WAIT, per Universal Rule).** If the confirmed root cause has more than one valid fix path with real trade-offs (e.g., snapshot-vs-live-fetch, COALESCE vs CHECK constraint vs catch+log, fix-at-source vs fix-at-call-site), do NOT pick one and write a single text proposal. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored). Set `header: "Fix path"`. Render the `question` text with the confirmed root cause's `path:lines` and hypothesis title; render each option's `preview` with the investigation context (Root cause / Evidence from "Fix Evidence" / hypothesis-confirmed status / hypothesis number from `.geniro/debug/HYPOTHESES-<slug>.md`) so the user can compare fix paths against the same evidence. Each option's `label` (1-5 words) names the path; `description` carries the one-line trade-off. Record the user's choice in `.geniro/debug/HYPOTHESES-<slug>.md` under "Proposed Fix" before drafting the unified diff. The single-text-proposal default below applies ONLY when there is one obvious right fix; multi-path is the explicit branch the § Universal Rule above requires the tool for. Empty `AskUserQuestion` answer = upstream bug — fall back to plain text and re-ask. This is symmetric with `[PRODUCT-DECISION]` handling in the rest of the pipeline (see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row).
+- **Multi-path fix gate (Always-WAIT, per Universal Rule).** If the confirmed root cause has more than one valid fix path with real trade-offs (e.g., snapshot-vs-live-fetch, COALESCE vs CHECK constraint vs catch+log, fix-at-source vs fix-at-call-site), do NOT pick one and write a single text proposal. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored). Set `header: "Fix path"`. Render the `question` text with the confirmed root cause's `path:lines` and hypothesis title; render each option's `preview` with the investigation context (Root cause / Evidence from "Fix Evidence" / hypothesis-confirmed status / hypothesis number from `.geniro/state/debug/HYPOTHESES-<slug>.md`) so the user can compare fix paths against the same evidence. Each option's `label` (1-5 words) names the path; `description` carries the one-line trade-off. Record the user's choice in `.geniro/state/debug/HYPOTHESES-<slug>.md` under "Proposed Fix" before drafting the unified diff. The single-text-proposal default below applies ONLY when there is one obvious right fix; multi-path is the explicit branch the § Universal Rule above requires the tool for. Empty `AskUserQuestion` answer = upstream bug — fall back to plain text and re-ask. This is symmetric with `[PRODUCT-DECISION]` handling in the rest of the pipeline (see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row).
 - Formulate the minimal fix for the root cause as a **text proposal**: file path(s), exact change (unified diff or before/after snippet), and a one-sentence rationale.
-- Do NOT write the fix to production/source files. Write/Edit are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/debug/` artifacts) — not for applying the proposed patch. If any experiment modified non-test source (e.g., a temporary log line, patched value), revert those edits before escalation; the escalated skill applies the real fix cleanly.
+- Do NOT write the fix to production/source files. Write/Edit are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/state/debug/` artifacts) — not for applying the proposed patch. If any experiment modified non-test source (e.g., a temporary log line, patched value), revert those edits before escalation; the escalated skill applies the real fix cleanly.
 - Do NOT refactor adjacent code.
 
 ### 6. Author Reproduction Test & Verify Root Cause (10–15 min)
@@ -211,9 +211,9 @@ If you cannot build a feedback loop in 10 minutes, do NOT proceed to Step 2 by g
 - **Test name and comments must be self-contained.** The reproduction test name AND any comments inside the test describe the bug behavior — the input, condition, or observable failure — never the hypothesis number from `HYPOTHESES-<slug>.md` or any other thread-local label. Tags like `Bug A/B/C`, `Hypothesis 1/2`, `Test 1`, `Case X`, `Issue #N from this run`, `regression from review run`, `found by review-gate`, or `confirmed by this <skill> run` are meaningless once the investigation conversation ends; the test ships with the fix as a regression guard, and a reader weeks later won't have that conversation. Prefer `cacheKey omits userId so role change leaves stale cached profile` over `Bug C`.
 - **F→P invariant.** Pre-fix: run the authored test at least 2× and confirm the SAME failure signature both times (same exception type + same failing assertion / same status code / same row count). Two divergent failures are NOT confirmation — they're flakiness or two different bugs; investigate before continuing.
 - **Verify the proposed fix — monkey-patch in the test by default; production-source edits are an explicit escape hatch.** Apply the patch locally as a monkey-patch inside the authored test file (mock, fixture, test-local shim, or a throwaway helper imported only by the test) — NOT by editing production/source files. Re-run the authored test at least 2× post-fix and confirm the failure DISAPPEARS both times. If the bug genuinely cannot be verified without editing production source (the patch lives in a hard-to-mock chain — DI container, framework hook, native module, generated code), treat each such edit as an explicit escape hatch: list every touched production file under "Verification edits to revert:" in the Phase 6.5a findings, confirm each is reverted before escalation, and re-run `git diff` to prove the working tree contains only the reproduction test. The reproduction test stays on disk; production source must end Phase 6 unchanged.
-- **Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), use the `AskUserQuestion` tool (do NOT output options as plain text) per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored). Set `header: "Repro infeasible"`. Render the `question` text with the best-guess root-cause `path:lines` (or "unknown" if not isolated) and hypothesis title; render each option's `preview` with the investigation context — the Reproduction status field carries "Reproduction infeasible — <reason>" pulled from the Reproduction Decision rationale below. Each option's `label` names a regression guard (1-5 words, e.g. "Add runtime assertion", "Author fuzz seed", "Add monitor/alert", "Skip regression guard"); `description` carries the one-line trade-off (e.g. "at `<file:line>`", "triggers ~50% of runs", "in `<observability tool>`", "accept the risk"). Record the user's selection AND the rationale in `.geniro/debug/HYPOTHESES-<slug>.md` under "Reproduction Decision". The default is mandatory; the escape hatch is opt-in with a paper trail.
+- **Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), use the `AskUserQuestion` tool (do NOT output options as plain text) per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored). Set `header: "Repro infeasible"`. Render the `question` text with the best-guess root-cause `path:lines` (or "unknown" if not isolated) and hypothesis title; render each option's `preview` with the investigation context — the Reproduction status field carries "Reproduction infeasible — <reason>" pulled from the Reproduction Decision rationale below. Each option's `label` names a regression guard (1-5 words, e.g. "Add runtime assertion", "Author fuzz seed", "Add monitor/alert", "Skip regression guard"); `description` carries the one-line trade-off (e.g. "at `<file:line>`", "triggers ~50% of runs", "in `<observability tool>`", "accept the risk"). Record the user's selection AND the rationale in `.geniro/state/debug/HYPOTHESES-<slug>.md` under "Reproduction Decision". The default is mandatory; the escape hatch is opt-in with a paper trail.
 - Do NOT run the full project test suite here — that belongs to the escalated skill. The goal is the F→P-verified test artifact + evidence the proposed patch turns it green.
-- Record the experimental evidence in `.geniro/debug/HYPOTHESES-<slug>.md` under "Fix Evidence" — paste the captured pre-fix output AND the captured post-fix output, not narrative summaries.
+- Record the experimental evidence in `.geniro/state/debug/HYPOTHESES-<slug>.md` under "Fix Evidence" — paste the captured pre-fix output AND the captured post-fix output, not narrative summaries.
 - If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs, schemas, or controllers: note this in the escalation so the receiving skill runs codegen.
 
 ### 6.5. Present Findings & Escalate (WAIT)
@@ -222,7 +222,7 @@ Before asking where to route the fix, you MUST present a human-readable findings
 
 #### 6.5a — Present Findings Summary & Persist State
 
-Output the following markdown block directly in the chat AND write the same block to `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` — resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the handoff survives worktree teardown (single file per branch, overwritten on each run — mirrors the `/geniro:review` state-artifact convention). Fill with the actual values from your investigation. Use "none" for any field that truly doesn't apply — don't omit fields. Prepend an ISO-8601 timestamp header (`# Debug Findings — <timestamp>`) to the file version so downstream skills and resumed sessions can tell stale artifacts from fresh ones. Capture `Source branch:` from `git branch --show-current` and `Source worktree:` from `git rev-parse --show-toplevel` so consumer skills (`/geniro:follow-up`, `/geniro:implement`) can detect when the user later starts work in a different worktree or branch — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` for the consumer contract.
+Output the following markdown block directly in the chat AND write the same block to `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` — resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the handoff survives worktree teardown (single file per branch, overwritten on each run — mirrors the `/geniro:review` state-artifact convention). Fill with the actual values from your investigation. Use "none" for any field that truly doesn't apply — don't omit fields. Prepend an ISO-8601 timestamp header (`# Debug Findings — <timestamp>`) to the file version so downstream skills and resumed sessions can tell stale artifacts from fresh ones. Capture `Source branch:` from `git branch --show-current` and `Source worktree:` from `git rev-parse --show-toplevel` so consumer skills (`/geniro:follow-up`, `/geniro:implement`) can detect when the user later starts work in a different worktree or branch — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` for the consumer contract.
 
 ```markdown
 ## Debug Findings
@@ -253,20 +253,20 @@ Output the following markdown block directly in the chat AND write the same bloc
 **Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
 ```
 
-The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path is the contract.
+The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path is the contract.
 
 #### 6.5b — Escalation Decision
 
-Only after the summary above is visible AND written to `<PRIMARY_ROOT>/.geniro/debug/findings-state.md`, use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Escalate" and these options:
-- **Trivial — run `/geniro:follow-up`; pre-load findings from `<PRIMARY_ROOT>/.geniro/debug/findings-state.md`; suggests relocating authored tests if you switch branch/worktree** — ≤2 files, obvious target, no architecture or auth/permissions change.
-- **Non-trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/debug/findings-state.md`; suggests relocating authored tests if you switch branch/worktree** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
+Only after the summary above is visible AND written to `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md`, use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Escalate" and these options:
+- **Trivial — run `/geniro:follow-up`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md`; suggests relocating authored tests if you switch branch/worktree** — ≤2 files, obvious target, no architecture or auth/permissions change.
+- **Non-trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md`; suggests relocating authored tests if you switch branch/worktree** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern.
 - **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger a follow-up `AskUserQuestion` with concrete options for the missing data (paste log line / run query / provide screenshot / dump env vars). When the data arrives, return to Step 3, do NOT escalate to fix mode yet.
 - **Leave it to me** — the user will apply the patch manually using the state file as reference. Skip to Step 7.
 
 Do NOT auto-invoke the next skill — surface the suggestion only. The user runs the slash command themselves; the state file is the handoff channel. You do NOT apply the patch yourself. Full-suite validation is the receiving skill's responsibility.
 
 ### 7. Document
-- Update `.geniro/debug/HYPOTHESES-<slug>.md` with final outcome
+- Update `.geniro/state/debug/HYPOTHESES-<slug>.md` with final outcome
 - **Extract Learnings:** Follow the canonical rubric in `skills/_shared/learnings-extraction.md`. Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it. Route per canonical: transferable debugging insights and class-of-bugs patterns → `learnings.jsonl`; user corrections during investigation → `feedback_*` memory; project-wide ongoing-investigation facts → `project_*` memory. UPDATE existing entries rather than duplicate. Skip if nothing novel.
 
 ### 8. Suggest Improvements (project scope only)
@@ -304,9 +304,9 @@ Apply the same skip-matrix philosophy as `skills/follow-up/SKILL.md` Step 1.5 (s
 1. **Resolve the diff** (see B). Pre-inline full diff + changed-file contents for the spawn prompt.
 2. **Detect the project test framework.** Read `CLAUDE.md` Essential Commands section + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract (a) the test command, (b) test-file naming convention, (c) 1–2 exemplar test files closest to the changed code.
 3. **Spawn `adversarial-tester-agent`** — see Spawn Template in §E below.
-4. **Independently re-run authored tests.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md`, extract authored test file paths, then run the project test command **once per authored test**. Single independent re-run per authored test (the agent already ran its own 3× flake check per its Step 5; duplicating would waste budget). Any test that does not fail deterministically on the re-run is deleted from disk AND removed from the report.
+4. **Independently re-run authored tests.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`, extract authored test file paths, then run the project test command **once per authored test**. Single independent re-run per authored test (the agent already ran its own 3× flake check per its Step 5; duplicating would waste budget). Any test that does not fail deterministically on the re-run is deleted from disk AND removed from the report.
 5. **Present Adversarial Findings** — see §F below.
-6. **Escalate.** Reuse Step 6.5b `AskUserQuestion` (header "Escalate") with the same three options — Trivial → `/geniro:follow-up`, Non-trivial → `/geniro:implement`, Leave-it-to-me. Before asking, ensure the Adversarial Findings summary from §F has been written to `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md` (the agent already wrote it at Step 3; append the re-verification delta if tests were discarded). The escalation option labels MUST reference that file by path (e.g., "Trivial — run `/geniro:follow-up`; pre-load findings from `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md`") — the authored test file paths inside are the escalation targets, and the receiving skill applies the fix and confirms the now-green test suite. If zero red tests survived re-verification, SKIP Step 6.5b entirely — report `"no bugs found in scanned diff"` and go to DoD.
+6. **Escalate.** Reuse Step 6.5b `AskUserQuestion` (header "Escalate") with the same three options — Trivial → `/geniro:follow-up`, Non-trivial → `/geniro:implement`, Leave-it-to-me. Before asking, ensure the Adversarial Findings summary from §F has been written to `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (the agent already wrote it at Step 3; append the re-verification delta if tests were discarded). The escalation option labels MUST reference that file by path (e.g., "Trivial — run `/geniro:follow-up`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`") — the authored test file paths inside are the escalation targets, and the receiving skill applies the fix and confirms the now-green test suite. If zero red tests survived re-verification, SKIP Step 6.5b entirely — report `"no bugs found in scanned diff"` and go to DoD.
 
 ### E. Spawn Template
 
@@ -332,7 +332,7 @@ BRANCH: [from `git branch --show-current`]
 none — adversarial mode runs a fresh pass (no prior reviewer findings available in debug).
 
 ### Output
-Write your report to `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+Write your report to `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
 
 ### F→P Invariant (NON-NEGOTIABLE)
 Every test you keep MUST fail 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
@@ -389,7 +389,7 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. The orchestra
 
 Do NOT apply the bug fix to production/source code. You MAY Write/Edit for two distinct purposes:
 - **Deliverables (kept on disk, ship with the fix):** the reproduction test authored in Step 6, placed at the project's normal test path
-- **Experiments (reverted before escalation):** debug logging, temporary print statements, scratch scripts, throwaway patches used in Step 6 to verify the root cause, and `.geniro/debug/HYPOTHESES-<slug>.md` working notes
+- **Experiments (reverted before escalation):** debug logging, temporary print statements, scratch scripts, throwaway patches used in Step 6 to verify the root cause, and `.geniro/state/debug/HYPOTHESES-<slug>.md` working notes
 
 The actual fix is delivered as a **text proposal** (diff or before/after) and escalated via Step 6.5 to `/geniro:follow-up` (trivial) or `/geniro:implement` (non-trivial). The reproduction test is the regression guard the receiving skill turns green; this keeps architecture/review gates in play and preserves a clean audit trail.
 
@@ -442,8 +442,8 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 | "I'll reason about edges instead of authoring tests" | Reasoning is reviewer-mindset. Adversarial mode AUTHORS executable failing tests because reasoning misses what running code catches. Delegate to the agent. |
 | "The agent reported F→P, I'll trust it" | The orchestrator MUST independently re-run authored tests per the agent's own Delegation Boundary. Self-reported F→P is evidence, not proof. |
 | "A finding improves an agent prompt, I'll include it in Step 8" | Plugin files are out of scope. Suggest only project-owned targets (CLAUDE.md, `.geniro/instructions/`, `.geniro/knowledge/learnings.jsonl`). |
-| "The findings are in HYPOTHESES-<slug>.md, I'll just ask the escalation question" | HYPOTHESES-<slug>.md is a scratchpad, not a user-facing report. Step 6.5a requires an explicit findings summary in chat AND persisted to `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` before the escalation question — the user decides where to route based on the chat summary, and the receiving skill pre-loads from the state file. |
-| "I'll paste the full findings summary into the escalation command" | The escalation options reference `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` by path — that file IS the handoff. Inlining the summary into the command bloats context and lets the two copies drift. File path only. |
+| "The findings are in HYPOTHESES-<slug>.md, I'll just ask the escalation question" | HYPOTHESES-<slug>.md is a scratchpad, not a user-facing report. Step 6.5a requires an explicit findings summary in chat AND persisted to `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` before the escalation question — the user decides where to route based on the chat summary, and the receiving skill pre-loads from the state file. |
+| "I'll paste the full findings summary into the escalation command" | The escalation options reference `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` by path — that file IS the handoff. Inlining the summary into the command bloats context and lets the two copies drift. File path only. |
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. A hypothesis is confirmed only by reproduction with a captured artifact per the Evidence Standard, not by "the story fits". |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | Inconclusive-by-default is a fabrication shortcut. Run the Step 3 missing-data gate first: AskUserQuestion for the specific artifact. Only mark inconclusive if the user confirms they cannot supply it. |
 | "The user described the reproduction verbally, that's enough" | Verbal repro is a hypothesis seed, not a re-runnable artifact. Step 6 requires a captured artifact (failing test, script, curl + response). Convert verbal repro to a captured form, or ask the user to paste the actual output. |
@@ -456,11 +456,15 @@ Form infrastructure hypotheses with the same rigor as code hypotheses — record
 ## Cleanup
 
 After the debug session completes (fix verified or escalated):
-- **Scientific-method mode only:** Remove `.geniro/debug/HYPOTHESES-<slug>.md` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — its useful content has already been saved to memory (root causes, gotchas, techniques). The file is a working scratchpad, not a permanent record. Do NOT delete sibling slugs from concurrent debug sessions on other branches. Also `rm -f .geniro/debug/HYPOTHESES.md 2>/dev/null` to clear any pre-upgrade legacy state file (idempotent; the file may not exist).
+- **Scientific-method mode only:** Remove `.geniro/state/debug/HYPOTHESES-<slug>.md` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — its useful content has already been saved to memory (root causes, gotchas, techniques). The file is a working scratchpad, not a permanent record. Do NOT delete sibling slugs from concurrent debug sessions on other branches. Also clear two generations of legacy state files (best-effort; either may not exist):
+  ```bash
+  rm -f ".geniro/debug/HYPOTHESES-${slug}.md" 2>/dev/null  # intermediate legacy: pre-state-dir, slug-scoped
+  rm -f .geniro/debug/HYPOTHESES.md           2>/dev/null  # original legacy: pre-slug, non-scoped
+  ```
 - **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the Step 1.5 feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. The Step 6 reproduction test (authored at the project's normal test path) STAYS on disk — it ships with the fix as the regression guard, same convention as adversarial mode's authored tests. The Step 1.5 loop is intentionally throwaway; if its content was load-bearing for the fix, it has already been promoted to the Step 6 test.
-- **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` MUST remain on disk as the escalation handoff channel — do NOT delete it. It stays until the next debug run overwrites it (single file per branch, same as `/geniro:review`'s state artifact).
+- **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` MUST remain on disk as the escalation handoff channel — do NOT delete it. It stays until the next debug run overwrites it (single file per branch, same as `/geniro:review`'s state artifact).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
-- **Adversarial mode:** `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md` may remain as audit trail per plugin convention; authored test files stay on disk.
+- **Adversarial mode:** `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` may remain as audit trail per plugin convention; authored test files stay on disk.
 
 Cleanup is best-effort — if a command fails silently, that's fine.
 
@@ -472,14 +476,14 @@ For each debug session, confirm the checklist for the mode that ran.
 
 - [ ] Bug reproduced consistently with clear steps
 - [ ] **Step 1.5 feedback loop built**: command + expected output + captured artifact recorded in HYPOTHESES-<slug>.md `## Feedback Loop` section; re-run cost ≤30s preferred (flag if longer); 3-run determinism check passed (or divergence noted before hypotheses)
-- [ ] All hypotheses recorded in `.geniro/debug/HYPOTHESES-<slug>.md`
+- [ ] All hypotheses recorded in `.geniro/state/debug/HYPOTHESES-<slug>.md`
 - [ ] Each hypothesis has a test plan and result
 - [ ] Root cause identified and confirmed (not guessed)
 - [ ] Proposed fix is minimal, targeted, and written as a text patch (not applied to source)
 - [ ] When multiple valid fix paths exist, Step 5 multi-path fix gate fired (always-WAIT) — user chose the path before drafting the text proposal
 - [ ] Proposed fix verified against the root cause via reverted experiments
 - [ ] Reproduction test authored at the project's normal test path, F→P verified, and survives Cleanup — OR escape hatch invoked with user-recorded alternative regression guard + rationale in HYPOTHESES-<slug>.md "Reproduction Decision"
-- [ ] Findings summary (Step 6.5a) presented to user in chat AND persisted to `<PRIMARY_ROOT>/.geniro/debug/findings-state.md` before the escalation question
+- [ ] Findings summary (Step 6.5a) presented to user in chat AND persisted to `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` before the escalation question
 - [ ] Escalation decision made via Step 6.5b AskUserQuestion with options referencing the state file by path (follow-up / implement / user-handles)
 - [ ] All experimental edits to non-test source reverted before handoff
 - [ ] Investigation insights extracted to learnings.jsonl / project memory (Step 7) — HYPOTHESES-<slug>.md is a working scratchpad and is removed during Cleanup
@@ -491,13 +495,13 @@ For each debug session, confirm the checklist for the mode that ran.
 - [ ] Skip conditions checked (and explicitly reported if skipped)
 - [ ] Project test framework detected from CLAUDE.md / package.json / pyproject.toml
 - [ ] `adversarial-tester-agent` spawned with all 5 Input Contract slots pre-inlined
-- [ ] Report written to `<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md`
+- [ ] Report written to `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`
 - [ ] Authored tests independently re-run by orchestrator (1× per test)
 - [ ] F→P-confirmed tests retained; any passing-today tests deleted
 - [ ] Adversarial Findings summary (§F) presented to user in chat
 - [ ] Escalation decision made via Step 6.5b (or "no bugs found" exit if zero red tests)
 - [ ] Authored test files left on disk (NOT reverted — unlike scientific-method experiments)
-- [ ] Cleanup completed (`<PRIMARY_ROOT>/.geniro/debug/adversarial-tests.md` can remain as audit trail per plugin convention)
+- [ ] Cleanup completed (`<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` can remain as audit trail per plugin convention)
 
 ---
 

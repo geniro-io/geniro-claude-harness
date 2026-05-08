@@ -46,11 +46,12 @@ This plugin provides safety hooks that run automatically:
 - **File protection** — blocks writes to `.env`, `*.key`, `*.pem`, lock files
 - **Secret scanning** — scans inputs and outputs for leaked secrets
 - **Git guardrails** — blocks destructive git operations (force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, filter-branch, update-ref -d)
+- **`.geniro/` deletion guard** — blocks bulk deletion of `.geniro/` (which holds user-authored instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Per-file `rm -f` and deep-path `rm -rf .geniro/<top>/<sub>/` remain allowed; bulk `rm -rf .geniro/`, `rm -rf .geniro/<single-segment>`, `find .geniro -delete`, `git worktree remove`, and `git add -f` on `.geniro/` paths are blocked. The `git add -f` block exists because force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click then becomes a one-click data-loss vector — real incident: Cursor's SCM discard wiped `.geniro/actions/*.md` after they were force-added. The correct path for tracked content is `.gitignore` negation (e.g. `!.geniro/actions/` + `!.geniro/actions/**`), never `git add -f`.
 - **Post-compaction recovery** — emits resume instructions and re-read suggestions after context compaction
 
-### Per-project allowlist for git guardrails
+### Per-project allowlist for safety guardrails
 
-Create `.geniro/safety.json` in your project to opt out of specific git-guardrail patterns:
+Create `.geniro/safety.json` in your project to opt out of specific guardrail patterns:
 
 ```json
 {
@@ -58,7 +59,11 @@ Create `.geniro/safety.json` in your project to opt out of specific git-guardrai
 }
 ```
 
-Pattern IDs: `force-push`, `force-push-with-lease`, `reset-hard`, `branch-delete-force`, `clean-fd`, `checkout-mass-discard`, `restore-mass-discard`, `update-ref-delete`, `filter-branch`. The allowlist is read from the nearest `.geniro/safety.json` walking up from the cwd.
+Pattern IDs:
+- **Git guardrails**: `force-push`, `force-push-with-lease`, `reset-hard`, `branch-delete-force`, `clean-fd`, `checkout-mass-discard`, `restore-mass-discard`, `update-ref-delete`, `filter-branch`
+- **`.geniro/` deletion guard**: `rm-geniro-tree` (bulk `rm -rf .geniro/`), `rm-geniro-subdir` (`rm -rf .geniro/<top>/`), `rm-geniro-state-subdir` (`rm -rf .geniro/state/<skill>/`), `find-geniro-delete` (`find .geniro ... -delete`), `worktree-remove-with-state` (`git worktree remove`), `git-add-force-geniro` (`git add -f` on `.geniro/` paths)
+
+The allowlist is read from the nearest `.geniro/safety.json` walking up from the cwd.
 
 ## Optional MCP Dependencies
 

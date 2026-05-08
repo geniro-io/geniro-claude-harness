@@ -56,7 +56,7 @@ Promoted MEDIUMs lose their MEDIUM tag in the fix-loop pool — the fixer agent 
 
 ## Persisted-fields requirement
 
-For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/implement`, `<PRIMARY_ROOT>/.geniro/review-findings-state.md` for `/follow-up`) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
+For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/implement`, `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` for `/follow-up`) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
 
 ## Why this exists
 

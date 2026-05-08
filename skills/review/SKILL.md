@@ -404,7 +404,7 @@ DIFF: [git diff summary]
 SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md (READ at runtime; do not expect it inlined)
 PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1-2 exemplar test files inlined]
 PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line — description — decision-type — severity]
-OUTPUT PATH: <PRIMARY_ROOT>/.geniro/review-findings-adversarial.md
+OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review-findings-adversarial.md
 
 For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in the orchestrator's downstream processing). You may also generate fresh hypotheses from the diff per your normal Step 2 workflow; treat seeded findings as priority-1 and fresh hypotheses as priority-2 within your hard cap of 10 authored tests.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -560,7 +560,7 @@ See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for a worked end-to-end example
 
 Write judge-validated findings to a state artifact so the next skill (or a resumed session) can consume them without re-running review. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline owns its own remediation loop).
 
-**File:** `<PRIMARY_ROOT>/.geniro/review-findings-state.md` — single file per branch, overwritten on each run. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the file (and its `[POSTED-TO-PR]` idempotency markers) survives worktree teardown.
+**File:** `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` — single file per branch, overwritten on each run. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the file (and its `[POSTED-TO-PR]` idempotency markers) survives worktree teardown.
 
 **Schema (markdown with named sections):**
 
@@ -641,11 +641,11 @@ Sequential: do not fire gate N+1 until gate N's answer is collected. Verbatim: r
 
 **Step 0: Open-decision gate (per-finding, Always-WAIT).** Before recommending which skill to run, surface every `decision: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; you NEVER pick on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
 
-For each kept finding with `decision: PRODUCT-DECISION` (read from `<PRIMARY_ROOT>/.geniro/review-findings-state.md`):
+For each kept finding with `decision: PRODUCT-DECISION` (read from `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`):
 
 1. Read the finding's `Options:` sub-list AND the body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) from the per-finding line in the state file (see Phase 5 per-finding line schema above for the persisted shape).
 2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. Set `header: "Open decision"`. Render the `question` text with the finding's severity / `path:lines` / short-title / decision-type / `why-matters` line per the spec's Source-field map; render each option's `label`+`description` from the finding's `options:` sub-list bullets; render each option's `preview` with the finding body (Evidence / Suggested-fix / Confidence / Origin). Do NOT collapse this rendering to label + 1-line description — the body in `preview` is what gives the user enough context to actually pick a resolution path.
-3. Update the finding line in `<PRIMARY_ROOT>/.geniro/review-findings-state.md`: replace the `recommendation:` field with the user's chosen option text. Preserve all other fields (including `options:`, `evidence:`, `why-matters:`, `suggested-fix:`). The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding.
+3. Update the finding line in `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`: replace the `recommendation:` field with the user's chosen option text. Preserve all other fields (including `options:`, `evidence:`, `why-matters:`, `suggested-fix:`). The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding.
 
 When more than 4 PRODUCT-DECISION findings exist, OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`, chain `AskUserQuestion` calls per the cap-extension pattern documented in the "Failing tests" `AskUserQuestion` block later in Phase 6 — chain questions; never split or drop options. The canonical body schema applies identically to every chained call.
 
@@ -662,7 +662,7 @@ Skip this Step 0 entirely when zero PRODUCT-DECISION findings remain after Phase
 **Question:** "How should I proceed with the N findings?"
 
 **Options (≤4 per the AUQ cap):**
-- **Run /geniro:implement** — escalate locally; full multi-agent pipeline. Pre-load findings from `<PRIMARY_ROOT>/.geniro/review-findings-state.md`.
+- **Run /geniro:implement** — escalate locally; full multi-agent pipeline. Pre-load findings from `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`.
 - **Run /geniro:follow-up** — escalate locally; fast lane for trivial/small scope. Pre-load findings from the same file.
 - **Post findings as PR comments** — present ONLY when the Phase 5 state file's `pr-ref:` is non-`none` AND at least one finding remains unposted (no `[POSTED-TO-PR]` tag from a prior run). On selection, drill into the granularity sub-question (Step 2 below) before any `gh api` call. **Posting is an external write to a public surface — the skill never posts without explicit approval, and picking this option IS the approval.** This option's selection plus the granularity drill replace the old two-step Consent → Granularity chain; do not re-fire a separate "PR comments" consent AUQ.
 - **Skip — I'll handle it manually** — no further action; state file remains for reference.
@@ -737,7 +737,7 @@ Pull the rendered `body` fields (description, recommendation, severity) from the
 
 The reviewer-agent's `description:` and `recommendation:` fields go into the body verbatim — if they describe the actual codebase being reviewed and that codebase legitimately mentions any of the strings above (e.g., reviewing this plugin's own code), the description stands as-is. The rule constrains the orchestrator's body-composition step (the JSON template and any wrapping prose), not the reviewer-agent's findings about the code under review.
 
-**Step 5 — Persist `[POSTED-TO-PR]` markers.** Parse the API response (a `comments` array on the returned review object, each element carrying an `html_url`); for each posted comment, append `[POSTED-TO-PR]` to the corresponding finding's tag list and add `posted-to-pr: <html_url>` to the line in `<PRIMARY_ROOT>/.geniro/review-findings-state.md`. This is the idempotency contract — the next `/geniro:review` run against the same PR reads these markers and excludes already-posted findings from Step 1's "N unposted findings" count, preventing duplicates without a server-side hash check.
+**Step 5 — Persist `[POSTED-TO-PR]` markers.** Parse the API response (a `comments` array on the returned review object, each element carrying an `html_url`); for each posted comment, append `[POSTED-TO-PR]` to the corresponding finding's tag list and add `posted-to-pr: <html_url>` to the line in `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`. This is the idempotency contract — the next `/geniro:review` run against the same PR reads these markers and excludes already-posted findings from Step 1's "N unposted findings" count, preventing duplicates without a server-side hash check.
 
 **Step 6 — Posting-failure semantics.** If the `gh api` call fails (non-zero exit, HTTP error, missing scopes, secondary rate limit with 403/429), surface the error verbatim to the user and stop — do not retry, do not fall back to a different endpoint, do not bypass with `--no-verify`-style flags, do not silently downgrade to top-level `gh pr comment` (which loses inline anchoring). No partial state is written: leave the per-finding `[POSTED-TO-PR]` tags off entirely so the user can re-run cleanly after fixing the underlying issue. Mirrors existing `gh` failure handling at SKILL.md Phase 1 (gh-unavailable surface-and-stop).
 
@@ -765,12 +765,12 @@ Code review is complete when:
 - [ ] Output delivered with actionable recommendations
 - [ ] Learnings extracted (standalone invocations only)
 - [ ] Improvement suggestions presented (standalone invocations only)
-- [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/review-findings-state.md`
+- [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`
 - [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT) — user chose resolution path before the Action gate; standalone invocations only
 - [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision presented via `AskUserQuestion` with options `/geniro:implement` / `/geniro:follow-up` / Post findings as PR comments (only when `pr-ref:` non-`none` AND ≥1 unposted finding) / Skip; mutually exclusive — exactly one option chosen; standalone invocations only
 - [ ] Phase 6 Action == Post drill ran (Step 2 granularity → Step 3 pick loop when applicable → Step 3.5 TDD filter → Step 4 `gh api` post → Step 5 `[POSTED-TO-PR]` markers persisted) when and only when the user picked "Post findings as PR comments" in the Action gate; the legacy two-step PR-comment Consent → Granularity chain has been collapsed into the Action gate + this drill
 - [ ] Phase 6 authored-tests handoff offered when `## Authored Tests` is non-empty, independent of the Action choice (standalone invocations only)
-- [ ] Posted findings tagged `[POSTED-TO-PR]` with `posted-to-pr: <comment-url>` in `<PRIMARY_ROOT>/.geniro/review-findings-state.md` so re-runs are idempotent
+- [ ] Posted findings tagged `[POSTED-TO-PR]` with `posted-to-pr: <comment-url>` in `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` so re-runs are idempotent
 
 ---
 
