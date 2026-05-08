@@ -10,7 +10,7 @@ TDD mode is an opt-in variant of `/geniro:review` that biases the run toward aut
 | Phase 4c "Author tests for all eligible findings" option | Unmarked | Marked `(Recommended)` |
 | Phase 6 PR-comment post set | All kept findings | `[CONFIRMED-BY-TEST]` + `[INTENT-CHECK]` + `[PRODUCT-DECISION]` + `[FIX-NOW]`-typo-class |
 | Phase 6 "Commit + push" option (when PR ref present) | Unmarked | Marked `(Recommended)` |
-| Phase 6 PR-comment body | description + recommendation + confidence | + `**Failing test:** \`<path>\`` line for `[CONFIRMED-BY-TEST]` findings |
+| Phase 6 PR-comment body | severity + description + recommendation (no confidence, no decision-type, no plugin branding — see SKILL.md "PR-comment body content rules") | + `**Failing test:** \`<path>\`` line where `<path>` is the project's actual test file (never `.geniro/...`) |
 | Adversarial-tester-agent contract | Unchanged | Unchanged |
 | State-file schema | `mode:` field defaults to `standard` (also: pre-TDD-mode state files without the field read as `standard`) | `mode: tdd` |
 
