@@ -406,6 +406,8 @@ PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1
 PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line — description — decision-type — severity]
 OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review-findings-adversarial.md
 
+Authoring scope: assert on observable business behavior — return values, thrown error shapes, mutated state, side effects at out-of-process boundaries (network/db/queue/file/email/third-party). Do NOT author interaction-style assertions on internal same-process collaborators (`toHaveBeenCalledWith` and equivalents) — those test implementation, not behavior, and your FORBIDDEN list rejects them. Seeded findings sometimes describe wiring or call-shape concerns: if the only test you can write for a seeded finding is interaction-style, mark the hypothesis `discarded-cannot-repro` so the orchestrator demotes it; do NOT relax this rule.
+
 For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in the orchestrator's downstream processing). You may also generate fresh hypotheses from the diff per your normal Step 2 workflow; treat seeded findings as priority-1 and fresh hypotheses as priority-2 within your hard cap of 10 authored tests.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)

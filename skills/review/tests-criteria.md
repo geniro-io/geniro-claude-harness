@@ -78,9 +78,7 @@ A test that passes the first time you run it (without any production change) is 
 
 ## What to Check
 
-## What to Check
-
-### 1. Coverage Gaps
+### 8. Coverage Gaps
 - Missing tests for new/modified code paths
 - No tests for error conditions
 - Missing happy-path tests
@@ -106,7 +104,7 @@ grep -c "expect\|assert\|should" test_file.js
 - Single assertion per test file
 - Tests only covering success cases
 
-### 2. Missing Edge Cases
+### 9. Missing Edge Cases
 - Null/undefined input handling
 - Empty collections (arrays, objects, strings)
 - Boundary values (0, -1, max_int, min_int)
@@ -129,7 +127,7 @@ grep -c "expect\|assert\|should" test_file.js
 - Missing tests for error states
 - No tests for state transitions
 
-### 3. Test Quality & Maintainability
+### 10. Test Quality & Maintainability
 - Brittle tests tied to implementation details
 - Missing test documentation
 - Unclear test purposes (vague test names)
@@ -155,7 +153,7 @@ grep -n "jest.mock\|sinon.stub\|mock\|spy" test_file.js
 - Tests that fail intermittently
 - Comments like "this is fragile" or "fix this test"
 
-### 4. Async/Promise Testing
+### 11. Async/Promise Testing
 - Missing async/await in async tests
 - Unhandled promise rejections in tests
 - Not testing error cases in async code
@@ -191,7 +189,7 @@ grep -n "callback\|cb(" test_file.js | grep -v "promisify\|async\|await"
 - Event emitter / stream code with no corresponding test
 - Callback-based async tested without done() or promisification
 
-### 5. Integration Testing
+### 12. Integration Testing
 - No integration tests for critical paths
 - Integration tests only testing happy paths
 - No database/service integration tests
@@ -212,7 +210,7 @@ grep -n "callback\|cb(" test_file.js | grep -v "promisify\|async\|await"
 - Database operations only tested in isolation
 - Missing end-to-end scenarios
 
-### 6. Test Organization & Structure
+### 13. Test Organization & Structure
 - Tests grouped by file (not by functionality)
 - No clear test suite organization
 - Mixed unit and integration tests
@@ -238,7 +236,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 - Inconsistent test patterns across files
 - Tests importing from many different modules
 
-### 7. Mocking & Dependencies
+### 14. Mocking & Dependencies
 - Over-mocking that defeats testing purpose
 - Missing real integration tests (everything mocked)
 - Mock objects not verifying behavior
@@ -259,7 +257,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 - Mocks with different API than real object
 - Hard to understand what's being tested vs mocked
 
-### 8. Critical Path Testing
+### 15. Critical Path Testing
 - Core business logic not thoroughly tested
 - Authentication/authorization paths undertested
 - Payment/transaction logic not well covered
