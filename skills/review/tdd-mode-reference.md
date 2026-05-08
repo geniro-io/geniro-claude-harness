@@ -9,7 +9,7 @@ TDD mode is an opt-in variant of `/geniro:review` that biases the run toward aut
 | Phase 4c gate fires | Always when eligible findings exist | Always when eligible findings exist (gate is non-negotiable) |
 | Phase 4c "Author tests for all eligible findings" option | Unmarked | Marked `(Recommended)` |
 | Phase 6 PR-comment post set | All kept findings | `[CONFIRMED-BY-TEST]` + `[INTENT-CHECK]` + `[PRODUCT-DECISION]` + `[FIX-NOW]`-typo-class |
-| Phase 6 "Commit + push" option (when PR ref present) | Unmarked | Marked `(Recommended)` |
+| Phase 6 "Commit + push" option (when PR ref present) | Unmarked, except `(Recommended)` when the user just selected "Post findings as PR comments" in the Action gate (so the just-posted `**Failing test:** \`<path>\`` references resolve to actual files on the PR) | Marked `(Recommended)` |
 | Phase 6 PR-comment body | severity + description + recommendation (no confidence, no decision-type, no plugin branding — see SKILL.md "PR-comment body content rules") | + `**Failing test:** \`<path>\`` line where `<path>` is the project's actual test file (never `.geniro/...`) |
 | Adversarial-tester-agent contract | Unchanged | Unchanged |
 | State-file schema | `mode:` field defaults to `standard` (also: pre-TDD-mode state files without the field read as `standard`) | `mode: tdd` |
@@ -47,7 +47,7 @@ The F-to-P semantics are **unchanged** between modes. `adversarial-tester-agent`
 | Your reasoning | Why it's wrong |
 |---|---|
 | "TDD mode is on, the user obviously wants tests authored — skip the Phase 4c AUQ this time" | Mode flips the Recommended highlight, not the gate. The Phase 4c invariant ("the skill MUST NEVER spawn the agent without explicit user approval") is non-negotiable in every mode. The two-step gate (skill asks, then on YES spawn) is the only rationalization-resistant variant. |
-| "TDD mode is on, the user obviously wants tests committed and pushed — skip the Phase 6 'Failing tests' AUQ" | Same reasoning, same rule. `git push` is an external write to a public surface. The mode-flip is a "Recommended" suffix; the gate stays. |
+| "TDD mode is on, the user obviously wants tests committed and pushed — skip the Phase 6 'Failing tests' AUQ" | Same reasoning, same rule. `git push` is an external write to a public surface. The flip is just a "Recommended" suffix on whichever option matches mode + PR-ref + Post-just-taken state; the gate stays. |
 | "All tests passed, no findings have `[CONFIRMED-BY-TEST]` — post them anyway, the user wants comments" | TDD mode's whole point is to gate posting on F-to-P-confirmed evidence. If the user wanted comments without the gate, they would have run Standard mode. Surface the empty post-set message and stop. |
 | "TDD mode is just a shortcut for 'always run Phase 4c on all findings' — drop the AUQ entirely when `mode: tdd`" | The Phase 4c "Pick" branch is still meaningful in TDD mode (the user may want to test a subset, e.g., only CRITICAL findings). Mode flips the Recommended option; it does not collapse the option set. |
 
