@@ -14,6 +14,19 @@ You are the orchestrator for investigating and fixing issues in the geniro-claud
 **Template path:** (repo root — skills/, agents/, hooks/)
 **Report path:** `report.md` (354KB best-practices guide based on 14 production frameworks)
 
+## Subagent Model Tiering
+
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST be explicit about its tier — pass `model=` explicitly for mechanical/bounded agents, OMIT `model=` for the reasoning-grade carve-out (frontmatter-declared `model: inherit`) so the synthesis tier mirrors orchestrator. For plugin-defined subagents (`relevance-filter-agent`, `reviewer-agent`, `adversarial-tester-agent`, `architect-agent`, `skeptic-agent`, etc.), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined (frontmatter stripped).
+
+**Skill-specific mapping:**
+
+| Spawn | Tier | Why |
+|---|---|---|
+| Phase 1 research agents (codebase / report.md / internet) | `opus` (passed explicitly) | Reasoning-grade research, but general-purpose — not a carve-out subagent |
+| Phase 2b `relevance-filter-agent` | `inherit` (omit `model=` at spawn site) | Synthesis-of-findings carve-out per `model-tiering.md:7` |
+| Phase 4 implementation agents | `opus` (passed explicitly) | General-purpose — not a carve-out subagent |
+| Phase 5 review agent | `opus` (passed explicitly) | General-purpose fresh reviewer — not a carve-out subagent |
+
 ---
 
 ## State Persistence
@@ -208,8 +221,10 @@ Write checkpoint with approved finding count.
 
 Spawn `relevance-filter-agent` with every Phase 2-approved finding. The agent greps the target files for existing instructions (redundancy) and checks whether each change is needed for current scope or is YAGNI / defensive polish (relevance). It returns an evidence dossier per finding — NOT a KEEP/FILTER tag.
 
+This spawn follows the runtime-degradation rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — attempt the bare name first; on `Agent type 'relevance-filter-agent' not found` (harness / SDK / cloud runners where the plugin's `agents/` directory is not registered), re-attempt as `Agent(subagent_type="general-purpose", prompt=<<body of agents/relevance-filter-agent.md, frontmatter stripped>> + "\n\n---\n\n" + <original prompt>)`. Other errors do NOT trigger fallback. Cache the "not found" inference for the rest of the session — do not re-attempt the bare name. The spawn OMITS `model=` per the canonical model-tiering carve-out (`relevance-filter-agent` declares `model: inherit` in its frontmatter; passing `model="opus"` at the call site contradicts the carve-out and leaks tier mismatch).
+
 ```
-Agent(subagent_type="relevance-filter-agent", model="opus", prompt="""
+Agent(subagent_type="relevance-filter-agent", prompt="""
 FINDINGS: [all Phase 2-approved findings, numbered, with file paths and proposed changes]
 CHANGED FILES: [list of file paths that would be modified — the agent reads them itself]
 PROJECT CONTEXT: [relevant CLAUDE.md excerpts, CONTRIBUTING.md if present]
