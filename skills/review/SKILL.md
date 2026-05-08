@@ -624,6 +624,15 @@ See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for the full procedure (extract
 
 After Phase 5b, surface the next skill to fix what was found. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent owns its own fix loop), or when there are no actionable findings (CRITICAL + HIGH + MEDIUM all zero after Phase 4b).
 
+**Gate chain — fire each gate as a separate `AskUserQuestion` call (NEVER fuse).** Phase 6 surfaces up to 4 sequential gates. Each one decides a different thing and MUST be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates. The chain in firing order:
+
+1. **Step 0 — Open-decision (per finding):** fires once per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
+2. **Remediate:** fires once whenever this phase fires (the entry condition above already gates on actionable findings) — picks the next fix skill (`/geniro:implement`, `/geniro:follow-up`, or skip).
+3. **Failing tests:** fires once when the Phase 5 state file's `## Authored Tests` section is non-empty — picks the commit policy for the AI-authored tests. Skipped otherwise.
+4. **PR-comments (Always-WAIT, two-step):** fires when the Phase 5 state file's `pr-ref:` is non-`none` AND at least one finding is unposted (no `[POSTED-TO-PR]` tag) — Step 1 consents to posting; Step 2 picks Send-all vs Pick-one-by-one. Skipped otherwise.
+
+Sequential: do not fire gate N+1 until gate N's answer is collected. Verbatim: render each gate's question text and options exactly as defined in the corresponding sub-section below — do not condense to a single "what next?" prompt even when multiple Skip paths look identical.
+
 **Step 0: Open-decision gate (per-finding, Always-WAIT).** Before recommending which skill to run, surface every `decision: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; you NEVER pick on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
 
 For each kept finding with `decision: PRODUCT-DECISION` (read from `<PRIMARY_ROOT>/.geniro/review-findings-state.md`):
@@ -645,11 +654,11 @@ Skip this Step 0 entirely when zero PRODUCT-DECISION findings remain after Phase
 Use `AskUserQuestion` (do NOT print options as plain text) with header "Remediate". Mark the severity-recommended option with "(Recommended)" in its label. Options:
 - **Run /geniro:implement** — full multi-agent pipeline; pre-load findings from `<PRIMARY_ROOT>/.geniro/review-findings-state.md`
 - **Run /geniro:follow-up** — fast lane; pre-load findings from the same file
-- **Skip — I'll handle it manually** — no further action; state file remains for reference
+- **Skip — I'll handle remediation manually** — no further action; state file remains for reference. Distinct from the Phase 6 PR-comments Skip (that one only declines posting); skipping here declines fix routing.
 
 Do NOT auto-invoke the next skill — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel.
 
-**When `## Authored Tests` is non-empty, fire a separate `AskUserQuestion` with header "Failing tests"** — chained after the Remediate question when Remediate fires; standalone immediately after the Phase 6 entry condition otherwise (cap-extension pattern: chain questions, do not split or drop existing options). **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline owns its own commit decision) OR when the `## Authored Tests` section is empty.
+**When `## Authored Tests` is non-empty, fire a separate `AskUserQuestion` with header "Failing tests"** — chained immediately after the Remediate question (Remediate always fires when Phase 6 fires, per the gate-chain preamble at the top of this phase; cap-extension pattern: chain questions, do not split or drop existing options). **Skip when the `## Authored Tests` section is empty** (the sub-phase-of-`/geniro:implement` carve-out is inherited from the Phase 6 entry condition above and does not need to be restated per gate).
 
 - **Question:** "How should the N failing tests authored by Phase 4c be handled? They are AI-authored — review before merging."
 - **Header:** "Failing tests"
@@ -669,7 +678,7 @@ Chained position: fires AFTER the "Failing tests" question when authored tests e
 - **Question:** "Post the N kept findings as inline comments on PR `<pr-ref>`? Posting is an external write to a public surface — the skill never posts without explicit approval."
 - **Options:**
   - "Yes — post findings as PR comments"
-  - "Skip — I'll handle it manually (Recommended)"
+  - "Skip — I'll handle PR posting manually (Recommended)" — distinct from the Phase 6 Remediate Skip (that one declines fix routing); skipping here declines posting only and leaves remediation routing already chosen.
 
 The "Skip" default is recommended because PR comments are public and irreversible. If user picks **Skip**, write nothing, mark no findings posted, proceed to Phase 6 cleanup.
 
@@ -774,3 +783,4 @@ Code review is complete when:
 | "User picked Pick-one-by-one and findings are obviously postable — I'll just include them all and skip the per-finding multiSelect" | The whole point of Pick mode is that the user wants per-finding control; overriding it ships a posting decision they did not authorize. Always render the chained `multiSelect: true` AskUserQuestion calls (≤4 options each, cap-extension chained when more), aggregate the selections, post only the union. If the user deselects all, treat as Skip and post nothing. |
 | "The user already ran `/geniro:review` against this PR yesterday and approved posting — I'll skip the gate this time" | Permissions don't carry across runs. The state file's `[POSTED-TO-PR]` markers are an idempotency contract (skip already-posted findings on re-run), NOT a blanket re-authorization for new findings. Every run that has at least one unposted finding fires the consent gate from scratch. |
 | "TDD mode is on, the user clearly wants tests authored — I'll skip the Phase 4c AUQ this time" | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable: this skill MUST `AskUserQuestion` BEFORE spawning `adversarial-tester-agent` in EVERY mode (see Phase 4c Step 2 — "this skill MUST NEVER spawn the agent without explicit user approval — the gate is the load-bearing safety property, and inline gates degrade to 'this counts as approval'"). Mode is a default-selection signal, not consent. The two-step gate (skill asks → on YES, spawn) is the only rationalization-resistant variant — pre-answering "because mode=tdd" rationalizes the gate away exactly as the "I'll spawn the adversarial-tester-agent and ask the user to confirm later" Compliance row above warns. |
+| "I'll fuse Phase 6's gates into one summary question to save the user clicks" | Each Phase 6 gate decides a different thing: Step 0 picks a resolution path per `[PRODUCT-DECISION]` finding; Remediate picks the next fix skill (`/implement` vs `/follow-up` vs skip); Failing-tests picks a commit policy for AI-authored tests; PR-comments picks a posting policy (and on Yes, Send-all vs Pick). A fused "what should we do?" question forces a single-path answer when the user may legitimately want different choices per gate (post to PR but skip remediation, or run `/implement` but leave authored tests uncommitted, or pick a per-finding open-decision but skip both remediation and posting). Multiple gates having a `Skip — I'll handle <X> manually`-pattern option is NOT cosmetic redundancy to dedupe — they are distinct skips with distinct downstream consequences. The chain order is documented in the Phase 6 preamble; fire each gate sequentially as its own `AskUserQuestion` call, render each question and option set verbatim, and collect the answer before moving to the next gate. |
