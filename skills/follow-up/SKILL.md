@@ -115,13 +115,15 @@ If any file in the predicted affected-files list from Step 1 matches the UI-file
 
 ## Phase 2: Implement
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/follow-up.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
+
 ### Step 1: Plan (Medium complexity only)
 
 Write a brief plan: each file, what changes, dependencies, risks. Present via `AskUserQuestion` header "Plan": "Looks good — proceed" / "Adjust — change the approach".
 
 ### Step 2: Execute
 
-Spawn the implementation agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 2 Step 2: Agent Delegation Templates. Select the template matching the complexity level (Trivial / Small / Medium). Medium decomposes into 2–3 parallel agents spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. If all files are tightly coupled (same module, sequential deps), use a single agent — don't force parallelism.
+Spawn the implementation agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 2 Step 2: Agent Delegation Templates. Select the template matching the complexity level (Trivial / Small / Medium). Medium decomposes into 2–3 parallel agents spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. If all files are tightly coupled (same module, sequential deps), use a single agent — don't force parallelism. If `.geniro/instructions/code-style.md` exists, pre-inline its content into each implementation agent's prompt under the `## Code-style instructions` header (slot defined in the templates); omit the section when the file is absent.
 
 ### Step 3: Completion Check
 
@@ -269,13 +271,15 @@ Validation accumulated fix-loop context. Before spawning reviewers:
 
 ## Phase 5: Review
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/follow-up.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
+
 ### Step 1: Code Review
 
 Capture the changed file list from the diff against the base branch (resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 — typically `origin/main` or `origin/master`, do NOT hardcode `main`).
 
 **Trivial (any lane) and Small (Fast Lane):** Review the diff yourself — no subagent. Check for: typos in the fix, accidental deletions, logic inversion, missed second occurrence. If anything looks off, delegate the fix to an agent and re-validate. Do NOT fix code directly. If ambiguous or potentially CRITICAL, escalate to a single Sonnet reviewer (Fast Lane escape hatch).
 
-**Small (Full pipeline, 3–5 files) and Medium (6–8 files):** Spawn reviewer-agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1: Reviewer Agent Templates. Small = single reviewer. Medium = 2–3 reviewers spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria; do NOT pre-read criteria into orchestrator context. Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (the criteria file's modal-inference is meaningful only with N≥3 samples; below that threshold the reviewer suppresses findings internally and the spawn is wasted). Add a `sonnet` reviewer for the optimizations dimension when changed files include DB queries, ORM read-paths, hot loops, frontend bundle entry points, or React lists. Add an additional `sonnet` reviewer for the design dimension when changed files include UI.
+**Small (Full pipeline, 3–5 files) and Medium (6–8 files):** Spawn reviewer-agent(s) using the templates in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 5 Step 1: Reviewer Agent Templates. Small = single reviewer. Medium = 2–3 reviewers spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn. Each agent reads its own criteria; do NOT pre-read criteria into orchestrator context. Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cross-module boundaries. Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (the criteria file's modal-inference is meaningful only with N≥3 samples; below that threshold the reviewer suppresses findings internally and the spawn is wasted). Add a `sonnet` reviewer for the optimizations dimension when changed files include DB queries, ORM read-paths, hot loops, frontend bundle entry points, or React lists. Add an additional `sonnet` reviewer for the design dimension when changed files include UI. When a reviewer's dimension is one of guidelines / conventions / design / architecture, pre-inline `.geniro/instructions/code-style.md` content into the prompt under `## Code-style instructions` (if file exists). Skip for bugs/security/tests/optimizations reviewers — code-style is orthogonal to their criteria. For Trivial-and-Small-Fast-Lane orchestrator self-review, the file is already in orchestrator context (refreshed at the top of this phase) — no pre-inline action needed.
 
 ### Step 1.5: Adversarial Edge-Case Tests (Medium only — skipped for Trivial, Small, and all Fast Lane runs)
 
@@ -318,6 +322,8 @@ Disposition is an orchestrator decision based on aggregated evidence, not a revi
 ---
 
 ## Phase 6: Ship (WAIT)
+
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/follow-up.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
 
 Show a summary:
 

@@ -58,16 +58,14 @@
             "timeout": 5
           }
         ]
-      }
-    ],
-    "PostCompact": [
+      },
       {
-        "matcher": "*",
+        "matcher": "compact",
         "hooks": [
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/post-compact-notification.sh",
-            "statusMessage": "Notifying of compaction...",
+            "statusMessage": "Restoring context after compaction...",
             "timeout": 10
           }
         ]

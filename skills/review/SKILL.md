@@ -67,6 +67,10 @@ If the user declines to answer (empty answer), default to Standard. The user's `
 
 ### Phase 2: Spawn Sub-Reviewers (Parallel, Adaptive Batching)
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/review.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+
+**Code-style pre-inline (orchestrator preamble):** Read `.geniro/instructions/code-style.md` once. If it exists, pre-inline its content into the `CODE-STYLE INSTRUCTIONS:` slot of the guidelines / conventions / design / architecture reviewer prompts below. Skip the slot for bugs / security / tests / optimizations — code-style is orthogonal to those dimensions. If the file is absent, render the slot value as `none — file not present`.
+
 **Determine review mode based on diff size:**
 
 **Small diff (≤8 substantive files, ≤400 LOC):** Standard mode — 7 reviewers (+1 design when UI files present, see detection rule below), each sees ALL files.
@@ -121,6 +125,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: architecture
 CRITERIA: [content of architecture-criteria.md]
+CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -160,6 +165,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
 DIMENSION: guidelines
 CRITERIA: [content of guidelines-criteria.md]
+CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -173,6 +179,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: conventions
 CRITERIA: [content of conventions-criteria.md]
+CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -187,6 +194,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: design
 CRITERIA: [content of design-criteria.md]
+CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]

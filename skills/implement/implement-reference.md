@@ -296,6 +296,9 @@ BRANCH: [from `git branch --show-current`]
 [Paste the CONVENTIONS_BRIEF section from spec file — naming patterns, file structure, error handling, import style, test patterns. Include 1-2 exemplar file snippets showing the patterns to follow.]
 Match existing patterns exactly. Find the closest existing example and follow it.
 
+## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
+[paste content of `.geniro/instructions/code-style.md` here verbatim, OR omit this section entirely if the file does not exist]
+
 ## Reuse Inventory (verify-before-creating)
 
 [paste REUSE_INVENTORY from spec.md inline]
@@ -514,6 +517,15 @@ Only reached after Stage B passes.
    - All changed file contents (pre-inlined)
    - spec file + plan file for context
    - Previous feedback (if round 2+)
+   - **Code-style slot (guidelines / conventions / design / architecture reviewers ONLY):** if `.geniro/instructions/code-style.md` exists, pre-inline its content under this header in the prompt:
+
+     ```
+     ## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`)
+     [content here]
+     Apply these as additional review criteria — flag violations alongside this dimension's primary criteria. Do not duplicate findings already covered by your dimension's criteria file.
+     ```
+
+     Skip this slot entirely for bugs / security / tests / optimizations reviewers (code-style is orthogonal to their criteria) and when the file does not exist.
    - Instruction: produce confidence-scored findings (Critical/High/Medium)
 
    For large diffs (>8 files or >400 LOC): split files into batches of ~5, spawn reviewers per batch x dimension. Skip irrelevant dimensions per batch (e.g., test-only batch skips security).

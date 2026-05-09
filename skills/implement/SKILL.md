@@ -218,7 +218,11 @@ If the user picks "Continue now": continue normally to Phase 4.
 
 ## PHASE 4: IMPLEMENT
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/implement.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+
 **Purpose:** Execute architecture with parallel agents (Full + Light Lanes) OR sequential RED→GREEN per behavior (TDD Lane).
+
+**Code-style pre-inline preparation:** before Step 1, Read `.geniro/instructions/code-style.md` if it exists; pre-inline its content into each implementation agent's prompt under the `## Code-style instructions` header per the Phase 4 Agent Delegation Template in `${CLAUDE_SKILL_DIR}/implement-reference.md`. If the file does not exist, omit the section entirely.
 
 **Lane gate:** If `state.md` shows `Lane: tdd`, REPLACE the rest of this phase with the sequential cycle procedure in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 4 in TDD Mode". The TDD procedure replaces parallel waves with one-test-at-a-time RED→GREEN→Refactor cycles, ordered by the architect's behavior list; it does NOT use the Work Unit / Wave / Hotspot model below. Append `Phase 4 (TDD Mode): cycle <N> completed: <behavior summary>` to state.md after each cycle so resume picks up at the next behavior. Test-creation verification (Step 6 below) is REDUNDANT under TDD Mode (every behavior is F→P-verified at cycle authoring); skip it.
 
@@ -329,6 +333,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a 
 
 ## PHASE 6: REVIEW & VALIDATE
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/implement.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+
 **Purpose:** Single quality gate — verify code compiles, passes tests, meets spec, and is well-written.
 
 **Action:** Run Stage A checks, spawn Stage B agent, spawn Stage C agents, then spawn Stage D adversarial-tester-agent.
@@ -355,7 +361,7 @@ Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet 
 
 ### Stage C — Code Quality
 
-**Action:** Spawn 7–8 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, optimizations, guidelines, conventions, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file.
+**Action:** Spawn 7–8 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, optimizations, guidelines, conventions, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file. If `.geniro/instructions/code-style.md` exists, pre-inline its content into the prompts for the guidelines / conventions / design / architecture reviewers under the `## Code-style instructions` header per the Stage C reviewer template in `${CLAUDE_SKILL_DIR}/implement-reference.md`. Skip the slot for bugs / security / tests / optimizations reviewers (code-style is orthogonal).
 
 Aggregate findings. Pass CRITICAL/HIGH to fix loop; preserve MEDIUM findings (do NOT auto-drop) for the user-gated inclusion check at the top of the Fix Loop — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Write `<task-dir>/review-feedback.md` with body sub-fields persisted for both CRITICAL/HIGH and MEDIUM rows so the gate can render bodies correctly. Findings tagged `decision: PRODUCT-DECISION` flow through to the Fix Loop where the open-decision gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row) presents enumerated options to the user before any fixer agent spawns; MEDIUM findings flow through to the same Fix Loop where the MEDIUM inclusion gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `MEDIUM findings present in fix-loop entry` row) lets the user pick which (if any) to include.
 
@@ -381,6 +387,8 @@ Aggregate findings. Pass CRITICAL/HIGH to fix loop; preserve MEDIUM findings (do
 ---
 
 ## PHASE 7: SHIP & FINALIZE (WAIT)
+
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/implement.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
 
 **Precondition — do NOT enter Phase 7 until ALL of these are true:**
 - Phase 5 completed or skipped with logged reason — check `state.md` for "Phase 5 completed" OR "Phase 5 skipped"

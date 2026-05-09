@@ -9,7 +9,8 @@ When a skill's end-of-flow "Suggest Improvements" step finds a project-scope imp
 | New/changed build, test, or lint command | **CLAUDE.md** | Loaded every turn for every agent — commands must be always at hand |
 | Tech stack or project structure change | **CLAUDE.md** | Future sessions need current project shape |
 | Project-wide gate that must survive compaction (e.g. "never commit without approval") | **CLAUDE.md** | Reserved for critical compaction-surviving guidance |
-| **Code rule / coding convention / style or naming pattern / file-pattern constraint** | **`.claude/rules/<scope>.md`** with YAML frontmatter `paths: [glob, ...]` (Anthropic-native, **file-scoped** — auto-loads only when Claude reads/writes a matching file) | **Loaded only when the matching files are touched — keeps CLAUDE.md lean and avoids "rule bloat" that dilutes compliance for every CLAUDE.md rule. The native Claude Code analog of Cursor's `.mdc` auto-attach.** |
+| **File-pattern-scoped** code rule (e.g., language-specific, directory-specific) | **`.claude/rules/<scope>.md`** with YAML frontmatter `paths: [glob, ...]` (Anthropic-native, **file-scoped** — auto-loads only when Claude reads/writes a matching file) | **Loaded only when the matching files are touched — keeps CLAUDE.md lean and avoids "rule bloat" that dilutes compliance for every CLAUDE.md rule. The native Claude Code analog of Cursor's `.mdc` auto-attach.** |
+| **Cross-cutting code-style / convention rule that should apply to ALL code-writing and ALL review (regardless of file pattern)** | **`.geniro/instructions/code-style.md`** (Geniro cross-skill scope; authored via `/geniro:instructions create code-style`) | Loaded by `implement` (Phase 4), `follow-up` (Phase 2), `refactor` (Phase 4), `review` (Phase 2), `deep-simplify` (Phase 2); pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions. Use this when the rule is style-adjacent and applies project-wide, not gated on a glob. |
 | Quality gate, workflow step, or hard constraint the user enforced for **skill behavior** (e.g. "always run codegen after editing DTOs", "max PR size 500 lines") | **`.geniro/instructions/<skill>.md`** (or `global.md` if cross-skill) | Geniro-specific **skill-scoped** — loads when the matching skill runs, not on every file edit |
 | Pattern that should be enforced automatically without LLM judgment | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual memory |
 | Non-obvious gotcha, workaround, or debugging insight | **Knowledge** (`.geniro/knowledge/learnings.jsonl`, path resolved per `_shared/primary-worktree.md`) | Searchable by knowledge-retrieval-agent across sessions |
@@ -22,7 +23,8 @@ When a skill's end-of-flow "Suggest Improvements" step finds a project-scope imp
 Apply in order — first match wins:
 
 1. **Can a linter, formatter, CI check, or hook enforce it without LLM judgment?** → **Project rules/hooks**
-2. **Is it a code rule / coding convention / style or naming pattern / file-pattern constraint that needs LLM compliance when editing matching files?** → **`.claude/rules/<scope>.md`** with `paths:` glob (file-scoped, Anthropic-native)
+2. **Is it a code rule that genuinely needs file-pattern scoping (language-specific, directory-specific) — i.e., should fire only when matching files are read/written?** → **`.claude/rules/<scope>.md`** with `paths:` glob (file-scoped, Anthropic-native)
+2.5. **Is it a cross-cutting code-style / convention rule that should apply to all code-writing and all review (no file pattern)?** → **`.geniro/instructions/code-style.md`** (Geniro cross-skill scope)
 3. **Is it a quality gate / workflow step / hard constraint that should fire when a particular skill runs (not per-file)?** → **`.geniro/instructions/<skill>.md`** (skill-scoped, Geniro-specific)
 4. **Is it a project-wide command, structure fact, or compaction-surviving gate that every agent needs every turn?** → **CLAUDE.md**
 5. **Is it an architectural decision that is hard to reverse AND surprising without context AND the result of genuine trade-offs (including a refactor candidate explicitly REJECTED with rationale)?** → **ADR** (`docs/adr/` or `docs/decisions/` — see ADR rules below)
@@ -82,16 +84,20 @@ What do we accept by choosing this? What becomes harder? What becomes easier?
 
 CLAUDE.md is loaded **every turn for every agent**, so its budget is finite — Anthropic's official guidance is **<200 lines** and "rule bloat" is a documented anti-pattern: each added line dilutes compliance for *every* CLAUDE.md rule, including the high-value ones. Code rules / coding conventions / style patterns only need to fire **when matching files are read or written** — Anthropic-native `.claude/rules/<scope>.md` files with `paths:` YAML frontmatter provide exactly that file-scoped auto-attach. Anthropic, Cursor, GitHub Copilot, and the AGENTS.md spec have all converged on this split: always-on global file + path-scoped rules files.
 
-### Two-tier rules: file-scoped vs. skill-scoped
+### Three-tier rules: file-scoped, skill-scoped, cross-skill
 
 | Mechanism | Path | Triggers when | Use for |
 |---|---|---|---|
 | **Anthropic-native rules file** | `.claude/rules/<scope>.md` with `paths: [glob, ...]` frontmatter | Claude reads/writes a file matching the glob | Code rules, coding conventions, style/naming patterns, file-pattern constraints, language-specific rules |
 | **Geniro instructions file** | `.geniro/instructions/<skill>.md` (or `global.md`) | The matching skill (`implement` / `decompose` / `review` / `debug` / `follow-up` / `refactor` / `deep-simplify`) starts a run | Skill-behavior customization: extra workflow steps, quality gates, hard constraints applied at skill phase boundaries |
+| **Geniro cross-skill code-style file** | `.geniro/instructions/code-style.md` | A Geniro pipeline skill (`implement` / `follow-up` / `refactor` / `review` / `deep-simplify`) starts a code-writing or review phase | Cross-cutting code-style / convention rules that apply to ALL code writing and ALL review (regardless of file pattern). Pre-inlined into 4 style-adjacent reviewer-agent dimensions (guidelines, conventions, design, architecture). |
 
-The two are complementary, not overlapping: a file-scoped code rule fires on every edit to matching files; a skill-scoped instruction fires only when the user invokes that skill. Choose based on **what triggers the rule**: the file being touched (file-scoped) vs. the skill being run (skill-scoped).
+The three are complementary, not overlapping. Choose based on the trigger you want:
+- **File-scoped** (`.claude/rules/`) fires per-edit when a matching glob touches a file. Use for language-specific or directory-specific rules.
+- **Skill-scoped** (`.geniro/instructions/<skill>.md`) fires when the matching skill runs. Use for workflow steps, quality gates, hard constraints specific to one skill's lifecycle.
+- **Cross-skill code-style** (`.geniro/instructions/code-style.md`) fires when ANY pipeline skill enters a code-writing or review phase. Use for project-wide style/naming/convention rules that don't need file-pattern scoping.
 
-**Reserve CLAUDE.md for:** commands, tech-stack/structure facts, and project-wide gates that must survive context compaction. Code rules go to `.claude/rules/`; skill-behavior rules go to `.geniro/instructions/`.
+**Reserve CLAUDE.md for:** commands, tech-stack/structure facts, and project-wide gates that must survive context compaction. Code rules go to `.claude/rules/` (per file-pattern) or `.geniro/instructions/code-style.md` (cross-cutting); skill-behavior rules go to `.geniro/instructions/<skill>.md`.
 
 ## Presentation
 

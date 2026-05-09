@@ -1,6 +1,6 @@
 ---
 name: geniro:instructions
-description: "Use when adding skill-behavior rules (extra phase steps, quality gates, hard constraints) that apply at Geniro skill phase boundaries. Create, list, edit, validate, delete. For coding conventions, use .claude/rules/<scope>.md with paths: glob instead."
+description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing and review step. Create, list, edit, validate, delete. Skip for per-file-pattern rules — use .claude/rules/."
 context: main
 model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
@@ -11,11 +11,17 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 Manage `.geniro/instructions/` files — the home for **skill-behavior rules**: extra workflow steps, quality gates, and hard constraints applied at skill phase boundaries (e.g. "always run codegen after editing DTOs", "max PR size 500 lines"). These files load **when the matching skill runs**, not on every file edit.
 
-**For code rules / coding conventions / style or naming patterns / file-pattern constraints, use Anthropic-native `.claude/rules/<scope>.md` files with `paths:` YAML frontmatter instead** — those auto-load when Claude reads or writes a file matching the glob, which is the right trigger for code-shaped rules. CLAUDE.md is reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
+Code rules split three ways depending on **when** they should fire:
+
+- **`.geniro/instructions/code-style.md`** — cross-cutting code-style rules that apply to **all code writing AND all code review** done by Geniro pipeline skills (loaded at code-writing/review phases regardless of file pattern). Use this for naming conventions, code structure preferences, and idioms that should hold project-wide.
+- **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads when Claude reads or writes a file matching the glob — fires even outside Geniro pipelines). Use this when the rule only applies to specific file types or directories.
+- **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
+
+These are complementary: `code-style.md` fires "when a Geniro skill writes or reviews code"; `.claude/rules/` fires "when any tool touches a matching file". A project can use both.
 
 ## Supported Skills
 
-`global.md` loads in **every** Geniro skill that does real user work — its **Rules** and **Constraints** apply project-wide (lifecycle skills like `setup`, `instructions`, `cleanup`, `update`, `vendor` are excluded). Per-skill instruction files (`<skill>.md`) load only in the seven phase-bearing pipeline skills below, where "Additional Steps" entries map to named phases.
+`global.md` loads in **every** Geniro skill that does real user work — its **Rules** and **Constraints** apply project-wide (lifecycle skills like `setup`, `instructions`, `cleanup`, `update`, `vendor` are excluded). Per-skill instruction files (`<skill>.md`) load only in the seven phase-bearing pipeline skills below, where "Additional Steps" entries map to named phases. `code-style.md` is a **cross-cutting** scope: it loads in every code-writing AND code-review skill (not paired with one skill), capturing style/naming/convention rules that should apply at every code-writing and review step.
 
 | Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
 |-------|---|---------------|-----------------------------------|
@@ -31,6 +37,14 @@ Manage `.geniro/instructions/` files — the home for **skill-behavior rules**: 
 | **learnings** | ✓ | — | Rules/Constraints only |
 | **features** | ✓ | — | Rules/Constraints only |
 | **actions** | ✓ | — | Rules/Constraints only |
+
+**Cross-cutting (loaded by multiple skills):**
+
+| Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
+|-------|---|---------------|-----------------------------------|
+| **code-style** | — | `code-style.md` | Loaded by `implement` (Phase 4), `follow-up` (Phase 2), `refactor` (Phase 4), `review` (Phase 2), `deep-simplify` (Phase 2), and pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions. |
+
+*`code-style` is the only cross-skill scope; it captures style/naming/convention rules that apply at every code-writing and review step regardless of which skill ran.*
 
 ## File Structure
 
@@ -75,12 +89,12 @@ If no arguments are provided, default to `list`.
 
 Extract scope(s) from the arguments:
 
-- Explicit scope names: "global", "review", "implement", "decompose", "debug", "follow-up", "refactor", "deep-simplify"
-- Contextual references: "add a rule to review" → scope=review, action=edit; "create debug instructions" → scope=debug, action=create
+- Explicit scope names: "global", "review", "implement", "decompose", "debug", "follow-up", "refactor", "deep-simplify", "code-style"
+- Contextual references: "add a rule to review" → scope=review, action=edit; "create debug instructions" → scope=debug, action=create; "code-style", "style", "code style", "naming conventions", "coding style" → scope=code-style
 - Multi-scope indicators: "all", "every", "global and review", "implement and decompose" → collect all mentioned scopes into a list
 - "all" or "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create)
 
-Valid scopes: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`.
+Valid scopes: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`.
 
 ### Ambiguity Resolution
 
@@ -93,13 +107,30 @@ If the action is unclear, use the `AskUserQuestion` tool:
   - label: "Validate" — description: "Check instruction files for issues"
   - label: "Delete" — description: "Remove an instruction file"
 
-If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool:
+If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool. The full scope list (9 items) exceeds the 4-option AskUserQuestion cap, so chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options):
+
+**First question — pick a category:**
 - **Question:** "Which instruction file?"
 - **Options:**
-  - label: "global" — description: "Rules that apply to all 7 skills"
+  - label: "global" — description: "Rules that apply to all work skills"
+  - label: "code-style" — description: "Cross-cutting code-style rules (loaded at code-writing & review by all pipeline skills)"
+  - label: "A specific pipeline skill" — description: "Pick one of: implement, decompose, review, debug, follow-up, refactor, deep-simplify"
+
+If the user picks "A specific pipeline skill", chain a second `AskUserQuestion`:
+
+**Second question — pick the skill (chained):**
+- **Question:** "Which pipeline skill?"
+- **Options (batch 1):**
   - label: "review" — description: "Customize code review behavior"
   - label: "implement" — description: "Customize implementation workflow"
   - label: "decompose" — description: "Customize decomposition workflow"
+  - label: "Other" — description: "debug / follow-up / refactor / deep-simplify"
+
+If the user picks "Other", chain a third `AskUserQuestion`:
+
+**Third question (chained):**
+- **Question:** "Which one?"
+- **Options:**
   - label: "debug" — description: "Customize debugging workflow"
   - label: "follow-up" — description: "Customize follow-up workflow"
   - label: "refactor" — description: "Customize refactoring workflow"
@@ -107,7 +138,7 @@ If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool:
 
 ### Scope Validation
 
-Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
+Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
 
 After resolving intent and scope(s), if multiple scopes were detected, proceed to **Batch Mode**. Otherwise, proceed to the resolved command section below.
 
@@ -117,17 +148,23 @@ When multiple scopes are detected (e.g., "edit global and review", "add rules to
 
 ### Multi-Scope Confirmation
 
-If the user said "all" or the scope list is ambiguous, use the `AskUserQuestion` tool with `multiSelect: true`:
-- **Question:** "Which instruction files do you want to target?"
-- **Options** (filter to existing files only for edit/validate/delete):
-  - label: "global" — description: "Rules for all 7 skills"
-  - label: "implement" — description: "Implementation workflow"
-  - label: "decompose" — description: "Decomposition workflow"
-  - label: "review" — description: "Code review"
-  - label: "debug" — description: "Debugging workflow"
-  - label: "follow-up" — description: "Follow-up workflow"
-  - label: "refactor" — description: "Refactoring workflow"
-  - label: "deep-simplify" — description: "Parallel-review workflow"
+If the user said "all" or the scope list is ambiguous, the 9-scope list exceeds the 4-option `AskUserQuestion` cap; chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options).
+
+**Q1 — pick categories** (`AskUserQuestion` with `multiSelect: true`). Question: "Which categories of instruction files do you want to target?" Options:
+- label: "global" — description: "Rules for all work skills"
+- label: "code-style" — description: "Cross-cutting code-style rules — naming, structure, idioms"
+- label: "Specific pipeline skills" — description: "Pick one or more of: implement, decompose, review, debug, follow-up, refactor, deep-simplify"
+
+If "Specific pipeline skills" is picked, chain **Q2** (`AskUserQuestion`, `multiSelect: true`; for edit/validate/delete, filter to pipeline skills that have existing files; for create, show all). Question: "Which pipeline skills?" Options (batch 1):
+- label: "implement" — description: "Implementation workflow"
+- label: "decompose" — description: "Decomposition workflow"
+- label: "review" — description: "Code review"
+- label: "follow-up" — description: "Follow-up workflow"
+
+If more pipeline skills are needed beyond batch 1, chain **Q3** (`AskUserQuestion`, `multiSelect: true`; same existing-files filter). Question: "Which other pipeline skills?" Options (batch 2):
+- label: "debug" — description: "Debugging workflow"
+- label: "refactor" — description: "Refactoring workflow"
+- label: "deep-simplify" — description: "Parallel-review workflow"
 
 ### Execution
 
@@ -217,21 +254,29 @@ This is guidance, not enforcement. A 350-line file that's well-organized and all
 
 ### What goes here vs. `.claude/rules/` vs. CLAUDE.md
 
-`.geniro/instructions/<skill>.md` is for **skill-scoped** rules — they fire when the matching skill (`implement` / `decompose` / `review` / `debug` / `follow-up` / `refactor` / `deep-simplify`) starts a run. Use it for: extra workflow steps, quality gates, hard constraints the user enforces manually at skill phase boundaries.
+Three homes, three triggers:
 
-**Code rules / coding conventions / style or naming patterns / file-pattern constraints do NOT go here — they belong in `.claude/rules/<scope>.md` with `paths:` YAML frontmatter** (Anthropic-native, file-scoped — auto-loads when Claude reads or writes a file matching the glob). That trigger is the right one for code-shaped rules: they fire on every edit to matching files, not just when a Geniro skill runs.
+- **`.geniro/instructions/<skill>.md`** — **skill-scoped** rules that fire when the matching pipeline skill (`implement` / `decompose` / `review` / `debug` / `follow-up` / `refactor` / `deep-simplify`) starts a run. Use it for: extra workflow steps, quality gates, hard constraints the user enforces manually at skill phase boundaries.
+- **`.geniro/instructions/code-style.md`** — **cross-cutting code-style** rules that fire whenever a Geniro pipeline skill writes OR reviews code (regardless of which skill or which file pattern). Use it for: naming conventions, code structure preferences, idioms (early-return vs nested-if, pure functions vs classes), import order. Loaded by `implement`, `follow-up`, `refactor`, `review`, `deep-simplify`, and pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions.
+- **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — **file-pattern-scoped** rules (Anthropic-native, auto-loads when Claude reads or writes a file matching the glob — fires even outside Geniro pipelines). Use it when the rule only applies to specific file types or directories.
+- **CLAUDE.md** — reserved for always-loaded essentials only: commands, project structure, compaction-surviving global gates. Piling rules into CLAUDE.md dilutes compliance for every existing rule.
 
-**CLAUDE.md is reserved for** always-loaded essentials only — commands, project structure, compaction-surviving global gates. Piling rules into CLAUDE.md dilutes compliance for every existing rule.
+`code-style.md` and `.claude/rules/` are complementary: code-style fires "when a Geniro skill writes or reviews code"; `.claude/rules/` fires "when any tool touches a matching file". A project can use both.
 
-**What NOT to put in `.geniro/instructions/`:**
+**What NOT to put in `.geniro/instructions/<skill>.md` or `code-style.md`:**
 
-- **Code rules / coding conventions / style or naming patterns / file-pattern constraints** — use `.claude/rules/<scope>.md` with `paths:` glob instead (file-scoped, fires per-file, not per-skill)
+- **Per-file-pattern code rules** (e.g. "all `*.tsx` files must use named exports") — use `.claude/rules/<scope>.md` with `paths:` glob instead (file-scoped, fires per-file, not per-skill)
 - **Tech stack info** — detected automatically by setup, lives in CLAUDE.md
 - **Build / test / lint / dev commands** — every-turn essentials, belong in CLAUDE.md
 - **Project structure facts** — every-turn essentials, belong in CLAUDE.md
 - **Compaction-surviving global gates** (e.g. "never commit without approval") — must stay in CLAUDE.md
 - **Temporary rules** — use conversation context instead
 - **Rules for skills that don't load instructions** — onboard, investigate, features, etc.
+
+**What NOT to put specifically in `code-style.md`:**
+
+- **Per-file-pattern rules** (those belong in `.claude/rules/` so they fire per-file, not per-skill)
+- **One-skill-only workflow steps** (those belong in the matching `<skill>.md`, not in cross-cutting code-style)
 
 ## Command: create
 
@@ -330,6 +375,13 @@ Use the `AskUserQuestion` tool for each follow-up, tailored to the scope:
   - label: "Verification rules" — description: "Required validation before keeping fixes"
   - label: "Custom" — description: "Describe your own rules"
 
+**code-style** — Question: "What code-style conventions apply to ALL code in this project?"
+- Options:
+  - label: "Naming conventions" — description: "Variable / function / file / class naming patterns"
+  - label: "Code structure" — description: "Module organization, file size limits, import order"
+  - label: "Common idioms" — description: "Preferred patterns (early-return vs nested-if, pure vs class, etc.)"
+  - label: "Custom" — description: "Describe your own rules"
+
 ### Step 5: Generate the file
 
 Read the template from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/instructions-template.md` for structure reference.
@@ -396,9 +448,9 @@ If none found: "No instruction files to validate." and stop.
 For each file, check:
 
 1. **Structure** — file contains `## Rules`, `## Additional Steps`, and `## Constraints` sections
-2. **Phase names** — any `### <phase>` headers under "Additional Steps" match the valid phase names from the Supported Skills table above
+2. **Phase names** — any `### <phase>` headers under "Additional Steps" match the valid phase names from the Supported Skills table above. **Special case for `code-style.md`:** since it's loaded by N skills (not one) at runtime, its `## Additional Steps` section accepts ONLY two phase headers: `### Before code writing` and `### On code review`. Any other phase header in `code-style.md` is a warning.
 3. **Non-empty content** — at least one section has actual content (not just comment placeholders)
-4. **Scope validity** — filename (without `.md`) matches a valid scope: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`
+4. **Scope validity** — filename (without `.md`) matches a valid scope: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`
 
 ### Step 3: Report results
 

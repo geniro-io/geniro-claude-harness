@@ -228,9 +228,13 @@ Update `.geniro/state/refactor/state-<slug>.md`: `phase: 3`, `plan-approved: tru
 
 ### Phase 4: Execute
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/refactor.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+
 Spawn the refactor-agent to execute the approved plan:
 
 **Pick model from approved plan:** use `model="opus"` when `plan.max_risk == "HIGH"`, otherwise `model="sonnet"`.
+
+Before spawning the refactor-agent, Read `.geniro/instructions/code-style.md` if it exists. Pre-inline its content into the agent prompt under `## Code-style instructions`.
 
 ```
 Agent(subagent_type="refactor-agent", model="<sonnet|opus per risk>", prompt="""
@@ -246,6 +250,9 @@ PER-STEP TEST COMMAND: [<test_cmd_affected> from CLAUDE.md if defined, else <tes
 REGRESSION TEST COMMAND: [<test_cmd> from CLAUDE.md] — full suite; the orchestrator runs this separately for Phase 1 baseline / Phase 4 final regression gate; the agent does NOT need to invoke it
 AUTOFIX COMMAND: [autofix command from CLAUDE.md, if any]
 BACKPRESSURE: source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<validation_cmd>". If unavailable, pipe through tail -80.
+
+## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
+[paste content here, OR omit section if file absent]
 
 Execute each step following the Step Execution Protocol in your agent definition.
 
@@ -270,6 +277,8 @@ Update `.geniro/state/refactor/state-<slug>.md`: `phase: 4`, `steps-completed: [
 
 ### Phase 5: Review Results
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/refactor.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+
 #### Step 1: Diff sanity (all tiers)
 
 Run `git diff --name-only` and `git diff --stat`. Cross-check the refactor-agent's self-reported file list against the actual diff — flag mismatches.
@@ -283,7 +292,9 @@ Default: Revert all changes. On "Revert all changes", run `git checkout -- .` an
 
 #### Step 2: Independent review (Medium and Large only — skip for Small)
 
-Spawn a fresh reviewer-agent. The agent reads its own criteria — do NOT pre-read into orchestrator context:
+Spawn a fresh reviewer-agent. The agent reads its own criteria — do NOT pre-read into orchestrator context.
+
+Before spawning the reviewer, Read `.geniro/instructions/code-style.md` if it exists. Pre-inline its content alongside the CLAUDE.md conventions paste-block.
 
 ```
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -296,6 +307,9 @@ BRANCH: [from `git branch --show-current`]
 DIFF: [paste git diff output]
 AGENT SELF-REPORT: [refactor-agent's structured report]
 PROJECT CONVENTIONS: [paste relevant conventions from CLAUDE.md]
+
+## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
+[content here]
 
 ## Focus Areas
 - Accidental public-API changes

@@ -20,6 +20,8 @@ BRANCH: [from `git branch --show-current`]
 ## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4): [paste approved description verbatim; match it exactly; omit this section entirely if the gate did not run]
 ## Codebase Conventions: match existing patterns exactly. Before writing any new helper / component / type / config, Grep the project for an analogue first — REUSE-AS-IS or EXTEND existing code instead of creating new. If reuse requires adding a parameter or conditional to fit, prefer local duplication (Rule of Three).
 ## Reuse Inventory (when supplied by Phase 1): [paste REUSE_INVENTORY if present; for Trivial Fast Lane it will be omitted — rely on the verify-before-creating instruction above]
+## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
+[content of code-style.md here, or omit section if file absent]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: follow CLAUDE.md, do NOT git add/commit/push, run validation, report changes and issues
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
@@ -46,6 +48,8 @@ BRANCH: [from `git branch --show-current`]
 ## UI Intent (only when UI Preview Gate ran in Phase 1 Step 4 AND this group touches UI files): [paste approved description verbatim; match it exactly; omit this section entirely otherwise]
 ## Codebase Conventions: match existing patterns exactly. Before writing any new helper / component / type / config, Grep the project for an analogue first — REUSE-AS-IS or EXTEND existing code instead of creating new. If reuse requires adding a parameter or conditional to fit, prefer local duplication (Rule of Three).
 ## Reuse Inventory (when supplied by Phase 1): [paste REUSE_INVENTORY if present; for Trivial Fast Lane it will be omitted — rely on the verify-before-creating instruction above]
+## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
+[content of code-style.md here, or omit section if file absent]
 ## Tests — MANDATORY: create/update test file per changed source, follow existing patterns, run and report
 ## Requirements: ONLY modify [list files], follow CLAUDE.md, do NOT git add/commit/push, report changes
 After validation, append: ## Checks Report with lines: build: PASS|FAIL, lint: PASS|FAIL, test: PASS|FAIL
@@ -72,6 +76,9 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per skills/_shared/scope-anchor.md rule 3 (origin/HEAD's target, falling back to local main/master) — used to tag findings as [NEW] vs [PRE-EXISTING]]
 CHANGE SUMMARY: [summary]
+
+## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present — Small single-reviewer covers guidelines/conventions/design/architecture dimensions)
+[content of code-style.md here, or omit section if file absent]
 
 ## Review Criteria
 Read and apply the criteria files (7, +design when UI files changed) from `${CLAUDE_PLUGIN_ROOT}/skills/review/`:
@@ -131,6 +138,8 @@ Add a 3rd reviewer (architecture + tests + guidelines) only if changes touch cro
 Add a `sonnet` reviewer for the conventions dimension when the diff has ≥3 changed files OR any single changed file lives in a directory with ≥3 siblings of the same kind (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`). Below the N≥3 threshold the modal-inference is unreliable and the criteria file suppresses findings internally — skipping the spawn saves the call.
 Add a `sonnet` reviewer for the optimizations dimension when changed files include DB queries, ORM read-paths, hot loops, frontend bundle entry points, or React lists (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md`). Skip otherwise — Medium-tier perf wins matter only when the diff actually touches a perf-sensitive surface.
 Add an additional reviewer with `model='sonnet'` for the design dimension when changed files include UI (criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md`). Skip otherwise.
+
+**Code-style pre-inline (Medium per-dimension reviewers):** When the spawned reviewer's dimension is one of **guidelines / conventions / design / architecture**, add a `## Code-style instructions (pre-inlined from .geniro/instructions/code-style.md, if present)` section to its prompt (placed just above `## Review Criteria`) and paste the file's content. Skip the section entirely for **bugs / security / tests / optimizations** reviewers — code-style is orthogonal to their criteria. Skip the section when `.geniro/instructions/code-style.md` does not exist.
 
 ---
 

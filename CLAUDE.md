@@ -19,7 +19,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:follow-up` | Quick post-implementation changes (trivial/small scope) |
 | `/geniro:deep-simplify` | Three-pass parallel code review for reuse, quality, and efficiency |
 | `/geniro:refactor` | Restructure code with zero behavior change guarantee |
-| `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete |
+| `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete. Scopes: `global`, the 7 pipeline skills, and `code-style` (cross-cutting style rules loaded at every code-writing & review step). |
 | `/geniro:actions` | Create, edit, run, and remove custom workflow-helper actions stored in `.geniro/actions/` (Slack/PR/release automations) |
 | `/geniro:investigate` | Deep codebase Q&A with parallel research agents |
 | `/geniro:features` | Feature backlog management and spec creation |
@@ -47,7 +47,7 @@ This plugin provides safety hooks that run automatically:
 - **Secret scanning** — scans inputs and outputs for leaked secrets
 - **Git guardrails** — blocks destructive git operations (force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, filter-branch, update-ref -d)
 - **`.geniro/` deletion guard** — blocks bulk deletion of `.geniro/` (which holds user-authored instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Per-file `rm -f` and deep-path `rm -rf .geniro/<top>/<sub>/` remain allowed; bulk `rm -rf .geniro/`, `rm -rf .geniro/<single-segment>`, `find .geniro -delete`, `git worktree remove`, and `git add -f` on `.geniro/` paths are blocked. The `git add -f` block exists because force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click then becomes a one-click data-loss vector — real incident: Cursor's SCM discard wiped `.geniro/actions/*.md` after they were force-added. The correct path for tracked content is `.gitignore` negation (e.g. `!.geniro/actions/` + `!.geniro/actions/**`), never `git add -f`.
-- **Post-compaction recovery** — emits resume instructions and re-read suggestions after context compaction
+- **Post-compaction recovery** — wired as `SessionStart` with `matcher: "compact"` (Anthropic-canonical; `PostCompact` itself does not support `additionalContext`). Re-injects suggested-file list including `.geniro/instructions/global.md`, the active skill's `<skill>.md`, and `.geniro/instructions/code-style.md` so custom workflow rules and code-style rules survive compaction
 
 ### Per-project allowlist for safety guardrails
 

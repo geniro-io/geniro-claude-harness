@@ -222,6 +222,8 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ### Phase 4: Validate (Skeptic)
 
+**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/decompose.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+
 1. **Spawn skeptic-agent** ONCE via the Agent tool with `subagent_type: "skeptic-agent"`, `model="sonnet"`:
 
    ```markdown

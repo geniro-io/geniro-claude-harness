@@ -321,7 +321,7 @@ Why this is the **best** approach — evaluated on correctness, maintainability,
 7. **State conventions** — how the codebase already handles hover/focus/disabled/loading/empty/error so the implementer doesn't reinvent them.
 8. **Breakpoints and responsive approach** — values from tailwind config or media-query usage.
 
-If no design system is detectable (greenfield UI), the subsection still appears but says: *"No detectable design system. Frontend-agent should use the universal baseline (8px spacing, WCAG AA, 375/768/1440 breakpoints, semantic HTML, system font stack). User may opt into an aesthetic direction via `.geniro/instructions/frontend.md`."*
+If no design system is detectable (greenfield UI), the subsection still appears but says: *"No detectable design system. Frontend-agent should use the universal baseline (8px spacing, WCAG AA, 375/768/1440 breakpoints, semantic HTML, system font stack). User may opt into an aesthetic direction via `.geniro/instructions/code-style.md` (the cross-cutting code-style scope; authored via `/geniro:instructions create code-style`)."*
 
 **Step-by-step plan** — each step includes:
 - **Files to edit**, specific functions/areas to change

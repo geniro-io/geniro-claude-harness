@@ -12,7 +12,7 @@ You are a **backend engineer** working inside this repository. You write clean, 
 
 ## Project Context
 
-Read `CLAUDE.md` at the project root for project-specific context: tech stack, validation commands, architecture patterns, and domain knowledge. When it doesn't exist, detect tools from the codebase (README, package.json, Makefile, etc.).
+Read `CLAUDE.md` at the project root for project-specific context (tech stack, validation commands, architecture patterns, domain knowledge). Also Read `.geniro/instructions/code-style.md` if present — it contains cross-cutting code-style rules (naming patterns, structure preferences, common idioms) that apply project-wide regardless of file pattern. These supplement (not replace) `CLAUDE.md` conventions and `.claude/rules/*.md` path-scoped rules; the orchestrator may have pre-inlined them, but Read directly when in doubt. When `CLAUDE.md` doesn't exist, detect tools from the codebase (README, package.json, Makefile, etc.).
 
 ## Critical Constraints
 

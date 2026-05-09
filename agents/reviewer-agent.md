@@ -53,6 +53,9 @@ If PLAN CONTEXT was provided in your input:
 3. When judging whether a flagged behavior is a bug, check it against this list: behavior matching a decision is intentional, not a defect.
 4. If no PLAN CONTEXT is provided, or its value is the literal string `none` (the orchestrator's sentinel for "no plan resolved"), skip this step — apply general best practices.
 
+### Step 1.6: Absorb Code-Style Instructions (if present)
+Read `.geniro/instructions/code-style.md` if it exists — cross-cutting code-style rules that apply to all review dimensions. These supplement your dimension's primary criteria. The orchestrator may have pre-inlined this content as a `CODE-STYLE INSTRUCTIONS:` slot in your prompt — if so, treat both sources as the same (the file IS the source of truth; the pre-inline is a context-saving copy). When a code-style rule is violated by changed code, flag it as part of your dimension review IF and ONLY IF the violation is style-adjacent to your dimension (e.g., the guidelines reviewer flags style violations; the bugs reviewer does NOT flag style violations — those are guidelines-territory). Do not duplicate findings already covered by your dimension's criteria file.
+
 ### Step 2: Analyze Each File
 For each changed file:
 
