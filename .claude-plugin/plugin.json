@@ -14,6 +14,5 @@
     "multi-agent",
     "code-review",
     "safety-hooks"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }
