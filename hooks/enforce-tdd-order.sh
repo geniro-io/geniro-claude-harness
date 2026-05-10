@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# enforce-tdd-order.sh — PreToolUse Edit|Write, HARD-BLOCK (exit 2).
+# When .geniro/state/tdd/state-<slug>.md shows phase=RED, blocks Edit/Write on production-code files.
+# Per skills/_shared/tdd-cycle.md and skills/_shared/within-skill-state-handoff.md (slug rules).
+# Bypass: .geniro/safety.json allow_patterns: ["tdd-order"].
+set -euo pipefail
+
+# Consume stdin - REQUIRED first step
+INPUT=$(cat)
+
+# Extract file path from tool input JSON
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+
+if [ -z "$FILE_PATH" ]; then
+  # No file path found, allow execution
+  exit 0
+fi
+
+# Compute branch slug per within-skill-state-handoff.md § Slug rules
+branch="$(git branch --show-current 2>/dev/null || echo "")"
+if [ -z "$branch" ]; then
+  branch="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##')"
+slug="${slug:0:60}"
+slug="${slug%-}"
+
+STATE_FILE=".geniro/state/tdd/state-${slug}.md"
+
+# If state file doesn't exist, skill hasn't opted in to TDD — no surprise blocks
+if [ ! -f "$STATE_FILE" ]; then
+  exit 0
+fi
+
+# Bypass: read .geniro/safety.json walking up from cwd
+find_safety_json() {
+  local dir="$PWD"
+  while [ "$dir" != "/" ]; do
+    if [ -f "$dir/.geniro/safety.json" ]; then
+      echo "$dir/.geniro/safety.json"
+      return 0
+    fi
+    dir=$(dirname "$dir")
+  done
+  return 1
+}
+
+ALLOWED=""
+SAFETY_FILE=$(find_safety_json 2>/dev/null || true)
+if [ -n "$SAFETY_FILE" ] && [ -f "$SAFETY_FILE" ]; then
+  ALLOWED=$(jq -r '.allow_patterns[]? // empty' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
+fi
+
+case " $ALLOWED " in
+  *" tdd-order "*) exit 0 ;;
+esac
+
+# Parse the `## phase` section of the state file. Markdown format:
+#   ## phase
+#   RED
+#
+# We want the first non-blank line after `## phase` (terminated by next `## ` header or EOF).
+PHASE=$(awk '
+  /^##[[:space:]]+phase[[:space:]]*$/ { in_phase=1; next }
+  in_phase && /^##[[:space:]]/         { in_phase=0 }
+  in_phase && NF                       { print; exit }
+' "$STATE_FILE" 2>/dev/null | tr -d '[:space:]' || echo "")
+
+# If phase is not RED (i.e., GREEN, REFACTOR, IDLE, or empty/missing) → allow
+if [ "$PHASE" != "RED" ]; then
+  exit 0
+fi
+
+# Phase is RED — check whether file_path matches a test-file pattern.
+# Patterns:
+#   - any path containing "test" as a directory or filename component
+#   - *.spec.* (Jest/Vitest)
+#   - *_test.go (Go)
+#   - tests/** or test/** prefix
+#   - __tests__/** (Jest)
+is_test_file() {
+  local p="$1"
+  # Lowercase compare for case-insensitive directory/filename matching
+  local lp
+  lp=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')
+
+  # __tests__ directory (anywhere in path)
+  case "$lp" in
+    *"/__tests__/"*|"__tests__/"*) return 0 ;;
+  esac
+
+  # tests/ or test/ as directory anywhere in path
+  case "$lp" in
+    *"/tests/"*|*"/test/"*|"tests/"*|"test/"*) return 0 ;;
+  esac
+
+  # *.spec.* (e.g., foo.spec.ts, foo.spec.tsx, foo.spec.js)
+  case "$lp" in
+    *.spec.*) return 0 ;;
+  esac
+
+  # *_test.go (Go convention)
+  case "$lp" in
+    *_test.go) return 0 ;;
+  esac
+
+  # Filename contains "test" (e.g., test_foo.py, foo.test.ts, test-foo.js)
+  local base="${lp##*/}"
+  case "$base" in
+    *test*) return 0 ;;
+  esac
+
+  return 1
+}
+
+if is_test_file "$FILE_PATH"; then
+  # Test files are allowed — this is the file we're supposed to be writing in RED phase
+  exit 0
+fi
+
+# Production-code edit attempted during RED phase → hard-block
+cat >&2 <<EOF
+[tdd-order] TDD cycle in RED phase — author the failing test BEFORE production code.
+See \${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md.
+State file: ${STATE_FILE}
+Target was: ${FILE_PATH}
+Bypass: add "tdd-order" to .geniro/safety.json allow_patterns.
+EOF
+exit 2

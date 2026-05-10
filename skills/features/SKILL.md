@@ -214,273 +214,58 @@ Report to the user:
 
 ---
 
-## `spec` Subcommand: Full Spec Pipeline
+## `add` Subcommand: Unified Ideation + Backlog Registration
 
-### Feature Request
+`/geniro:features add <topic-string-or-design-path>` — register a feature in the backlog with an associated design doc. If a topic string is passed, run the shared brainstorming loop to produce the design doc; if an existing design-doc path is passed, skip ideation and register directly.
 
-`$ARGUMENTS` (after the `spec` keyword)
+### Phase 0 — Input mode detection
 
-**If `$ARGUMENTS` is empty**, ask the user via `AskUserQuestion` with header "Feature": "What feature would you like to specify?" with options "Describe the feature" / "Point to an existing issue". Do not proceed until a feature description is provided.
+Cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` and run its detection algorithm on the first non-flag token of `$ARGUMENTS` (after stripping the `add` keyword):
 
-**If `$ARGUMENTS` is a feature ID** (e.g., F3), look up the description from FEATURES.md and use that as the feature to spec.
+- `mode=DESIGN_DOC` (token resolves to an existing design doc — path-glob, HTML marker, or YAML frontmatter match per ANY-OF semantics) → SKIP ideation entirely; jump to Phase 9 below with `<design-path>` set to the resolved path.
+- `mode=IDEA` (token does not resolve to a file) → run the shared brainstorming loop (Phases 1–8 below), then proceed to Phase 9.
+- `mode=CODE_REFERENCE` (token resolves to a file but no design-doc marker matches) → error: "argument resolves to a code reference, not a design doc; pass a topic string or a design-doc path".
 
-### Step 0. Initialize
+**If `$ARGUMENTS` is empty after stripping the keyword**, ask via `AskUserQuestion` with header "Feature": "What feature would you like to add?" with options "Describe the feature (run brainstorming loop)" / "Point to an existing design doc" / "Cancel". Do not proceed until input is provided.
 
-1. Ensure output directory exists: `mkdir -p .geniro/planning/`
-2. Check for existing spec files: `ls .geniro/planning/*-spec.md 2>/dev/null`
-   - If specs exist, list them and ask: "Found existing specs. Creating a new one or updating existing?"
-3. Check for prior context: glob `.geniro/planning/*/` for task directories. If any exist, read their `spec.md` and `state.md` for context that informs this spec
+NO `--from-design` flag. Detection is via `design-doc-detect.md` ANY-OF rules; the contract is flag-free.
 
-### Step 1. Read User's Request (1 minute)
+### Phases 1–8 — Brainstorming loop
 
-Extract the raw intent:
-- What problem does this solve?
-- Who uses it (internal tool, end user, other system)?
-- What's the rough scope?
+Cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` for the canonical 8-phase procedure (Explore / Visual companion / Clarifying / Approaches / Section approval / Write design doc / Self-review / Post-spec user re-review). Do NOT inline-paste the loop logic — the shared rule is the single source of truth.
 
-Note ambiguities and unknowns — these become gray areas.
+The HARD-GATE in `brainstorming-loop.md` is binding for Phases 1–8; release happens only on the user's "Approve" choice in Phase 8. After release, control returns here for Phase 9.
 
-### Step 2. Scout the Codebase (5–10 minutes)
+### Phase 9 — Backlog registration (skill-specific)
 
-Understand patterns and constraints **before** asking questions. Reduces back-and-forth.
+After Phase 8 release (or on direct entry from Phase 0 `mode=DESIGN_DOC`), update the backlog:
 
-**Search for:**
-- Existing similar features (how are they structured?)
-- Architectural patterns (where do API endpoints live? State management?)
-- Database schema (relevant tables, constraints)
-- Auth/permissions model (how are permissions enforced?)
-- UI patterns (existing component library, design system)
-- Integration patterns (how do systems talk to each other?)
-- Config/feature flag patterns
+1. Read `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (create if missing; resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A).
+2. Assign the next auto-incremented F-id (scan existing rows for max ID, increment).
+3. Append a new row with:
+   - **ID**: next F-id
+   - **Description / title**: H1 from the design doc (strip leading `# `)
+   - **Category**: `enhancement` (default; user can re-categorize via `/geniro:features triage`)
+   - **Status**: `planned`
+   - **Triage**: `Triage` (i.e. `needs-triage`)
+   - **Priority**: ask via `AskUserQuestion` (header "Priority", options "P1 — high", "P2 — medium (Recommended)", "P3 — low")
+   - **Complexity**: estimate from design-doc scope (XS / S / M / L / XL)
+   - **Notes**: link to the design-doc path (e.g. `Design: .geniro/planning/<branch>/<YYYY-MM-DD>-<topic-slug>-design.md`)
+4. Commit the FEATURES.md update with message `features: register F<id> — <title>`. Do not amend prior commits.
+5. Confirm registration to the user: "Registered as F<id> in FEATURES.md, linked to <design-path>."
 
-**Tools:**
-- `Glob` to find files by pattern
-- `Grep` to search for keywords (e.g., "notification", "webhook")
-- `Read` to examine existing implementations
-- `Bash` to explore directory structure
+### Phase 10 — Hand-off menu
 
-Document findings with file paths and line numbers — you'll reference these in the spec.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` AUQ schema, fire `AskUserQuestion`:
 
-### Step 3. Identify Gray Areas (5 minutes)
+- `header`: `"Hand-off"`
+- `question`: `"Feature F<id> registered. What's next?"`
+- `options[]`:
+  - `label`: `"Decompose now"` — `description`: `"Run /geniro:decompose <design-path> to break the feature into 3–7 milestones."`
+  - `label`: `"Implement now"` — `description`: `"Run /geniro:implement <design-path> to start architecture review and implementation."`
+  - `label`: `"Leave in backlog"` — `description`: `"Done — feature is queued in FEATURES.md for later. No further action."`
 
-From the request and codebase, list specific **ambiguities** that block implementation:
-
-**Visual/UX:**
-- Where does this UI live? (new page, sidebar widget, modal, inline?)
-- What's the user workflow? (click→see→update→save?)
-
-**API/Data:**
-- What's the input shape? Output shape?
-- Pagination? Filtering? Sorting?
-- Error cases — what goes wrong and how is it signaled?
-
-**Business Logic:**
-- Rules/constraints (what can the user do, what's forbidden?)
-- Permissions (who can access this? edit this?)
-- State transitions (if stateful, what are valid transitions?)
-
-**Architecture:**
-- New table? Schema changes?
-- Async work needed? (jobs, webhooks, polling)
-- Cache/performance concerns?
-- **Module boundaries** — what NEW interface should exist, what should be ABSORBED into existing modules, where the SEAMS sit (use vocabulary from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md`)
-
-**Integration:**
-- Does this talk to external systems?
-- Real-time? Or eventual consistency?
-
-List 3–6 concrete questions, not vague ones.
-
-### Step 4. Ask Structured Questions (5–10 minutes)
-
-**Use the `AskUserQuestion` tool** to present gray areas as **multiple-choice questions** (2–4 options per question, recommended default, batched together). Do NOT output questions as plain text — always use the tool so the user gets a structured interface to respond.
-
-**If no gray areas remain** (codebase patterns + request fully resolve the feature), present assumed decisions to the user via `AskUserQuestion` with header "Confirm": "Codebase patterns resolve all decisions. Here's what I'll assume: [list decisions]" with options "Looks good, write the spec" / "I have additional requirements". Do not silently skip to spec writing.
-
-**Triage gray areas.** Present all identified gray areas via `AskUserQuestion` with `multiSelect: true`: "Which areas need discussion? (Unselected items will use the recommended default.)" If more than 4 gray areas, split into 2 grouped questions.
-
-**Discuss selected areas.** For each selected gray area, use `AskUserQuestion` with 2–4 concrete options. Include a recommended default based on codebase patterns.
-
-**Example question structure:**
-```
-## UI Location
-Where should the notifications panel appear?
-
-A) Top-right dropdown (like email inbox)
-   - Pro: Familiar, non-intrusive
-   - Con: Takes screen real estate
-B) Sidebar widget (persistent)
-   - Pro: Always visible, good for count badges
-   - Con: Takes up sidebar space
-
-Recommendation: A (dropdown). Matches product's notification style.
-```
-
-**Guidelines:**
-- Present options concisely (2–3 lines each)
-- Include a recommended default based on codebase patterns
-- Batch 2–4 questions together (not one per turn)
-- After user answers, confirm you understand before moving to spec writing
-
-If user picks non-default, use `AskUserQuestion` to ask "What's the reasoning?" once — don't debate.
-
-**AskUserQuestion fallback:** If `AskUserQuestion` returns an empty or blank answer, fall back to plain text: print the questions as formatted text and ask the user to respond before proceeding. Do not continue with empty answers.
-
-**Max 2 follow-up rounds.** After the initial questions and 2 rounds of follow-up clarification, document remaining ambiguities in the spec's "Open Questions" section and proceed to writing. If 2 rounds are insufficient, suggest splitting into smaller specs.
-
-### Scope Creep Guard
-
-If the user introduces new capabilities during discussion (beyond clarification of existing scope):
-1. Note them as "Related but separate: [description]"
-2. At spec completion, present captured items: "These came up but are outside current scope. Include in Out of Scope section?"
-3. If user insists on expanding, ask: "This changes feature size. Expand this spec or create a separate `/geniro:features spec`?"
-
-### Step 5. Write the Spec File (15–30 minutes)
-
-Create a `<feature-name>-spec.md` file in `.geniro/planning/` (e.g., `notification-center-spec.md`). Derive the filename: lowercase, spaces to hyphens, remove special characters, max 40 chars. Include canonical references to user decisions.
-
-**Spec structure:**
-
-```markdown
-# Feature Spec: [Feature Name]
-
-## Summary
-[1–2 sentence problem statement and high-level solution]
-
-## Use Cases
-- [User type/role] wants to [action] so that [outcome]
-
-## Scope
-- [In scope: what this feature does]
-- [Out of scope: related work not included]
-
-## Requirements
-
-### Modules & Interfaces
-List the deep modules this feature introduces or extends. Use vocabulary from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` (depth, seam, adapter, leverage, locality).
-
-For each module:
-- **Name**: [module identifier — what callers will reference]
-- **Public interface**: [the smallest possible surface — function signatures, exported types, REST endpoints, CLI flags]
-- **Hidden behavior**: [what the implementation absorbs so callers don't have to think about it — rate-limiting, caching, retry, validation, etc.]
-- **Seam to existing code**: [where this module connects to the codebase; one-hop max]
-- **Reuse?** REUSE-AS-IS / EXTEND existing module / NO-ANALOGUE (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`)
-
-If this feature is purely additive UI/data with no new interface surface, write "No new modules — extends [existing module]" and skip the per-module breakdown.
-
-### UI/UX
-- [Location]: [where in the app]
-- [Workflow]: [step-by-step user actions]
-- [Look and feel]: [reference existing component or design pattern]
-
-### API
-- **Endpoint:** [GET/POST /path]
-- **Input:** [schema or example]
-- **Output:** [schema or example]
-- **Errors:** [what can go wrong, how is it signaled]
-
-### Data Model
-- **New tables/fields:** [schema]
-- **Constraints:** [uniqueness, foreign keys]
-- **Migrations:** [if breaking changes]
-
-### Business Logic
-- [Rules and constraints]
-- **Permissions:** [who can do what]
-- **State machine:** [valid transitions, if stateful]
-
-### Integration
-- [External systems touched]
-- [Webhooks, events, or polling]
-
-### Performance & Caching
-- [Estimated scale]
-- [Caching strategy, if any]
-
-## Open Decisions
-- [ ] [Decision point] → User chose: [choice]
-
-## Canonical References
-- **Implementation guide:** See `/geniro:implement` skill
-- **Related code:** [Link to similar feature in codebase]
-
-## Definition of Done
-- [ ] Spec reviewed and approved
-- [ ] Implementation satisfies all Requirements section
-- [ ] API tested (if applicable)
-- [ ] Permission checks tested (if applicable)
-- [ ] Migrations run successfully (if applicable)
-```
-
-**Guidelines:**
-- Keep spec under 3 pages (focus on essentials, not minutiae)
-- Reference user's codebase patterns consistently
-- Link to existing code or design docs
-- Use the exact language user chose (e.g., if they said "panel" not "modal", use "panel")
-- Mark assumptions with "Assumption:" if needed
-
-### Step 5a. Validate Against Repo Conventions
-
-Before registering, quick-check the spec's architectural proposals against the codebase:
-- Grep for similar existing features — does the proposed architecture (new tables, API patterns, component patterns) match how the repo implements similar features?
-- If proposed patterns contradict established conventions (e.g., spec proposes REST when repo uses GraphQL, or proposes a new ORM when repo uses raw SQL), flag in the spec's "Open Decisions" section and ask the user via `AskUserQuestion` before proceeding.
-- This is a lightweight inline check, not a full agent spawn — the user reviews the spec in Step 6.
-
-### Step 5b. Register in FEATURES.md
-
-After writing the spec file, update the backlog:
-
-1. Read `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (create if missing)
-2. **If an existing feature ID was provided** (e.g., `/geniro:features spec F3`): update that row's Notes column to link the spec file (e.g., `Spec: notification-center-spec.md`)
-3. **If a description was provided** (e.g., `/geniro:features spec Add notifications`): create a new row with:
-   - Next auto-incremented ID
-   - Description from the spec's Summary
-   - Status: `planned`
-   - Priority: P2 (default, adjustable)
-   - Complexity: estimate from spec scope
-   - Notes: `Spec: <feature-name>-spec.md`
-4. Confirm registration: "Registered as F[N] in FEATURES.md with link to spec."
-
-### Step 6. Confirm & Close
-
-Read the spec aloud to user:
-- "Here's the spec I wrote. Does this match what you're building?"
-- "Are there requirements missing or anything that feels off?"
-
-If user says "that's it," confirm:
-- "Spec is ready and registered in FEATURES.md. Next step is `/geniro:implement [feature name]` to build it."
-
-If user revises, update spec and re-confirm (usually 1–2 rounds).
-
----
-
-## Spec Example (Condensed)
-
-**User request:** "Add notifications so users know when something important happens."
-
-**Scout findings:** Existing toast in `/src/components/Toast`, WebSocket in `/src/lib/websocket`, Users table in `/db/schema.sql`.
-
-**Gray areas:** UI location? Notification types? Real-time or polling? Preferences management?
-
-**Questions asked:** Delivery method → User chose WebSocket. Persistence → User chose database.
-
-**Resulting spec excerpt:**
-```markdown
-# Feature Spec: Notification Center
-## Summary
-Real-time notifications via bell icon dropdown. Persisted in database for history.
-## UI/UX
-- Location: Top-right bell icon (reuse Dropdown + Badge components)
-- Workflow: Click bell → dropdown → "See all" → click to mark read
-## API
-- GET /api/notifications?limit=5&unreadOnly=true
-## Data Model
-- New table: notifications (id, userId, type, title, message, read, createdAt)
-## Integration
-- WebSocket event "notification:new" (reuse /src/lib/websocket)
-```
-
-Registered as F5 in FEATURES.md with `Notes: Spec: notification-center-spec.md`.
+On the user's choice, surface the routing line (do not auto-invoke the next skill — the user invokes it explicitly).
 
 ---
 
@@ -503,23 +288,23 @@ Registered as F5 in FEATURES.md with `Notes: Spec: notification-center-spec.md`.
 /geniro:features next
 ```
 → Show highest P-value unstarted feature with complexity estimate
-→ Routing hint: "Ready to spec this? `/geniro:features spec [feature name]`"
+→ Routing hint: "Ready to design + register this? `/geniro:features add [feature description]`"
 
-### Spec a Feature
+### Add a Feature from an Existing Design Doc
 ```
-/geniro:features spec F3                    # Spec existing feature by ID
-/geniro:features spec Add payment system    # Spec new feature by description
+/geniro:features add .geniro/planning/my-branch/2026-05-10-payments-design.md
 ```
-→ Runs full pipeline: scout → ask → write → register
+→ Skips ideation (Phase 0 detects `mode=DESIGN_DOC`); jumps straight to Phase 9 backlog registration and Phase 10 hand-off menu.
 
 ---
 
 ## When to Use
 
-- **`/geniro:features list|add|next|status|move|complete`** — lightweight backlog management for 5–50 features
-- **`/geniro:features spec`** — vague requests, multi-faceted features, architectural decisions, cross-module work, ambiguous scope
-- **Don't use spec for:** trivial bugfixes, copy edits, or changes with crystal-clear intent (use `/geniro:follow-up` instead)
-- **Don't use features for:** 100+ feature portfolios (use Jira/Linear)
+- **`/geniro:features list|next|status|move|complete|triage`** — lightweight backlog management for 5–50 features.
+- **`/geniro:features add <topic-or-design-path>`** — unified ideation + registration entry. Runs the shared `brainstorming-loop.md` for topic strings (vague requests, multi-faceted features, architectural decisions, cross-module work, ambiguous scope), or skips ideation and registers directly when an existing design-doc path is passed.
+- **`/geniro:brainstorm`** — pure ideation layer for cases without backlog commitment; uses the SAME `brainstorming-loop.md` shared rule but does not register a feature. Use when you want a design doc without a FEATURES.md row.
+- **Don't use `add` for:** trivial bugfixes, copy edits, or changes with crystal-clear intent (use `/geniro:follow-up` instead).
+- **Don't use features for:** 100+ feature portfolios (use Jira/Linear).
 
 ---
 
@@ -541,13 +326,11 @@ For each skill invocation, confirm:
 - [ ] (triage command) FEATURES.md row updated: Category + Triage + Status (if outcome dictates) + 1-line rationale appended to Notes
 - [ ] (triage command) `needs-info` outcomes write the structured template (Established facts / Outstanding questions / To unblock) into Notes
 - [ ] (triage command) If issue-tracker integration active and feature linked to external issue: triage comment posted with the workflow file's AI-disclosure prefix; never post AI-authored content without the prefix
-- [ ] (spec command) Codebase scouted; patterns documented
-- [ ] (spec command) Gray areas identified (3–6 concrete questions)
-- [ ] (spec command) Questions asked and answered by user
-- [ ] (spec command) Spec file written with full Requirements section
-- [ ] (spec command) Spec validated against repo conventions
-- [ ] (spec command) Spec registered in FEATURES.md
-- [ ] (spec command) User confirmed spec is complete
+- [ ] (add command) Phase 0 input-mode detection ran per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` (DESIGN_DOC / IDEA / CODE_REFERENCE)
+- [ ] (add command, IDEA mode) Brainstorming loop ran per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md`; HARD-GATE released only on Phase 8 user "Approve"
+- [ ] (add command) Phase 9 registered the feature in FEATURES.md with next F-id, title from design-doc H1, status `planned`, Triage `needs-triage`, priority via AskUserQuestion, complexity estimate, Notes linking the design-doc path
+- [ ] (add command) FEATURES.md update committed with message `features: register F<id> — <title>` (fresh commit, not amended)
+- [ ] (add command) Phase 10 hand-off menu fired (Decompose / Implement / Leave in backlog)
 
 ---
 
@@ -560,7 +343,8 @@ For each skill invocation, confirm:
 | "I should optimize the backlog ordering" | Sort by priority, pick the top item, ship it. |
 | "Let me track this in a separate tool" | Features live in FEATURES.md. One source of truth. |
 | "I already know the codebase" | You'll ask questions the code already answers. Scout first. |
-| "Let me just ask 'What do you want?'" | Vague questions get vague answers. Ask specific, bounded questions with options. |
-| "I'll write the spec and fill in gaps later" | Specs without user input are wrong. Always ask about tradeoffs before writing. |
-| "The spec looks complete enough" | A spec the user didn't confirm causes rework. Always get explicit confirmation. |
-| "This is simple, I can skip straight to writing" | Simple-seeming features hide complex tradeoffs. Scout → Ask → Write → Confirm. Always. |
+| "Let me just ask 'What do you want?'" | Vague questions get vague answers. Use `brainstorming-loop.md` Phase 3 — one dimension per AUQ, ≤5 total questions, single-select options. |
+| "I'll inline-paste the brainstorming loop here for clarity" | Forbidden. The shared rule `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` is the single source of truth. Cite it; do NOT duplicate the loop logic. |
+| "The design doc looks complete enough; I'll skip Phase 8 user re-review" | Same failure mode as auto-dropping medium-gate. Self-review and user re-review catch different defect classes. Both are required by the shared rule. |
+| "This is simple, I can skip straight to FEATURES.md registration" | The HARD-GATE in `brainstorming-loop.md` applies to EVERY task regardless of perceived simplicity. Trivial topics get a trivial design (1–2 sections in Phase 5), not zero design. |
+| "I'll add a `--from-design` flag so users can skip ideation explicitly" | Forbidden. Auto-detection via `design-doc-detect.md` ANY-OF rules is the contract. Adding a flag duplicates the marker information and creates a "did you remember the flag?" failure mode. |

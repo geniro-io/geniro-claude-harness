@@ -33,6 +33,11 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/file-protection.sh",
             "statusMessage": "Protecting sensitive files..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-tdd-order.sh",
+            "statusMessage": "Checking TDD-order constraint..."
           }
         ]
       }
@@ -45,6 +50,17 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/secret-protection-output.sh",
             "statusMessage": "Scanning for leaked secrets..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/require-evidence-on-completion.sh",
+            "statusMessage": "Scanning for completion claims without Evidence Block..."
           }
         ]
       }
