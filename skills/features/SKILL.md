@@ -1,15 +1,17 @@
 ---
 name: geniro:features
-description: "Use when managing a feature backlog or writing a detailed spec for what to build next. Tracks status/priority/complexity; creates specs via codebase scouting, adaptive questioning, and auto-registration."
+description: "Use when managing a feature backlog or registering a new feature with an associated design doc. Tracks status/priority/complexity; `add` is the unified ideation+registration entry that runs the shared brainstorming loop or accepts an existing design doc."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, WebSearch]
-argument-hint: "[command: list|next|add|spec|triage|complete|move|status] [optional: id or description]"
+argument-hint: "[command: list|next|add|triage|complete|move|status] [optional: id, description, or design-doc path]"
 ---
 
-# Features: Backlog Management & Spec Creation
+# Features: Backlog Management & Registration
 
-Use this skill to manage a project feature backlog and create detailed specifications. Track features with status, priority, and complexity. Spec features with codebase scouting, adaptive questioning, and structured output — all registered in one place.
+Use this skill to manage a project feature backlog. Track features with status, priority, and complexity, and register new features with an associated design doc.
+
+`/geniro:features` is the **backlog layer** — it tracks, prioritizes, and stores status. `/geniro:brainstorm` is the **ideation layer** for cases without backlog commitment. The `add` subcommand and `/geniro:brainstorm` use the SAME canonical ideation procedure (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md`); `add` adds backlog registration as a Phase 9 step on top.
 
 ## Core Commands
 
@@ -17,8 +19,7 @@ Use this skill to manage a project feature backlog and create detailed specifica
 |---------|-------|---------|
 | **list** | `/geniro:features list` | Show all features grouped by status; scan for unregistered `*-spec.md` files |
 | **next** | `/geniro:features next` | Show highest-priority unstarted feature ready for work |
-| **add** | `/geniro:features add [description]` | Add a new planned feature; auto-assigns next ID and priority |
-| **spec** | `/geniro:features spec [id or description]` | Full spec pipeline — scout codebase, identify gray areas, ask questions, write spec, register in backlog |
+| **add** | `/geniro:features add <topic-string-or-design-path>` | Unified ideation+registration entry. If passed an existing design-doc path, skip ideation and register directly. If passed a topic string, run the shared brainstorming loop, write a design doc, then register. |
 | **triage** | `/geniro:features triage [id]` | AI-driven triage: gather context → recommend category → grill → apply outcome (ready-for-agent / ready-for-human / needs-info / wontfix). For bugs, attempts reproduction or routes to `/geniro:debug`. |
 | **move** | `/geniro:features move [id] [status]` | Transition a feature's status (planned→in-progress→done, or blocked) |
 | **complete** | `/geniro:features complete [id]` | Mark feature as done; explain what was completed |
@@ -57,8 +58,9 @@ Before processing any sub-command, load `.geniro/instructions/global.md` if pres
 ### 1. Add Feature
 ```
 /geniro:features add Implement dark mode toggle in settings
+/geniro:features add .geniro/planning/my-branch/2026-05-10-dark-mode-design.md
 ```
-→ Creates new entry with status=planned, auto-assigns ID and priority
+→ Runs the shared brainstorming loop (topic string) or skips ideation (design-doc path), then registers in FEATURES.md with auto-assigned ID. See the `add` Subcommand section below for the full procedure.
 
 ### 2. Track Progress
 ```
@@ -205,7 +207,7 @@ Report to the user:
 - Category: <bug | enhancement>
 - Status now: <planned | blocked | done>
 - Next action: pick one based on outcome:
-  - `ready-for-agent` → "Run `/geniro:features spec F<id>` if no spec exists, or `/geniro:implement F<id>` directly."
+  - `ready-for-agent` → "Run `/geniro:features add F<id>` if no design doc exists, or `/geniro:implement F<id>` directly."
   - `ready-for-human` → "Manual implementation; the feature is queued in FEATURES.md."
   - `needs-info` → "Answer the outstanding questions in Notes, then re-run `/geniro:features triage F<id>`."
   - `wontfix` → "Closed as wontfix. Rationale in Notes."

@@ -73,16 +73,7 @@ Files changed: [count or list]
 
 ## Mid-Flow User Input
 
-When the user sends a message while the pipeline is running (not at a WAIT gate), **do not stop or restart**. Classify and handle:
-
-| Type | Signal | Action |
-|---|---|---|
-| **Note/context** | Informational | Append to `<task-dir>/notes.md`, continue |
-| **Preference** | Soft direction | Append to `<task-dir>/notes.md`, apply at next decision point |
-| **Correction** | Changes a past decision | Append to `<task-dir>/notes.md`, evaluate impact at next checkpoint |
-| **Blocker** | Makes current work invalid | Halt immediately, go to impact assessment |
-
-At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> continue, (2) affects future phases -> update spec, continue, (3) invalidates current output -> backtrack to affected phase only.
+When the user sends a message mid-pipeline (not at a WAIT gate), **do not stop or restart**. Classify and append to `<task-dir>/notes.md`: **Note/context** (continue), **Preference** (apply at next decision point), **Correction** (evaluate at next checkpoint), **Blocker** (halt immediately for impact assessment). At the next phase checkpoint, read `notes.md` and assess: no impact → continue; affects future phases → update spec; invalidates current output → backtrack to affected phase only.
 
 ---
 
@@ -297,14 +288,7 @@ Strictly limited to 1-2 line registrations. If >3 lines or any logic -> delegate
 
 **Skip test verification for:** config files, migrations, type-only files, barrel/index files, CSS/style files.
 
-**Anti-rationalization:**
-| Your reasoning | Why it's wrong |
-|---|---|
-| "The implementation agents already wrote tests" | Verify, don't trust. Check the file system. Agents skip tests under context pressure. |
-| "Tests will be caught by Phase 6 reviewers" | Phase 6 reviews test QUALITY. Phase 4 must ensure tests EXIST. Don't defer creation to review. |
-| "This code is too simple to need tests" | Every new source file gets tests. Simplicity is not an exemption — simple code is the easiest to test. |
-| "I'll write the tests myself to save time" | You are an orchestrator. Spawn a fixer agent. |
-| "Let me read the file and fix this type error / build error" | You are an orchestrator. Forward the raw terminal output to a fixer agent. Do NOT open source files, diagnose errors, or apply edits — even if the fix looks trivial. The fixer agent has fresh context and will diagnose faster. |
+**Anti-rationalization:** "Agents already wrote tests" → verify, don't trust; agents skip tests under context pressure. "Phase 6 reviewers will catch missing tests" → Phase 6 reviews test QUALITY; Phase 4 ensures tests EXIST. "Simple code doesn't need tests" → every new source file gets tests. "I'll write tests myself" → you're an orchestrator; spawn a fixer. "Let me fix this type/build error directly" → forward raw terminal output to a fixer agent; do NOT open source files or apply edits.
 
 **Checkpoint:** Write to `<task-dir>/state.md`: "Phase 4 completed. Waves: N. Files changed: [list]. Test files created: [list]."
 
@@ -330,12 +314,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a 
 2. **If the report shows any FAIL or is missing:** revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 6.
 3. **Otherwise:** the simplify-agent's PASS verdict carries forward into Phase 6 Stage A's cache check (see `implement-reference.md` §"Phase 6: Stage A — Automated Checks Detail" — cache invalidation governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`). Do NOT re-run build/lint/test here — that would duplicate Stage A.
 
-**Anti-rationalization:**
-| Your reasoning | Why it's wrong |
-|---|---|
-| "The code is already clean enough" | AI-generated code almost always has over-abstraction or verbose patterns. Run the check. |
-| "Simplification might break things" | That's why we run checks after. If it breaks, we revert. Zero risk. |
-| "Let me run CI first (Stage A), then decide on simplification" | Phase 5 comes BEFORE Phase 6. Simplify first, validate after. Do NOT merge or reorder phases. |
+**Anti-rationalization:** "Code is clean enough" → AI-generated code has over-abstraction or verbose patterns; run the check. "Simplification might break things" → that's why we run checks after; revert on break (zero risk). "Run Stage A first, then decide" → Phase 5 comes BEFORE Phase 6; do NOT reorder.
 
 **Checkpoint:** Write to `<task-dir>/state.md`: "Phase 5 completed. Simplify agent ran. Post-simplify verification: PASS/REVERTED."
 
@@ -460,20 +439,13 @@ Execute user's chosen method. See reference file for commit details per option.
 
 ### Step 8: Integration Updates + Cleanup — auto: see implement-reference.md §Auto Mode Behavior
 
-- **Worktree:** If working in a worktree, leave the session in it — do NOT call `ExitWorktree`. Per the tool's contract it is invoked only when the user explicitly asks to exit; the runtime already prompts on session exit to keep or remove the worktree. After "leave uncommitted", note that changes remain at `.claude/worktrees/<name>/` so the user knows where to find them.
-- **Integrations:** If workflow files specify completion actions (e.g., issue status updates), follow their instructions (see reference file for details)
-- **Cleanup:** Kill orphaned processes (startup checks, dev servers). Remove temp files.
-- **State:** If milestone-mode AND any milestone remains non-`completed`, skip this step (pipeline is not complete yet). Otherwise append `Pipeline: COMPLETE` to `<task-dir>/state.md`. In milestone-mode when the LAST milestone completes, also set the master plan's `Status: completed` header.
-- **Milestone status update (milestone-mode only):** If this run executed a single milestone (Phase 2 pre-check rule 1 matched), update milestone file + master plan table + state.md, append Implementation Notes, and prompt for next milestone. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 7 Step 8: Milestone Status Update for the full 6-step procedure and auto-mode behavior.
-- **Feature row update:** Read `Feature:` from `<task-dir>/state.md`. If a Geniro feature ID, run `/geniro:features complete <id>` (moves FEATURES.md row to `done`, records the commit). If "none", skip.
-- **Planning artifacts:** Use `AskUserQuestion` (do NOT ask as plain text — use the tool):
-
-`AskUserQuestion` with header "Artifacts":
-- A) **Keep** — "Useful if you plan to run /geniro:follow-up on this branch"
-- B) **Delete** — "Implementation is complete, no further changes expected"
-
-If "Keep": leave `<task-dir>/` as-is (it's already in `.gitignore`).
-If "Delete": remove `<task-dir>/` recursively.
+- **Worktree:** Leave the session in it — do NOT call `ExitWorktree` proactively. After "leave uncommitted", note changes remain at `.claude/worktrees/<name>/`.
+- **Integrations:** Follow workflow file completion actions (issue status updates, etc.) — see reference file.
+- **Cleanup:** Kill orphaned processes; remove temp files.
+- **State:** Skip if milestone-mode with milestones still non-`completed`. Otherwise append `Pipeline: COMPLETE` to state.md; on LAST milestone, also set master plan `Status: completed`.
+- **Milestone status update (milestone-mode only):** Update milestone file + master plan table + state.md, append Implementation Notes, prompt for next milestone. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 7 Step 8 for the full procedure.
+- **Feature row update:** If `state.md` `Feature:` is a Geniro ID, run `/geniro:features complete <id>`; else skip.
+- **Planning artifacts:** Fire `AskUserQuestion` header "Artifacts": A) **Keep** (if planning `/geniro:follow-up`) → leave `<task-dir>/` (gitignored), B) **Delete** → remove `<task-dir>/` recursively.
 
 **Anti-rationalization:**
 | Your reasoning | Why it's wrong |
@@ -492,18 +464,14 @@ If "Delete": remove `<task-dir>/` recursively.
 
 ## TASK EXECUTION
 
-0. **Check for existing state.** Glob for `<task-dir>/state.md`. Four cases:
-   - **No state.md** → fresh first run, proceed normally.
-   - **state.md has `Milestones:` field with at least one non-`completed` milestone AND `$ARGUMENTS` is empty or `continue`** → milestone-mode resume: load the first non-completed milestone (pick `in-progress` over `pending`), set that milestone's file as the implementation target, skip Phase 1 Discover (spec already exists), jump to Phase 2 pre-check rule 1 (milestone reference) which will load the file and go to Phase 3.
+0. **Check for existing state.** Glob for `<task-dir>/state.md`:
+   - **No state.md** → fresh run.
+   - **`Milestones:` field with non-`completed` milestone AND `$ARGUMENTS` empty or `continue`** → milestone-mode resume: load first non-completed milestone (prefer `in-progress` over `pending`), skip Phase 1, jump to Phase 2 pre-check rule 1.
    - **state.md exists, no "Pipeline: COMPLETE"** → interrupted run, resume from next incomplete phase.
-   - **state.md exists, has "Pipeline: COMPLETE"** → second run with changed requirements. Read all prior artifacts (`spec.md`, `plan-*.md`, `concerns.md`) into context now (before any renames). Proceed to Phase 1 with this prior context available.
+   - **state.md has "Pipeline: COMPLETE"** → second run; read prior artifacts (`spec.md`, `plan-*.md`, `concerns.md`) into context before any renames, then proceed to Phase 1.
 
 1. Take user's description: `$ARGUMENTS`
-2. **Create TodoWrite checklist** (planning phases only — implementation phases added after Phase 3 approval):
-   - Phase 1: Discover
-   - Phase 2: Architect & validate
-   - Phase 3: Approval
-   Mark Phase 1 as `in_progress`. Update status as each phase completes.
+2. **Create TodoWrite checklist** (Phase 1 Discover / Phase 2 Architect & validate / Phase 3 Approval — implementation phases added after Phase 3). Mark Phase 1 `in_progress`; update each as it completes.
 3. Begin Phase 1 (Discover)
 
 **Token conservation — delegate ALL implementation work:** The orchestrator's job is to coordinate, not to code. Every line of code the orchestrator writes wastes expensive context. Delegate ALL work to subagents — including deletions, cleanups, "simple" edits. If you catch yourself thinking "I'll just do this directly since it's simple" — that's the rationalization. Spawn an agent.

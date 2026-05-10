@@ -178,12 +178,14 @@ Parallel research agents explore codebase structure, git history, and internet s
 Track features with status, priority, and complexity. Create detailed specs with codebase scouting and adaptive questioning.
 
 ```
-/geniro:features list                        # show all tracked features
-/geniro:features add dark mode support       # add a new feature
-/geniro:features spec dark mode support      # create a detailed spec
-/geniro:features next                        # pick the next feature to work on
-/geniro:features complete dark mode support  # mark as done
+/geniro:features list                          # show all tracked features
+/geniro:brainstorm dark mode support           # standalone ideation → design doc
+/geniro:features add dark mode support         # ideation + backlog registration
+/geniro:features next                          # pick the next feature to work on
+/geniro:features complete dark mode support    # mark as done
 ```
+
+Both `/brainstorm` and `/features add` use the same canonical brainstorming loop — the difference is whether the result is registered in FEATURES.md backlog (`/features add`) or remains a standalone draft (`/brainstorm`).
 
 ### `/geniro:onboard` — Rapid codebase orientation
 

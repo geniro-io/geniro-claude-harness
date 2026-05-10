@@ -506,8 +506,12 @@ ${CLAUDE_SKILL_DIR}                 # Directory containing this SKILL.md
 
 ### Skill relationship diagram
 
+`/features add` calls the same brainstorming-loop as `/brainstorm` — the only difference is that `/features add` writes the resulting design into FEATURES.md backlog, while `/brainstorm` leaves it as a standalone draft.
+
 ```
-/features spec  ->  /plan  ->  /implement  ->  /follow-up
+/brainstorm  ->  /implement  ->  /follow-up                     (single feature, light path)
+/brainstorm  ->  /decompose  ->  /implement milestone <N>       (Big task path)
+/features add  ->  /implement                                   (backlog-tracked path)
                                     |
                                     |-- reads .claude/skills/review/SKILL.md (Phase 1-3)
                                     |       |-- spawns 5 Tasks from criteria files
@@ -4342,3 +4346,36 @@ Findings and fixes from this audit were extended by Audit v25. See v25 for the c
 - Hooks were firing TWICE on every event — once from the plugin (${CLAUDE_PLUGIN_ROOT}/hooks/) and once from the project copy (.claude/hooks/). The command strings differed so deduplication didn't catch it.
 - The entire copy-to-project model was unnecessary. Claude Code plugins provide agents, skills, and hooks globally with well-defined priority systems. The only project-level files needed are those tailored per-project (2 agents, 2 rules, 5 review criteria, settings.json).
 - The tier selection (Full/Core/Minimal/Custom) became obsolete — all agents and skills are available globally regardless of tier. Only backend/frontend agent tailoring is project-specific.
+
+## Audit v30 — General Hardening (2026-05-10)
+
+### Skills changed
+- **`/geniro:brainstorm` added** — standalone ideation layer; cites `skills/_shared/brainstorming-loop.md` (8-phase loop with HARD-GATE).
+- **`/geniro:features` `spec` subcommand removed** — functionality merged into `/features add`, which now uses the same `brainstorming-loop.md` shared rule. 11 references migrated.
+- **`/geniro:review` extended with Incoming mode** — pure auto-detect (no `--incoming` flag); reuses Phase 1 worktree creation + Phase 4c F→P verification machinery for incoming PR-comment classification ([ACTIONABLE]/[QUESTION]/[AMBIGUOUS]/[WRONG]) with mandatory Evidence Block.
+
+### Shared rules added (skills/_shared/)
+- `evidence-standard.md` — canonical Evidence Block schema + forbidden phrases
+- `verification-cache.md` — cache invalidation rules (atomic write, single-writer)
+- `root-cause-gate.md` — AskUserQuestion gate for [SYMPTOM] findings
+- `finding-tagging.md` — [ROOT-CAUSE]/[SYMPTOM]/[UNKNOWN]/[SYMPTOM-ACK] taxonomy
+- `context-isolation-checklist.md` — pre-inlined-context contract for Agent() spawns
+- `tdd-cycle.md` — RED→GREEN→REFACTOR with Markdown state-file (`.geniro/state/tdd/state-<slug>.md`)
+- `test-first-gate.md` — Always-WAIT gate before code-writing agents
+- `brainstorming-loop.md` — 8-phase ideation pattern
+- `design-doc-detect.md` — defense-in-depth detection (path + HTML marker + YAML frontmatter)
+
+### Hooks added (hooks/hooks.json)
+- `require-evidence-on-completion.sh` — Stop hook (warn-only) scanning for completion phrases without Evidence Block
+- `enforce-tdd-order.sh` — PreToolUse Edit|Write hook (hard-block) gating production-code edits when `phase: RED`
+
+### Agent contracts updated (agents/)
+- `reviewer-agent.md` — Cause + Evidence sub-fields per finding
+- `architect-agent.md` — Root-cause classification per design unit
+- `backend-agent.md` + `frontend-agent.md` — TDD test-first inverted (RED→GREEN per tdd-cycle.md)
+
+### Skill orchestrators updated
+All 7 code-writing skills (implement, follow-up, review, refactor, debug, investigate, decompose) now cite the new shared rules at every spawn site and gate.
+
+### Breaking changes
+- `/features spec` removed (no alias). Users with `/features spec X` muscle memory: use `/features add X` instead. Hard-removal precedent: Audit v20.
