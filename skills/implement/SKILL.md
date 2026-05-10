@@ -28,7 +28,7 @@ argument-hint: "[description or issue tracker reference]"
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (architect, skeptic, knowledge-retrieval, backend, frontend, reviewer, relevance-filter, adversarial-tester), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (architect, skeptic, knowledge-retrieval, backend, frontend, reviewer, relevance-filter, adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` — spawn-agent.md handles bare-name first / on `Agent type '<name>' not found` degrade to `general-purpose` with the agent body inlined; context-isolation-checklist.md pins the six required pre-inlined-context fields (scope, criteria, files, prohibited tools, output schema, model tier) every spawn must satisfy.
 
 **Skill-specific mapping:**
 
@@ -83,6 +83,21 @@ When the user sends a message while the pipeline is running (not at a WAIT gate)
 | **Blocker** | Makes current work invalid | Halt immediately, go to impact assessment |
 
 At the next phase checkpoint, read `notes.md` and assess: (1) no impact -> continue, (2) affects future phases -> update spec, continue, (3) invalidates current output -> backtrack to affected phase only.
+
+---
+
+## PHASE 0: INPUT MODE DETECTION
+
+**Purpose:** Classify `$ARGUMENTS` before any discovery work, so design-doc spec inputs skip Phase 1 and speculative ideation routes to `/geniro:brainstorm` first.
+
+Cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` to classify `$ARGUMENTS`:
+
+- **`mode=DESIGN_DOC`** → skip Phase 1 Discover; pass the resolved design path to Phase 2 architect as the authoritative spec (Phase 2 pre-check rule 4 consumes it).
+- **`mode=CODE_REFERENCE`** → existing Phase 1 behavior (the path is a code file the user wants implemented around).
+- **`mode=IDEA`** with speculative markers (`maybe`, `should we`, `thinking about`, `explore`, `figure out`, `what if`) → fire `AskUserQuestion` with header "Brainstorm" and 3 single-select options: "Run /geniro:brainstorm first (Recommended)" / "Proceed with discovery" / "Cancel". On Recommended, surface the brainstorm hand-off message and exit cleanly; on Proceed, continue to Phase 1; on Cancel, stop.
+- **`mode=IDEA`** without speculative markers → existing Phase 1 Discover.
+
+Persist the resolved mode to `<task-dir>/state.md` as `Phase 0: <DESIGN_DOC|CODE_REFERENCE|IDEA>` so resumed runs skip re-detection.
 
 ---
 
@@ -157,9 +172,10 @@ These four answers are independent (no sequencing dependency); `AskUserQuestion`
 **Architect flow:**
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md` for plan structure
-2. **Spawn architect-agent** with `model="opus"` and spec + plan criteria + relevant codebase files (pre-inlined). **Lane:tdd customization:** when `state.md` shows `Lane: tdd`, the spawn prompt MUST also include the TDD-mode output instructions per `${CLAUDE_SKILL_DIR}/implement-reference.md` §"TDD Mode Semantics" — specifically: "Produce a numbered behavior list (each entry = one future test, ordered for sequential RED→GREEN execution) PLUS a per-module public-interface signature block, INSTEAD OF the standard Steps-table-grouped-by-file plan structure. Each behavior names: the actor, the capability, the trigger condition, the observable outcome. Group behaviors by module so the orchestrator can sort them into cycles. **Read** `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` §'Test Design Philosophy (canonical)' yourself at runtime (the agent has Read tool) — do NOT pre-inline; it is ~75 lines and re-reading from disk is cheaper than budget bloat in every architect spawn. The behavior list MUST match that rubric so reviewers (Stage C tests-dimension) accept the tests authored against it." Without this customization, the architect would produce a normal Steps table and Lane:tdd's Phase 4 sequential cycles would have no behavior list to drive ordering.
-3. **Spawn skeptic-agent** with plan + spec. Explicit instruction: "Write report to `<task-dir>/concerns.md`". **Lane:tdd customization:** when `state.md` shows `Lane: tdd`, the spawn prompt MUST instruct the skeptic to validate the architect's behavior list (NOT a Steps table) against: (a) coverage — every requirement in the spec maps to at least one behavior; (b) ordering — earlier behaviors do not depend on artifacts produced by later behaviors; (c) interface alignment — every behavior names a public interface that appears in the architect's signature blocks. Standard plan-criteria.md dimensions D1-D8 still apply where they make sense (mirage detection, scope, requirement coverage); the file-level dimensions (file count, step count) are skipped — TDD mode has no Steps table to count.
-4. If NEEDS REVISION: route back to architect. Max 3 iterations.
+2. **Spawn architect-agent** with `model="opus"` and spec + plan criteria + relevant codebase files (pre-inlined). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. **Root-cause classification (mandatory):** spawn prompt MUST require per-design-unit `Root-cause classification` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` (one of `ROOT-CAUSE`, `SYMPTOM-PATCH`, `MIXED`, `UNKNOWN`, with `Symptom:` + `Suspected root cause:` sub-fields when not ROOT-CAUSE) so Phase 2 routing can fire the gate. **Lane:tdd customization:** when `state.md` shows `Lane: tdd`, the spawn prompt MUST also include the TDD-mode output instructions per `${CLAUDE_SKILL_DIR}/implement-reference.md` §"TDD Mode Semantics" — specifically: "Produce a numbered behavior list (each entry = one future test, ordered for sequential RED→GREEN execution) PLUS a per-module public-interface signature block, INSTEAD OF the standard Steps-table-grouped-by-file plan structure. Each behavior names: the actor, the capability, the trigger condition, the observable outcome. Group behaviors by module so the orchestrator can sort them into cycles. **Read** `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` §'Test Design Philosophy (canonical)' yourself at runtime (the agent has Read tool) — do NOT pre-inline; it is ~75 lines and re-reading from disk is cheaper than budget bloat in every architect spawn. The behavior list MUST match that rubric so reviewers (Stage C tests-dimension) accept the tests authored against it." Without this customization, the architect would produce a normal Steps table and Lane:tdd's Phase 4 sequential cycles would have no behavior list to drive ordering.
+3. **Spawn skeptic-agent** with plan + spec. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Explicit instruction: "Write report to `<task-dir>/concerns.md`". **Lane:tdd customization:** when `state.md` shows `Lane: tdd`, the spawn prompt MUST instruct the skeptic to validate the architect's behavior list (NOT a Steps table) against: (a) coverage — every requirement in the spec maps to at least one behavior; (b) ordering — earlier behaviors do not depend on artifacts produced by later behaviors; (c) interface alignment — every behavior names a public interface that appears in the architect's signature blocks. Standard plan-criteria.md dimensions D1-D8 still apply where they make sense (mirage detection, scope, requirement coverage); the file-level dimensions (file count, step count) are skipped — TDD mode has no Steps table to count.
+4. **Root-cause gate.** After the architect returns, scan its output for any design unit classified `SYMPTOM-PATCH` or `MIXED`. For each, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per unit (Always-WAIT — auto-mode does NOT auto-default). On "Confirmed root cause (proceed)" → re-tag and continue. On "Symptom — escalate to /geniro:debug" → halt the skill and surface the hand-off message. On "Mixed — annotate and proceed" → re-tag `[SYMPTOM-ACK]` and append to the eventual Ship summary's `## Acknowledged tech debt` section. Skip silently when zero SYMPTOM-PATCH/MIXED units exist.
+5. If NEEDS REVISION: route back to architect. Max 3 iterations.
 
 **Checkpoint:** Write to `<task-dir>/state.md`: "Phase 2 completed. Plan: <filename>. Skeptic: [N blockers, M warnings]."
 
@@ -258,7 +274,7 @@ Read the plan's steps and group into WUs — clusters of tightly coupled files. 
 ### Step 3: Execute waves
 
 For each wave:
-1. **Spawn all WU agents in ONE response** — multiple Agent() calls in the same assistant turn, NOT one per turn (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.)
+1. **Spawn all WU agents in ONE response** — multiple Agent() calls in the same assistant turn, NOT one per turn (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site.
    **Agent context:** The `backend-agent` and `frontend-agent` read `CLAUDE.md` at runtime for project-specific context. No additional context injection is needed — simply spawn the agent.
 2. **Collect results** — each agent must report: files created/modified, tests created/modified, test results
 3. **Quick gate** (build + test) — pass/fail only. If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
