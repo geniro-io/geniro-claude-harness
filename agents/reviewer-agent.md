@@ -102,10 +102,22 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 - **File:** path/to/file.ts:42-48
 - **Confidence:** XX%
 - **Decision Type:** [FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK]
+- **Cause:** [ROOT-CAUSE] | [SYMPTOM] | [UNKNOWN] — classification per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. MANDATORY on every finding (`[SYMPTOM-ACK]` is gate-result-only — never emitted here). If you cannot determine cause classification, use `[UNKNOWN]` — orchestrator routes to `/geniro:debug` per `finding-tagging.md`.
 - **Origin:** [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code)
 - **Criteria:** [which specific check from the criteria file]
-- **Evidence:**
+- **Evidence:** MANDATORY for CRITICAL and HIGH; SHOULD be attached for MEDIUM when available; not required for LOW. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, attach EITHER an Evidence Block (Command / Exit code / Tail (last 3 lines)) when a command was run, OR a citation (file:line snippet, log line, query result, user-provided artifact) when running a command isn't applicable. CRITICAL/HIGH findings without evidence are downgraded or dropped at the relevance-filter step.
   ```
+  ## Evidence Block
+  Command: <verbatim command>
+  Exit code: <integer>
+  Tail (last 3 lines):
+    <line N-2>
+    <line N-1>
+    <line N>
+  ```
+  OR (citation form):
+  ```
+  path/to/file.ts:42-48
   [2-5 lines of code showing the problem]
   ```
 - **Why this matters:** [1 sentence explaining the impact]
