@@ -21,8 +21,15 @@
 # Per-project allowlist: .geniro/safety.json (in cwd or any ancestor) can opt out
 # via "allow_patterns".
 #
-# Pattern IDs: rm-geniro-tree, rm-geniro-subdir, find-geniro-delete,
-#              worktree-remove-with-state, git-add-force-geniro
+# Pattern IDs: rm-geniro-tree, rm-geniro-subdir, rm-geniro-state-subdir,
+#              find-geniro-delete, worktree-remove-with-state, git-add-force-geniro
+#
+# Fixed 2026-05-10 — segment-depth gates (rm-geniro-subdir, rm-geniro-state-subdir)
+# now evaluate each rm/find arg INDIVIDUALLY. Previously a single regex against
+# the padded command was masked by multi-arg invocations (e.g.
+# `rm -rf .geniro/instructions/ .geniro/planning/foo/bar` — the deep second arg
+# satisfied the global "is there a 3-seg form anywhere?" check, letting the
+# shallow first arg through).
 
 set -euo pipefail
 
@@ -93,40 +100,81 @@ if ! is_allowed "rm-geniro-tree"; then
   fi
 fi
 
-# 2. rm -rf .geniro/<single-segment> (e.g. .geniro/instructions/, .geniro/planning/, .geniro/state/)
-#    Allows .geniro/<top>/<sub>/... (3+ segments — task-dirs, slug-scoped trees).
-if ! is_allowed "rm-geniro-subdir"; then
-  if has_rm_recursive; then
-    # Match .geniro/<seg>/? as a complete arg (no second segment after).
-    if echo "$PADDED" | grep -qE '(/|[[:space:]"'"'"'])\.geniro/[a-zA-Z0-9_.-]+/?[[:space:]"'"'"';|&]'; then
-      # Confirm there is no `.geniro/<seg>/<seg2>` form anywhere — that variant is allowed.
-      if ! echo "$PADDED" | grep -qE '(\./)?\.geniro/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+'; then
-        block "rm-geniro-subdir" "rm -rf on a top-level .geniro/ subdirectory wipes that entire category of user content. Allowed: deeper paths like .geniro/planning/<task-dir>/ (3+ segments). Use \`rm -f\` per-file for individual deletes."
-      fi
-    fi
-  fi
-fi
+# 2 & 2b. Per-arg evaluation of .geniro/ subdirectory protections.
+#
+# Why per-arg: a single regex against $PADDED can be masked by a multi-arg
+# command. E.g. `rm -rf .geniro/instructions/ .geniro/planning/foo/bar` —
+# the second arg's 3-seg shape made the global "is there a deep form anywhere?"
+# check pass, letting the first arg's shallow `.geniro/instructions/` through.
+# We now iterate each token and apply the segment-depth gate to each one
+# independently.
+#
+# Pattern IDs evaluated per arg:
+#   - rm-geniro-subdir       — `.geniro/<seg>` / `.geniro/<seg>/`            (2 segments)
+#   - rm-geniro-state-subdir — `.geniro/state/<seg>` / `.geniro/state/<seg>/` (3 segments,
+#                              non-filename)
+#
+# Allowed (NOT blocked) per arg:
+#   - `.geniro/<top>/<sub>...` (3+ segments) — task-dir / slug-scoped trees
+#   - `.geniro/state/<file>.<ext>` (3 segments where last is a file with extension)
+#   - `.geniro/state/<skill>/<file>` (4+ segments) — slug-scoped state files
 
-# 2b. rm -rf .geniro/state/<single-segment>/ — targets a per-skill state subdir
-#     (follow-up, refactor, improve-template, debug). Wiping it destroys the
-#     parallel-branches' slug files still in flight on other branches. Slug-scoped
-#     single-file deletes are still allowed via 4+ segment paths.
-if ! is_allowed "rm-geniro-state-subdir"; then
-  if has_rm_recursive; then
-    # Match .geniro/state/<seg>/? as a complete arg with no further segment.
-    if echo "$PADDED" | grep -qE '(/|[[:space:]"'"'"'])\.geniro/state/[a-zA-Z0-9_.-]+/?[[:space:]"'"'"';|&]'; then
-      if ! echo "$PADDED" | grep -qE '(\./)?\.geniro/state/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+'; then
-        # Allow single-file deletes at this depth (filenames have a dot+extension).
-        # If the matched segment looks like a filename (e.g. review-findings-state.md,
-        # pre-compact-snapshot.json), let it through.
-        if echo "$PADDED" | grep -qE '(/|[[:space:]"'"'"'])\.geniro/state/[a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+[[:space:]"'"'"';|&]'; then
-          : # 3-segment file delete (e.g. .geniro/state/review-findings-state.md) — allow
-        else
-          block "rm-geniro-state-subdir" "rm -rf on a .geniro/state/<skill>/ subdirectory wipes parallel-branch slug files still in flight. Allowed: single-file deletes (.geniro/state/<file>.md) and 4+ segment paths (.geniro/state/<skill>/state-<slug>.md). Use \`rm -f <single-file>\` for cleanup."
-        fi
+if has_rm_recursive; then
+  # Tokenize the original COMMAND on whitespace. Strip surrounding quotes from
+  # each token so `'.geniro/x/'`, `".geniro/x/"`, and `.geniro/x/` all evaluate
+  # the same. This is best-effort tokenization (not a full shell parser); it's
+  # sufficient to catch the realistic multi-arg `rm` form.
+  # shellcheck disable=SC2086
+  for raw in $COMMAND; do
+    # Trim surrounding single/double quotes
+    arg="${raw#\"}"; arg="${arg%\"}"
+    arg="${arg#\'}"; arg="${arg%\'}"
+    # Strip a trailing slash for segment-counting, but remember it was there.
+    stripped="${arg%/}"
+
+    # Only inspect args that are .geniro/-rooted paths (allow optional leading ./).
+    case "$stripped" in
+      .geniro|./.geniro)
+        # Bare `.geniro` arg — the rm-geniro-tree check below handles the whole-
+        # tree form. Skip here.
+        continue
+        ;;
+      .geniro/*|./.geniro/*) ;;
+      *) continue ;;
+    esac
+
+    # Normalize: drop leading "./" so segment counts are stable.
+    norm="${stripped#./}"
+
+    # Count path segments (number of '/' + 1).
+    slashes="${norm//[!\/]/}"
+    seg_count=$(( ${#slashes} + 1 ))
+
+    # 2-segment form: `.geniro/<seg>` — top-level subdir wipe.
+    if [ "$seg_count" -eq 2 ]; then
+      if ! is_allowed "rm-geniro-subdir"; then
+        block "rm-geniro-subdir" "rm -rf on a top-level .geniro/ subdirectory ($arg) wipes that entire category of user content. Allowed: deeper paths like .geniro/planning/<task-dir>/ (3+ segments). Use \`rm -f\` per-file for individual deletes."
       fi
     fi
-  fi
+
+    # 3-segment form under .geniro/state/: `.geniro/state/<seg>` — per-skill state wipe.
+    # Allow if the last segment looks like a filename (has a dot+ext).
+    if [ "$seg_count" -eq 3 ]; then
+      case "$norm" in
+        .geniro/state/*)
+          last_seg="${norm##*/}"
+          # If last segment contains a dot followed by alphanumerics, treat as a file.
+          if [[ "$last_seg" == *.* ]] && [[ "$last_seg" =~ \.[a-zA-Z0-9]+$ ]]; then
+            : # file delete (e.g. .geniro/state/review-findings-state.md) — allow
+          else
+            if ! is_allowed "rm-geniro-state-subdir"; then
+              block "rm-geniro-state-subdir" "rm -rf on a .geniro/state/<skill>/ subdirectory ($arg) wipes parallel-branch slug files still in flight. Allowed: single-file deletes (.geniro/state/<file>.md) and 4+ segment paths (.geniro/state/<skill>/state-<slug>.md). Use \`rm -f <single-file>\` for cleanup."
+            fi
+          fi
+          ;;
+      esac
+    fi
+  done
 fi
 
 # 3. find ... .geniro ... -delete  (any flavor of find-delete that touches .geniro)

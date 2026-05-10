@@ -43,9 +43,8 @@ When a skill spawns a plugin-defined agent (`reviewer-agent`, `relevance-filter-
 ## Safety Hooks (Active)
 
 This plugin provides safety hooks that run automatically:
-- **Database guard** — prevents unsafe database operations
 - **File protection** — blocks writes to `.env`, `*.key`, `*.pem`, lock files
-- **Secret scanning** — scans inputs and outputs for leaked secrets
+- **Secret scanning** — scans Bash commands for sensitive-file reads (input scan only)
 - **Git guardrails** — blocks destructive git operations (force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, filter-branch, update-ref -d)
 - **`.geniro/` deletion guard** — blocks bulk deletion of `.geniro/` (which holds user-authored instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Per-file `rm -f` and deep-path `rm -rf .geniro/<top>/<sub>/` remain allowed; bulk `rm -rf .geniro/`, `rm -rf .geniro/<single-segment>`, `find .geniro -delete`, `git worktree remove`, and `git add -f` on `.geniro/` paths are blocked. The `git add -f` block exists because force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click then becomes a one-click data-loss vector — real incident: Cursor's SCM discard wiped `.geniro/actions/*.md` after they were force-added. The correct path for tracked content is `.gitignore` negation (e.g. `!.geniro/actions/` + `!.geniro/actions/**`), never `git add -f`.
 - **Post-compaction recovery** — wired as `SessionStart` with `matcher: "compact"` (Anthropic-canonical; `PostCompact` itself does not support `additionalContext`). Re-injects suggested-file list including `.geniro/instructions/global.md`, the active skill's `<skill>.md`, and `.geniro/instructions/code-style.md` so custom workflow rules and code-style rules survive compaction

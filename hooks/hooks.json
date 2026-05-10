@@ -6,11 +6,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/db-guard.sh",
-            "statusMessage": "Checking for unsafe database operations..."
-          },
-          {
-            "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/secret-protection-input.sh",
             "statusMessage": "Checking for sensitive file access..."
           },
@@ -38,18 +33,6 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-tdd-order.sh",
             "statusMessage": "Checking TDD-order constraint..."
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/secret-protection-output.sh",
-            "statusMessage": "Scanning for leaked secrets..."
           }
         ]
       }

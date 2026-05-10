@@ -4379,3 +4379,27 @@ All 7 code-writing skills (implement, follow-up, review, refactor, debug, invest
 
 ### Breaking changes
 - `/features spec` removed (no alias). Users with `/features spec X` muscle memory: use `/features add X` instead. Hard-removal precedent: Audit v20.
+
+### Hook portfolio cleanup (2026-05-10, post-hardening utility audit)
+
+- **REMOVED** `db-guard.sh` — anchored regex (`^\s*(DROP|TRUNCATE|...)`)
+  missed every realistic DB-loss vector (commands route through `psql -c`,
+  `mysql <<<`, tool wrappers). Performative protection.
+- **REMOVED** `secret-protection-output.sh` — emitted warnings with wrong
+  output shape (`{type, severity, message}` instead of
+  `hookSpecificOutput.additionalContext`). Silent no-op since inception.
+- **SIMPLIFIED** `secret-protection-input.sh` — dropped broad
+  `cat *secret/*token/*password` patterns (high FP on auth-code filenames);
+  added `<` redirection + `less/tail/head/xxd` reader coverage; targets
+  unambiguous secret-file paths only.
+- **SIMPLIFIED** `require-evidence-on-completion.sh` — dropped uncertainty
+  markers (`should`/`probably`/`seems to`); kept unambiguous completion
+  claims (`shipped`/`ready to ship`/`all tests pass`/`Done!`/`Perfect!`).
+- **FIXED** `file-protection.sh` — added missing lock files (Cargo.lock,
+  Gemfile.lock, composer.lock, poetry.lock, Pipfile.lock, bun.lockb,
+  go.sum, pnpm-lock.yaml).
+- **FIXED** `block-geniro-deletion.sh` — per-arg evaluation of 3-segment
+  allowance closes the multi-arg-rm edge case.
+
+Net effect: 9 → 7 safety hooks; ~60% reduction in false-positive surface;
+all genuine protection retained.

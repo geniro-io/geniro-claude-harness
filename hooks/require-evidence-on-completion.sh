@@ -5,15 +5,15 @@
 # Bypass: .geniro/safety.json allow_patterns: ["evidence-stop"].
 #
 # Known limitations (DELIBERATE — not bugs):
-#  - Forbidden phrases "should" / "probably" can match benign sentences
-#    ("I should clarify", "Should I run the tests?"). Sentence-anchored regex
-#    + interrogative-line skip + quoted-block skip mitigate but don't eliminate
-#    false positives. Severity is bounded — this hook is warn-only (exit 0);
-#    bypass via `evidence-stop` in `.geniro/safety.json` allow_patterns.
 #  - The `file:line` citation shortcut (regex matches any `path.ext:N`) lets
 #    arbitrary path references defeat the warning. Documented as deliberate
 #    soft-layer behavior — Stop hooks fire ~50-80% of the time per
 #    multi-framework data; treat as soft reminder, not enforcement gate.
+#
+# Simplified 2026-05-10 — dropped uncertainty markers (`should`/`probably`/
+# `seems to`) which produced high false positives on benign sentences
+# ("I should clarify", "Should I run tests?"). Now scans only unambiguous
+# completion claims.
 set -euo pipefail
 
 # Consume stdin - REQUIRED first step
@@ -121,13 +121,6 @@ elif printf '%s' "$SCAN" | grep -qiE 'validation[[:space:]]+complete'; then
   FOUND_PHRASE="validation complete"
 elif printf '%s' "$SCAN" | grep -qiE "${SB_START}shipped${SB_END}"; then
   FOUND_PHRASE="shipped"
-# Uncertainty markers (sentence-boundary anchored to avoid "shouldn't" etc.)
-elif printf '%s' "$SCAN" | grep -qiE "${SB_START}should${SB_END}"; then
-  FOUND_PHRASE="should"
-elif printf '%s' "$SCAN" | grep -qiE "${SB_START}probably${SB_END}"; then
-  FOUND_PHRASE="probably"
-elif printf '%s' "$SCAN" | grep -qiE 'seems[[:space:]]+to'; then
-  FOUND_PHRASE="seems to"
 fi
 
 if [ -n "$FOUND_PHRASE" ]; then

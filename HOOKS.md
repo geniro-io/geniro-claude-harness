@@ -15,17 +15,15 @@ The status messages set on each `hooks.json` entry (e.g. `"Checking for unsafe d
 
 ## Hook scripts
 
-The plugin ships 9 safety hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 7 safety hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
 | [`file-protection.sh`](hooks/file-protection.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks writes to `.env`, lock files, keys, credentials |
-| [`db-guard.sh`](hooks/db-guard.sh) | PreToolUse `Bash` | exit 2 = block | Blocks unsafe DB operations (DROP, TRUNCATE, unfiltered DELETE) |
 | [`secret-protection-input.sh`](hooks/secret-protection-input.sh) | PreToolUse `Bash` | exit 2 = block | Blocks shell commands that read sensitive files |
 | [`block-dangerous-git.sh`](hooks/block-dangerous-git.sh) | PreToolUse `Bash` | exit 2 = block | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
 | [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
 | [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
-| [`secret-protection-output.sh`](hooks/secret-protection-output.sh) | PostToolUse `*` | warn-only (always exit 0) | Scans tool outputs for leaked secrets |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`post-compact-notification.sh`](hooks/post-compact-notification.sh) | SessionStart `matcher: "compact"` | non-blocking | Outputs resume instructions and re-read suggestions for the active pipeline state |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
@@ -48,17 +46,13 @@ The plugin ships 9 safety hooks, 1 sourced utility library, and 2 Node-based fea
 
 Implementation: case-insensitive pattern match via lowercase conversion; exit 2 to block (fail-safe).
 
-### db-guard.sh
-
-**Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
-
-Blocks: `DROP TABLE/DATABASE/INDEX/VIEW/SCHEMA`, `TRUNCATE`, unfiltered `DELETE` (no `WHERE`), tautology `DELETE WHERE 1=1`. Allows commands that don't match these patterns. Stderr-only warning on block.
-
 ### secret-protection-input.sh
 
 **Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
 
-Blocks shell commands attempting to read: `.env`, `.pem`, `credentials`, API keys, SSH keys, AWS config, Kubernetes config, OAuth tokens, password files, openssl key inspection. Includes `cat`, `source`, redirection patterns.
+Blocks shell commands targeting unambiguous secret-file paths: `.env` (and `.env.*`), `~/.aws/credentials`, `~/.ssh/id_{rsa,ed25519,dsa,ecdsa}`, `~/.kube/config`, `*.pem`, `*.p12`, `*.pfx`, `*.keystore`, `~/.npmrc`, `~/.pypirc`, `.netrc`. Reader-command coverage extends beyond `cat` to `less`, `tail`, `head`, `xxd`, `awk`, and `<` redirection. Also blocks `source .env*` and `openssl rsa/ec -in` key inspection.
+
+Simplified 2026-05-10 — broad keyword patterns (`cat *secret*`, `cat *token*`, `cat *password*`) were dropped because they fired on routine source files and docs (`src/auth/token.ts`, `docs/secret-handling.md`, `src/components/PasswordReset.tsx`).
 
 ### block-dangerous-git.sh
 
@@ -67,12 +61,6 @@ Blocks shell commands attempting to read: `.env`, `.pem`, `credentials`, API key
 Blocks destructive git operations by pattern ID: `force-push`, `force-push-with-lease`, `reset-hard`, `branch-delete-force`, `clean-fd`, `checkout-mass-discard`, `restore-mass-discard`, `update-ref-delete`, `filter-branch`. Pads the command with whitespace and collapses newlines so flag matchers (e.g. `[[:space:]]-f[[:space:]]`) hit reliably even at start/end of string or inside multi-line commands.
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist).
-
-### secret-protection-output.sh
-
-**Event:** PostToolUse `*`. **Stdin:** `jq -r '.tool_output // ""'`. **Block exit:** never blocks (PostToolUse always exits 0).
-
-Scans tool outputs for leaked secrets: `API_KEY`, bearer tokens, passwords, AWS secrets, GitHub/GitLab tokens, Slack webhooks, Stripe keys, OAuth tokens, PGP/SSH private keys, `BEGIN PRIVATE KEY` blocks, JWT-shaped strings. On detection, outputs a JSON `additionalContext` warning. Gracefully exits 0 if `jq` is unavailable.
 
 ### post-compact-notification.sh
 
@@ -118,10 +106,6 @@ Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.
 ```bash
 # Test file protection (expect exit code 2 = blocked)
 echo '{"tool_input":{"file_path":"/config/.env"}}' | ./hooks/file-protection.sh
-echo "exit=$?"
-
-# Test db-guard
-echo '{"tool_input":{"command":"DROP TABLE users"}}' | ./hooks/db-guard.sh
 echo "exit=$?"
 
 # Test secret-protection-input

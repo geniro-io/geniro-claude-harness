@@ -1,7 +1,13 @@
 #!/bin/bash
 # secret-protection-input.sh
-# PreToolUse hook for Bash - blocks commands that read sensitive files
-# Prevents accidental exposure of credentials, API keys, private keys, and secrets
+# PreToolUse hook for Bash - blocks commands that read sensitive files.
+#
+# Simplified 2026-05-10 — dropped broad keyword patterns (cat *secret*, *token*,
+# *password*, *key*) which fired on routine source files and docs
+# (src/auth/token.ts, docs/secret-handling.md, src/components/PasswordReset.tsx).
+# New patterns target unambiguous secret-file paths only (.env, ~/.aws/credentials,
+# ~/.ssh/id_*, *.pem/*.p12/*.pfx/keystore, .npmrc, .pypirc, .netrc) and cover
+# additional reader commands beyond `cat` (less, tail, head, xxd, awk, < redirection).
 
 set -euo pipefail
 
@@ -16,30 +22,39 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
-# Patterns for commands that read sensitive files
-# Covers: .env files, credentials, private keys, secrets, tokens, passwords
+# Patterns for commands that read sensitive files.
+# Two flavors: (a) unambiguous secret-file paths anywhere in the command,
+# (b) reader commands explicitly aimed at .env / ssh / aws files.
 SENSITIVE_FILE_PATTERNS=(
-  "cat\s+\.env([^a-zA-Z0-9_]|$)"        # cat .env
-  "source\s+\.env([^a-zA-Z0-9_]|$)"     # source .env
-  "cat\s+credentials\."                  # cat credentials.json, credentials.ini, etc.
-  "cat\s+.*\.pem"                        # cat *.pem (private keys)
-  "cat\s+.*private.*\.key"               # cat *private*.key
-  "cat\s+.*secret"                       # cat *secret* files
-  "cat\s+~/.ssh/id_"                     # cat ~/.ssh/id_rsa, id_ed25519, etc.
-  "cat\s+~/.aws/credentials"             # cat AWS credentials
-  "cat\s+~/.kube/config"                 # cat kubernetes config
-  "cat\s+\.git/config"                   # cat .git/config (may contain credentials)
-  "cat\s+.*token"                        # cat *token* files
-  "cat\s+.*api_?key"                     # cat *api_key* or *apikey* files
-  "cat\s+.*password"                     # cat *password* files
-  "cat\s+\.env\.\w+"                     # cat .env.local, .env.prod, etc.
-  "source\s+~/.bashrc"                   # source ~/.bashrc (may export secrets)
-  "source\s+~/.bash_profile"             # source ~/.bash_profile
-  "source\s+\.env\.\w+"                  # source .env.local, .env.dev, etc.
-  "grep\s+-r\s+API"                      # Recursive grep for API patterns
-  "grep\s+-r\s+SECRET"                   # Recursive grep for SECRET
-  "openssl\s+rsa\s+-in"                  # openssl rsa -in (key inspection)
-  "openssl\s+ec\s+-in"                   # openssl ec -in (EC key inspection)
+  # --- (a) Unambiguous secret-file paths (target the file, not the keyword) ---
+  "\.env(\.|$|\s)"                           # .env / .env.local / .env.prod / etc.
+  "~?/\.aws/credentials"                     # AWS credentials file
+  "~?/\.ssh/id_(rsa|ed25519|dsa|ecdsa)"      # SSH private keys
+  "~?/\.kube/config"                         # Kubernetes config
+  "\.pem(\s|$)"                              # PEM certs/keys
+  "\.p12(\s|$)"                              # PKCS#12 bundles
+  "\.pfx(\s|$)"                              # PFX bundles
+  "\.keystore(\s|$)"                         # Java keystores
+  "~?/\.npmrc"                               # npm auth tokens
+  "~?/\.pypirc"                              # PyPI auth
+  "\.netrc"                                  # netrc credentials
+
+  # --- (b) Reader commands (cover < redirection + alternates beyond cat) ---
+  "(^|\s)cat\s+[^|]*\.env"
+  "(^|\s)less\s+[^|]*\.env"
+  "(^|\s)tail\s+[^|]*\.env"
+  "(^|\s)head\s+[^|]*\.env"
+  "(^|\s)xxd\s+[^|]*\.env"
+  "(^|\s)awk\s+.*\.env"
+  "(^|\s)<\s*.*\.env"
+  "(^|\s)cat\s+[^|]*~?/\.aws/credentials"
+  "(^|\s)cat\s+[^|]*~?/\.ssh/id_"
+
+  # --- Long-standing patterns retained ---
+  "source\s+\.env([^a-zA-Z0-9_]|$)"          # source .env (exports secrets)
+  "source\s+\.env\.\w+"                      # source .env.local, .env.dev
+  "openssl\s+rsa\s+-in"                      # openssl rsa -in (key inspection)
+  "openssl\s+ec\s+-in"                       # openssl ec -in (EC key inspection)
 )
 
 # Check if command matches any sensitive file pattern
