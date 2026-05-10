@@ -59,7 +59,7 @@ Replace with the captured Evidence Block + a one-line summary that cites the exi
 
 ## Stop hook reliability disclaimer
 
-Stop hooks fire approximately 50–80% of the time per multi-framework data; ECC migrated AWAY from Stop hooks for enforcement after observing the same gap. Treat `require-evidence-on-completion.sh` as a soft reminder layer, not as the enforcement gate. PreToolUse `Edit|Write` reads from the `tdd-cycle.md` state file remain the authoritative enforcement path for TDD-order; analogously, the Evidence Standard's true enforcement is the per-skill consumption — every reviewer-agent finding requires an Evidence Block at emit-time, and orchestrators independently re-run validation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` rather than trusting prior PASS reports.
+Stop hooks fire approximately 50–80% of the time per multi-framework data; ECC migrated AWAY from Stop hooks for enforcement after observing the same gap. Treat `require-evidence-on-completion.sh` as a soft reminder layer, not as the enforcement gate. PreToolUse `Edit|Write` is enforced by `enforce-tdd-order.sh`, which reads the state file at `.geniro/state/tdd/state-<slug>.md` per the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`. THAT pair (hook + state file) is the authoritative TDD-order enforcement; the Stop hook is warn-only. Analogously, the Evidence Standard's true enforcement is the per-skill consumption — every reviewer-agent finding requires an Evidence Block at emit-time, and orchestrators independently re-run validation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` rather than trusting prior PASS reports.
 
 ## Anti-rationalization
 

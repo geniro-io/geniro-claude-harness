@@ -21,6 +21,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:refactor` | Restructure code with zero behavior change guarantee |
 | `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete. Scopes: `global`, the 7 pipeline skills, and `code-style` (cross-cutting style rules loaded at every code-writing & review step). |
 | `/geniro:actions` | Create, edit, run, and remove custom workflow-helper actions stored in `.geniro/actions/` (Slack/PR/release automations) |
+| `/geniro:brainstorm` | AI-driven ideation — refines an idea into approved design (8-phase loop with HARD-GATE). Hand-off menu to /implement, /decompose, or /features add. Skip for well-formed specs. |
 | `/geniro:investigate` | Deep codebase Q&A with parallel research agents |
 | `/geniro:features` | Feature backlog management and spec creation |
 | `/geniro:onboard` | Rapid codebase mapping and orientation |
