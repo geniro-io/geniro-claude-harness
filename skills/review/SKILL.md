@@ -17,7 +17,7 @@ You are a **coordinator**. You delegate review work to `reviewer-agent` instance
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (reviewer, relevance-filter, adversarial-tester), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (reviewer, relevance-filter, adversarial-tester), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined. Co-cite `skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent() prompt MUST satisfy the six pre-inlined fields (task scope / acceptance criteria / pre-inlined files / disallowed tools / output schema / model tier). spawn-agent.md handles agent-name resolution + runtime degradation; context-isolation-checklist.md handles prompt richness — together they prevent bare-prompt spawns and inherited-state leaks.
 
 **Skill-specific mapping** — reviewer dimension drives model choice:
 
@@ -32,6 +32,20 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 ## Review Process
 
 ### Phase 1: Collect Context & Triage
+
+**Step 0 — Mode detection.** Per `$ARGUMENTS`, route to one of two top-level modes BEFORE the worktree-creation logic below:
+
+- **Empty / branch-name / file paths / diff range** → **OUTGOING** (review the current branch — the existing default behavior; continue to "Scope" below).
+- **PR ref alone (`#1234` or PR URL)**:
+  - If the PR has unresolved review threads → fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`. On **Incoming** → run `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` Phase I (Step I-1 onwards) INSTEAD of SKILL.md Phase 5/6. On **Outgoing** → continue to "Scope" below.
+  - If no unresolved threads → **OUTGOING** (skip the AUQ).
+- **Anchored natural-language signals** (`process review on #N`, `respond to review #N`, `incoming review #N`) → **INCOMING** (skip the AUQ entirely; the signal IS the override). Bare keywords without a PR-ref anchor are NOT enough — phrases like "respond to feedback" without `#N` route to OUTGOING.
+- **`--tdd` / `--standard` flag** → existing behavior (TDD-mode for OUTGOING; see Mode AUQ block below).
+
+There is **NO `--incoming` flag**. Explicit override into Incoming mode is via the natural-language signals above. The pattern mirrors `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` Adversarial-mode signal anchoring — see that file for the design rationale.
+
+When `mode == INCOMING`, run Phase 1's worktree pre-flight and PR-fetch (below) as normal — Incoming mode still needs the worktree + PR metadata — then jump to `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` Step I-1 instead of Phase 2. Phases 2/3/4/4b/5/6 are skipped in Incoming mode (Phase 4c machinery is reused only by Step I-3).
+
 - **Scope:** follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for target resolution (working tree → branch-vs-base diff → no-op). The base branch is whatever scope-anchor resolves it to (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files") — do NOT preface it with harness "Auto Mode" framing. NEVER invoke `gh pr list` or any other PR-discovery command to invent a target — PR mode triggers ONLY on the explicit PR-ref forms enumerated below.
 - **Harness Auto Mode handling:** `/geniro:review` has NO auto mode of its own. Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" — do NOT promote the harness "Auto Mode Active" reminder into transcript framing (e.g., never announce "Auto mode → proceeding without prompting"). Scope resolution and Phase 4c's user-approval gate are governed by their own rules regardless of harness Auto Mode state.
 - Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url` for base/head context, head SHA pin, PR URL, plus PR body+title (the PR body feeds PLAN CONTEXT below). Capture the original PR ref (the `#N` / digits / URL form the user passed), the `headRefOid` value, and the canonical `url` — all three are persisted to the Phase 5 state file so Phase 6's Action gate can offer the "Post findings as PR comments" option without re-detection (the `headRefOid` is what Phase 6 pins as `commit_id` on the GitHub reviews API call to prevent line-anchor drift if the PR is updated mid-review). Then feed the diff into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
@@ -94,6 +108,12 @@ Also read `CLAUDE.md` at the project root for tech stack context — use this to
 #### Standard Mode (small diff)
 
 Spawn all seven reviewer agents in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. **Spawn the design reviewer (8th agent) ONLY when at least one changed file matches the UI-file detection rule defined below.** Every reviewer prompt carries a `PLAN CONTEXT:` field (Phase 1 collected; renders as `none` when empty) and this exact alignment-tag instruction appended at the end of the prompt body: `Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.`
+
+**Cause + Evidence sub-fields per finding (orchestrator-side adaptation).** Every reviewer-agent finding emitted by the prompts below is REQUIRED to carry both:
+- `Cause:` — one of `[ROOT-CAUSE]` / `[SYMPTOM]` / `[UNKNOWN]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. The agent emits the field; the orchestrator parses it; Phase 5 disposition consumes it (see Phase 5 root-cause-gate firing below).
+- `Evidence:` — Evidence Block (Command / Exit code / Tail) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Evidence Block schema. CRITICAL/HIGH findings WITHOUT an Evidence Block are dropped at Phase 3 relevance-filter; MEDIUM findings without one are demoted.
+
+The reviewer-agent.md output template was updated in Wave 2A to emit these sub-fields. The orchestrator's parser (Phase 4 judge pass + Phase 5 persistence) reads them out of the per-finding output block. If a reviewer's output is missing `Cause:` for any finding, treat that finding as `Cause: [UNKNOWN]` per the legacy-fallback rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema and surface a one-line caveat under `## Caveats`.
 
 ```
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
@@ -423,7 +443,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 **Step 4: Independent re-verification by the orchestrator.**
 
-For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (a single re-run; the agent already did 3× flake check). Use `backpressure.sh` to keep failing-test output from flooding context:
+For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (a single re-run; the agent already did 3× flake check). Cache invalidation rules — including which agent PASS reports may be honored vs re-run — are governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` (single source of truth). Sub-agent PASS reports are inputs, not evidence; the orchestrator's independent re-run IS the gate, and the cache-honor decision MUST check ALL invalidation rules (mutation-since-write, commit SHA, command triad, reporting-agent exit) before skipping the re-run. Use `backpressure.sh` to keep failing-test output from flooding context:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Test-gate re-run" "<project test command from CLAUDE.md> <test path>"
@@ -631,6 +651,8 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 
 Write the file even when zero actionable findings remain (empty severity sections, `suggested next stage: none`) — the artifact's existence signals "review ran, nothing to fix" to downstream skills and resumed sessions.
 
+**Root-cause gate disposition (fires when any `[SYMPTOM]` finding survives Phase 4c).** After persisting findings, scan the kept set for any finding carrying `cause: SYMPTOM` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` persistence schema). For each such finding, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding (sequentially, never batched into a multi-select). The gate's result handling re-tags the finding as `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` (rewriting the `cause:` field in the state file) or halts the skill for `/geniro:debug` escalation. Skip silently when zero `[SYMPTOM]` findings survive. The gate fires BEFORE Phase 6's Action gate so that the user's per-symptom decisions are reflected in the routing options Phase 6 surfaces.
+
 ## Phase 5b: Learn & Improve
 
 Extract knowledge and suggest project-scope improvements after delivering findings. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline handles learnings in Phase 7).
@@ -756,6 +778,7 @@ The reviewer-agent's `description:` and `recommendation:` fields go into the bod
 ## Definition of Done
 
 Code review is complete when:
+- [ ] Phase 1 Step 0 mode detection ran — Outgoing vs Incoming routed per `$ARGUMENTS` shape (PR ref + unresolved threads → AUQ; anchored natural-language signals → direct Incoming; everything else → Outgoing). When mode == INCOMING, the rest of this Definition of Done is replaced by the Incoming-mode Definition at `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` § Definition of Done
 - [ ] Phase 1 context collected (files read, changes understood, PLAN CONTEXT resolved from PR body / `--plan` / project files / none)
 - [ ] Phase 1 git-workspace decision ran when input was a PR ref (one of: skipped silently because already in `.claude/worktrees/pr-<N>-review`; `Worktree` AUQ fired with three-branch routing; existing-target worktree reused via `EnterWorktree`); skipped entirely for files / diff range / branch input
 - [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT + alignment-tag instruction

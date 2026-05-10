@@ -107,15 +107,9 @@ Persist the resolved mode to `<task-dir>/state.md` as `Phase 0: <DESIGN_DOC|CODE
 
 **Action:** Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 1: Auto-Detection Table" for argument parsing rules.
 
-**Phase 1 Startup Consolidation (do this BEFORE firing any Phase 1 AUQ).** Steps 0, 1, 2, and the git-workspace bullet inside Step 7 collectively own up to four upfront always-WAIT questions. Defer firing per-step AUQs until you have evaluated all four conditions, then issue ONE `AskUserQuestion` call carrying whichever of these questions actually apply to this run:
-- **Lane** (Step 0) — include unless Step 0's skip rubric fires (milestone ref / plan-file / plan-mode / `state.md` already has `Phase 1 Step 0:` / hard escalation signal forcing Full)
-- **Mode** (Step 1) — include unless `$ARGUMENTS` already carried an explicit auto/assumptions signal per `implement-reference.md` §Phase 1 Auto-Detection Table rules 3-4 (then Mode is locked, no AUQ needed)
-- **Feature** (Step 2) — include only when `$ARGUMENTS` matched an `F\d+` ID AND the feature row's status is `done` or `blocked` (status `planned` → silent move to `in-progress`; `in-progress` → no action)
-- **Git workspace** (Step 7 git-workspace bullet) — always include, regardless of mode
+**Phase 1 Startup Consolidation (BEFORE firing any Phase 1 AUQ).** Steps 0, 1, 2, and the git-workspace bullet inside Step 7 collectively own up to four upfront always-WAIT questions. Defer per-step AUQs until you have evaluated all four conditions, then issue ONE `AskUserQuestion` call carrying whichever apply: **Lane** (Step 0 — unless skip rubric fires), **Mode** (Step 1 — unless `$ARGUMENTS` locked it via auto/assumptions signal), **Feature** (Step 2 — only when feature row status is `done`/`blocked`), **Git workspace** (Step 7 — always). Independent (no sequencing); `AskUserQuestion` accepts up to 4 questions per call. Persist each answer to `<task-dir>/state.md` as it returns, then proceed through Steps 0/1/2/7 reading from state. If only one applies, fire as single-question AUQ; if zero apply, skip the upfront AUQ entirely and proceed to Step 3.
 
-These four answers are independent (no sequencing dependency); `AskUserQuestion` accepts up to 4 questions per call. Persist each answer to `<task-dir>/state.md` as it returns, then proceed through Steps 0/1/2 reading from state instead of re-firing each AUQ; Step 7 reads the git-workspace answer from state too. If only one question applies, fire it as a single-question AUQ. If zero apply (all silent-skipped or `$ARGUMENTS`-locked), no upfront AUQ fires at all and you proceed straight to Step 3.
-
-**Step 0 — Complexity Gate (Lane Selection).** Before any discovery work, classify the request and ask the user which Lane to run: Full pipeline / Light Mode (architect+skeptic skipped, Trivial only) / TDD Mode (sequential RED→GREEN per behavior, opt-in via explicit signal AND ≤Small scope). Skip this gate entirely when: a milestone was detected (Auto-Detection Table rule 0 — note that decompose-set HITL/AFK Mode tag determines Lane automatically per `decompose-criteria.md` HITL/AFK section), a plan-file path is present in `$ARGUMENTS` (handled by Phase 2 pre-check rule 4), a plan-mode conversation is active (Phase 2 pre-check rule 2), or `state.md` already contains a `Phase 1 Step 0:` line (resume / second-run already decided). Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate". If any hard escalation signal from `_shared/effort-scaling.md` Step 1 fires, Light Mode AND TDD Mode are both unavailable — proceed silently to full pipeline. Default for anything uncertain: Full pipeline. Persist `Lane: <full|light|tdd>` to `state.md`. (auto-mode: see `implement-reference.md` §Auto Mode Behavior). Per **Phase 1 Startup Consolidation** above, contribute Lane to the consolidated upfront AUQ instead of firing a standalone Lane AUQ at this step.
+**Step 0 — Complexity Gate (Lane Selection).** Classify the request and ask which Lane to run: Full pipeline / Light Mode (architect+skeptic skipped, Trivial only) / TDD Mode (sequential RED→GREEN per behavior, opt-in via explicit signal AND ≤Small scope). Skip this gate when: milestone detected (HITL/AFK Mode tag determines Lane automatically per `decompose-criteria.md`), plan-file path present, plan-mode conversation active, or `state.md` already has a `Phase 1 Step 0:` line. Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate". Hard escalation signals from `_shared/effort-scaling.md` Step 1 → Light/TDD unavailable; default uncertain → Full. Persist `Lane: <full|light|tdd>` to `state.md`. Contribute Lane to the consolidated upfront AUQ above instead of firing standalone here.
 
 **Steps:**
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
@@ -132,7 +126,7 @@ These four answers are independent (no sequencing dependency); `AskUserQuestion`
    - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 7 row) for all gray areas; git workspace was already answered upstream in the Phase 1 Startup Consolidation AUQ (see preamble at top of Phase 1). Log gray-area defaults to `state.md` "Auto-mode decisions" section
    - **Assumptions mode:** Propose plan, let user correct
    - **Plan-provided:** If a detailed plan exists in the conversation (from Claude Code's built-in plan mode via Shift+Tab) or as a file (from `/geniro:decompose` or a prior `/geniro:implement` run), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
-   - **Git workspace question is batched into the upfront Phase 1 Startup Consolidation AUQ** (see preamble at top of Phase 1) — always asked via `AskUserQuestion` regardless of mode (including auto-mode), because where the implementation lands (new branch / current branch / worktree) is a consequential decision the user must make explicitly — never auto-default. The consolidated batch carries whichever of {Mode (only if Step 1 didn't lock from `$ARGUMENTS`), Lane (only if Step 0's skip rubric didn't fire), Feature (only if Step 2 matched a done/blocked row)} actually need to fire alongside it; if only git-workspace applies (all three others pre-resolved), fire it as a single-question AUQ. The original prohibition against batching applied only to silent gray-area defaults (which evaporate in auto-mode), not to other always-WAIT questions.
+   - **Git workspace** is asked upfront in the Phase 1 Startup Consolidation AUQ (see preamble) — always via `AskUserQuestion` regardless of mode; never auto-default. Where the implementation lands (new branch / current / worktree) is a deliberate user decision.
 8. Synthesize into spec document (only AFTER step 7). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
 9. Document assumptions in spec file
 10. **Git workspace setup** — execute user's choice (captured upfront in the Phase 1 Startup Consolidation AUQ; see `implement-reference.md` §"Example discovery gray-area questions" Git workspace line for canonical option text). Options A and C both need a branch name; read and apply the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md` once with the spec title and `$ARGUMENTS` to produce `<branch-name>` (e.g., `feat/ci-22-case-radar-timeline`) that follows the repo's convention rather than a hardcoded prefix.
@@ -234,7 +228,7 @@ If the user picks "Continue now": continue normally to Phase 4.
 
 ## PHASE 4: IMPLEMENT
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/implement.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+**Refresh custom instructions:** re-read `.geniro/instructions/{global,implement,code-style}.md` (if present) — rules survive compaction.
 
 **Purpose:** Execute architecture with parallel agents (Full + Light Lanes) OR sequential RED→GREEN per behavior (TDD Lane).
 
@@ -277,7 +271,7 @@ For each wave:
 1. **Spawn all WU agents in ONE response** — multiple Agent() calls in the same assistant turn, NOT one per turn (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site.
    **Agent context:** The `backend-agent` and `frontend-agent` read `CLAUDE.md` at runtime for project-specific context. No additional context injection is needed — simply spawn the agent.
 2. **Collect results** — each agent must report: files created/modified, tests created/modified, test results
-3. **Quick gate** (build + test) — pass/fail only. If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
+3. **Quick gate** (build + test) — pass/fail only. Every PASS/FAIL claim MUST attach an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines). If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
 4. **Start next wave**
 
 ### Step 4: Hotspot files (orchestrator micro-edits only)
@@ -332,9 +326,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a 
 
 ### Step 2: Verify after simplification
 
-1. Read the simplify-agent's `## Checks Report` from its return (the agent ran autofix + build + lint + test as part of its Definition of Done — see `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 5: Simplify Agent Template").
+1. Read the simplify-agent's `## Checks Report` from its return (the agent ran autofix + build + lint + test as part of its Definition of Done — see `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 5: Simplify Agent Template"). Every PASS/FAIL claim attached MUST carry an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 2. **If the report shows any FAIL or is missing:** revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 6.
-3. **Otherwise:** the simplify-agent's PASS verdict carries forward into Phase 6 Stage A's cache check (see `implement-reference.md` §"Phase 6: Stage A — Automated Checks Detail"). Do NOT re-run build/lint/test here — that would duplicate Stage A.
+3. **Otherwise:** the simplify-agent's PASS verdict carries forward into Phase 6 Stage A's cache check (see `implement-reference.md` §"Phase 6: Stage A — Automated Checks Detail" — cache invalidation governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`). Do NOT re-run build/lint/test here — that would duplicate Stage A.
 
 **Anti-rationalization:**
 | Your reasoning | Why it's wrong |
@@ -349,7 +343,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a 
 
 ## PHASE 6: REVIEW & VALIDATE
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/implement.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+**Refresh custom instructions:** re-read `.geniro/instructions/{global,implement,code-style}.md` (if present) — rules survive compaction.
 
 **Purpose:** Single quality gate — verify code compiles, passes tests, meets spec, and is well-written.
 
@@ -404,16 +398,9 @@ Aggregate findings. Pass CRITICAL/HIGH to fix loop; preserve MEDIUM findings (do
 
 ## PHASE 7: SHIP & FINALIZE (WAIT)
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/implement.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+**Refresh custom instructions:** re-read `.geniro/instructions/{global,implement,code-style}.md` (if present) — rules survive compaction.
 
-**Precondition — do NOT enter Phase 7 until ALL of these are true:**
-- Phase 5 completed or skipped with logged reason — check `state.md` for "Phase 5 completed" OR "Phase 5 skipped"
-- Phase 6 Stage A completed — check `state.md`
-- Phase 6 Stage B completed or skipped with logged reason — check `state.md` for "Stage B completed" OR "Stage B skipped"
-- Phase 6 Stage C completed — check `state.md`
-- Phase 6 Stage D completed or skipped with logged reason — check `state.md`
-
-If any is missing, go back and complete it. Do NOT skip phases.
+**Precondition:** Do NOT enter Phase 7 until `state.md` shows Phase 5 completed-or-skipped, Phase 6 Stage A completed, Stage B completed-or-skipped, Stage C completed, and Stage D completed-or-skipped (with logged reason for skips). If any is missing, go back and complete it.
 
 ### PART A: FINALIZE (Steps 1-4 — runs automatically, no user input needed)
 
@@ -497,9 +484,9 @@ If "Delete": remove `<task-dir>/` recursively.
 | "Implementation is done, the user can test it" | Phase 4 is one of 7 phases. Follow the pipeline to completion. |
 | "I'll skip review since the agents already tested" | Agent self-reports are unreliable. Phase 6 exists to catch what agents miss. |
 | "The tweak is small, I'll skip the re-validation loop" | Every tweak re-runs at minimum Stage A. Small bugs introduced during tweaks are the hardest to catch later. |
-| "I'll batch Smoke-test and Ship Decision in one AskUserQuestion to save a round-trip" | Step 5 offers commit/push/PR — asking it alongside the UI-check lets the user commit before verifying UI. The Smoke-test question is a standalone gate; Step 5 fires only after verification is resolved (completed or skipped). |
-| "I'll fire Mode/Lane/Feature in batch 1, then ask git-workspace separately to keep things tidy" | The four upfront always-WAIT questions (Mode/Lane/Feature/Git-workspace) are independent (no sequencing dependency) and `AskUserQuestion` accepts up to 4 questions per call. Splitting them creates pure friction — Phase 1 Step 7 git-workspace bullet explicitly batches them into ONE upfront AUQ. The "standalone" rule that previously lived there only protected against batching with silent gray-area defaults (which evaporate in auto-mode anyway), not against batching with other always-WAIT questions. |
-| "I'll auto-pick the recommended fix path for this `[PRODUCT-DECISION]` finding — the recommendation field is obvious" | `[PRODUCT-DECISION]` is Always-WAIT (see implement-reference.md §Auto Mode Behavior). The `recommendation:` field on a multi-path finding is a synthesis of valid options — not the chosen path. Pick one and you've shipped a product decision the user did not authorize. |
+| "Batch Smoke-test + Ship Decision in one AUQ" | Step 5 offers commit/push/PR — asking alongside UI-check lets the user commit before verifying UI. Smoke-test is standalone; Step 5 fires after verification resolves. |
+| "Split the Mode/Lane/Feature/Git-workspace questions across separate AUQs" | These four are independent and `AskUserQuestion` accepts 4 questions per call — splitting is pure friction. Phase 1 Startup Consolidation batches them. |
+| "Auto-pick the recommended path for a `[PRODUCT-DECISION]` finding" | `[PRODUCT-DECISION]` is Always-WAIT. The `recommendation:` field is a synthesis of valid options, not the chosen path — picking ships an unauthorized product decision. |
 
 ---
 

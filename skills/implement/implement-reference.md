@@ -173,17 +173,13 @@ What TDD Mode changes within /implement. Read this when `Lane: tdd` is set in st
 
 ### Phase 4 in TDD Mode
 
-Replace the standard parallel-waves model with sequential cycles. The architect's behavior list (from Phase 2) drives the cycle ordering.
+When `Lane: tdd`, Phase 4 replaces the standard parallel-waves model with sequential RED→GREEN→REFACTOR cycles. The architect's behavior list (from Phase 2) drives the cycle ordering. **Run each cycle per the canonical procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`** — that file is authoritative for RED/GREEN/REFACTOR steps, the failing-test signature check, the GREEN full-suite verification, and the optional REFACTOR pass. Do NOT inline the cycle steps here; the `tdd-cycle.md` definition is single-source-of-truth.
 
-For each behavior in the architect's numbered list:
+**Per-cycle TDD-state contract.** Persist cycle phase to `.geniro/state/tdd/state-<slug>.md` (Markdown, slug-scoped, atomic write, single-writer = orchestrator) per `tdd-cycle.md` § State file contract. The slug is computed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules. Required headers (Branch / Worktree / Timestamp) sit at the top of the file; `## phase` body section transitions linearly `IDLE → RED → GREEN → REFACTOR → IDLE`. The `## target` body section names the production file under change (NOT the test file). The PreToolUse hook `enforce-tdd-order.sh` reads this file to gate Edit|Write at the right cycle moment; sub-agents NEVER write the state file. **NOTE:** the path is `.geniro/state/tdd/state-<slug>.md` (Markdown), not JSON — Markdown survives partial writes during compaction.
 
-1. **Re-read the behavior** — what does this cycle add? What's the assertion?
-2. **RED — author the test.** Spawn ONE backend or frontend agent (matched to the behavior's surface) with a single instruction: "Author one test for behavior #N: <behavior text>. Use the public interface signatures from the approved Interface-Design (in `<task-dir>/interface.md`). Do NOT touch implementation. The test MUST fail on current code."
-3. **Verify RED.** Orchestrator runs the test; confirm failure with a real-looking signature (`AssertionError: ...` or equivalent). If the test passes on current code, REJECT — the test is testing existing behavior, not the new behavior. Re-spawn the test author with the rejection reason.
-4. **GREEN — minimal implementation.** Spawn ONE agent with: "Make test #N pass with minimal code. Do NOT add anything not required by this test. Do NOT anticipate behavior #N+1."
-5. **Verify GREEN.** Orchestrator runs the test + the full project test suite; confirm both pass. If the new test passes but other tests fail, the implementation regressed — fixer agent loop (max 1 round), then escalate.
-6. **REFACTOR (optional, post-GREEN).** If the cycle's GREEN code introduces obvious duplication or muddies an interface, spawn a focused refactor agent. Constraint: refactor preserves all tests green. If refactor breaks anything, `git stash` the refactor and continue to next behavior.
-7. **Update state.md** — append `Cycle <N> completed: <behavior summary>` so resume picks up at cycle N+1.
+**Test-First Gate (per cycle).** Before the RED-phase test-author spawn for each cycle, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-first-gate.md` to record (a) whether a failing test already exists for this behavior, (b) whether one needs authoring, or (c) explicit user opt-out with justification. The gate is Always-WAIT in Lane:tdd; on "Author failing test first" (the recommended path), the orchestrator writes `## phase\nRED` to the state file and spawns the test author. On "Test exists & failing", the orchestrator MUST verify the named test actually fails (capture Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`) before transitioning state to `GREEN` and spawning the implementation agent.
+
+**Cycle execution (delegates to tdd-cycle.md):** for each behavior in the architect's numbered list, the orchestrator (1) re-reads the behavior, (2) spawns ONE backend/frontend agent with the RED-phase instruction (apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn), (3) runs the test itself and applies the RED-phase verification per `tdd-cycle.md` § RED phase (capture Evidence Block; reject on exit 0 or wrong signature), (4) writes `## phase\nGREEN` and spawns ONE agent with the GREEN-phase instruction, (5) runs the test plus the full project suite per `tdd-cycle.md` § GREEN phase (capture Evidence Block; full suite must remain green), (6) optionally writes `## phase\nREFACTOR` and runs a focused refactor pass per `tdd-cycle.md` § REFACTOR phase (`git stash` on any test reddening), (7) writes `## phase\nIDLE` on cycle completion and appends `Cycle <N> completed: <behavior summary>` to `<task-dir>/state.md` so resume picks up at cycle N+1.
 
 **Cycle ordering is DETERMINED by the architect's list** — orchestrator does NOT re-order. If the architect's list has dependencies (cycle 5 depends on cycle 3), the architect should have ordered them correctly; the skeptic validates.
 
@@ -328,7 +324,7 @@ After implementation and tests are written, run these checks yourself:
 1. Run the project's test command — all tests must pass (new and existing)
 2. Run the project's lint/format command — fix any issues
 3. Run the project's build/typecheck command — must compile cleanly
-If any check fails, fix the issue and re-run. Do not report success with failing checks.
+If any check fails, fix the issue and re-run. Do not report success with failing checks. Every PASS/FAIL claim MUST attach an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines) — forbidden phrases (`"all tests pass"`, `"validation complete"`, `"ready to ship"`) without an Evidence Block trip the Stop hook.
 
 After all checks pass, include this structured section at the end of your response:
 
@@ -388,7 +384,7 @@ BRANCH: [from `git branch --show-current`]
 3. Classify findings as P1/P2/P3
 4. Apply P1 and P2 fixes. Skip P3 (report only).
 5. Report what was changed using the Completion Report format from the criteria
-6. Run the project's autofix command (lint --fix / format) per CLAUDE.md, then run build + lint + test. Capture pass/fail per command. Emit a `## Checks Report` block at the END of your return with the format:
+6. Run the project's autofix command (lint --fix / format) per CLAUDE.md, then run build + lint + test. Capture pass/fail per command. Every PASS/FAIL claim MUST attach an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines of output) — reasoning-from-the-diff is forbidden. Emit a `## Checks Report` block at the END of your return with the format:
    ```
    ## Checks Report
    - autofix: PASS|FAIL [error summary if FAIL]
@@ -396,7 +392,7 @@ BRANCH: [from `git branch --show-current`]
    - lint: PASS|FAIL [error summary if FAIL]
    - test: PASS|FAIL [error summary if FAIL]
    ```
-   Do NOT skip this step. The orchestrator's Phase 6 Stage A cache rule depends on this report.
+   Do NOT skip this step. The orchestrator's Phase 6 Stage A cache rule depends on this report (cache invalidation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`).
 
 ## Requirements
 - Zero behavior change — preserve exact inputs, outputs, side effects
