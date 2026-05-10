@@ -4352,7 +4352,7 @@ Findings and fixes from this audit were extended by Audit v25. See v25 for the c
 ### Skills changed
 - **`/geniro:brainstorm` added** — standalone ideation layer; cites `skills/_shared/brainstorming-loop.md` (8-phase loop with HARD-GATE).
 - **`/geniro:features` `spec` subcommand removed** — functionality merged into `/features add`, which now uses the same `brainstorming-loop.md` shared rule. 11 references migrated.
-- **`/geniro:review` extended with Incoming mode** — pure auto-detect (no `--incoming` flag); reuses Phase 1 worktree creation + Phase 4c F→P verification machinery for incoming PR-comment classification ([ACTIONABLE]/[QUESTION]/[AMBIGUOUS]/[WRONG]) with mandatory Evidence Block.
+- **`/geniro:review` extended with Incoming mode** — pure auto-detect (no `--incoming` flag); reuses Phase 1 worktree creation + Phase 4c F→P verification machinery for incoming PR-comment classification ([ACTIONABLE]/[QUESTION]/[AMBIGUOUS]/[WRONG]) with mandatory Evidence Block. Incoming mode is newly added in this audit cycle (was previously absent from `/geniro:review`); detection is via PR-state inspection + anchored natural-language signals, not a flag.
 
 ### Shared rules added (skills/_shared/)
 - `evidence-standard.md` — canonical Evidence Block schema + forbidden phrases

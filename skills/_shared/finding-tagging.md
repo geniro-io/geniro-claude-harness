@@ -24,11 +24,12 @@ The `[ROOT-CAUSE] ⇄ [SYMPTOM-ACK]` transition is also possible at gate result-
 
 When the reviewer cites cross-dimension evidence (e.g., the bugs reviewer notices the architecture reviewer would have more context), it still emits its best-effort tag — the orchestrator's judge pass (`/geniro:review` Phase 4) reconciles cross-dimension overlap.
 
-**`agents/architect-agent.md` adds a mandatory "Root-cause classification" output section per design unit** — one of `ROOT-CAUSE`, `SYMPTOM-PATCH`, `MIXED`, or `UNKNOWN` (architect-flavored variant; `MIXED` indicates one design unit contains both root-cause and symptom-patch components). The section sits after the design unit's "Approach" / "Trade-offs" blocks. The architect applies the classification based on the same structural signal as the reviewer, scaled to design units rather than finding lines:
+**`agents/architect-agent.md` adds a mandatory "Root-cause classification" output section per design unit** — one of `ROOT-CAUSE`, `SYMPTOM-PATCH`, or `MIXED` (architect-flavored 3-tag set; `MIXED` indicates one design unit contains both root-cause and symptom-patch components, OR confidence in a clean ROOT-CAUSE / SYMPTOM-PATCH split is below 60%). The section sits after the design unit's "Approach" / "Trade-offs" blocks. The architect applies the classification based on the same structural signal as the reviewer, scaled to design units rather than finding lines:
 - Design unit changes the originating layer → `ROOT-CAUSE`.
 - Design unit changes only the surface where the defect manifests → `SYMPTOM-PATCH`.
-- Design unit straddles both → `MIXED` (fires the gate; the user picks per-unit).
-- Design unit's cause/symptom axis is not meaningfully applicable (pure refactor, doc-only, structural) or confidence is low → `UNKNOWN`.
+- Design unit straddles both, OR confidence is below 60%, OR the cause/symptom axis is not meaningfully applicable (pure refactor, doc-only, structural) → `MIXED` (fires the gate; the user picks per-unit). `MIXED` is the architect's escape hatch for genuine ambiguity — architect MUST commit to a design call and MUST NOT punt to `UNKNOWN` (that tag is reviewer-only; see below).
+
+`UNKNOWN` is **reviewer-only** — a post-implementation escape hatch when the reviewer cannot classify cause-vs-symptom within its review budget. The architect operates pre-implementation and must commit to a design read; punting to `UNKNOWN` would force the gate to ask the user to make a classification call the architect itself refused to make.
 
 Both agents tag every finding/design unit. Omission is never acceptable — see § Anti-rationalization.
 
@@ -39,7 +40,7 @@ The orchestrator (`/geniro:implement` Phase 2 / `/geniro:review` Phase 5 / `/gen
 - **`[ROOT-CAUSE]` / `ROOT-CAUSE`** → proceeds in the upstream skill's normal flow. The finding/design enters the fix-loop pool / implementation pool unchanged.
 - **`[SYMPTOM]` / `SYMPTOM-PATCH`** that survives the upstream filter step (Phase 4c relevance-filter for `/geniro:review`; architect's own self-filter for `/geniro:implement` Phase 2; Step 2.5 root-vs-symptom assessment for `/geniro:follow-up`) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding/design unit. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
 - **`MIXED`** (architect only) → fires the same gate per design unit; the user picks per-unit, just as `[SYMPTOM]` findings fire per-finding.
-- **`[UNKNOWN]`** → orchestrator requires the upstream agent to escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the agent itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause and emits the (now classified) finding.
+- **`[UNKNOWN]`** (reviewer only — architect emits the 3-tag set ROOT-CAUSE / SYMPTOM-PATCH / MIXED and does NOT have UNKNOWN as an option) → orchestrator requires the reviewer to escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the agent itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause and emits the (now classified) finding.
 - **`[SYMPTOM-ACK]`** → already user-acknowledged; orchestrator proceeds AND appends the entry to the Ship summary's `## Acknowledged tech debt` section (the gate's Result handling already wrote it; this is the read-back for ship-time rendering).
 
 The Trivial lane in `/geniro:follow-up` and the Fast Lane in `/geniro:implement` bypass these tags entirely — those lanes do not invoke architect/reviewer agents, so no `Cause:` field exists. The gate is skipped silently, matching the same lane-bypass convention as `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`.
@@ -67,15 +68,15 @@ These sub-fields populate the gate's `<symptom>` and `<suspected root cause>` sl
 
 **2. Architect design units — `<task-dir>/design.md` (`/implement` Phase 2 output):**
 
-Each design unit's "Root-cause classification" section uses block format:
+Each design unit's "Root-cause classification" section uses block format. Architect output uses unbracketed `Root-cause classification: ROOT-CAUSE` / `SYMPTOM-PATCH` / `MIXED` (3-tag set, UNKNOWN reserved for reviewer post-implementation escape hatch):
 
 ```
-Root-cause classification: <ROOT-CAUSE|SYMPTOM-PATCH|MIXED|UNKNOWN>
-Symptom: <one-line>                       # required when classification is SYMPTOM-PATCH, MIXED, or UNKNOWN
-Suspected root cause: <one-line>          # required when classification is SYMPTOM-PATCH, MIXED, or UNKNOWN
+Root-cause classification: <ROOT-CAUSE|SYMPTOM-PATCH|MIXED>
+Symptom: <one-line>                       # required when classification is SYMPTOM-PATCH or MIXED
+Suspected root cause: <one-line>          # required when classification is SYMPTOM-PATCH or MIXED
 ```
 
-The same gate-rendering rule applies: ROOT-CAUSE units skip the symptom/cause sub-fields; SYMPTOM-PATCH / MIXED / UNKNOWN units include them.
+The same gate-rendering rule applies: ROOT-CAUSE units skip the symptom/cause sub-fields; SYMPTOM-PATCH / MIXED units include them.
 
 Older state files written before tagging was introduced will lack the `cause:` field entirely. Consumers MUST treat a missing `cause:` field as `cause: UNKNOWN` (the safe default — fires the upstream-debug escalation rather than auto-proceeding) and log a single-line caveat under `## Caveats` in the rendered report: `legacy state file — cause classification missing, treating as UNKNOWN`.
 
@@ -88,3 +89,4 @@ Older state files written before tagging was introduced will lack the `cause:` f
 | "The reviewer-agent's confidence is 75% — that's high enough for `[ROOT-CAUSE]`" | The 60% threshold is for the FINDING itself (does this issue exist?), not for the cause-vs-symptom classification (does this fix the cause or the symptom?). Those are independent dimensions. A 95%-confidence finding can have a 40%-confidence cause classification — emit the finding with `[UNKNOWN]` and let the gate route. |
 | "I'll merge `[SYMPTOM]` and `[UNKNOWN]` into one tag — they both fire escalation" | They route differently. `[SYMPTOM]` fires the gate (3 user options including "Confirmed root cause" if the user already knows the cause); `[UNKNOWN]` requires `/geniro:debug` to run BEFORE the gate fires (the user shouldn't be asked to classify what the agent itself couldn't classify). Collapsing the tags collapses the routing. |
 | "The agent classified `[SYMPTOM]` but I (orchestrator) think it's `[ROOT-CAUSE]` — I'll re-tag" | The orchestrator does NOT re-classify agent output. Re-classification is the user's call via the gate's "Confirmed root cause (proceed)" option, which records the override in the audit trail. Silent re-tagging by the orchestrator is the same anti-pattern as auto-dropping a MEDIUM (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` § Why this exists). |
+| "The architect can't decide between ROOT-CAUSE and SYMPTOM-PATCH — I'll emit UNKNOWN" | Architect emits the 3-tag set ROOT-CAUSE / SYMPTOM-PATCH / MIXED only. `MIXED` is the escape hatch for genuine ambiguity (architect must commit to a design call; MIXED captures the genuine-straddle case AND the sub-60% confidence case, and routes through the gate). `UNKNOWN` is reviewer-only — a post-implementation escape hatch when the reviewer cannot classify within its review budget. Architect punting to UNKNOWN would force the user to make a classification call architect itself refused to make. |

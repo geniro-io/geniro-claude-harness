@@ -3,6 +3,17 @@
 # Scans the last assistant message for forbidden completion phrases without an Evidence Block.
 # Per audit revision M2: Stop hooks fire ~50-80% of the time; treat as soft reminder layer, not enforcement.
 # Bypass: .geniro/safety.json allow_patterns: ["evidence-stop"].
+#
+# Known limitations (DELIBERATE — not bugs):
+#  - Forbidden phrases "should" / "probably" can match benign sentences
+#    ("I should clarify", "Should I run the tests?"). Sentence-anchored regex
+#    + interrogative-line skip + quoted-block skip mitigate but don't eliminate
+#    false positives. Severity is bounded — this hook is warn-only (exit 0);
+#    bypass via `evidence-stop` in `.geniro/safety.json` allow_patterns.
+#  - The `file:line` citation shortcut (regex matches any `path.ext:N`) lets
+#    arbitrary path references defeat the warning. Documented as deliberate
+#    soft-layer behavior — Stop hooks fire ~50-80% of the time per
+#    multi-framework data; treat as soft reminder, not enforcement gate.
 set -euo pipefail
 
 # Consume stdin - REQUIRED first step
