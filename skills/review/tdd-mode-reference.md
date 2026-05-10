@@ -2,6 +2,8 @@
 
 TDD mode is an opt-in variant of `/geniro:review` that biases the run toward authoring failing tests for eligible findings (Phase 4c) and posting only F-to-P-confirmed evidence to the PR (Phase 6). It changes default highlighting and the Phase 6 PR-comment filter; it does NOT change the Phase 4c safety invariant in `SKILL.md` — the skill MUST `AskUserQuestion` before spawning `adversarial-tester-agent` in every mode. Mode flips defaults, never gates.
 
+**Cycle procedure body lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`** (single source of truth for RED → GREEN → REFACTOR, the state-file contract, and the PreToolUse hook enforcement). This file's scope is the review-specific framing — which findings are eligible for F-to-P verification, the Phase 6 post-set filter, edge cases, and rollback notes. When `adversarial-tester-agent` authors a failing test for a seeded finding (Phase 4c Step 3), the test-authoring procedure follows the canonical cycle in tdd-cycle.md — this file does NOT re-state the RED/GREEN/REFACTOR steps.
+
 ## What TDD mode flips and what it does NOT
 
 | Behavior | Standard mode | TDD mode |
@@ -36,7 +38,7 @@ TDD mode is an opt-in variant of `/geniro:review` that biases the run toward aut
 
 ## F-to-P contract — what does and does not change
 
-The F-to-P semantics are **unchanged** between modes. `adversarial-tester-agent` runs the same protocol (3x flake check plus orchestrator independent re-run). Mode does not affect what the agent does, only how the orchestrator surfaces the gate and filters posting.
+The F-to-P semantics are **unchanged** between modes. `adversarial-tester-agent` runs the same protocol (3x flake check plus orchestrator independent re-run) per the canonical RED → GREEN → REFACTOR cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`. Mode does not affect what the agent does, only how the orchestrator surfaces the gate and filters posting.
 
 **No P-to-P (preservation tests) is added.** The user-facing TDD mode does NOT widen the agent's contract to also run repo-wide existing tests stay green; that is out of scope for this design (see SWE-bench's F-to-P + P-to-P dual gate for what a future expansion could add).
 

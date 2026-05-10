@@ -28,7 +28,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (refactor, relevance-filter, reviewer), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (refactor, relevance-filter, reviewer), also follow `skills/_shared/spawn-agent.md` (bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined) AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (every spawn pre-inlines the six required fields: task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier).
 
 **Skill-specific mapping** — refactor work is mostly mechanical pattern application; Sonnet handles ~90% of cases:
 
@@ -135,10 +135,12 @@ State is written on all tiers for consistency. Only strategic compact points are
 5. Read any project convention files referenced in CLAUDE.md (coding standards, architecture docs) — understanding project patterns prevents flagging intentional designs as smells
 6. Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/refactor.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 
-**Step 7 (final): Baseline validation.** Run the project's validation suite once (read command from CLAUDE.md).
+**Step 7 (final): Baseline validation.** Run the project's validation suite once (read command from CLAUDE.md). Capture the run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — every post-refactor verification in Phases 4 and 5 must also attach an Evidence Block to its claim.
 - If red: `AskUserQuestion` header "Baseline": "Fix the broken tests first (stop refactoring)" / "Proceed anyway — existing failures are out of scope (risky)". Default to stop.
 - If no tests exist at all: escalate immediately — "Cannot refactor safely without tests. Use `/geniro:implement` to add coverage first."
 - If tests green: record the passing-state fingerprint (test count) in `.geniro/state/refactor/state-<slug>.md` and proceed.
+
+**Step 8: Test-First Gate (behavior-adjacent coverage check).** Before any refactor edit, check whether each function/symbol in the refactor scope has at least one test that exercises it. If a behavior-adjacent test-coverage gap is detected (the function being refactored has no test), fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-first-gate.md` — author RED before any refactor edit, so the refactor's zero-behavior-change guarantee is anchored to a captured failing-then-passing signature. Refactor's constitution requires existing tests to lock the behavior; if none exists, the gate forces the orchestrator to either add coverage first or escalate per the gate's Result-handling table. If every scope-symbol already has coverage, skip the gate silently.
 
 ### Phase 2: Analyze (subagent) + Plan (orchestrator)
 
@@ -271,6 +273,8 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 **Session-level cap:** After execution returns, count the ratio of BLOCKED to executed steps (post-user-rejection; i.e., denominator = approved plan steps minus user-rejected HIGH-risk steps). If ≥30% BLOCKED: stop and escalate via `AskUserQuestion` header "Stuck": "Keep what worked and escalate the rest" / "Revert all changes" / "Force-continue (not recommended)". Do NOT proceed to Phase 5 automatically when this cap triggers.
 
+**Evidence Block on final regression run.** After execution returns, run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the refactor's zero-behavior-change invariant held.
+
 Update `.geniro/state/refactor/state-<slug>.md`: `phase: 4`, `steps-completed: [...]`, `steps-blocked: [...]`.
 
 **Strategic Compact Point (Medium and Large only).** See "State & Resume Semantics" above. After compaction, resume from Phase 5.
@@ -376,6 +380,45 @@ rm -f .geniro/refactor/state.md           2>/dev/null  # original legacy: pre-sl
 ```
 
 After deleting the state file, tell the user explicitly: "Refactor complete — the diff is in your working tree. Commit it yourself, or run `/geniro:follow-up` to ship with a review gate."
+
+When invoked DIRECTLY (not as a chained REFACTOR-phase from another skill), Phase 5 is the natural endpoint of the flow — Phase 6 below is skipped.
+
+### Phase 6: TDD Post-GREEN REFACTOR (optional — only when chained from another skill's GREEN phase)
+
+This phase fires ONLY when the refactor skill is chained as the REFACTOR phase of an upstream TDD cycle (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § REFACTOR phase) — typically from `/geniro:implement` Phase 4 in TDD Lane or `/geniro:follow-up` Medium-scope post-GREEN. The upstream skill has just shipped GREEN code under a passing test suite; this phase cleans up that just-written GREEN code without changing test assertions. The refactor-agent already supports this contract under its existing "phase scoping" clause.
+
+**Skip conditions:**
+- Refactor invoked directly (not chained) → Phase 6 does NOT run; Phase 5 is the endpoint.
+- Upstream TDD state file `.geniro/state/tdd/state-<slug>.md` does not exist OR `## phase` ≠ `GREEN` on entry → not a chained cycle; fall through to Phase 5 endpoint.
+
+**Procedure (when fired):**
+
+1. **Verify GREEN preconditions.** Read `.geniro/state/tdd/state-<slug>.md`; confirm `## phase\nGREEN` and that the upstream skill's full test suite was last captured green per its Evidence Block. Do NOT proceed if the state file is stale or missing — refactor under non-GREEN conditions defeats the cycle's invariant.
+
+2. **Spawn refactor-agent for post-GREEN cleanup** under the unchanged test suite. The cleanup target is the just-written GREEN diff — NOT the broader codebase. Allowed moves match `tdd-cycle.md` § REFACTOR phase: rename poorly-named locals, extract duplicated helpers, collapse redundant conditionals. Forbidden: changing any test assertion, expanding scope to non-GREEN files, anticipating the next behavior.
+
+   ```
+   Agent(subagent_type="refactor-agent", model="sonnet", prompt="""
+   You are the REFACTOR phase of an upstream TDD cycle. The just-shipped GREEN diff is your scope.
+
+   UPSTREAM TDD STATE: `.geniro/state/tdd/state-<slug>.md` (phase: GREEN; target: <production file from state>)
+   GREEN DIFF (pre-inlined): [paste `git diff <pre-GREEN-base>...HEAD` for the just-shipped change]
+   FULL TEST COMMAND: [<test_cmd> from CLAUDE.md] — run after every refactor step; assertions MUST remain unchanged.
+
+   PHASE: REFACTOR (post-GREEN cleanup, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § REFACTOR phase).
+   - Allowed: rename, extract helper, collapse redundant conditional, dedupe within the GREEN diff.
+   - Forbidden: change any test assertion, expand scope outside the GREEN diff, anticipate next-cycle behavior.
+   - If any test reddens after a step, `git stash` that step's changes and stop — refactor in a follow-up cycle.
+
+   Anchor: stay within WORKTREE on BRANCH per `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+   """)
+   ```
+
+3. **Run the full suite post-refactor.** Capture as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. The point of REFACTOR is verifying that all existing behavior is preserved, not just the just-added behavior.
+
+4. **Update TDD state to IDLE** per `tdd-cycle.md` § REFACTOR phase Step 5 — the upstream orchestrator owns the actual write (refactor-agent / this skill is NOT the single-writer). Surface the IDLE-write recommendation in the Phase 6 completion report so the upstream skill performs the atomic mktemp + mv -f update before its next cycle.
+
+5. **Return control to the upstream skill** with a one-block report: files refactored, lines changed, full-suite Evidence Block, recommended state-file IDLE write. The upstream skill resumes its flow (typically: write IDLE state → next behavior cycle, or → Ship summary).
 
 ## Git Constraint
 

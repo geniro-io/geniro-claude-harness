@@ -44,27 +44,35 @@ Read `CLAUDE.md` at the project root for project-specific context (tech stack, v
 - **Check for existing utilities** — before writing any helper, search the codebase for functions that already do the same thing under a different name
 - **Check for existing dependencies** — before adding a package, search installed dependencies to verify nothing already covers the need
 
-### 3. Implement following conventions
-- Mirror existing code style, indentation, import organization
-- Use the same error handling approach as the codebase
-- Follow the ORM patterns already established (active record vs. repository, etc.)
-- Place new code in the correct directory structure
-- Add docstrings/comments matching existing documentation style
-- For routes: validate input at boundary, handle all error cases
-- For services: keep business logic separated from framework concerns
-- For models/schemas: define constraints, validations, relationships
+### 3. Author failing test (RED phase)
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`:
+- Write the test for the behavior under change FIRST, before any production code. Place and format the test to match existing patterns (same directory layout, fixtures, assertion style); include unit, integration, and edge-case coverage as the codebase convention dictates.
+- Run the project's test command (from Project Context, or detect from README/package.json/Makefile). Verify exit code != 0 AND the failure signature matches the targeted behavior — `ImportError`/syntax errors do not count; the signature must be a real assertion failure.
+- Emit Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines of output).
+- Read the TDD state file at the path passed in by the orchestrator to confirm `## phase` is `RED` and `## target` matches the production file you intend to modify next. The agent reads but NEVER writes the state file — it is single-writer (orchestrator only); phase transitions at boundaries are the orchestrator's responsibility.
 
-### 4. Add tests following existing patterns
-- Write tests in the same format and location as existing tests
-- Match the assertion style and test structure of the codebase
-- Include unit tests (isolated logic), integration tests (with database), and edge cases
-- Run tests with the project's test command (from Project Context, or detect from README/package.json/Makefile)
+### 4. Implement minimal production code (GREEN phase)
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`:
+- Author the smallest change that makes the failing test pass. Mirror existing code style, indentation, import organization; use the same error handling and ORM patterns; place new code in the correct directory structure; add docstrings/comments matching existing documentation style. For routes: validate input at boundary, handle all error cases. For services: keep business logic separated from framework concerns. For models/schemas: define constraints, validations, relationships.
+- Run the same test command as RED. Verify exit code == 0 for the new test AND that no sibling tests regressed.
+- Emit Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
+- Confirm the GREEN result matches the test that was authored in Step 3 — NEVER modify the test to make it pass (forbidden; the test is the contract).
+- REFACTOR is optional and only run if the orchestrator explicitly asks; do not enter REFACTOR on your own initiative.
 
 ### 5. Run quality checks
 - Format code using the project's linter/formatter (from Project Context, or detect from README/package.json/Makefile)
 - Verify no regressions: run the project's test command. Prefer `<test_cmd_affected>` from CLAUDE.md's Essential Commands if defined (an incremental command targeting only tests affected by your diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `go test ./<changed-pkg>/...`); fall back to `<test_cmd>` (full suite) if `<test_cmd_affected>` is not defined. The orchestrating skill runs the full-suite regression gate separately at its review/validation phase — your Verify step is the agent-side gate, not the regression gate.
 - Check for any database migration requirements
 - Report any new dependencies added
+
+---
+
+## Anti-rationalization (TDD order)
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "The behavior is too obvious for TDD — I'll just write the code." | If you didn't watch the test fail, you don't know if it discriminates the behavior. RED locks the bug into regression coverage; without a captured failing run, the test is theatre. |
+| "I'll write the test after, it's faster." | The state file enforces order; the PreToolUse hook `enforce-tdd-order.sh` exits 2 on production-file Edit while `## phase` is `RED`. Same-commit grouping doesn't satisfy the discipline; same-message ordering does. |
 
 ---
 

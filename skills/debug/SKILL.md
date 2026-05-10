@@ -13,21 +13,13 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 |---|---|---|
 | `adversarial-tester-agent` | `inherit` | Carve-out — reasoning-grade test authoring. Matches the canonical rule in `skills/_shared/model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 6 Stage D, `/geniro:follow-up` Medium Phase 5. Synthesis tier mirrors the orchestrator's; the agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
-Every `Agent(...)` spawn in this skill MUST pass an explicit `model=` argument per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. For plugin-defined subagents (adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
+Every `Agent(...)` spawn in this skill MUST pass an explicit `model=` argument per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. For plugin-defined subagents (adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined — AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (every spawn pre-inlines the six required fields: task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier).
 
 ## Evidence Standard
 
-A hypothesis is **confirmed** ONLY when its `Result:` field cites one of these artifact kinds:
+Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — schema, forbidden phrases, and artifact kinds 1-5 are defined there. This skill applies that standard at every hypothesis-confirmation, fix-verification, and Step 6 reproduction-test capture; "the symptom matches", "the agent reported confirmed", "the user described it verbally" are NOT evidence per the shared rule's § Anti-rationalization.
 
-| # | Kind | Example |
-|---|---|---|
-| 1 | File:line + verified snippet (orchestrator re-read confirms the text) | `src/cache/user.ts:42-58` snippet pasted |
-| 2 | Captured command / test / build output | `pnpm test src/cache/user.test.ts → 1 failing, AssertionError: ...` |
-| 3 | Log line or stack trace from the running system | `2026-04-01T12:34Z ERROR ... NullPointerException at ...` |
-| 4 | Query result against the actual datastore | `SELECT count(*) FROM sessions WHERE user_id=42 → 0 rows` |
-| 5 | User-provided artifact (screenshot, log paste, captured request body, env-var dump) | user pastes the request body that triggered the bug |
-
-Reasoning, "the symptom matches the hypothesis", "the agent reported confirmed", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only reproduction with a captured artifact (kind 2-4) confirms causation.
+**Debug-specific framing — hypothesis-confirmation artifact kinds.** A hypothesis is **confirmed** ONLY when its `Result:` field cites one of the artifact kinds 1-5 from the shared rule. Hypothesis-tracking is the most evidence-rigorous flow in the plugin: every entry in `.geniro/state/debug/HYPOTHESES-<slug>.md` § Result MUST attach a captured artifact (kind 1: file:line + verified snippet; kind 2: captured command/test/build output; kind 3: log line / stack trace; kind 4: datastore query result; kind 5: user-provided artifact). Reasoning is correlation; only reproduction with a captured artifact confirms causation.
 
 If the orchestrator's tools cannot produce evidence for a hypothesis (no DB access, no production logs, no credentials, no environment access), do NOT mark it inconclusive by default — use the missing-data gate in Step 3 to ask the user for the artifact.
 
@@ -199,6 +191,7 @@ If you cannot build a feedback loop in 10 minutes, do NOT proceed to Step 2 by g
 - Once hypothesis is confirmed, identify exact code location
 - Trace the data flow or control flow leading to the bug
 - Understand why the bug happens (not just where)
+- **Tag emitted findings per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.** `/geniro:debug` is the root-cause flow by definition — once a hypothesis is confirmed via the Evidence Standard (kinds 1-5), the isolated finding is a `[ROOT-CAUSE]` finding, NOT a `[SYMPTOM]`. Emit the `Cause:` field as `[ROOT-CAUSE]` on the confirmed-hypothesis finding when persisted to `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` (Step 6.5a). `[UNKNOWN]` from debug is a failure mode — debug's contract is to reach a confirmed root cause; if you find yourself emitting `[UNKNOWN]`, that means the hypothesis loop didn't close (escalate via the missing-data gate or fix-fail escalation, do NOT ship `[UNKNOWN]`). `[SYMPTOM]` from debug is also a failure mode for the same reason — it means causation was not confirmed before isolation, so re-enter Step 2 with a new hypothesis instead of persisting `[SYMPTOM]`.
 
 ### 5. Propose Fix (5–15 min)
 - **Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/debug.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this step — re-load to ensure they survive any compaction since Phase 1.
@@ -303,12 +296,14 @@ Apply the same skip-matrix philosophy as `skills/follow-up/SKILL.md` Step 1.5 (s
 
 ### D. Adversarial Workflow
 
+Adversarial mode runs the **RED phase** of the canonical cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § RED phase: author the failing test FIRST, verify it fails with a real assertion signature, then escalate the fix to the receiving skill (which runs GREEN). Tests are never authored alongside or after the fix in this mode — RED-first ordering is non-negotiable per the cycle's invariant ("if you didn't watch RED fail, you don't know if your test would have caught the bug"). GREEN verification (write fix → verify all-green) is the receiving skill's responsibility, not debug's; debug delivers the verified-RED test artifact and the fix proposal.
+
 1. **Resolve the diff** (see B). Pre-inline full diff + changed-file contents for the spawn prompt.
 2. **Detect the project test framework.** Read `CLAUDE.md` Essential Commands section + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract (a) the test command, (b) test-file naming convention, (c) 1–2 exemplar test files closest to the changed code.
-3. **Spawn `adversarial-tester-agent`** — see Spawn Template in §E below.
-4. **Independently re-run authored tests.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`, extract authored test file paths, then run the project test command **once per authored test**. Single independent re-run per authored test (the agent already ran its own 3× flake check per its Step 5; duplicating would waste budget). Any test that does not fail deterministically on the re-run is deleted from disk AND removed from the report.
+3. **Spawn `adversarial-tester-agent`** to AUTHOR RED tests — see Spawn Template in §E below. The agent writes failing tests against today's code; no fix is authored in this step.
+4. **Independently verify RED (re-run authored tests).** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`, extract authored test file paths, then run the project test command **once per authored test**. Single independent re-run per authored test (the agent already ran its own 3× flake check per its Step 5; duplicating would waste budget). Any test that does not fail deterministically on the re-run is deleted from disk AND removed from the report. This is the orchestrator-side RED-verification per `tdd-cycle.md` § RED phase Step 3 (verify exit code != 0 AND failure signature matches the behavior under test).
 5. **Present Adversarial Findings** — see §F below.
-6. **Escalate.** Reuse Step 6.5b `AskUserQuestion` (header "Escalate") with the same three options — Trivial → `/geniro:follow-up`, Non-trivial → `/geniro:implement`, Leave-it-to-me. Before asking, ensure the Adversarial Findings summary from §F has been written to `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (the agent already wrote it at Step 3; append the re-verification delta if tests were discarded). The escalation option labels MUST reference that file by path (e.g., "Trivial — run `/geniro:follow-up`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`") — the authored test file paths inside are the escalation targets, and the receiving skill applies the fix and confirms the now-green test suite. If zero red tests survived re-verification, SKIP Step 6.5b entirely — report `"no bugs found in scanned diff"` and go to DoD.
+6. **Escalate fix authoring (GREEN handled downstream).** Reuse Step 6.5b `AskUserQuestion` (header "Escalate") with the same three options — Trivial → `/geniro:follow-up`, Non-trivial → `/geniro:implement`, Leave-it-to-me. Before asking, ensure the Adversarial Findings summary from §F has been written to `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (the agent already wrote it at Step 3; append the re-verification delta if tests were discarded). The escalation option labels MUST reference that file by path (e.g., "Trivial — run `/geniro:follow-up`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`") — the authored test file paths inside are the escalation targets, and the receiving skill writes the fix and runs GREEN verification (per `tdd-cycle.md` § GREEN phase) to confirm the now-green test suite. If zero red tests survived re-verification, SKIP Step 6.5b entirely — report `"no bugs found in scanned diff"` and go to DoD.
 
 ### E. Spawn Template
 

@@ -70,16 +70,21 @@ Read `CLAUDE.md` at the project root for project-specific context (tech stack, c
    - Named exemplar component(s) the new work must visually mirror
    If no design system is detectable, say so explicitly and fall through to the greenfield branch in Phase 3.5(c).
 
-### Phase 3: Implement
-1. Create component files in correct location
-2. Implement component logic with the project's framework (from Project Context)
-3. Style using the project's token layer and primitives only — no raw values, no ad-hoc scales
-4. Integrate with state management if needed (from Project Context)
-5. Export properly documented interfaces
+### Phase 3: Implement (TDD test-first — RED→GREEN per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`)
+
+The Test-First Gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-first-gate.md`) fires upstream of this agent and persists the cycle phase to `.geniro/state/tdd/state-<slug>.md`. You read that state; you do NOT write it. The hook `enforce-tdd-order.sh` will block `Edit|Write` to production files while phase is `RED`, so the test MUST be authored first.
+
+**TDD test-first applies to logic, state, interaction, accessibility behavior. For visual fidelity, the existing visual self-critique loop (Phase 3.5b — `mcp__plugin_playwright_playwright__*` screenshot loop at 375/768/1440) is the verification path.** Both are required for visually non-trivial changes; neither replaces the other.
+
+1. **Scaffold the component shell only** — if the failing test needs the component to exist (compile-time / import resolution), create the component file with the exported symbol shape (props interface, empty render, no logic). No state, no event handlers, no rendered content beyond what is required to import. This is NOT the GREEN-phase implementation; it is the minimal compile-time stub so the test can target the right symbol.
+2. **RED — Author the failing test FIRST.** Cover logic, hooks, reducers, state transitions, interaction (click/keyboard/focus), accessibility behavior (roles, labels, focus management), and edge cases. Assert against semantic roles, not CSS classes — `getByRole('button', { name: ... })` over `getByTestId`. Production-code changes beyond the Step 1 shell are forbidden in this step.
+3. **Verify RED** — run the project's test command (prefer `<test_cmd_affected>` from CLAUDE.md's Essential Commands; fall back to `<test_cmd>`). Confirm exit code != 0 AND the failure signature is a real assertion failure (`AssertionError`, `expected X got Y`, or framework equivalent), NOT `ImportError` / `ReferenceError` / syntax error. If the test passes on current code, the test is testing existing behavior — tighten the assertion and re-run before proceeding. Capture the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines of output).
+4. **GREEN — Implement minimal production code to pass the test.** Build out the component logic with the project's framework (from Project Context). Style using the project's token layer and primitives only — no raw values, no ad-hoc scales. Integrate with state management if needed. Export properly documented interfaces. Resist anticipating behavior beyond what the current failing test requires — each cycle is one behavior.
+5. **Verify GREEN** — run the same test command. Confirm exit code == 0 for the new test. Capture the Evidence Block. If sibling tests regressed, fix before declaring GREEN.
 
 ### Phase 3.5: Visual Polish
 
-Run this phase against your own output BEFORE writing tests, so the tests assert the polished version. It has three parts:
+Run this phase against your GREEN-passing output (after Phase 3 Step 5). The TDD test-first cycle in Phase 3 covers logic, state, interaction, and accessibility behavior; this phase covers visual fidelity, which is genuinely hard to assert pre-implementation. The two are complementary, not alternatives. It has three parts:
 
 - **(a) Static checklist** — always runs, covers state matrix, breakpoints, contrast, tokens, exemplar drift, keyboard, semantics.
 - **(b) Visual self-critique loop** — runs by default for visually non-trivial changes when Playwright MCP is available. Screenshot → critique in plain English → fix → repeat.
@@ -131,13 +136,15 @@ What it CAN do, and what you should actually use:
 - **Never invent an aesthetic direction unprompted.** Aesthetic direction is opt-in via `.geniro/instructions/code-style.md`; surprising the user with bold choices will clash with their plans.
 - When on the baseline, still write a Design Conventions Brief — it just states "greenfield, universal baseline" plus any values you are committing to (e.g., exact spacing scale, font stack, accent hue) so subsequent work stays consistent.
 
-### Phase 4: Test
-1. Write unit tests for logic and edge cases — pure functions, reducers, hooks
-2. Write integration tests for component behavior, including the state matrix entries that matter (loading / empty / error, plus disabled/focused for interactive elements)
-3. Write E2E tests for critical workflows (if applicable) — do not duplicate coverage the integration layer already has
-4. Assert against semantic roles, not CSS classes — `getByRole('button', { name: ... })` over `getByTestId`
-5. Run the project's test command and fix failures. Prefer `<test_cmd_affected>` from CLAUDE.md's Essential Commands if defined (an incremental command targeting only tests affected by your diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `jest --findRelatedTests <files>`); fall back to `<test_cmd>` (full suite) if not defined. The orchestrating skill runs the full-suite regression gate separately at its review/validation phase.
-6. Verify test coverage meets project standards
+### Phase 4: Expand Coverage & Verify Full Suite
+
+Phase 3 covered the core RED→GREEN cycle for the primary behavior. This phase expands coverage to the full state matrix and runs the full-suite verification before declaring done.
+
+1. **Author additional tests for remaining state-matrix entries** — for each, run the same RED→GREEN micro-cycle (failing test → verify RED → minimal code → verify GREEN). Cover loading / empty / error states, plus disabled/focused/hover for interactive elements, and any edge cases not yet exercised. Each new behavior gets its own observed failing test; do NOT batch-author tests after the implementation is already complete.
+2. **Write E2E tests for critical workflows** (if applicable) — do not duplicate coverage the integration layer already has. E2E tests follow the same test-first discipline.
+3. **Assert against semantic roles, not CSS classes** — `getByRole('button', { name: ... })` over `getByTestId`. This applies to every test authored in Phase 3 and Phase 4.
+4. **Run the full project test command and fix failures.** Prefer `<test_cmd_affected>` from CLAUDE.md's Essential Commands if defined (an incremental command targeting only tests affected by your diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `jest --findRelatedTests <files>`); fall back to `<test_cmd>` (full suite) if not defined. The orchestrating skill runs the full-suite regression gate separately at its review/validation phase. Capture the final Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` showing exit code 0 with the test count.
+5. **Verify test coverage meets project standards.**
 
 ### Phase 5: Report
 1. List files created/modified (with absolute paths)
@@ -180,6 +187,7 @@ When you receive feedback from a reviewer:
 **DO NOT:**
 - Add external dependencies without checking existing patterns first
 - Skip writing tests or running test suite
+- Author tests AFTER implementation — that is the documented anti-pattern; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § Why this exists
 - Implement features beyond the stated specification
 - Modify files outside the scope of the task
 - Invent tokens, fonts, variants, or magic spacing values — ask instead
@@ -190,6 +198,18 @@ When you receive feedback from a reviewer:
 - Test all code paths, including error and edge cases
 - Document any new components if codebase has that pattern
 - Anchor every styling decision to the Design Conventions Brief
+
+---
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I'll write the test after the component — same diff in the end." | Tests passing on first run prove nothing about whether they discriminate the behavior under change. The failing-test step is the only verification that the test would have caught the regression; written-after, the test is theatre. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § Why this exists. |
+| "Visual changes don't need TDD." | TDD test-first applies to logic, state, interaction, and accessibility behavior; visual fidelity goes through the visual self-critique loop in Phase 3.5(b). Both are required for visually non-trivial changes — neither replaces the other. Skipping the TDD cycle because "the change is visual" misclassifies state/interaction work that ALSO has a visual surface. |
+| "I'll snapshot the existing component, then change it, then update the snapshot." | Snapshot-update without an authored failing test for the new behavior is the test-after-impl anti-pattern in disguise. Snapshots lock in pixels, not behavior; updating them after the implementation proves nothing about whether the new behavior is exercised. Author a behavior-asserting test (role queries, interaction, state assertions) FIRST per Phase 3 Step 2. |
+| "The component doesn't exist yet — I have to write it before the test can import it." | Phase 3 Step 1 covers this: scaffold the component shell (props interface, empty render, no logic) so the import resolves, THEN author the failing test for the logic, THEN GREEN-phase the implementation. The shell is not the GREEN implementation. |
+| "RED is theatre — I know the test would fail." | If you didn't watch RED fail with a real assertion-failure signature, you don't know if your test would have caught the bug. The cost of capturing the RED Evidence Block is one test invocation; the cost of skipping it is silently shipping a test that passes on every implementation. |
 
 ---
 
@@ -236,8 +256,11 @@ Before declaring work complete:
 
 - [ ] Spec is fully implemented
 - [ ] Component prop types documented (TypeScript)
-- [ ] All unit tests written and passing
-- [ ] Integration tests written and passing
+- [ ] RED phase observed for each new behavior — Evidence Block captured (exit != 0, real assertion-failure signature) BEFORE the production-code change
+- [ ] GREEN phase observed for each new behavior — Evidence Block captured (exit == 0) AFTER minimal implementation
+- [ ] All unit tests written test-first and passing
+- [ ] Integration tests written test-first and passing
+- [ ] Full test suite runs clean (Phase 4 Step 4 Evidence Block)
 - [ ] Design Conventions Brief written and followed — no invented tokens, fonts, or scales
 - [ ] Phase 3.5 Visual Polish completed (static checklist + screenshot loop where applicable)
 - [ ] Code follows project conventions

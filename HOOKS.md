@@ -8,23 +8,24 @@ Hook configuration is **split** across two files:
 
 | File | Purpose |
 |---|---|
-| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, PostToolUse, PostCompact, SessionStart). Pointed to by [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `hooks` field. |
+| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, PostToolUse, Stop, SessionStart). Pointed to by [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `hooks` field. |
 | [`settings.json`](settings.json) (root) | Defines plugin-wide permissions and the `statusLine` command. The status line is NOT a Claude Code hook — it's a separate display feature. |
 
 The status messages set on each `hooks.json` entry (e.g. `"Checking for unsafe database operations..."`) appear as spinner text while the hook runs.
 
 ## Hook scripts
 
-The plugin ships 6 safety hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 7 safety hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
 | [`file-protection.sh`](hooks/file-protection.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks writes to `.env`, lock files, keys, credentials |
-| [`db-guard.sh`](hooks/db-guard.sh) | PreToolUse `Bash` | exit 2 = block | Blocks unsafe DB operations (DROP, TRUNCATE, unfiltered DELETE) |
 | [`secret-protection-input.sh`](hooks/secret-protection-input.sh) | PreToolUse `Bash` | exit 2 = block | Blocks shell commands that read sensitive files |
 | [`block-dangerous-git.sh`](hooks/block-dangerous-git.sh) | PreToolUse `Bash` | exit 2 = block | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
-| [`secret-protection-output.sh`](hooks/secret-protection-output.sh) | PostToolUse `*` | warn-only (always exit 0) | Scans tool outputs for leaked secrets |
-| [`post-compact-notification.sh`](hooks/post-compact-notification.sh) | PostCompact `*` | non-blocking | Outputs resume instructions and re-read suggestions for the active pipeline state |
+| [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
+| [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
+| [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
+| [`post-compact-notification.sh`](hooks/post-compact-notification.sh) | SessionStart `matcher: "compact"` | non-blocking | Outputs resume instructions and re-read suggestions for the active pipeline state |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
 | [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | ANSI-colored status line (model • task • dir • context%) |
 | [`backpressure.sh`](hooks/backpressure.sh) | **NOT registered** — utility library | — | Sourced by skills (e.g. /refactor, /review) to compress verbose test/build output |
@@ -45,17 +46,13 @@ The plugin ships 6 safety hooks, 1 sourced utility library, and 2 Node-based fea
 
 Implementation: case-insensitive pattern match via lowercase conversion; exit 2 to block (fail-safe).
 
-### db-guard.sh
-
-**Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
-
-Blocks: `DROP TABLE/DATABASE/INDEX/VIEW/SCHEMA`, `TRUNCATE`, unfiltered `DELETE` (no `WHERE`), tautology `DELETE WHERE 1=1`. Allows commands that don't match these patterns. Stderr-only warning on block.
-
 ### secret-protection-input.sh
 
 **Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
 
-Blocks shell commands attempting to read: `.env`, `.pem`, `credentials`, API keys, SSH keys, AWS config, Kubernetes config, OAuth tokens, password files, openssl key inspection. Includes `cat`, `source`, redirection patterns.
+Blocks shell commands targeting unambiguous secret-file paths: `.env` (and `.env.*`), `~/.aws/credentials`, `~/.ssh/id_{rsa,ed25519,dsa,ecdsa}`, `~/.kube/config`, `*.pem`, `*.p12`, `*.pfx`, `*.keystore`, `~/.npmrc`, `~/.pypirc`, `.netrc`. Reader-command coverage extends beyond `cat` to `less`, `tail`, `head`, `xxd`, `awk`, and `<` redirection. Also blocks `source .env*` and `openssl rsa/ec -in` key inspection.
+
+Simplified 2026-05-10 — broad keyword patterns (`cat *secret*`, `cat *token*`, `cat *password*`) were dropped because they fired on routine source files and docs (`src/auth/token.ts`, `docs/secret-handling.md`, `src/components/PasswordReset.tsx`).
 
 ### block-dangerous-git.sh
 
@@ -65,17 +62,11 @@ Blocks destructive git operations by pattern ID: `force-push`, `force-push-with-
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist).
 
-### secret-protection-output.sh
-
-**Event:** PostToolUse `*`. **Stdin:** `jq -r '.tool_output // ""'`. **Block exit:** never blocks (PostToolUse always exits 0).
-
-Scans tool outputs for leaked secrets: `API_KEY`, bearer tokens, passwords, AWS secrets, GitHub/GitLab tokens, Slack webhooks, Stripe keys, OAuth tokens, PGP/SSH private keys, `BEGIN PRIVATE KEY` blocks, JWT-shaped strings. On detection, outputs a JSON `additionalContext` warning. Gracefully exits 0 if `jq` is unavailable.
-
 ### post-compact-notification.sh
 
-**Event:** PostCompact `*`. **Block exit:** never blocks. **Timeout:** 10s.
+**Event:** SessionStart `matcher: "compact"`. **Block exit:** never blocks. **Timeout:** 10s.
 
-Globs `.geniro/planning/*/state.md` (most-recently-modified) to detect an active pipeline; outputs `additionalContext` containing resume instructions, suggested re-reads (SKILL.md, state.md, spec files), and feature-anchor reminders. Gracefully handles missing state.
+Wired as `SessionStart` with `matcher: "compact"` (Anthropic-canonical post-compaction recovery path; `PostCompact` itself does not support `additionalContext`). Globs `.geniro/planning/*/state.md` (most-recently-modified) to detect an active pipeline; outputs `additionalContext` containing resume instructions, suggested re-reads (SKILL.md, state.md, spec files), and feature-anchor reminders. Gracefully handles missing state.
 
 ### geniro-check-update.js
 
@@ -117,10 +108,6 @@ Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.
 echo '{"tool_input":{"file_path":"/config/.env"}}' | ./hooks/file-protection.sh
 echo "exit=$?"
 
-# Test db-guard
-echo '{"tool_input":{"command":"DROP TABLE users"}}' | ./hooks/db-guard.sh
-echo "exit=$?"
-
 # Test secret-protection-input
 echo '{"tool_input":{"command":"cat ~/.aws/credentials"}}' | ./hooks/secret-protection-input.sh
 echo "exit=$?"
@@ -139,5 +126,5 @@ echo "exit=$?"
 
 - [Claude Code Hooks Reference](https://code.claude.com/docs/en/hooks)
 - [Claude Code Hooks Guide](https://code.claude.com/docs/en/hooks-guide)
-- Exit code behavior: Exit 0 = allow, Exit 2 = block (PreToolUse only); PostToolUse / PostCompact / SessionStart always exit 0
+- Exit code behavior: Exit 0 = allow, Exit 2 = block (PreToolUse only); PostToolUse / Stop / SessionStart always exit 0
 - statusLine wiring: see [`settings.json`](settings.json) and [Claude Code statusLine docs](https://code.claude.com/docs/en/statusline)

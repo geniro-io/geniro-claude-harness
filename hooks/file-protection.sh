@@ -24,6 +24,13 @@ PROTECTED_PATTERNS=(
   "pnpm-lock\.yaml$"          # pnpm lock file
   "package-lock\.json$"       # npm lock file
   "yarn\.lock$"               # yarn lock file
+  "bun\.lockb$"               # bun lock file
+  "cargo\.lock$"              # Rust Cargo lock file
+  "gemfile\.lock$"            # Ruby Bundler lock file
+  "composer\.lock$"           # PHP Composer lock file
+  "poetry\.lock$"             # Python Poetry lock file
+  "pipfile\.lock$"            # Python Pipenv lock file
+  "go\.sum$"                  # Go module checksum file
   "\.pem$"                    # PEM certificates and private keys
   "\.key$"                    # Private key files
   "credentials\."             # credentials.* files

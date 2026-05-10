@@ -227,7 +227,9 @@ For every standard or complex task, research the following before designing:
 
 9. **Organize into execution waves** — group implementation steps into waves based on dependencies. Steps within the same wave can run in parallel. Steps in later waves depend on earlier ones.
 
-10. **Produce the specification** — structured, implementation-ready, no ambiguity.
+10. **Classify each design unit by root-cause status.** After designing each unit (module/component/subsystem you propose), emit one of `ROOT-CAUSE` / `SYMPTOM-PATCH` / `MIXED` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § How agents emit tags. Architect emits this 3-tag set only; `UNKNOWN` is reviewer-only (post-implementation escape hatch) — architect must commit to a design call, and `MIXED` is the explicit escape hatch for genuine ambiguity or sub-60% confidence. If any unit is `MIXED` or `SYMPTOM-PATCH`, the orchestrator will fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` per design unit. See Output Format §3 below for the section schema.
+
+11. **Produce the specification** — structured, implementation-ready, no ambiguity.
 
 ---
 
@@ -302,7 +304,33 @@ Structure every specification with these sections. Include only sections that ad
 ### 2. Approach & Rationale
 Why this is the **best** approach — evaluated on correctness, maintainability, and long-term quality. List alternatives considered with honest tradeoffs. Include research findings: what native/built-in solutions exist, what was chosen and why.
 
-### 3. Scope & Implementation Plan
+### 3. Root-cause classification
+
+**Mandatory.** Per design unit (each module/component/subsystem you propose), emit one of `ROOT-CAUSE` / `SYMPTOM-PATCH` / `MIXED` plus a 1–2 sentence justification. Tags are emitted unbracketed to match the persistence schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema — do not redefine them here. Apply the structural signal:
+
+- **`ROOT-CAUSE`** — design unit changes the layer where causation originates.
+- **`SYMPTOM-PATCH`** — design unit changes only the surface where the defect manifests; the underlying cause sits in a different layer and is unconfirmed.
+- **`MIXED`** — design unit straddles both (root-cause for one issue, symptom-patch for another) OR your confidence in a clean ROOT-CAUSE / SYMPTOM-PATCH split is below 60%. `MIXED` is the explicit escape hatch — never omit the tag.
+
+`SYMPTOM-PATCH` and `MIXED` units fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` per unit at the orchestrator. Include the `Symptom:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema for any unit that is not `ROOT-CAUSE` — they populate the gate's render slots.
+
+Format:
+
+```
+### Root-cause classification
+
+Per design unit:
+
+- **Auth refactor** — `ROOT-CAUSE` — addresses the unauthenticated-session bypass at the source (token-validation middleware), not at the route level where the symptom surfaces.
+- **Logging shim** — `SYMPTOM-PATCH` — masks the noisy logs without fixing the underlying double-emit; user must confirm this is intentional via `root-cause-gate.md`.
+  - Symptom: duplicate log lines for every request.
+  - Suspected root cause: emitter registered twice in the bootstrap path.
+- **Cache layer redesign** — `MIXED` — root-cause for the staleness bug, symptom-patch for the LRU thrashing (acknowledged technical debt).
+  - Symptom: hot keys evicted under load.
+  - Suspected root cause: undersized cache; capacity sizing is out of scope for this change.
+```
+
+### 4. Scope & Implementation Plan
 
 **Files to change** (full paths, new/edit/remove):
 - Direct changes with specific functions/areas to modify
@@ -330,17 +358,17 @@ If no design system is detectable (greenfield UI), the subsection still appears 
 
 Order steps so dependencies are respected. Mark which steps can run in parallel (waves).
 
-### 4. Key Test Scenarios
+### 5. Key Test Scenarios
 Per scenario: name, setup/input, expected behavior, edge case rationale. Minimum: 1 happy-path, 2–3 edge/error cases.
 
-### 5. Risk Assessment
+### 6. Risk Assessment
 - **Scope**: files/modules affected
 - **Breaking changes**: API contracts, database schemas, external interfaces
 - **Confidence**: High/Medium/Low
 - **Assumptions**: explicit assumptions and open questions
 - **Rollback**: how to undo the change
 
-### 6. Open Questions
+### 7. Open Questions
 Unresolved ambiguities, follow-ups for the user, or decisions deferred to implementation.
 
 ---
@@ -358,6 +386,13 @@ If the orchestrator asks you to revise based on engineer feedback (blocker, spec
    - Updated risk assessment if scope changed
 
 ---
+
+## Anti-Rationalization Table
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I'll skip the classification — the design is obviously root-cause" | Every design unit requires explicit classification; the escape hatch for genuine ambiguity (or sub-60% confidence) is `MIXED`. |
+| "The cause-vs-symptom call is unclear — I'll emit `UNKNOWN`" | `UNKNOWN` is reviewer-only (post-implementation escape hatch when the reviewer cannot classify within its review budget). Architect operates pre-implementation and MUST commit to a design call; `MIXED` is the architect's escape hatch for genuine ambiguity, and it routes through the gate so the user can resolve it per-unit. Punting to `UNKNOWN` would force the user to make a classification call architect itself refused to make. |
 
 ## What You MUST NOT Do
 

@@ -15,6 +15,10 @@ Use this skill to answer complex questions about the codebase that require multi
 
 Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
 
+## Subagent Spawn Contract
+
+Every `Agent(...)` spawn in this skill — Phase 2 research agents (Codebase / Git / Internet), Phase 4 self-review agent, and the Step 2a save-routing agents — MUST satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier). The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state — bare prompts force re-discovery and silently drift from intended scope. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents (none in this skill today; the rule applies if a future research agent is promoted to a custom agent type).
+
 **Skill-specific mapping** — research scope drives model choice:
 
 | Spawn | Tier | When |
@@ -106,102 +110,126 @@ If the question is ambiguous, use the `AskUserQuestion` tool to clarify scope be
 
 Spawn 1-3 agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — matching the literal "Agents needed" set from Phase 1 Step 1. No agent is unconditional; each must pass the Phase 1 Step 2 skip criteria. When only one agent is spawned, it is still spawned via `Agent(...)` (not inlined) so Phase 4 self-review can verify its findings against a fresh transcript.
 
-Replace every `{{placeholder}}` with actual content before spawning.
+Every spawn below pre-populates the 6 required fields from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier) and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type not found"). Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
 ```
-Agent(model="sonnet", prompt="""
-## Task: Codebase Investigation
-Answer the following question by analyzing the codebase:
+Agent(model="sonnet", description="Investigate: codebase analysis", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+## Task: Codebase Investigation (READ-ONLY)
+Produce a structured findings report answering the question below by analyzing pre-inlined codebase content. This is a read-only research task — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
 
 **Question:** {{user's question}}
 **Target area:** {{files/modules/patterns to focus on}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
-### Investigation strategy:
-1. Find all files relevant to the question (Glob for patterns, Grep for keywords)
-2. Read key files fully — do not skim
+### Acceptance criteria (self-check before reporting completion)
+- Every Finding cites at least one file:line + verified snippet (Evidence Standard kind 1) or captured grep/command output (kind 2). Reasoning-only findings are rejected.
+- "Files examined" lists every file you Read with line counts.
+- "Gaps" section is present (may be empty) — never silently drop a sub-question.
+
+### Pre-Inlined Files
+{{paste verbatim contents of orchestrator-identified relevant files with absolute paths as headers; agents do NOT re-Glob}}
+
+### Investigation strategy
+1. Read the pre-inlined files fully — do not skim
+2. Use Grep / additional Read calls only when pre-inlined files reference symbols not yet in scope
 3. Trace execution paths, data flow, or dependency chains as needed
 4. Identify patterns, conventions, and edge cases
 5. Note any inconsistencies, dead code, or surprising behavior
 
-### Output format:
+### Output schema (literal shape)
 **Files examined:** [list with line counts]
 
 **Findings:**
-For each relevant discovery:
+For each relevant discovery, one block matching:
 - What: [specific finding with file:line references]
-- Evidence: [code snippet or pattern observed]
+- Evidence: [code snippet or grep output — verbatim]
 - Relevance: [how this answers the question]
 
-**Gaps:** [what you couldn't determine from code alone]
+**Gaps:** [what you couldn't determine from code alone — bulleted]
 
 Do NOT speculate. If the code doesn't answer a sub-question, list it as a gap.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""", description="Investigate: codebase analysis")
+""")
 ```
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
 ```
-Agent(model="sonnet", prompt="""
-## Task: Git History Investigation
-Research the git history to answer:
+Agent(model="sonnet", description="Investigate: git history", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+## Task: Git History Investigation (READ-ONLY)
+Produce a structured timeline + findings report on the git history relevant to the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit, and do NOT run mutating git operations (no `git add`, `git commit`, `git push`, `git checkout`, `git reset`). Read-only git verbs only: `log`, `blame`, `show`, `diff`.
 
 **Question:** {{user's question}}
 **Target area:** {{files/modules to focus on}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
-### Investigation strategy:
+### Acceptance criteria (self-check before reporting completion)
+- Every Finding cites a commit hash + commit-message excerpt or diff snippet (Evidence Standard kind 2 — captured command output). No paraphrased "the commit said".
+- Timeline is chronological with explicit dates from `git log --format`.
+- "Patterns" section is present (may be empty if no trend is supported by ≥3 commits).
+
+### Pre-Inlined Files
+{{paste any relevant file contents the orchestrator already read; the agent does NOT re-Read these to find file:lines}}
+
+### Investigation strategy
 1. `git log --oneline -30 -- {{target files}}` — recent changes
 2. `git log --all --oneline --grep="{{relevant keywords}}"` — commits mentioning the topic
 3. `git blame {{key files}}` — who wrote critical sections and when
 4. `git log --diff-filter=A -- {{target files}}` — when files were first added
 5. For "why" questions: read commit messages in detail for rationale
 
-### Output format:
-**Timeline:** [key events in chronological order]
+### Output schema (literal shape)
+**Timeline:** [key events in chronological order, each with date + commit hash]
 
 **Findings:**
-For each relevant discovery:
+For each relevant discovery, one block matching:
 - What: [commit hash, date, author, change summary]
-- Evidence: [commit message excerpt or diff summary]
+- Evidence: [commit message excerpt or diff summary — verbatim]
 - Relevance: [how this answers the question]
 
-**Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions]
+**Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions; bulleted]
 
 Do NOT speculate about intent beyond what commit messages state.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""", description="Investigate: git history")
+""")
 ```
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
 ```
-Agent(model="sonnet", prompt="""
-## Task: Internet Research
-Research external sources to help answer:
+Agent(model="sonnet", description="Investigate: internet research", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+## Task: Internet Research (READ-ONLY)
+Produce a structured external-sources report answering the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit; do NOT run any local-codebase Bash commands. Use WebSearch + WebFetch only.
 
 **Question:** {{user's question}}
 **Target area:** {{technologies, patterns, or concepts involved}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
-### Investigation strategy:
+### Acceptance criteria (self-check before reporting completion)
+- Every Finding has a Source URL (Evidence Standard kind: external documented fact). No "I recall…" without a URL.
+- Reliability label is one of: official docs / widely-accepted / single source / opinion.
+- Consensus + Disagreements sections present (may be empty if N=1 source).
+
+### Pre-Inlined Context
+{{paste any pre-existing notes from the orchestrator on what's already known about the external technology, so the agent doesn't re-establish background}}
+
+### Investigation strategy
 1. Use WebSearch for each query. Use WebFetch to read full page content when a search result looks highly relevant.
 2. Search for official documentation of relevant frameworks/libraries
 3. Search for best practices, known issues, or common patterns
 4. Search for comparisons or alternatives if the question involves choices
 5. Search for security advisories or deprecation notices if relevant
 
-### Output format:
+### Output schema (literal shape)
 **Sources consulted:** [list with URLs]
 
 **Findings:**
-For each relevant discovery:
+For each relevant discovery, one block matching:
 - What: [specific finding]
 - Source: [URL or reference]
 - Relevance: [how this answers the question]
@@ -212,7 +240,7 @@ For each relevant discovery:
 
 Report facts with sources. Flag opinions as opinions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""", description="Investigate: internet research")
+""")
 ```
 
 ## Phase 2.5: Verify (orchestrator re-checks each load-bearing claim)
@@ -359,24 +387,31 @@ For each major claim, check it has a verified artifact per the Evidence Standard
 
 ## Phase 4: Self-Review (fresh agent)
 
-Spawn a fresh review agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes.
+Spawn a fresh review agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
 
 Default the verifier to `sonnet` (well-scoped: check references, flag over-claims). Only escalate to `opus` if the user explicitly opted in to deep synthesis for an ambiguous cross-subsystem question — otherwise keep `sonnet`.
 
 ```
-Agent(model="sonnet", prompt="""
-## Task: Verify Investigation Answer
-Review this answer for accuracy, completeness, and honesty. You were NOT involved
-in the research — verify with fresh eyes.
+Agent(model="sonnet", description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+## Task: Verify Investigation Answer (READ-ONLY)
+Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
 
 **Original question:** {{user's question}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
-**Draft answer:**
+### Acceptance criteria (self-check before reporting completion)
+- Every claimed issue cites a specific Location-in-answer (section name or line) and includes a Severity label.
+- Spot-check (item 1 below) covers 2-3 distinct load-bearing claims, not 1 claim re-checked thrice.
+- If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
+
+### Pre-Inlined Files
+{{paste verbatim contents of every file cited in the draft answer's file:line references; reviewer re-Reads from these — does NOT re-Glob}}
+
+### Draft answer
 {{full draft answer from Phase 3}}
 
-### Verification checklist:
+### Verification checklist
 1. **Spot-check Phase 2.5**: Phase 2.5 already had the orchestrator re-verify cited claims. Pick 2-3 load-bearing claims at random; re-Read their cited file:lines and confirm the snippet still matches. If a sample fails, that's a Phase 2.5 gap — flag it as a blocker, not a single-claim correction.
 2. **Completeness**: Does the answer fully address the question? Any obvious gaps?
 3. **Honesty**: Is every load-bearing claim backed by an artifact (Evidence Standard kinds 1-5)? Are unverified claims listed in "Open questions" rather than smuggled in with caveats?
@@ -384,15 +419,16 @@ BRANCH: [from `git branch --show-current`]
 5. **Over-claims**: Does the answer claim certainty where evidence is actually weak?
 6. **Missing context**: Is there important context the answer should mention but doesn't?
 
-### For each issue found:
-- Location in the answer
-- Issue description
-- Severity: blocker (factually wrong) / warning (incomplete) / nit (clarity)
-- Suggested fix
+### Output schema (literal shape)
+For each issue found, one block matching:
+- Location: [section/line in the answer]
+- Issue: [description]
+- Severity: [blocker | warning | nit]
+- Suggested fix: [text]
 
-If no issues: report "VERIFIED — answer is accurate and complete"
+If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""", description="Review: verify investigation answer")
+""")
 ```
 
 ### Process review results:
@@ -424,12 +460,14 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text) with header
 
 Before writing to a single store, classify each finding to its proper destination per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`:
 
+Every save-routing Agent() spawn below MUST satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier) AND obey the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type not found"). The save-routing agents do not currently use a custom subagent type (they spawn as `general-purpose` directly), but the spawn-agent.md rule still applies for any future promotion to a plugin-defined agent.
+
 1. **Domain-vocabulary findings** — the investigation surfaced a new domain entity, role, or business-rule term that wasn't in CLAUDE.md's Domain Context. Examples: "the codebase calls X a `Tenant` but production calls it a `Workspace`" / "there's a hidden `BillingAccount` entity that wraps `Subscription`+`PaymentMethod`+`Invoice`."
    - Route: **CLAUDE.md** "Domain Context" section.
    - Method: present the proposed addition (1-3 lines per term) via `AskUserQuestion` with header "Domain term", options "Add to CLAUDE.md (Recommended)" / "Save as learning instead" / "Skip — not durable enough".
-   - On approval: investigate's `allowed-tools` does NOT include Write/Edit (research-only by design). Spawn a focused Agent (`model="sonnet"`, no `subagent_type`) with the proposed term-block pre-inlined and the instruction: "Read CLAUDE.md, locate the `## Domain Context` section (create one before the first `##`-level section if missing — confirm via the orchestrator's prior AskUserQuestion answer pre-inlined here), append the proposed term-block at the section's end, do not modify other sections. Report the resulting diff." This preserves investigate's research-only identity while enabling the auto-extract; the agent does the file write.
-2. **Architectural decisions meeting all 3 ADR criteria** (hard to reverse + surprising + genuine trade-offs) — route to **ADR** per `_shared/improvement-routing.md` § ADR target. Draft the ADR using the template; ask user before creating `docs/adr/` if the directory doesn't exist. Same pattern as #1: investigate has no Write tool, so spawn a focused Agent with the drafted ADR content + target path; agent writes to `docs/adr/NNNN-<slug>.md`.
-3. **Reusable technical insights** (gotchas, lightweight architectural decisions, surprising coupling) — route to **`<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl`** following `_shared/learnings-extraction.md` (the canonical doc references the primary-worktree resolver). Apply the Reflect → Abstract → Generalize pre-pass. Same pattern as #1/#2: spawn a focused Agent to append the JSON entry to the file (or use the auto-memory path if the entry maps to project-memory shape).
+   - On approval: investigate's `allowed-tools` does NOT include Write/Edit (research-only by design). Spawn a focused Agent (`model="sonnet"`, no `subagent_type`) per the 6-field checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`) and runtime-degradation rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`) with the proposed term-block pre-inlined (field 3) and the instruction: "Read CLAUDE.md, locate the `## Domain Context` section (create one before the first `##`-level section if missing — confirm via the orchestrator's prior AskUserQuestion answer pre-inlined here), append the proposed term-block at the section's end, do not modify other sections. Report the resulting diff." Pin task scope (field 1), acceptance criteria (field 2: "Domain Context section contains the proposed term-block; no other sections modified"), allowed mutation surface (field 4: only CLAUDE.md), output schema (field 5: returned diff), and model tier (field 6: sonnet). This preserves investigate's research-only identity while enabling the auto-extract; the agent does the file write.
+2. **Architectural decisions meeting all 3 ADR criteria** (hard to reverse + surprising + genuine trade-offs) — route to **ADR** per `_shared/improvement-routing.md` § ADR target. Draft the ADR using the template; ask user before creating `docs/adr/` if the directory doesn't exist. Same pattern as #1: investigate has no Write tool, so spawn a focused Agent under the same checklist + spawn-agent.md contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`) with the drafted ADR content + target path pre-inlined; agent writes to `docs/adr/NNNN-<slug>.md`.
+3. **Reusable technical insights** (gotchas, lightweight architectural decisions, surprising coupling) — route to **`<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl`** following `_shared/learnings-extraction.md` (the canonical doc references the primary-worktree resolver). Apply the Reflect → Abstract → Generalize pre-pass. Same pattern as #1/#2: spawn a focused Agent under the same checklist + spawn-agent.md contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`) to append the JSON entry to the file (or use the auto-memory path if the entry maps to project-memory shape).
 4. **User preferences about how to collaborate** — route to **auto-memory** (`feedback_*`). Auto-memory is created via Claude Code's native memory feature — no file write needed, so this path doesn't require the agent-spawn workaround.
 
 Findings can route to multiple stores when they're load-bearing in different ways (e.g., a domain term that's also an ADR-worthy decision). Do NOT batch all findings into one save action — present them grouped by target so the user sees what goes where.

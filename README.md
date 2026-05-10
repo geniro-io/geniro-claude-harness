@@ -66,11 +66,11 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 ### Typical workflow
 
 ```
-  /geniro:implement   →  /geniro:follow-up
-        ↑                 (small tweaks
-  /geniro:decompose        after shipping)
-  (for Big tasks —
-   splits into milestones)
+  /geniro:brainstorm  →  /geniro:implement   →  /geniro:follow-up
+  (refine idea into            ↑                 (small tweaks
+   approved design)      /geniro:decompose        after shipping)
+                         (for Big tasks —
+                          splits into milestones)
 ```
 
 Want to go deeper on quality?
@@ -178,12 +178,14 @@ Parallel research agents explore codebase structure, git history, and internet s
 Track features with status, priority, and complexity. Create detailed specs with codebase scouting and adaptive questioning.
 
 ```
-/geniro:features list                        # show all tracked features
-/geniro:features add dark mode support       # add a new feature
-/geniro:features spec dark mode support      # create a detailed spec
-/geniro:features next                        # pick the next feature to work on
-/geniro:features complete dark mode support  # mark as done
+/geniro:features list                          # show all tracked features
+/geniro:brainstorm dark mode support           # standalone ideation → design doc
+/geniro:features add dark mode support         # ideation + backlog registration
+/geniro:features next                          # pick the next feature to work on
+/geniro:features complete dark mode support    # mark as done
 ```
+
+Both `/brainstorm` and `/features add` use the same canonical brainstorming loop — the difference is whether the result is registered in FEATURES.md backlog (`/features add`) or remains a standalone draft (`/brainstorm`).
 
 ### `/geniro:onboard` — Rapid codebase orientation
 
@@ -220,6 +222,17 @@ Scaffold custom workflow-helper actions (Slack pings, PR inspections, release su
 ```
 
 By default `.geniro/actions/` is committed (team-shared). Remove the `!.geniro/actions/` lines from `.gitignore` to keep them local-only. When invoked from a linked git worktree, `run` falls back to the main worktree's registry (with confirmation) if the action isn't present locally; `delete` refuses cross-worktree deletion and asks you to switch to main first.
+
+### `/geniro:brainstorm` — refine an idea into an approved design
+
+Standalone ideation layer (no backlog commitment). Runs the canonical 8-phase
+brainstorming loop (HARD-GATE → Explore → Visual companion → Clarifying →
+Approaches → Section approval → Design doc → Self-review → User re-review),
+then offers a hand-off menu (Implement / Decompose / Add to backlog / Stop).
+
+Cites `skills/_shared/brainstorming-loop.md` (8-phase loop) and `skills/_shared/design-doc-detect.md` (auto-detect existing design via path + HTML marker + YAML frontmatter — no flags).
+
+For backlog-tracked ideation, use `/geniro:features add` (same loop + F-id registration).
 
 ### `/geniro:learnings` — Extract session learnings
 

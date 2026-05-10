@@ -20,9 +20,11 @@ Turn a Big task into 3-7 **independently shippable milestones**, each self-conta
 
 ---
 
-## Subagent Model Tiering
+## Subagent Spawn Contract
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (architect, skeptic), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined.
+Every `Agent(...)` spawn in this skill — Phase 2 architect (master plan + milestone list), Phase 3 architect spawns (per-milestone detail files, fired in parallel), Phase 4 skeptic (cross-milestone validation), and any Milestone Revision spawn — MUST satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier). The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state — bare prompts force re-discovery and silently drift from intended scope.
+
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (architect-agent, skeptic-agent), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined. Co-cite the context-isolation checklist alongside spawn-agent at every spawn site: spawn-agent handles agent-name resolution + runtime degradation; the checklist handles prompt richness. Both apply to every spawn.
 
 **Skill-specific mapping:**
 
@@ -52,11 +54,14 @@ Parse `$ARGUMENTS` to detect intent:
 1. **Empty arguments** → ask what to decompose via `AskUserQuestion`
 2. **"review" or "list"** → list mode (skip to Decomposed Plan Listing)
 3. **"update" + filename** → revision mode (skip to Milestone Revision)
-4. **Path to existing `plan-*.md`** → re-decompose mode: read file, treat as master-plan source
+4. **Design-doc / code-reference / idea resolution** — for any remaining first non-flag token, run the algorithm in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` to resolve `mode ∈ {DESIGN_DOC, CODE_REFERENCE, IDEA}`:
+   - **`mode=DESIGN_DOC`** (token resolves to a file matching the design-doc markers — path under `.geniro/planning/**/*.md`, OR HTML `<!-- geniro:design-doc -->` marker in the first 20 lines, OR YAML `geniro_kind: design-doc` in frontmatter): use the design doc as the input spec. Skip Phase 1 spec-extraction (the design doc IS the spec — its scope, constraints, and acceptance criteria are the master-plan source of truth). Proceed directly to Phase 2 milestone-decomposition with the design-doc content pre-inlined as the "Requirements" block in the architect spawn.
+   - **`mode=CODE_REFERENCE`** (file exists but no design-doc markers — preserved existing behavior): if the resolved path matches `plan-*.md`, treat as re-decompose mode (read file as master-plan source). Otherwise, treat the file as a code reference and run the full discovery flow.
+   - **`mode=IDEA`** (token does not resolve to a file): existing behavior — treat the full remaining `$ARGUMENTS` string as the task description and run the full interactive flow.
 5. **Issue tracker reference** — check `.geniro/workflow/*.md` for argument detection patterns. If a match is found, follow the workflow file's fetch instructions. If the integration backend is unavailable, log a warning and proceed without.
 6. **Auto-mode signals** — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` for the canonical phrase list (`"just do it"`, `"ASAP"`, `"no questions"`). `"auto"` and `"quick"` are NOT triggers. On match: skip interactive questions, pick recommended defaults.
 7. **Assumptions-mode signals** — "I think", "maybe", "what if", "should we" → propose decomposition with assumptions, let user correct
-8. **Plain description** → full interactive decomposition flow
+8. **Plain description** → full interactive decomposition flow (when `mode=IDEA` from rule 4 and no other rule matched)
 
 ---
 
@@ -93,10 +98,14 @@ Decomposed Plans:
 
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Read `.geniro/workflow/*.md` integration files, detect issue-tracker refs, detect mode (auto/assumptions/interactive). Also load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/decompose.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 
-2. **Check for existing plan path in `$ARGUMENTS`.** If it's a path to an existing `plan-*.md`:
-   - Read the plan file in full
-   - Use it as the master-plan source of truth; skip architect's Phase 2a "approach proposal" step
-   - Jump straight to Phase 2 "Generate milestone list" with the existing plan pre-inlined
+2. **Resolve `$ARGUMENTS` to mode via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.** Run the detection algorithm on the first non-flag token (after stripping any sub-command keyword handled at the dispatch table above):
+   - **`mode=DESIGN_DOC`**: Read the design doc in full. Treat it as the input spec — its scope, constraints, decisions, and acceptance criteria ARE the spec. **Skip Phase 1 spec-extraction entirely** (no gray-area extraction, no spec-derivation questions; the design doc has already done that work). Jump directly to Phase 2 "Generate Master Plan + Milestone List" with the design-doc content pre-inlined as the architect's `## Requirements` block. Codebase Context (Phase 1 step 4) and effort classification (Phase 1 step 5) STILL run — the design doc tells you what to build, but the codebase tells you where, and the rubric tells you whether decomposition is the right tool.
+   - **`mode=CODE_REFERENCE`**: If the resolved path matches `plan-*.md` (existing plan re-decompose path):
+     - Read the plan file in full
+     - Use it as the master-plan source of truth; skip architect's Phase 2a "approach proposal" step
+     - Jump straight to Phase 2 "Generate milestone list" with the existing plan pre-inlined
+   - Otherwise the resolved file is a code reference — keep the file path as discovery context, then continue with the full Phase 1 flow (steps 3-7 below).
+   - **`mode=IDEA`**: existing behavior — treat the full remaining `$ARGUMENTS` as the task description, continue with the full Phase 1 flow (steps 3-7 below).
 
 3. **Load prior context.** Before scanning fresh:
    - Existing plans in `.geniro/planning/plan-*.md` and `.geniro/planning/*/plan-*.md`
@@ -126,7 +135,7 @@ Decomposed Plans:
    - `${CLAUDE_SKILL_DIR}/decompose-criteria.md` — milestone schema and validation checklist
    - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md` — the underlying plan structure (master plan reuses it)
 
-2. **Spawn architect-agent** via the Agent tool with `subagent_type: "architect-agent"`, `model="opus"`, in decomposition mode:
+2. **Spawn architect-agent** via the Agent tool with `subagent_type: "architect-agent"`, `model="opus"`, in decomposition mode. The spawn satisfies the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier) and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type 'architect-agent' not found"):
 
    ```markdown
    ## Task: Decompose into Milestones
@@ -175,7 +184,7 @@ Decomposed Plans:
 
 For each milestone listed in the master plan, produce a self-contained `milestone-<N>-<slug>.md` file at `.geniro/planning/<task-dir>/`.
 
-**Spawn all milestone-detail agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.** This is the canonical parallel-spawn pattern used elsewhere in the plugin.
+**Spawn all milestone-detail agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.** This is the canonical parallel-spawn pattern used elsewhere in the plugin. Every spawn in the batch satisfies the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier) and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — and per the parallel-spawn rule in spawn-agent.md, if any one of the N spawns returns "Agent type not found", ALL N are degraded to `general-purpose` in the next response (do not mix bare-name and degraded calls in the same batch).
 
 Per-milestone Agent call with `subagent_type: "architect-agent"`, `model="opus"`:
 
@@ -224,7 +233,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 **Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/decompose.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
 
-1. **Spawn skeptic-agent** ONCE via the Agent tool with `subagent_type: "skeptic-agent"`, `model="sonnet"`:
+1. **Spawn skeptic-agent** ONCE via the Agent tool with `subagent_type: "skeptic-agent"`, `model="sonnet"`. The spawn satisfies the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier) and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type 'skeptic-agent' not found"). Skeptic is read-only by contract — the prompt below restates the prohibition (per checklist field 4 belt-and-suspenders, since degraded `general-purpose` calls lose the agent's tool allowlist):
 
    ```markdown
    ## Task: Validate Decomposed Plan
@@ -320,7 +329,7 @@ If state.md already exists (e.g., from a prior `/geniro:implement` run), preserv
 1. Read the existing master plan and all `milestone-*-*.md` siblings.
 2. Read `state.md` — identify already-completed milestones (preserve their Status).
 3. Use `AskUserQuestion` (do NOT output options as plain text) to ask what needs to change (scope additions, re-partition, add/remove milestones).
-4. Spawn architect-agent (`model="opus"`, decomposition mode) with the existing master plan + milestone files + revision request pre-inlined. Architect revises the master plan and affected milestone files in place; completed milestones are NEVER modified.
+4. Spawn architect-agent (`model="opus"`, decomposition mode) with the existing master plan + milestone files + revision request pre-inlined. The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type 'architect-agent' not found"). Architect revises the master plan and affected milestone files in place; completed milestones are NEVER modified.
 5. Re-run skeptic validation (Phase 4).
 6. Present diff summary to user: which milestones changed, which stayed the same.
 7. Save updated files (same paths, updated timestamps in headers). Update state.md `Milestones:` roll-up if milestone count changed.
