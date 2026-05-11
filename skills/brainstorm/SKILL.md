@@ -1,5 +1,5 @@
 ---
-name: brainstorm
+name: geniro:brainstorm
 description: "Use when refining an idea into an approved design before any implementation. Triggers on speculative inputs ('we should add X', 'thinking about Y', 'explore Z', 'what if we'). Skip for well-formed specs — use /geniro:implement directly. The HARD-GATE in brainstorming-loop.md prevents implementation invocation until the design is approved."
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Task, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: opus

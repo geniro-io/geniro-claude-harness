@@ -185,7 +185,7 @@ Track features with status, priority, and complexity. Create detailed specs with
 /geniro:features complete dark mode support    # mark as done
 ```
 
-Both `/brainstorm` and `/features add` use the same canonical brainstorming loop — the difference is whether the result is registered in FEATURES.md backlog (`/features add`) or remains a standalone draft (`/brainstorm`).
+Both `/geniro:brainstorm` and `/features add` use the same canonical brainstorming loop — the difference is whether the result is registered in FEATURES.md backlog (`/features add`) or remains a standalone draft (`/geniro:brainstorm`).
 
 ### `/geniro:onboard` — Rapid codebase orientation
 
