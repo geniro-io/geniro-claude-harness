@@ -6,11 +6,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/secret-protection-input.sh",
-            "statusMessage": "Checking for sensitive file access..."
-          },
-          {
-            "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-dangerous-git.sh",
             "statusMessage": "Checking for destructive git operations..."
           },

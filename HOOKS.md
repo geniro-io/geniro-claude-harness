@@ -15,12 +15,11 @@ The status messages set on each `hooks.json` entry (e.g. `"Checking for unsafe d
 
 ## Hook scripts
 
-The plugin ships 7 safety hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 6 safety hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
-| [`file-protection.sh`](hooks/file-protection.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks writes to `.env`, lock files, keys, credentials |
-| [`secret-protection-input.sh`](hooks/secret-protection-input.sh) | PreToolUse `Bash` | exit 2 = block | Blocks shell commands that read sensitive files |
+| [`file-protection.sh`](hooks/file-protection.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks writes to `.env`, lock files, keys, credentials (bypass: `write-env`, `write-git-internal`, `write-lockfile`, `write-cert-key`, `write-credentials`, `write-tfstate`, `write-vault`) |
 | [`block-dangerous-git.sh`](hooks/block-dangerous-git.sh) | PreToolUse `Bash` | exit 2 = block | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
 | [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
 | [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
@@ -46,13 +45,7 @@ The plugin ships 7 safety hooks, 1 sourced utility library, and 2 Node-based fea
 
 Implementation: case-insensitive pattern match via lowercase conversion; exit 2 to block (fail-safe).
 
-### secret-protection-input.sh
-
-**Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
-
-Blocks shell commands targeting unambiguous secret-file paths: `.env` (and `.env.*`), `~/.aws/credentials`, `~/.ssh/id_{rsa,ed25519,dsa,ecdsa}`, `~/.kube/config`, `*.pem`, `*.p12`, `*.pfx`, `*.keystore`, `~/.npmrc`, `~/.pypirc`, `.netrc`. Reader-command coverage extends beyond `cat` to `less`, `tail`, `head`, `xxd`, `awk`, and `<` redirection. Also blocks `source .env*` and `openssl rsa/ec -in` key inspection.
-
-Simplified 2026-05-10 — broad keyword patterns (`cat *secret*`, `cat *token*`, `cat *password*`) were dropped because they fired on routine source files and docs (`src/auth/token.ts`, `docs/secret-handling.md`, `src/components/PasswordReset.tsx`).
+**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message names the pattern ID and tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist). Pattern IDs: `write-env`, `write-git-internal`, `write-lockfile`, `write-cert-key`, `write-credentials`, `write-tfstate`, `write-vault`.
 
 ### block-dangerous-git.sh
 
@@ -106,10 +99,6 @@ Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.
 ```bash
 # Test file protection (expect exit code 2 = blocked)
 echo '{"tool_input":{"file_path":"/config/.env"}}' | ./hooks/file-protection.sh
-echo "exit=$?"
-
-# Test secret-protection-input
-echo '{"tool_input":{"command":"cat ~/.aws/credentials"}}' | ./hooks/secret-protection-input.sh
 echo "exit=$?"
 ```
 

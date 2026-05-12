@@ -291,9 +291,7 @@ All hooks run automatically after installation:
 | Hook | Protection |
 |------|-----------|
 | `db-guard` | Prevents `DROP DATABASE`, `DELETE FROM` without WHERE |
-| `secret-protection-input` | Blocks reading `.env`, credentials, SSH keys |
 | `file-protection` | Prevents writing to `.env`, `.pem`, secrets |
-| `secret-protection-output` | Scans output for leaked API keys, tokens, passwords |
 | `block-dangerous-git` | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch (per-project opt-out via `.geniro/safety.json`) |
 | `post-compact-notification` | `SessionStart` hook (`matcher: "compact"`) — re-injects suggested files (CLAUDE.md, `.geniro/instructions/global.md`, active `<skill>.md`, `code-style.md`, planning state) so custom rules and workflow context survive compaction |
 | `backpressure` | Compresses verbose test/build output to save context |
