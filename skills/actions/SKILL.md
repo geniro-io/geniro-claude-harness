@@ -80,7 +80,7 @@ The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`
 
 ### Ambiguity resolution
 
-**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the first token is a kebab slug that exact-matches an existing action file in the registry (`.geniro/actions/<token>.md` exists locally, OR — when in a linked worktree — in the main worktree's `.geniro/actions/`), default to `run` with that token as the resolved target. The remaining tokens after the slug pass to Phase 4.4 as positional arguments under "User-supplied input". Do NOT ask the user — typing a known slug is itself the answer to "what do you want to do?" The natural intent of `/geniro:actions <slug>` is to run that action. This is a positive resolution rule (the Phase 0 analog of the Phase 4.0 Step 2 exact-slug fast path), not an exception to the default-prompt path. When the slug resolves to the main worktree's registry, Phase 4.0 Step 2's cross-worktree confirmation gate ("Use the main-worktree copy?") still fires before execution — the Phase 0 fast path skips the verb-disambiguation prompt only, not the cross-worktree gate.
+**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the entire `$ARGUMENTS` (treated as one quoted-or-unquoted resolution input) — either as-is OR after the deterministic kebab-normalization defined in Phase 4.0 Step 2 (trim leading/trailing whitespace, lowercase, replace whitespace-runs with hyphens; e.g., `daily recap` → `daily-recap`) — exact-matches an existing action file in the registry (`.geniro/actions/<token>.md` exists locally, OR — when in a linked worktree — in the main worktree's `.geniro/actions/`), default to `run` with that resolved slug as the target. The remaining tokens after the slug (when the literal first-token form matched) pass to Phase 4.4 as positional arguments under "User-supplied input"; when the normalized whole-arguments form matched, no positional arguments are extracted (the entire `$ARGUMENTS` was the slug). Do NOT ask the user — typing a known slug, literal or normalized, is itself the answer to "what do you want to do?" The natural intent of `/geniro:actions <slug>` (or `/geniro:actions "the slug"`) is to run that action. This is a positive resolution rule (the Phase 0 analog of the Phase 4.0 Step 2 exact-slug fast path), not an exception to the default-prompt path. When the slug resolves to the main worktree's registry, Phase 4.0 Step 2's cross-worktree confirmation gate ("Use the main-worktree copy?") still fires before execution — the Phase 0 fast path skips the verb-disambiguation prompt only, not the cross-worktree gate.
 
 **Otherwise**, if the action verb is unclear or missing (and the input was not empty), use the `AskUserQuestion` tool:
 
@@ -316,18 +316,20 @@ If the current `--show-toplevel` differs from the first `worktree` entry in the 
 
 If `git rev-parse` fails (not a git repo) or the porcelain listing has only one entry (single worktree), there is no main-worktree fallback — the registry is just `local`.
 
-#### Step 2: Exact-slug fast path
+#### Step 2: Exact-slug fast path (literal or normalized)
 
-If the user's input is a valid kebab slug AND an entry with `name == <input>` exists in the merged registry:
+Compute `<lookup>` from the user's input as follows: if the input is already a valid kebab slug, `<lookup> = <input>`; otherwise, deterministically normalize by trimming leading/trailing whitespace, lowercasing the input, and replacing every run of whitespace with a single hyphen (e.g., `daily recap` → `daily-recap`, `Daily   Recap` → `daily-recap`, `"  daily-recap  "` → `daily-recap`). If `<lookup>` is a valid kebab slug AND an entry with `name == <lookup>` exists in the merged registry:
 
 - **Source = local:** return `(<resolved-path>, <resolved-slug>, local)` immediately. No AskUserQuestion required.
 - **Source = main-worktree, sub-command = `run`:** show a confirmation via AskUserQuestion before returning.
-  - **Question:** "`<input>` was not found in this worktree's `.geniro/actions/`. The action `<input>` exists in the main worktree at `<main-worktree-root>/.geniro/actions/<input>.md`. Use it?"
+  - **Question:** "`<lookup>` was not found in this worktree's `.geniro/actions/`. The action `<lookup>` exists in the main worktree at `<main-worktree-root>/.geniro/actions/<lookup>.md`. Use it?"
   - **Options:**
     - label: "Use the main-worktree copy" — description: "Read the action from the main worktree (read-only). Execution still happens in this worktree."
     - label: "Cancel" — description: "Stop. The action is not available in this worktree."
-  - On confirm, return `(<main-worktree-path>, <input>, main-worktree)`. On cancel, stop the whole sub-command.
-- **Source = main-worktree, sub-command = `delete`:** skip the "Use the main-worktree copy?" gate (it's the wrong question for `delete`). Return `(<main-worktree-path>, <input>, main-worktree)` directly so Step 4 can fire the single source-aware refuse-and-surface gate.
+  - On confirm, return `(<main-worktree-path>, <lookup>, main-worktree)`. On cancel, stop the whole sub-command.
+- **Source = main-worktree, sub-command = `delete`:** skip the "Use the main-worktree copy?" gate (it's the wrong question for `delete`). Return `(<main-worktree-path>, <lookup>, main-worktree)` directly so Step 4 can fire the single source-aware refuse-and-surface gate.
+
+**Why normalization counts as "exact" here:** the slug regex is kebab-only (lowercase + digits + hyphens, see Phase 0 § Name validation), so the normalize-then-match path is collision-free by construction — two distinct registry slugs cannot normalize to the same `<lookup>`. This keeps the "skip questions already answered" doctrine satisfied: typing `daily recap` is the same signal as typing `daily-recap`. Free-text/fuzzy resolution still routes through Step 3 (the picker), which Phase 4.0 Step 3 forbids auto-resolving.
 
 #### Step 3: Free-text matching path
 
@@ -373,19 +375,16 @@ Read `<resolved-path>` (returned from Phase 4.0 — may be inside the current wo
 
 ### Phase 4.3: Confirmation gate
 
-Trigger this gate **only if any of the following are true**:
-
-- The frontmatter `description` contains "Do NOT" or "destructive".
-- The action's `allowed-tools` includes `Bash`.
+Trigger this gate **only when the action's frontmatter `description` declares destructive or external side effects** — concretely, when the description contains "Do NOT" (case-sensitive) or "destructive" (case-insensitive). These are the conventional caveat markers our example actions use (see `example-actions/pr-notify-slack.md` description) — they are not yet a hard requirement in `skill-template.md`, so action authors who write destructive actions but omit both markers should embed their own per-step `AskUserQuestion` gates inside the action body (see `example-actions/pr-notify-slack.md` Step 5 for the canonical inline-confirm pattern). Bare presence of `Bash` in the action's `allowed-tools` does NOT trigger the gate; routine read-only `gh` / `git` / file-glob actions would otherwise over-fire it.
 
 When triggered, use the `AskUserQuestion` tool:
 
-- **Question:** "About to run `<resolved-slug>` with these tools: [list]. Side-effecting operations may be triggered. Proceed?"
+- **Question:** "Action `<resolved-slug>` declares destructive or external side effects in its description. Proceed?"
 - **Options:**
   - label: "Run it" — description: "Execute the action steps now"
   - label: "Cancel" — description: "Don't run; stop here"
 
-If the gate is not triggered (read-only action), skip directly to 4.4.
+If the gate is not triggered (description has no risk markers), skip directly to 4.4 — typing the action name (or its kebab-normalization, per Phase 4.0 Step 2) is itself the user's intent to run; re-confirming would violate "skip questions already answered" (see anti-rationalization row at the bottom of this file).
 
 ### Phase 4.4: Execute INLINE
 
@@ -500,7 +499,7 @@ Edited `.geniro/actions/<resolved-slug>.md`. Run with `/geniro:actions run <reso
 | "I'll output the questions as plain text instead of using `AskUserQuestion`" | No — every WAIT gate uses the `AskUserQuestion` tool. Plain text doesn't block. |
 | "The `.gitignore` re-include lines are unnecessary if the user wants actions ignored" | No — default is committed (team-shareable). Users who want ignored can remove the re-include manually. Don't pre-decide for them. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. The orchestrator owns judgment, not auto-pick. Silent fuzzy execution is the picker analog of performative agreement. |
-| "I'll ask 'what do you want to do' even when the user typed a known slug" | No — when `$ARGUMENTS` lacks a verb but the first token is an exact kebab slug in the registry, default to `run` (Phase 0 bare-slug fast path). Typing a known slug IS the answer; re-asking violates "skip questions already answered". The 4-option picker is reserved for genuinely ambiguous input (no verb AND no slug match). Exact-slug match is categorically different from the fuzzy match the row above forbids. |
+| "I'll ask 'what do you want to do' even when the user typed a known slug (or its kebab-normalization)" | No — when `$ARGUMENTS` lacks a verb but the first token is an exact kebab slug in the registry, default to `run` (Phase 0 bare-slug fast path). The same rule extends to a deterministic kebab-normalization of the input (Phase 4.0 Step 2 — lowercase + whitespace-runs→hyphens), e.g., `daily recap` → `daily-recap`. Typing a known slug — literal or normalized — IS the answer; re-asking violates "skip questions already answered". The 4-option picker is reserved for genuinely ambiguous input (no verb AND no slug match AND no normalized match). Deterministic normalization is categorically different from the fuzzy match the row above forbids — the slug regex (kebab-only) makes normalize-then-match collision-free by construction. |
 | "I'll re-use Phase 3.6's `rm -f` failure behavior unconditionally" | No — Phase 3.6's failure path is **parametric on entry mode**. `create` (Phase 3.5 just wrote the file from a Phase 3.4 draft) → `rm -f` rollback is correct because the file didn't exist before this run. `edit-in-place` (Phase 3.1 "Edit in place" OR Phase 6 "Command edit" — the file pre-existed this run) → leave the file as the user left it. The user's pre-existing work must be preserved on failure. |
 | "I'll silently delete the action from the main worktree even though I'm in a linked worktree" | No — `delete` from a linked worktree refuses-and-surfaces. Sibling worktrees represent intentionally separate workstreams (see `skills/_shared/scope-anchor.md` § Anti-rationalization); the user must switch to main and re-run. |
 
