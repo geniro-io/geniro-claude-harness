@@ -198,12 +198,13 @@ Scans structure, files, patterns, and conventions. Produces a CODEBASE_MAP.md wi
 
 ### `/geniro:instructions` — Custom instruction management
 
-Create, list, edit, validate, and delete project-specific rules that customize how skills behave.
+Create, list, edit, validate, and delete project-specific rules that customize how skills behave. Scopes: `global`, the 7 pipeline skills, `code-style` (cross-cutting), and `review-extra` (directory-style — one file per custom code-review dimension that runs alongside the built-in 7-9 reviewers).
 
 ```
 /geniro:instructions list
 /geniro:instructions create "always use snake_case for database columns"
 /geniro:instructions create "skip review for test files" --scope review
+/geniro:instructions create review-extra sql-bindings              # add a custom code-review dimension
 /geniro:instructions delete no-orm-rule
 ```
 

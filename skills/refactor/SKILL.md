@@ -300,6 +300,8 @@ Spawn a fresh reviewer-agent. The agent reads its own criteria — do NOT pre-re
 
 Before spawning the reviewer, Read `.geniro/instructions/code-style.md` if it exists. Pre-inline its content alongside the CLAUDE.md conventions paste-block.
 
+**Custom reviewers (Medium and Large only — same gate as the independent reviewer above):** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored review dimensions in `.geniro/instructions/review-extra/`. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent", model="<spec.model>", prompt=...)` call to the SAME parallel batch as the independent reviewer below — same assistant response, parallel execution, NOT one per turn. The helper's `paths:` filter uses the refactor's changed-files list. Refactor's zero-behavior-change guarantee means custom reviewers should not introduce blocking findings beyond what their criteria covers; they flow through the same orchestrator disposition logic as the independent reviewer's findings (PRODUCT-DECISION → escalate; CRITICAL/HIGH non-PD → fix loop; MEDIUM → note in summary). If the helper aborts on the hard-cap error, surface its error and skip Phase 5 Step 2; do not proceed with review.
+
 ```
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 ## Review: Refactor Diff

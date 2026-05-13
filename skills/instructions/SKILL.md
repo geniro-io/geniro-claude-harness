@@ -43,8 +43,9 @@ These are complementary: `code-style.md` fires "when a Geniro skill writes or re
 | Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
 |-------|---|---------------|-----------------------------------|
 | **code-style** | — | `code-style.md` | Loaded by `implement` (Phase 4), `follow-up` (Phase 2), `refactor` (Phase 4), `review` (Phase 2), `deep-simplify` (Phase 2), and pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions. |
+| **review-extra** | — | `review-extra/<slug>.md` (directory-style — one file per custom reviewer) | Loaded by `/geniro:review` Phase 2, `/geniro:implement` Phase 6 Stage C, `/geniro:follow-up` Phase 5, and `/geniro:refactor` Phase 5 via the shared helper at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`. Each file becomes an additional reviewer-agent dimension that runs alongside the built-in 7-9 reviewers. |
 
-*`code-style` is the only cross-skill scope; it captures style/naming/convention rules that apply at every code-writing and review step regardless of which skill ran.*
+*`code-style` and `review-extra` are the cross-skill scopes. `code-style` captures style/naming/convention rules that apply at every code-writing and review step. `review-extra` is the only **directory-style** scope (the other 10 scopes are single files at `.geniro/instructions/<scope>.md`); each file under `.geniro/instructions/review-extra/` declares one custom code-review dimension with its own slug, description, optional model/paths/severity-default, and a "what to flag / what NOT to flag" criteria body.*
 
 ## File Structure
 
@@ -66,6 +67,47 @@ Every instruction file uses this format:
 ## Constraints
 - Hard limits (e.g., "Maximum PR size: 500 lines changed")
 ```
+
+## File Structure: review-extra
+
+The `review-extra` scope is **directory-style** — instead of a single `.geniro/instructions/review-extra.md`, there is a directory `.geniro/instructions/review-extra/` containing one file per custom reviewer at `.geniro/instructions/review-extra/<slug>.md`. Each file becomes its own code-review dimension that runs alongside the built-in reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, plus design/pr-metadata when applicable).
+
+Each file uses the following frontmatter + body shape (the body section mirrors the built-in criteria files at `${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md` — same "what to flag / what NOT to flag" convention):
+
+```yaml
+---
+slug: sql-bindings              # REQUIRED; matches filename (without `.md`); must NOT collide with built-in dimensions
+description: All SQL queries use parameterized bindings, never string concatenation
+model: sonnet                   # OPTIONAL; one of haiku|sonnet|opus; default sonnet
+paths:                          # OPTIONAL; list of globs; reviewer fires only if at least one changed file matches; absent = always fires
+  - "**/*.sql"
+  - "**/dao/*.{ts,py}"
+severity-default: HIGH          # OPTIONAL; default MEDIUM; per-finding severity ultimately set by the reviewer-agent itself
+---
+
+# Criteria
+
+What to flag:
+- String concatenation that builds a SQL string with a runtime variable (e.g., `` `SELECT * FROM users WHERE id = ${userId}` ``)
+- Template literals containing SQL keywords (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `WHERE`) where any `${...}` interpolation is a non-constant identifier
+- ORM `.raw()` / `.query()` calls passing concatenated strings instead of bind parameters
+- `f"..."` / `format()` building SQL in Python DAO code
+
+What to NOT flag:
+- Static SQL with no variables at all (e.g., `db.query("SELECT * FROM migrations")`)
+- Concatenation of pure constants (e.g., a table-name constant defined at module scope)
+- Test fixtures that build SQL strings for assertion comparison (not for execution)
+- Schema-migration files that intentionally build CREATE/ALTER statements from a column list
+```
+
+**Frontmatter field reference:**
+- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this value. Must NOT match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`.
+- `description` (required) — one-line summary of what this reviewer checks; surfaced in the review report and used by the reviewer-agent prompt.
+- `model` (optional) — `haiku` / `sonnet` / `opus`; default `sonnet`. Use `haiku` for narrow pattern matchers, `opus` for deep architectural concerns.
+- `paths` (optional) — list of globs. Reviewer fires only when at least one changed file in the diff matches. Absent = always fires.
+- `severity-default` (optional) — `CRITICAL` / `HIGH` / `MEDIUM` / `LOW`; default `MEDIUM`. The reviewer-agent may override per-finding; this is the starting point for scoring.
+
+The body MUST be a `# Criteria` section with "What to flag:" and "What to NOT flag:" lists. Keep it focused — 30-80 lines is the sweet spot (see "Custom Reviewer Authoring (review-extra)" under "Writing Effective Instructions" below).
 
 ## Intent Detection
 
@@ -89,12 +131,13 @@ If no arguments are provided, default to `list`.
 
 Extract scope(s) from the arguments:
 
-- Explicit scope names: "global", "review", "implement", "decompose", "debug", "follow-up", "refactor", "deep-simplify", "code-style"
-- Contextual references: "add a rule to review" → scope=review, action=edit; "create debug instructions" → scope=debug, action=create; "code-style", "style", "code style", "naming conventions", "coding style" → scope=code-style
+- Explicit scope names: "global", "review", "implement", "decompose", "debug", "follow-up", "refactor", "deep-simplify", "code-style", "review-extra"
+- Contextual references: "add a rule to review" → scope=review, action=edit; "create debug instructions" → scope=debug, action=create; "code-style", "style", "code style", "naming conventions", "coding style" → scope=code-style; "custom reviewer", "review dimension", "extra review", "custom review", "review layer" → scope=review-extra
+- Explicit slug form: `review-extra <slug>` (e.g., `review-extra sql-bindings`) → scope=review-extra, slug=`<slug>` (free-form token)
 - Multi-scope indicators: "all", "every", "global and review", "implement and decompose" → collect all mentioned scopes into a list
-- "all" or "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create)
+- "all" or "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create); for `review-extra`, "all" expands to every file in `.geniro/instructions/review-extra/`
 
-Valid scopes: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`.
+Valid scopes: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`, `review-extra`.
 
 ### Ambiguity Resolution
 
@@ -107,13 +150,14 @@ If the action is unclear, use the `AskUserQuestion` tool:
   - label: "Validate" — description: "Check instruction files for issues"
   - label: "Delete" — description: "Remove an instruction file"
 
-If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool. The full scope list (9 items) exceeds the 4-option AskUserQuestion cap, so chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options):
+If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool. The full scope list (10 items) exceeds the 4-option AskUserQuestion cap, so chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options):
 
 **First question — pick a category:**
 - **Question:** "Which instruction file?"
 - **Options:**
   - label: "global" — description: "Rules that apply to all work skills"
   - label: "code-style" — description: "Cross-cutting code-style rules (loaded at code-writing & review by all pipeline skills)"
+  - label: "review-extra (custom reviewers)" — description: "Directory-style scope — one file per custom code-review dimension (e.g., sql-bindings, accessibility-aria)"
   - label: "A specific pipeline skill" — description: "Pick one of: implement, decompose, review, debug, follow-up, refactor, deep-simplify"
 
 If the user picks "A specific pipeline skill", chain a second `AskUserQuestion`:
@@ -138,7 +182,13 @@ If the user picks "Other", chain a third `AskUserQuestion`:
 
 ### Scope Validation
 
-Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
+Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`, `review-extra`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
+
+For `review-extra`, the slug-bearing variants of `create` / `edit` / `delete` ALSO require a `<slug>` argument. If the slug is missing, resolve it as follows:
+- `create review-extra` with no slug → ask the user for a slug via `AskUserQuestion` free-form (no options — the user enters text via the "Other" path, matching the existing slug-style flow in `/geniro:actions`).
+- `edit review-extra` / `delete review-extra` with no slug AND only one file exists in `.geniro/instructions/review-extra/` → default to that file.
+- `edit review-extra` / `delete review-extra` with no slug AND multiple files exist → ask via `AskUserQuestion` which slug they mean. If more than 4 files exist, chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options). The hard cap of 10 files (see "Count caps" under "Command: create — review-extra variant") guarantees the chain terminates in at most 3 questions.
+- `validate review-extra` ignores any slug — validate ALWAYS processes the whole `.geniro/instructions/review-extra/` directory (per-file validation has no use case beyond the directory pass; a missing-slug or extra-slug invocation produces the same output). Print a one-line notice `Validating the entire review-extra/ directory (slug arguments are ignored for validate).` when a slug was passed so the user understands the input was redundant.
 
 After resolving intent and scope(s), if multiple scopes were detected, proceed to **Batch Mode**. Otherwise, proceed to the resolved command section below.
 
@@ -148,11 +198,12 @@ When multiple scopes are detected (e.g., "edit global and review", "add rules to
 
 ### Multi-Scope Confirmation
 
-If the user said "all" or the scope list is ambiguous, the 9-scope list exceeds the 4-option `AskUserQuestion` cap; chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options).
+If the user said "all" or the scope list is ambiguous, the 10-scope list exceeds the 4-option `AskUserQuestion` cap; chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options).
 
 **Q1 — pick categories** (`AskUserQuestion` with `multiSelect: true`). Question: "Which categories of instruction files do you want to target?" Options:
 - label: "global" — description: "Rules for all work skills"
 - label: "code-style" — description: "Cross-cutting code-style rules — naming, structure, idioms"
+- label: "review-extra (custom reviewers)" — description: "Directory-style scope — every file under `.geniro/instructions/review-extra/`"
 - label: "Specific pipeline skills" — description: "Pick one or more of: implement, decompose, review, debug, follow-up, refactor, deep-simplify"
 
 If "Specific pipeline skills" is picked, chain **Q2** (`AskUserQuestion`, `multiSelect: true`; for edit/validate/delete, filter to pipeline skills that have existing files; for create, show all). Question: "Which pipeline skills?" Options (batch 1):
@@ -190,6 +241,7 @@ After processing all scopes, show a summary:
 
 ```bash
 ls -la .geniro/instructions/ 2>/dev/null
+ls -la .geniro/instructions/review-extra/ 2>/dev/null
 ```
 
 ### Step 2: Present results
@@ -212,9 +264,34 @@ If files exist, show a table:
 |------|-------|----------------|----------|
 | global.md | All work skills | implement, decompose, review, debug, follow-up, refactor, deep-simplify, investigate, onboard, learnings, features, actions | Rules (3), Steps (1), Constraints (2) |
 | review.md | review only | review | Rules (5), Steps (0), Constraints (1) |
+| review-extra/ | review-extra directory | review skills (review, implement Stage C, follow-up, refactor) | N custom reviewers |
 ```
 
-Count the number of entries in each section (Rules = bullet points, Steps = non-empty `###` subsections, Constraints = bullet points).
+Count the number of entries in each section (Rules = bullet points, Steps = non-empty `###` subsections, Constraints = bullet points). For the `review-extra/` summary row, `N` is the number of `.md` files in `.geniro/instructions/review-extra/`.
+
+### Step 3: List review-extra files (when applicable)
+
+When the scope being listed is `review-extra` (explicit) OR the main table includes the `review-extra/` summary row AND files exist there, also print a separate table listing every file in `.geniro/instructions/review-extra/`:
+
+```
+## Custom Reviewers (review-extra)
+
+| Slug | Description | Model | Paths | Severity-default |
+|------|-------------|-------|-------|------------------|
+| sql-bindings | All SQL queries use parameterized bindings, never string concatenation | sonnet | **/*.sql, **/dao/*.{ts,py} | HIGH |
+| accessibility-aria | All interactive elements have proper ARIA labels | sonnet | (always fires) | MEDIUM |
+```
+
+Read each file's YAML frontmatter to populate columns. Use `(always fires)` when `paths:` is absent, `(default sonnet)` / `(default MEDIUM)` when fields are absent.
+
+When the scope is `review-extra` AND the directory does not exist OR is empty, print:
+
+```
+No custom reviewers found.
+
+Run `/geniro:instructions create review-extra <slug>` to add one
+(e.g., `/geniro:instructions create review-extra sql-bindings`).
+```
 
 ## Writing Effective Instructions
 
@@ -241,6 +318,10 @@ from analysis of 14 production AI coding frameworks and real-world plugin usage.
 - **Quantify where possible** — "Maximum 400 lines changed per PR" not "Keep PRs small"
 - **State the consequence** — "Database migrations must be backwards-compatible — breaking migrations block deploy"
 - **Constraints are hard limits** — skills treat these as non-negotiable. Use Rules for soft guidance
+
+### Custom Reviewer Authoring (review-extra)
+
+The directory-style `review-extra` scope has its own authoring guidance (criteria-body length, what-to-flag shape, paths/model/severity selection, count cap sweet-spot) in the companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`. Read it before creating or editing any `.geniro/instructions/review-extra/<slug>.md` file.
 
 ### File-size guidance — consider splitting at 300 lines
 
@@ -405,19 +486,33 @@ These rules take effect the next time you run `/geniro:{{scope}}` (or any affect
 Edit with `/geniro:instructions edit {{scope}}`, or run `/geniro:instructions validate` to check for issues.
 ```
 
+## Command: create — review-extra variant
+
+When the resolved scope is `review-extra`, follow the slug-bearing 11-step flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` instead of the singleton-file `create` flow above. The output is a single file at `.geniro/instructions/review-extra/<slug>.md` declaring one custom reviewer. The companion file covers: slug resolution, slug validation (regex, built-in collision, no-existing-file), count-cap warning (soft 5→6) and hard-refusal (10→11), directory creation, description/model/paths/severity-default interview prompts (all via `AskUserQuestion`), criteria-body collection, file write, and confirmation message.
+
 ## Command: edit
 
 ### Step 1: Read current file
+
+For singleton scopes (`global`, `code-style`, or any of the 7 pipeline skills):
 
 ```bash
 cat .geniro/instructions/{{scope}}.md
 ```
 
-If the file doesn't exist: "File not found. Use `/geniro:instructions create {{scope}}` first." and stop.
+For `review-extra`, require a slug argument; resolve missing-slug cases per "Scope Validation" above:
+
+```bash
+cat .geniro/instructions/review-extra/{{slug}}.md
+```
+
+If the file doesn't exist: "File not found. Use `/geniro:instructions create {{scope}}` first." (or `create review-extra {{slug}}` for the directory-style variant) and stop.
 
 ### Step 2: Show current content and ask what to change
 
-Display the current file content. Use the `AskUserQuestion` tool:
+Display the current file content. The change options differ by scope:
+
+**Singleton scopes** — use `AskUserQuestion`:
 - **Question:** "What would you like to change?"
 - **Options:**
   - label: "Add new rules" — description: "Add rule entries to the Rules section"
@@ -425,13 +520,36 @@ Display the current file content. Use the `AskUserQuestion` tool:
   - label: "Add or modify constraints" — description: "Add or change hard limits"
   - label: "Remove specific entries" — description: "Delete rules, steps, or constraints"
 
+**review-extra** — use `AskUserQuestion`:
+- **Question:** "Which part of the custom reviewer would you like to change?"
+- **Options:**
+  - label: "description" — description: "One-line summary in frontmatter"
+  - label: "model" — description: "Override haiku/sonnet/opus (or remove to default to sonnet)"
+  - label: "paths" — description: "Globs that scope when this reviewer fires (or remove to always fire)"
+  - label: "Other" — description: "severity-default, criteria body, or multiple fields"
+
+On "Other", chain `AskUserQuestion`:
+- **Question:** "Which other part?"
+- **Options:**
+  - label: "severity-default" — description: "CRITICAL/HIGH/MEDIUM/LOW (or remove to default MEDIUM)"
+  - label: "criteria body" — description: "The `# Criteria` section — what to flag / what NOT to flag"
+  - label: "multiple fields" — description: "Walk through each field interactively"
+
 ### Step 3: Apply changes
 
-Based on user input, edit the file using the Edit tool. Preserve existing content — only add, modify, or remove what the user requested.
+Based on user input, edit the file using the Edit tool. Preserve existing content — only add, modify, or remove what the user requested. For `review-extra`, never silently rewrite the `slug:` field (it must match the filename — changing it requires a delete-then-create).
 
-### Step 4: Show updated file
+### Step 4: Re-validate (review-extra only)
 
-Display the final content and print: "Updated `.geniro/instructions/{{scope}}.md`. The new rules take effect the next time you run `/geniro:{{scope}}` (or any affected skill for global.md)."
+After editing a `review-extra` file, re-run the 7 validation rules from "Command: validate" Step 2 against the edited file. If any rule fails, report the issue and ask whether to revert via `AskUserQuestion`:
+- **Question:** "The edit produced an invalid `review-extra` file: {{issue}}. What now?"
+- **Options:**
+  - label: "Revert" — description: "Restore the previous file content"
+  - label: "Keep and fix later" — description: "Save anyway; re-run `/geniro:instructions validate` after manual fix"
+
+### Step 5: Show updated file
+
+Display the final content and print: "Updated `.geniro/instructions/{{scope}}.md`. The new rules take effect the next time you run `/geniro:{{scope}}` (or any affected skill for global.md)." For `review-extra`, the path is `.geniro/instructions/review-extra/{{slug}}.md` and the reviewer takes effect on the next `/geniro:review` (or implement/follow-up/refactor review phase) run.
 
 ## Command: validate
 
@@ -439,18 +557,36 @@ Display the final content and print: "Updated `.geniro/instructions/{{scope}}.md
 
 ```bash
 ls .geniro/instructions/*.md 2>/dev/null
+ls .geniro/instructions/review-extra/*.md 2>/dev/null
 ```
 
 If none found: "No instruction files to validate." and stop.
 
 ### Step 2: Validate each file
 
-For each file, check:
+For each singleton file (everything under `.geniro/instructions/` except the `review-extra/` directory), check:
 
 1. **Structure** — file contains `## Rules`, `## Additional Steps`, and `## Constraints` sections
 2. **Phase names** — any `### <phase>` headers under "Additional Steps" match the valid phase names from the Supported Skills table above. **Special case for `code-style.md`:** since it's loaded by N skills (not one) at runtime, its `## Additional Steps` section accepts ONLY two phase headers: `### Before code writing` and `### On code review`. Any other phase header in `code-style.md` is a warning.
 3. **Non-empty content** — at least one section has actual content (not just comment placeholders)
-4. **Scope validity** — filename (without `.md`) matches a valid scope: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`
+4. **Scope validity** — filename (without `.md`) matches a valid singleton scope: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`
+
+**review-extra files** — extra checks (run against every file in `.geniro/instructions/review-extra/`):
+
+1. **Filename / slug agreement** — the filename (without `.md`) MUST equal the `slug:` frontmatter value. Mismatch is an error (the loader keys by slug; mismatch makes the reviewer silently undiscoverable).
+2. **No built-in collision** — `slug` MUST NOT match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`. Collision is an error (the loader would shadow or be shadowed by the built-in reviewer).
+3. **Slug regex** — `slug` MUST match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter). Mismatch is an error (other characters break the file-naming convention and downstream prompt assembly).
+4. **Model field** — if `model:` is present, it MUST be one of `{haiku, sonnet, opus}`. Other values are an error (only those three models are routed by the reviewer-agent infrastructure).
+5. **Severity-default field** — if `severity-default:` is present, it MUST be one of `{CRITICAL, HIGH, MEDIUM, LOW}`. Other values are an error (severity scoring keys against this enum).
+6. **Paths field** — if `paths:` is present, it MUST be a YAML list with no empty strings and every entry a string. Malformed entries are an error (the glob matcher rejects them at load time).
+7. **YAML frontmatter validity** — the frontmatter block must be well-formed YAML between two `---` fences. Malformed YAML is an error (loader-fatal).
+8. **Description present and non-empty** — the `description:` field MUST be present and non-empty. The loader drops files with a missing or empty description; surfacing this here keeps validate and load-time agreement (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 4 rule 5).
+9. **Body content** — the body section (everything after the closing `---` of the frontmatter) MUST contain at least 5 non-blank lines. Files with shorter bodies are dropped by the loader as a sentinel for "criteria not yet written" (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 4 rule 9).
+
+**review-extra count caps** — also check the directory-level count:
+
+- **Soft warning** — if more than 6 files exist in `.geniro/instructions/review-extra/`, emit a warning row: `⚠ Count {{N}} exceeds the 4-6 sweet-spot — consider consolidating overlapping reviewers.` (Matches the loader's `count > 6` trigger.)
+- **Hard error** — if more than 10 files exist, emit an error row: `✗ Count {{N}} exceeds hard cap of 10 — the loader will refuse to load all reviewers. Delete files with `/geniro:instructions delete review-extra <slug>`.`
 
 ### Step 3: Report results
 
@@ -462,30 +598,46 @@ For each file, check:
 | global.md | ✓ Valid | — |
 | review.md | ⚠ Warning | Unknown phase "After testing" — valid phases: After Phase 1, After Phase 4, After Phase 5 |
 | frontend.md | ✗ Invalid | Unknown scope "frontend" — not a supported skill name |
+| review-extra/sql-bindings.md | ✓ Valid | — |
+| review-extra/bugs.md | ✗ Invalid | slug "bugs" collides with built-in dimension — pick a different slug |
+| review-extra/SqlBindings.md | ✗ Invalid | filename "SqlBindings" does not equal slug "sql-bindings"; rename file or update slug |
+| review-extra/ (directory) | ⚠ Warning | Count 7 exceeds soft cap of 5 — Pattern 1 sweet-spot is 4-6 dimensions |
 ```
 
 For warnings and errors, suggest the fix.
 
 ## Command: delete
 
+For `review-extra`, require a slug argument; resolve missing-slug cases per "Scope Validation" above. The target path is `.geniro/instructions/review-extra/{{slug}}.md` rather than `.geniro/instructions/{{scope}}.md`.
+
 ### Step 1: Confirm deletion
 
 Use the `AskUserQuestion` tool:
-- **Question:** "Are you sure you want to delete `.geniro/instructions/{{scope}}.md`? This cannot be undone (unless the file is committed to git)."
+- **Question:** "Are you sure you want to delete `.geniro/instructions/{{scope}}.md`? This cannot be undone (unless the file is committed to git)." (For `review-extra`, the path shown is `.geniro/instructions/review-extra/{{slug}}.md` and the question wording is "Are you sure you want to delete the custom reviewer `{{slug}}`?")
 - **Options:**
   - label: "Delete the file" — description: "Permanently remove this instruction file"
   - label: "Cancel" — description: "Keep the file unchanged"
 
 ### Step 2: Execute
 
-If confirmed:
+If confirmed (singleton scopes):
 ```bash
 rm -f .geniro/instructions/{{scope}}.md
 ```
 
-Report: "Deleted `.geniro/instructions/{{scope}}.md`. The {{affected skills}} will no longer load these instructions."
+If confirmed (review-extra):
+```bash
+rm -f .geniro/instructions/review-extra/{{slug}}.md
+```
 
-If the directory is now empty:
+Report: "Deleted `.geniro/instructions/{{scope}}.md`. The {{affected skills}} will no longer load these instructions." (For `review-extra`: "Deleted `.geniro/instructions/review-extra/{{slug}}.md`. The `{{slug}}` reviewer will no longer run during code review.")
+
+If the `review-extra` directory is now empty:
+```bash
+rmdir .geniro/instructions/review-extra/ 2>/dev/null
+```
+
+If the top-level `.geniro/instructions/` directory is now empty:
 ```bash
 rmdir .geniro/instructions/ 2>/dev/null
 ```
@@ -498,3 +650,4 @@ rmdir .geniro/instructions/ 2>/dev/null
 - [ ] User confirmed before any destructive operation (delete)
 - [ ] Validation checked structure, phase names, and scope validity
 - [ ] All user interactions used `AskUserQuestion` tool — no plain-text questions
+- [ ] review-extra files validated against slug uniqueness, built-in collision, model/severity-default value sets, paths syntax, and count caps

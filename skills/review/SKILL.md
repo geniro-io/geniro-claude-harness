@@ -86,6 +86,8 @@ If the user declines to answer (empty answer), default to Standard. The user's `
 
 **Code-style pre-inline (orchestrator preamble):** Read `.geniro/instructions/code-style.md` once. If it exists, pre-inline its content into the `CODE-STYLE INSTRUCTIONS:` slot of the guidelines / conventions / design / architecture reviewer prompts below. Skip the slot for bugs / security / tests / optimizations — code-style is orthogonal to those dimensions. If the file is absent, render the slot value as `none — file not present`.
 
+**Load custom reviewers (~5 sec):** Apply the procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored custom review dimensions in `.geniro/instructions/review-extra/`. The helper returns 0-10 spawn-specs after applying its validation, paths-filter, and cap rules. If the helper aborts on the hard-cap error (>10 active reviewers), surface its error message to the user and stop — do not proceed to spawn. Carry the surviving spawn-specs into the Standard-mode or Batched-mode block below as additional Agent() calls in the same parallel batch (same assistant response, NOT one per turn).
+
 **Determine review mode based on diff size:**
 
 **Small diff (≤8 substantive files, ≤400 LOC):** Standard mode — 7 reviewers (+1 design when UI files present, see detection rule below; +1 pr-metadata when input was a PR ref, see PR-ref detection rule below), each sees ALL files.
@@ -243,6 +245,18 @@ PLAN CONTEXT: [content from Phase 1, or "none"]
 Review ONLY the PR's own title and description for clarity, completeness, and convention conformance per the pr-metadata-criteria.md rubric. Do NOT review the code diff itself (other dimensions own that). Emit each finding with `File: PR-METADATA` (literal string, no path, no line number) — Phase 6 Step 4 detects this sentinel and routes the finding into the top-level review `body` field instead of the inline `comments[]` array.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
+
+# Custom reviewers — append ONE Agent() call per spawn-spec returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`, all in this SAME response (same parallel batch as the 7-9 built-ins above, NOT one per turn). Per the helper's spawn template:
+# Agent(subagent_type="reviewer-agent", model="<spec.model>", prompt="""
+# DIMENSION: custom:<spec.slug>
+# CRITERIA: <spec.criteria-content>
+# CHANGED FILES: [same as built-ins]
+# PROJECT CONTEXT: [same as built-ins]
+# WORKTREE / BRANCH / DIFF CONTEXT / PLAN CONTEXT: [same as built-ins]
+# SEVERITY DEFAULT: <spec.severity-default or "MEDIUM">
+# Review ONLY for the custom dimension 'custom:<spec.slug>' as defined by CRITERIA. Use SEVERITY DEFAULT as your initial severity score.
+# Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs.
+# """)
 ```
 
 ### UI-file detection rule
@@ -263,8 +277,9 @@ Used by the conditional pr-metadata reviewer. The dimension fires when and only 
 7. **Conventions Reviewer** (always fires) — Codebase-pattern conformance: statistical inference of repo-modal patterns (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency). Flags deviations only when ≥80% of N≥3 siblings agree on a pattern; skips ambiguous splits to avoid bikeshedding. Self-suppresses (emits zero findings) when fewer than 3 sibling files exist for inference.
 8. **Design Reviewer (conditional)** — Visual/UX quality: token conformance, spacing/type scale, state completeness, WCAG AA contrast, responsive coverage, exemplar drift. Fires only when the diff contains UI files (see detection rule above).
 9. **PR-Metadata Reviewer (conditional)** — PR title and description quality: imperative-verb title opener, convention conformance (Conventional Commits / Linear / Jira prefix when the repo modally uses one), description presence and substance, "why" clause, test plan when logic changed, screenshots when UI changed, breaking-change note when API/migration changed, scope alignment, linked-issue presence, acceptance-criteria coverage. Fires only when input was a PR ref (see PR-ref detection rule above). Findings carry `File: PR-METADATA` and route to the top-level review `body` field at Phase 6 Step 4 (not inline comments).
+10. **Custom Reviewers (0-10, user-authored)** — User-defined dimensions stored as `.geniro/instructions/review-extra/<slug>.md`. Each defines its own criteria + optional paths-filter + optional model + optional severity-default. Discovered, validated, and path-filtered by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`. Findings emit under `## custom:<slug> Review — N findings` headers and flow through the same Phase 4 judge pass + Phase 3 relevance-filter as built-in dimensions.
 
-**Model routing:** Guidelines uses `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, optimizations, conventions, design, and pr-metadata use `sonnet` (accuracy-critical — conventions performs statistical pattern inference; design weighs visual/UX reasoning beyond pure rubric matching; pr-metadata weighs prose-quality + scope-alignment reasoning). In batched mode, apply the same model per dimension; pr-metadata spawns once per-PR regardless of batch count.
+**Model routing:** Guidelines uses `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, optimizations, conventions, design, and pr-metadata use `sonnet` (accuracy-critical — conventions performs statistical pattern inference; design weighs visual/UX reasoning beyond pure rubric matching; pr-metadata weighs prose-quality + scope-alignment reasoning). In batched mode, apply the same model per dimension; pr-metadata spawns once per-PR regardless of batch count. Custom reviewers default to `sonnet` per the helper, with per-reviewer override via the `model:` frontmatter field.
 
 #### Batched Mode (large diff)
 
@@ -287,6 +302,8 @@ Not every batch needs all 7–9 dimensions. Skip irrelevant ones to save tokens.
 
 **Per-PR (not per-batch):** when input was a PR ref, spawn the pr-metadata reviewer ONCE total across the entire batched run — it reviews `pr.title` and `pr.body`, not files, so per-batch spawning would N-multiply the same review. Skip entirely when input was files / branch / diff range.
 
+**Per-review-run (not per-batch) — custom reviewers:** When custom reviewers exist (per the "Load custom reviewers" load at the top of Phase 2), spawn them ONCE per review run regardless of batch count — they review against the FULL changed-files list, not per batch. This mirrors the per-PR pr-metadata pattern: narrow path-filtered reviewers gain nothing from per-batch fan-out and the cost of multiplying would be N×batch-count. All custom-reviewer Agent() calls go in the SAME assistant response as the per-batch built-in spawns (same parallel batch, NOT one per turn). See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Batched-mode behavior.
+
 **Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
 
 Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/optimizations/conventions/design and `model="haiku"` for guidelines. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, and the same alignment-tag instruction as standard mode.
@@ -300,7 +317,7 @@ Example for 15 files, 3 batches:
 ```
 
 **Constraints:**
-- Max **41 parallel agents** (5 batches × up to 8 per-batch dimensions when UI files present, + 1 per-PR pr-metadata spawn when input was a PR ref)
+- Max **41 parallel agents** (5 batches × up to 8 per-batch dimensions when UI files present, + 1 per-PR pr-metadata spawn when input was a PR ref). Plus up to 10 custom reviewers per project (cap enforced by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`) — so the absolute ceiling when both batched mode is active AND the project has 10 custom reviewers is **51 parallel agents**.
 - Each agent gets: criteria file + its batch's file contents only + brief summary of other batches for cross-reference context
 - All agents spawned in ONE message for parallel execution
 

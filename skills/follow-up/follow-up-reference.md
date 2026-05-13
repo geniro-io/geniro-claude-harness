@@ -141,6 +141,10 @@ Add an additional reviewer with `model='sonnet'` for the design dimension when c
 
 **Code-style pre-inline (Medium per-dimension reviewers):** When the spawned reviewer's dimension is one of **guidelines / conventions / design / architecture**, add a `## Code-style instructions (pre-inlined from .geniro/instructions/code-style.md, if present)` section to its prompt (placed just above `## Review Criteria`) and paste the file's content. Skip the section entirely for **bugs / security / tests / optimizations** reviewers — code-style is orthogonal to their criteria. Skip the section when `.geniro/instructions/code-style.md` does not exist.
 
+### Step 1c: Custom reviewers (all sizes that reach Phase 5)
+
+Before completing Step 1's parallel batch, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored review dimensions in `.geniro/instructions/review-extra/`. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent", model="<spec.model>", prompt=...)` call to the SAME parallel batch — same assistant response, parallel execution, NOT one per turn. The helper's `paths:` filter uses Phase 5's changed-files list (the diff being reviewed). This applies to Small AND Medium tiers — both spawn reviewer-agents and both benefit from custom dimensions. For Trivial / Small-Fast-Lane (orchestrator self-review, no reviewer-agent spawned), custom reviewers are skipped — they require the agent-based spawn path. If the helper aborts on the hard-cap error, surface its error to the user and skip Phase 5; do not proceed. Custom-reviewer findings flow through the same Step 2 aggregation, relevance-filter, and fix loop as built-in dimensions.
+
 ---
 
 ## Phase 5 Step 1.5: Adversarial Tester Template (Medium only)

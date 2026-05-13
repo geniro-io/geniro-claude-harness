@@ -19,7 +19,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:follow-up` | Quick post-implementation changes (trivial/small scope) |
 | `/geniro:deep-simplify` | Three-pass parallel code review for reuse, quality, and efficiency |
 | `/geniro:refactor` | Restructure code with zero behavior change guarantee |
-| `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete. Scopes: `global`, the 7 pipeline skills, and `code-style` (cross-cutting style rules loaded at every code-writing & review step). |
+| `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete. Scopes: `global`, the 7 pipeline skills, `code-style` (cross-cutting style rules loaded at every code-writing & review step), and `review-extra` (directory-style scope at `.geniro/instructions/review-extra/<slug>.md` — one file per custom code-review dimension loaded alongside the built-in reviewers). |
 | `/geniro:actions` | Create, edit, run, and remove custom workflow-helper actions stored in `.geniro/actions/` (Slack/PR/release automations) |
 | `/geniro:brainstorm` | AI-driven ideation — refines an idea into approved design (8-phase loop with HARD-GATE). Hand-off menu to /implement, /decompose, or /features add. Skip for well-formed specs. |
 | `/geniro:investigate` | Deep codebase Q&A with parallel research agents |
