@@ -12,6 +12,7 @@ Any AUQ call that asks the user to act on one or more findings. Both the per-fin
 
 Used by:
 - `/geniro:review` Phase 6 Step 0 (PRODUCT-DECISION resolution)
+- `/geniro:review` Phase 6 Step 3 (PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
 - `/geniro:follow-up` Phase 5 Step 2 (PRODUCT-DECISION resolution)
 - `/geniro:implement` Phase 6 Fix-Loop pre-step (PRODUCT-DECISION resolution)
 - `/geniro:refactor` Phase 5 escalation (PRODUCT-DECISION → escalate)
@@ -79,14 +80,15 @@ If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follo
 
 Used by:
 - `/geniro:review` Phase 4c Step 2 (Test-gate "Let me pick" branch)
-- `/geniro:review` Phase 6 PR-comment Step 3 (Pick-one-by-one branch)
+
+> Historical note: `/geniro:review` Phase 6 PR-comment Step 3 previously used this multi-select shape. It now uses the Single-finding gate above with a calling-skill-set fixed menu (Post / Skip / Stop posting) — see that section's "Used by" list. The multi-select pattern remains canonical for the Test-gate Pick branch, which selects a subset of findings as input to a downstream agent rather than as discrete approval decisions per finding.
 
 ### Required AUQ shape
 
 - **`multiSelect: true`**.
 - **`question`**: a single sentence stating the picking task — set by the calling skill (e.g. `"Pick findings to author tests for"`, `"Pick findings to post as PR comments"`).
 - **`options[]`** — one per eligible finding:
-  - **`label`**: as currently specified by each call site (e.g. `<severity-badge> path:line — <short title>` for PR-comment Pick; `path:line — short title — decision: <type>` for Test-gate Pick) — call sites set their own label format; do NOT change existing label conventions.
+  - **`label`**: as currently specified by each call site (e.g. `path:line — short title — decision: <type>` for the Test-gate Pick — decision-type is what matters when picking findings to AUTHOR TESTS FOR; severity drives sort order at the call site, not label content) — call sites set their own label format; do NOT change existing label conventions.
   - **`description`**: 1-line per current call-site spec — call sites set their own.
   - **`preview`**: full finding body, formatted identically to the Single-finding gate's preview block above (Evidence / Suggested fix / Confidence / Origin).
 - **Cap-extension:** when more than 4 eligible findings exist, batch across multiple chained AUQ calls (≤4 per call); preview body is per-finding (each option carries its own finding's body).

@@ -1,0 +1,145 @@
+# PR Metadata Review Criteria
+
+Quality checks for the **PR's own title and description** (not the code diff). The diff is reviewed by the other seven/eight dimensions; this dimension audits the prose authored by the PR creator — clarity, completeness, expected sections, and alignment with what actually changed.
+
+This dimension fires only when input is a PR ref (`pr-ref != none`); it is skipped for local files, branches, or diff ranges. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, not as inline comments.
+
+## What to Check
+
+### 1. Title — Imperative Verb Opener
+
+A PR title should describe an action: "Add user authentication", "Fix race in queue worker", "Drop dead config option". Past-tense ("Added X", "Fixed Y") and noun-only titles ("User authentication", "Queue race") are weaker — they describe a topic, not a change.
+
+**How to detect:**
+- Read `pr.title` from the PR-metadata slot in the prompt.
+- Check that the first word (after any prefix like `[ENG-123]` or `feat:`) is an imperative verb: Add, Fix, Drop, Remove, Replace, Refactor, Update, Move, Rename, Introduce, etc.
+
+**Red flag:** title starts with past-tense ("Added", "Fixed", "Updated"), gerund ("Adding", "Fixing"), or no verb at all.
+
+### 2. Title — Convention Conformance (when repo uses one)
+
+Many repos adopt Conventional Commits (`feat:`, `fix:`, `chore:`) or Linear/Jira issue-id prefixes (`[ENG-123]`, `PROJ-456`). When the repo uses a convention, the PR title should follow it.
+
+**How to detect:**
+- Sample the project's last 10 merged-commit titles via `git log --merges --pretty=format:'%s' -10` (already in the agent's reachable scope).
+- If ≥7 of the 10 follow the same prefix pattern, the repo uses a convention. Flag PR titles that deviate.
+- If <7 of 10 follow a pattern, the repo does not enforce one — skip this check (do not invent a convention).
+
+**Red flag:** repo's modal pattern is `^(feat|fix|chore|docs|refactor)(\(.+\))?: ` (≥7/10) and this PR's title lacks it.
+
+### 3. Description — Presence and Substance
+
+A PR description should be more than a one-line restatement of the title and should not be a raw template placeholder (e.g., GitHub's default `## Summary\n\n## Test plan\n` with no content filled in).
+
+**How to detect:**
+- Read `pr.body`. Check it is non-empty after trimming whitespace.
+- Reject as substantive if the body matches a known-template skeleton (only `## Summary`, `## Test plan`, `## Screenshots`, etc., with no content under each heading).
+- Reject as substantive if the body is < 3 sentences AND the diff is non-trivial (>20 LOC changed).
+
+**Red flag:** empty body, or body is just the template skeleton, or body is < 3 sentences when the diff exceeds 20 LOC.
+
+### 4. Description — "Why" Clause Present
+
+The description should explain *why* the change is being made, not just *what* changed. Reviewers need motivation to evaluate trade-offs.
+
+**How to detect:**
+- Scan the body for "why" signals: words like "because", "to fix", "to address", "motivation", "this enables", "users were", or an explicit "## Why" / "## Motivation" / "## Context" heading.
+- If none present, flag as missing-why. Note: a clear bug-fix title ("Fix off-by-one in pagination") IS the why for trivial fixes (<20 LOC); skip this check for trivial diffs.
+
+**Red flag:** non-trivial diff (>20 LOC) with no "because" / "to fix" / motivation heading anywhere in the body.
+
+### 5. Description — Test Plan When Logic Changed
+
+When the diff touches non-trivial business logic (controllers, services, models, reducers, query handlers) or includes test files, the description should describe how the change was tested.
+
+**How to detect:**
+- From `DIFF CONTEXT`, count files matching `src/**/{controllers,services,models,reducers,handlers}/*` and files matching `**/*.{test,spec}.*` / `**/__tests__/**` / `tests/**`.
+- If either count ≥1, scan the body for a "## Test plan" / "## Testing" / "## How to test" heading OR bulleted test-step content ("- ran `pytest …`", "- verified in browser").
+- Flag when logic-or-test files changed AND no test plan is mentioned.
+
+**Red flag:** ≥1 logic or test file changed; body contains no test-plan heading or bulleted test evidence.
+
+### 6. Description — Screenshots When UI Changed
+
+When the diff includes UI files (matching the SKILL.md UI-file detection rule), the description should include screenshots, recordings, or a "no visual change" note.
+
+**How to detect:**
+- From `DIFF CONTEXT`, count files matching the UI-file globs (`**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`) or extensions (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.styled.ts*`).
+- If ≥1 UI file changed, scan the body for: markdown image syntax (`![...](...)`), GitHub video attachments (`https://github.com/user-attachments/`), explicit "no visual change" sentence, or "## Screenshots" / "## Demo" heading with content.
+- Flag when UI files changed AND no visual evidence is present.
+
+**Red flag:** ≥1 UI file in the diff; body contains no image, no video, and no "no visual change" disclaimer.
+
+### 7. Description — Breaking-Change Note When API/Contract Changed
+
+When the diff changes a public API, a database migration, a config schema, or an exported function signature, the description should call out backward-incompatibility explicitly.
+
+**How to detect:**
+- From `DIFF CONTEXT`, look for: removed exports (`-export`), modified function signatures in `*.d.ts` / `*.proto` / OpenAPI specs, files under `migrations/` / `db/migrations/`, `package.json` removed dependencies, breaking-change markers in commit messages.
+- If any present, scan the body for an explicit heading or callout: "## Breaking changes", "**BREAKING:**", "⚠️ migration required", or "backward-incompatible".
+- Flag when such changes appear in the diff AND no breaking-change note exists.
+
+**Red flag:** signature/migration/exported-API change visible in the diff; body silent on backward compatibility.
+
+### 8. Description — Scope Alignment
+
+The description should match the actual scope of the diff. A title saying "Fix typo in README" with a 500-LOC diff across 12 source files is a scope mismatch; a description that lists 5 unrelated changes when the diff only touches 1 of them is a scope-creep signal.
+
+**How to detect:**
+- Compare the description's enumerated changes (bullet lists, "## What changed" sections) against `DIFF CONTEXT`'s file list.
+- If the description mentions 3+ items not visible in the diff, flag as overpromised.
+- If the diff has 3+ distinct modules changed but the description names only one, flag as underpromised (likely sneaks).
+
+**Red flag:** description's claimed scope and diff's actual scope diverge by more than one major area.
+
+### 9. Linked Issue or Ticket
+
+When the repo uses an issue tracker (Linear / Jira / GitHub Issues / Pivotal), most PRs should link to the issue they implement or fix.
+
+**How to detect:**
+- Check `pr.title` and `pr.body` for: `#NNN` (GitHub), `[ENG-NNN]` or `ENG-NNN` (Linear), `[PROJ-NNN]` or `PROJ-NNN` (Jira), GitHub `Fixes #NNN` / `Closes #NNN` / `Resolves #NNN` keywords.
+- Sample 5 recently merged PR titles via `gh pr list --state merged --limit 5 --json title` (when reachable). If ≥3 of them carry an issue ID, the repo uses tickets — flag PRs without one.
+- If <3 of 5 carry IDs, the repo does not enforce ticketing — skip this check.
+
+**Red flag:** repo's modal pattern includes issue IDs (≥3/5 sampled) and this PR's title+body together contain none.
+
+### 10. Description — Acceptance Criteria When Issue Linked
+
+When the PR links an issue, the description should either restate the acceptance criteria or explicitly confirm them ("Closes #123 — all ACs from the issue are covered").
+
+**How to detect:**
+- If check #9 found a linked issue, scan the body for: "## Acceptance criteria" / "## ACs" headings, bulleted criteria lists, or explicit closure language naming the criteria ("Implements #123 — UI now matches mockup at width X").
+- Flag when an issue is linked AND no acceptance criteria appear AND the description is < 5 sentences.
+
+**Red flag:** linked issue ID is present; description is terse and contains no acceptance-criteria restatement or coverage confirmation.
+
+## Common False Positives
+
+Skip or downgrade findings in these cases — they look like rubric violations but are routine PR patterns the rubric is not designed to flag:
+
+- **Draft PRs** (`gh pr view --json isDraft` returns `true`): description and test plan are often incomplete by design while the author iterates. Skip checks #3 (substance), #4 (why clause), #5 (test plan), #6 (screenshots), #8 (scope alignment). Still flag #1 (imperative verb), #2 (convention prefix), and #7 (breaking-change note if API/migration changed) — these apply regardless of draft state.
+- **Dependabot / Renovate / similar bot PRs** (author user matches `dependabot[bot]` / `renovate[bot]` / `github-actions[bot]` / a known dependency-bumper bot — check `gh pr view --json author --jq .author.login`): titles and bodies are templated and the rubric's prose expectations do not apply. Skip every check; emit zero findings.
+- **Revert PRs** (title begins with `Revert "` or body contains `This reverts commit <sha>`): the description is auto-generated by GitHub's revert button and typically lacks a custom "why" or test plan because the change is mechanical. Skip checks #4 (why), #5 (test plan), #6 (screenshots), #10 (acceptance criteria). Flag #7 (breaking-change note) only if the reverted change is a breaking-change reversal.
+- **Cherry-pick or backport PRs** (title begins with `[backport]` / `Cherry-pick` / `[cherry-pick]` or body cites a parent PR): description quality is delegated to the parent PR. Skip checks #4–#8 and #10 when a parent PR is cited; still flag #1, #2, #9.
+- **Force-pushed PRs** where the body was substantive on an earlier push (detect via `gh pr view --json reviews` — if there are review comments referencing earlier content, the description may have been condensed after the prior review): downgrade severity by one level (CRITICAL → HIGH, HIGH → MEDIUM) for checks #3, #4. The author already engaged the prior reviewer; rubric-strict re-flagging is noise.
+- **Generated PRs** from automation (release-please, changesets, semantic-release, project-board automation): bodies are formulaic and the rubric does not apply. Detect via author user, title patterns (`chore: release X.Y.Z`, `Release v…`), or the presence of `release-please` / `changeset` labels. Skip every check.
+- **Very small diffs** (<5 LOC AND ≤2 files changed): the rubric's structural expectations (test plan, screenshots, breaking-change note) often do not apply. Skip checks #5 (test plan), #6 (screenshots), #7 (breaking-change) unless the diff visibly touches an API surface / migration / UI file. Still flag #1 (imperative verb) and #3 (substance) if the body is empty.
+
+The detection signals above come from `gh pr view --json isDraft,author,title,body,labels` — the same call already issued at SKILL.md Phase 1 "Parse input" — so no additional API roundtrip is needed.
+
+## Severity Tagging
+
+- **CRITICAL** — empty description, raw template placeholder, or title that misrepresents the diff (e.g., "Fix typo" on a 500-LOC architectural change). These block informed review entirely.
+- **HIGH** — missing test plan when logic changed, missing screenshots when UI changed, missing breaking-change note when API/migration changed. Reviewers cannot verify the change without these.
+- **MEDIUM** — missing "why" clause, scope mismatch, convention drift on title format, missing linked issue when repo expects one. Reviewable without these but signal under-specification.
+
+Do not emit findings for repos that demonstrably do not follow a given convention (modal-pattern detection rules in checks #2 and #9 must show the repo uses the convention before flagging deviations).
+
+## Output Anchor
+
+PR-metadata findings have no `path:lines`. Emit each finding with:
+- `File:` field set to the literal string `PR-METADATA` (no path, no line number).
+- All other reviewer-agent output fields per the standard template (Severity, Cause, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
+- `Evidence:` quotes the relevant fragment of the title or body verbatim, with a brief surrounding-prose marker so the reader sees what was missing (e.g., "title: `Add stuff`" or "body section: `## Test plan` heading present but empty").
+
+The Phase 6 Step 4 comment-body composer in `skills/review/SKILL.md` detects the `File: PR-METADATA` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST, NOT into the inline `comments[]` array (which requires a path-anchored line).

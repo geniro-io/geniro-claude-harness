@@ -14,7 +14,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 | `/geniro:setup` | AI-driven project setup — scans codebase, interviews you, generates CLAUDE.md |
 | `/geniro:implement` | Full-featured implementation with architecture review and multi-agent execution |
 | `/geniro:decompose` | Decompose a Big task into 3-7 independently shippable milestones; hands off to `/geniro:implement milestone <N>` |
-| `/geniro:review` | Parallel 7-agent code review (bugs, security, architecture, tests, optimizations, guidelines, conventions). `--tdd` flag (or startup AUQ) gates PR comments on F→P-verified failing tests. |
+| `/geniro:review` | Parallel 7–9 agent code review (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files present, +pr-metadata when input was a PR ref). `--tdd` flag (or startup AUQ) gates PR comments on F→P-verified failing tests. |
 | `/geniro:debug` | Scientific-method bug investigation with hypothesis tracking |
 | `/geniro:follow-up` | Quick post-implementation changes (trivial/small scope) |
 | `/geniro:deep-simplify` | Three-pass parallel code review for reuse, quality, and efficiency |
