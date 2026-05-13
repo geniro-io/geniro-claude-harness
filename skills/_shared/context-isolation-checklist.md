@@ -77,4 +77,4 @@ A spawn site correctly applies the checklist when:
 - [ ] disallowedTools is set when the agent's contract is read-only; the constraint is also restated in-prompt.
 - [ ] Output schema is pinned with a one-example block showing the literal shape.
 - [ ] Model tier is passed explicitly via `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
-- [ ] The spawn obeys `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` runtime-degradation rule (bare-name first, fall through to general-purpose with body-prepended only on "not found").
+- [ ] The spawn obeys `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` runtime-degradation rule (prefixed `geniro-claude-plugin:<agent>` first, then bare `<agent>` on "not found", then general-purpose with body-prepended on second "not found"; cache the resolved rung for the session).
