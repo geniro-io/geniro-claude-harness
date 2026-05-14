@@ -140,10 +140,21 @@ fi
 
 # Build the additionalContext string. Numbered resume steps mention the three custom-
 # instruction files so the model re-hydrates the user's workflow rules first.
+case "$ACTIVE_SKILL" in
+  implement|decompose|review|debug|follow-up|refactor|deep-simplify)
+    _load_tier="pipeline"
+    ;;
+  investigate|onboard|learnings|features|actions|brainstorm)
+    _load_tier="rules-only"
+    ;;
+  *)
+    _load_tier="rules-only"
+    ;;
+esac
 if [ -n "$ACTIVE_SKILL" ]; then
-  _skill_step="2. Re-read .geniro/instructions/global.md and .geniro/instructions/$ACTIVE_SKILL.md (if present) — your custom workflow rules"
+  _skill_step="2. Re-invoke the canonical instruction loader at \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md with SKILL_SLUG: $ACTIVE_SKILL, LOAD_TIER: $_load_tier, MODE: refresh — this re-Reads the instruction files for this tier and echoes one line per file (the helper's Echo contract is the user-visible proof the re-Read fired)"
 else
-  _skill_step="2. Re-read .geniro/instructions/global.md and .geniro/instructions/<active-skill>.md (if present) — your custom workflow rules"
+  _skill_step="2. Re-invoke the canonical instruction loader at \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md with SKILL_SLUG: <active-skill>, LOAD_TIER: <pipeline-or-rules-only>, MODE: refresh — this re-Reads the instruction files for this tier and echoes one line per file (the helper's Echo contract is the user-visible proof the re-Read fired)"
 fi
 
 ADDITIONAL_CONTEXT="Context was compressed by compaction (SessionStart source: $SOURCE). SKILL.md instructions and conversation nuance were lost — re-read these files before continuing:
@@ -153,7 +164,7 @@ $SUGGESTED_FILES
 Resume steps:
 1. Read the current skill SKILL.md to restore phase instructions
 $_skill_step
-3. Re-read .geniro/instructions/code-style.md (if present) — your project's cross-cutting code-style rules
+3. (Step 2 covers code-style.md re-Read for pipeline skills via the canonical loader; for rules-only skills or when no active skill is detected, re-Read .geniro/instructions/code-style.md directly if you'll be writing or reviewing code in this turn)
 4. Read state.md from the active task directory to find your current phase
 5. Read spec.md and plan file for task context
 6. If a feature ID is set, re-read the FEATURES.md row and the linked spec file

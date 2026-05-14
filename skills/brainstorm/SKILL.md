@@ -35,6 +35,8 @@ The HARD-GATE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` pr
 
 ## Phase 0 — Input mode detection
 
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: brainstorm`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory.
+
 Run the detection algorithm in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` on the first non-flag token of `$ARGUMENTS`. Branch on the resolved mode:
 
 - **`mode=DESIGN_DOC`** (token resolves to a file matching any of: path under `.geniro/planning/**/*.md`, HTML `<!-- geniro:design-doc -->` marker, YAML `geniro_kind: design-doc` frontmatter) → fire `AskUserQuestion` per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`:

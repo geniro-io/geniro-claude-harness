@@ -50,7 +50,7 @@ them up as their own slash commands. They are only reachable through `/geniro:ac
 
 ## Phase 0: Parse intent from `$ARGUMENTS`
 
-**First — load custom instructions.** Load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run (e.g., naming conventions for action slugs, required allowed-tools restrictions, mandatory dry-run gates). Phase-specific "Additional Steps" entries may not have matching phases here — apply where they fit, otherwise skip.
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory.
 
 Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which action is targeted.
 NEVER output questions as plain text — always use the `AskUserQuestion` tool at every WAIT gate.

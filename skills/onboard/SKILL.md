@@ -44,7 +44,7 @@ Skips Architecture Patterns, Conventions, Tech Debt sections — those live in t
 
 ## Workflow: Scan → Map → Reference
 
-**Step 0 — Load custom instructions:** Load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run. Phase-specific "Additional Steps" entries may not have matching phases here — apply where they fit, otherwise skip.
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: onboard`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory.
 
 **Quick-mode bypass:** if `--quick` is set, skip the full Scan → Map → Reference workflow below. Run the abbreviated quick-mode flow:
 

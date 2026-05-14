@@ -40,6 +40,10 @@ No reviewer dimension escalates to `opus` — these reviewers are bounded scope.
 
 ## Phase 1: Scope
 
+### Step 0: Load custom instructions
+
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: deep-simplify`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+
 ### Step 1: Identify Changed Files
 
 Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree and currently checked-out branch; do NOT invoke `gh pr list` or `git checkout` to discover targets. If `$ARGUMENTS` contains "changed", resolve the base branch per scope-anchor rule #3 (`git symbolic-ref --short refs/remotes/origin/HEAD` → typically `origin/main` or `origin/master`; fall back to local `main`/`master` if no remote), then run:
@@ -61,10 +65,6 @@ Exclude: test files (`*.spec.*`, `*.test.*`, `*.int.*`, `*.cy.*`), generated cod
 2. Count total changed LOC — this determines Standard vs Batched mode in Phase 2
 
 Do NOT read file contents — agents have their own 200K context windows and will read files themselves. Do NOT pre-read criteria — agents read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` directly.
-
-### Step 3: Load Custom Instructions
-
-Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/deep-simplify.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 
 ---
 
@@ -242,7 +242,7 @@ Collect findings from all 3 agents. Merge into a single list:
 
 ## Phase 4: Fix
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/deep-simplify.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: deep-simplify`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 Delegate ALL fixes to an agent. Do NOT apply fixes directly. Before spawning the Fix agent, Read `.geniro/instructions/code-style.md` if it exists. Pre-inline its content into the agent prompt at the slot below.
 

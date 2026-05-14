@@ -128,19 +128,20 @@ State is written on all tiers for consistency. Only strategic compact points are
 
 ### Phase 1: Scope & Context
 
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: refactor`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+
 1. Parse `$ARGUMENTS` to understand what is being refactored and why
 2. Use Grep and Glob to find all related files
 3. Read all files in scope to understand current organization, dependencies, imports, and test coverage
 4. **Prior planning/knowledge context** — scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` (anchor on cwd's worktree + current branch; no `gh pr list` / `git checkout` discovery). For cross-session artifacts, resolve the path prefix via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Check these artifacts and load relevant ones: `.geniro/planning/*/` (task-local, cwd-relative; match current branch; if found, read `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`), `.geniro/workflow/*.md` (cwd-relative active integrations), `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` (grep for scope-file keywords to surface relevant gotchas), and current git state (`git rev-parse --show-toplevel`, `git branch --show-current`, `git log --oneline -5`, `git status --short`).
 5. Read any project convention files referenced in CLAUDE.md (coding standards, architecture docs) — understanding project patterns prevents flagging intentional designs as smells
-6. Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/refactor.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
 
-**Step 7 (final): Baseline validation.** Run the project's validation suite once (read command from CLAUDE.md). Capture the run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — every post-refactor verification in Phases 4 and 5 must also attach an Evidence Block to its claim.
+**Step 6 (final): Baseline validation.** Run the project's validation suite once (read command from CLAUDE.md). Capture the run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — every post-refactor verification in Phases 4 and 5 must also attach an Evidence Block to its claim.
 - If red: `AskUserQuestion` header "Baseline": "Fix the broken tests first (stop refactoring)" / "Proceed anyway — existing failures are out of scope (risky)". Default to stop.
 - If no tests exist at all: escalate immediately — "Cannot refactor safely without tests. Use `/geniro:implement` to add coverage first."
 - If tests green: record the passing-state fingerprint (test count) in `.geniro/state/refactor/state-<slug>.md` and proceed.
 
-**Step 8: Test-First Gate (behavior-adjacent coverage check).** Before any refactor edit, check whether each function/symbol in the refactor scope has at least one test that exercises it. If a behavior-adjacent test-coverage gap is detected (the function being refactored has no test), fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-first-gate.md` — author RED before any refactor edit, so the refactor's zero-behavior-change guarantee is anchored to a captured failing-then-passing signature. Refactor's constitution requires existing tests to lock the behavior; if none exists, the gate forces the orchestrator to either add coverage first or escalate per the gate's Result-handling table. If every scope-symbol already has coverage, skip the gate silently.
+**Step 7: Test-First Gate (behavior-adjacent coverage check).** Before any refactor edit, check whether each function/symbol in the refactor scope has at least one test that exercises it. If a behavior-adjacent test-coverage gap is detected (the function being refactored has no test), fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-first-gate.md` — author RED before any refactor edit, so the refactor's zero-behavior-change guarantee is anchored to a captured failing-then-passing signature. Refactor's constitution requires existing tests to lock the behavior; if none exists, the gate forces the orchestrator to either add coverage first or escalate per the gate's Result-handling table. If every scope-symbol already has coverage, skip the gate silently.
 
 ### Phase 2: Analyze (subagent) + Plan (orchestrator)
 
@@ -230,7 +231,7 @@ Update `.geniro/state/refactor/state-<slug>.md`: `phase: 3`, `plan-approved: tru
 
 ### Phase 4: Execute
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/refactor.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: refactor`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 Spawn the refactor-agent to execute the approved plan:
 
@@ -281,7 +282,7 @@ Update `.geniro/state/refactor/state-<slug>.md`: `phase: 4`, `steps-completed: [
 
 ### Phase 5: Review Results
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/refactor.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: refactor`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 #### Step 1: Diff sanity (all tiers)
 

@@ -88,7 +88,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 - **Plan → implement** — `/geniro:implement`'s Phase 2 (architect + skeptic) drops a validated plan into `.geniro/planning/<branch>/plan-<slug>.md` before coding starts; for Big tasks, `/geniro:decompose` produces a master plan plus per-milestone files in the same directory.
 - **Knowledge accumulates** — `/geniro:learnings` appends gotchas to `knowledge/learnings.jsonl`; future `/geniro:debug` and `/geniro:implement` runs grep it before investigating.
-- **Rules persist** — `/geniro:instructions` writes rules into `.geniro/instructions/`, and every relevant skill reads `global.md` + its own file on every run (so "always use snake_case for DB columns" only has to be said once).
+- **Rules persist** — `/geniro:instructions` writes rules into `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + its own file + `code-style.md`, with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
 - **State survives compaction** — long pipelines checkpoint to `.geniro/state/follow-up/state-<branch>.md` or the planning dir, so the next turn can resume exactly where it left off. Within-skill state files are branch-scoped per `skills/_shared/within-skill-state-handoff.md` so parallel sessions on different branches don't clobber each other.
 
 If you ever want to walk away cleanly, `/geniro:cleanup` removes everything listed in `.geniro-state.json` and leaves user-created files untouched.

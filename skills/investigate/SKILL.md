@@ -55,7 +55,7 @@ $ARGUMENTS
 
 ### Step 0: Load custom instructions
 
-Load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run (e.g., "always cite file:line", "never query prod without the read-replica proxy"). Phase-specific "Additional Steps" entries may not have matching phases in this skill — apply where they fit, otherwise skip.
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory.
 
 ### Step 1: Parse the question
 

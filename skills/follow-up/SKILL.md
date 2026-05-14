@@ -41,11 +41,13 @@ $ARGUMENTS
 
 Determine what needs to change, how complex it is, and whether this skill can handle it.
 
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: follow-up`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+
 ### Step 1: Context Scan
 
 1. **Prior planning context** — `Glob(".geniro/planning/*/")`, match current branch. If found, read `spec.md`, `plan-*.md`, `state.md`, `concerns.md`, `notes.md`, `review-feedback.md` to avoid re-discovery or contradicting prior decisions.
 2. **Debug handoff** — follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to scan for `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` and `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). If either is found, surface the detection summary in Phase 1 context AND, if any authored test file is missing from the current working tree, surface the suggestion block from that file. Suggest only — never auto-run `git checkout` or `cp` on the user's behalf.
-3. **Workflow integrations & custom instructions** — check `.geniro/workflow/*.md` for active integrations and argument detection rules; apply to `$ARGUMENTS`. Follow matching workflow instructions (fetch issue context, status transitions). Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/follow-up.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
+3. **Workflow integrations** — check `.geniro/workflow/*.md` for active integrations and argument detection rules; apply to `$ARGUMENTS`. Follow matching workflow instructions (fetch issue context, status transitions).
 4. **Read the change request** and identify likely files.
 5. **Codebase scan** (Glob/Grep) to find exact files and patterns.
 6. **Reuse Inventory** — search the change area for existing functions / components / types / hooks / helpers / configs the change could reuse; categorize each candidate REUSE-AS-IS / EXTEND / NO-ANALOGUE with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence — Rule of Three). Produce a CONVENTIONS_BRIEF + REUSE_INVENTORY pair to pre-inline into the Phase 2 implementer agent prompt. **Skipped in Trivial Fast Lane** — rely on the implementer's in-prompt verify-before-creating instruction (see follow-up-reference.md).
@@ -123,7 +125,7 @@ If any file in the predicted affected-files list from Step 1 matches the UI-file
 
 ## Phase 2: Implement
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/follow-up.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: follow-up`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
 
 ### Step 1: Plan (Medium complexity only)
 
@@ -281,7 +283,7 @@ Validation accumulated fix-loop context. Before spawning reviewers:
 
 ## Phase 5: Review
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/follow-up.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: follow-up`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
 
 ### Step 1: Code Review
 
@@ -337,7 +339,7 @@ Disposition is an orchestrator decision based on aggregated evidence, not a revi
 
 ## Phase 6: Ship (WAIT)
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/follow-up.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: follow-up`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Refresh applies to both Fast and Full lanes — Fast Lane reduces phase content, not safety reads.
 
 Show a summary:
 

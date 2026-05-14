@@ -96,7 +96,9 @@ Decomposed Plans:
 
 ### Phase 1: Discover Context
 
-1. **Parse `$ARGUMENTS` and load workflow integrations.** Read `.geniro/workflow/*.md` integration files, detect issue-tracker refs, detect mode (auto/assumptions/interactive). Also load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/decompose.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints.
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: decompose`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+
+1. **Parse `$ARGUMENTS` and load workflow integrations.** Read `.geniro/workflow/*.md` integration files, detect issue-tracker refs, detect mode (auto/assumptions/interactive).
 
 2. **Resolve `$ARGUMENTS` to mode via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.** Run the detection algorithm on the first non-flag token (after stripping any sub-command keyword handled at the dispatch table above):
    - **`mode=DESIGN_DOC`**: Read the design doc in full. Treat it as the input spec — its scope, constraints, decisions, and acceptance criteria ARE the spec. **Skip Phase 1 spec-extraction entirely** (no gray-area extraction, no spec-derivation questions; the design doc has already done that work). Jump directly to Phase 2 "Generate Master Plan + Milestone List" with the design-doc content pre-inlined as the architect's `## Requirements` block. Codebase Context (Phase 1 step 4) and effort classification (Phase 1 step 5) STILL run — the design doc tells you what to build, but the codebase tells you where, and the rubric tells you whether decomposition is the right tool.
@@ -231,7 +233,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ### Phase 4: Validate (Skeptic)
 
-**Refresh custom instructions (~5 sec):** re-read `.geniro/instructions/global.md`, `.geniro/instructions/decompose.md`, and `.geniro/instructions/code-style.md` (if any are present). Their rules / additional steps / hard constraints still apply to this phase — re-load to ensure they survive any compaction since Phase 1.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: decompose`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 1. **Spawn skeptic-agent** ONCE via the Agent tool with `subagent_type: "skeptic-agent"`, `model="sonnet"`. The spawn satisfies the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier) and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type 'skeptic-agent' not found"). Skeptic is read-only by contract — the prompt below restates the prohibition (per checklist field 4 belt-and-suspenders, since degraded `general-purpose` calls lose the agent's tool allowlist):
 

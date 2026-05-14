@@ -98,13 +98,14 @@ Persist the resolved mode to `<task-dir>/state.md` as `Phase 0: <DESIGN_DOC|CODE
 
 **Action:** Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 1: Auto-Detection Table" for argument parsing rules.
 
+**Load custom instructions (first action — runs before any Phase 1 step).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+
 **Phase 1 Startup Consolidation (BEFORE firing any Phase 1 AUQ).** Steps 0, 1, 2, and the git-workspace bullet inside Step 7 collectively own up to four upfront always-WAIT questions. Defer per-step AUQs until you have evaluated all four conditions, then issue ONE `AskUserQuestion` call carrying whichever apply: **Lane** (Step 0 — unless skip rubric fires), **Mode** (Step 1 — unless `$ARGUMENTS` locked it via auto/assumptions signal), **Feature** (Step 2 — only when feature row status is `done`/`blocked`), **Git workspace** (Step 7 — always). Independent (no sequencing); `AskUserQuestion` accepts up to 4 questions per call. Persist each answer to `<task-dir>/state.md` as it returns, then proceed through Steps 0/1/2/7 reading from state. If only one applies, fire as single-question AUQ; if zero apply, skip the upfront AUQ entirely and proceed to Step 3.
 
 **Step 0 — Complexity Gate (Lane Selection).** Classify the request and ask which Lane to run: Full pipeline / Light Mode (architect+skeptic skipped, Trivial only) / TDD Mode (sequential RED→GREEN per behavior, opt-in via explicit signal AND ≤Small scope). Skip this gate when: milestone detected (HITL/AFK Mode tag determines Lane automatically per `decompose-criteria.md`), plan-file path present, plan-mode conversation active, or `state.md` already has a `Phase 1 Step 0:` line. Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate". Hard escalation signals from `_shared/effort-scaling.md` Step 1 → Light/TDD unavailable; default uncertain → Full. Persist `Lane: <full|light|tdd>` to `state.md`. Contribute Lane to the consolidated upfront AUQ above instead of firing standalone here.
 
 **Steps:**
 1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
-   Also load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/implement.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints throughout the pipeline.
    Then determine **pipeline mode**: if `$ARGUMENTS` already carried an explicit auto/assumptions signal (rules 3-4 of the Auto-Detection Table), lock to that mode. Otherwise the **Mode Selection prompt** is **Always-WAIT** — Mode contributes its question to the **Phase 1 Startup Consolidation** AUQ described above (a per-step Mode AUQ at this point would double-prompt the user; an empty AUQ answer is the upstream bug — fall back to plain text and re-ask). See `implement-reference.md` §Phase 1 Auto-Detection Table (Mode Selection prompt + Anti-rationalization) and `skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" for the full rationale. Persist `Mode: <interactive|auto|assumptions>` in `<task-dir>/state.md` so all later gates read it without re-prompting.
    **Debug handoff scan.** Before contributing questions to the Phase 1 Startup Consolidation AUQ, follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to scan for `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` and `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Persist `Debug-handoff: <none|detected>` plus the parsed `Authored-tests:` and `Debug-source-branch:` lines into `<task-dir>/state.md` so Step 10 can read them after the git-workspace decision settles. Detection happens here; the user-facing suggestion fires in Step 10 after the working branch is known.
 2. **Bind to feature row (if applicable).** If `$ARGUMENTS` matched rule 2 of the Auto-Detection Table (Geniro feature ID): look up the row in `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`); if status is `planned`, run `/geniro:features move <id> in-progress`; if `in-progress`, no action; if `done`/`blocked`, contribute a "Feature" question (header "Feature", options "Re-open and continue" / "Pick a different feature" / "Treat description as new work (skip feature link)") to the **Phase 1 Startup Consolidation** AUQ described above instead of firing a standalone Feature AUQ at this step. Persist `Feature: <id>` and `Spec-file: <path or "none">` to `<task-dir>/state.md` before Step 3 (carried forward in every later checkpoint). If no feature ID, `Feature:` is "none".
@@ -219,7 +220,7 @@ If the user picks "Continue now": continue normally to Phase 4.
 
 ## PHASE 4: IMPLEMENT
 
-**Refresh custom instructions:** re-read `.geniro/instructions/{global,implement,code-style}.md` (if present) — rules survive compaction.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 **Purpose:** Execute architecture with parallel agents (Full + Light Lanes) OR sequential RED→GREEN per behavior (TDD Lane).
 
@@ -322,7 +323,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a 
 
 ## PHASE 6: REVIEW & VALIDATE
 
-**Refresh custom instructions:** re-read `.geniro/instructions/{global,implement,code-style}.md` (if present) — rules survive compaction.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 **Purpose:** Single quality gate — verify code compiles, passes tests, meets spec, and is well-written.
 
@@ -377,7 +378,7 @@ Aggregate findings. Pass CRITICAL/HIGH to fix loop; preserve MEDIUM findings (do
 
 ## PHASE 7: SHIP & FINALIZE (WAIT)
 
-**Refresh custom instructions:** re-read `.geniro/instructions/{global,implement,code-style}.md` (if present) — rules survive compaction.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 **Precondition:** Do NOT enter Phase 7 until `state.md` shows Phase 5 completed-or-skipped, Phase 6 Stage A completed, Stage B completed-or-skipped, Stage C completed, and Stage D completed-or-skipped (with logged reason for skips). If any is missing, go back and complete it.
 

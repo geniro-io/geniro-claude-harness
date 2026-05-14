@@ -21,7 +21,7 @@ These are complementary: `code-style.md` fires "when a Geniro skill writes or re
 
 ## Supported Skills
 
-`global.md` loads in **every** Geniro skill that does real user work — its **Rules** and **Constraints** apply project-wide (lifecycle skills like `setup`, `instructions`, `cleanup`, `update`, `vendor` are excluded). Per-skill instruction files (`<skill>.md`) load only in the seven phase-bearing pipeline skills below, where "Additional Steps" entries map to named phases. `code-style.md` is a **cross-cutting** scope: it loads in every code-writing AND code-review skill (not paired with one skill), capturing style/naming/convention rules that should apply at every code-writing and review step.
+`global.md` loads in **every** Geniro skill that does real user work — its **Rules** and **Constraints** apply project-wide (lifecycle skills like `setup`, `instructions`, `cleanup`, `update`, `vendor` are excluded). Per-skill instruction files (`<skill>.md`) load only in the seven phase-bearing pipeline skills below, where "Additional Steps" entries map to named phases. `code-style.md` is a **cross-cutting** scope: it loads in every code-writing AND code-review skill (not paired with one skill), capturing style/naming/convention rules that should apply at every code-writing and review step. All loads are performed by the canonical helper at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — each skill calls it at Step 0 (initial load) and at each phase-boundary refresh site, with `LOAD_TIER: pipeline` for the seven pipeline skills above and `LOAD_TIER: rules-only` for the six others (`investigate`, `onboard`, `learnings`, `features`, `actions`, `brainstorm`).
 
 | Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
 |-------|---|---------------|-----------------------------------|
@@ -37,12 +37,13 @@ These are complementary: `code-style.md` fires "when a Geniro skill writes or re
 | **learnings** | ✓ | — | Rules/Constraints only |
 | **features** | ✓ | — | Rules/Constraints only |
 | **actions** | ✓ | — | Rules/Constraints only |
+| **brainstorm** | ✓ | — | Rules/Constraints only |
 
 **Cross-cutting (loaded by multiple skills):**
 
 | Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
 |-------|---|---------------|-----------------------------------|
-| **code-style** | — | `code-style.md` | Loaded by `implement` (Phase 4), `follow-up` (Phase 2), `refactor` (Phase 4), `review` (Phase 2), `deep-simplify` (Phase 2), and pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions. |
+| **code-style** | — | `code-style.md` | Loaded by all 7 pipeline skills (`implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`) at Step 0 and at every phase-boundary refresh, via the canonical helper at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`. Also pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions. |
 | **review-extra** | — | `review-extra/<slug>.md` (directory-style — one file per custom reviewer) | Loaded by `/geniro:review` Phase 2, `/geniro:implement` Phase 6 Stage C, `/geniro:follow-up` Phase 5, and `/geniro:refactor` Phase 5 via the shared helper at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`. Each file becomes an additional reviewer-agent dimension that runs alongside the built-in 7-9 reviewers. |
 
 *`code-style` and `review-extra` are the cross-skill scopes. `code-style` captures style/naming/convention rules that apply at every code-writing and review step. `review-extra` is the only **directory-style** scope (the other 10 scopes are single files at `.geniro/instructions/<scope>.md`); each file under `.geniro/instructions/review-extra/` declares one custom code-review dimension with its own slug, description, optional model/paths/severity-default, and a "what to flag / what NOT to flag" criteria body.*

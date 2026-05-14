@@ -53,7 +53,7 @@ Features stored in `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (resolve `<PRIM
 ## Workflow: Add → Track → Complete
 
 ### 0. Load custom instructions (every sub-command)
-Before processing any sub-command, load `.geniro/instructions/global.md` if present. Apply its **Rules** and **Constraints** sections throughout the run (e.g., backlog hygiene rules, default-priority policies, required spec sections). Phase-specific "Additional Steps" entries may not have matching phases here — apply where they fit, otherwise skip.
+Before processing any sub-command: **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: features`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory. The load fires on every sub-command invocation.
 
 ### 1. Add Feature
 ```

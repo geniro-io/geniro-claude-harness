@@ -4403,3 +4403,38 @@ All 7 code-writing skills (implement, follow-up, review, refactor, debug, invest
 
 Net effect: 9 → 7 safety hooks; ~60% reduction in false-positive surface;
 all genuine protection retained.
+
+## Audit v31 — Canonical Custom-Instructions Loader (2026-05-14)
+
+**Trigger:** User reported that skills sometimes don't actually ingest `.geniro/instructions/global.md` until they're explicitly pointed at it. Investigation confirmed the failure mode: the natural-language directive "Load custom instructions from X" was duplicated across 12 SKILL.md files in two inconsistent phrasings ("Load … Read any found" vs. "Load … if present"), buried mid-step in 4 pipeline skills, with no observable side effect to prove the Read fired. Cross-references: Anthropic Memory doc admission ("no guarantee of strict compliance"), Claude Code GitHub issue #27032 ("model reads file but ignores actionable instructions"), Spec Kit issue #2459 ("`/speckit.implement` does not load constitution.md" — same failure mode).
+
+**Findings (12 KEEP after relevance-filter, 2 decision-required baked in, 3 rejected):**
+
+| # | Finding | Disposition |
+|---|---|---|
+| F1 | Create `skills/_shared/load-custom-instructions.md` — canonical shared helper | Implemented |
+| F2 | Imperative `` Read `<path>` `` phrasing (not "Load X if present") | Codified in §Procedure |
+| F3 | Echo-on-load verification line after each Read | Codified in §Echo contract |
+| F4 | Each consumer SKILL.md names the loader in-place (no global preamble alone) | 13 SKILL.md call sites updated |
+| F5 | Step 0 prominence — physically first | Restructured implement/decompose/follow-up/refactor |
+| F6 | Unify 13 mid-pipeline refresh sites to one helper-reference | Done |
+| F7 | `code-style.md` loads at Step 0 in pipeline tier (via `LOAD_TIER: pipeline`) | Baked into loader |
+| F8 | Add `brainstorm` to the loading roster | Added (rules-only tier) |
+| F9 | Update `hooks/post-compact-notification.sh` resume-step wording in lockstep | Done |
+| F10 | Anti-rationalization table in the loader (8 rows) | Codified |
+| F11 | Producer-side directive structure (Rules/Steps/Constraints semantics moved into loader, removed from 7 consumers) | Done |
+| F15 | Fix "since Phase 1" wording leak (debug has no Phase 1) | Subsumed by canonical refresh-call-site wording |
+| F16 | Update `instructions/SKILL.md` table + CLAUDE.md + README.md | Done |
+| F17 | This `report.md` audit section | This entry |
+| F12 | PreToolUse hook backstop for missing-load | **Rejected (deferred)** — escalation only if echo proves insufficient |
+| F13 | `` !`cat` `` shell-injection in SKILL.md | **Rejected** — over-engineering; loses rules/constraints semantics |
+| F14 | `_shared/branch-naming.md` adoption of the new loader | **Rejected** — different contract (surgical extraction vs. load-and-apply) |
+
+**Changes:**
+
+- NEW: `skills/_shared/load-custom-instructions.md` (~130 lines) — canonical helper with Caller contract / Procedure / Echo contract / Mid-pipeline refresh / Producer contract / Anti-rationalization (8 rows) / Definition of Done.
+- EDITED: 13 SKILL.md files (implement, decompose, review, debug, follow-up, refactor, deep-simplify, investigate, onboard, learnings, features, actions, brainstorm). Each replaces its inline load directive with the canonical call site; pipeline skills also replace 13 mid-pipeline refresh sites with the canonical refresh call site.
+- EDITED: `skills/instructions/SKILL.md` (table + preamble); `CLAUDE.md` (post-compaction bullet); `README.md` ("Rules persist" bullet).
+- EDITED: `hooks/post-compact-notification.sh` (resume-step prose now cites the canonical loader instead of duplicating re-read instructions).
+
+**Net effect:** Eliminated ~250 LOC of duplicated producer-side directive prose across 13 SKILL.md files; centralized into ~130 LOC of canonical helper. The echo line is the user-visible compliance signal. Reliability remains prompt-level (per report.md lines 2288-2295, ~70-80%); escalation to a PreToolUse hook backstop is deferred to a future iteration if the echo-line proves insufficient as a verification signal.
