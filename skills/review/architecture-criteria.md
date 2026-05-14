@@ -178,7 +178,7 @@ grep -n "workaround\|temporary\|quick fix" file.js
 - Using deprecated library versions
 - Inconsistent patterns (old style mixed with new)
 - Comments saying "this is hacky but it works"
-- Code that duplicates existing patterns elsewhere
+- Code that duplicates existing patterns elsewhere — "elsewhere" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces helper `<name>` at `<file:line>` — current change reimplements it inline, consider reusing or coordinating"
 
 ### 8. Testing Architecture
 - Code designed to be difficult to test

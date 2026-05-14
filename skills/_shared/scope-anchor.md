@@ -51,7 +51,7 @@ The two slots are pre-populated text; the verify line tells the subagent to conf
 
 The following commands are **target-discovery** commands. They invent a target the user did not name, and they are forbidden in the default-no-args path. Treat them as the same class of mistake as overwriting the user's uncommitted work:
 
-- `gh pr list` — discovering open PRs to review/inspect. PR mode triggers ONLY on an explicit PR ref (`#N`, bare digits, or full GitHub PR URL) supplied in `$ARGUMENTS`.
+- `gh pr list` to **invent a target** — discovering open PRs to review/inspect when the user supplied no target. PR mode triggers ONLY on an explicit PR ref (`#N`, bare digits, or full GitHub PR URL) supplied in `$ARGUMENTS`. **Carve-out:** read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target (e.g., the review skill's peer-PR scout, or `pr-metadata-criteria.md`'s `gh pr list --state merged --limit 5` convention-prefix sample) are NOT discovery — they consume an existing target rather than invent one. The ban is on target-invention, not on context-gathering for a user-named target (the **Carve-out** sentence above is the canonical statement; the closing paragraph below restates the same principle for all forbidden moves).
 - `gh pr view --json …` without an explicit PR ref — the `<ref>` argument must come from the user, never from `gh pr list` output.
 - `git checkout <other-branch>` / `git switch <other-branch>` — moving the user off their current branch.
 - `git worktree add` / `EnterWorktree(...)` — entering or creating a different worktree (the only sanctioned worktree-entry call site is `/geniro:implement` Phase 1 Step 10 Option C, which guards against re-entry — see SKILL.md there).

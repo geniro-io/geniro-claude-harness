@@ -41,7 +41,7 @@ grep -nE "font-\[|text-\[|fontFamily|@font-face|@import.*fonts" file.tsx
 ### 4. Component Variant Invention
 - New visual variant of an existing primitive (a third Button shape) instead of composing existing variants
 - Custom-built equivalents of components already in the library (custom Modal when a Dialog primitive exists)
-- New component file whose responsibility overlaps an existing primitive
+- New component file whose responsibility overlaps an existing primitive — "existing" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces `<Component>` at `<file>` with overlapping responsibility — coordinate before shipping both"
 
 **How to detect:**
 ```bash

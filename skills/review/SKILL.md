@@ -47,9 +47,19 @@ There is **NO `--incoming` flag**. Explicit override into Incoming mode is via t
 
 When `mode == INCOMING`, run Phase 1's worktree pre-flight and PR-fetch (below) as normal — Incoming mode still needs the worktree + PR metadata — then jump to `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` Step I-1 instead of Phase 2. Phases 2/3/4/4b/5/6 are skipped in Incoming mode (Phase 4c machinery is reused only by Step I-3).
 
-- **Scope:** follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for target resolution (working tree → branch-vs-base diff → no-op). The base branch is whatever scope-anchor resolves it to (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files") — do NOT preface it with harness "Auto Mode" framing. NEVER invoke `gh pr list` or any other PR-discovery command to invent a target — PR mode triggers ONLY on the explicit PR-ref forms enumerated below.
+- **Scope:** follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for target resolution (working tree → branch-vs-base diff → no-op). The base branch is whatever scope-anchor resolves it to (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files") — do NOT preface it with harness "Auto Mode" framing. NEVER invoke `gh pr list` or any other PR-discovery command to **invent a target** — PR mode triggers ONLY on the explicit PR-ref forms enumerated below. Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target (the Phase 1 peer-PR scout step below; `pr-metadata-criteria.md`'s merged-PR-title sample) are NOT discovery — they consume the user-supplied PR ref rather than invent one. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § "Forbidden discovery moves" — the `gh pr list` bullet's **Carve-out** sentence.
 - **Harness Auto Mode handling:** `/geniro:review` has NO auto mode of its own. Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" — do NOT promote the harness "Auto Mode Active" reminder into transcript framing (e.g., never announce "Auto mode → proceeding without prompting"). Scope resolution and Phase 4c's user-approval gate are governed by their own rules regardless of harness Auto Mode state.
 - Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels` for base/head context, head SHA pin, PR URL, PR body+title (the PR body feeds PLAN CONTEXT below), plus the draft state, author user, and label set (these three feed the pr-metadata reviewer's Common-False-Positives detection at `${CLAUDE_SKILL_DIR}/pr-metadata-criteria.md` — bot-author / draft / release-please-label PRs are excluded from rubric-strict checks). Capture the original PR ref (the `#N` / digits / URL form the user passed), the `headRefOid` value, and the canonical `url` — all three are persisted to the Phase 5 state file so Phase 6's Action gate can offer the "Post findings as PR comments" option without re-detection (the `headRefOid` is what Phase 6 pins as `commit_id` on the GitHub reviews API call to prevent line-anchor drift if the PR is updated mid-review). Then feed the diff into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
+- **Collect PEER-PR CONTEXT (PR-ref input only — skip for files / diff range / branch).** When the user supplies a PR ref, optionally gather context from other open PRs that touch overlapping files, so the architecture and design reviewers can flag reuse/consolidate/align opportunities. This is NOT target-discovery (the user already named the target via the PR ref) — see the carve-out language in the "Scope" step above. Mechanism:
+  - Run `gh pr list --state open --base <baseRefName-from-Phase-1-pr-view> --json number,title,headRefName,author,updatedAt,files --limit 30` (cap at 30 to bound API cost; 30 is a reasonable upper bound for "recent open peer PRs in the same target branch").
+  - Compute file-path intersection between the current PR's changed files and each sibling PR's `files[]` list. Run `gh pr diff <N> --name-only` here as a separate call — Phase 1's "Parse input" step above fetched the full diff text without `--name-only`, so the file-name list must be re-derived (either by an additional `--name-only` call or by parsing the already-captured diff text; both work). Drop siblings with zero overlap.
+  - Keep the top 3 by overlap count (ties broken by `updatedAt` descending). Three is the cap to keep the architecture/design reviewer's added context bounded — each sibling contributes up to 300 diff lines plus metadata, and 3 siblings × ~310 lines fits comfortably under the ~3000-char block cap below.
+  - For each kept sibling, fetch `gh pr view <peer-N> --json title,headRefName,url` and `gh pr diff <peer-N> | head -300` (bounded to 300 lines per sibling to cap per-sibling context).
+  - Build `PEER-PR CONTEXT:` as a block with one entry per kept sibling: `#<N> | <title> | head=<headRefName> | overlap-files=<comma-separated-paths> | url=<url> | first-300-lines-of-diff:\n<diff-text>`. Cap total chars at ~3000 (matches the PLAN CONTEXT cap at the step above) — if the combined siblings exceed the cap, drop the lowest-overlap sibling first, then truncate the per-sibling diff tail of the remaining lowest-overlap one until under cap.
+  - Pre-inline the resulting block into the architecture and design reviewer prompts at Phase 2 below — see the `PEER-PR CONTEXT:` slot added there. The slot is NOT threaded into bugs/security/tests/optimizations/guidelines/conventions/pr-metadata reviewers (deliberate scope: cross-reviewer convergence anti-pattern + conventions rubric mismatch).
+  - **Fail-open behavior** (mirrors the Phase 1 review-thread-fetch fail-open at the top of this Phase 1): if `gh pr list` fails (no network, rate limit, gh-token scope), if the `--base` filter resolves to zero PRs, or if no sibling has any file-path overlap, render the slot as `none — no overlapping open peer PRs` (or `none — gh unavailable (fail-open)` on error) and surface a one-line caveat under `## Caveats` ONLY when the failure was an error (not when the empty result was legitimate). The skill never blocks on peer-PR context — it is additive only.
+  - **Skip entirely** when input is files / diff range / branch (no PR ref). Render the slot as `none — not a PR-ref input` in the architecture and design reviewer prompts.
+  - This sub-step is read-only — it never writes files, never mutates git state, never enters a worktree. Latency budget: 2-8 `gh` API calls on the critical path before reviewer spawn (1 list + 1 name-only + up to 2 calls per kept sibling × up to 3 siblings) — typically ~1-3 seconds on a healthy network, longer if `gh pr diff` hits a large sibling. If this latency becomes a problem in practice, a future optimization can move the scout into a parallel `model="haiku"` agent spawned alongside the reviewers.
 - **Git workspace decision (PR-ref input only — skip for files / diff range / branch).** A PR review may author tests (Phase 4c) and commit them (Phase 6 Failing-tests gate); those writes belong on the PR's head branch, not on the user's current branch. Run a worktree pre-flight here, before "Load custom instructions" below, so all subsequent Phase 1 reads happen from the right cwd. Pre-flight (Bash): compute `TOPLEVEL=$(git rev-parse --show-toplevel)`, `PARENT=$(basename "$(dirname "$TOPLEVEL")")`, `TOP=$(basename "$TOPLEVEL")`, and `TARGET="pr-<N>-review"` (where `<N>` is the parsed PR number, no leading `#`). Then route to exactly one of these three branches — never run `git worktree add` or `EnterWorktree` without first walking this fork:
   - **Already in `.claude/worktrees/<TARGET>`** (`PARENT == "worktrees"` AND `TOP == TARGET`): skip both create AND enter, but FIRST sanity-check that the worktree hasn't drifted off the PR head — compare `git rev-parse HEAD` against the snapshotted `pr-head-sha` (`headRefOid` from the Phase 1 `gh pr view --json` fetch at "Parse input" below). If they match, echo `Reusing worktree pr-<N>-review — already on PR head.` and continue to "Load custom instructions". If they differ (someone checked out a different branch in this worktree since it was created, or new commits landed on the PR head while the worktree stayed pinned), surface a one-line warning `Worktree pr-<N>-review HEAD (<short-sha>) differs from PR head (<short-pr-head-sha>) — review will analyze the worktree's current HEAD; re-create the worktree if you want the latest PR head.` and continue without erroring (the user may be intentionally reviewing an older PR state). Re-entering would resolve the relative path under the current cwd and produce a nested ENOENT (mirrors the `/implement` Step 10 carve-out).
   - **In a different `.claude/worktrees/<other>`** (`PARENT == "worktrees"` AND `TOP != TARGET`): use `AskUserQuestion` (header `Worktree`) with options "Continue here in `<other>` (skip worktree create+enter)" / "Exit then create `pr-<N>-review` (call `ExitWorktree`, then re-run this step from repo root)" / "Abort". Do NOT silently create a nested worktree.
@@ -156,6 +166,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
 Review ONLY for architecture and design patterns. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -225,6 +236,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
 Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -306,7 +318,44 @@ Not every batch needs all 7–9 dimensions. Skip irrelevant ones to save tokens.
 
 **Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
 
-Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/optimizations/conventions/design and `model="haiku"` for guidelines. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, and the same alignment-tag instruction as standard mode.
+Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/optimizations/conventions/design and `model="haiku"` for guidelines. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, the same `PEER-PR CONTEXT:` field collected in Phase 1 (architecture and design dimensions ONLY — NOT bugs/security/tests/optimizations/guidelines/conventions/pr-metadata; see the slot-scope rationale at the Phase 1 peer-PR scout step), and the same alignment-tag instruction as standard mode.
+
+The per-batch architecture and design prompts mirror the standard-mode blocks above, with batch-scoped CHANGED FILES:
+
+```
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+DIMENSION: architecture
+CRITERIA: [content of architecture-criteria.md]
+CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CHANGED FILES: [batch's files only]
+PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+DIFF CONTEXT: [git diff summary for this batch]
+PLAN CONTEXT: [content from Phase 1, or "none"]
+PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
+Review ONLY for architecture and design patterns. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""")
+
+# Conditional — spawn ONLY when this batch contains at least one UI file (per the UI-file detection rule above).
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+DIMENSION: design
+CRITERIA: [content of design-criteria.md]
+CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CHANGED FILES: [batch's UI files only]
+PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+DIFF CONTEXT: [git diff summary for this batch]
+PLAN CONTEXT: [content from Phase 1, or "none"]
+PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
+Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""")
+```
+
+Other per-batch dimensions (bugs, security, tests, optimizations, guidelines, conventions) follow the standard-mode prompt shape unchanged — no `PEER-PR CONTEXT:` slot is threaded into them.
 
 ```
 Example for 15 files, 3 batches:
