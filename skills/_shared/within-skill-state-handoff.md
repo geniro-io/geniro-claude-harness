@@ -1,6 +1,6 @@
 # Within-skill state handoff (canonical, shared)
 
-**Status:** Authoritative for these task-local state files: `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/state-<slug>.md`, `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md`, `.geniro/state/debug/HYPOTHESES-<slug>.md`.
+**Status:** Authoritative for these task-local state files: `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/state-<slug>.md`, `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md`, `.geniro/state/follow-up/adversarial-<slug>.md`, `.geniro/state/debug/HYPOTHESES-<slug>.md`.
 
 Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the headers every producer embeds, and the mismatch UX every consumer surfaces on resume.
 
@@ -89,6 +89,9 @@ When a skill completes its pipeline, it MUST delete its slug-scoped state file a
    - `.geniro/refactor/state.md`
    - `.geniro/improve-template-state.md`
    - `.geniro/debug/HYPOTHESES.md`
+
+3. **Non-scoped /follow-up adversarial report (pre-rename)** — never slug-scoped, lived under the wrong skill dir:
+   - `.geniro/state/debug/follow-up-state-adversarial.md`
 
 Each producer must `rm -f` its own pair (intermediate slug-scoped + original non-scoped). The `2>/dev/null || true` discipline applies — these are best-effort.
 

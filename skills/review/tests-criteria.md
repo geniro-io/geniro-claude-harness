@@ -372,6 +372,8 @@ For every test removed by the diff (whole file deleted, OR an `it()` / `test()` 
 
 The comparison is by **cause path**, NOT by **outcome**. Two tests that share the same assertion shape (e.g. `expect(result).toBeNull()`) can pin radically different cause paths — outcome-match is a false-equivalence signal.
 
+The pattern generalizes to any guard + race-condition combination where the same observable outcome can be reached through multiple causal paths — defensive-branch + happy-path that share a return value, retry/fallback that converges on the same final state as the primary path, two error handlers that produce the same error object via different internal sequences. The concrete example below is from one production incident; treat it as a shape, not a recipe.
+
 ### Cause-path examples (real shape; from prior incident)
 
 | Test name | Outcome | Cause path being pinned |

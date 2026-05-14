@@ -425,6 +425,8 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 rm -f ".geniro/follow-up/state-${slug}.md" 2>/dev/null  # intermediate legacy: pre-state-dir, slug-scoped
 rm -f .geniro/follow-up-state.md           2>/dev/null  # original legacy: pre-slug, non-scoped
 rm -f ".geniro/state/follow-up/skeptic-hypothesis-${slug}.md" 2>/dev/null  # Phase 1 Step 2.6 skeptic verdict
+rm -f ".geniro/state/follow-up/adversarial-${slug}.md" 2>/dev/null  # Phase 5 Step 1.5 adversarial report
+rm -f .geniro/state/debug/follow-up-state-adversarial.md 2>/dev/null  # legacy non-scoped pre-rename path
 ```
 
 **→ Pipeline complete.**

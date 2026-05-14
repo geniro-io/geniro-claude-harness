@@ -265,7 +265,17 @@ BRANCH: [from `git branch --show-current`]
 [Paste CRITICAL/HIGH findings from Step 1 Medium reviewers' tests dimension, if any. Use as seeds only.]
 
 ### Output
-Write your report to `.geniro/state/debug/follow-up-state-adversarial.md`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+Write your report to `.geniro/state/follow-up/adversarial-<slug>.md` (slug provided by orchestrator). Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+
+**Producer-contract headers (MANDATORY):** The file MUST begin with three header lines per § Producer contract of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`:
+
+```
+Branch: <git branch --show-current OR detached-<short-sha>>
+Worktree: <git rev-parse --show-toplevel>
+Timestamp: <ISO-8601 UTC>
+```
+
+These headers gate consumer-side Case A/B/C/D mismatch handling when the orchestrator synthesis step reads this file.
 
 ### F→P Invariant (NON-NEGOTIABLE)
 Every test you keep MUST fail 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
@@ -278,7 +288,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 ```
 
 **Orchestrator synthesis:**
-1. Read `.geniro/state/debug/follow-up-state-adversarial.md`, extract authored test file paths.
+1. Read `.geniro/state/follow-up/adversarial-<slug>.md`, extract authored test file paths. On read, run `_shared/within-skill-state-handoff.md` § Consumer contract Case A/B/C/D mismatch handling. If headers are missing (legacy `.geniro/state/debug/follow-up-state-adversarial.md` path or pre-header file), treat as Case D legacy migration: surface a one-line note `Legacy state file at <legacy-path>; scoping to current branch slug.` and proceed.
 2. Run the project's test command on each authored test individually — 3 consecutive identical failures = keep; otherwise delete.
 3. For each kept test, add a CRITICAL/HIGH entry to the Step 2 aggregate (severity per agent report) tagged `origin: step-1.5-adversarial`.
 4. If the agent reported hitting the 10-test cap, note overflow hypotheses in the Phase 6 ship summary under "Deferred".
@@ -317,7 +327,17 @@ Deletion-class — the diff removes a defensive guard, optional parameter, or te
 - Exemplar test files (1-2, pre-inlined): [closest existing test files to the changed code]
 
 ### Output
-Write your report to `.geniro/state/debug/follow-up-state-adversarial.md`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+Write your report to `.geniro/state/follow-up/adversarial-<slug>.md` (slug provided by orchestrator). Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+
+**Producer-contract headers (MANDATORY):** The file MUST begin with three header lines per § Producer contract of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`:
+
+```
+Branch: <git branch --show-current OR detached-<short-sha>>
+Worktree: <git rev-parse --show-toplevel>
+Timestamp: <ISO-8601 UTC>
+```
+
+These headers gate consumer-side Case A/B/C/D mismatch handling when the orchestrator synthesis step reads this file.
 
 ### Inverted F→P Invariant (NON-NEGOTIABLE)
 Every test you keep MUST:
@@ -353,7 +373,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 ```
 
 **Orchestrator synthesis (deletion-class variant):**
-1. Read `.geniro/state/debug/follow-up-state-adversarial.md`, extract authored test file paths AND the "no fail-without-the-guard test could be constructed" sentinel (if present).
+1. Read `.geniro/state/follow-up/adversarial-<slug>.md`, extract authored test file paths AND the "no fail-without-the-guard test could be constructed" sentinel (if present). On read, run `_shared/within-skill-state-handoff.md` § Consumer contract Case A/B/C/D mismatch handling. If headers are missing (legacy `.geniro/state/debug/follow-up-state-adversarial.md` path or pre-header file), treat as Case D legacy migration: surface a one-line note `Legacy state file at <legacy-path>; scoping to current branch slug.` and proceed.
 2. For each authored test, run the project's test command on the current working tree — 3 consecutive identical failures = candidate confirmed. Then perform the patch-isolated round-trip per production file `<P>` whose guard the test pins:
 
    **Patch-isolated round-trip (required to verify inverted F→P):**
