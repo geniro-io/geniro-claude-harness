@@ -19,7 +19,7 @@ argument-hint: "[description of the change]"
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (reviewer, adversarial-tester), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined. Every spawn site in this skill additionally satisfies `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (six required pre-inlined fields) — see Phase 2 Step 2 and Phase 5 Step 1 for the per-spawn enforcement.
+Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (reviewer, adversarial-tester, skeptic), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined. Every spawn site in this skill additionally satisfies `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (six required pre-inlined fields) — see Phase 2 Step 2 and Phase 5 Step 1 for the per-spawn enforcement.
 
 **Skill-specific mapping** (`/follow-up` never spawns `opus` directly — escalate to `/geniro:implement` or `/geniro:debug` for opus-tier work):
 
@@ -27,7 +27,8 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 |---|---|
 | Trivial Fast Lane implementation, Phase 4 validation | `haiku` |
 | Small/Medium implementation, Phase 3 simplify, Phase 5 single/multi-dimension reviewers (incl. design when UI files present) | `sonnet` |
-| Phase 5 Step 1.5 adversarial-tester-agent (Medium only, carve-out — synthesis tier mirrors orchestrator) | `inherit` |
+| Phase 1 Step 2.6 skeptic-agent (defensive-removal / prior-CRITICAL gate) | `sonnet` |
+| Phase 5 Step 1.5 adversarial-tester-agent (Medium by default + deletion-class override for Trivial/Small/Fast-Lane, carve-out — synthesis tier mirrors orchestrator) | `inherit` |
 
 ## Change Request
 
@@ -76,6 +77,15 @@ Classify the change request itself (the `$ARGUMENTS` scope) as `[ROOT-CAUSE]` / 
 - **Trivial lane** → skip Step 2.5 (the Trivial scope is too narrow for cause-vs-symptom to apply meaningfully; proceed straight to lane routing then to fix).
 - **Small + Medium lanes** → orchestrator classifies based on the change description and the file context loaded in Steps 1-7. If the classification is `[SYMPTOM]` or `[UNKNOWN]`, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once, BEFORE lane routing. The gate's result (`[ROOT-CAUSE]` re-tag / `[SYMPTOM-ACK]` proceed-with-tech-debt-note / halt-and-escalate-to-`/geniro:debug`) determines whether the pipeline continues. `[UNKNOWN]` follows the finding-tagging.md routing — escalate to `/geniro:debug` BEFORE the gate fires.
 - **Big lane** → root-cause is mandatory inside `/geniro:implement` Phase 2 (architect-agent emits the classification per design unit); the user already escalated to `/geniro:implement`, so Step 2.5 here is bypassed.
+
+### Step 2.6: Adversarial Pre-Implementation Validation (Small + Medium only)
+
+Skeptic gate fires on either trigger; skipped silently when neither fires. Trivial/Big skipped (matches Step 2.5's Trivial-bypass; /implement owns the architect+skeptic double-gate); Step 3 "Proceed anyway" Big-lane escape hatch also skips this step.
+
+- **Trigger 1 — Defensive-removal signal:** `$ARGUMENTS` or Step 1 scan reveals a change that will REMOVE: a public-interface parameter, a defensive branch (`if X return null` / early-return / try-catch / retry / fallback), or a test file / `it()` / `test()` block.
+- **Trigger 2 — Prior-CRITICAL/HIGH override:** Step 1 prior-planning-context scan found `<task-dir>/planning/*/review-feedback.md` (or `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`) carrying a CRITICAL/HIGH finding whose `File:` matches a file or symbol the user's `$ARGUMENTS` would change or delete.
+
+**Action when either trigger fires:** Spawn one `skeptic-agent` BEFORE Step 3 lane routing using the template in `${CLAUDE_SKILL_DIR}/follow-up-reference.md` §Phase 1 Step 2.6 (Mode: Hypothesis Mirror-Check). Spawn MUST satisfy `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Pre-inline per the template: orchestrator's verbatim claim, Trigger 2 prior-finding body (when fired), Trigger 1 symbol/branch/test with file:line (when fired), full content of every changed-area file from Phase 1 Step 1, output path `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md` (slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules; Producer-contract headers per § Producer contract), Mirror-Check mode hint. Skeptic returns ALIGNS / CONTRADICTS / NEUTRAL — verdict handling (CONTRADICTS-AUQ via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Recommended-label policy; NEUTRAL surfaces inline at Step 3 with Phase 5 Step 1.5 deletion-class override auto-firing) lives in the same reference section.
 
 ### Step 3: Route to Lane
 
@@ -295,7 +305,7 @@ Capture the changed file list from the diff against the base branch (resolved pe
 
 **Reviewer findings MUST carry `Cause:` and `Evidence:` sub-fields** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` (per-finding `Cause:` value of `[ROOT-CAUSE]` / `[SYMPTOM]` / `[UNKNOWN]`, with `symptom:` / `suspected-root-cause:` indented sub-fields when the cause is `[SYMPTOM]` or `[UNKNOWN]`) and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (Evidence Block — verbatim Command, Exit code, and Tail (last 3 lines) for every CRITICAL or HIGH finding; MEDIUM findings attach evidence when available). Findings emitted without these sub-fields are downgraded or dropped at the Step 2 relevance-filter — confidence does not substitute for artifact.
 
-### Step 1.5: Adversarial Edge-Case Tests (Medium only — skipped for Trivial, Small, and all Fast Lane runs)
+### Step 1.5: Adversarial Edge-Case Tests (Medium by default; deletion-class override fires for Trivial/Small/Fast Lane runs whose diff removes a defensive guard, optional parameter, or test — see Skip rule overrides below)
 
 **Purpose:** Attacker-mindset pass that complements the reviewer-agents from Step 1. Where the Step 1 tests-dimension reviewer REPORTS coverage gaps, Step 1.5 AUTHORS NEW failing tests (F→P-verified: red today) for edge cases the Phase 2 implementer's happy-path tests missed.
 
@@ -311,11 +321,14 @@ Capture the changed file list from the diff against the base branch (resolved pe
 - Complexity is Trivial or Small (amortization gate)
 - Diff contains zero production-code files
 
+**Deletion-class override (fires Step 1.5 regardless of tier/lane):** Even when the lane is Fast or the complexity is Trivial/Small, Step 1.5 STILL fires when `git diff --name-only` plus the diff contents show ANY of: (a) removal of a public-interface parameter (function signature loses an argument), (b) removal of a defensive branch (`if X return null/early-return/throw`, try/catch, retry-loop, fallback assignment), (c) removal of a test file or removal of an `it()` / `test()` block from an existing test file. In deletion-class mode, the adversarial-tester-agent's F→P invariant becomes "fail-without-the-guard": the authored test MUST fail BEFORE the deletion is reverted in the working tree and PASS AFTER the deletion is reverted. If no such test can be constructed, the deletion is reclassified as removing-invisible-work and the orchestrator MUST surface this in Phase 5 Step 2 disposition as a HIGH finding with `recommendation: keep the guard / restore the test`, fold into the fix loop, and re-validate. Precedence: the override beats every skip rule above — when (a), (b), or (c) fires, Step 1.5 runs even if the diff has zero production-code files (test-only deletions still fire the override via trigger (c)). Additionally, if Phase 1 Step 2.6 returned NEUTRAL (read from `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md` verdict line — "VERDICT: NEUTRAL"), Step 1.5 fires regardless of diff inspection — the inconclusive skeptic verdict is its own trigger.
+
 **Anti-rationalization:**
 | Your reasoning | Why it's wrong |
 |---|---|
 | "Medium is small enough that Step 1 covers it" | Step 1 reviewers REPORT gaps; Step 1.5 AUTHORS failing tests. Different lifecycle. Medium is exactly the tier where the extra cost is justified. |
 | "I'll trust the agent's F→P self-report" | Run the authored tests yourself. F→P only counts when the orchestrator independently confirms the failure. |
+| "The deletion is obvious — the parameter is unused / the test is a duplicate" | "Unused" and "duplicate" are orchestrator hypotheses, not codebase facts. The Phase 1 Step 2.6 skeptic mirror-check + the Step 1.5 deletion-class F→P test are the only mechanisms that catch defense-in-depth guards whose race condition no existing test exercises. Skipping either ships the guard's invisible work into the deletion. |
 
 ### Step 2: Process Results
 
@@ -411,6 +424,7 @@ Kill orphaned background processes from validation (startup checks, dev servers,
 ```bash
 rm -f ".geniro/follow-up/state-${slug}.md" 2>/dev/null  # intermediate legacy: pre-state-dir, slug-scoped
 rm -f .geniro/follow-up-state.md           2>/dev/null  # original legacy: pre-slug, non-scoped
+rm -f ".geniro/state/follow-up/skeptic-hypothesis-${slug}.md" 2>/dev/null  # Phase 1 Step 2.6 skeptic verdict
 ```
 
 **→ Pipeline complete.**
@@ -461,7 +475,8 @@ Use `TodoWrite`: create todos (Assess, Implement, Simplify, Validate, Review, Sh
 - [ ] Code quality reviewed
 - [ ] Open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT) — user chose resolution path before fix delegation
 - [ ] Relevance filter applied (Medium only)
-- [ ] Adversarial edge-case tests run (Medium only) or skipped (Trivial/Small/Fast Lane)
+- [ ] Step 2.6 skeptic pre-implementation gate fired when defensive-removal signal or prior-CRITICAL override triggered (Small/Medium) or skipped silently (Trivial/Big/no trigger)
+- [ ] Adversarial edge-case tests run (Medium by default, plus Trivial/Small/Fast-Lane when deletion-class override triggered) or skipped (no trigger)
 - [ ] User approved before shipping
 - [ ] Change committed or delivered for user to commit
 

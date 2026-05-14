@@ -161,6 +161,35 @@ For cross-skill consumers (`/geniro:follow-up` Phase 5 Step 2, `/geniro:implemen
 
 For `/geniro:debug` Step 5 / Step 6 gates, body fields come from `.geniro/state/debug/HYPOTHESES-<slug>.md` (the confirmed hypothesis's "Isolate" + "Fix Evidence" + "Reproduction Decision" sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
 
+## Recommended-label policy
+
+The `(Recommended)` suffix on an AskUserQuestion option is load-bearing — users systematically ratify the Recommended option (see § Why this exists below). That ratification is appropriate when the recommended option is the conservative / canonical / verification path; it becomes a failure surface when the orchestrator labels its own unverified hypothesis as Recommended.
+
+### When `(Recommended)` MAY be applied
+
+- The option represents a canonical gate's conservative default (e.g. `test-first-gate.md` § Required AUQ shape "Author failing test first" option — the F→P-correct path; `root-cause-gate.md` § Required AUQ shape "[SYMPTOM] escalate" option — escalation when classification is `[SYMPTOM]` with low confidence; `within-skill-state-handoff.md` § Mismatch handling Case C "Stop — I'll switch" option — recovery from collision).
+- The option represents a conservative verification path the orchestrator wants the user to take BEFORE acting (e.g. "Verify scenario X first" when the orchestrator is uncertain).
+- The option directly matches a previously-loaded canonical default (CLAUDE.md gate / `.geniro/instructions/<skill>.md` rule).
+
+### When `(Recommended)` MUST NOT be applied
+
+- **Override-of-prior-finding rule.** When the orchestrator's AUQ option contradicts, downgrades, or proposes-to-ignore a prior `/review` CRITICAL or HIGH finding — read from `<task-dir>/planning/*/review-feedback.md` or `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` — that option MUST NOT carry `(Recommended)`. The conservative path (verify the orchestrator's interpretation first; spawn skeptic to mirror-check; escalate to `/geniro:debug`) is the Recommended default instead. The orchestrator's interpretation of "this CRITICAL is stale / no-op / unused" is, by definition, an unverified claim until the skeptic mirror-check or an empirical re-run confirms it.
+- **Orchestrator-authored-hypothesis rule.** When the orchestrator wrote BOTH the hypothesis AND the option set (i.e. the user did not propose the change in `$ARGUMENTS`; the orchestrator decided mid-pipeline that the change-shape should shift — e.g. "I'll downgrade this CRITICAL to a comment-only cleanup"), the orchestrator's preferred option MUST NOT carry `(Recommended)`. The Recommended default is whichever option keeps the original change shape intact, or "Stop and let me describe the change" if no original shape applies.
+- **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option MUST NOT carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:follow-up` Phase 1 Step 2.6 skeptic mirror-check + Phase 5 Step 1.5 deletion-class adversarial-tester) OR "Keep the guard for now".
+
+### Pre-selection is the lever
+
+Renaming `(Recommended)` to `(Suggested)` does NOT fix the anchoring problem — default-effect research shows pre-selection is the lever, not the label text. The rule above is therefore stated in terms of WHICH option is pre-selected, not what label decorates it. When the override-of-prior-finding rule or the orchestrator-authored-hypothesis rule fires, the orchestrator MUST surface the contradiction in the AUQ's `question` text — e.g.: `"I think the prior CRITICAL is stale because <reason>, but I haven't verified scenario <Y> directly. How should I proceed?"` — and the Recommended option, with its preview body showing the prior finding's full Evidence + Why-matters fields, must be the verification path.
+
+### Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I'm 95% sure the CRITICAL is stale — Recommended save the user's time" | 95% confidence on an unverified hypothesis is exactly the failure mode this rule exists to counter. The verify-first option saves the user's CI cycle if you're wrong, and costs them ~60 seconds if you're right. |
+| "The conservative option is obvious anyway — labeling doesn't matter" | Default-effect literature: users ratify the labeled-Recommended option at higher rates than the same option un-labeled, even when both options are visible. The label is the steering wheel; turn it correctly. |
+| "I'll skip the `review-feedback.md` re-read since it's a small change" | The override-of-prior-finding rule fires on file/symbol overlap, not change size. A 2-line deletion that removes a parameter flagged by a prior CRITICAL is an override regardless of LOC. Re-read the artifact every time `$ARGUMENTS` touches a file with a prior finding. |
+| "Just remove `(Recommended)` from my option entirely — that's enough" | Removing the label without re-pre-selecting the verification path leaves the user with no Recommended option at all, which (by default-effect) anchors on the first listed option instead. Always set the Recommended on a conservative path; never leave the AUQ rudderless. |
+
 ## Why this exists
 
 A title-only AUQ option creates the *ceremony* of approval without the *substrate* for judgment. Users either rubber-stamp the recommended option or escape to "Type something" / chat — both outcomes defeat the Always-WAIT contract. The fix is structural: surface the finding body at the moment of decision so the gate is informed.

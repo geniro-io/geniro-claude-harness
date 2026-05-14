@@ -1,6 +1,6 @@
 ---
 name: skeptic-agent
-description: "Validate architecture specifications against codebase reality. Detects hallucinated files/functions, verifies requirement coverage, and flags scope creep with confidence-scored findings. Returns evidence-only findings; the orchestrating skill (not this agent) decides proceed/revise/abort. Spawned by /geniro:implement Phase 2 and /geniro:decompose Phase 4."
+description: "Validate architecture specifications against codebase reality, OR mirror-check an orchestrator's hypothesis (e.g. 'this guard is unused', 'this prior CRITICAL finding is stale') against codebase facts. Detects hallucinated files/functions, verifies requirement coverage, flags scope creep, and ground-truths removal-claims against actual call sites + git history. Returns evidence-only findings; the orchestrating skill (not this agent) decides proceed/revise/abort. Spawned by /geniro:implement Phase 2, /geniro:decompose Phase 4, and /geniro:follow-up Phase 1 Step 2.6 (Adversarial Pre-Implementation Validation)."
 tools: [Read, Write, Glob, Grep, Bash]
 model: sonnet
 maxTurns: 40

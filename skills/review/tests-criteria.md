@@ -362,6 +362,51 @@ If the answer is yes, the test is worthless — it's testing mocks, trivial wiri
 - Tests where removing `expect()` lines doesn't cause failure
 - "Smoke tests" that import a module and assert `!== undefined`
 
+## Test Deletions in the Diff (Inverse Deletion Test)
+
+The existing Litmus Test (above) evaluates a TEST'S strength by mentally deleting the PRODUCTION code. Apply the inverse direction when the diff DELETES one or more tests: evaluate the test's intent by checking what scenario it pinned.
+
+For every test removed by the diff (whole file deleted, OR an `it()` / `test()` / `describe()` block removed from an existing file), ask:
+
+**"What scenario was this test pinning that no surviving test covers?"**
+
+The comparison is by **cause path**, NOT by **outcome**. Two tests that share the same assertion shape (e.g. `expect(result).toBeNull()`) can pin radically different cause paths — outcome-match is a false-equivalence signal.
+
+### Cause-path examples (real shape; from prior incident)
+
+| Test name | Outcome | Cause path being pinned |
+|---|---|---|
+| "should return null when beneficiary has 2+ open cases (multi-case fail-closed)" | `expect(result).toBeNull()` | The helper's `openCaseIds.length !== 1` guard fires; SCD2 is never consulted |
+| "should return null when excludeCaseId equals the only open case (single-case unassign defense-in-depth)" | `expect(result).toBeNull()` | The helper's `caseId === excludeCaseId` carve-out fires; SCD2 is never consulted; protects against DLQ replay / stale event.occurredAt |
+
+Same outcome (`null`). Two different cause paths. Deleting either test as "duplicate of the other" silently loses coverage on the corresponding race condition.
+
+### How to apply
+
+1. **List every removed test** — from `git diff` output, identify each `-` line that opens an `it()` / `test()` / `describe()` block OR every deleted test file.
+2. **Read each removed test's body verbatim** — the deleted code is still in `git diff` output even after the diff applies; pull the test's setup (Arrange), invocation (Act), and assertions (Assert) into your review.
+3. **Identify the cause path** — what specific code branch / guard / parameter value / state combination did the deleted test exercise? The cause path is rarely the assertion line; it's the Arrange phase + which guard/branch the Act phase activated.
+4. **Search surviving tests for the same cause path** — grep the test directory for tests whose Arrange phase matches (same setup shape: same number of open cases, same SCD2 state, same parameter set). If you find an outcome-matching test, verify it's also cause-path-matching by reading its Arrange phase.
+5. **Flag as a finding if any deleted test's cause path is not pinned by a surviving test**:
+   - **HIGH** when the cause path protects a critical-path behavior (auth, payments, data writes, defense-in-depth guards against operational anomalies like DLQ replay / stale timestamps / partial-commit retries).
+   - **MEDIUM** when the cause path covers a non-critical-path branch the surviving tests miss.
+   - **LOW** when the deleted test was genuinely redundant (cause-path AND outcome match a surviving test) — note as informational confirmation.
+
+### Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "Both tests assert `null` — they're duplicates" | Outcome-match is necessary but not sufficient. Two `expect(x).toBeNull()` tests can pin different cause paths. Check the Arrange phase. |
+| "The implementer agent said it was a duplicate — they read the test" | Implementer agents have skin in the deletion (they wrote the diff). Reviewer's job is the independent check. Re-derive the cause-path comparison yourself. |
+| "There's no surviving test for that cause path, but the production code now also lacks that branch — so there's nothing to test" | When BOTH a defensive branch AND its pinning test get removed together, the "nothing to test" reasoning is circular. The right question is: would a test fail if the defensive branch were restored under the same Arrange conditions? If yes, the removed test was real coverage and the cause path is now unpinned. |
+| "The test name uses thread-local labels (Case 5, Bug A) so it's noise" | Test-name quality is orthogonal to cause-path coverage. A poorly-named test that pins a real cause path is still real coverage — rename it, don't delete it. |
+
+### Litmus Test for the Inverse (the "would restoring the deletion fail any test?" check)
+
+If the diff under review removes BOTH a defensive branch (in production code) AND a test that exercised it, the round-trip litmus is: would temporarily reverting JUST the production-code deletion (without restoring the test) cause any SURVIVING test to fail? If no test fails when the defensive branch is restored, the surviving suite has no pin for that branch — the deleted test was the only pin, and removing both together is a coverage regression that no test failure will surface.
+
+This is the inverse of mutation testing: instead of mutating the code to see what tests fail, restore the deleted code to see what tests pass. Surviving tests must include the deleted test's cause-path coverage, or the deletion drops invisible work.
+
 ## Review Checklist
 
 - [ ] New/modified code has corresponding tests

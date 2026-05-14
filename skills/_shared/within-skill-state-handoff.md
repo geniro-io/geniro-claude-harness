@@ -1,6 +1,6 @@
 # Within-skill state handoff (canonical, shared)
 
-**Status:** Authoritative for these task-local state files: `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/state-<slug>.md`, `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/debug/HYPOTHESES-<slug>.md`.
+**Status:** Authoritative for these task-local state files: `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/state-<slug>.md`, `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md`, `.geniro/state/debug/HYPOTHESES-<slug>.md`.
 
 Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the headers every producer embeds, and the mismatch UX every consumer surfaces on resume.
 
