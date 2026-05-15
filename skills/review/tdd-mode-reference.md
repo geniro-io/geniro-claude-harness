@@ -10,9 +10,9 @@ TDD mode is an opt-in variant of `/geniro:review` that biases the run toward aut
 |---|---|---|
 | Phase 4c gate fires | Always when eligible findings exist | Always when eligible findings exist (gate is non-negotiable) |
 | Phase 4c "Author tests for all eligible findings" option | Unmarked | Marked `(Recommended)` |
-| Phase 6 PR-comment post set | All kept findings | `[CONFIRMED-BY-TEST]` + `[INTENT-CHECK]` + `[PRODUCT-DECISION]` + `[FIX-NOW]`-typo-class |
-| Phase 6 "Commit + push" option (when PR ref present) | Unmarked, except `(Recommended)` when the user just selected "Post findings as PR comments" in the Action gate (so the just-posted `**Failing test:** \`<path>\`` references resolve to actual files on the PR) | Marked `(Recommended)` |
-| Phase 6 PR-comment body | severity + description + recommendation (no confidence, no decision-type, no plugin branding — see SKILL.md "PR-comment body content rules") | + `**Failing test:** \`<path>\`` line where `<path>` is the project's actual test file (never `.geniro/...`) |
+| Phase 6 PR draft-review comment set | All kept findings | `[CONFIRMED-BY-TEST]` + `[INTENT-CHECK]` + `[PRODUCT-DECISION]` + `[FIX-NOW]`-typo-class |
+| Phase 6 "Commit + push" option (when PR ref present) | Unmarked, except `(Recommended)` when the user just selected "Post findings as Draft PR review" in the Action gate (so the just-posted `**Failing test:** \`<path>\`` references resolve to actual files on the PR) | Marked `(Recommended)` |
+| Phase 6 PR draft-review comment body | severity + description + recommendation (no confidence, no decision-type, no plugin branding — see SKILL.md "PR-comment body content rules") | + `**Failing test:** \`<path>\`` line where `<path>` is the project's actual test file (never `.geniro/...`) |
 | Adversarial-tester-agent contract | Unchanged | Unchanged |
 | State-file schema | `mode:` field defaults to `standard` (also: pre-TDD-mode state files without the field read as `standard`) | `mode: tdd` |
 
@@ -26,7 +26,7 @@ TDD mode is an opt-in variant of `/geniro:review` that biases the run toward aut
 
 **No eligible findings after Phase 4c filter.** TDD mode behaves like Standard. Phase 4c skips because there is nothing to test; Phase 6's PR-comment filter has no `[TESTABLE]` findings to filter out, so all kept findings post normally. The mode flip is structurally a no-op in this branch.
 
-**All authored tests pass on independent re-run (no `[CONFIRMED-BY-TEST]` tags).** TDD mode's PR-comment filter would empty the post set entirely. The skill surfaces "TDD mode: no F-to-P-confirmed findings — nothing posted to PR" once in chat and Phase 6's final gate ends. The user can re-run with `--standard` to post anyway, or address the underlying false-positive rate. Demoted findings still appear in the local report's `## Filtered` section with `[CHALLENGED-BY-TEST]` so they aren't lost.
+**All authored tests pass on independent re-run (no `[CONFIRMED-BY-TEST]` tags).** TDD mode's PR-comment filter would empty the post set entirely. The skill surfaces "TDD mode: no F-to-P-confirmed findings — nothing drafted on PR" once in chat and Phase 6's final gate ends. The user can re-run with `--standard` to post anyway, or address the underlying false-positive rate. Demoted findings still appear in the local report's `## Filtered` section with `[CHALLENGED-BY-TEST]` so they aren't lost.
 
 **`--tdd` combined with `--plan <path>`.** Both flags coexist freely. `--plan` feeds PLAN CONTEXT into reviewer prompts in Phase 1; `--tdd` controls Phase 4c default-highlighting and the Phase 6 filter. They don't interact at any phase — document this so users don't treat them as mutually exclusive.
 
