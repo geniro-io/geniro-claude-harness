@@ -39,6 +39,40 @@ grep "import\|require" file.js | sort
 - Direct external API calls scattered throughout
 - Hard to test due to tight coupling
 
+### 1.5. Caller-Blast Check for Semantic Mutations
+
+A "semantic mutation" is a code change where a function / method / field / operator / comparison / return-value's BEHAVIORAL CONTRACT changes but its signature / name stays stable. The signature stability means `Grep <symbol>` finds all callers, but every caller is silently exposed to the new behavior without a single line of code change at the call site. These changes look local in the diff but have global blast radius.
+
+**Common shapes:**
+- Operator flips: `>` → `>=`, `===` → `==`, `&&` → `||` in a shared helper or comparison
+- Return-value semantic change: `null` → `[]`, `undefined` → default-object, throwing → returning, `false` → `null`
+- New branch added to a previously-total function: new fail-closed path, new short-circuit, new default
+- Regex / parser tightening: `\d+` → `\d{4}`, lookahead added, anchor moved
+- Default-argument shift: default value of a parameter changed
+- Order-of-operations change: `sort by A, B` → `sort by A, B, C`
+- Time semantics flip: `now()` → `event_time` or vice versa
+- SQL / ORM hydration mode flip: lazy → eager or vice versa (the OPTIMIZATION dimension may also catch this, but the BLAST radius reasoning is architecture's)
+
+**How to detect:**
+1. From `DIFF CONTEXT`, scan changed hunks for: operator changes (`>` ↔ `>=`, `===` ↔ `==`), return-value type or value changes, default-argument changes, regex changes, new conditional branches in shared helpers.
+2. For each candidate symbol whose semantic changed but whose signature / name is stable, count callers via the Grep tool (NOT bash grep): `Grep(pattern="SymbolName", output_mode="count", glob="<project-language-glob>")`. Adjust `glob` per the project's languages (e.g., `*.ts` for TypeScript, `*.py` for Python, `*.rb` for Ruby).
+3. Classify risk per the canonical Change Impact Scoring rubric at `${CLAUDE_PLUGIN_ROOT}/agents/refactor-agent.md` § "Step 2: Change Impact Scoring" (1-3 callers LOW / 4-9 MEDIUM / 10+ HIGH). Apply the same escalation override: any public API / module export / shared type change is HIGH regardless of count.
+4. For each caller above LOW: open the call site, read the surrounding context (5-10 lines), and ask: does the new semantic break THIS caller's assumption? Did the PR description mention this caller? Are there tests asserting THIS caller's behavior under the new semantic?
+5. Surface findings as: "Symbol `<name>` at `<file:line>` had a semantic mutation (was `<old>`, now `<new>`) with N callers; caller at `<callsite-path:line>` reads the result and `<does-X>` — verify intent or add test."
+
+**Red flags:**
+- A 1-line diff in a shared helper / utility / comparison function (operator flip, return-value change) with >0 callers outside the changed file
+- A new conditional branch added to a function that previously fell through (silent change in fall-through callers' behavior)
+- A regex / pattern tightening in a shared validator with no test asserting the new tighter match
+- A semantic mutation in a symbol named in the PR description as "unchanged" or "refactor only" — the description claim is wrong
+- A change to a primitive's behavior with multiple unnamed callers; PR description names only one caller
+
+**Output guidance:**
+- Severity HIGH when callers >= 4 OR symbol is a public API / module export / shared type.
+- Severity MEDIUM when callers 1-3 AND not a public API.
+- Severity CRITICAL when the semantic change is fail-closed (returns null / empty / throws on what previously succeeded) AND a downstream filter / sort / dispatch / digest relies on non-null / non-empty results — the change silently DROPS data from user-visible surfaces.
+- The fix is rarely "revert" — it's "name the affected callers in the PR description, add tests asserting new semantic at each non-trivial caller, and confirm whether each caller still satisfies its own contract under the new semantic."
+
 ### 2. Abstraction & Interface Design
 - Missing abstraction layers (business logic tightly coupled to implementation)
 - Poor interface design (leaky abstractions)

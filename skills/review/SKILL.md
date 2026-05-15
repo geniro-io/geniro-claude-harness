@@ -1,6 +1,6 @@
 ---
 name: geniro:review
-description: "Use when you want a comprehensive code review of pending changes. Spawns 7–9 parallel reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files present, +pr-metadata when input was a PR ref) with confidence-scored findings automatically filtered."
+description: "Use when you want a comprehensive code review of pending changes. Spawns 7–10 parallel reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT is non-none AND (PR ref OR risk-tier: high)) with confidence-scored findings automatically filtered. Stratifies on hard-escalation signals (migration / multi-write / auth / new entity) and inherits prior-round findings across re-runs."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree]
@@ -33,7 +33,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...
 
 ### Phase 1: Collect Context & Triage
 
-**Step 0 — Mode detection.** Per `$ARGUMENTS`, route to one of two top-level modes BEFORE the worktree-creation logic below:
+**Pre-step — Mode detection.** Per `$ARGUMENTS`, route to one of two top-level modes BEFORE the worktree-creation logic below:
 
 - **Empty / branch-name / file paths / diff range** → **OUTGOING** (review the current branch — the existing default behavior; continue to "Scope" below).
 - **PR ref alone (`#1234` or PR URL)**:
@@ -68,6 +68,12 @@ When `mode == INCOMING`, run Phase 1's worktree pre-flight and PR-fetch (below) 
     - Otherwise, use `AskUserQuestion` (header `Worktree`) with options "Yes — create `.claude/worktrees/pr-<N>-review` checked out at PR head (Recommended)" / "No — review in current location". On **Yes**: run `git fetch origin pull/<N>/head:pr-<N>-review` (universal refspec — works for both fork and same-repo PRs; creates a local branch `pr-<N>-review` at the PR head SHA), then `git worktree add .claude/worktrees/pr-<N>-review pr-<N>-review`, then `EnterWorktree(path: ".claude/worktrees/pr-<N>-review")`. Echo `Worktree pr-<N>-review created on PR head.` On **No**: continue in current cwd; the Phase 6 Failing-tests Commit gate will land tests on whatever the current branch is (likely `main`), and the user accepts that consequence. If the `git fetch` fails (PR head deleted, no network, gh-token scope issue), surface the error verbatim and stop — do not silently continue in the current cwd, because the user just opted into worktree mode.
   - After this step settles, every subsequent Phase 1 action — custom-instructions load, file reads, LOC count, Phase 2 reviewer spawns, Phase 4c writes, Phase 6 commits — runs from the new cwd. Cross-session writes (the Phase 5 state file, `[POSTED-TO-PR]` markers) auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown. Do NOT use `EnterWorktree(name: ...)` here — that path auto-creates its own branch with a `worktree-` prefix and would defeat the convention detection above.
 - **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+- **Step 0.5 — Load prior-round context (if available).** Round-N awareness so reviewers can focus on what prior rounds missed instead of re-finding the same issues. Procedure:
+  1. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Compute the state-file path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` (the file already exists today at this location — see Phase 5 below).
+  2. Read the state file if present. If absent, set `prior-round-summary: none — first review` and `round: 1`, then skip the remainder of this step.
+  3. If present AND the state file's `pr-ref:` matches the current run's `pr-ref` (both literal "none" — i.e., non-PR input forms like branches, diff ranges, or file lists — counts as a match), increment: set `round: <prior round + 1>` (defaulting prior to `1` when the field is absent — see legacy-fallback rule at Phase 5 schema below). Capture the prior state file's `prior-round-summary:` value into an in-memory variable for threading into reviewer prompts as `PRIOR-ROUND FINDINGS:` — a compact summary of the prior round's CRITICAL + HIGH findings: one bullet per finding with `path:lines` + a one-line description, capped at ~3000 chars total (matches the `${CLAUDE_SKILL_DIR}/plan-context-reference.md` ~3000-char cap rationale to avoid U-shaped attention at the bottom of the reviewer prompt). Also capture the prior state file's `pr-body:` value into a second in-memory variable `prior-pr-body` for threading into the pr-metadata reviewer prompt as `PRIOR-ROUND PR BODY:` — used by `pr-metadata-criteria.md` §11 to detect description-vs-code drift on re-runs. If the prior file is absent OR its `pr-body:` is the literal `none`, set `prior-pr-body` to `none — first review`. When the state file's `pr-ref:` does NOT match (different PR, or PR vs non-PR mismatch), treat as a fresh review: `round: 1`, `prior-round-summary: none — first review`, and `prior-pr-body: none — first review`.
+  4. If `round: >= 3` after the increment, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Round-N gate"`, question `"This is round N of review on the same target (PR or branch). Continue or escalate?"` (substitute the computed N into the question text — do NOT render the literal `N`), and options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff (skip Phase 2-6, write current state as handoff doc)"`. On **Escalate**: write a `## Handoff` section to the state file summarizing the cumulative findings across rounds, persist `round:` and `prior-round-summary:` to the Summary section, and exit cleanly without spawning reviewers. On **Continue**: proceed to the next step.
+  5. Persist `round:` and `prior-round-summary:` to the Phase 5 state file's Summary section (the schema is extended below to carry both fields). They are consumed by every Phase 2 reviewer prompt as the `PRIOR-ROUND FINDINGS:` slot.
 - **Collect PLAN CONTEXT** (optional) from these sources in priority order: (a) PR body+title from `gh pr view`; (b) `--plan <path>` flag in `$ARGUMENTS`; (c) auto-discovered `docs/spec.md`/`docs/plan.md`/`PLAN.md`/`SPEC.md`. Concat non-empty sources, cap ~3000 chars. See `${CLAUDE_SKILL_DIR}/plan-context-reference.md` for schema, decision-marker convention, and example. If nothing resolves, PLAN CONTEXT renders as `none` in every prompt below.
 - **Detect mode**: scan `$ARGUMENTS` for `--tdd` (TDD mode — auto-author failing tests gates which findings get posted to PR) and `--standard` (explicit Standard mode). When neither flag is present, surface a startup `AskUserQuestion` after triage (see Phase 1 Step "Mode AUQ" below). Persist the resolved value to the Phase 5 state file's `mode:` line so Phase 4c and Phase 6 can read it without re-detection.
 - Read changed files and understand modifications
@@ -79,6 +85,16 @@ When `mode == INCOMING`, run Phase 1's worktree pre-flight and PR-fetch (below) 
 - **Trivial**: Renames, formatting-only, import reordering, generated files, lock files → skip full review (mention in summary as "triaged out")
 - **Substantive**: Logic changes, new code, API changes, security-sensitive → full review
 - This can be done inline by the orchestrator (read each diff hunk, classify) — no subagent needed.
+
+**Step 0.7 — Risk-tier stratification.** Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs (a single-file auth-permission change is high-risk; a 200-LOC rename is not). Stratify the diff by risk tier alongside size so downstream phases can adjust their thresholds for high-stakes changes. Procedure:
+1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for Hard Escalation Signals". That file is the single source of truth for the 9 canonical hard-escalation signals (new entity / new endpoint or route / auth or permissions changes / new module / 3+ modules coordinated / open-closed violation / new async or background work / new external integration or env vars / ambiguous intent). DO NOT inline the list here — reference by path + section title so the list never drifts between consumers.
+2. Scan the changed files + diff content for matches against those 9 signals.
+3. If ANY signal matches, set `risk-tier: high`. Otherwise set `risk-tier: standard`.
+4. Persist `risk-tier:` to the Phase 5 state file's Summary section (the schema is extended below to carry the field).
+5. The `risk-tier:` value adjusts three downstream knobs:
+   - **Phase 4 judge confidence threshold** drops to ≥70 (from ≥80 at `risk-tier: standard`) — the Phase 4 filter line below incorporates this branch.
+   - **Phase 4b validator budget** expands — when `risk-tier: high`, validate ALL HIGH findings (not just on ≥2 HIGH per the standard table), and validate all MEDIUM if any CRITICAL exists. The Phase 4b validation-rules table below incorporates this row.
+   - **Spec-compliance reviewer fires by default** at Phase 2 — when `risk-tier: high` AND PLAN CONTEXT is non-`none`, the conditional spec-compliance reviewer (defined at the "Spec-Compliance detection rule" section in Phase 2 below) spawns without a separate gate.
 
 **Mode AUQ (fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`).** After triage, surface a single `AskUserQuestion` (do NOT print options as plain text) so the user can opt into TDD mode if they want comments gated on F→P-verified failing tests. When either flag is in `$ARGUMENTS`, the flag wins — the AUQ is skipped entirely. When the AUQ fires, capture the answer and persist it to the Phase 5 state file's `mode:` field.
 
@@ -116,6 +132,7 @@ Before spawning any reviewers, read these criteria files — their content is pr
 - `${CLAUDE_SKILL_DIR}/conventions-criteria.md`
 - `${CLAUDE_SKILL_DIR}/design-criteria.md` (conditional — only loaded when the UI-file detection rule below matches at least one changed file)
 - `${CLAUDE_SKILL_DIR}/pr-metadata-criteria.md` (conditional — only loaded when input was a PR ref, i.e. the Phase 5 state file's `pr-ref:` is non-`none`; mirrors the design-criteria conditional pattern)
+- `${CLAUDE_SKILL_DIR}/spec-compliance-criteria.md` (conditional — only loaded when PLAN CONTEXT is non-`none` AND either (a) input was a PR ref OR (b) the Phase 5 state file's `risk-tier: high`; mirrors the design-criteria + pr-metadata-criteria conditional pattern)
 
 Also read `CLAUDE.md` at the project root for tech stack context — use this to interpret criteria in the context of the project's language and framework.
 
@@ -139,6 +156,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary showing what changed — used to tag findings as [NEW] vs [PRE-EXISTING]]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 Review ONLY for bugs and correctness. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -152,6 +170,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 Review ONLY for security vulnerabilities. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -166,6 +185,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
 Review ONLY for architecture and design patterns. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -180,6 +200,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 Review ONLY for test quality and coverage. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -193,6 +214,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 Review ONLY for SQL/ORM hydration, projection, React re-render hygiene, frontend bundle/asset perf, async parallelization, and bulk-ops wins. Do not cross into other dimensions (N+1, eager-loading, caching, pagination, sync-I/O are owned by the architecture dimension).
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -207,6 +229,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 Review ONLY for style, naming, and guideline compliance. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -221,6 +244,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 Review ONLY for codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal). Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
@@ -236,6 +260,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
 Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -254,7 +279,26 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary; same content reviewers receive — used to detect logic/test/UI/migration/API-change signals per criteria checks #5-8]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
+PRIOR-ROUND PR BODY: [prior-pr-body from Phase 1 Step 0.5, or "none — first review"]
 Review ONLY the PR's own title and description for clarity, completeness, and convention conformance per the pr-metadata-criteria.md rubric. Do NOT review the code diff itself (other dimensions own that). Emit each finding with `File: PR-METADATA` (literal string, no path, no line number) — Phase 6 Step 4 detects this sentinel and routes the finding into the top-level review `body` field instead of the inline `comments[]` array.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+""")
+
+# Conditional — spawn ONLY when PLAN CONTEXT is non-`none` AND (input was a PR ref OR the Phase 5 state file's `risk-tier: high` from Phase 1 Step 0.7). See "Spec-Compliance detection rule" below.
+# Reviews diff against the spec to surface what's MISSING (scope items, migration paths, rollback story, tests for acceptance criteria, feature-flag wiring).
+# Findings have no `path:lines` anchor; Phase 6 Step 4 routes them into the top-level review `body` field.
+Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+DIMENSION: spec-compliance
+CRITERIA: [content of spec-compliance-criteria.md]
+CHANGED FILES: [list of files with their full content — used to detect what's present so the reviewer can surface what's missing]
+PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
+WORKTREE: [from `git rev-parse --show-toplevel`]
+BRANCH: [from `git branch --show-current`]
+DIFF CONTEXT: [git diff summary]
+PLAN CONTEXT: [content from Phase 1 — MUST be non-`none` for this reviewer to fire]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
+Review ONLY for SPEC→DIFF completeness — does the diff implement everything the plan/spec promised? Surface what's MISSING (scope items, migration paths, rollback story, tests for acceptance criteria, feature-flag wiring). Do NOT review the code quality itself (other dimensions own that). Emit each finding with `File: SPEC-COMPLIANCE` (literal string, no path, no line number) — Phase 6 Step 4 detects this sentinel and routes the finding into the top-level review `body` field instead of the inline `comments[]` array.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 
@@ -279,6 +323,10 @@ Used by the conditional design reviewer. A file is considered a UI file if its p
 
 Used by the conditional pr-metadata reviewer. The dimension fires when and only when input is a PR ref (a bare PR number `#1234` / `1234` or a full GitHub PR URL) — equivalently, when the Phase 5 state file's `pr-ref:` will be non-`none`. Files / branches / diff ranges as input do NOT fire this dimension (no PR title or body to review). In Batched Mode, pr-metadata spawns ONCE per-PR (not per-batch) — the title and body are per-PR concerns, not per-file.
 
+### Spec-Compliance detection rule
+
+Used by the conditional spec-compliance reviewer. The dimension fires when ALL of these hold: (a) PLAN CONTEXT is non-`none` (a spec, plan, or PR body resolved); AND (b) either input was a PR ref (so a PR description acts as the spec) OR the Phase 5 state file's `risk-tier: high` (high-stakes diffs deserve spec coverage check regardless of input form). When neither (b) condition holds OR PLAN CONTEXT is `none`, the dimension is skipped. In Batched Mode, spec-compliance spawns ONCE per-run (not per-batch) — spec coverage is a whole-PR concern, mirrors pr-metadata's per-PR firing rule above.
+
 **Dimensions:**
 1. **Bugs Reviewer** — Logic errors, null checks, off-by-one, state issues
 2. **Security Reviewer** — Injection, auth/authz, secrets, crypto, validation
@@ -289,9 +337,10 @@ Used by the conditional pr-metadata reviewer. The dimension fires when and only 
 7. **Conventions Reviewer** (always fires) — Codebase-pattern conformance: statistical inference of repo-modal patterns (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency). Flags deviations only when ≥80% of N≥3 siblings agree on a pattern; skips ambiguous splits to avoid bikeshedding. Self-suppresses (emits zero findings) when fewer than 3 sibling files exist for inference.
 8. **Design Reviewer (conditional)** — Visual/UX quality: token conformance, spacing/type scale, state completeness, WCAG AA contrast, responsive coverage, exemplar drift. Fires only when the diff contains UI files (see detection rule above).
 9. **PR-Metadata Reviewer (conditional)** — PR title and description quality: imperative-verb title opener, convention conformance (Conventional Commits / Linear / Jira prefix when the repo modally uses one), description presence and substance, "why" clause, test plan when logic changed, screenshots when UI changed, breaking-change note when API/migration changed, scope alignment, linked-issue presence, acceptance-criteria coverage. Fires only when input was a PR ref (see PR-ref detection rule above). Findings carry `File: PR-METADATA` and route to the top-level review `body` field at Phase 6 Step 4 (not inline comments).
-10. **Custom Reviewers (0-10, user-authored)** — User-defined dimensions stored as `.geniro/instructions/review-extra/<slug>.md`. Each defines its own criteria + optional paths-filter + optional model + optional severity-default. Discovered, validated, and path-filtered by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`. Findings emit under `## custom:<slug> Review — N findings` headers and flow through the same Phase 4 judge pass + Phase 3 relevance-filter as built-in dimensions.
+10. **Spec-Compliance Reviewer (conditional)** — Spec → diff completeness: missing scope items the plan promised, missing migration paths when plan mentions migration, missing rollback/down() when migration touches data, missing tests for stated acceptance criteria, missing feature-flag wiring when plan mentions one. Fires only when PLAN CONTEXT is non-`none` AND (input was a PR ref OR `risk-tier: high`). Findings carry `File: SPEC-COMPLIANCE` and route to top-level review `body` at Phase 6 Step 4 (not inline comments).
+11. **Custom Reviewers (0-10, user-authored)** — User-defined dimensions stored as `.geniro/instructions/review-extra/<slug>.md`. Each defines its own criteria + optional paths-filter + optional model + optional severity-default. Discovered, validated, and path-filtered by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`. Findings emit under `## custom:<slug> Review — N findings` headers and flow through the same Phase 4 judge pass + Phase 3 relevance-filter as built-in dimensions.
 
-**Model routing:** Guidelines uses `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, optimizations, conventions, design, and pr-metadata use `sonnet` (accuracy-critical — conventions performs statistical pattern inference; design weighs visual/UX reasoning beyond pure rubric matching; pr-metadata weighs prose-quality + scope-alignment reasoning). In batched mode, apply the same model per dimension; pr-metadata spawns once per-PR regardless of batch count. Custom reviewers default to `sonnet` per the helper, with per-reviewer override via the `model:` frontmatter field.
+**Model routing:** Guidelines uses `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, optimizations, conventions, design, pr-metadata, and spec-compliance use `sonnet` (accuracy-critical — conventions performs statistical pattern inference; design weighs visual/UX reasoning beyond pure rubric matching; pr-metadata weighs prose-quality + scope-alignment reasoning; spec-compliance weighs prose-vs-diff reasoning to detect what the diff is MISSING relative to the spec). In batched mode, apply the same model per dimension; pr-metadata spawns once per-PR regardless of batch count; spec-compliance spawns once per-run regardless of batch count. Custom reviewers default to `sonnet` per the helper, with per-reviewer override via the `model:` frontmatter field.
 
 #### Batched Mode (large diff)
 
@@ -314,11 +363,13 @@ Not every batch needs all 7–9 dimensions. Skip irrelevant ones to save tokens.
 
 **Per-PR (not per-batch):** when input was a PR ref, spawn the pr-metadata reviewer ONCE total across the entire batched run — it reviews `pr.title` and `pr.body`, not files, so per-batch spawning would N-multiply the same review. Skip entirely when input was files / branch / diff range.
 
+**Per-review-run (not per-batch) — spec-compliance:** When the spec-compliance dimension's firing conditions hold (PLAN CONTEXT non-`none` AND (input was a PR ref OR `risk-tier: high`)), spawn the spec-compliance reviewer ONCE total across the entire batched run — spec coverage is a whole-PR concern, mirrors the pr-metadata per-PR firing rule above. Skip entirely when conditions don't hold.
+
 **Per-review-run (not per-batch) — custom reviewers:** When custom reviewers exist (per the "Load custom reviewers" load at the top of Phase 2), spawn them ONCE per review run regardless of batch count — they review against the FULL changed-files list, not per batch. This mirrors the per-PR pr-metadata pattern: narrow path-filtered reviewers gain nothing from per-batch fan-out and the cost of multiplying would be N×batch-count. All custom-reviewer Agent() calls go in the SAME assistant response as the per-batch built-in spawns (same parallel batch, NOT one per turn). See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Batched-mode behavior.
 
 **Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
 
-Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/optimizations/conventions/design and `model="haiku"` for guidelines. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, the same `PEER-PR CONTEXT:` field collected in Phase 1 (architecture and design dimensions ONLY — NOT bugs/security/tests/optimizations/guidelines/conventions/pr-metadata; see the slot-scope rationale at the Phase 1 peer-PR scout step), and the same alignment-tag instruction as standard mode.
+Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/optimizations/conventions/design and `model="haiku"` for guidelines. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, the same `PRIOR-ROUND FINDINGS:` field collected in Phase 1 Step 0.5 (threaded into EVERY per-batch reviewer prompt — same slot ordering as Standard Mode: immediately after `PLAN CONTEXT:` and before `PEER-PR CONTEXT:`), the same `PEER-PR CONTEXT:` field collected in Phase 1 (architecture and design dimensions ONLY — NOT bugs/security/tests/optimizations/guidelines/conventions/pr-metadata; see the slot-scope rationale at the Phase 1 peer-PR scout step), and the same alignment-tag instruction as standard mode.
 
 The per-batch architecture and design prompts mirror the standard-mode blocks above, with batch-scoped CHANGED FILES:
 
@@ -333,6 +384,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary for this batch]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
 Review ONLY for architecture and design patterns. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -349,6 +401,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary for this batch]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
 PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
 Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
@@ -366,7 +419,7 @@ Example for 15 files, 3 batches:
 ```
 
 **Constraints:**
-- Max **41 parallel agents** (5 batches × up to 8 per-batch dimensions when UI files present, + 1 per-PR pr-metadata spawn when input was a PR ref). Plus up to 10 custom reviewers per project (cap enforced by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`) — so the absolute ceiling when both batched mode is active AND the project has 10 custom reviewers is **51 parallel agents**.
+- Max **42 parallel agents** (5 batches × up to 8 per-batch dimensions when UI files present, + 1 per-PR pr-metadata spawn when input was a PR ref, + 1 per-run spec-compliance spawn when PLAN CONTEXT is non-`none` AND (input was a PR ref OR `risk-tier: high`)). Plus up to 10 custom reviewers per project (cap enforced by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`) — so the absolute ceiling when both batched mode is active AND the project has 10 custom reviewers is **52 parallel agents**.
 - Each agent gets: criteria file + its batch's file contents only + brief summary of other batches for cross-reference context
 - All agents spawned in ONE message for parallel execution
 
@@ -431,7 +484,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
   - **Ambiguous** (needs more context to decide): −20
   - **Pattern elsewhere** (same code appears in 3+ other places unchanged): −40
   - **False positive** (judge cannot reproduce the issue from source): set to 0, rejected
-- Filter: keep only findings with final confidence >= 80
+- Filter: keep only findings with final confidence >= 80 (>= 70 when the Phase 5 state file's `risk-tier: high` — see Phase 1 Step 0.7; high-stakes diffs lower the bar to catch more potential issues)
 - Classify:
   - **Critical**: MUST FIX (high-severity, high-confidence)
   - **High**: SHOULD FIX (medium-severity OR repeating pattern)
@@ -453,6 +506,7 @@ For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validati
 | 0 | 1 | Skip (single HIGH isn't worth the spawn cost) |
 | 0 | ≥2 | All HIGH |
 | ≥1 | any | All CRITICAL + all HIGH |
+| any | any | ALL HIGH AND all MEDIUM when state file's `risk-tier: high` AND at least one CRITICAL exists; ALL HIGH when `risk-tier: high` AND zero CRITICAL (overrides rows 2-3 above) |
 
 Spawn all validators in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn:
 
@@ -693,6 +747,9 @@ Write judge-validated findings to a state artifact so the next skill (or a resum
 ## Summary
 - branch: <current branch>
 - mode: <standard | tdd>                       # set by Phase 1 mode-flag detection or Mode AUQ; consumed by Phase 4c default-highlighting and Phase 6 PR-comment filter. Default `standard` when neither flag nor AUQ resolved.
+- round: <integer>                           # round counter, auto-incremented from prior state-file's `round:` value; defaults to 1 on first review of this PR
+- prior-round-summary: <verbatim summary or "none — first review">   # populated by Phase 1 Step 0.5 from the prior-round state file's CRITICAL+HIGH findings (path:lines + one-line description per finding, capped at ~3000 chars mirroring `${CLAUDE_SKILL_DIR}/plan-context-reference.md` cap rationale); consumed by Phase 2 reviewer prompts as the `PRIOR-ROUND FINDINGS:` slot so reviewers focus on what prior rounds missed. When reading state files that predate this field, treat the missing key as `prior-round-summary: none` and treat `round: 1` (first review).
+- risk-tier: <standard | high>               # set by Phase 1 Step 0.7 by checking changed files against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for Hard Escalation Signals" (9 canonical signals); when `high`, Phase 4 drops the confidence threshold to ≥70, Phase 4b validates all HIGH findings (not just ≥2 HIGH), and the spec-compliance reviewer fires by default when PLAN CONTEXT is non-`none`
 - input: <files | diff range | PR ref>
 - pr-ref: <#N | full PR URL | none>           # populated only when input was a PR ref; consumed by the Phase 6 Action gate as the predicate that decides whether the "Post findings as Draft PR review" option is rendered (none = option omitted). When reading state files written by `/geniro:review` invocations that predate the addition of `pr-ref:` tracking (grep `git log -- skills/review/SKILL.md` for the introducing commit when the anchor matters), treat the missing key as `pr-ref: none` and omit the Post option.
 - pr-url: <https://github.com/.../pull/N | none>  # canonical URL from `gh pr view --json url`; used in user-facing messages and as the audit-trail link for `posted-to-pr:` markers
@@ -849,11 +906,12 @@ After the loop completes (or the user picked "Stop posting"), the aggregated pos
 
 **Head-SHA freshness — re-fetch when authored tests were just pushed.** When the Phase 6 Failing-tests gate fired BEFORE this step (see Phase 6 preamble gate-chain firing order) and the user picked "Commit + push to current branch's upstream", the local push advanced the PR's head past the `pr-head-sha` snapshotted in Phase 1. Re-fetch the current head via `gh pr view <pr-ref> --json headRefOid --jq .headRefOid` and use the returned value as `commit_id` for the `gh api` POST below. Without this re-fetch, the API call carries a stale SHA that does not include the newly-pushed test files, and the reviews API rejects comments whose `path` is not present in `commit_id`'s tree with `Validation Failed: path could not be resolved` (documented at [github/community#182495](https://github.com/orgs/community/discussions/182495); this is especially fragile for brand-new files). Also overwrite the Phase 5 state file's `pr-head-sha:` field with the re-fetched value so subsequent runs read the post-push SHA. When Failing-tests fired AFTER this step (no authored tests, or user picked "Leave uncommitted" / "Commit only — no push") OR when input had no authored tests at all, the original Phase 1 `pr-head-sha` is still current — no re-fetch needed.
 
-**Split the post set into inline-anchored vs top-level findings.** Before composing JSON, partition the post set into two groups based on each finding's `File:` field:
+**Split the post set into inline-anchored vs top-level findings.** Before composing JSON, partition the post set into three groups based on each finding's `File:` field:
 - Findings with `File: <path>` (concrete file path with `:lines` anchor) → inline `comments[]` array; one element per finding as documented below.
-- Findings with `File: PR-METADATA` (sentinel set by the pr-metadata reviewer) → top-level review `body` text. PR-metadata findings have no `path:lines` anchor and cannot be posted as inline comments — they describe the PR's own title or description, not source lines.
+- Findings with `File: PR-METADATA` (sentinel set by the pr-metadata reviewer) → top-level review `body` text under the `## PR Metadata` section. PR-metadata findings have no `path:lines` anchor and cannot be posted as inline comments — they describe the PR's own title or description, not source lines.
+- Findings with `File: SPEC-COMPLIANCE` (sentinel set by the spec-compliance reviewer) → top-level review `body` text under the `## Spec Compliance` section. Spec-compliance findings have no `path:lines` anchor and cannot be posted as inline comments — they describe what's missing from the diff relative to the spec, not source lines.
 
-The top-level `body` is constructed by concatenating: (1) the existing summary header (`"Code review — <N> findings (CRITICAL: X, HIGH: Y, MEDIUM: Z)"`), followed by (2) a `\n\n## PR Metadata\n\n` section with one block per PR-metadata finding rendered as `**<SEVERITY>** — <description>\n\n**Recommendation:** <recommendation>\n\n**Evidence:** <evidence excerpt from the finding's Evidence: field>`. Omit the `## PR Metadata` section entirely when no pr-metadata findings exist in the post set. The PR-comment body content rules (below) apply identically to the PR-metadata block — no plugin branding, no decision-type tags, no phase-name references.
+The top-level `body` is constructed by concatenating: (1) the existing summary header (`"Code review — <N> findings (CRITICAL: X, HIGH: Y, MEDIUM: Z)"`), followed by (2) a `\n\n## PR Metadata\n\n` section with one block per PR-metadata finding rendered as `**<SEVERITY>** — <description>\n\n**Recommendation:** <recommendation>\n\n**Evidence:** <evidence excerpt from the finding's Evidence: field>`, followed by (3) a `\n\n## Spec Compliance\n\n` section with one block per spec-compliance finding rendered in the same shape as the PR-metadata blocks (`**<SEVERITY>** — <description>\n\n**Recommendation:** <recommendation>\n\n**Evidence:** <evidence excerpt from the finding's Evidence: field>`). Omit either `## PR Metadata` or `## Spec Compliance` section entirely when no findings of that type exist in the post set. The PR-comment body content rules (below) apply identically to both blocks — no plugin branding, no decision-type tags, no phase-name references.
 
 The full review body is composed as JSON via `jq` and piped to `gh api --input -` (the `gh` flags `-f` / `--raw-field` send STATIC SCALAR string parameters and CANNOT carry a nested array — a JSON body with `comments[]` MUST be passed via `--input`):
 
@@ -904,11 +962,15 @@ The reviewer-agent's `description:` and `recommendation:` fields go into the bod
 ## Definition of Done
 
 Code review is complete when:
-- [ ] Phase 1 Step 0 mode detection ran — Outgoing vs Incoming routed per `$ARGUMENTS` shape (PR ref + computed `K > 0` → AUQ; PR ref + `K == 0` or `K == unknown` (fetch fail-open) → direct Outgoing; anchored natural-language signals → direct Incoming; everything else → Outgoing). When mode == INCOMING, the rest of this Definition of Done is replaced by the Incoming-mode Definition at `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` § Definition of Done
+- [ ] Phase 1 Pre-step mode detection ran — Outgoing vs Incoming routed per `$ARGUMENTS` shape (PR ref + computed `K > 0` → AUQ; PR ref + `K == 0` or `K == unknown` (fetch fail-open) → direct Outgoing; anchored natural-language signals → direct Incoming; everything else → Outgoing). When mode == INCOMING, the rest of this Definition of Done is replaced by the Incoming-mode Definition at `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` § Definition of Done
 - [ ] Phase 1 context collected (files read, changes understood, PLAN CONTEXT resolved from PR body / `--plan` / project files / none)
+- [ ] Phase 1 Step 0.5 round-N gate evaluated — round counter incremented, prior-round-summary captured (or set to "none — first review" on round 1), Round-N AUQ fired when round >= 3
+- [ ] Phase 1 Step 0.5 captured prior `pr-body:` into `prior-pr-body` (set to "none — first review" on round 1 / missing state file / `pr-body: none`); pr-metadata reviewer prompt threads it as `PRIOR-ROUND PR BODY:` so the drift check at pr-metadata-criteria.md §11 has a non-`none` value to compare against
+- [ ] Phase 1 Step 0.7 risk-tier stratification ran — `risk-tier: <standard|high>` persisted to state file based on Hard Escalation Signals from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`; Phase 4 threshold and Phase 4b validator budget adjusted when high-tier
 - [ ] Phase 1 git-workspace decision ran when input was a PR ref (one of: skipped silently because already in `.claude/worktrees/pr-<N>-review`; `Worktree` AUQ fired with three-branch routing; existing-target worktree reused via `EnterWorktree`); skipped entirely for files / diff range / branch input
-- [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT + alignment-tag instruction
-- [ ] All applicable reviewer dimensions completed (7 in standard mode, +1 design when UI files present, +1 pr-metadata when input was a PR ref; up to 36 parallel agents across batches in batched mode — 35 per-batch + 1 per-PR pr-metadata)
+- [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT + PRIOR-ROUND FINDINGS + alignment-tag instruction
+- [ ] Phase 2 spec-compliance reviewer spawned when PLAN CONTEXT is non-`none` AND (input was a PR ref OR state-file's `risk-tier: high`); skipped otherwise
+- [ ] All applicable reviewer dimensions completed (7 in standard mode, +1 design when UI files present, +1 pr-metadata when input was a PR ref, +1 spec-compliance when PLAN CONTEXT is non-`none` AND (input was a PR ref OR `risk-tier: high`); up to 42 parallel agents across batches in batched mode — 5 batches × up to 8 per-batch dimensions (when UI files present) + 1 per-PR pr-metadata + 1 per-run spec-compliance, matching the Phase 2 batched-mode constraint at the same count)
 - [ ] Phase 3 relevance filter applied (findings checked against repo conventions, complexity, and PLAN CONTEXT)
 - [ ] Phase 4 judge validation complete (findings verified) — Step −1 truncation check ran (truncated dimensions in `## Caveats`); Step 0 intent reconciliation ran (plan-authorized divergences demoted to `[INTENT-CHECK]`)
 - [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
