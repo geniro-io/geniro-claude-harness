@@ -164,7 +164,7 @@ $SUGGESTED_FILES
 Resume steps:
 1. Read the current skill SKILL.md to restore phase instructions
 $_skill_step
-3. (Step 2 covers code-style.md re-Read for pipeline skills via the canonical loader; for rules-only skills or when no active skill is detected, re-Read .geniro/instructions/code-style.md directly if you'll be writing or reviewing code in this turn)
+3. (Step 2 covers code-style.md re-Read for pipeline skills via the canonical loader, which now falls back to PRIMARY_ROOT on cwd-miss; for rules-only skills or when no active skill is detected, invoke that same canonical loader at \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md with LOAD_TIER: pipeline + MODE: refresh if you'll be writing or reviewing code in this turn — do NOT do a bare cwd-relative Read on .geniro/instructions/code-style.md, that re-introduces the stale-worktree bug the loader's fallback solves)
 4. Read state.md from the active task directory to find your current phase
 5. Read spec.md and plan file for task context
 6. If a feature ID is set, re-read the FEATURES.md row and the linked spec file
