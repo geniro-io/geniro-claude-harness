@@ -157,7 +157,7 @@ else
   _skill_step="2. Re-invoke the canonical instruction loader at \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md with SKILL_SLUG: <active-skill>, LOAD_TIER: <pipeline-or-rules-only>, MODE: refresh — this re-Reads the instruction files for this tier and echoes one line per file (the helper's Echo contract is the user-visible proof the re-Read fired)"
 fi
 
-ADDITIONAL_CONTEXT="Context was compressed by compaction (SessionStart source: $SOURCE). SKILL.md instructions and conversation nuance were lost — re-read these files before continuing:
+ADDITIONAL_CONTEXT="Context was compressed by compaction (SessionStart source: $SOURCE). SKILL.md instructions and conversation nuance were lost — re-read these files before continuing (the .geniro/instructions/* entries are the inputs to Step 2's canonical loader, NOT direct cwd Read targets — see Step 2 below; CLAUDE.md, FEATURES.md, and the spec file remain direct Reads):
 
 $SUGGESTED_FILES
 
