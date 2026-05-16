@@ -100,8 +100,11 @@ Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass 
 Read each of these files: [list file paths from Phase 1]
 Also read each file's immediate neighbors (imports from same module) for reuse context.
 
+## Code-style instructions (pre-inlined from `code-style.md` as loaded by orchestrator Step 0 / refresh — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`; omit this section entirely when the loader echoed `No code-style.md found — skipping.`)
+[orchestrator: paste content here verbatim, OR omit this section when absent]
+
 ## Instructions
-0. Read project convention files referenced in the project's CLAUDE.md (if any). Also Read `.geniro/instructions/code-style.md` if it exists — it contains cross-cutting code-style rules that apply to all dimensions. Understanding intentional project patterns prevents false-positive detection
+0. Read project convention files referenced in the project's CLAUDE.md (if any). Apply the `## Code-style instructions` section above (when present — pre-inlined by the orchestrator from Step 0 / refresh, with primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`) to all dimensions. Do NOT do a cwd-relative `Read` on `.geniro/instructions/code-style.md` yourself — that path may be stale in linked worktrees and the orchestrator already resolved it. Understanding intentional project patterns prevents false-positive detection
 1. Analyze each file for Pass A patterns only
 2. For any finding that recommends removal (dead code, unused export, unnecessary wrapper): Grep the full project for the symbol name to verify zero cross-file references. If references exist outside changed files, reclassify as P3 (report only)
 3. For each finding report: file, line number, pattern matched, proposed fix
@@ -140,8 +143,11 @@ Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass 
 Read each of these files: [list file paths from Phase 1]
 Also read each file's immediate neighbors (imports from same module) for reuse context.
 
+## Code-style instructions (pre-inlined from `code-style.md` as loaded by orchestrator Step 0 / refresh — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`; omit this section entirely when the loader echoed `No code-style.md found — skipping.`)
+[orchestrator: paste content here verbatim, OR omit this section when absent]
+
 ## Instructions
-0. Read project convention files referenced in the project's CLAUDE.md (if any). Also Read `.geniro/instructions/code-style.md` if it exists — it contains cross-cutting code-style rules that apply to all dimensions. Understanding intentional project patterns prevents false-positive detection
+0. Read project convention files referenced in the project's CLAUDE.md (if any). Apply the `## Code-style instructions` section above (when present — pre-inlined by the orchestrator from Step 0 / refresh, with primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`) to all dimensions. Do NOT do a cwd-relative `Read` on `.geniro/instructions/code-style.md` yourself — that path may be stale in linked worktrees and the orchestrator already resolved it. Understanding intentional project patterns prevents false-positive detection
 1. Analyze each file for Pass B patterns only
 2. Actively check for AI-generated code anti-patterns (over-abstraction, verbose error handling, unnecessary wrappers, over-documentation)
 3. For any finding that recommends removal: Grep the full project for the symbol name to verify zero cross-file references. If references exist outside changed files, reclassify as P3 (report only)
@@ -181,8 +187,11 @@ Read `${CLAUDE_SKILL_DIR}/simplify-criteria.md` — apply Ground Rules and Pass 
 Read each of these files: [list file paths from Phase 1]
 Also read each file's immediate neighbors (imports from same module) for reuse context.
 
+## Code-style instructions (pre-inlined from `code-style.md` as loaded by orchestrator Step 0 / refresh — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`; omit this section entirely when the loader echoed `No code-style.md found — skipping.`)
+[orchestrator: paste content here verbatim, OR omit this section when absent]
+
 ## Instructions
-0. Read project convention files referenced in the project's CLAUDE.md (if any). Also Read `.geniro/instructions/code-style.md` if it exists — it contains cross-cutting code-style rules that apply to all dimensions. Understanding intentional project patterns prevents false-positive detection
+0. Read project convention files referenced in the project's CLAUDE.md (if any). Apply the `## Code-style instructions` section above (when present — pre-inlined by the orchestrator from Step 0 / refresh, with primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`) to all dimensions. Do NOT do a cwd-relative `Read` on `.geniro/instructions/code-style.md` yourself — that path may be stale in linked worktrees and the orchestrator already resolved it. Understanding intentional project patterns prevents false-positive detection
 1. Analyze each file for Pass C patterns only
 2. For each finding report: file, line number, pattern matched, proposed fix
 3. Classify: P1, P2, or P3 per severity below
@@ -244,7 +253,7 @@ Collect findings from all 3 agents. Merge into a single list:
 
 **Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: deep-simplify`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
-Delegate ALL fixes to an agent. Do NOT apply fixes directly. Before spawning the Fix agent, Read `.geniro/instructions/code-style.md` if it exists. Pre-inline its content into the agent prompt at the slot below.
+Delegate ALL fixes to an agent. Do NOT apply fixes directly. Before spawning the Fix agent, use the content the Refresh loader above echoed as `Loaded code-style.md …` (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Pre-inline that content into the agent prompt at the slot below. Omit the slot when the loader echoed `No code-style.md found — skipping.` Do NOT do a separate cwd-relative `Read` here.
 
 ```
 Agent(model="sonnet", prompt="""
@@ -254,8 +263,8 @@ Apply the following categorized fixes. Batch all changes, do NOT validate betwee
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
-## Code-style instructions (pre-inlined from .geniro/instructions/code-style.md, if present)
-[Pre-inline the FULL contents of `.geniro/instructions/code-style.md` if it exists — orchestrator Reads the file before spawn; otherwise leave this section blank or omit]
+## Code-style instructions (pre-inlined from `code-style.md` as loaded by orchestrator Step 0 / refresh — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`)
+[Pre-inline the FULL content the loader echoed as `Loaded code-style.md …`; otherwise omit this section entirely when the loader echoed `No code-style.md found — skipping.`]
 
 ## P1 Fixes (must apply)
 [paste P1 findings from Phase 3 aggregation]

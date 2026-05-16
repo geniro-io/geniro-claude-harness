@@ -237,7 +237,7 @@ Spawn the refactor-agent to execute the approved plan:
 
 **Pick model from approved plan:** use `model="opus"` when `plan.max_risk == "HIGH"`, otherwise `model="sonnet"`.
 
-Before spawning the refactor-agent, Read `.geniro/instructions/code-style.md` if it exists. Pre-inline its content into the agent prompt under `## Code-style instructions`.
+Before spawning the refactor-agent, use the content the Step 0 / refresh loader echoed as `Loaded code-style.md …` (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Pre-inline that content into the agent prompt under `## Code-style instructions`. Omit when the loader echoed `No code-style.md found — skipping.` Do NOT do a separate cwd-relative `Read` here.
 
 ```
 Agent(subagent_type="refactor-agent", model="<sonnet|opus per risk>", prompt="""
@@ -254,8 +254,8 @@ REGRESSION TEST COMMAND: [<test_cmd> from CLAUDE.md] — full suite; the orchest
 AUTOFIX COMMAND: [autofix command from CLAUDE.md, if any]
 BACKPRESSURE: source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<validation_cmd>". If unavailable, pipe through tail -80.
 
-## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
-[paste content here, OR omit section if file absent]
+## Code-style instructions (pre-inlined from `code-style.md` as loaded by Step 0 / refresh — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`; omit when the loader echoed `No code-style.md found — skipping.`)
+[paste content here, OR omit section when absent]
 
 Execute each step following the Step Execution Protocol in your agent definition.
 
@@ -299,7 +299,7 @@ Default: Revert all changes. On "Revert all changes", run `git checkout -- .` an
 
 Spawn a fresh reviewer-agent. The agent reads its own criteria — do NOT pre-read into orchestrator context.
 
-Before spawning the reviewer, Read `.geniro/instructions/code-style.md` if it exists. Pre-inline its content alongside the CLAUDE.md conventions paste-block.
+Before spawning the reviewer, use the content the Step 0 / refresh loader echoed as `Loaded code-style.md …` (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Pre-inline that content alongside the CLAUDE.md conventions paste-block. Omit when the loader echoed `No code-style.md found — skipping.` Do NOT do a separate cwd-relative `Read` here.
 
 **Custom reviewers (Medium and Large only — same gate as the independent reviewer above):** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored review dimensions in `.geniro/instructions/review-extra/`. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent", model="<spec.model>", prompt=...)` call to the SAME parallel batch as the independent reviewer below — same assistant response, parallel execution, NOT one per turn. The helper's `paths:` filter uses the refactor's changed-files list. Refactor's zero-behavior-change guarantee means custom reviewers should not introduce blocking findings beyond what their criteria covers; they flow through the same orchestrator disposition logic as the independent reviewer's findings (PRODUCT-DECISION → escalate; CRITICAL/HIGH non-PD → fix loop; MEDIUM → note in summary). If the helper aborts on the hard-cap error, surface its error and skip Phase 5 Step 2; do not proceed with review.
 
@@ -315,7 +315,7 @@ DIFF: [paste git diff output]
 AGENT SELF-REPORT: [refactor-agent's structured report]
 PROJECT CONVENTIONS: [paste relevant conventions from CLAUDE.md]
 
-## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
+## Code-style instructions (pre-inlined from `code-style.md` as loaded by Step 0 / refresh — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`; omit when the loader echoed `No code-style.md found — skipping.`)
 [content here]
 
 ## Focus Areas

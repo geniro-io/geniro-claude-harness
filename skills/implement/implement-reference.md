@@ -292,8 +292,8 @@ BRANCH: [from `git branch --show-current`]
 [Paste the CONVENTIONS_BRIEF section from spec file — naming patterns, file structure, error handling, import style, test patterns. Include 1-2 exemplar file snippets showing the patterns to follow.]
 Match existing patterns exactly. Find the closest existing example and follow it.
 
-## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`, if present)
-[paste content of `.geniro/instructions/code-style.md` here verbatim, OR omit this section entirely if the file does not exist]
+## Code-style instructions (pre-inlined from `code-style.md` as loaded by Step 0 / refresh — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`; omit when the loader echoed `No code-style.md found — skipping.`)
+[paste the content the loader echoed as `Loaded code-style.md …` here verbatim, OR omit this section entirely when the loader echoed `No code-style.md found — skipping.`]
 
 ## Reuse Inventory (verify-before-creating)
 
@@ -513,10 +513,10 @@ Only reached after Stage B passes.
    - All changed file contents (pre-inlined)
    - spec file + plan file for context
    - Previous feedback (if round 2+)
-   - **Code-style slot (guidelines / conventions / design / architecture reviewers ONLY):** if `.geniro/instructions/code-style.md` exists, pre-inline its content under this header in the prompt:
+   - **Code-style slot (guidelines / conventions / design / architecture reviewers ONLY):** if the Step 0 / refresh loader echoed `Loaded code-style.md …` (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`), pre-inline that content under this header in the prompt. Skip the slot when the loader echoed `No code-style.md found — skipping.` Do NOT do a separate cwd-relative `Read` here.
 
      ```
-     ## Code-style instructions (pre-inlined from `.geniro/instructions/code-style.md`)
+     ## Code-style instructions (pre-inlined from `code-style.md` as loaded by Step 0 / refresh)
      [content here]
      Apply these as additional review criteria — flag violations alongside this dimension's primary criteria. Do not duplicate findings already covered by your dimension's criteria file.
      ```

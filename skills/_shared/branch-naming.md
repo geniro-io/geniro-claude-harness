@@ -11,7 +11,7 @@ A shared procedure that builds a git branch name which follows the calling repo'
 
 ### Step 1 — Check explicit overrides
 
-Read `.geniro/instructions/global.md` and `.geniro/instructions/implement.md` if they exist. If either contains an explicit branch-naming rule (e.g., "Always prefix with `gh/`", "Use the linear ID lowercased"), apply it verbatim and skip to Step 5. Record which instruction file won.
+Read `.geniro/instructions/global.md` and `.geniro/instructions/implement.md` if they exist (cwd first; on file-not-found, retry against `<PRIMARY_ROOT>/.geniro/instructions/<file>` where `PRIMARY_ROOT` is computed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — same fallback semantics as `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` so linked worktrees and stale feature branches still see the user's authored rules). If either contains an explicit branch-naming rule (e.g., "Always prefix with `gh/`", "Use the linear ID lowercased"), apply it verbatim and skip to Step 5. Record which instruction file won.
 
 ### Step 2 — Detect the prefix from recent branches
 

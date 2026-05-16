@@ -110,7 +110,7 @@ If the user declines to answer (empty answer), default to Standard. The user's `
 
 **Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
-**Code-style pre-inline (orchestrator preamble):** Read `.geniro/instructions/code-style.md` once. If it exists, pre-inline its content into the `CODE-STYLE INSTRUCTIONS:` slot of the guidelines / conventions / design / architecture reviewer prompts below. Skip the slot for bugs / security / tests / optimizations — code-style is orthogonal to those dimensions. If the file is absent, render the slot value as `none — file not present`.
+**Code-style pre-inline (orchestrator preamble):** The Refresh loader above already attempted `code-style.md` (cwd, then `PRIMARY_ROOT` fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use the content the loader echoed as `Loaded code-style.md …` (cwd OR primary-worktree variant) — do NOT do a separate cwd-relative `Read` here, that would re-introduce the stale-worktree bug the loader's fallback solves. Pre-inline that content into the `CODE-STYLE INSTRUCTIONS:` slot of the guidelines / conventions / design / architecture reviewer prompts below. Skip the slot for bugs / security / tests / optimizations — code-style is orthogonal to those dimensions. If the loader echoed `No code-style.md found — skipping.`, render the slot value as `none — file not present`.
 
 **Load custom reviewers (~5 sec):** Apply the procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored custom review dimensions in `.geniro/instructions/review-extra/`. The helper returns 0-10 spawn-specs after applying its validation, paths-filter, and cap rules. If the helper aborts on the hard-cap error (>10 active reviewers), surface its error message to the user and stop — do not proceed to spawn. Carry the surviving spawn-specs into the Standard-mode or Batched-mode block below as additional Agent() calls in the same parallel batch (same assistant response, NOT one per turn).
 
@@ -178,7 +178,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: architecture
 CRITERIA: [content of architecture-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CODE-STYLE INSTRUCTIONS: [content of code-style.md as loaded by the Step 0 / Refresh loader (cwd OR primary-worktree fallback), or "none — file not present" if the loader echoed `No code-style.md found — skipping.`]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -222,7 +222,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
 DIMENSION: guidelines
 CRITERIA: [content of guidelines-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CODE-STYLE INSTRUCTIONS: [content of code-style.md as loaded by the Step 0 / Refresh loader (cwd OR primary-worktree fallback), or "none — file not present" if the loader echoed `No code-style.md found — skipping.`]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -237,7 +237,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: conventions
 CRITERIA: [content of conventions-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CODE-STYLE INSTRUCTIONS: [content of code-style.md as loaded by the Step 0 / Refresh loader (cwd OR primary-worktree fallback), or "none — file not present" if the loader echoed `No code-style.md found — skipping.`]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -253,7 +253,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: design
 CRITERIA: [content of design-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CODE-STYLE INSTRUCTIONS: [content of code-style.md as loaded by the Step 0 / Refresh loader (cwd OR primary-worktree fallback), or "none — file not present" if the loader echoed `No code-style.md found — skipping.`]
 CHANGED FILES: [list of files with their full content]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -377,7 +377,7 @@ The per-batch architecture and design prompts mirror the standard-mode blocks ab
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: architecture
 CRITERIA: [content of architecture-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CODE-STYLE INSTRUCTIONS: [content of code-style.md as loaded by the Step 0 / Refresh loader (cwd OR primary-worktree fallback), or "none — file not present" if the loader echoed `No code-style.md found — skipping.`]
 CHANGED FILES: [batch's files only]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -394,7 +394,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
 DIMENSION: design
 CRITERIA: [content of design-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
+CODE-STYLE INSTRUCTIONS: [content of code-style.md as loaded by the Step 0 / Refresh loader (cwd OR primary-worktree fallback), or "none — file not present" if the loader echoed `No code-style.md found — skipping.`]
 CHANGED FILES: [batch's UI files only]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
