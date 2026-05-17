@@ -32,38 +32,48 @@ The branch name **`claude/skip-architecture-with-spec-yjx8x`** captures the core
                               │
                               ▼
         ┌─────────────────────────────────────────┐
-        │  Entry gate (TBD — see §5)              │
-        │  • Resolve spec/plan artifact OR fail   │
-        │  • Refresh L4 custom-instruction layer  │
+        │  Phase 1 — Analyze (DECIDED — §5)       │
+        │  • Semantic parse of $ARGUMENTS         │
+        │    (no CLI flags — see OQ-4 closure)    │
+        │  • Resolve spec.md OR inline-task path  │
+        │  • Refresh L4 (load-custom-instructions │
+        │    MODE: refresh, scope=implement +     │
+        │    global + code-style)                 │
+        │  • Refresh L3 (load-semantic MODE:      │
+        │    refresh)                             │
         │  • Resolve task slug (M1)               │
-        │  • Detect frontend files in scope       │
+        │  • Detect frontend files в scope        │
+        │  • Persist T2 handoffs к state.md       │
+        │    (`## Inputs from <producer>`)        │
         └─────────────────────────────┬───────────┘
                               │
                               ▼
         ┌─────────────────────────────────────────┐
-        │  Phase 1 — Implement (TBD — see §6)     │
-        │  • Read spec/plan                       │
-        │  • Edit / Write code changes            │
-        │  • Run project test suite               │
-        │  • State.md updates per M1 schema       │
+        │  Phase 2 — Implement (DECIDED — §6)     │
+        │  • Whole-feature edit batch             │
+        │    (no file-by-file, no sub-tasks)      │
+        │  • Single test run at end of phase      │
+        │  • In-phase fix loop on test failure    │
+        │    (max 3 retries, then §7.4-style      │
+        │    escalation: debug / accept / abort)  │
+        │  • State.md `phase: implement`          │
         └─────────────────────────────┬───────────┘
                                       │
                                       ▼
         ┌─────────────────────────────────────────┐
-        │  Phase 2 — Self-review (DECIDED — §7)   │
-        │  • Spawn 5 reviewer-agents in parallel  │
-        │    (bugs, security, architecture,       │
-        │     tests, code-quality)                │
+        │  Phase 3 — Self-review + Ship           │
+        │                       (DECIDED — §7+§8) │
+        │  • 5 reviewer-agents в parallel:        │
+        │    bugs, security, architecture (incl   │
+        │    docs-staleness), tests, code-quality │
         │  • Bounded fix loop, max 3 rounds       │
-        │  • Round N+1 only re-runs failing dims  │
-        │  • After 3 rounds → escalate-AUQ        │
-        └─────────────────────────────┬───────────┘
-                                      │
-                                      ▼
-        ┌─────────────────────────────────────────┐
-        │  Ship (TBD — see §8)                    │
-        │  • Commit / push / docs / cleanup       │
-        │  • Adjustment-routing for ship feedback │
+        │  • Round N+1 = only failing dims        │
+        │  • After 3 rounds → AUQ (§7.4)          │
+        │  • L2 emit (`convention` on ≥3-pattern) │
+        │  • Ship sub-step: commit → AUQ          │
+        │    (push / push+PR / push+draft-PR)     │
+        │  • atomic_state_append(non-resumable)   │
+        │    after each side-effect               │
         └─────────────────────────────────────────┘
 ```
 
@@ -123,71 +133,141 @@ The branch name **`claude/skip-architecture-with-spec-yjx8x`** captures the core
 | ID | Decision | Section |
 |---|---|---|
 | **Q4** | Self-fix bounded loop — max 3 rounds, then escalate-AUQ к user (no infinite retry) | §7.3, §7.4 |
-| **Q6** | Phase 2 self-review spawns **5 reviewer-agents** in parallel: `bugs`, `security`, `architecture`, `tests`, `code-quality` | §7.2 |
+| **Q6** | Phase 3 self-review spawns **5 reviewer-agents** in parallel: `bugs`, `security`, `architecture` (incl. docs-staleness per OQ-9), `tests`, `code-quality` | §7.2 |
 | **Q7a** | Cleanup strategy — **Hybrid**: `SKILL.md` full rewrite (structurally different); `implement-reference.md` surgical edit (preserves proven templates/snippets) | §9 |
 | **Q7b** | **Drop milestone-mode** entirely from M4 — `/geniro:plan` (M5) owns milestone semantics end-to-end as one of its output modes; the legacy `/geniro:decompose` is deleted (master plan §65) | §3.1, §3.3 |
+| **OQ-1** | **3 named phases** — Phase 1 Analyze → Phase 2 Implement → Phase 3 Self-review-and-Ship. Matches master plan §27 ("analyze → implement → self-review"). Ship is а terminal sub-step of Phase 3. | §2, §5, §6, §7 |
+| **OQ-2** | **Inline-task fallback as default** when no spec.md found. Pre-M5: $ARGUMENTS treated as raw task description. Post-M5: a semantic "plan first" intent in $ARGUMENTS may route к /plan as an opt-in. | §5 |
+| **OQ-3** | spec.md canonical filename (master plan §26) с plan.md as legacy alias и design-doc-detect.md helper for backward-compat frontmatter detection. | §5 |
+| **OQ-4** | **No CLI flags.** Semantic parsing of $ARGUMENTS at Phase 1 entry. Canonical vocabulary: empty/"continue"/"resume" → resume; file path → spec; free-form → inline task; natural-language modifiers honored semantically. | §5 |
+| **OQ-5** | **Whole-feature edit batch** in Phase 2 — single test run at end (not file-by-file, not sub-task decomposition). Matches master plan §102 friction reduction. | §6 |
+| **OQ-6** | **In-phase mini fix loop** on Phase 2 test failure — bounded 3 retries, then escalation. Phase 3 only ever sees green tests. | §6 |
+| **OQ-7** | Phase 2 fix-loop exhaustion mirrors **§7.4 escalation pattern** (Q4) — AUQ с debug-handoff / accept-failure / abort. | §6 |
+| **OQ-8** | **Preserve pre-M4 AUQ flow** at ship time: push / push+PR / push+draft-PR (`gh pr create [--draft]`). | §7 (Ship sub-step) |
+| **OQ-9** | **Fold docs-staleness scan into Phase 3 architecture reviewer** — no extra subagent spawn. Findings come back as Phase 3 review finding и fixed inline. | §7.2 architecture dim |
+| **OQ-10** | Memory I/O obligation (M2 §13) — see §13. | §13 |
+| **OQ-11** | ACI spec (master plan §134) — deferred к M4 implementation phase pending SWE-agent ACI research. | Deferred |
+| **OQ-12** | L2 trigger threshold ("≥3 instances of same pattern") — implementation detail for reviewer-agent spawn prompt; deferred к M4 impl. | Deferred |
 
 ---
 
-## 5. Entry gate behavior — **OPEN**
+## 5. Phase 1 — Analyze — **DECIDED**
 
-**Pinned-down requirements:**
+The entry-gate phase. Light по cost — а few file reads и а semantic $ARGUMENTS parse — но critical для correctness. State.md transitions к `phase: analyze` for M3 recovery granularity.
 
-- The skill must refresh L4 custom instructions before any code work (`load-custom-instructions` MODE: refresh, scope: `implement` + `global` + `code-style`) — matches M3 contract.
-- The skill must resolve a task slug per M1 (used for state.md path).
-- The skill must detect whether frontend files are in scope (gates Pre-Ship Visual Verification + design conventions injection).
+### 5.1 $ARGUMENTS parsing (OQ-4 closure)
 
-**Unresolved sub-questions:**
+**No CLI flag grammar.** $ARGUMENTS is parsed semantically. The Phase 1 entry instruction prompts the model к classify intent before дополнительных reads. Canonical detection:
 
-1. **No-spec fallback:** if `$ARGUMENTS` does not point to a spec/plan artifact, does M4: (a) auto-invoke `/geniro:plan`, (b) error out with directive to run `/plan` first, or (c) proceed treating `$ARGUMENTS` as a raw inline task description? **Sequencing constraint:** master plan orders M4 before M5, so option (a) is unavailable on the M4 ship-date — must pick (b) or (c) as the interim default and let option (a) become opt-in once /plan exists.
-2. **DESIGN_DOC discovery rules:** what file conventions count as "spec/plan provided"? (current pre-M4 logic: look for `${task-dir}/spec.md`, `${task-dir}/plan.md`, or DESIGN_DOC frontmatter — does M4 inherit unchanged?)
-3. **`$ARGUMENTS` flag surface:** which flags survive Lane removal? Candidates: `--draft` (commit but skip push/PR), `--no-ship` (stop after Phase 2), `--continue` (resume from state.md). None confirmed.
+| $ARGUMENTS shape | Mode |
+|---|---|
+| empty | Resume current task from state.md (if state.md exists) OR error с directive to provide а task. |
+| contains "continue" / "resume" (any casing, standalone word) | Resume from state.md (M3-coupled — reads `non-resumable-actions[]` к skip already-completed side-effects). |
+| matches а filesystem path (rel или abs) к а .md file | Load as spec/plan artifact. Validates frontmatter per design-doc-detect.md helper. |
+| free-form description с no path match | Inline-task mode (OQ-2 fallback). Model treats $ARGUMENTS as а raw spec description; Phase 1 produces а minimal inline plan от что the task is, files likely touched, и approach к take. |
+| ambiguous (e.g., а bare slug that could be а task name OR а task description) | AUQ с 2-3 disambiguation options. |
+| natural-language modifiers ("don't push", "draft only", "stop after review", "...and update README") | Honored semantically by Phase 3 — no formal mode keyword; the modifier survives in $ARGUMENTS и is consulted at Ship time или relevant decision points. |
 
-These were not resolved in the design session and are recorded as open.
+### 5.2 Spec discovery (OQ-3 closure)
+
+Canonical filename: **`spec.md`** в the task-dir (master plan §26 — `/plan` emits "approved spec.md"). Backward-compat fallbacks:
+
+1. `${task-dir}/spec.md` — preferred
+2. `${task-dir}/plan.md` — legacy alias (pre-M4 convention)
+3. design-doc-detect.md frontmatter detection — for legacy /brainstorm-emitted design docs that don't follow naming convention
+
+Phase 1 walks these в order and stops at the first hit.
+
+### 5.3 No-spec fallback (OQ-2 closure)
+
+If no spec.md, plan.md, or DESIGN_DOC frontmatter is found AND $ARGUMENTS is non-empty free-form text → enter **inline-task mode**: treat $ARGUMENTS as а raw spec description.
+
+Phase 1 produces а brief inline plan recorded в state.md body under `## Inline Plan` containing: one-sentence goal, file list (best-effort), approach summary. This becomes the source-of-truth для Phase 3 self-review (the `spec` field consumed by reviewer-agents).
+
+**Pre-M5 reality:** /plan не yet exists; inline-task mode is the only viable path for users без а hand-authored spec.md. Post-M5: semantic detection of "plan this first" intent в $ARGUMENTS may route к /plan as an opt-in.
+
+### 5.4 Pinned-down requirements (all phases prelude)
+
+- Refresh L4 custom instructions (`load-custom-instructions` MODE: refresh, scope: `implement` + `global` + `code-style`) — matches M3 contract.
+- Refresh L3 semantic layer (`load-semantic` MODE: refresh, top-2 default) — fingerprint drift check fires.
+- Resolve task slug per M1 (used для state.md path).
+- Detect frontend files в scope (gates Pre-Ship Visual Verification + design conventions injection in Phase 3 reviewer prompts).
+- Persist any T2 handoff (e.g., `from-debug-<branch>.md`) into state.md body under `## Inputs from <producer>` — per M3 §11 obligation.
 
 ---
 
-## 6. Phase 1 — Implement — **OPEN**
+## 6. Phase 2 — Implement — **DECIDED**
 
-**Pinned-down requirements:**
+State.md `phase: implement` during this phase. Code edits + test verification. Exits к Phase 3 only when tests are green.
+
+### 6.1 Inner-loop granularity (OQ-5 closure)
+
+**Whole-feature edit batch.** Read spec.md (or inline plan from Phase 1) → make all required Edit/Write changes к the codebase в а single phase pass → run the project test suite once.
+
+Не file-by-file (high test cost on slow suites; granular state recovery rarely worth it). Не sub-task decomposition (overhead doesn't pay для typical M4 task sizes).
+
+State.md tracks the file-edit list but не per-file phase transitions. Recovery от mid-batch crash: M3 SessionStart reloads state.md, model sees `phase: implement`, re-reads spec, re-checks current file diff vs. spec to decide whether к continue editing или skip к test-run.
+
+### 6.2 Test-failure handling (OQ-6 closure)
+
+**In-phase mini fix loop.** If the end-of-phase test run fails:
+
+```
+retry = 1
+while retry ≤ 3:
+    inspect failing test output
+    edit code (or test) к address the failure (model's call)
+    re-run test suite
+    if all green → exit Phase 2 к Phase 3
+    retry += 1
+else:
+    escalate (§6.3)
+```
+
+Phase 3 only sees green tests. The `tests` reviewer dimension в Phase 3 then evaluates coverage / edge cases / brittle assertions — но never "tests are failing".
+
+### 6.3 Debug-handoff (OQ-7 closure)
+
+When the §6.2 retry loop exhausts (3 failed retries), Phase 2 escalates **с the same AUQ pattern as §7.4**:
+
+1. Surface к user via `AskUserQuestion` с:
+   - Failing-test summary (top 3 failures, error messages, suspect lines).
+   - Options: (A) hand off к `/geniro:debug` с state.md snapshot, (B) accept failing tests as documented limitation and proceed к Phase 3 anyway (records the decision в state.md `## Accepted Failures`), (C) abort и leave work uncommitted for manual takeover.
+2. State.md marks `phase: phase-2-escalated` с timestamp + retry count + failing-test list.
+
+Option (B) ("accept") triggers а warning в Phase 3 architecture reviewer prompt — it'll see the accepted-failures list и may flag scope concerns.
+
+### 6.4 Pinned-down requirements
 
 - Single solo inner loop (no parallel WU agents — see §3.1).
-- Code-style instructions pre-loaded в context before first Edit/Write.
-- Project test suite runs at least once before Phase 2 entry (provides input to `tests` reviewer dimension).
-- State.md transitions per M1 schema; phase marker `phase: implement` during this phase.
-- **L2 auto-emit (replaces /learnings)** — master plan §69: `/learnings` skill deleted; learning capture becomes an auto-step at end of /implement и /debug. M4 calls `emit-learning` (M2 §9 helper) when self-review surfaces а recurring pattern (≥3 reviewer matches across dimensions, type=convention), а novel diagnosis (type=diagnosis from debug-handoff), or а meaningful architectural decision (type=decision). M2 §5.3 trigger rules need reconciliation — the legacy "architect-agent picks alternatives → decision" trigger is obsolete (no architect-agent in M4); replacement trigger source is /plan output recorded in spec.md.
-
-**Unresolved sub-questions:**
-
-1. **Inner-loop granularity:** file-by-file edits with per-file test runs? Or whole-feature edit batch followed by one test run? Or decomposed into local sub-tasks tracked в state.md?
-2. **Test-failure handling within Phase 1:** if tests fail during Phase 1, does M4 self-correct in-phase (mini fix loop) or proceed к Phase 2 and surface tests-failing as a reviewer finding?
-3. **Hand-off to `/geniro:debug`** during Phase 1 when self-correction stalls — same exhaust-then-escalate semantics as §7.4, or different?
-
-Recorded as open.
+- Code-style instructions pre-loaded в context от Phase 1's L4 refresh.
+- Project test suite runs at the end of Phase 2 (provides input к `tests` reviewer dimension в Phase 3).
+- State.md transitions per M1 schema; phase marker `phase: implement` during this phase, `phase: phase-2-escalated` если §6.3 triggers.
+- **L2 auto-emit (replaces /learnings)** — master plan §69: `/learnings` skill deleted; learning capture becomes auto-step at end of /implement (this skill) и /debug. M4 calls `emit-learning` (M2 §9 helper) from Phase 3 (not Phase 2) когда reviewer findings warrant it; see §7 и §13 для emit sites.
 
 ---
 
-## 7. Phase 2 — Self-review — **DECIDED**
+## 7. Phase 3 — Self-review + Ship — **DECIDED**
 
 ### 7.1 Trigger
 
-Phase 1 reports completion → state.md transitions к `phase: self-review`. No user prompt between phases (continuous flow).
+Phase 2 reports green tests → state.md transitions к `phase: self-review`. No user prompt between phases (continuous flow). On entry, model verifies M3 SessionStart didn't strike mid-Phase-2 (state.md `phase: implement` без green-test marker → roll back к Phase 2 retry).
 
-### 7.2 Reviewer-agent spawns (Q6)
+### 7.2 Reviewer-agent spawns (Q6 + OQ-9)
 
-**Five reviewer-agents in parallel**, one spawn per dimension. Use `reviewer-agent` (plugin-defined; falls back per the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`).
+**Five reviewer-agents in parallel**, one spawn per dimension. Use `reviewer-agent` (plugin-defined; falls back per the registration ladder в `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`).
 
 | Dimension | Scope |
 |---|---|
 | `bugs` | Logic errors, off-by-one, null/undefined paths, race conditions, broken invariants |
 | `security` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 surface |
-| `architecture` | Layering, coupling, abstractions, dead code, duplication, naming, file/module placement |
-| `tests` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases |
+| `architecture` | Layering, coupling, abstractions, dead code, duplication, naming, file/module placement, **docs-staleness** (OQ-9 closure — explicit check for stale README/architecture-doc/contributing-guide references к patterns/files renamed in Phase 2) |
+| `tests` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases. Pre-condition: tests are green (per Phase 2 §6.2). |
 | `code-quality` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities (subsumes pre-M4 Phase 5 SIMPLIFY) |
 
-**Spawn template:** reuse pre-M4 Phase 6 Stage C Reviewer Template (`implement-reference.md` L480–560), trimmed to the dimension-specific scope. Each reviewer receives: spec/plan, diff of Phase 1 changes, code-style instructions, project conventions.
+**Spawn template:** reuse pre-M4 Phase 6 Stage C Reviewer Template (`implement-reference.md` L480–560), trimmed к the dimension-specific scope. Each reviewer receives: spec/plan, diff of Phase 2 changes, code-style instructions, project conventions, и (для `architecture` dim) the project's docs files list для staleness scan.
 
-**Spawn invocation:** single message with five `Agent` tool uses (parallel) — matches the parallel-spawn rule in the system prompt.
+**Spawn invocation:** single message с five `Agent` tool uses (parallel) — matches the parallel-spawn rule в the system prompt.
 
 ### 7.3 Bounded fix loop (Q4)
 
@@ -219,27 +299,36 @@ When the loop hits round 3 with unresolved findings:
    - Options: (A) hand off к `/geniro:debug` with current state.md snapshot, (B) accept findings and proceed к ship anyway (records the decision in state.md), (C) abort и leave работу uncommitted for manual takeover.
 3. State.md marks `phase: escalated` with timestamp + round count.
 
-This explicitly avoids the "kick it until it passes" anti-pattern: M4 has a terminal state, и unresolvable findings are the user's call, not the agent's.
+This explicitly avoids the "kick it until it passes" anti-pattern: M4 has а terminal state, и unresolvable findings are the user's call, not the agent's.
+
+### 7.5 Ship sub-step — **DECIDED**
+
+Once Phase 3 self-review exits clean (all dims clean OR §7.4 path B/C taken), Phase 3 transitions к its Ship terminal sub-step. State.md `phase: ship`.
+
+**Steps:**
+
+1. **Pre-Ship Visual Verification** — fires only when frontend files в scope AND Playwright MCP is available (per CLAUDE.md "Optional MCP Dependencies"). Otherwise skipped.
+2. **Commit** — `git add <changed files>`, `git commit` с conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred от spec/state metadata. Inherits pre-M4 commit pattern от `implement-reference.md:733–740`.
+3. **Ship-mode AUQ (OQ-8 closure)** — `AskUserQuestion` с options:
+   - **Push only** — `git push origin <branch>`. Done.
+   - **Push + open PR** — `git push` then `gh pr create` (ready for review). Append task ID к PR title.
+   - **Push + open draft PR** — `git push` then `gh pr create --draft`. `--draft` incompatible с `--web` — if user wants browser, create first then `gh pr view --web`.
+4. **Atomic `non-resumable-actions` append (M3 §8, M1 helpers)** — after each side-effect that cannot be replayed safely (`git push`, `gh pr create`, etc.), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via M1 `atomic_state_append`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. The append occurs **after** the side-effect succeeds; atomic (so partial-write corruption is impossible mid-crash).
+5. **L2 auto-emit (master plan §69, OQ-12)** — emit `convention` к learnings.jsonl когда Phase 3 architecture или code-quality reviewer reported ≥3-instance patterns; emit `decision` if spec.md recorded а non-trivial approach choice (per M2 §5.3 patched trigger contract). Threshold tuning (exact «≥3» semantics) — implementation-detail of reviewer-agent spawn prompt, deferred.
+6. **Adjustment-routing (Big / Medium / Small per `implement-reference.md` L778–812)** used когда ship-feedback arrives via PR comments. Since /follow-up is dropped, all adjustment requests route back through /implement itself с the original spec + adjustment description as new $ARGUMENTS.
+
+**Inline modifiers from Phase 1 $ARGUMENTS** (semantic parsing, §5.1) honored here:
+- "don't push" → auto-pick "push only" — wait, that's contradictory. Re-interpret as auto-pick the no-push variant: stop at commit, skip the ship-mode AUQ entirely (state.md marks `phase: ship-committed-only`).
+- "draft only" / "draft PR" → bias the AUQ default to "push + open draft PR".
+- "stop after review" → exit Phase 3 без commit; surface clean review status as the deliverable.
+
+These modifiers are mode hints, не hard overrides — Phase 3 may still AUQ if ambiguity remains.
 
 ---
 
-## 8. Ship — **OPEN (mostly preserved)**
+## 8. Ship — see §7.5
 
-**Pinned-down:**
-
-- Inherits pre-M4 Phase 7 Finalize Steps Detail (`implement-reference.md` L684–763 minus L765–778 Milestone Status — see §3.3).
-- Pre-Ship Visual Verification fires only when frontend files в scope AND Playwright MCP is available (per CLAUDE.md "Optional MCP Dependencies").
-- Adjustment-routing (Big / Medium / Small per L778–812) used when ship feedback arrives via PR comments (since /follow-up is dropped, all adjustment requests route back through /implement itself with the original spec + adjustment description as new $ARGUMENTS).
-- **T2-handoff persist (M3 §11 obligation):** when M4 consumes а T2 handoff (e.g., `from-debug-<branch>.md` after а /debug investigation), persist key findings into state.md body under а `## Inputs from <producer>` section before Phase 1 first Edit/Write. Format: producer name, timestamp, top-3 findings as bullets, link к original T2 path. Survives compaction via M3 SessionStart recovery.
-- **`non-resumable-actions` atomic append (M3 §8, M1 helpers):** after each side-effect that cannot be re-played safely (`git push`, PR/issue comment post, Slack/webhook dispatch), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via M1 `atomic_state_append` helper. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. The append must occur **after** the side-effect succeeds (so failed pushes don't pollute the array), and must be atomic (so partial-write corruption is impossible mid-crash).
-
-**Unresolved:**
-
-1. **Phase-or-not:** is Ship a third numbered phase, or a sub-step of Phase 2 exit? Affects state.md schema (3 phases vs 2 phases + finalization).
-2. **PR creation default:** push only, or push + open PR, or governed by `$ARGUMENTS` flag?
-3. **Docs update scope:** README / CHANGELOG / inline only — what's mandatory vs optional?
-
-Recorded as open.
+Per OQ-1 closure (3-phase structure where Ship is а terminal sub-step of Phase 3), Ship is no longer а standalone numbered phase. The detailed Ship contract lives в §7.5 Ship sub-step above. State.md `phase: ship` during execution, transitions к `phase: done` on clean exit. Section number reserved для backward-compat с cross-doc references; do not renumber subsequent sections.
 
 ---
 
@@ -285,24 +374,13 @@ The pre-M4 SKILL.md (496 lines, 7 phases) is structurally incompatible с the 2-
 
 ## 10. Open questions (carried forward)
 
-These were not closed in the design session и must be resolved before M4 implementation lands:
+All 9 design OQs closed в the OQ-resolution session (recorded в §4 Decisions table). 3 admin items remain:
 
-| ID | Topic | Sections affected |
+| ID | Topic | Status |
 |---|---|---|
-| OQ-1 | Phase structure — 2 phases (Implement + Self-review с Ship inside) vs 3 phases (Implement + Self-review + Ship) | §2, §8 |
-| OQ-2 | Entry-gate behavior when spec/plan absent — pre-M5 interim: error-with-directive OR treat `$ARGUMENTS` as inline task (auto-invoke /plan is post-M5 only) | §5.1 |
-| OQ-3 | DESIGN_DOC discovery file conventions для M4 entry-gate | §5.2 |
-| OQ-4 | `$ARGUMENTS` flag surface after Lane removal (`--draft`, `--no-ship`, `--continue`, others) | §5.3 |
-| OQ-5 | Phase 1 inner-loop granularity (file-by-file vs whole-feature) | §6.1 |
-| OQ-6 | Phase 1 test-failure handling (in-phase fix vs surface к Phase 2) | §6.2 |
-| OQ-7 | Phase 1 debug-handoff semantics (parallel к §7.4, or distinct) | §6.3 |
-| OQ-8 | PR-creation default | §8.2 |
-| OQ-9 | Docs-update mandatory scope | §8.3 |
-| **OQ-10** | **Memory I/O section (M2 §13 obligation)** — formal enumeration of L2/L3/L4 helpers M4 calls и at which phase boundaries. Needed before SKILL.md rewrite. | New §13 (TBD) |
-| **OQ-11** | **Agent-Computer Interface (ACI) spec (master plan §141)** — explicit tool surface для reviewer-agent spawns + inner-loop Edit/Write/Bash tools + restricted tool list per spawn. Master plan calls this а mandatory M4 design output. | New §14 (TBD) |
-| **OQ-12** | **L2 auto-emit trigger reconciliation** — M2 §5.3 trigger rules for /implement reference architect-agent и pre-M4 reviewer-agent pattern-discovery, both obsolete. New triggers must be defined: under which Phase 2 reviewer findings does M4 emit `type=convention`? Does /plan output emit `type=decision` instead of /implement? | §6 pinned-down, M2 ↔ M4 reconciliation |
-
-The design session closed Q4 / Q6 / Q7 (recorded in §4) и several others whose exact wording was lost к context compaction before this document was written. Treat §10 as the canonical open-questions list going forward; if any of these turn out to have been resolved in conversation history, reconcile by updating the relevant section и striking the row from this table.
+| **OQ-10** | **Memory I/O section (M2 §13 obligation)** — formal enumeration of L2/L3/L4 helpers M4 calls и at which phase boundaries. | ✅ **DONE** — see §13 below. |
+| **OQ-11** | **Agent-Computer Interface (ACI) spec (master plan §134, §141)** — explicit tool surface для reviewer-agent spawns + inner-loop Edit/Write/Bash tools + restricted tool list per spawn. | ⏳ **Deferred к M4 implementation phase.** Research-blocked: master plan §134 requires SWE-agent ACI study (1-page minimal spec) before drafting. Implementation phase work-order step 1.5. |
+| **OQ-12** | **L2 trigger threshold tuning** — exact «≥3 instances of same pattern» semantics for `type=convention` emit. | ⏳ **Deferred к M4 implementation phase.** Implementation detail of reviewer-agent spawn prompt — the prompt template owns the threshold semantics. M2 §5.3 contract patched; finer-grained tuning happens когда reviewer prompt is drafted. |
 
 ---
 
@@ -310,15 +388,17 @@ The design session closed Q4 / Q6 / Q7 (recorded in §4) и several others whose
 
 When M4 implementation begins (likely via `/geniro:implement` itself, recursively, or by hand on this branch), the work-order is:
 
-1. **Resolve OQ-1 through OQ-12 in §10** — these block code changes. OQ-10 (Memory I/O) и OQ-11 (ACI spec) are master-plan obligations, not optional.
-2. ~~**Reconcile M1 ↔ M3 hook-name drift**~~ ✅ **DONE** in M4 v3 commit — M1 line 463 updated к reference `session-start-restore.sh` (renamed from `post-compact-notification.sh` per M3 §6).
-3. ~~**Reconcile M2 ↔ M4 L2 auto-emit triggers**~~ ✅ **DONE** in M4 v3 commit — M2 §5.3 trigger table revised: dropped /brainstorm row, retargeted decision-type emitter к /plan (M5), retargeted convention-type emitter к M4 self-review reviewer dimensions. OQ-12 в §10 retains а pointer for additional trigger-rule refinement during M4 implementation.
-4. **Apply §9.2 surgical edits к `implement-reference.md` first** (lower-risk, preserves working snippets).
-5. **Rewrite `skills/implement/SKILL.md`** against finalized spec.
-6. **Update `CLAUDE.md` full skill-table** per §9.3 (8 skill deletions + add /plan placeholder, не just /implement row).
+1. ~~**Resolve OQ-1 through OQ-9**~~ ✅ **DONE** in M4 v3 — all 9 design OQs closed (see §4 Decisions table).
+2. ~~**Reconcile M1 ↔ M3 hook-name drift**~~ ✅ **DONE** in M4 v3.
+3. ~~**Reconcile M2 ↔ M4 L2 auto-emit triggers**~~ ✅ **DONE** in M4 v3 (M2 §5.3 patched). OQ-12 threshold tuning deferred к step 1.5.
+4. ~~**Memory I/O section**~~ ✅ **DONE** — §13 below (OQ-10).
+5. **Research deliverable: ACI spec (OQ-11)** — master plan §134 mandates SWE-agent ACI study before SKILL.md rewrite. Output: 1-page minimal ACI spec defining tool surface для each reviewer-agent spawn type + Phase 2 inner-loop tools. Blocks step 8.
+6. **Apply §9.2 surgical edits к `implement-reference.md` first** (lower-risk, preserves working snippets).
 7. **Update `_shared/` helpers** per §9.3: `plan-criteria.md`, `root-cause-gate.md`, `test-first-gate.md`, `effort-scaling.md`.
-8. **Verify `reviewer-agent` supports the 5 dimensions**; patch if not.
-9. **Manual end-to-end test** против a small feature task before merging. Use inline-spec ($ARGUMENTS-only) entry-mode since /plan не yet exists.
+8. **Rewrite `skills/implement/SKILL.md`** against finalized spec + ACI spec (step 5).
+9. **Update `CLAUDE.md` full skill-table** per §9.3 (8 skill deletions + add /plan placeholder).
+10. **Verify `reviewer-agent` supports the 5 dimensions** including the `architecture` dim's docs-staleness extension (OQ-9); patch if not.
+11. **Manual end-to-end test** против а small feature task before merging. Use inline-task ($ARGUMENTS-only) entry-mode since /plan не yet exists.
 
 **Skill-deletion sequencing (master plan §60):**
 
@@ -385,3 +465,51 @@ The authoritative redesign reference is `/root/.claude/plans/reactive-dreaming-b
 | /brainstorm is upstream for strategic framing | /brainstorm deleted; /plan absorbs |
 | Cleanup checklist scope = `skills/implement/*` + reviewer-agent + CLAUDE.md /implement row | Cleanup scope adds 8 skill-dir deletions, CLAUDE.md full-table rewrite, и 4 `_shared/` helper updates (§9.3) |
 | /plan is а prerequisite that M4 depends on | /plan is M5 — ships AFTER M4. M4 needs interim no-/plan fallback (OQ-2) |
+
+---
+
+## 13. Memory I/O (OQ-10 closure)
+
+M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers it calls и at what phase boundaries. M4 inventory:
+
+### 13.1 Helper-call schedule
+
+| Phase | Helper | Direction | MODE | Inputs | Outputs | Notes |
+|---|---|---|---|---|---|---|
+| Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `implement` + `global` + `code-style` | concatenated rule body inlined into context | Echo contract per M2 §7. Survives compaction via M3 SessionStart re-injection. |
+| Phase 1 entry | `load-semantic` | read L3 | `refresh` | top-2 default (`project.md` + `codebase-map.md`); optional `features.md` если spec mentions feature backlog | inlined into context + fingerprint drift check | Drift notification surfaces к user если `.fingerprint.json` mismatched. |
+| Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred от task description (e.g., `react`, `auth`, `bug`); scope = task path | top-K matching entries (default K=5, filter superseded + deprecated) | Skipped если task description is too generic к infer tags. |
+| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | the three loaded layers | precedence-resolved или AUQ on hard conflict | Called transitively by load-* helpers per M2 §7. |
+| Phase 2 (Implement) | none | — | — | — | — | No new helper calls during edit batch. Code-style instructions от Phase 1 L4 refresh remain в context. |
+| Phase 3 spawn-prep | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Re-fires только если M3 SessionStart detected compaction mid-Phase-2; otherwise skip (Phase 1's load is still valid). |
+| Phase 3 fix-loop iteration | `query-learnings` | read L2 | n/a | tags + scope = changed-file paths | similar past findings | Used к prime reviewer-agent prompts с known conventions/pitfalls. |
+| Phase 3 ship sub-step | `emit-learning` | write L2 | n/a | producer = `/geniro:implement`; scope = changed-file paths; summary, tags, type, ext | append к `learnings.jsonl` | Fires когда §7.5 step 5 conditions are met (≥3-instance pattern OR spec.md-recorded decision). Dedup + sanitization per M2 §5.2. |
+| Phase 3 ship sub-step | `update-semantic` | write L3 | n/a | operation (add-module / move / rename); path; description | append к `codebase-map.md` (lock-guarded) | Fires когда Phase 2 added а new module / file the L3 codebase-map should index. |
+| Phase 3 ship sub-step | M1 `atomic_state_append` | write T1 | n/a | state.md path; new entry к `non-resumable-actions[]` | append-only update | Fires after each `git push`, `gh pr create`, posted comment, etc. M3 §8 schema. |
+
+### 13.2 L2 emit triggers (per M2 §5.3 patched contract)
+
+| Type | When M4 emits |
+|---|---|
+| `convention` | Phase 3 architecture или code-quality reviewer reports ≥3 instances of same pattern в changed code. Threshold tuning lives в reviewer-agent spawn prompt (OQ-12 deferred). |
+| `decision` | Spec.md records а non-trivial approach choice с `## Considered Alternatives` section. M4 mirrors that decision к L2 для cross-session recall. (Note: when /plan exists post-M5, /plan emits the `decision` entry directly; M4-only path для inline-task mode.) |
+| `diagnosis` | Not emitted by M4 directly. `/geniro:debug` owns this trigger. M4 may consume а T2 handoff from /debug containing а diagnosis (per §5.4) — but does не re-emit. |
+| `pitfall` | Not emitted by M4. `/geniro:review` owns this trigger. |
+| `discovery` | Not emitted by M4. `/refactor` и `/onboard` own this trigger. |
+
+### 13.3 L3 update sites
+
+`update-semantic` writes to:
+- `codebase-map.md` — add-module / move / rename operations from Phase 2 file diffs. Bounded auto-incremental (M2 §6.1) — does не rewrite entire L3, just appends а single-line entry per change.
+- NOT `features.md` — feature-backlog updates owned by /plan (M5) per master plan §68 (`/features` skill deleted).
+- NOT `project.md` или `architecture.md` — those are user-curated, не auto-updated.
+
+### 13.4 Phase boundary refresh sites (M3 §7.3)
+
+| Boundary | Refresh action | Why |
+|---|---|---|
+| Phase 1 entry | `load-custom-instructions(MODE: refresh)` + `load-semantic(MODE: refresh)` | Initial context load |
+| Phase 3 entry | `load-custom-instructions(MODE: refresh)` **only if** M3 SessionStart marker indicates compaction mid-Phase-2 | Survive Phase-2 compaction (M3 contract) |
+| Phase 3 ship sub-step exit | none | Skill terminates; refresh not needed |
+
+Other helpers (`load-semantic`, `query-learnings`, `emit-learning`, `update-semantic`, `resolve-conflicts`) have no `MODE: refresh` semantic per M3 §7.3 (only the two readers do).
