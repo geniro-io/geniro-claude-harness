@@ -112,6 +112,46 @@ Phase enum (state.md `phase:` field values) и transitions:
 
 ---
 
+### 2.2 Loop invariants
+
+These 7 invariants apply throughout M4's three phases. Violation = bug, not flexibility. Inspired by master plan P-M4-1 (agentic-loop best-practices).
+
+1. **One result per tool call.** Every Edit / Write / Bash / Agent spawn produces exactly one structured result. Failed или timed-out spawn → result with `status: failed` + reason; never absent or silently dropped. Critical для Phase 3's 5-reviewer parallel batch — а dead spawn must not be mistaken для а clean review.
+
+2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS или state.md fields pass input sanity-checks (no shell injection; paths absolute; slugs match M1 §Slug rules). M1 helpers (`atomic_state_write`, `validate_state_file`, `compute_task_slug`) are the canonical examples и pre-validate inputs themselves.
+
+3. **Permission before side-effect.** Any tool call mutating external state (`git push`, `gh pr create`, posted PR comment, file delete, hook-bypass attempt) is preceded by either interactive AUQ approval или recorded approval (persisted via P-M1-1 schema if accepted).
+
+4. **Bounded и structured tool results.** Reviewer-agent output capped at ~4000 chars per dimension; longer truncated with marker. Output schema: `[{severity, file, line, finding, recommendation}]`. Bash command output >8000 chars summarized before being used downstream.
+
+5. **Hard budgets.** Per §12.2 (extended by P-M4-3 if accepted): max 3 retries per tool, max 3 AUQ rounds per phase, wall-time cap, max 5 helper-file reads, max 5 subagent spawns per phase. Past threshold → §7.4 (Phase 3) или §6.3 (Phase 2) escalation, not silent continuation.
+
+6. **Final answer grounded в observations.** Phase 3 Ship sub-step AUQ result text MUST quote actual tool output (push ref, PR URL, commit SHA, etc.) — never assertions like "git push succeeded" without evidence. Self-review (§7.2) reads `## Tool log` entries before claiming clean state. The Stop-hook evidence-completion scanner (CLAUDE.md) is the existing mechanical layer; this invariant is the contract.
+
+7. **Errors, denials, cancellations, timeouts → structured observations.** Failed `gh pr create`, denied permission, hook-blocked Write, subagent timeout, или non-zero Bash exit becomes а structured observation entry, then handled per §7.4 / §6.3. Never silently skipped — even "the tool wasn't needed after all" must be explicit.
+
+**Side-effect — `## Tool log` section в state.md (selective logging):** invariants 1 и 7 motivate persisting **subagent-spawn outcomes** и **side-effect tool calls** (git push, gh pr create, file deletions) into а new `## Tool log` body section. Routine Read / Edit / Bash on local files do NOT need logging — Claude Code's own tool_result returns the structured observation per-turn, sufficient для in-context use. The `## Tool log` exists для compaction-survival of parallel-spawn batches и audit of external mutations.
+
+Schema:
+
+```yaml
+## Tool log
+- ts: 2026-05-17T10:42:13Z
+  tool: Agent
+  detail: "reviewer-agent dim=bugs"
+  status: ok
+  summary: "3 findings reported, 1 high severity"
+- ts: 2026-05-17T10:55:00Z
+  tool: Bash
+  detail: "git push origin feature/oauth"
+  status: ok
+  result_ref: "7f12758"
+```
+
+Typical /implement run produces 5-10 entries (5 reviewer spawns + 1-3 side-effects), not hundreds. Each entry written via M1 `atomic_state_write` (single atomic op overwriting whole state.md с appended body).
+
+---
+
 ## 3. Scope deltas vs. pre-M4 `/geniro:implement`
 
 ### 3.1 Removed
