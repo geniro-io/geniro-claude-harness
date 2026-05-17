@@ -278,6 +278,25 @@ Schema:
   resolved: false
 ```
 
+### Block 5d — Persisted approvals (only if state.md frontmatter has non-empty `approvals: []`)
+
+Per master plan P-M3-2 (depends on P-M1-1): render persisted AUQ outcomes к remind model of one-time decisions already made — prevents re-asking after compaction.
+
+```
+✓ DECISIONS ALREADY MADE in prior turns — do NOT re-ask:
+  - [ship_mode] User picked: "push + open PR"
+      (asked в phase: ship · at: 2026-05-17T15:00:00Z)
+  - [disambiguate_arguments] User picked: "load as spec"
+      (asked в phase: analyze · at: 2026-05-17T10:30:00Z)
+Use these picked values directly. Only re-ask if context has materially
+changed (e.g., spec file deleted, branch switched) — explicitly acknowledge
+the re-ask in your next message.
+```
+
+Hook reads `approvals[]` from state.md frontmatter (M1 P-M1-1 optional field) и iterates entries. For each: render `[category] User picked: "<picked>"` с asked-in-phase + timestamp. Empty array → block omitted entirely.
+
+Categories rendered today: `disambiguate_arguments` (M4 §5.1) и `ship_mode` (M4 §7.5). Escalation categories (`phase_2_escalation`, `phase_3_escalation`) explicitly **not persisted** by producer — they appear neither в state.md `approvals[]` nor в this block.
+
 ### Block 6 — Resume protocol (always)
 
 ```

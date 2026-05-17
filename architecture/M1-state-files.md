@@ -92,6 +92,20 @@ non-resumable-actions: []    # list of completed side-effects (commits pushed, P
 
 **Optional frontmatter:** `description`, `tags`, `worktree`, `notes`.
 
+**Optional `approvals` array (per master plan P-M1-1):** persisted AUQ outcomes for compaction-survival of one-time decisions. Producers persist ONLY intrinsically-one-time decisions (e.g., $ARGUMENTS disambiguation, ship-mode choice). Context-dependent decisions (escalation, retry choices) are NOT persisted — re-ask each time correctly reflects fresh context.
+
+```yaml
+approvals:
+  - category: <category-slug>      # canonical slug, not prompt text; stable across prompt-wording changes
+    prompt: <verbatim AUQ prompt>  # for audit trail
+    options: [<opt1>, <opt2>, ...]
+    picked: <chosen option string>
+    at: <ISO-8601 UTC>
+    asked_in_phase: <phase name>
+```
+
+Initial M4 categories: `disambiguate_arguments` (§5.1) и `ship_mode` (§7.5). Consumer protocol: before firing AskUserQuestion с а persisted category, check `approvals[]` for prior matching entry; if found, use `picked` value, skip AUQ. Validator (§Validation helper) checks schema if present; missing array → treated as empty (backward-compat с existing T1 files).
+
 **Body schema:** unstructured; per-skill conventions.
 
 **Slug rule (audit problem #8 fix):**
