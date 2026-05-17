@@ -109,8 +109,8 @@ A new fact is placed into a layer based on the writer's intent, not arbitrary fi
 | `type` | Required `ext.*` fields | When emitted |
 |---|---|---|
 | `diagnosis` | `symptom`, `root_cause`, `fix` | `/debug` after hypothesis CONFIRMED + fix applied |
-| `decision` | `options[]`, `chosen`, `reasoning` | `/implement` Architect picked between alternatives; `/brainstorm` HARD-GATE approved |
-| `convention` | `rule` | `/review` saw same finding pattern in ≥3 reviewer outputs; `/learnings` manual extraction |
+| `decision` | `options[]`, `chosen`, `reasoning` | `/plan` (M5) records chosen approach + considered alternatives in emitted `spec.md` |
+| `convention` | `rule` | `/review` saw same finding pattern in ≥3 reviewer outputs; `/implement` self-review (M4 §7.2 architecture/code-quality dimensions) detected ≥3 instances in changed code (replaces deleted `/learnings` skill per master plan §69) |
 | `pitfall` | `trap`, `mitigation` | `/refactor` discovered a footgun; `/review` stratified high-severity finding |
 | `discovery` | `area`, `insight` | `/onboard` mapped non-obvious pattern; `/investigate` answered after >3 search rounds |
 
@@ -156,11 +156,10 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 | Skill | Trigger | Type |
 |---|---|---|
 | `/geniro:debug` | Hypothesis tracking shows FALSIFIED → CONFIRMED + fix applied | `diagnosis` |
-| `/geniro:implement` | Architect-agent picked between alternatives in planning artifact | `decision` |
-| `/geniro:implement` | reviewer-agent found repeating pattern in codebase | `convention` |
+| `/geniro:plan` (M5) | `spec.md` records chosen approach with considered alternatives | `decision` |
+| `/geniro:implement` (M4) | Self-review reviewer-agent (architecture or code-quality dimension §7.2) detects ≥3 instances of same pattern in changed code | `convention` |
 | `/geniro:review` | `relevance-filter-agent` aggregated same finding from ≥3 reviewers | `pitfall` |
 | `/geniro:refactor` | Pattern extracted to shared utility/component | `discovery` |
-| `/geniro:brainstorm` | HARD-GATE approved design | `decision` |
 | `/geniro:onboard` | Non-obvious architectural pattern documented | `discovery` |
 | `/geniro:investigate` | Question answered after >3 search rounds | `discovery` |
 
@@ -295,9 +294,9 @@ No schema or lifecycle changes — these files remain user-authored Markdown.
 |---|---|---|
 | `_shared/load-custom-instructions.md` | Load L4 (existing; minor extension for refresh mode) | All pipeline skills |
 | `_shared/load-semantic.md` | Load L3 (top-2 default + opt-in extras); fingerprint drift check | All pipeline skills |
-| `_shared/query-learnings.md` | Query L2 by `type`/`tags`/`scope`; filter superseded + deprecated; optional archive | `/debug`, `/implement`, `/brainstorm`, `/review` |
+| `_shared/query-learnings.md` | Query L2 by `type`/`tags`/`scope`; filter superseded + deprecated; optional archive | `/debug`, `/implement`, `/plan` (M5), `/review` |
 | `_shared/emit-learning.md` | Append to L2 with dedup + supersede + sanitization | All triggering skills (§5.3) |
-| `_shared/update-semantic.md` | Bounded auto-incremental write to L3; lock-guarded; append-style | `/implement`, `/refactor`, `/features` |
+| `_shared/update-semantic.md` | Bounded auto-incremental write to L3; lock-guarded; append-style | `/implement`, `/refactor`, `/plan` (M5 — manages `features.md` updates absorbed from deleted `/features` skill per master plan §68) |
 | `_shared/resolve-conflicts.md` | Cross-layer conflict surface; AskUserQuestion gate for hard conflicts | Called from `load-*` helpers |
 
 Each helper has a stable input/output contract documented inside its `.md` (M4+ work to write the helper bodies).

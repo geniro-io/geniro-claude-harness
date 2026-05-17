@@ -453,14 +453,14 @@ Order (lowest risk first):
 
 1. `/debug` — already uses HYPOTHESES-<slug>.md state; conversion is mechanical. Adds T2 handoff path move (`findings-state.md` → `from-debug-<branch>.md`).
 2. `/review` — moves `review-findings-state.md` → `from-review-<branch>.md`.
-3. `/follow-up` (if still kept after the broader plan) OR remove if merged into `/implement` per the M4 plan.
+3. `/follow-up` — **state-file migration only.** Per master plan §66, the skill source is deleted (absorbed by `/implement`). This PR migrates existing in-flight user state to `task-dir/state.md` so live pipelines survive the upgrade; the skill directory itself is removed in а separate milestone after M4 ships.
 4. `/refactor` — straightforward state-file conversion.
 5. `/learnings` (or the auto-pass replacing it) — `learnings.jsonl` gets a sidecar `.meta.yaml`, append helper adopted.
 6. `/instructions` — adds optimistic mtime check on edits.
 7. `/actions` — same.
 8. `/onboard` — converts CODEBASE_MAP.md to `_CODEBASE_MAP.md` with T3 frontmatter.
 9. `/setup` — adds the `_FEATURES.md` rename + frontmatter.
-10. Other hooks (`post-compact-notification.sh`, `enforce-tdd-order.sh`) — update to use validator.
+10. Other hooks (`session-start-restore.sh` — renamed from `post-compact-notification.sh` per M3 §6 with broader `SessionStart` matcher; `enforce-tdd-order.sh`) — update to use validator.
 
 **Per-skill PR template:** ~30 min each. Each PR adds 1–3 helper-call sites and the canonical frontmatter. The hook's warn-mode tolerates the in-progress mixed state — partially-migrated repos still work.
 

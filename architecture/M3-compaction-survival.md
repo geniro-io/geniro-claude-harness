@@ -482,15 +482,17 @@ This avoids hard breakage if the rollout order is non-canonical (e.g. user upgra
 
 ## 15. Open questions for M4+
 
-- **M4 `/implement` SKILL.md updates:** which phases declare `load-custom-instructions` refresh sites? (Existing pattern likely sufficient — confirm during M4 design.)
-- **M4 `/implement` Phase 1:** explicit "persist T2 handoff to state.md" sub-step format and content guidelines.
-- **M4 `/implement` post-`git push`:** atomic state.md update with `non-resumable-actions` entry — implementation pattern (helper-mediated state.md write between phase boundaries).
-- **M5 `/plan` non-resumable interactions:** does `/plan` ever produce non-resumable actions before handoff to `/implement`? (Likely no — `/plan` is read-only on production resources.)
-- **M7 `/debug` resume after CONFIRMED:** if `/debug` resumes after Phase 2 CONFIRMED + fix-applied, does the resume protocol re-fire the L2 emit step? (Per Q2 design: emit-learning is write-side stateless; skill flow decides re-invocation. Document explicitly in `/debug` SKILL.md.)
+- **M4 `/implement` SKILL.md updates:** which phases declare `load-custom-instructions` refresh sites? — open in M4 §10 OQ-10 (Memory I/O section).
+- **M4 `/implement` Phase 1 T2 handoff persist:** ✅ format spec'd in `architecture/M4-implement-redesign.md` §8 — `## Inputs from <producer>` section in state.md body, top-3 findings as bullets, link to original T2 path.
+- **M4 `/implement` post-`git push`:** ✅ atomic-append pattern spec'd in `architecture/M4-implement-redesign.md` §8 — call M1 `atomic_state_append` after side-effect succeeds; entry schema per §8 below.
+- **M5 `/plan` non-resumable interactions:** does `/plan` ever produce non-resumable actions before handoff to `/implement`? (Likely no — `/plan` is read-only on production resources.) Per master plan §117, M5 owns this answer; M3 expects "no" by default.
+- **M7 `/debug` resume after CONFIRMED:** if `/debug` resumes after Phase 2 CONFIRMED + fix-applied, does the resume protocol re-fire the L2 emit step? (Per Q2 design: emit-learning is write-side stateless; skill flow decides re-invocation. Document explicitly in `/debug` SKILL.md.) **Cross-cutting:** M2 §5.3 trigger contract revised in `architecture/M2-memory-layers.md` (L2 auto-emit triggers no longer reference deleted `/brainstorm` or pre-M4 architect-agent) — `/debug` keeps the `diagnosis` trigger as-is.
 
 ---
 
 ## Appendix A — Worked example: post-compaction resume with non-resumable action
+
+> **Note on phase names:** This worked example uses an illustrative phase numbering (`Phase 5 - Implement`, `Phase 6 - Self-Review`) for narrative continuity with а pre-M4 redesign draft. The canonical /implement phase enumeration is now **`Phase 1 — Implement`** and **`Phase 2 — Self-review`** per `architecture/M4-implement-redesign.md` §2. The mechanics of compaction-recovery, `non-resumable-actions` surfacing, and helper refresh are unaffected by phase-name choice — phase-name strings in state.md are opaque per §5 (M3 does not enforce а phase enum).
 
 **Scenario:** user invoked `/geniro:implement "add OAuth login"` on branch `feature/oauth`. Pipeline reached Phase 5 (post-push), executed `git push origin feature/oauth`, recorded the action, then mid-Phase-6 compaction struck.
 

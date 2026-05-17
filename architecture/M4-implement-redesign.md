@@ -311,8 +311,8 @@ The design session closed Q4 / Q6 / Q7 (recorded in §4) и several others whose
 When M4 implementation begins (likely via `/geniro:implement` itself, recursively, or by hand on this branch), the work-order is:
 
 1. **Resolve OQ-1 through OQ-12 in §10** — these block code changes. OQ-10 (Memory I/O) и OQ-11 (ACI spec) are master-plan obligations, not optional.
-2. **Reconcile M1 ↔ M3 hook-name drift** — M1 line 463 still says `post-compact-notification.sh`; M3 renames к `session-start-restore.sh`. Patch M1 to match M3.
-3. **Reconcile M2 ↔ M4 L2 auto-emit triggers** — see OQ-12; either revise M2 §5.3 trigger rules или document M4's replacement triggers.
+2. ~~**Reconcile M1 ↔ M3 hook-name drift**~~ ✅ **DONE** in M4 v3 commit — M1 line 463 updated к reference `session-start-restore.sh` (renamed from `post-compact-notification.sh` per M3 §6).
+3. ~~**Reconcile M2 ↔ M4 L2 auto-emit triggers**~~ ✅ **DONE** in M4 v3 commit — M2 §5.3 trigger table revised: dropped /brainstorm row, retargeted decision-type emitter к /plan (M5), retargeted convention-type emitter к M4 self-review reviewer dimensions. OQ-12 в §10 retains а pointer for additional trigger-rule refinement during M4 implementation.
 4. **Apply §9.2 surgical edits к `implement-reference.md` first** (lower-risk, preserves working snippets).
 5. **Rewrite `skills/implement/SKILL.md`** against finalized spec.
 6. **Update `CLAUDE.md` full skill-table** per §9.3 (8 skill deletions + add /plan placeholder, не just /implement row).
