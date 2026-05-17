@@ -447,10 +447,10 @@ Once Phase 3 self-review exits clean (all dims clean OR §7.4 path B/C taken), P
 
 1. **Pre-Ship Visual Verification** — fires only when frontend files в scope AND Playwright MCP is available (per CLAUDE.md "Optional MCP Dependencies"). Otherwise skipped.
 2. **Commit** — `git add <changed files>`, `git commit` с conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred от spec/state metadata. Inherits pre-M4 commit pattern от `implement-reference.md:733–740`.
-3. **Ship-mode AUQ (OQ-8 closure)** — `AskUserQuestion` с options:
-   - **Push only** — `git push origin <branch>`. Done.
-   - **Push + open PR** — `git push` then `gh pr create` (ready for review). Append task ID к PR title.
-   - **Push + open draft PR** — `git push` then `gh pr create --draft`. `--draft` incompatible с `--web` — if user wants browser, create first then `gh pr view --web`.
+3. **Ship-mode AUQ (OQ-8 closure + P-M4-4 draft-vs-commit framing)** — `git push` is а draft-grade operation (branch becomes visible в remote but carries no review weight); it happens automatically once user has authorized PR scope. The AUQ gates only the commit-grade decision: PR creation. Options:
+   - **Just push (no PR)** — `git push origin <branch>`. Done.
+   - **Open PR** — `git push` then `gh pr create` (ready-for-review). Append task ID к PR title.
+   - **Open draft PR** — `git push` then `gh pr create --draft`. `--draft` incompatible с `--web` — if user wants browser, create first then `gh pr view --web`.
 4. **Atomic `non-resumable-actions` append (M3 §8, M1 helpers)** — after each side-effect that cannot be replayed safely (`git push`, `gh pr create`, etc.), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via M1 `atomic_state_append`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. The append occurs **after** the side-effect succeeds; atomic (so partial-write corruption is impossible mid-crash).
 5. **L2 auto-emit (master plan §69, OQ-12)** — emit `convention` к learnings.jsonl когда Phase 3 architecture или code-quality reviewer reported ≥3-instance patterns; emit `decision` if spec.md recorded а non-trivial approach choice (per M2 §5.3 patched trigger contract). Threshold tuning (exact «≥3» semantics) — implementation-detail of reviewer-agent spawn prompt, deferred.
 6. **Adjustment-routing (Big / Medium / Small per `implement-reference.md` L778–812)** used когда ship-feedback arrives via PR comments. Since /follow-up is dropped, all adjustment requests route back through /implement itself с the original spec + adjustment description as new $ARGUMENTS.
@@ -669,8 +669,8 @@ Per master plan P-M4-6 (revised к minimal scope, 2026-05-17): explicit Agent-Co
 - Enforcement: `agents/reviewer-agent.md` frontmatter `tools:` whitelist (most reliable). Fallback: prompt-level "you may use only Read/Grep/Glob/Bash" — less reliable но zero infra.
 
 **Phase 3 Ship sub-step:**
-- Allowed: `git commit`, `git push`, `gh pr create`.
-- All gated by ship-mode AUQ §7.5 (default) или semantic modifier ("don't push" / "draft PR" / etc.).
+- Allowed: `git commit`, `git push` (draft-grade — auto per P-M4-4), `gh pr create` (commit-grade — AUQ-gated).
+- Ship-mode AUQ §7.5 gates the PR-creation decision; semantic modifiers ("don't push", "draft PR", "stop after review", per §5.1) provide deterministic overrides.
 
 **Existing safety layer:** file-protection hook, git-guardrail hook, и `.geniro/` deletion guard apply across ALL phases regardless of ACI doc — runtime denies stay enforced (CLAUDE.md §Safety Hooks).
 
