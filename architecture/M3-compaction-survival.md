@@ -225,6 +225,59 @@ If a re-trigger is genuinely required (e.g., rebase + re-push), explicitly
 acknowledge in your next message before performing it.
 ```
 
+### Block 5b — Last-known errors (only if state.md body contains `## Errors` section)
+
+Per master plan P-M3-1, if state.md body has а `## Errors` section, render its content verbatim into additionalContext с warning prefix. Convention: one bullet per failed approach с timestamp + tool + error reason + what was tried.
+
+```
+⚠️ ERRORS ENCOUNTERED IN PRIOR TURNS — do not repeat the same approach:
+  - 2026-05-17T10:42Z · Bash `npm test` failed: TypeError in Toggle.test.tsx:34
+      attempted_fix: added missing dep к useEffect array — did NOT resolve
+  - 2026-05-17T10:48Z · Bash `npm test` failed: TypeError in Toggle.test.tsx:34
+      attempted_fix: wrapped useState в useMemo — did NOT resolve
+Consider а fundamentally different approach or escalate per M4 §6.3 (Phase 2)
+или §7.4 (Phase 3).
+```
+
+**Producer responsibility (M4+):** when а tool call fails AND model attempts а fix, append entry к state.md body `## Errors` section via `atomic_state_write` (M1). Schema:
+
+```yaml
+## Errors
+- ts: 2026-05-17T10:42:00Z
+  tool: Bash
+  detail: "npm test"
+  error: "TypeError in Toggle.test.tsx:34"
+  attempted_fix: "added missing dep к useEffect array"
+  resolved: false
+```
+
+Separate from `## Tool log` (M4 §2.2) which is selective (subagent spawns + side-effect calls only) — routine Phase-2 test failures live в `## Errors`. On successful resolution, producer may set `resolved: true` (optional). Block 5b filters resolved entries by default — only unresolved render.
+
+### Block 5c — Open questions (only if state.md body contains `## Open Questions` section)
+
+Per master plan P-M3-1, if state.md body has `## Open Questions`, render its content with directive к ask user before continuing pipeline work.
+
+```
+❓ PENDING QUESTIONS FROM PRIOR TURN — ask user before continuing:
+  - "spec.md mentions OAuth but doesn't specify provider — Google, GitHub, or generic?"
+  - "Should the migration drop the old column immediately or в а follow-up release?"
+Open Question Protocol: surface these via AskUserQuestion as your FIRST action
+this turn. Do not advance pipeline phase until resolved.
+```
+
+**Producer responsibility (M4+):** when model identifies а question that needs user clarification but defers asking (e.g., wants к gather more context first), append к state.md `## Open Questions` body section. On resolution, producer removes the entry (или sets `resolved: true` field — Block 5c filters resolved by default).
+
+Schema:
+
+```yaml
+## Open Questions
+- ts: 2026-05-17T10:30:00Z
+  asked_in_phase: analyze
+  question: "spec.md mentions OAuth but doesn't specify provider — Google, GitHub, or generic?"
+  context: "Phase 1 spec read — provider choice affects file scope в Phase 2"
+  resolved: false
+```
+
 ### Block 6 — Resume protocol (always)
 
 ```
