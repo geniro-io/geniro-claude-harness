@@ -652,3 +652,26 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 | Phase 3 ship sub-step exit | none | Skill terminates; refresh not needed |
 
 Other helpers (`load-semantic`, `query-learnings`, `emit-learning`, `update-semantic`, `resolve-conflicts`) have no `MODE: refresh` semantic per M3 §7.3 (only the two readers do).
+
+### 13.5 ACI per-phase tool surface (OQ-11 partial closure)
+
+Per master plan P-M4-6 (revised к minimal scope, 2026-05-17): explicit Agent-Computer Interface для spawned agents и Phase 2 inner loop. Full 14-class risk taxonomy deferred — see "Out of scope" below.
+
+**Phase 1 (Analyze):** Read / Grep / Glob / Bash (read-only commands like `git status`, `gh pr view`). No mutations.
+
+**Phase 2 (Implement) inner loop:**
+- Allowed: Read / Grep / Glob / Edit / Write / Bash (включая test runs).
+- Explicitly blocked: `git push`, `gh pr create`, `gh pr comment`, Agent spawns. External commits are Phase 3 territory only.
+
+**Phase 3 reviewer-agent spawns (5 dimensions, §7.2):**
+- Allowed per dim: Read / Grep / Glob / Bash (read-only checks — `git diff`, `git log`, `npm run lint --silent`).
+- Blocked: Edit / Write / Agent / mutating Bash / external network. **Reviewer is pure-compute on the local diff.**
+- Enforcement: `agents/reviewer-agent.md` frontmatter `tools:` whitelist (most reliable). Fallback: prompt-level "you may use only Read/Grep/Glob/Bash" — less reliable но zero infra.
+
+**Phase 3 Ship sub-step:**
+- Allowed: `git commit`, `git push`, `gh pr create`.
+- All gated by ship-mode AUQ §7.5 (default) или semantic modifier ("don't push" / "draft PR" / etc.).
+
+**Existing safety layer:** file-protection hook, git-guardrail hook, и `.geniro/` deletion guard apply across ALL phases regardless of ACI doc — runtime denies stay enforced (CLAUDE.md §Safety Hooks).
+
+**Out of scope для M4 (deferred):** the 14-class risk taxonomy + 7-decision matrix from agents-best-practices. Useful когда M5-M10 designs need cross-skill consistency (e.g. /plan referencing «destructive» operations); not needed for M4 alone. If/when adopted, lives в а `_shared/risk-taxonomy.md` helper, not inline в M4.
