@@ -110,6 +110,25 @@ Phase enum (state.md `phase:` field values) и transitions:
 
 **Escalation states:** `phase-2-escalated`, `phase-3-escalated`. M3 recovery surfaces к user as "task was paused awaiting your decision — last shown AUQ options:" so the user re-picks без losing context.
 
+### 2.1.1 Termination case → state mapping
+
+Per master plan P-M4-2, the 8 canonical termination conditions (agentic-loop best-practices) map к M4 state values:
+
+| # | Termination case | Terminal state | `## Termination reason` body line |
+|---|---|---|---|
+| 1 | Final answer produced (happy ship) | `done` | (omitted — happy path) |
+| 2 | Done condition satisfied (modifier exit) | `done` / `ship-committed-only` / `self-review-only` | (omitted — modifier-driven) |
+| 3 | User approval required | non-terminal `phase-N-escalated`, then terminal via user pick | — |
+| 4 | Blocker needs user input | non-terminal `phase-N-escalated` | — |
+| 5 | Budget reached (P-M4-3 if accepted) | `aborted` | `budget-exhausted: <which-budget>` |
+| 6 | Repeated failure threshold exceeded | `aborted` (via escalation → "abort" pick) | `repeated-failure: <phase-N> retry-limit` |
+| 7 | Safety policy denial (hook-block, dangerous-action veto) | `aborted` | `safety-denied: <hook-or-rule-name>` |
+| 8 | Tool unavailability without fallback | `aborted` | `tool-unavailable: <tool-name>` |
+
+**`## Termination reason` body convention:** M4 при попадании в `aborted` writes one-line entry в state.md body. No frontmatter changes; convention parallels existing body sections (`## Phase log`, `## Tool log`, `## Inputs from <producer>`). M3 SessionStart-hook surfaces it via state.md re-inject (Block 2) — on resume both model и user see "previous task aborted: tool-unavailable: gh" instead of bare "aborted". On safety-denied (#7), best-effort string is acceptable — fallback `safety-denied: unknown` if rule name not parseable from hook error.
+
+State-machine §2.1 diagram remains source-of-truth для transitions; this subsection is the **why** layer.
+
 ---
 
 ### 2.2 Loop invariants
