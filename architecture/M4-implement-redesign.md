@@ -171,6 +171,46 @@ Typical /implement run produces 5-10 entries (5 reviewer spawns + 1-3 side-effec
 
 ---
 
+### 2.3 Budgets — quality-first framing
+
+M4 has **NO hard kill caps**. All limits are **escalation gates that surface к user**, not abort triggers. Per master plan P-M4-3 (revised): user tokens unlimited → no «task aborted: budget exhausted» failure modes.
+
+**Quality gates (escalate к user, do not abort):**
+
+| Gate | Cap | Where | Past threshold |
+|---|---|---|---|
+| Fix-loop retries per phase | 3 | §6.2 (Phase 2 test fix), §7.3 (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. **User picks.** |
+| Reviewer output size | ~4K chars per dim | §2.2 invariant #4 | Truncation с marker, not abort. |
+
+**Architecture constraints (design intent, not budget):**
+
+| Constraint | Value | Source |
+|---|---|---|
+| Parallel reviewer spawns per round | 5 dimensions | §7.2 design (bugs / security / architecture / tests / code-quality) |
+
+**Claude Code internals (not under M4 control; documented for clarity):**
+- Input tokens ≤200K per turn → triggers Claude Code compaction (M3 hook handles resume).
+- Output tokens ≤8K per turn → soft truncation by Claude Code.
+- Model-call retries (3) → Claude Code internal; transient errors surface as observation.
+
+**Explicitly NOT capped (intentional):**
+
+- **Wall-time per run.** Complex implementation can take hours; no kill cap.
+- **Total tool calls per phase.** Large refactors easily exceed 100 calls (Read context + multi-file Edits + Bash test cycles); no cap.
+- **Total model turns per phase.** Multi-file work legitimately needs many turns; no cap.
+- **Total cost per run.** Deferred к P-X6 if а cost-aware mode opted into; otherwise unlimited.
+
+**Helper-reads и subagent-spawns clarification:** master plan §102 phrasing "≤5 helper reads, ≤5 spawns" refers к **typical inventory count** для а normal /implement run (load-custom-instructions Phase 1 + Phase 3 refresh, load-semantic, query-learnings, resolve-conflicts; one reviewer-agent per dimension). These numbers are **descriptive**, not prescriptive caps. Resume runs or edge cases may exceed без consequence.
+
+**Rationale.** Master plan §102 was originally framed against "today's 22 AUQ baseline" — i.e., the numbers reduce friction relative к pre-redesign, not impose hard ceilings. Two distinct classes of limit:
+
+- **Class A — hard kill caps.** Wall-time / tool-call / model-turn ceilings. **Hurt quality** because they abort mid-work on legitimate complex tasks. M4 has zero of these.
+- **Class B — escalation gates.** 3-retry fix loop → AUQ к user. **Protect quality** by preventing pointless regression spinning and surfacing the blocker к user choice (debug / accept / abort). M4 keeps two (fix-loop + reviewer output truncation).
+
+The result: M4 never blocks user mid-work on а budget timer; user has explicit control at every escalation point. Cost discipline = telemetry concern (P-X6), not abort concern.
+
+---
+
 ## 3. Scope deltas vs. pre-M4 `/geniro:implement`
 
 ### 3.1 Removed
@@ -551,7 +591,7 @@ The authoritative redesign reference is `/root/.claude/plans/reactive-dreaming-b
 | Master plan ref | Obligation | M4 status |
 |---|---|---|
 | §27 | "/implement: 3 phases max — analyze → implement → self-review" | M4 ships 2 phases (Implement + Self-review). Analyze is folded into Phase 1 entry (entry-gate refresh + spec read). Within master plan's "≤3 phases" cap. ✅ |
-| §102 | "≤3 AUQ gates per-run, ≤5 helper-file reads, ≤5 subagent spawns" | **Spawns:** Phase 3 spawns exactly 5 reviewer-agents (§7.2). ✅ at cap. **Helper reads:** 5 (Phase 1: load-custom-instructions, load-semantic, query-learnings, resolve-conflicts [transitive] + Phase 3: load-custom-instructions always-refresh). ✅ at cap. **AUQ count (per-run):** 1 in happy path (ship-mode §7.5 step 3, suppressed by inline modifiers), 2–3 in error paths (§5.1 disambiguation, §6.3 Phase 2 escalation, §7.4 Phase 3 escalation are all conditional), 4 worst-case. Spec-defined gates total 4 but per-run actual averages 1; master plan §102 budget читается as per-run-actual per its "today's 22" baseline framing. ✅ within budget for happy + typical error runs. |
+| §102 | "≤3 AUQ gates per-run, ≤5 helper-file reads, ≤5 subagent spawns" | Per master plan P-M4-3 (revised, 2026-05-17): these are typical-baseline inventory counts, **not hard caps**. See **§2.3 Budgets — quality-first framing** для full treatment. M4 has zero Class-A hard kill caps; quality protected via Class-B escalation gates (§6.2 / §7.3 / §7.4). User tokens unlimited — no budget-abort failure modes. ✅ |
 | §130–§139 | 8 research deliverables before М4 design | Deferred — §11 work-order step 5 gates SKILL.md rewrite on completing OQ-11 (ACI) + multi-agent decision rule. ⚠️ |
 | §141 | M4 output: SKILL.md draft + ACI spec + self-validation/self-review contract docs | Self-review contract: ✅ §7. ACI spec: ⚠️ OQ-11. Self-validation contract: ⚠️ OQ-6 (test-failure handling) + §6 test-suite-once. |
 
