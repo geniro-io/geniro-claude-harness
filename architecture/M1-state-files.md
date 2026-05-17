@@ -346,6 +346,10 @@ validate_state_file <target-path>
 4. Read `tier` and check tier-specific required fields (T1 → phase/status/non-resumable-actions; T2 → consumer; T3 → concurrency).
 5. If `schema-version` doesn't match supported version, fall through to "schema-version mismatch" error path.
 6. If `checksum` field present, compute SHA-256 of body (post-frontmatter) and compare; mismatch → corruption.
+7. **(P-M1-2)** If optional `worktree:` field present:
+   - Run `git worktree list --porcelain | awk '/^worktree / {print $2}'` to enumerate known worktrees.
+   - If `worktree:` path not в the list → fail с «worktree path <X> not in `git worktree list` output (worktree may have been removed)».
+   - Graceful skip if `git rev-parse --is-inside-work-tree` returns false (validator не должен hard-fail на non-repo paths).
 
 **On failure (Q5 — hard-fail with recovery AUQ):**
 
@@ -358,6 +362,7 @@ Q: state.md failed validation — missing required field 'non-resumable-actions'
 Options:
   - Delete state file and restart skill from spec   (lose in-flight state)
   - Open file in $EDITOR and fix manually          (skill pauses; retry validation after)
+  - Update worktree path                           (P-M1-2 — if worktree was renamed or moved)
   - Skip validation and continue (emergency)        (risk: silent corruption)
 ```
 
