@@ -115,7 +115,7 @@ Truncation+hash prevents two long-branch-name slugs from collapsing to the same 
 
 **Lifecycle:**
 - Created by producer at end of its main phases (debug Step 6.5a, review Phase 5).
-- Read by consumer at its Phase 1 (implement, follow-up).
+- Read by consumer at its Phase 1 (e.g., `/implement`).
 - **Overwritten** by producer on next run (same branch).
 - Not auto-deleted — last produce remains as audit trail until next overwrite.
 
@@ -132,7 +132,7 @@ producer: <skill-name>
 schema-version: 1
 branch: <git-branch>
 timestamp: <ISO-8601 UTC>
-consumer: <skill-or-pipe-separated-list>   # e.g. "implement|follow-up"
+consumer: <skill-or-pipe-separated-list>   # post-redesign typically just "implement"
 ---
 ```
 
@@ -257,19 +257,19 @@ tier: T1
 producer: implement
 schema-version: 1
 branch: feature/dark-mode
-timestamp: 2026-05-16T14:30:00Z
-phase: Phase 3 - Implement
+timestamp: 2026-05-16T14:38:00Z
+phase: implement
 status: in-progress
 non-resumable-actions: []
 ---
 
 ## Phase log
-- Phase 0 done at 14:30:00Z
-- Phase 1 done at 14:32:00Z
-- Phase 2 done at 14:35:00Z
-- Phase 3 started at 14:38:00Z
+- analyze done at 14:30:00Z
+- implement started at 14:32:00Z
 CONTENT
 ```
+
+**Phase enum (M4 v3 canonical for `/implement`):** `analyze`, `implement`, `phase-2-escalated`, `self-review`, `phase-3-escalated`, `debug-handoff`, `ship`, `ship-committed-only`, `done`, `aborted`. The `phase:` field accepts any string per M1 spec — other skills define their own enums.
 
 **Procedure:**
 

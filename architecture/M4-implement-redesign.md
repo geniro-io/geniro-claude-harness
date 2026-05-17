@@ -79,6 +79,39 @@ The branch name **`claude/skip-architecture-with-spec-yjx8x`** captures the core
 
 ---
 
+### 2.1 State machine
+
+Phase enum (state.md `phase:` field values) и transitions:
+
+```
+[entry]
+  └── analyze ──┬── implement ──┬── self-review ──┬── ship ──┬── done
+                │               │                  │           ├── ship-committed-only (terminal — "don't push" modifier)
+                │               │                  │           └── (atomic non-resumable-actions write per side-effect)
+                │               │                  │
+                │               │                  └── self-review-only (terminal — "stop after review" modifier)
+                │               │
+                │               └── phase-2-escalated ──┬── debug-handoff (terminal — user picks "hand off к /debug")
+                │                                       ├── self-review (user picks "accept failures" → flows back into happy path с accepted-failures note)
+                │                                       └── aborted (terminal — user picks "abort")
+                │
+                └── (analyze does not have its own escalation — failures here surface к user at Phase 1 exit, model retries или escalates inline)
+
+      self-review ──┬── (happy: flows к ship as shown above)
+                    │
+                    └── phase-3-escalated ──┬── debug-handoff (terminal)
+                                            ├── ship (user picks "accept findings" → flows к ship с accepted-findings note)
+                                            └── aborted (terminal)
+```
+
+**Terminal states:** `done`, `ship-committed-only`, `self-review-only`, `debug-handoff`, `aborted`. M3 SessionStart recovery treats any terminal state as «task complete — no resume needed».
+
+**Non-terminal states:** `analyze`, `implement`, `self-review`, `ship`. M3 recovery rolls these back к their phase-entry point and re-runs from there (idempotent re-entry per §5.4, §6, §7.1).
+
+**Escalation states:** `phase-2-escalated`, `phase-3-escalated`. M3 recovery surfaces к user as "task was paused awaiting your decision — last shown AUQ options:" so the user re-picks без losing context.
+
+---
+
 ## 3. Scope deltas vs. pre-M4 `/geniro:implement`
 
 ### 3.1 Removed
@@ -233,7 +266,10 @@ When the §6.2 retry loop exhausts (3 failed retries), Phase 2 escalates **с th
 1. Surface к user via `AskUserQuestion` с:
    - Failing-test summary (top 3 failures, error messages, suspect lines).
    - Options: (A) hand off к `/geniro:debug` с state.md snapshot, (B) accept failing tests as documented limitation and proceed к Phase 3 anyway (records the decision в state.md `## Accepted Failures`), (C) abort и leave work uncommitted for manual takeover.
-2. State.md marks `phase: phase-2-escalated` с timestamp + retry count + failing-test list.
+2. State.md marks `phase: phase-2-escalated` с timestamp + retry count + failing-test list. Exit transitions:
+   - User picks (A) → `phase: debug-handoff` (terminal, M4 exits — caller resumes via `/geniro:debug` с the T2 handoff containing failing-test diagnostics).
+   - User picks (B) → `phase: self-review` (proceeds к Phase 3 с `## Accepted Failures` block в state.md body).
+   - User picks (C) → `phase: aborted` (terminal — work uncommitted on disk).
 
 Option (B) ("accept") triggers а warning в Phase 3 architecture reviewer prompt — it'll see the accepted-failures list и may flag scope concerns.
 
@@ -251,7 +287,7 @@ Option (B) ("accept") triggers а warning в Phase 3 architecture reviewer promp
 
 ### 7.1 Trigger
 
-Phase 2 reports green tests → state.md transitions к `phase: self-review`. No user prompt between phases (continuous flow). On entry, model verifies M3 SessionStart didn't strike mid-Phase-2 (state.md `phase: implement` без green-test marker → roll back к Phase 2 retry).
+Phase 2 reports green tests → state.md transitions к `phase: self-review`. No user prompt between phases (continuous flow). On entry, model re-runs the project test suite once (idempotent — cheap green-light verification post-compaction); if not green, rolls back к Phase 2 retry loop (§6.2).
 
 ### 7.2 Reviewer-agent spawns (Q6 + OQ-9)
 
@@ -261,7 +297,7 @@ Phase 2 reports green tests → state.md transitions к `phase: self-review`. No
 |---|---|
 | `bugs` | Logic errors, off-by-one, null/undefined paths, race conditions, broken invariants |
 | `security` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 surface |
-| `architecture` | Layering, coupling, abstractions, dead code, duplication, naming, file/module placement, **docs-staleness** (OQ-9 closure — explicit check for stale README/architecture-doc/contributing-guide references к patterns/files renamed in Phase 2) |
+| `architecture` | Layering, coupling, abstractions, dead code, duplication, naming, file/module placement, **docs-staleness** (OQ-9 closure — explicit check for stale README/architecture-doc/contributing-guide references к patterns/files renamed in Phase 2), **spec-compliance** (master plan §139 research deliverable #8 — explicit check that Phase 2 diff matches spec.md scope: no unspec'd files touched, no spec'd requirements unaddressed) |
 | `tests` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases. Pre-condition: tests are green (per Phase 2 §6.2). |
 | `code-quality` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities (subsumes pre-M4 Phase 5 SIMPLIFY) |
 
@@ -297,7 +333,10 @@ When the loop hits round 3 with unresolved findings:
 2. Surface to user via `AskUserQuestion` с:
    - Summary of unresolved findings per dimension (top 3 each).
    - Options: (A) hand off к `/geniro:debug` with current state.md snapshot, (B) accept findings and proceed к ship anyway (records the decision in state.md), (C) abort и leave работу uncommitted for manual takeover.
-3. State.md marks `phase: escalated` with timestamp + round count.
+3. State.md marks `phase: phase-3-escalated` with timestamp + round count + unresolved-findings list. Exit transitions:
+   - User picks (A) → `phase: debug-handoff` (terminal, M4 exits — caller resumes via `/geniro:debug`).
+   - User picks (B) → `phase: ship` (proceeds into §7.5 Ship sub-step с `## Accepted Findings` block в state.md body).
+   - User picks (C) → `phase: aborted` (terminal — work uncommitted on disk).
 
 This explicitly avoids the "kick it until it passes" anti-pattern: M4 has а terminal state, и unresolvable findings are the user's call, not the agent's.
 
@@ -317,12 +356,13 @@ Once Phase 3 self-review exits clean (all dims clean OR §7.4 path B/C taken), P
 5. **L2 auto-emit (master plan §69, OQ-12)** — emit `convention` к learnings.jsonl когда Phase 3 architecture или code-quality reviewer reported ≥3-instance patterns; emit `decision` if spec.md recorded а non-trivial approach choice (per M2 §5.3 patched trigger contract). Threshold tuning (exact «≥3» semantics) — implementation-detail of reviewer-agent spawn prompt, deferred.
 6. **Adjustment-routing (Big / Medium / Small per `implement-reference.md` L778–812)** used когда ship-feedback arrives via PR comments. Since /follow-up is dropped, all adjustment requests route back through /implement itself с the original spec + adjustment description as new $ARGUMENTS.
 
-**Inline modifiers from Phase 1 $ARGUMENTS** (semantic parsing, §5.1) honored here:
-- "don't push" → auto-pick "push only" — wait, that's contradictory. Re-interpret as auto-pick the no-push variant: stop at commit, skip the ship-mode AUQ entirely (state.md marks `phase: ship-committed-only`).
-- "draft only" / "draft PR" → bias the AUQ default to "push + open draft PR".
-- "stop after review" → exit Phase 3 без commit; surface clean review status as the deliverable.
+**Inline modifiers from Phase 1 $ARGUMENTS** (semantic parsing, §5.1) honored here as deterministic overrides — they collapse the ship-mode AUQ:
+- **"don't push" / "no push" / "commit only"** → skip ship-mode AUQ entirely. Commit succeeds, no push. State.md transitions к `phase: ship-committed-only` (terminal).
+- **"draft only" / "draft PR" / "open draft"** → skip ship-mode AUQ. Push + `gh pr create --draft`. State.md transitions к `phase: done`.
+- **"open PR" / "create PR" / "with PR"** → skip ship-mode AUQ. Push + `gh pr create` (ready-for-review). State.md transitions к `phase: done`.
+- **"stop after review"** → exit Phase 3 before commit. Surface clean review status as the deliverable. State.md transitions к `phase: self-review-only` (terminal).
 
-These modifiers are mode hints, не hard overrides — Phase 3 may still AUQ if ambiguity remains.
+When no modifier is present, ship-mode AUQ fires per step 3 above. Modifiers are deterministic — if "draft PR" is in $ARGUMENTS, the model proceeds directly to push+draft without asking.
 
 ---
 
@@ -366,7 +406,7 @@ The pre-M4 SKILL.md (496 lines, 7 phases) is structurally incompatible с the 2-
 - `CLAUDE.md` — **full skill-table rewrite required**. Current table lists 18 skills (pre-redesign). Post-M4 + M5–M10 it must list 11 (master plan §22 — /plan, /implement, /review, /debug, /refactor, /onboard, /investigate, /instructions, /actions, /setup, /update). Also remove /geniro:decompose, /geniro:follow-up, /geniro:brainstorm, /geniro:deep-simplify, /geniro:features, /geniro:learnings, /geniro:cleanup, /geniro:vendor rows. Add /geniro:plan row (placeholder until M5 lands).
 - `skills/_shared/plan-criteria.md` — currently says "Pre-inlined into architect-agent prompts by `/geniro:implement` (Phase 2) and `/geniro:decompose`". Both consumers wrong: M4 removes architect-agent; /decompose deleted. Rewrite to "Pre-inlined into architect-agent prompts by `/geniro:plan` (M5)" — defers maintenance к M5.
 - `skills/_shared/root-cause-gate.md:46` — references `/geniro:implement Phase 2: from the architect-agent's design unit fields`. Update reference к /plan-emitted spec.md root-cause fields (or remove the /implement-specific clause and let /plan own root-cause tagging).
-- `skills/_shared/test-first-gate.md:20` — contains "`Lane: full or Lane: light` — those Lanes use the architect's plan + Phase 6 reviewer pipeline as the test-coverage gate". Both Lane terminology AND architect's plan reference are stale. Rewrite to reference M4 self-review (Phase 2, 5 reviewer dimensions §7.2). If the gate's premise (Lane-gated test coverage) no longer applies, consider deleting the file entirely.
+- `skills/_shared/test-first-gate.md:20` — contains "`Lane: full or Lane: light` — those Lanes use the architect's plan + Phase 6 reviewer pipeline as the test-coverage gate". Both Lane terminology AND architect's plan reference are stale. Rewrite to reference M4 self-review (Phase 3, 5 reviewer dimensions §7.2). If the gate's premise (Lane-gated test coverage) no longer applies, consider deleting the file entirely.
 - `skills/_shared/effort-scaling.md:49` — references "`/implement` Light Mode vs `/follow-up` Fast Lane trade-off". Both Lane terminology and /follow-up reference stale. Rewrite or delete the row.
 - `skills/decompose/`, `skills/follow-up/`, `skills/brainstorm/`, `skills/deep-simplify/`, `skills/features/`, `skills/learnings/`, `skills/cleanup/`, `skills/vendor/` — **entire directories к delete** per master plan §60. NOTE: deletions may land in later milestones (M5+ as each is replaced), not necessarily synchronously with M4. M4 commit must NOT depend on these being deleted yet — M4 SKILL.md и reference.md must work с the deletions either present or pending.
 
@@ -452,7 +492,7 @@ The authoritative redesign reference is `/root/.claude/plans/reactive-dreaming-b
 | Master plan ref | Obligation | M4 status |
 |---|---|---|
 | §27 | "/implement: 3 phases max — analyze → implement → self-review" | M4 ships 2 phases (Implement + Self-review). Analyze is folded into Phase 1 entry (entry-gate refresh + spec read). Within master plan's "≤3 phases" cap. ✅ |
-| §102 | "≤3 AUQ gates, ≤5 helper-file reads, ≤5 subagent spawns" | Phase 2 spawns exactly 5 reviewer-agents (§7.2). AUQ count: 1 (Phase 2 escalation §7.4). Helper-read count TBD pending OQ-10 Memory I/O section. Within budget. ✅ |
+| §102 | "≤3 AUQ gates per-run, ≤5 helper-file reads, ≤5 subagent spawns" | **Spawns:** Phase 3 spawns exactly 5 reviewer-agents (§7.2). ✅ at cap. **Helper reads:** 5 (Phase 1: load-custom-instructions, load-semantic, query-learnings, resolve-conflicts [transitive] + Phase 3: load-custom-instructions always-refresh). ✅ at cap. **AUQ count (per-run):** 1 in happy path (ship-mode §7.5 step 3, suppressed by inline modifiers), 2–3 in error paths (§5.1 disambiguation, §6.3 Phase 2 escalation, §7.4 Phase 3 escalation are all conditional), 4 worst-case. Spec-defined gates total 4 but per-run actual averages 1; master plan §102 budget читается as per-run-actual per its "today's 22" baseline framing. ✅ within budget for happy + typical error runs. |
 | §130–§139 | 8 research deliverables before М4 design | Deferred — §11 work-order step 5 gates SKILL.md rewrite on completing OQ-11 (ACI) + multi-agent decision rule. ⚠️ |
 | §141 | M4 output: SKILL.md draft + ACI spec + self-validation/self-review contract docs | Self-review contract: ✅ §7. ACI spec: ⚠️ OQ-11. Self-validation contract: ⚠️ OQ-6 (test-failure handling) + §6 test-suite-once. |
 
@@ -481,7 +521,7 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 | Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred от task description (e.g., `react`, `auth`, `bug`); scope = task path | top-K matching entries (default K=5, filter superseded + deprecated) | Skipped если task description is too generic к infer tags. |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | the three loaded layers | precedence-resolved или AUQ on hard conflict | Called transitively by load-* helpers per M2 §7. |
 | Phase 2 (Implement) | none | — | — | — | — | No new helper calls during edit batch. Code-style instructions от Phase 1 L4 refresh remain в context. |
-| Phase 3 spawn-prep | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Re-fires только если M3 SessionStart detected compaction mid-Phase-2; otherwise skip (Phase 1's load is still valid). |
+| Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Always re-fires at Phase 3 entry. Drops the conditional-on-marker pattern from M4 v3 draft — simpler, no M3 marker contract needed. Cost: 1 helper read, within master plan §102 cap of ≤5. |
 | Phase 3 fix-loop iteration | `query-learnings` | read L2 | n/a | tags + scope = changed-file paths | similar past findings | Used к prime reviewer-agent prompts с known conventions/pitfalls. |
 | Phase 3 ship sub-step | `emit-learning` | write L2 | n/a | producer = `/geniro:implement`; scope = changed-file paths; summary, tags, type, ext | append к `learnings.jsonl` | Fires когда §7.5 step 5 conditions are met (≥3-instance pattern OR spec.md-recorded decision). Dedup + sanitization per M2 §5.2. |
 | Phase 3 ship sub-step | `update-semantic` | write L3 | n/a | operation (add-module / move / rename); path; description | append к `codebase-map.md` (lock-guarded) | Fires когда Phase 2 added а new module / file the L3 codebase-map should index. |
@@ -509,7 +549,7 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 | Boundary | Refresh action | Why |
 |---|---|---|
 | Phase 1 entry | `load-custom-instructions(MODE: refresh)` + `load-semantic(MODE: refresh)` | Initial context load |
-| Phase 3 entry | `load-custom-instructions(MODE: refresh)` **only if** M3 SessionStart marker indicates compaction mid-Phase-2 | Survive Phase-2 compaction (M3 contract) |
+| Phase 3 entry | `load-custom-instructions(MODE: refresh)` — **always** | Survive Phase-2 compaction without requiring а M3 marker contract; M3 hook remains read-only. Cost: 1 extra helper read (5 total per run within master plan §102 budget). |
 | Phase 3 ship sub-step exit | none | Skill terminates; refresh not needed |
 
 Other helpers (`load-semantic`, `query-learnings`, `emit-learning`, `update-semantic`, `resolve-conflicts`) have no `MODE: refresh` semantic per M3 §7.3 (only the two readers do).

@@ -123,6 +123,8 @@ The hook restores **working surface only**. Domain memory is on-demand via helpe
 
 ## 5. Hook procedure
 
+**Read-only guarantee:** `hooks/session-start-restore.sh` **never modifies state.md** under any source path. Hook responsibilities are restricted к: read state.md, run M1 `validate_state_file`, assemble `additionalContext`, emit `systemMessage`. If `validate_state_file` fails, the hook reports the failure (per Block 3 §6) but does not auto-repair. State writes are the consumer-skill's exclusive responsibility — this preserves the audit trail и keeps the hook idempotent across re-runs.
+
 `hooks/session-start-restore.sh` (`git mv` from `post-compact-notification.sh`; see §11):
 
 ```
@@ -483,8 +485,8 @@ This avoids hard breakage if the rollout order is non-canonical (e.g. user upgra
 ## 15. Open questions for M4+
 
 - **M4 `/implement` SKILL.md updates:** which phases declare `load-custom-instructions` refresh sites? — open in M4 §10 OQ-10 (Memory I/O section).
-- **M4 `/implement` Phase 1 T2 handoff persist:** ✅ format spec'd in `architecture/M4-implement-redesign.md` §8 — `## Inputs from <producer>` section in state.md body, top-3 findings as bullets, link to original T2 path.
-- **M4 `/implement` post-`git push`:** ✅ atomic-append pattern spec'd in `architecture/M4-implement-redesign.md` §8 — call M1 `atomic_state_append` after side-effect succeeds; entry schema per §8 below.
+- **M4 `/implement` Phase 1 T2 handoff persist:** ✅ format spec'd in `architecture/M4-implement-redesign.md` §5.4 — `## Inputs from <producer>` section in state.md body, top-3 findings as bullets, link to original T2 path.
+- **M4 `/implement` post-`git push`:** ✅ atomic-append pattern spec'd in `architecture/M4-implement-redesign.md` §7.5 step 4 — call M1 `atomic_state_append` after side-effect succeeds; entry schema per M3 §8 below.
 - **M5 `/plan` non-resumable interactions:** does `/plan` ever produce non-resumable actions before handoff to `/implement`? (Likely no — `/plan` is read-only on production resources.) Per master plan §117, M5 owns this answer; M3 expects "no" by default.
 - **M7 `/debug` resume after CONFIRMED:** if `/debug` resumes after Phase 2 CONFIRMED + fix-applied, does the resume protocol re-fire the L2 emit step? (Per Q2 design: emit-learning is write-side stateless; skill flow decides re-invocation. Document explicitly in `/debug` SKILL.md.) **Cross-cutting:** M2 §5.3 trigger contract revised in `architecture/M2-memory-layers.md` (L2 auto-emit triggers no longer reference deleted `/brainstorm` or pre-M4 architect-agent) — `/debug` keeps the `diagnosis` trigger as-is.
 

@@ -62,7 +62,7 @@ A new fact is placed into a layer based on the writer's intent, not arbitrary fi
 │   ├── project.md                        # Tech stack (stable); top of L3
 │   ├── architecture.md                   # Patterns (manual)
 │   ├── codebase-map.md                   # Module/file index (bounded auto-incremental)
-│   ├── features.md                       # Feature backlog (auto via /features)
+│   ├── features.md                       # Feature backlog (via /plan [M5] or manual edit; /features skill deleted per master plan §68)
 │   ├── focus/
 │   │   └── <area>.md                     # Deep dives (manual)
 │   ├── .fingerprint.json                 # Hashes of package.json, tsconfig, etc.
@@ -141,13 +141,13 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 4. Optionally include superseded (`--include-superseded`) for historical/audit context.
 5. Optionally search archive (`--include-archive`) for cold history.
 
-**Archive:**
-- Lazy threshold: when `learnings.jsonl` exceeds 10 MB or 5,000 lines, `/geniro:learnings` prompts user to archive.
-- Archive path: `.geniro/knowledge/archive/learnings-YYYY-Qn.jsonl` (quarterly rollups).
-- Manual control: `/geniro:learnings prune --older-than 6mo --keep-types decision,convention`.
+**Archive:** (post-redesign: `/learnings` skill deleted per master plan §69 — archival is now а manual operation)
+- Threshold guidance: when `learnings.jsonl` exceeds 10 MB or 5,000 lines, а one-line notice surfaces in `/implement` или `/debug` post-run summary suggesting manual archival.
+- Archive path: `.geniro/knowledge/archive/learnings-YYYY-Qn.jsonl` (quarterly rollups). User moves cold entries manually via file operations or а scripted one-liner.
+- Manual control: edit `learnings.jsonl` directly to add `deprecated: true` to entries, or move к archive/ subdir.
 
 **Manual deprecation:**
-- `/geniro:learnings prune` — interactive review; user/Claude marks entries `deprecated: true` (excluded from retrieval but kept on disk).
+- Edit `learnings.jsonl` directly to mark entries `deprecated: true` (excluded from retrieval by readers but kept on disk for audit trail). No interactive command — direct file edit.
 
 ### 5.3 Reflection cycle (when to emit)
 
@@ -158,12 +158,13 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 | `/geniro:debug` | Hypothesis tracking shows FALSIFIED → CONFIRMED + fix applied | `diagnosis` |
 | `/geniro:plan` (M5) | `spec.md` records chosen approach with considered alternatives | `decision` |
 | `/geniro:implement` (M4) | Self-review reviewer-agent (architecture or code-quality dimension §7.2) detects ≥3 instances of same pattern in changed code | `convention` |
+| `/geniro:implement` (M4) | Inline-task mode (no /plan available) where Phase 1 produced an inline approach choice — mirrors `/plan`'s `decision` emit для cross-session recall | `decision` |
 | `/geniro:review` | `relevance-filter-agent` aggregated same finding from ≥3 reviewers | `pitfall` |
 | `/geniro:refactor` | Pattern extracted to shared utility/component | `discovery` |
 | `/geniro:onboard` | Non-obvious architectural pattern documented | `discovery` |
 | `/geniro:investigate` | Question answered after >3 search rounds | `discovery` |
 
-**Manual:** `/geniro:learnings` remains for end-of-session full review and curation.
+**Manual:** post-redesign, `/learnings` skill is deleted (master plan §69). Manual curation = direct `learnings.jsonl` edits (mark `deprecated: true`, archive cold entries, etc. — see §5.2 Archive sub-section).
 
 **Soft Stop-hook reminder:** if a session ran `/debug` to resolution but no `diagnosis` entry was emitted, the Stop-hook adds a warn-only notice suggesting `/geniro:learnings`. Bypass via `learnings-reminder` in `.geniro/safety.json` `allow_patterns`.
 
@@ -215,7 +216,7 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 | `project.md` (Tech Stack + top-level index) | Manual + drift-detect prompt | `/setup`, `/onboard --refresh-stack` | Fingerprint divergence detected |
 | `architecture.md` | Manual | `/setup`, `/onboard --architecture` | User explicit invocation |
 | `codebase-map.md` | Bounded auto-incremental | `/implement` (add module), `/refactor` (move/rename) | Structural file change |
-| `features.md` | Auto | `/geniro:features add/done/rm` | Feature CRUD |
+| `features.md` | Manual or via /plan (M5) | `/geniro:plan` (M5 — feature-backlog updates absorbed from deleted `/features` skill per master plan §68); user may also edit directly | Plan-driven feature record OR manual edit |
 | `focus/<area>.md` | Manual | `/onboard <area>`, `/investigate --persist` | Deep-dive saved |
 
 ### 6.2 Drift detection
@@ -340,7 +341,7 @@ For projects already using the plugin pre-M2:
    - Create `.geniro/semantic/.fingerprint.json` from current `package.json` / `tsconfig.json`.
    - Create `.geniro/semantic/project.md` skeleton if absent, populated from `/setup`'s record of tech stack.
 2. Existing `.geniro/knowledge/learnings.jsonl` entries remain valid (hybrid schema is backward-compatible with free-form base-only entries).
-3. `/geniro:learnings audit` is run once to flag any pre-M2 entries containing secrets that escaped historical scrubbing.
+3. One-time manual secret-scan: grep existing `.geniro/knowledge/learnings.jsonl` against the redaction patterns in `_shared/emit-learning.md`. Report-only (no auto-edit); user reviews and patches any historical secrets manually. (Replaces the deleted `/geniro:learnings audit` command per master plan §69.)
 4. No CLAUDE.md changes (per §8).
 
 Projects starting fresh post-M2 get the layout created by `/setup`.
@@ -360,9 +361,9 @@ The following were explicitly considered and deferred to later milestones to kee
 
 ## 13. Open questions for M3 onward
 
-- **M3:** Compaction-survival strategy — `SessionStart` hook injection list, MODE: refresh contract for each helper.
-- **M4+:** Per-skill integration — every pipeline skill's `.md` gains a "Memory I/O" section listing which helpers it calls and which L2 triggers fire when.
-- **M-later:** `/geniro:learnings audit` UX, redaction-pattern marketplace, drift-notification UX polish.
+- ✅ **M3:** Compaction-survival strategy — landed в `architecture/M3-compaction-survival.md` (SessionStart hook injection list + MODE: refresh contract defined).
+- ✅ **M4 /implement:** Memory I/O section landed в `architecture/M4-implement-redesign.md` §13. Other pipeline skills (`/plan` M5, `/debug` M7, `/review` M6, `/refactor` M8) will add their own Memory I/O sections in their respective milestone docs.
+- ⏳ **M-later:** Redaction-pattern marketplace, drift-notification UX polish. (`/geniro:learnings audit` UX is N/A — `/learnings` skill deleted per master plan §69; replaced by manual secret-scan during M2 migration per §11 step 3.)
 
 ---
 
