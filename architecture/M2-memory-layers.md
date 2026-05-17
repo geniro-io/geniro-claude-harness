@@ -356,6 +356,10 @@ The following were explicitly considered and deferred to later milestones to kee
 - **Monorepo per-package L3** — separate `.geniro/semantic/` per package with root-package precedence rules. Defer; M2 assumes one L3 tree per repo root.
 - **Read budget / token cost cap** — hard caps on default load size with lazy expansion. Defer; M2 relies on the top-2 default selection in `load-semantic.md` being small enough in practice.
 - **Embedding-based L2 retrieval** — semantic similarity search over `learnings.jsonl`. Defer; M2 retrieval is exact-match on `type`/`tags`/`scope` filters, which is sufficient for the initial reflection volume.
+- **Three memory categories from agents-best-practices (P-M2-1):** repo identifies 8 canonical memory categories; M2's L1-L4 covers 5. The remaining 3 are deferred:
+  - **User preferences** — e.g. preferred commit message style, default reviewer dimensions, UI theme. Today: not modeled. Future: could live в `.geniro/preferences.md` (T3 CRUD) or as а new L5 layer if it grows. Defer until use case emerges (likely M10 /setup territory).
+  - **Approval records** — partially addressed by M1 P-M1-1 (T1 frontmatter `approvals: []` for task-scoped one-time decisions). Cross-session approval persistence (e.g., user globally approved force-pushes for `feature/*` branches) is а separate concept and currently not modeled. Defer.
+  - **Connector state** — MCP server availability, auth status, scopes. Today: implicit via runtime tool detection. Future: persisted в T3 для performance + compaction-survival. Defer until MCP usage stabilizes (likely P-X6 observability territory).
 
 ---
 
