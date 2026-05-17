@@ -453,6 +453,15 @@ Once Phase 3 self-review exits clean (all dims clean OR §7.4 path B/C taken), P
    - **Open draft PR** — `git push` then `gh pr create --draft`. `--draft` incompatible с `--web` — if user wants browser, create first then `gh pr view --web`.
 4. **Atomic `non-resumable-actions` append (M3 §8, M1 helpers)** — after each side-effect that cannot be replayed safely (`git push`, `gh pr create`, etc.), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via M1 `atomic_state_append`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. The append occurs **after** the side-effect succeeds; atomic (so partial-write corruption is impossible mid-crash).
 5. **L2 auto-emit (master plan §69, OQ-12)** — emit `convention` к learnings.jsonl когда Phase 3 architecture или code-quality reviewer reported ≥3-instance patterns; emit `decision` if spec.md recorded а non-trivial approach choice (per M2 §5.3 patched trigger contract). Threshold tuning (exact «≥3» semantics) — implementation-detail of reviewer-agent spawn prompt, deferred.
+
+   **P-M4-5 — close feedback loop с promotion suggestion.** When а `convention` type entry is emitted (recurring pattern), additionally surface а one-line suggestion in the Phase 3 final report:
+
+   ```
+   [learnings] Pattern detected ≥3 times: "<convention summary>". Recorded к L2.
+     → Consider /geniro:instructions edit <scope>.md to promote as rule.
+   ```
+
+   Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-style.md`; dim=`architecture` → suggest `global.md`; other dims → generic «appropriate scope». Suggestion fires **only for `convention` type** — single-occurrence `decision` emits do not warrant L4 promotion. The line is informational (no AUQ, no auto-edit) — user remains source-of-truth для L4 rule curation. Closes the feedback loop: pattern detection → L2 episodic (auto) → L4 procedural (user opt-in). Fully automatic L2→L4 promotion deferred к P-X6.
 6. **Adjustment-routing (Big / Medium / Small per `implement-reference.md` L778–812)** used когда ship-feedback arrives via PR comments. Since /follow-up is dropped, all adjustment requests route back through /implement itself с the original spec + adjustment description as new $ARGUMENTS.
 
 **Inline modifiers from Phase 1 $ARGUMENTS** (semantic parsing, §5.1) honored here as deterministic overrides — they collapse the ship-mode AUQ:
