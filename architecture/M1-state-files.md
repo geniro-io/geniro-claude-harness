@@ -108,7 +108,7 @@ approvals:
     asked_in_phase: <phase name>
 ```
 
-Initial M4 categories: `disambiguate_arguments` (§5.1) и `ship_mode` (§7.5). Consumer protocol: before firing AskUserQuestion с а persisted category, check `approvals[]` for prior matching entry; if found, use `picked` value, skip AUQ. Validator (§Validation helper) checks schema if present; missing array → treated as empty (backward-compat с existing T1 files).
+Initial M4 categories: `disambiguate_arguments` (M4 §5.1) и `ship_mode` (M4 §7.5). Consumer protocol: before firing AskUserQuestion с а persisted category, check `approvals[]` for prior matching entry; if found, use `picked` value, skip AUQ. Validator (§Validation helper) checks schema if present; missing array → treated as empty (backward-compat с existing T1 files).
 
 **Body schema:** unstructured; per-skill conventions.
 
@@ -463,7 +463,7 @@ Order (lowest risk first):
 7. `/actions` — same.
 8. `/onboard` — converts CODEBASE_MAP.md to `_CODEBASE_MAP.md` with T3 frontmatter.
 9. `/setup` — adds the `_FEATURES.md` rename + frontmatter.
-10. Other hooks (`session-start-restore.sh` — renamed from `post-compact-notification.sh` per M3 §6 with broader `SessionStart` matcher; `enforce-tdd-order.sh`) — update to use validator.
+10. Other hooks (`session-start-restore.sh` — renamed from `post-compact-notification.sh` per M3 §11 with broader `SessionStart` matcher; `enforce-tdd-order.sh`) — update to use validator.
 
 **Per-skill PR template:** ~30 min each. Each PR adds 1–3 helper-call sites and the canonical frontmatter. The hook's warn-mode tolerates the in-progress mixed state — partially-migrated repos still work.
 
@@ -551,7 +551,7 @@ All 12 audit problems closed.
 1. **User reviews this design doc.** Edit / push back / approve.
 2. On approval, **execute PR-0** (infrastructure) — this is the first concrete code work.
 3. After PR-0 lands and is verified, **either**:
-   - Continue with PR-1 (`/implement` reference migration), or
+   - Continue with PR-2 (`/debug` reference migration — lowest-risk skill in the per-skill list at §Migration plan; PR-1 was folded into M4 step 8 per 2026-05-18 sequencing reconciliation, see §PR-1 note above), or
    - Move to **M2 — Memory & knowledge layers** investigation and design (M2 doesn't depend on M1 execution being complete; can be designed in parallel and executed after).
 
 Recommended: design M2 next (no code yet), then execute M1+M2 together in coordinated PRs. Keeps the design coherent across both milestones.

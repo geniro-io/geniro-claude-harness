@@ -72,7 +72,7 @@ The branch name **`claude/skip-architecture-with-spec-yjx8x`** captures the core
         │  • L2 emit (`convention` on ≥3-pattern) │
         │  • Ship sub-step: commit → AUQ          │
         │    (push / push+PR / push+draft-PR)     │
-        │  • atomic_state_append(non-resumable)   │
+        │  • atomic_state_write(non-resumable)    │
         │    after each side-effect               │
         └─────────────────────────────────────────┘
 ```
@@ -326,7 +326,7 @@ Phase 1 produces а brief inline plan recorded в state.md body under `## Inline
 - Refresh L3 semantic layer (`load-semantic` MODE: refresh, top-2 default) — fingerprint drift check fires.
 - Resolve task slug per M1 (used для state.md path).
 - Detect frontend files в scope (gates Pre-Ship Visual Verification + design conventions injection in Phase 3 reviewer prompts).
-- Persist any T2 handoff (e.g., `from-debug-<branch>.md`) into state.md body under `## Inputs from <producer>` — per M3 §11 obligation.
+- Persist any T2 handoff (e.g., `from-debug-<branch>.md`) into state.md body under `## Inputs from <producer>` — per M3 §9 obligation.
 
 ---
 
@@ -455,7 +455,7 @@ Once Phase 3 self-review exits clean (all dims clean OR §7.4 path B/C taken), P
    - **Open draft PR** — `git push` then `gh pr create --draft`. `--draft` incompatible с `--web` — if user wants browser, create first then `gh pr view --web`.
 
    **Approvals-persistence protocol (P-M1-1 producer-side contract):** before firing the ship-mode AUQ, the model first checks state.md frontmatter `approvals[]` for а prior entry с `category: ship_mode`. If found, use the prior `picked` value и skip the AUQ (typical compaction-resume scenario: user already picked в Phase 3 entry; compaction struck mid-ship; resume should not re-ask). If not found, fire AUQ → on user pick, append entry к `approvals[]` via M1 `atomic_state_write` before executing the chosen action. Re-ask only if context materially changed (e.g., spec file deleted, branch switched) — explicitly acknowledge re-ask в the next message. M3 §6 Block 5d renders this from `approvals[]` on resume.
-4. **Atomic `non-resumable-actions` append (M3 §8, M1 helpers)** — after each side-effect that cannot be replayed safely (`git push`, `gh pr create`, etc.), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via M1 `atomic_state_append`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. The append occurs **after** the side-effect succeeds; atomic (so partial-write corruption is impossible mid-crash).
+4. **Atomic `non-resumable-actions` update (M3 §8, M1 helpers)** — after each side-effect that cannot be replayed safely (`git push`, `gh pr create`, etc.), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via M1 `atomic_state_write` (frontmatter mutation = whole-file rewrite per M1 §T1 — `atomic_state_append` is for T3 JSONL only). Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. The write occurs **after** the side-effect succeeds; atomic (so partial-write corruption is impossible mid-crash).
 5. **L2 auto-emit (master plan §69, OQ-12)** — emit `convention` к learnings.jsonl когда Phase 3 architecture или code-quality reviewer reported ≥3-instance patterns; emit `decision` if spec.md recorded а non-trivial approach choice (per M2 §5.3 patched trigger contract). Threshold tuning (exact «≥3» semantics) — implementation-detail of reviewer-agent spawn prompt, deferred.
 
    **P-M4-5 — close feedback loop с promotion suggestion.** When а `convention` type entry is emitted (recurring pattern), additionally surface а one-line suggestion in the Phase 3 final report:
@@ -628,16 +628,16 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 
 | Phase | Helper | Direction | MODE | Inputs | Outputs | Notes |
 |---|---|---|---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `implement` + `global` + `code-style` | concatenated rule body inlined into context | Echo contract per M2 §7. Survives compaction via M3 SessionStart re-injection. |
+| Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `implement` + `global` + `code-style` | concatenated rule body inlined into context | Echo contract per M3 §7.2. Survives compaction via M3 SessionStart re-injection. |
 | Phase 1 entry | `load-semantic` | read L3 | `refresh` | top-2 default (`_project.md` + `_CODEBASE_MAP.md`); optional `_FEATURES.md` если spec mentions feature backlog | inlined into context + fingerprint drift check | Drift notification surfaces к user если `.fingerprint.json` mismatched. |
 | Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred от task description (e.g., `react`, `auth`, `bug`); scope = task path | top-K matching entries (default K=5, filter superseded + deprecated) | Skipped если task description is too generic к infer tags. |
-| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | the three loaded layers | precedence-resolved или AUQ on hard conflict | Called transitively by load-* helpers per M2 §7. |
+| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | the three loaded layers | precedence-resolved или AUQ on hard conflict | Called transitively by load-* helpers per M2 §10 (cross-layer conflict resolution). |
 | Phase 2 (Implement) | none | — | — | — | — | No new helper calls during edit batch. Code-style instructions от Phase 1 L4 refresh remain в context. |
 | Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Always re-fires at Phase 3 entry. Drops the conditional-on-marker pattern from M4 v3 draft — simpler, no M3 marker contract needed. Cost: 1 helper read, within master plan §102 typical-baseline ≤5 (descriptive, not а hard cap per §2.3). |
 | Phase 3 fix-loop iteration | `query-learnings` | read L2 | n/a | tags + scope = changed-file paths | similar past findings | Used к prime reviewer-agent prompts с known conventions/pitfalls. |
 | Phase 3 ship sub-step | `emit-learning` | write L2 | n/a | producer = `/geniro:implement`; scope = changed-file paths; summary, tags, type, ext | append к `learnings.jsonl` | Fires когда §7.5 step 5 conditions are met (≥3-instance pattern OR spec.md-recorded decision). Dedup + sanitization per M2 §5.2. |
 | Phase 3 ship sub-step | `update-semantic` | write L3 | n/a | operation (add-module / move / rename); path; description | append к `_CODEBASE_MAP.md` (lock-guarded via `.codebase-map.lock`) | Fires когда Phase 2 added а new module / file the L3 codebase-map should index. |
-| Phase 3 ship sub-step | M1 `atomic_state_append` | write T1 | n/a | state.md path; new entry к `non-resumable-actions[]` | append-only update | Fires after each `git push`, `gh pr create`, posted comment, etc. M3 §8 schema. |
+| Phase 3 ship sub-step | M1 `atomic_state_write` | write T1 | n/a | state.md path; new entry к `non-resumable-actions[]` | whole-file rewrite с appended frontmatter entry | Fires after each `git push`, `gh pr create`, posted comment, etc. M3 §8 schema. T1 frontmatter mutation = whole-file rewrite per M1; `atomic_state_append` is for T3 JSONL only. |
 
 ### 13.2 L2 emit triggers (per M2 §5.3 patched contract)
 

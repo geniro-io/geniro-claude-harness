@@ -166,8 +166,8 @@ The hook emits ONE `additionalContext` string composed of fixed blocks. Blocks a
  startup: "Active task detected at startup (SessionStart source: startup)."}
 SKILL.md instructions and conversation nuance may have been lost — re-read these
 files before continuing (the .geniro/instructions/* entries route through the
-canonical loader, NOT direct cwd Reads; CLAUDE.md, FEATURES.md, spec/plan files
-remain direct Reads):
+canonical loader, NOT direct cwd Reads; CLAUDE.md, `.geniro/planning/_FEATURES.md`,
+spec/plan files remain direct Reads):
 ```
 
 ### Block 2 — Suggested files (always)
@@ -457,10 +457,10 @@ In addition to `additionalContext` (model-visible), the hook emits a `systemMess
 Geniro: restoring context (source: <source>, active: <task-dir or "none"> · phase: <phase or "—"> · non-resumable: <N>)
 ```
 
-**Examples:**
+**Examples:** (phase strings are opaque per §5; per-skill enums apply — `/implement` uses M4 §2.1 lowercase tokens shown below; `/debug` enum TBD in its milestone doc)
 ```
-Geniro: restoring context (source: compact, active: feature-dark-mode · phase: Phase 4 - Implement · non-resumable: 2)
-Geniro: restoring context (source: resume, active: bugfix-toggle-flicker · phase: Phase 1 - Reproduce · non-resumable: 0)
+Geniro: restoring context (source: compact, active: feature-dark-mode · phase: implement · non-resumable: 2)
+Geniro: restoring context (source: resume, active: bugfix-toggle-flicker · phase: reproduce · non-resumable: 0)
 Geniro: restoring context (source: startup, active: none · phase: — · non-resumable: 0)
 ```
 
@@ -558,7 +558,7 @@ This avoids hard breakage if the rollout order is non-canonical (e.g. user upgra
 
 - **M4 `/implement` SKILL.md updates:** which phases declare `load-custom-instructions` refresh sites? — open in M4 §10 OQ-10 (Memory I/O section).
 - **M4 `/implement` Phase 1 T2 handoff persist:** ✅ format spec'd in `architecture/M4-implement-redesign.md` §5.4 — `## Inputs from <producer>` section in state.md body, top-3 findings as bullets, link to original T2 path.
-- **M4 `/implement` post-`git push`:** ✅ atomic-append pattern spec'd in `architecture/M4-implement-redesign.md` §7.5 step 4 — call M1 `atomic_state_append` after side-effect succeeds; entry schema per M3 §8 below.
+- **M4 `/implement` post-`git push`:** ✅ atomic-write pattern spec'd in `architecture/M4-implement-redesign.md` §7.5 step 4 — call M1 `atomic_state_write` after side-effect succeeds (T1 frontmatter mutation = whole-file rewrite per M1; `atomic_state_append` is T3-only); entry schema per M3 §8 below.
 - **M5 `/plan` non-resumable interactions:** does `/plan` ever produce non-resumable actions before handoff to `/implement`? (Likely no — `/plan` is read-only on production resources.) Per master plan §117, M5 owns this answer; M3 expects "no" by default.
 - **M7 `/debug` resume after CONFIRMED:** if `/debug` resumes after Phase 2 CONFIRMED + fix-applied, does the resume protocol re-fire the L2 emit step? (Per Q2 design: emit-learning is write-side stateless; skill flow decides re-invocation. Document explicitly in `/debug` SKILL.md.) **Cross-cutting:** M2 §5.3 trigger contract revised in `architecture/M2-memory-layers.md` (L2 auto-emit triggers no longer reference deleted `/brainstorm` or pre-M4 architect-agent) — `/debug` keeps the `diagnosis` trigger as-is.
 
@@ -625,8 +625,8 @@ spec-file: .geniro/planning/feature-oauth/spec.md
 Context was compressed by compaction (SessionStart source: compact). SKILL.md
 instructions and conversation nuance may have been lost — re-read these files
 before continuing (the .geniro/instructions/* entries route through the canonical
-loader, NOT direct cwd Reads; CLAUDE.md, FEATURES.md, spec/plan files remain
-direct Reads):
+loader, NOT direct cwd Reads; CLAUDE.md, `.geniro/planning/_FEATURES.md`,
+spec/plan files remain direct Reads):
 
 - CLAUDE.md
 - .geniro/planning/_FEATURES.md
