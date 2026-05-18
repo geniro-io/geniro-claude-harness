@@ -243,6 +243,13 @@ JSONL has no frontmatter — schema lives in a sidecar `<file>.meta.yaml` declar
 | `worktree` | Cross-worktree debugging |
 | `checksum` | Manual-edit corruption detection (optional sha256 of body) |
 | `notes` | Free-form |
+| `geniro_kind` | Producer schema marker — e.g., `design-doc` (M5 §17.1 spec.md), `state-handoff` (M6 §15.2). Informational only; validator does NOT enforce values. Consumers что need а typed handle (design-doc-detect.md helper, M4 spec-discovery §5.2) read this field. |
+| `geniro_schema_version` | Producer schema-version marker per skill family — e.g., `m5-v1` (M5 spec.md), `m6-v1` (M6 state-handoff). Distinct от `schema-version:` (which is M1's base integer-versioning of the canonical M1 schema). Validator does NOT enforce values. |
+
+**Producer-specific extensions:** producers (M4/M5/M6/M7+) MAY add fields beyond the contract (e.g., M5 `task_slug`, `mode`, `effort_tier`, `lifecycle`, `budget`, `checkpoints`; M6 `phase`, `round`, `risk-tier`, `pr-ref`). These extensions:
+- MUST NOT shadow common-base или tier-specific field names с different semantics. Например, М5 spec.md uses `lifecycle:` для design-doc lifecycle (`draft|approved|superseded`) instead of `status:` к avoid clash с M1 T1 `status: in-progress|done|failed` namespace.
+- MUST be documented в the producer's M-doc frontmatter example block (М5 §17.1 для spec.md; M5 §7.3 для plan-state.md; М6 §15.2 для review-handoff).
+- Validator passes them через silently — М1 `validate_state_file` checks only required-field presence and tier values; extensions are out of scope.
 
 **Format rules:**
 - Frontmatter MUST start on line 1 with `---`.

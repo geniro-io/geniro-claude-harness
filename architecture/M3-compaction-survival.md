@@ -668,10 +668,10 @@ Geniro: restoring context (source: compact, active: feature-oauth · phase: ship
 1. Reads `skills/implement/SKILL.md`.
 2. Invokes `load-custom-instructions` (refresh) — echoes 3 file Loads.
 3. Invokes `load-semantic` (refresh) — echoes 2+ file Loads; fingerprint check passes (no drift).
-4. Reads `state.md` → sees `phase: Phase 6 - Self-Review`, `non-resumable: [git-push]`.
+4. Reads `state.md` → sees `phase: ship`, `non-resumable: [git-push]`.
 5. Reads `spec.md`.
-6. Continues Phase 6 — runs self-review, generates findings. Does **not** call `git push` again (Block 5 warning held).
-7. If Phase 6 surfaces an issue requiring fix → patches code, commits, but **explicitly acknowledges** before any second push: "Re-pushing is required because Phase 6 found a typo in OAuth callback. Confirming with user before push." → AUQ before push.
+6. Continues `ship` sub-step (M4 §7.5) — fires the ship-mode AUQ (or honors prior `approvals[]` entry if compaction-resume picked а pre-pushed PR option), runs `gh pr create` if applicable. Does **not** call `git push` again (Block 5 warning held).
+7. If а post-ship issue surfaces (e.g., reviewer flagged а typo на the freshly-pushed branch) → re-enters at `phase: analyze` per M4:469 adjustment-routing (post-ship fixes treat the original spec + adjustment description as fresh inline-task `$ARGUMENTS`), commits, но **explicitly acknowledges** before any second push: "Re-pushing required because post-ship review found a typo. Confirming с user." → AUQ before push.
 
 ---
 
