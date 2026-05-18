@@ -37,7 +37,11 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 │   │   └── milestone-N.md
 │   ├── _FEATURES.md                  # T3 — PERSISTENT (renamed with _ prefix for visual distinction)
 │   ├── _CODEBASE_MAP.md              # T3 — PERSISTENT
-│   └── _focus-<area>.md              # T3 — PERSISTENT (user-authored area deep-dives)
+│   ├── _project.md                   # T3 — PERSISTENT (tech stack — M2 L3 Semantic top)
+│   ├── _architecture.md              # T3 — PERSISTENT (architecture patterns — M2 L3 Semantic)
+│   ├── _focus-<area>.md              # T3 — PERSISTENT (user-authored area deep-dives)
+│   ├── .fingerprint.json             # M2 L3 drift detection (package.json/tsconfig hashes)
+│   └── .codebase-map.lock            # M2 L3 advisory race-safety lock
 ├── state/
 │   └── handoff/                      # T2 — HANDOFF (overwritten on next produce)
 │       ├── from-debug-<branch>.md
@@ -283,7 +287,7 @@ non-resumable-actions: []
 CONTENT
 ```
 
-**Phase enum (M4 v3 canonical for `/implement`):** `analyze`, `implement`, `phase-2-escalated`, `self-review`, `phase-3-escalated`, `debug-handoff`, `ship`, `ship-committed-only`, `done`, `aborted`. The `phase:` field accepts any string per M1 spec — other skills define their own enums.
+**Phase enum (M4 v3 canonical for `/implement`):** `analyze`, `implement`, `phase-2-escalated`, `self-review`, `phase-3-escalated`, `debug-handoff`, `ship`, `ship-committed-only`, `self-review-only`, `done`, `aborted`. The `phase:` field accepts any string per M1 spec — other skills define their own enums.
 
 **Procedure:**
 
@@ -498,6 +502,10 @@ One-line config change in `hooks/enforce-state-helper.sh`: `MODE=warn` → `MODE
 | `.geniro/planning/FEATURES.md` | `.geniro/planning/_FEATURES.md` | T3 CRUD | Rename + frontmatter. |
 | `.geniro/planning/CODEBASE_MAP.md` | `.geniro/planning/_CODEBASE_MAP.md` | T3 CRUD | Rename + frontmatter. |
 | `.geniro/planning/focus-<area>.md` | `.geniro/planning/_focus-<area>.md` | T3 CRUD | Rename + frontmatter. |
+| (new in M2) | `.geniro/planning/_project.md` | T3 CRUD | Tech stack — top of L3 Semantic per M2 §6.1. Created fresh from `/setup`. |
+| (new in M2) | `.geniro/planning/_architecture.md` | T3 CRUD | Architecture patterns per M2 §6.1. User-authored. |
+| (new in M2) | `.geniro/planning/.fingerprint.json` | T3 CRUD | M2 L3 drift detection — hashes of package.json/tsconfig.json. Sidecar `.meta.yaml` required. |
+| (new in M2) | `.geniro/planning/.codebase-map.lock` | T3 advisory lock | M2 L3 lock-guard for `_CODEBASE_MAP.md` bounded writes. Not a state file; no frontmatter. |
 | `.geniro/state/follow-up/state-<slug>.md` | `.geniro/planning/<task-dir>/state.md` | T1 | **Consolidated**: one state.md per task, not per skill. |
 | `.geniro/state/refactor/state-<slug>.md` | `.geniro/planning/<task-dir>/state.md` | T1 | Same. |
 | `.geniro/state/improve-template/state-<slug>.md` | `.geniro/planning/<task-dir>/state.md` | T1 | Same. |

@@ -115,7 +115,7 @@ The hook restores **working surface only**. Domain memory is on-demand via helpe
 
 **Never injected by hook (skill-driven via helpers):**
 
-- L3 semantic files (`.geniro/semantic/*.md`) — model invokes `load-semantic` (MODE: refresh) per resume protocol; fingerprint drift check fires once per refresh.
+- L3 semantic files (`.geniro/planning/_project.md`, `_CODEBASE_MAP.md`, etc. — M2 layout reconciliation 2026-05-18) — model invokes `load-semantic` (MODE: refresh) per resume protocol; fingerprint drift check fires once per refresh.
 - L2 episodic (`learnings.jsonl`) — request/response only via `query-learnings`; never load-into-context wholesale.
 - T2 handoff files (`from-<producer>-<branch>.md`) — see §9 (skill-driven; state.md is canonical resume payload).
 

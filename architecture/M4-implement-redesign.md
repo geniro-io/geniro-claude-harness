@@ -143,7 +143,7 @@ These 7 invariants apply throughout M4's three phases. Violation = bug, not flex
 
 4. **Bounded и structured tool results.** Reviewer-agent output capped at ~4000 chars per dimension; longer truncated with marker. Output schema: `[{severity, file, line, finding, recommendation}]`. Bash command output >8000 chars summarized before being used downstream.
 
-5. **Hard budgets.** Per §12.2 (extended by P-M4-3 if accepted): max 3 retries per tool, max 3 AUQ rounds per phase, wall-time cap, max 5 helper-file reads, max 5 subagent spawns per phase. Past threshold → §7.4 (Phase 3) или §6.3 (Phase 2) escalation, not silent continuation.
+5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds в Phase 2 §6.2, 3 rounds в Phase 3 §7.3) surface к user via AskUserQuestion at exhaustion — never silent abort, never infinite loop. User picks debug-handoff / accept-failure / abort. NO wall-time, tool-call, or model-turn kill caps per §2.3 quality-first framing (P-M4-3 accepted REVISED). Past threshold → §7.4 (Phase 3) или §6.3 (Phase 2) escalation. The «typical baseline» numbers в master plan §102 (≤3 AUQ gates, ≤5 helper-file reads, ≤5 subagent spawns) are descriptive, not prescriptive caps.
 
 6. **Final answer grounded в observations.** Phase 3 Ship sub-step AUQ result text MUST quote actual tool output (push ref, PR URL, commit SHA, etc.) — never assertions like "git push succeeded" without evidence. Self-review (§7.2) reads `## Tool log` entries before claiming clean state. The Stop-hook evidence-completion scanner (CLAUDE.md) is the existing mechanical layer; this invariant is the contract.
 
@@ -297,8 +297,10 @@ The entry-gate phase. Light по cost — а few file reads и а semantic $ARGU
 | contains "continue" / "resume" (any casing, standalone word) | Resume from state.md (M3-coupled — reads `non-resumable-actions[]` к skip already-completed side-effects). |
 | matches а filesystem path (rel или abs) к а .md file | Load as spec/plan artifact. Validates frontmatter per design-doc-detect.md helper. |
 | free-form description с no path match | Inline-task mode (OQ-2 fallback). Model treats $ARGUMENTS as а raw spec description; Phase 1 produces а minimal inline plan от что the task is, files likely touched, и approach к take. |
-| ambiguous (e.g., а bare slug that could be а task name OR а task description) | AUQ с 2-3 disambiguation options. |
+| ambiguous (e.g., а bare slug that could be а task name OR а task description) | AUQ с 2-3 disambiguation options. **Persist outcome к state.md frontmatter `approvals[]` array с `category: disambiguate_arguments`** per M1 P-M1-1 schema, so resumed/compacted sessions don't re-ask (M3 §6 Block 5d renders это). |
 | natural-language modifiers ("don't push", "draft only", "stop after review", "...and update README") | Honored semantically by Phase 3 — no formal mode keyword; the modifier survives in $ARGUMENTS и is consulted at Ship time или relevant decision points. |
+
+**Approvals-persistence protocol (P-M1-1 producer-side contract):** before firing the disambiguation AUQ, the model first checks state.md frontmatter `approvals[]` for а prior entry с `category: disambiguate_arguments` matching the current $ARGUMENTS shape. If found, use the prior `picked` value и skip the AUQ. If not found, fire AUQ → on user pick, append entry к `approvals[]` via M1 `atomic_state_write` before proceeding к next phase. Schema per M1 §T1 frontmatter.
 
 ### 5.2 Spec discovery (OQ-3 closure)
 
@@ -451,6 +453,8 @@ Once Phase 3 self-review exits clean (all dims clean OR §7.4 path B/C taken), P
    - **Just push (no PR)** — `git push origin <branch>`. Done.
    - **Open PR** — `git push` then `gh pr create` (ready-for-review). Append task ID к PR title.
    - **Open draft PR** — `git push` then `gh pr create --draft`. `--draft` incompatible с `--web` — if user wants browser, create first then `gh pr view --web`.
+
+   **Approvals-persistence protocol (P-M1-1 producer-side contract):** before firing the ship-mode AUQ, the model first checks state.md frontmatter `approvals[]` for а prior entry с `category: ship_mode`. If found, use the prior `picked` value и skip the AUQ (typical compaction-resume scenario: user already picked в Phase 3 entry; compaction struck mid-ship; resume should not re-ask). If not found, fire AUQ → on user pick, append entry к `approvals[]` via M1 `atomic_state_write` before executing the chosen action. Re-ask only if context materially changed (e.g., spec file deleted, branch switched) — explicitly acknowledge re-ask в the next message. M3 §6 Block 5d renders this from `approvals[]` on resume.
 4. **Atomic `non-resumable-actions` append (M3 §8, M1 helpers)** — after each side-effect that cannot be replayed safely (`git push`, `gh pr create`, etc.), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via M1 `atomic_state_append`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. The append occurs **after** the side-effect succeeds; atomic (so partial-write corruption is impossible mid-crash).
 5. **L2 auto-emit (master plan §69, OQ-12)** — emit `convention` к learnings.jsonl когда Phase 3 architecture или code-quality reviewer reported ≥3-instance patterns; emit `decision` if spec.md recorded а non-trivial approach choice (per M2 §5.3 patched trigger contract). Threshold tuning (exact «≥3» semantics) — implementation-detail of reviewer-agent spawn prompt, deferred.
 
@@ -527,7 +531,7 @@ All 9 design OQs closed в the OQ-resolution session (recorded в §4 Decisions 
 | ID | Topic | Status |
 |---|---|---|
 | **OQ-10** | **Memory I/O section (M2 §13 obligation)** — formal enumeration of L2/L3/L4 helpers M4 calls и at which phase boundaries. | ✅ **DONE** — see §13 below. |
-| **OQ-11** | **Agent-Computer Interface (ACI) spec (master plan §134, §141)** — explicit tool surface для reviewer-agent spawns + inner-loop Edit/Write/Bash tools + restricted tool list per spawn. | ⏳ **Deferred к M4 implementation phase.** Research-blocked: master plan §134 requires SWE-agent ACI study (1-page minimal spec) before drafting. Implementation phase work-order step 1.5. |
+| **OQ-11** | **Agent-Computer Interface (ACI) spec (master plan §134, §141)** — explicit tool surface для reviewer-agent spawns + inner-loop Edit/Write/Bash tools + restricted tool list per spawn. | ⏳ **Partial** — §13.5 covers per-phase ACI rules (Phase 1 read-only / Phase 2 inner-loop blocks external commits / Phase 3 reviewers pure read-only via frontmatter `tools:` whitelist / Ship sub-step AUQ-gated). Full SWE-agent ACI spec (1-page minimal spec per master plan §134) deferred к implementation-phase work-order step 5 для SKILL.md rewrite. |
 | **OQ-12** | **L2 trigger threshold tuning** — exact «≥3 instances of same pattern» semantics for `type=convention` emit. | ⏳ **Deferred к M4 implementation phase.** Implementation detail of reviewer-agent spawn prompt — the prompt template owns the threshold semantics. M2 §5.3 contract patched; finer-grained tuning happens когда reviewer prompt is drafted. |
 
 ---
@@ -629,7 +633,7 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 | Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred от task description (e.g., `react`, `auth`, `bug`); scope = task path | top-K matching entries (default K=5, filter superseded + deprecated) | Skipped если task description is too generic к infer tags. |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | the three loaded layers | precedence-resolved или AUQ on hard conflict | Called transitively by load-* helpers per M2 §7. |
 | Phase 2 (Implement) | none | — | — | — | — | No new helper calls during edit batch. Code-style instructions от Phase 1 L4 refresh remain в context. |
-| Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Always re-fires at Phase 3 entry. Drops the conditional-on-marker pattern from M4 v3 draft — simpler, no M3 marker contract needed. Cost: 1 helper read, within master plan §102 cap of ≤5. |
+| Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Always re-fires at Phase 3 entry. Drops the conditional-on-marker pattern from M4 v3 draft — simpler, no M3 marker contract needed. Cost: 1 helper read, within master plan §102 typical-baseline ≤5 (descriptive, not а hard cap per §2.3). |
 | Phase 3 fix-loop iteration | `query-learnings` | read L2 | n/a | tags + scope = changed-file paths | similar past findings | Used к prime reviewer-agent prompts с known conventions/pitfalls. |
 | Phase 3 ship sub-step | `emit-learning` | write L2 | n/a | producer = `/geniro:implement`; scope = changed-file paths; summary, tags, type, ext | append к `learnings.jsonl` | Fires когда §7.5 step 5 conditions are met (≥3-instance pattern OR spec.md-recorded decision). Dedup + sanitization per M2 §5.2. |
 | Phase 3 ship sub-step | `update-semantic` | write L3 | n/a | operation (add-module / move / rename); path; description | append к `codebase-map.md` (lock-guarded) | Fires когда Phase 2 added а new module / file the L3 codebase-map should index. |
@@ -657,7 +661,7 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 | Boundary | Refresh action | Why |
 |---|---|---|
 | Phase 1 entry | `load-custom-instructions(MODE: refresh)` + `load-semantic(MODE: refresh)` | Initial context load |
-| Phase 3 entry | `load-custom-instructions(MODE: refresh)` — **always** | Survive Phase-2 compaction without requiring а M3 marker contract; M3 hook remains read-only. Cost: 1 extra helper read (5 total per run within master plan §102 budget). |
+| Phase 3 entry | `load-custom-instructions(MODE: refresh)` — **always** | Survive Phase-2 compaction without requiring а M3 marker contract; M3 hook remains read-only. Cost: 1 extra helper read (5 total per run within master plan §102 typical baseline — descriptive, not а hard cap per §2.3). |
 | Phase 3 ship sub-step exit | none | Skill terminates; refresh not needed |
 
 Other helpers (`load-semantic`, `query-learnings`, `emit-learning`, `update-semantic`, `resolve-conflicts`) have no `MODE: refresh` semantic per M3 §7.3 (only the two readers do).

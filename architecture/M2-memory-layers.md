@@ -51,22 +51,21 @@ A new fact is placed into a layer based on the writer's intent, not arbitrary fi
 
 ```
 .geniro/
-├── planning/<task-dir>/                  # L1 Working (M1 contract)
-│   └── ...
+├── planning/                             # L1 Working (M1 T1) + L3 Semantic (M1 T3 CRUD)
+│   ├── <task-dir>/                       # L1 Working (M1 contract)
+│   │   └── ...
+│   ├── _project.md                       # L3 Semantic — Tech stack (stable); top of L3
+│   ├── _architecture.md                  # L3 Semantic — Patterns (manual)
+│   ├── _CODEBASE_MAP.md                  # L3 Semantic — Module/file index (bounded auto-incremental)
+│   ├── _FEATURES.md                      # L3 Semantic — Feature backlog (via /plan [M5] or manual edit; /features skill deleted per master plan §68)
+│   ├── _focus-<area>.md                  # L3 Semantic — Deep dives (manual)
+│   ├── .fingerprint.json                 # L3 drift detection — hashes of package.json, tsconfig, etc.
+│   └── .codebase-map.lock                # L3 advisory race-safety lock for _CODEBASE_MAP.md writes
 ├── knowledge/
 │   ├── learnings.jsonl                   # L2 Episodic (append-only)
 │   ├── .redaction-log.jsonl              # Audit log for sanitization
 │   └── archive/
 │       └── learnings-YYYY-Qn.jsonl       # Lazy-archived L2 entries
-├── semantic/                             # L3 Semantic
-│   ├── project.md                        # Tech stack (stable); top of L3
-│   ├── architecture.md                   # Patterns (manual)
-│   ├── codebase-map.md                   # Module/file index (bounded auto-incremental)
-│   ├── features.md                       # Feature backlog (via /plan [M5] or manual edit; /features skill deleted per master plan §68)
-│   ├── focus/
-│   │   └── <area>.md                     # Deep dives (manual)
-│   ├── .fingerprint.json                 # Hashes of package.json, tsconfig, etc.
-│   └── .lock                             # Advisory race-safety lock
 ├── instructions/                         # L4 Procedural
 │   ├── global.md
 │   ├── code-style.md
@@ -75,6 +74,8 @@ A new fact is placed into a layer based on the writer's intent, not arbitrary fi
 │       └── <slug>.md
 └── safety.json                           # Existing; extended with redaction config
 ```
+
+**Note on co-location of L1 and L3 in `planning/`:** M1 §Architecture overview decided to keep persistent L3 registry files under `.geniro/planning/_*.md` (alongside the L1 task-dirs) rather than introduce а separate `.geniro/semantic/` directory. The `_` prefix gives users а visual cue that these are persistent-global vs ephemeral task-dirs. Validators enforce tier-by-frontmatter, not path-prefix.
 
 **CLAUDE.md is not part of this layout.** The plugin never writes to or imports from CLAUDE.md (see §8).
 
@@ -167,7 +168,7 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 
 **Manual:** post-redesign, `/learnings` skill is deleted (master plan §69). Manual curation = direct `learnings.jsonl` edits (mark `deprecated: true`, archive cold entries, etc. — see §5.2 Archive sub-section).
 
-**Soft Stop-hook reminder:** if a session ran `/debug` to resolution but no `diagnosis` entry was emitted, the Stop-hook adds a warn-only notice suggesting `/geniro:learnings`. Bypass via `learnings-reminder` in `.geniro/safety.json` `allow_patterns`.
+**Stop-hook reminder removed:** previous spec drafts proposed а Stop-hook warning when `/debug` finished without emitting а `diagnosis` entry, suggesting `/geniro:learnings`. Since `/learnings` is deleted (master plan §69) AND auto-emit is now the canonical path (Phase-end auto-step в `/implement` and `/debug` per master plan §69), the reminder is obsolete. If `/debug` resolves without emitting а diagnosis, that's а bug в `/debug` (M7 design owns the fix), not а user-actionable reminder.
 
 ### 5.4 Secrets sanitization
 
@@ -214,15 +215,15 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 
 | File | Update mode | Writer | Trigger |
 |---|---|---|---|
-| `project.md` (Tech Stack + top-level index) | Manual + drift-detect prompt | `/setup`, `/onboard --refresh-stack` | Fingerprint divergence detected |
-| `architecture.md` | Manual | `/setup`, `/onboard --architecture` | User explicit invocation |
-| `codebase-map.md` | Bounded auto-incremental | `/implement` (add module), `/refactor` (move/rename) | Structural file change |
-| `features.md` | Manual or via /plan (M5) | `/geniro:plan` (M5 — feature-backlog updates absorbed from deleted `/features` skill per master plan §68); user may also edit directly | Plan-driven feature record OR manual edit |
-| `focus/<area>.md` | Manual | `/onboard <area>`, `/investigate --persist` | Deep-dive saved |
+| `_project.md` (Tech Stack + top-level index) | Manual + drift-detect prompt | `/setup`, `/onboard --refresh-stack` | Fingerprint divergence detected |
+| `_architecture.md` | Manual | `/setup`, `/onboard --architecture` | User explicit invocation |
+| `_CODEBASE_MAP.md` | Bounded auto-incremental | `/implement` (add module), `/refactor` (move/rename) | Structural file change |
+| `_FEATURES.md` | Manual or via /plan (M5) | `/geniro:plan` (M5 — feature-backlog updates absorbed from deleted `/features` skill per master plan §68); user may also edit directly | Plan-driven feature record OR manual edit |
+| `_focus-<area>.md` | Manual | `/onboard <area>`, `/investigate --persist` | Deep-dive saved |
 
 ### 6.2 Drift detection
 
-`.geniro/semantic/.fingerprint.json` stores hashes of critical files:
+`.geniro/planning/.fingerprint.json` stores hashes of critical files:
 ```json
 {
   "captured_at": "2026-05-16T12:00:00Z",
@@ -246,17 +247,17 @@ Consider /geniro:onboard --refresh-stack. Continuing with current memory.
 
 ### 6.3 Bounded auto-incremental writes
 
-`_shared/update-semantic.md` helper applies only to `codebase-map.md` and `features.md`. Rules:
+`_shared/update-semantic.md` helper applies only to `_CODEBASE_MAP.md` and `_FEATURES.md`. Rules:
 - Append-only or single-line replacement; no mass rewrites.
 - Format strict and parseable: `- <path> — <short description>, used by <consumer>`.
-- Lock-guarded: acquire `.geniro/semantic/.lock` via `O_EXCL` file create; defer write to skill completion if locked.
+- Lock-guarded: acquire `.geniro/planning/.codebase-map.lock` via `O_EXCL` file create; defer write to skill completion if locked.
 - Human edits welcome anywhere; helper never trashes existing content (diff-style append at end of relevant section).
 
 ### 6.4 Reader contract
 
 `_shared/load-semantic.md` helper:
-- Default: loads `project.md` + `codebase-map.md` (top-2 most generally useful).
-- Opt-in: skills can pass `extras: ["architecture", "features", "focus/auth"]` for additional files.
+- Default: loads `_project.md` + `_CODEBASE_MAP.md` (top-2 most generally useful).
+- Opt-in: skills can pass `extras: ["_architecture", "_FEATURES", "_focus-auth"]` for additional files.
 - Cost: typical project loads ~5–15 KB at baseline.
 
 ---
@@ -298,7 +299,7 @@ No schema or lifecycle changes — these files remain user-authored Markdown.
 | `_shared/load-semantic.md` | Load L3 (top-2 default + opt-in extras); fingerprint drift check | All pipeline skills |
 | `_shared/query-learnings.md` | Query L2 by `type`/`tags`/`scope`; filter superseded + deprecated; optional archive | `/debug`, `/implement`, `/plan` (M5), `/review` |
 | `_shared/emit-learning.md` | Append to L2 with dedup + supersede + sanitization | All triggering skills (§5.3) |
-| `_shared/update-semantic.md` | Bounded auto-incremental write to L3; lock-guarded; append-style | `/implement`, `/refactor`, `/plan` (M5 — manages `features.md` updates absorbed from deleted `/features` skill per master plan §68) |
+| `_shared/update-semantic.md` | Bounded auto-incremental write to L3; lock-guarded; append-style | `/implement`, `/refactor`, `/plan` (M5 — manages `_FEATURES.md` updates absorbed from deleted `/features` skill per master plan §68) |
 | `_shared/resolve-conflicts.md` | Cross-layer conflict surface; AskUserQuestion gate for hard conflicts | Called from `load-*` helpers |
 
 Each helper has a stable input/output contract documented inside its `.md` (M4+ work to write the helper bodies).
@@ -327,8 +328,8 @@ Each helper has a stable input/output contract documented inside its `.md` (M4+ 
 
 **Hard conflicts (L4 rule directly contradicts L3 reality):** the skill halts and calls `AskUserQuestion`:
 - "L4 says use axios; L3 shows axios removed and fetch in use. Which is intent?"
-- User picks → skill auto-emits an L2 `type=convention supersedes=<l4-rule-key>` recording the resolution + prompts `/geniro:instructions edit global.md` to update L4 source.
-- This closes the loop: future runs see the updated L4 and the L2 supersedes trail.
+- User picks → skill auto-emits an L2 `type=convention` entry recording the resolution (no `supersedes` field — that's L2-internal per §5.1 schema; cross-layer L4 reference lives в the summary text instead) + prompts `/geniro:instructions edit global.md` to update L4 source.
+- This closes the loop: future runs see the updated L4; the L2 entry serves as the audit trail of how the conflict was resolved.
 
 ---
 
@@ -337,10 +338,10 @@ Each helper has a stable input/output contract documented inside its `.md` (M4+ 
 For projects already using the plugin pre-M2:
 
 1. `/geniro:update` detects M2 and triggers a one-shot migration:
-   - If `FEATURES.md` exists at project root → move to `.geniro/semantic/features.md`.
-   - If `CODEBASE_MAP.md` (or similar) exists → move to `.geniro/semantic/codebase-map.md`.
-   - Create `.geniro/semantic/.fingerprint.json` from current `package.json` / `tsconfig.json`.
-   - Create `.geniro/semantic/project.md` skeleton if absent, populated from `/setup`'s record of tech stack.
+   - If `FEATURES.md` exists at project root → move to `.geniro/planning/_FEATURES.md`.
+   - If `CODEBASE_MAP.md` (or similar) exists → move to `.geniro/planning/_CODEBASE_MAP.md`.
+   - Create `.geniro/planning/.fingerprint.json` from current `package.json` / `tsconfig.json`.
+   - Create `.geniro/planning/_project.md` skeleton if absent, populated from `/setup`'s record of tech stack.
 2. Existing `.geniro/knowledge/learnings.jsonl` entries remain valid (hybrid schema is backward-compatible with free-form base-only entries).
 3. One-time manual secret-scan: grep existing `.geniro/knowledge/learnings.jsonl` against the redaction patterns in `_shared/emit-learning.md`. Report-only (no auto-edit); user reviews and patches any historical secrets manually. (Replaces the deleted `/geniro:learnings audit` command per master plan §69.)
 4. No CLAUDE.md changes (per §8).
@@ -354,7 +355,7 @@ Projects starting fresh post-M2 get the layout created by `/setup`.
 The following were explicitly considered and deferred to later milestones to keep M2 focused:
 
 - **Per-developer vs shared L2** — hybrid local + shared `learnings.jsonl` (`.geniro/knowledge/shared/learnings.jsonl` checked-in for team conventions). Defer to a later milestone; current M2 treats L2 as a single file whose share-status follows `.geniro/` gitignore status.
-- **Monorepo per-package L3** — separate `.geniro/semantic/` per package with root-package precedence rules. Defer; M2 assumes one L3 tree per repo root.
+- **Monorepo per-package L3** — separate `.geniro/planning/_*.md` set per package с root-package precedence rules. Defer; M2 assumes one L3 tree per repo root.
 - **Read budget / token cost cap** — hard caps on default load size with lazy expansion. Defer; M2 relies on the top-2 default selection in `load-semantic.md` being small enough in practice.
 - **Embedding-based L2 retrieval** — semantic similarity search over `learnings.jsonl`. Defer; M2 retrieval is exact-match on `type`/`tags`/`scope` filters, which is sufficient for the initial reflection volume.
 - **Three memory categories from agents-best-practices (P-M2-1):** repo identifies 8 canonical memory categories; M2's L1-L4 covers 5. The remaining 3 are deferred:
@@ -379,7 +380,7 @@ User: `/geniro:debug "Toggle component shows stale value after parent re-render"
 
 1. **Load phase (helpers called by `/debug`):**
    - `load-custom-instructions` reads L4 `global.md` + `code-style.md` + `debug.md`.
-   - `load-semantic` reads L3 `project.md` + `codebase-map.md` (default top-2).
+   - `load-semantic` reads L3 `_project.md` + `_CODEBASE_MAP.md` (default top-2).
    - `query-learnings` searches L2 with `tags=[react,useEffect,closure]` — finds a prior diagnosis from 2025 with same root_cause pattern.
    - `resolve-conflicts` checks layers: no conflict. Logs nothing.
 
