@@ -311,7 +311,7 @@ Resume steps:
    Fingerprint drift check fires; if drift detected, soft notice surfaces.
 4. Read state.md (if not suppressed by Block 3) to identify the current phase.
 5. Read spec.md and plan.md (if present) for task context.
-6. If a feature ID is set in state.md, read the FEATURES.md row and the linked spec.
+6. If a feature ID is set in state.md, read the `.geniro/planning/_FEATURES.md` row and the linked spec.
 7. Continue from the next incomplete phase.
 ```
 
@@ -566,7 +566,7 @@ This avoids hard breakage if the rollout order is non-canonical (e.g. user upgra
 
 ## Appendix A — Worked example: post-compaction resume with non-resumable action
 
-> **Note on phase names:** This worked example uses an illustrative phase numbering (`Phase 5 - Implement`, `Phase 6 - Self-Review`) for narrative continuity with а pre-M4 redesign draft. The canonical /implement phase enumeration is now **`Phase 1 — Implement`** and **`Phase 2 — Self-review`** per `architecture/M4-implement-redesign.md` §2. The mechanics of compaction-recovery, `non-resumable-actions` surfacing, and helper refresh are unaffected by phase-name choice — phase-name strings in state.md are opaque per §5 (M3 does not enforce а phase enum).
+> **Note on phase names:** This worked example uses an illustrative phase numbering (`Phase 5 - Implement`, `Phase 6 - Self-Review`) for narrative continuity with а pre-M4 redesign draft. The canonical /implement `phase:` enum values per `architecture/M4-implement-redesign.md` §2.1 are lowercase short tokens: `analyze` (Phase 1), `implement` (Phase 2), `self-review` (Phase 3 entry), `ship` (Phase 3 terminal sub-step), плюс escalation/terminal states (`phase-2-escalated`, `phase-3-escalated`, `debug-handoff`, `ship-committed-only`, `self-review-only`, `done`, `aborted`). The mechanics of compaction-recovery, `non-resumable-actions` surfacing, and helper refresh are unaffected by phase-name choice — phase-name strings in state.md are opaque per §5 (M3 does not enforce а phase enum; other skills define their own).
 
 **Scenario:** user invoked `/geniro:implement "add OAuth login"` on branch `feature/oauth`. Pipeline reached Phase 5 (post-push), executed `git push origin feature/oauth`, recorded the action, then mid-Phase-6 compaction struck.
 
@@ -653,7 +653,7 @@ Resume steps:
    Fingerprint drift check fires; if drift detected, soft notice surfaces.
 4. Read state.md to identify the current phase.
 5. Read spec.md and plan.md (if present) for task context.
-6. If a feature ID is set in state.md, read the FEATURES.md row and the linked spec.
+6. If a feature ID is set in state.md, read the `.geniro/planning/_FEATURES.md` row and the linked spec.
 7. Continue from the next incomplete phase.
 ```
 

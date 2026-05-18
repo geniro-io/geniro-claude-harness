@@ -88,7 +88,7 @@ producer: <skill-name>      # e.g. "implement", "debug"
 schema-version: 1
 branch: <git-branch>         # source-of-truth at write time
 timestamp: <ISO-8601 UTC>
-phase: <current-phase-name>  # e.g. "Phase 3 - Implement"
+phase: <current-phase-name>  # free-form per-skill; /implement uses lowercase enum per §Atomic write helper (e.g. `implement`, `self-review`)
 status: <in-progress|done|failed>
 non-resumable-actions: []    # list of completed side-effects (commits pushed, PRs posted)
 ---
@@ -185,25 +185,13 @@ consumer: <skill-or-pipe-separated-list>   # post-redesign typically just "imple
 
 **Write mechanism:** `printf '%s\n' "$json_line" >> file` with `O_APPEND` flag (shell's `>>` provides this). Single-line ≤ 4KB writes are atomic by kernel guarantee. No lock.
 
-**Dedup (audit problem #4):** each entry includes a `content-hash:` field (SHA-256 of normalized summary text). Consumers (knowledge-retrieval-agent) skip duplicates by hash. Writers may pre-check by `grep` to avoid double-append within a single skill run.
+**Dedup (audit problem #4):** each entry includes a `dedup_key:` field per M2 §5.1 schema (12-char SHA-256 prefix of `sha256(producer + "|" + scope + "|" + normalize(summary))`). Consumers (knowledge-retrieval-agent) skip duplicates by key. Writers may pre-check by `grep` to avoid double-append within a single skill run.
 
-**JSONL line schema:**
-
-```json
-{
-  "content-hash": "sha256-hex...",
-  "tags": ["debug", "react", "useEffect"],
-  "source-skill": "debug",
-  "source-branch": "bugfix-toggle-flicker",
-  "created-at": "2026-05-16T15:00:00Z",
-  "summary": "Stale closure in useEffect cleanup caused...",
-  "evidence": "src/Toggle.tsx:34"
-}
-```
+**JSONL line schema:** M2 §5.1 is the canonical L2 entry schema (`ts`, `producer`, `scope`, `summary`, `tags`, optional `body`/`links`/`dedup_key`/`supersedes`/`deprecated`/`trust`/`type`/`ext`). M1's role here is the atomic-write mechanism only — schema details, dedup semantics, trust labeling, and reflection-cycle triggers all live в M2. The sidecar `<file>.meta.yaml` (M1 T3 append-only convention) references the M2 schema.
 
 #### T3 CRUD
 
-**Files:** `.geniro/instructions/**`, `.geniro/actions/**`, `.geniro/workflow/**`, `.geniro/planning/_*.md`, `.geniro/-state.json` (plugin metadata).
+**Files:** `.geniro/instructions/**`, `.geniro/actions/**`, `.geniro/workflow/**`, `.geniro/planning/_*.md`, `.geniro/.geniro-state.json` (plugin metadata).
 
 **Write mechanism:** `atomic_state_write` helper (tmp + fsync + rename + fsync-dir).
 
@@ -456,19 +444,11 @@ fi
 - Validator hard-fails on missing required field and prints structured error.
 - Hook warns (doesn't block) on direct Edit to state paths.
 
-### PR-1 — `/implement` reference migration
+### PR-1 — `/implement` reference migration (REMOVED — folded into M4 step 8)
 
-**Why first:** most complex skill; if the design holds here, it holds everywhere.
+**Note (2026-05-18 reconciliation):** previously PR-1 was а mechanical migration «replace direct Edit on state.md with atomic_state_write calls in pre-M4 7-phase SKILL.md». This is now **dropped** — M4 §9.1 + §11 step 8 do а full rewrite of `skills/implement/SKILL.md` against the 3-phase M4 spec, which natively uses atomic_state_write + canonical frontmatter + validate_state_file at resume. Doing the mechanical migration first would produce wasted work (PR-1 rewrites mechanical bits → M4 step 8 throws away the whole file).
 
-**Changes:**
-- Update `skills/implement/SKILL.md`:
-  - Replace direct `Edit` on `.geniro/planning/<task>/state.md` with `atomic_state_write` calls.
-  - Add canonical frontmatter to all state files written.
-  - At resume (post-compaction), call `validate_state_file` on the resumed state.md.
-- Migrate Path 1: `state-<slug>.md` resume pattern (where used in /implement).
-- Add `non-resumable-actions` tracking: when /implement does a `git push` or `gh pr comment`, append to the list.
-
-**Acceptance:** `/implement` runs end-to-end with helper-mediated writes; resume after a forced compaction recovers cleanly; validator catches a hand-corrupted state file.
+**M4 step 8 dependencies:** M1 PR-0 (atomic_state_write, validate_state_file, frontmatter schema helpers) must land first; then M4 step 8 ships SKILL.md against the new spec. The combined work-order lives в M4 §11.
 
 ### PR-2 through PR-N — remaining skills
 
@@ -478,7 +458,7 @@ Order (lowest risk first):
 2. `/review` — moves `review-findings-state.md` → `from-review-<branch>.md`.
 3. `/follow-up` — **state-file migration only.** Per master plan §66, the skill source is deleted (absorbed by `/implement`). This PR migrates existing in-flight user state to `task-dir/state.md` so live pipelines survive the upgrade; the skill directory itself is removed in а separate milestone after M4 ships.
 4. `/refactor` — straightforward state-file conversion.
-5. `/learnings` (or the auto-pass replacing it) — `learnings.jsonl` gets a sidecar `.meta.yaml`, append helper adopted.
+5. `learnings.jsonl` infra-only — `.meta.yaml` sidecar addition + `atomic_state_append` adoption. (`/learnings` skill deleted per master plan §69; emit auto-step lives в /implement and /debug now.)
 6. `/instructions` — adds optimistic mtime check on edits.
 7. `/actions` — same.
 8. `/onboard` — converts CODEBASE_MAP.md to `_CODEBASE_MAP.md` with T3 frontmatter.
@@ -552,7 +532,7 @@ This design is verified against the audit findings:
 | 1 — No atomic writes | Q2 (per-write atomic helper) + Q7 (PreToolUse hook enforces) |
 | 2 — No rolling buffer / no checksum / no `latest_ok` | Q3 (no backup — atomic + git + regenerability suffices) |
 | 3 — No schema validation on load | Q4 (tiered-rich schema) + Q5 (hard-fail with recovery AUQ) |
-| 4 — `learnings.jsonl` no dedup | T3 append-only `content-hash` field |
+| 4 — `learnings.jsonl` no dedup | T3 append-only `dedup_key` field per M2 §5.1 schema |
 | 5 — TDD state lifecycle ambiguous | Moved to T2 (`from-tdd-<branch>.md`); single handoff channel |
 | 6 — Cross-session handoff overwrite-only | T2 branch-scoping eliminates same-branch collision; cross-branch handoffs don't overwrite each other |
 | 7 — Worktree resolver Mode B not exhaustive | Helper API is uniform; primary-worktree routing happens once at helper entry |

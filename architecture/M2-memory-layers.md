@@ -205,7 +205,7 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 }
 ```
 
-**Backward scan:** `/geniro:learnings audit` scans existing `learnings.jsonl` (and archive) against current pattern set — report-only, manual review required for historical entries (no auto-edit).
+**Backward scan:** historical `learnings.jsonl` (and archive) entries written before the pattern set was extended are NOT auto-redacted. `/learnings` skill is deleted (master plan §69), so audit happens manually during one-shot M2 migration (§11 step 3) and ad-hoc thereafter via direct `grep -P` over `learnings.jsonl` against `_shared/emit-learning.md` regex set — report-only, user reviews and patches any historical secrets manually.
 
 ---
 

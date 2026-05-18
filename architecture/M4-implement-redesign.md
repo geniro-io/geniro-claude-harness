@@ -120,7 +120,7 @@ Per master plan P-M4-2, the 8 canonical termination conditions (agentic-loop bes
 | 2 | Done condition satisfied (modifier exit) | `done` / `ship-committed-only` / `self-review-only` | (omitted — modifier-driven) |
 | 3 | User approval required | non-terminal `phase-N-escalated`, then terminal via user pick | — |
 | 4 | Blocker needs user input | non-terminal `phase-N-escalated` | — |
-| 5 | Budget reached (P-M4-3 if accepted) | `aborted` | `budget-exhausted: <which-budget>` |
+| 5 | Budget reached | N/A в baseline M4 — per §2.3 quality-first framing, no Class-A hard kill caps; if а cost-aware mode is opted into post-P-X6, would map к `aborted` с `budget-exhausted: cost` line | (reserved for future cost-aware mode) |
 | 6 | Repeated failure threshold exceeded | `aborted` (via escalation → "abort" pick) | `repeated-failure: <phase-N> retry-limit` |
 | 7 | Safety policy denial (hook-block, dangerous-action veto) | `aborted` | `safety-denied: <hook-or-rule-name>` |
 | 8 | Tool unavailability without fallback | `aborted` | `tool-unavailable: <tool-name>` |
@@ -547,7 +547,7 @@ When M4 implementation begins (likely via `/geniro:implement` itself, recursivel
 5. **Research deliverable: ACI spec (OQ-11)** — master plan §134 mandates SWE-agent ACI study before SKILL.md rewrite. Output: 1-page minimal ACI spec defining tool surface для each reviewer-agent spawn type + Phase 2 inner-loop tools. Blocks step 8.
 6. **Apply §9.2 surgical edits к `implement-reference.md` first** (lower-risk, preserves working snippets).
 7. **Update `_shared/` helpers** per §9.3: `plan-criteria.md`, `root-cause-gate.md`, `test-first-gate.md`, `effort-scaling.md`.
-8. **Rewrite `skills/implement/SKILL.md`** against finalized spec + ACI spec (step 5).
+8. **Rewrite `skills/implement/SKILL.md`** against finalized spec + ACI spec (step 5). **Absorbs M1 PR-1** (per 2026-05-18 sequencing reconciliation): step 8 ships canonical M1 frontmatter + atomic_state_write usage + validate_state_file at resume from the start — no prior mechanical migration PR needed. Hard dependency: M1 PR-0 (helpers) must land before this step.
 9. **Update `CLAUDE.md` full skill-table** per §9.3 (8 skill deletions + add /plan placeholder).
 10. **Verify `reviewer-agent` supports the 5 dimensions** including the `architecture` dim's docs-staleness extension (OQ-9); patch if not.
 11. **Manual end-to-end test** против а small feature task before merging. Use inline-task ($ARGUMENTS-only) entry-mode since /plan не yet exists.
@@ -629,14 +629,14 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 | Phase | Helper | Direction | MODE | Inputs | Outputs | Notes |
 |---|---|---|---|---|---|---|
 | Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `implement` + `global` + `code-style` | concatenated rule body inlined into context | Echo contract per M2 §7. Survives compaction via M3 SessionStart re-injection. |
-| Phase 1 entry | `load-semantic` | read L3 | `refresh` | top-2 default (`project.md` + `codebase-map.md`); optional `features.md` если spec mentions feature backlog | inlined into context + fingerprint drift check | Drift notification surfaces к user если `.fingerprint.json` mismatched. |
+| Phase 1 entry | `load-semantic` | read L3 | `refresh` | top-2 default (`_project.md` + `_CODEBASE_MAP.md`); optional `_FEATURES.md` если spec mentions feature backlog | inlined into context + fingerprint drift check | Drift notification surfaces к user если `.fingerprint.json` mismatched. |
 | Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred от task description (e.g., `react`, `auth`, `bug`); scope = task path | top-K matching entries (default K=5, filter superseded + deprecated) | Skipped если task description is too generic к infer tags. |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | the three loaded layers | precedence-resolved или AUQ on hard conflict | Called transitively by load-* helpers per M2 §7. |
 | Phase 2 (Implement) | none | — | — | — | — | No new helper calls during edit batch. Code-style instructions от Phase 1 L4 refresh remain в context. |
 | Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Always re-fires at Phase 3 entry. Drops the conditional-on-marker pattern from M4 v3 draft — simpler, no M3 marker contract needed. Cost: 1 helper read, within master plan §102 typical-baseline ≤5 (descriptive, not а hard cap per §2.3). |
 | Phase 3 fix-loop iteration | `query-learnings` | read L2 | n/a | tags + scope = changed-file paths | similar past findings | Used к prime reviewer-agent prompts с known conventions/pitfalls. |
 | Phase 3 ship sub-step | `emit-learning` | write L2 | n/a | producer = `/geniro:implement`; scope = changed-file paths; summary, tags, type, ext | append к `learnings.jsonl` | Fires когда §7.5 step 5 conditions are met (≥3-instance pattern OR spec.md-recorded decision). Dedup + sanitization per M2 §5.2. |
-| Phase 3 ship sub-step | `update-semantic` | write L3 | n/a | operation (add-module / move / rename); path; description | append к `codebase-map.md` (lock-guarded) | Fires когда Phase 2 added а new module / file the L3 codebase-map should index. |
+| Phase 3 ship sub-step | `update-semantic` | write L3 | n/a | operation (add-module / move / rename); path; description | append к `_CODEBASE_MAP.md` (lock-guarded via `.codebase-map.lock`) | Fires когда Phase 2 added а new module / file the L3 codebase-map should index. |
 | Phase 3 ship sub-step | M1 `atomic_state_append` | write T1 | n/a | state.md path; new entry к `non-resumable-actions[]` | append-only update | Fires after each `git push`, `gh pr create`, posted comment, etc. M3 §8 schema. |
 
 ### 13.2 L2 emit triggers (per M2 §5.3 patched contract)
@@ -652,9 +652,9 @@ M2 §13 obligation: every pipeline skill's `.md` declares which L2/L3/L4 helpers
 ### 13.3 L3 update sites
 
 `update-semantic` writes to:
-- `codebase-map.md` — add-module / move / rename operations from Phase 2 file diffs. Bounded auto-incremental (M2 §6.1) — does не rewrite entire L3, just appends а single-line entry per change.
-- NOT `features.md` — feature-backlog updates owned by /plan (M5) per master plan §68 (`/features` skill deleted).
-- NOT `project.md` или `architecture.md` — those are user-curated, не auto-updated.
+- `_CODEBASE_MAP.md` — add-module / move / rename operations from Phase 2 file diffs. Bounded auto-incremental (M2 §6.1) — does не rewrite entire L3, just appends а single-line entry per change.
+- NOT `_FEATURES.md` — feature-backlog updates owned by /plan (M5) per master plan §68 (`/features` skill deleted).
+- NOT `_project.md` или `_architecture.md` — those are user-curated, не auto-updated.
 
 ### 13.4 Phase boundary refresh sites (M3 §7.3)
 
