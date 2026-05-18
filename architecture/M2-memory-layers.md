@@ -103,6 +103,7 @@ A new fact is placed into a layer based on the writer's intent, not arbitrary fi
 | `dedup_key` | string | Writer-supplied dedup key; if absent, computed as `sha256(producer + "\|" + scope + "\|" + normalize(summary))[:12]` |
 | `supersedes` | string | `dedup_key` of an earlier entry this one invalidates |
 | `deprecated` | bool | Marks entry stale (kept on disk, excluded from default retrieval) |
+| `trust` | enum: `verified` \| `retrieved` \| `inferred` | **(P-M2-3)** Source confidence level. `verified` = grounded в code или test execution; `retrieved` = sourced from external content (web fetch, MCP comments, third-party docs); `inferred` = model deduced from indirect signals. Default per emitter (see §5.3 table). Readers may filter via `--min-trust verified` или surface trust level в displayed summaries. Trust = source confidence, NOT correctness confidence. |
 
 **Optional typed extension (writer adds when a known type fits):**
 
@@ -153,16 +154,16 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 
 **Auto-emit triggers per skill (concrete observable signals, not subjective interestingness):**
 
-| Skill | Trigger | Type |
-|---|---|---|
-| `/geniro:debug` | Hypothesis tracking shows FALSIFIED → CONFIRMED + fix applied | `diagnosis` |
-| `/geniro:plan` (M5) | `spec.md` records chosen approach with considered alternatives | `decision` |
-| `/geniro:implement` (M4) | Self-review reviewer-agent (architecture or code-quality dimension §7.2) detects ≥3 instances of same pattern in changed code | `convention` |
-| `/geniro:implement` (M4) | Inline-task mode (no /plan available) where Phase 1 produced an inline approach choice — mirrors `/plan`'s `decision` emit для cross-session recall | `decision` |
-| `/geniro:review` | `relevance-filter-agent` aggregated same finding from ≥3 reviewers | `pitfall` |
-| `/geniro:refactor` | Pattern extracted to shared utility/component | `discovery` |
-| `/geniro:onboard` | Non-obvious architectural pattern documented | `discovery` |
-| `/geniro:investigate` | Question answered after >3 search rounds | `discovery` |
+| Skill | Trigger | Type | Default trust (P-M2-3) |
+|---|---|---|---|
+| `/geniro:debug` | Hypothesis tracking shows FALSIFIED → CONFIRMED + fix applied | `diagnosis` | `verified` |
+| `/geniro:plan` (M5) | `spec.md` records chosen approach with considered alternatives | `decision` | `verified` |
+| `/geniro:implement` (M4) | Self-review reviewer-agent (architecture or code-quality dimension §7.2) detects ≥3 instances of same pattern in changed code | `convention` | `verified` |
+| `/geniro:implement` (M4) | Inline-task mode (no /plan available) where Phase 1 produced an inline approach choice — mirrors `/plan`'s `decision` emit для cross-session recall | `decision` | `verified` |
+| `/geniro:review` | `relevance-filter-agent` aggregated same finding from ≥3 reviewers | `pitfall` | `verified` |
+| `/geniro:refactor` | Pattern extracted to shared utility/component | `discovery` | `verified` |
+| `/geniro:onboard` | Non-obvious architectural pattern documented | `discovery` | `verified` |
+| `/geniro:investigate` | Question answered after >3 search rounds | `discovery` | `retrieved` if WebFetch/WebSearch used; `verified` if code-grounded only |
 
 **Manual:** post-redesign, `/learnings` skill is deleted (master plan §69). Manual curation = direct `learnings.jsonl` edits (mark `deprecated: true`, archive cold entries, etc. — see §5.2 Archive sub-section).
 
