@@ -405,14 +405,17 @@ After mode is resolved (IDEA или DESIGN_DOC-with-fresh-start), Phase 0 create
 
 ```yaml
 ---
-geniro_kind: state
-skill: plan
-task_slug: <slug>
-phase: mode-detect
-mode: <IDEA|DESIGN_DOC>
-created_at: <ISO-8601>
-approvals: []
-non-resumable-actions: []
+tier: T1                       # M1 §T1 required
+producer: plan                 # M1 §T1 required
+schema-version: 1              # M1 §T1 required
+branch: <git-branch>           # M1 §T1 required
+timestamp: <ISO-8601 UTC>      # M1 §T1 required
+phase: mode-detect             # M1 §T1 required (free-form per-skill; M5 enum в §2.1)
+status: in-progress            # M1 §T1 required (in-progress|done|failed)
+non-resumable-actions: []      # M1 §T1 required
+approvals: []                  # M1 §T1 optional (P-M1-1 schema)
+task_slug: <slug>              # M5 extension
+mode: <IDEA|DESIGN_DOC>        # M5 extension
 ---
 
 # State: <topic>
@@ -540,10 +543,11 @@ Each answered AUQ → append entry к state.md frontmatter `approvals[]` via `at
 ```yaml
 approvals:
   - category: clarify_auth_method
-    question: "Which existing auth flow should the new feature integrate with?"
+    prompt: "Which existing auth flow should the new feature integrate with?"
     options: ["OAuth (src/auth/oauth.ts)", "JWT (src/auth/jwt.ts)", "Skip — proceed assuming OAuth"]
     picked: "OAuth (src/auth/oauth.ts)"
-    answered_at: 2026-05-17T10:50:00Z
+    at: 2026-05-17T10:50:00Z
+    asked_in_phase: clarify
 ```
 
 On compaction-resume, M3 §6 Block 5d renders this — the model re-reads `approvals[]` и skips already-answered questions.
@@ -583,10 +587,11 @@ User pick → append к `approvals[]` с category `approach_choice`:
 
 ```yaml
 - category: approach_choice
-  question: "Which approach do you want к pursue?"
+  prompt: "Which approach do you want к pursue?"
   options: ["Wrapper Service (Recommended)", "Inline Refactor", "Event-Sourced Path"]
   picked: "Wrapper Service (Recommended)"
-  answered_at: 2026-05-17T10:55:00Z
+  at: 2026-05-17T10:55:00Z
+  asked_in_phase: approaches
 ```
 
 Other approaches captured к а body section `## Considered Alternatives`:
@@ -804,10 +809,11 @@ On user picks "Approve":
 1. **Persist approval** к `approvals[]` с category `final_approve`:
    ```yaml
    - category: final_approve
-     question: "Approve spec at <path>?"
+     prompt: "Approve spec at <path>?"
      options: [...]
      picked: "Approve — proceed к hand-off"
-     answered_at: 2026-05-17T11:25:00Z
+     at: 2026-05-17T11:25:00Z
+     asked_in_phase: user-approve
    ```
 2. **`git commit`** fires here (NOT in Phase 6):
    - `git add .geniro/planning/<slug>/spec.md` + every sibling milestone-N.md
@@ -845,10 +851,11 @@ User pick → append к `approvals[]` с category `handoff`:
 
 ```yaml
 - category: handoff
-  question: "Next step?"
+  prompt: "Next step?"
   options: ["/implement directly", "Stop — keep spec for later"]
   picked: "/implement directly"
-  answered_at: 2026-05-17T11:30:00Z
+  at: 2026-05-17T11:30:00Z
+  asked_in_phase: handoff
 ```
 
 ### 16.3 Terminal transition
@@ -869,35 +876,40 @@ The canonical 10-section schema. Every spec.md emitted by М5 conforms к this s
 
 ```yaml
 ---
-geniro_kind: design-doc
-geniro_schema_version: m5-v1
-task_slug: <slug>
-topic: <one-sentence-topic>
-created_at: <ISO-8601>
-created_by: /geniro:plan
-mode: <IDEA|DESIGN_DOC-fresh>
-effort_tier: <trivial|medium|big>
-status: draft               # | approved | superseded
-budget:
+tier: T1                                # M1 §T1 required (spec.md lives в task-dir)
+producer: plan                          # M1 §T1 required
+schema-version: 1                       # M1 §T1 required
+branch: <git-branch>                    # M1 §T1 required
+timestamp: <ISO-8601 UTC>                # M1 §T1 required
+geniro_kind: design-doc                  # design-doc-detect.md contract — required marker
+geniro_schema_version: m5-v1             # M5 schema version
+task_slug: <slug>                        # M5 extension
+topic: <one-sentence-topic>              # M5 extension
+mode: <IDEA|DESIGN_DOC-fresh>            # M5 extension
+effort_tier: <trivial|medium|big>        # M5 extension
+lifecycle: draft                         # M5 design-doc lifecycle (draft|approved|superseded); renamed от `status:` to avoid clash с M1 §T1 state `status: in-progress|done|failed`
+budget:                                  # P-M5-2 goal-state block — start
   max_files_to_edit: <int|null>
   max_lines_changed: <int|null>
-  time_budget: <duration|null>      # e.g., "4h", "1d", or null for unbounded
-checkpoints:                # list of {step_anchor, name} pairs
+  time_budget: <duration|null>           # e.g., "4h", "1d", or null for unbounded
+checkpoints:                             # list of {step_anchor, name} pairs
   - step_anchor: step-3
     name: "DB migration applied"
   - step_anchor: step-7
     name: "Tests green"
-forbidden_actions:          # list of explicit "don't do this" rules
+forbidden_actions:                       # list of explicit "don't do this" rules
   - "do NOT modify production database schema directly — use migrations only"
   - "do NOT bypass auth middleware"
-approval_required_for:      # list of step_anchors that require user approval before /implement proceeds
+approval_required_for:                   # list of step_anchors что require user approval before /implement proceeds
   - step-3
   - step-9
-tools_required: ["pnpm", "docker", "gh"]   # CLI tools the implementer needs in env
+tools_required: ["pnpm", "docker", "gh"]  # CLI tools the implementer needs in env — P-M5-2 goal-state end
 ---
 ```
 
-Fields 1-7 (geniro_kind through effort_tier) are core. Fields 8-13 (budget through tools_required) are the P-M5-2 goal-state block embedded в frontmatter per H-2.
+Fields 1-5 (tier through timestamp) are M1 §T1 required base. Fields 6-12 (geniro_kind through lifecycle) are M5 schema markers + extensions. Fields 13-17 (budget through tools_required) are the P-M5-2 goal-state block embedded в frontmatter per H-2.
+
+**Note on `status:` namespace.** M1 §T1 reserves `status:` для state lifecycle (`in-progress|done|failed`). M5 design-doc lifecycle uses а distinct key (`lifecycle:` — values `draft|approved|superseded`) к avoid clash. State-tracking уже handled via the state.md sibling file (§7.3), so spec.md doesn't need the M1 `status:` field.
 
 ### 17.2 Body — 10 sections
 
@@ -1267,7 +1279,9 @@ The authoritative redesign reference is `/root/.claude/plans/reactive-dreaming-b
 
 ---
 
-## 25. Anti-rationalization {#anti-rationalization}
+## 25. Anti-rationalization (P-MP-1 closure) {#anti-rationalization}
+
+Per master plan P-MP-1 (lines 162-179): every milestone closes с an explicit anti-pattern check. This section catalogues rationalizations а reader might offer to backtrack M5 decisions, paired с the counter-argument grounded в audit findings и architectural intent. Cross-cutting LLM-orchestration anti-patterns (auto-handle / hard kill caps / silent abort / bypass safety hooks) are addressed inline below where they would apply to M5.
 
 | Your reasoning | Why it's wrong |
 |---|---|
@@ -1282,6 +1296,11 @@ The authoritative redesign reference is `/root/.claude/plans/reactive-dreaming-b
 | "Phase 7 validator hard-fail blocks user — they're stuck с automated revision rounds." | Phase 7 has а 3-round escalation cap. On round 3, AUQ surfaces к user (§14.3) с 3 options including «accept as-is». User has agency at all times — not blocked. |
 | "Drop the milestone-mode AUQ — а Big task can just emit а spec and the user decides later." | The decision к slice into milestones IS а planning decision. Punting it к the user post-spec means they discover at /implement time that а 50-step spec is unmanageable, и must come back к re-plan. Surfacing the choice at Phase 5 (when both context AND user attention are present) is the right gate. |
 | "Hand-off menu should keep `/features add` for backlog discipline." | /features is deleted (master plan §68). А «backlog» is а plan-shaped artifact on disk; spec.md saved-on-disk IS the backlog entry. No separate skill needed. |
+| "Add а wall-time / token kill cap so runaway /plan sessions abort cleanly." | Class-A hard caps are forbidden by §2.3 quality-first framing. M5 has Class-B gates — Phase 7 validator 3-round cap (§14.3), Phase 8 user-revision 3-round cap (§15.3) — both escalate к user, do not abort. |
+| "Auto-default empty AUQ answer к the Recommended option." | Forbidden by §10.2 («never auto-default»). Empty answer = upstream Claude Code bug; fall back к plain-text re-ask. Auto-default silently mutates user intent — а catalogued LLM-orchestration anti-pattern. |
+| "Skip persisting Phase 3 clarifying answers — they're trivial." | The Metaswarm anti-pattern. Compaction mid-Phase-5 round 2 loses 5 AUQs of user input. P-M1-1 `approvals[]` persistence is the bulwark. Non-negotiable. |
+| "Phase 6 should bypass the plan-mode mutation guard для performance." | §19 mutation guard is а safety contract, not а perf knob. The guard adds <1ms per Write (path glob check). Bypass invites the failure mode the guard exists to prevent. |
+| "Bypass git pre-commit hooks с --no-verify when committing spec.md в Phase 8.4." | Hooks fail для а reason. Investigate root cause, не bypass. CLAUDE.md-level prohibition; M5 honors it. |
 
 ---
 

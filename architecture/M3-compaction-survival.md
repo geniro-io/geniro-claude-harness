@@ -568,9 +568,7 @@ This avoids hard breakage if the rollout order is non-canonical (e.g. user upgra
 
 ## Appendix A — Worked example: post-compaction resume with non-resumable action
 
-> **Note on phase names:** This worked example uses an illustrative phase numbering (`Phase 5 - Implement`, `Phase 6 - Self-Review`) for narrative continuity with а pre-M4 redesign draft. The canonical /implement `phase:` enum values per `architecture/M4-implement-redesign.md` §2.1 are lowercase short tokens: `analyze` (Phase 1), `implement` (Phase 2), `self-review` (Phase 3 entry), `ship` (Phase 3 terminal sub-step), плюс escalation/terminal states (`phase-2-escalated`, `phase-3-escalated`, `debug-handoff`, `ship-committed-only`, `self-review-only`, `done`, `aborted`). The mechanics of compaction-recovery, `non-resumable-actions` surfacing, and helper refresh are unaffected by phase-name choice — phase-name strings in state.md are opaque per M1 §T1 (`phase:` is free-form per-skill; M3 does not enforce а phase enum; other skills define their own).
-
-**Scenario:** user invoked `/geniro:implement "add OAuth login"` on branch `feature/oauth`. Pipeline reached Phase 5 (post-push), executed `git push origin feature/oauth`, recorded the action, then mid-Phase-6 compaction struck.
+**Scenario:** user invoked `/geniro:implement "add OAuth login"` on branch `feature/oauth`. Pipeline reached Phase 3's terminal Ship sub-step (`phase: ship` per M4 §2.1 / §7.5), executed `git push origin feature/oauth`, recorded the action к `non-resumable-actions[]`, then before `gh pr create` could run, compaction struck.
 
 **Pre-compaction state.md (`.geniro/planning/feature-oauth/state.md`):**
 
@@ -581,7 +579,7 @@ producer: implement
 schema-version: 1
 branch: feature/oauth
 timestamp: 2026-05-16T15:42:00Z
-phase: Phase 6 - Self-Review
+phase: ship
 status: in-progress
 non-resumable-actions:
   - action: git-push
@@ -592,13 +590,13 @@ spec-file: .geniro/planning/feature-oauth/spec.md
 ---
 
 ## Phase log
-- Phase 0 done at 15:10:00Z
-- Phase 1 done at 15:15:00Z
-- Phase 2 done at 15:22:00Z
-- Phase 3 done at 15:30:00Z
-- Phase 4 done at 15:35:00Z
-- Phase 5 done at 15:38:00Z (git push completed — recorded)
-- Phase 6 started at 15:40:00Z
+- analyze done at 15:15:00Z
+- implement done at 15:30:00Z (tests green)
+- self-review done at 15:35:00Z (all 5 dims clean)
+- ship started at 15:35:00Z
+- ship: git-commit at 15:36:00Z
+- ship: git-push completed at 15:38:00Z (recorded to non-resumable-actions[])
+- (mid-ship — gh pr create pending — compaction struck at 15:42:00Z)
 
 ## Inputs from debug
 [empty — no debug handoff for this task]
@@ -662,7 +660,7 @@ Resume steps:
 **systemMessage:**
 
 ```
-Geniro: restoring context (source: compact, active: feature-oauth · phase: Phase 6 - Self-Review · non-resumable: 1)
+Geniro: restoring context (source: compact, active: feature-oauth · phase: ship · non-resumable: 1)
 ```
 
 **Next turn model behavior (expected):**

@@ -1,6 +1,6 @@
 # M6 — /geniro:review Redesign (Consolidate)
 
-**Status:** Specification (pre-implementation, partial — see §17 Open Questions)
+**Status:** Specification (pre-implementation, partial — see §22 Open Questions)
 **Master plan:** `/root/.claude/plans/reactive-dreaming-backus.md` — this doc is M6 of an M1–M10 architecture redesign that collapses 18 skills → 11. M6 consolidates `/geniro:review` (largest skill in the plugin — 1025-line `SKILL.md` + 10 criteria files = 3951 LOC) and **absorbs `/geniro:deep-simplify`** as а `--simplify` flag per master plan §67.
 **Scope:** Redesign of `/geniro:review` skill. Closes 10 audit defects (state.md/M1 non-conformance, missing M3 compaction blocks, stale M5-schema integration, guidelines+conventions wholesale duplication, 1025-line SKILL.md surface inflation). Closes 6 of 8 P-M6 master-plan obligations (spec-compliance к M5, /deep-simplify absorb, learnings pitfall auto-emit, mechanical pre-pass, budgets quality-first, anti-pattern audit). Defers 2 obligations (4-tier risk model, trace-grading) к M-later.
 **Depends on:** M1 (state-files — `atomic_state_write`, T2 handoff schema, `approvals[]` P-M1-1); M2 (memory layers — `query-learnings` Phase 1, `emit-learning` Phase 5 pitfall trigger); M3 (compaction-survival — `## Tool log`, `## Errors`, `## Open Questions`, `## Termination reason`); M4 (`/implement` — consumes review-findings via T2 hand-off); M5 (`/plan` — emits spec.md 10-section schema).
@@ -702,24 +702,29 @@ Per М1 §T2 «Handoff state file naming convention» row. `<PRIMARY_ROOT>` reso
 
 ```yaml
 ---
-geniro_kind: state-handoff
-geniro_schema_version: m6-v1
-producer: /geniro:review
-task_slug: review-<branch>
-branch: <branch>
-phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
-created_at: <ISO-8601>
-last_updated_at: <ISO-8601>
-mode: <standard|tdd>
-round: <int>
-risk-tier: <standard|high>
-pr-ref: <owner/repo#num|null>
-plan-context-ref: <abs-path|null>
-simplify-mode: <true|false>
-approvals: []
-non-resumable-actions: []
+tier: T2                                  # M1 §T2 required (handoff file)
+producer: review                          # M1 §T2 required
+schema-version: 1                         # M1 §T2 required
+branch: <branch>                          # M1 §T2 required
+timestamp: <ISO-8601 UTC>                  # M1 §T2 required (last-write — replaces М6-draft `last_updated_at`)
+consumer: implement                       # M1 §T2 required (primary downstream)
+geniro_kind: state-handoff                 # M6 schema marker (informational; M1 derives tier-by-frontmatter)
+geniro_schema_version: m6-v1               # M6 schema version
+task_slug: review-<branch>                 # M6 extension
+phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>   # M6 extension (in-skill state tracking; M3 recovery surfaces)
+status: <in-progress|done|failed>          # M1 §T1-style state lifecycle (extension — applied here to enable mid-run compaction recovery)
+mode: <standard|tdd>                       # M6 extension
+round: <int>                               # M6 extension
+risk-tier: <standard|high>                  # M6 extension
+pr-ref: <owner/repo#num|null>               # M6 extension
+plan-context-ref: <abs-path|null>           # M6 extension
+simplify-mode: <true|false>                 # M6 extension
+approvals: []                               # M1 optional (P-M1-1 schema)
+non-resumable-actions: []                   # M1 optional (M3 §8 schema)
 ---
 ```
+
+**Note on T2 + state-tracking extensions.** Canonical M1 §T2 is а one-shot producer→consumer handoff с frontmatter fields `tier/producer/schema-version/branch/timestamp/consumer`. M6 extends с `phase:`/`status:`/`round:`/`approvals[]` to enable mid-run compaction recovery (M3 SessionStart hook reads this file on resume). The file functions as а T2 handoff AT REST (after Phase 5 persist) и as а T1-like state file DURING THE RUN.
 
 ### 15.3 Body sections (M3 compaction-survival — D5 fix)
 
@@ -1005,7 +1010,7 @@ Remove `SKILL.md` + `simplify-criteria.md`. Move `simplify-criteria.md` к `skil
 
 ### 20.8 М1 §T2 row update
 
-Per audit D4/D9, `from-review-<branch>.md` is а pending T2 schema row. М6 implements it. Confirm М1 doc lists this path (verify line ~497).
+Per audit D4/D9, `from-review-<branch>.md` is the canonical T2 row in М1 §T2 (confirmed at M1:497 in the migration-from-pre-redesign table). М6 implements the producer side; consumer side (/implement) implemented under M4 §5.4 «Inputs from <producer>» persist.
 
 ### 20.9 New files created by М6
 
@@ -1119,7 +1124,9 @@ P-M6 obligations deferred к M-later:
 
 ---
 
-## 24. Anti-rationalization (P-MP-1 obligation)
+## 24. Anti-rationalization (P-MP-1 closure)
+
+Per master plan P-MP-1 (lines 162-179): every milestone closes с an explicit anti-pattern check. This section catalogues rationalizations а reader might offer к backtrack M6 decisions. Cross-cutting LLM-orchestration anti-patterns (auto-handle / kill caps / silent abort / hook bypass) are addressed inline below where they would apply к M6.
 
 | Your reasoning | Why it's wrong |
 |---|---|
@@ -1134,6 +1141,11 @@ P-M6 obligations deferred к M-later:
 | "Phase 1.5 mechanical pre-pass should run in parallel с Phase 2 LLM spawns — same wall-time." | Tempting но wrong. LLM agents seeing prior mechanical findings produce better-targeted output. Sequential adds ~10-30s; parallel forces post-hoc dedup и dilutes LLM focus. Sequential wins on output quality. |
 | "--simplify flag is а natural place to add `simplify` as а new dimension." | This re-creates /deep-simplify as а disguised skill. The fold-into-existing approach (5 weighted dims) is the only correct absorption. Adding а new dim defeats the master-plan-§67 collapse intent. |
 | "Round-N hard ceiling at round 6 is paternalistic — user knows what they want." | User picking «Continue» 5 times in а row indicates either а bug in stratification OR а workflow that should be /debug. Hard ceiling protects against accidental infinite-loop UX. User retains agency via «Escalate» pick. |
+| "Auto-drop MEDIUM findings к reduce user friction." | The Metaswarm anti-pattern catalogued в `report.md`. M6 routes MEDIUM findings через the always-WAIT MEDIUM-gate (per `skills/_shared/medium-gate.md`). Never auto-drop. |
+| "Skip Phase 5 approvals[] persistence — Phase 6 hand-off captures everything." | Phase 6 AUQ fires once; compaction mid-Phase-3 (filter) would lose all prior gates без `approvals[]`. M3 §6 Block 5d depends on this persistence; non-negotiable. |
+| "Add а wall-time kill cap для long-running /review с many dimensions." | §2.3 quality-first — no Class-A hard caps. Round-N escalation (§12.2) is the Class-B gate; user decides. |
+| "Bypass git guardrail hooks when Phase 5 PR comment post fails." | Hooks fail для reason. Phase 5 fail-closed semantics (§11.3) — PR-post failure surfaces an error, does NOT auto-retry с --no-verify. Investigate, fix, re-fire. |
+| "Phase 4c F→P test gate is over-engineered для standard tier — skip it." | F→P verification ensures test-first hygiene (CRITICAL/HIGH findings should fail а test BEFORE а fix lands). Pre-M6 logic preserved verbatim. --tdd users specifically benefit; --standard users still get а sanity gate. |
 
 ---
 

@@ -513,7 +513,7 @@ The pre-M4 SKILL.md (496 lines, 7 phases) is structurally incompatible с the 2-
 
 - `agents/reviewer-agent.md` — review против §7.2 dimension list; if it already supports a `dimension` parameter, no change needed. If it doesn't, add one (deferred until M4 implementation).
 - `agents/backend-agent.md`, `agents/frontend-agent.md` — primary consumer (`/implement` parallel WU spawns + `/follow-up` Phase 5) deleted under M4 + master plan §66. Verify no other consumers exist; if not, delete both agent files.
-- `agents/simplify-agent.md` — /deep-simplify being deleted (master plan §67). Verify if `/review --simplify` flag (master plan replacement) plans to reuse this agent; otherwise delete.
+- `agents/simplify-agent.md` — /deep-simplify being deleted (master plan §67). M6 §13 confirms `/review --simplify` does NOT reuse this agent (the flag weights existing dimension prompts via prepended `simplify-criteria.md`, not а separate agent spawn). Delete the agent file under M6 commit.
 - `agents/adversarial-tester-agent.md` — primary consumer pre-M4 was /implement Phase 6 Stage D (removed §3.1) + /follow-up Phase 5 Step 1.5 (skill deleted). /debug Adversarial Mode may still spawn it — verify; keep only if /debug needs it.
 - `CLAUDE.md` — **full skill-table rewrite required**. Current table lists 18 skills (pre-redesign). Post-M4 + M5–M10 it must list 11 (master plan §22 — /plan, /implement, /review, /debug, /refactor, /onboard, /investigate, /instructions, /actions, /setup, /update). Also remove /geniro:decompose, /geniro:follow-up, /geniro:brainstorm, /geniro:deep-simplify, /geniro:features, /geniro:learnings, /geniro:cleanup, /geniro:vendor rows. Add /geniro:plan row (placeholder until M5 lands).
 - `skills/_shared/plan-criteria.md` — currently says "Pre-inlined into architect-agent prompts by `/geniro:implement` (Phase 2) and `/geniro:decompose`". Both consumers wrong: M4 removes architect-agent; /decompose deleted. Rewrite to "Pre-inlined into architect-agent prompts by `/geniro:plan` (M5)" — defers maintenance к M5.
@@ -576,7 +576,7 @@ The authoritative redesign reference is `/root/.claude/plans/reactive-dreaming-b
 |---|---|---|
 | `/plan` | NEW — replaces `/brainstorm` + `/decompose` | M5 |
 | `/implement` | Redesigned (this doc); absorbs `/follow-up` | **M4 (this doc)** |
-| `/review` | Unchanged | M6 |
+| `/review` | Consolidate — 10 defects closed, `/deep-simplify` absorbed as `--simplify` flag, mechanical pre-pass added | M6 |
 | `/debug` | Aligned with /implement simplification | M7 |
 | `/refactor` | Distinct zero-behavior-change guarantee | M8 |
 | `/onboard` | Codebase mapping | M9 |
@@ -688,3 +688,26 @@ Per master plan P-M4-6 (revised к minimal scope, 2026-05-17): explicit Agent-Co
 **Existing safety layer:** file-protection hook, git-guardrail hook, и `.geniro/` deletion guard apply across ALL phases regardless of ACI doc — runtime denies stay enforced (CLAUDE.md §Safety Hooks).
 
 **Out of scope для M4 (deferred):** the 14-class risk taxonomy + 7-decision matrix from agents-best-practices. Useful когда M5-M10 designs need cross-skill consistency (e.g. /plan referencing «destructive» operations); not needed for M4 alone. If/when adopted, lives в а `_shared/risk-taxonomy.md` helper, not inline в M4.
+
+---
+
+## 14. Anti-rationalization (P-MP-1 closure)
+
+Per master plan P-MP-1 (lines 162-179): every milestone closes с an explicit anti-pattern check against common LLM-orchestration pitfalls. This section catalogues the rationalizations а reader (or а future M-doc) might offer to backtrack M4 decisions, with the counter-argument grounded в the audit findings и architectural intent.
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "/implement should ask user before each Edit — safety first." | Phase 2 Implement is the **execution** phase. Pre-approval lives upstream — /plan (M5) Phase 8 emits the spec.md; that spec.md IS the pre-approval. Per-Edit AUQs defeat the spec-driven autonomy M4 is designed for. The narrow user-gate pattern lives в M5 §17 spec.md `approval_required_for` field — declared up-front per-spec, не per-Edit auto-fire. |
+| "Add а wall-time kill cap so long-running tasks abort cleanly." | Class-A hard caps abort legitimate complex work mid-stride. M4 §2.3 quality-first framing — no Class-A caps. Past three failed Phase-2 retries (§6.2) escalates к user via AUQ. User has agency, без а budget-induced abort. |
+| "Phase 2 should fan out backend/frontend agents for parallel edits." | M4 §3.1 — work-unit decomposition removed. Scheduler complexity overwhelmed the value. Single solo inner loop, one test run at end. |
+| "Re-run tests after each file Edit к catch regressions early." | M4 §6.1 — single end-of-Phase-2 test run. Per-file test runs explode wall-time on slow suites; granular state recovery is rarely worth the cost. |
+| "/implement should self-fix indefinitely until reviews clean." | M4 §7.3 — bounded к 3 rounds. Past 3, escalate AUQ (debug-handoff / accept / abort). «Kick it until it passes» is an anti-pattern catalogued в `report.md`. |
+| "Skip the ship-mode AUQ — user can `git reset` if they wanted а draft PR." | M4 §7.5 step 3 — push is draft-grade и fires automatically, but PR creation is commit-grade. AUQ gates the commit-grade decision. Semantic modifiers ("draft only", "stop after review", per §5.1) provide deterministic overrides без forcing the AUQ. |
+| "Auto-promote L2 conventions к L4 rules when ≥3-pattern detected." | M4 §7.5 step 5 + P-M4-5 — surface а suggestion line («Consider /geniro:instructions edit X.md»); do NOT auto-promote. User remains source-of-truth для L4 rule curation. Auto-promotion creates noise + drift. |
+| "Defer M3 compaction-survival к downstream skills — M4 is too complex к wire it up." | M3 contract IS M4's contract — state.md frontmatter (M1 §T1), `non-resumable-actions[]` (M3 §8), `## Tool log` (§2.2). Без these, compaction mid-Phase-2 loses the entire run. Non-negotiable; every phase обязан honor it. |
+| "Run reviewers серийно — easier к debug than parallel-spawn batch." | M4 §7.2 — parallel spawn matches the system-prompt rule. Serial spawn doubles wall-time for а small token-cost reduction. Wrong trade-off; the parallelism IS the speedup. |
+| "Test failures в Phase 2 mean the spec was wrong — abort и re-spec." | Sometimes true, но often the implementation needs adjustment. M4 §6.2 in-phase fix loop is the right gate. Если fix loop exhausts (§6.3), escalation AUQ surfaces «hand off к /debug» as an option — letting user decide if it's spec-level vs implementation-level. |
+| "Audit trail isn't needed for local /implement runs." | The state.md `## Tool log` IS the audit trail. M3 SessionStart re-injects on compaction; user can resume. Без log, post-mortem на failed runs is impossible. M4 §2.2 invariant #6 requires evidence-grounded final answers. |
+| "Pre-load helper count «≤5 baseline» is а hard cap — refactor к hit it." | M4 §2.3 — descriptive inventory count, не prescriptive cap. Resume runs или edge cases may exceed без consequence. The friction-reduction framing is relative к pre-redesign 22-AUQ baseline, не а fixed ceiling. |
+| "Auto-handle MEDIUM findings — drop them silently to reduce friction." | The Metaswarm anti-pattern catalogued в `report.md`. М4 doesn't run а separate MEDIUM-gate (that's /review's territory), но the principle applies: never auto-drop. The Phase 3 reviewer-agents are tagged CRITICAL/HIGH only по §7.2 design — MEDIUM-tier findings are out of scope for M4 self-review, не «silently dropped». |
+| "Bypass safety hooks с --no-verify when commit-hook fails — saves time." | Hooks fail для а reason. Investigate root cause, не bypass. M4's Ship sub-step honors hooks; --no-verify usage is а CLAUDE.md-level prohibition. |

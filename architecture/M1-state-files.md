@@ -46,7 +46,7 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 │   └── handoff/                      # T2 — HANDOFF (overwritten on next produce)
 │       ├── from-debug-<branch>.md
 │       ├── from-review-<branch>.md
-│       └── tdd-<branch>.md
+│       └── from-tdd-<branch>.md
 ├── knowledge/                        # T3 — PERSISTENT (append-only)
 │   └── learnings.jsonl
 ├── instructions/                     # T3 — PERSISTENT (CRUD)
@@ -498,7 +498,7 @@ One-line config change in `hooks/enforce-state-helper.sh`: `MODE=warn` → `MODE
 | `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md` | `.geniro/planning/<task-dir>/skeptic-hypothesis.md` | T1 | Move into task-dir. |
 | `.geniro/state/follow-up/adversarial-<slug>.md` | `.geniro/planning/<task-dir>/adversarial.md` | T1 | Move into task-dir. |
 | `.geniro/state/follow-up/.deletion-<basename>.patch` | `.geniro/planning/<task-dir>/.deletion-<basename>.patch` | T1 | Move into task-dir. |
-| `.geniro/state/tdd/state-<slug>.md` | `.geniro/state/handoff/tdd-<branch>.md` | T2 | Branch-scoped path (cross-skill handoff). |
+| `.geniro/state/tdd/state-<slug>.md` | `.geniro/state/handoff/from-tdd-<branch>.md` | T2 | Branch-scoped path (cross-skill handoff). |
 | `.geniro/knowledge/learnings.jsonl` | Same path | T3 append-only | Add sidecar `.meta.yaml`; switch to append helper. |
 | `.geniro/instructions/**/*.md` | Same paths | T3 CRUD | Add `concurrency: crud` to frontmatter. |
 | `.geniro/actions/**/*.md` | Same paths | T3 CRUD | Same. |
