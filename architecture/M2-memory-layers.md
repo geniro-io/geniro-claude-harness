@@ -337,9 +337,10 @@ Each helper has a stable input/output contract documented inside its `.md` (M4+ 
 
 For projects already using the plugin pre-M2:
 
-1. `/geniro:update` detects M2 and triggers a one-shot migration:
-   - If `FEATURES.md` exists at project root → move to `.geniro/planning/_FEATURES.md`.
-   - If `CODEBASE_MAP.md` (or similar) exists → move to `.geniro/planning/_CODEBASE_MAP.md`.
+1. `/geniro:update` detects M2 and triggers a one-shot migration (canonical pre-rename paths per M1 §Path inventory):
+   - If `.geniro/planning/FEATURES.md` exists → rename к `.geniro/planning/_FEATURES.md` + add T3 frontmatter.
+   - If `.geniro/planning/CODEBASE_MAP.md` exists → rename к `.geniro/planning/_CODEBASE_MAP.md` + add T3 frontmatter.
+   - If `.geniro/planning/focus-<area>.md` exist → rename each к `.geniro/planning/_focus-<area>.md` + add T3 frontmatter.
    - Create `.geniro/planning/.fingerprint.json` from current `package.json` / `tsconfig.json`.
    - Create `.geniro/planning/_project.md` skeleton if absent, populated from `/setup`'s record of tech stack.
 2. Existing `.geniro/knowledge/learnings.jsonl` entries remain valid (hybrid schema is backward-compatible with free-form base-only entries).
@@ -370,7 +371,7 @@ The following were explicitly considered and deferred to later milestones to kee
 - ✅ **M3:** Compaction-survival strategy — landed в `architecture/M3-compaction-survival.md` (SessionStart hook injection list + MODE: refresh contract defined).
 - ✅ **M4 /implement:** Memory I/O section landed в `architecture/M4-implement-redesign.md` §13. Other pipeline skills (`/plan` M5, `/debug` M7, `/review` M6, `/refactor` M8) will add their own Memory I/O sections in their respective milestone docs.
 - ⏳ **M-later:** Redaction-pattern marketplace, drift-notification UX polish. (`/geniro:learnings audit` UX is N/A — `/learnings` skill deleted per master plan §69; replaced by manual secret-scan during M2 migration per §11 step 3.)
-- ⏳ **M-later (P-M2-2):** Validator framework — enumerate structural checks beyond §5.4 secrets sanitization that need mechanical enforcement. Candidates: spec.md schema (post-M5), learnings.jsonl entry schema, `.geniro/planning/_FEATURES.md` row format, state.md body-section-name spelling (`## Phase log` / `## Tool log` / `## Errors` / `## Open Questions` / `## Termination reason` / `## Inputs from <producer>` — mistyping breaks M3 rendering), possibly extended semantic PII scan. **Trigger:** after M5-M7 ship and collect empirical data о повторных model failures that prompt-level guidance fails к prevent. Real design happens then, not now.
+- ⏳ **M-later (P-M2-2):** Validator framework — enumerate structural checks beyond §5.4 secrets sanitization that need mechanical enforcement. Candidates: spec.md schema (post-M5), learnings.jsonl entry schema, `.geniro/planning/_FEATURES.md` row format, state.md body-section-name spelling (`## Phase log` / `## Tool log` / `## Errors` / `## Open Questions` / `## Termination reason` / `## Inputs from <producer>` / `## Inline Plan` (M4 §5.4) / `## Accepted Failures` (M4 §6) / `## Accepted Findings` (M4 §7.4) — mistyping breaks M3 rendering или Phase-3 reviewer-agent input parsing), possibly extended semantic PII scan. **Trigger:** after M5-M7 ship and collect empirical data о повторных model failures that prompt-level guidance fails к prevent. Real design happens then, not now.
 
 ---
 

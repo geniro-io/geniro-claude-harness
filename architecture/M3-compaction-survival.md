@@ -388,6 +388,8 @@ non-resumable-actions:
 
 **Producer responsibility (M4+ per-skill work):** every pipeline skill, on completing a side-effect operation, MUST append a structured entry to `non-resumable-actions` via `atomic_state_write` (re-writes whole state.md with updated frontmatter — single atomic operation per M1).
 
+**Lifetime / pruning:** the list is **never pruned** during T1 lifetime; it dies с the task-dir at Phase Ship cleanup (M1 §T1 lifecycle). Producers append-only; consumers (hook Block 5) iterate the full list each render. No TTL helper needed.
+
 **Hook rendering:** Block 5 of additionalContext iterates entries, prints one line each:
 
 ```bash
@@ -457,7 +459,7 @@ In addition to `additionalContext` (model-visible), the hook emits a `systemMess
 Geniro: restoring context (source: <source>, active: <task-dir or "none"> · phase: <phase or "—"> · non-resumable: <N>)
 ```
 
-**Examples:** (phase strings are opaque per §5; per-skill enums apply — `/implement` uses M4 §2.1 lowercase tokens shown below; `/debug` enum TBD in its milestone doc)
+**Examples:** (phase strings are opaque per M1 §T1 — `phase:` is free-form per-skill; per-skill enums apply — `/implement` uses M4 §2.1 lowercase tokens shown below; `/debug` enum TBD in its milestone doc)
 ```
 Geniro: restoring context (source: compact, active: feature-dark-mode · phase: implement · non-resumable: 2)
 Geniro: restoring context (source: resume, active: bugfix-toggle-flicker · phase: reproduce · non-resumable: 0)
@@ -494,7 +496,7 @@ git mv hooks/post-compact-notification.sh hooks/session-start-restore.sh
 - Change `matcher` from `"compact"` to `"compact|resume|startup"`.
 - Change `statusMessage` from `"Restoring context after compaction..."` to `"Restoring Geniro context..."`.
 
-**Body rewrite:** the existing script's 3-tier state-file lookup is replaced by the M1-canonical slug + branch-fallback procedure (§5 / Q8). The additionalContext assembly is restructured into the six blocks of §6. The systemMessage emitter is added.
+**Body rewrite:** the existing script's 3-tier state-file lookup is replaced by the M1-canonical slug + branch-fallback procedure (§5 / Q8). The additionalContext assembly is restructured into the ordered blocks of §6 (Blocks 1, 2, 3, 4, 5, 5b, 5c, 5d, 6 — six numbered slots с 5b/5c/5d sub-block variants per P-M3-1/P-M3-2). The systemMessage emitter is added.
 
 **Backward-compatibility window during M1 PR rollout:** while M1 migration PRs are landing one skill at a time, the legacy state-file paths (`.geniro/state/<skill>/state-<slug>.md`, `.geniro/state/debug/HYPOTHESES-<slug>.md`) may still exist. The M3 hook does NOT scan these legacy paths — by the time M3 hook ships, M1 PR-0 must have landed (introducing the consolidated `.geniro/planning/<task-dir>/state.md` location and the helpers). For projects upgrading mid-pipeline, M1's per-skill PRs migrate state files on first invocation; the M3 hook will simply report "no active task" until that migration runs, which is correct behavior.
 
@@ -532,7 +534,7 @@ This avoids hard breakage if the rollout order is non-canonical (e.g. user upgra
 - [ ] Active T1 state file resolved via slug + frontmatter-branch fallback (Q8).
 - [ ] Pre-flight `validate_state_file` runs on detected state.md (Q5). Hard-fail suppresses state.md pointer and emits Block 3.
 - [ ] Missing M1 helpers detected; Block 4 emitted; behavior degrades gracefully (Q10.2).
-- [ ] additionalContext assembled per §6 (6 blocks, ordered).
+- [ ] additionalContext assembled per §6 (9 ordered blocks: 1, 2, 3, 4, 5, 5b, 5c, 5d, 6 — Block 5's three sub-block variants per P-M3-1/P-M3-2).
 - [ ] `non-resumable-actions[]` parsed and rendered per §8 schema.
 - [ ] systemMessage one-liner emitted per §10; suppressed on cold startup with no active task.
 - [ ] `clear` source produces no output (exit 0, empty stdout).
@@ -566,7 +568,7 @@ This avoids hard breakage if the rollout order is non-canonical (e.g. user upgra
 
 ## Appendix A — Worked example: post-compaction resume with non-resumable action
 
-> **Note on phase names:** This worked example uses an illustrative phase numbering (`Phase 5 - Implement`, `Phase 6 - Self-Review`) for narrative continuity with а pre-M4 redesign draft. The canonical /implement `phase:` enum values per `architecture/M4-implement-redesign.md` §2.1 are lowercase short tokens: `analyze` (Phase 1), `implement` (Phase 2), `self-review` (Phase 3 entry), `ship` (Phase 3 terminal sub-step), плюс escalation/terminal states (`phase-2-escalated`, `phase-3-escalated`, `debug-handoff`, `ship-committed-only`, `self-review-only`, `done`, `aborted`). The mechanics of compaction-recovery, `non-resumable-actions` surfacing, and helper refresh are unaffected by phase-name choice — phase-name strings in state.md are opaque per §5 (M3 does not enforce а phase enum; other skills define their own).
+> **Note on phase names:** This worked example uses an illustrative phase numbering (`Phase 5 - Implement`, `Phase 6 - Self-Review`) for narrative continuity with а pre-M4 redesign draft. The canonical /implement `phase:` enum values per `architecture/M4-implement-redesign.md` §2.1 are lowercase short tokens: `analyze` (Phase 1), `implement` (Phase 2), `self-review` (Phase 3 entry), `ship` (Phase 3 terminal sub-step), плюс escalation/terminal states (`phase-2-escalated`, `phase-3-escalated`, `debug-handoff`, `ship-committed-only`, `self-review-only`, `done`, `aborted`). The mechanics of compaction-recovery, `non-resumable-actions` surfacing, and helper refresh are unaffected by phase-name choice — phase-name strings in state.md are opaque per M1 §T1 (`phase:` is free-form per-skill; M3 does not enforce а phase enum; other skills define their own).
 
 **Scenario:** user invoked `/geniro:implement "add OAuth login"` on branch `feature/oauth`. Pipeline reached Phase 5 (post-push), executed `git push origin feature/oauth`, recorded the action, then mid-Phase-6 compaction struck.
 

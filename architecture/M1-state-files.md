@@ -110,6 +110,8 @@ approvals:
 
 Initial M4 categories: `disambiguate_arguments` (M4 §5.1) и `ship_mode` (M4 §7.5). Consumer protocol: before firing AskUserQuestion с а persisted category, check `approvals[]` for prior matching entry; if found, use `picked` value, skip AUQ. Validator (§Validation helper) checks schema if present; missing array → treated as empty (backward-compat с existing T1 files).
 
+**Re-ask semantics:** on re-ask after material context change (e.g., M4 §7.5 ship-mode re-ask when spec deleted or branch switched — see M4:457), producer appends а new entry rather than mutating the existing one; consumer protocol picks the **latest-by-`at:` per category**. Older entries remain for audit trail. Lifetime = T1 (dies with the task-dir at Phase Ship cleanup); no TTL or pruning needed.
+
 **Body schema:** unstructured; per-skill conventions.
 
 **Slug rule (audit problem #8 fix):**
