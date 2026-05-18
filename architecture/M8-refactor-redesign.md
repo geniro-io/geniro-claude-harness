@@ -593,7 +593,7 @@ Cleanup is best-effort — failed commands silently OK.
 
 ### 9.1 state.md (M1 §T1 base + M8 extensions)
 
-Path: `<PRIMARY_ROOT>/.geniro/state/refactor/<slug>/state.md` (subdir-per-slug, mirrors M4/M5/M7 layout per D2-fix).
+Path: `<PRIMARY_ROOT>/.geniro/state/refactor/<slug>/state.md` (M1 §T1 **session-bound layout** — second canonical path-root per M1 §T1 Path roots table; matches M7's `/debug` layout; **distinct от** M4/M5 task-bound `planning/<task-dir>/` layout — which is correct since /refactor produces no spec/plan artifacts, only transient working state).
 
 #### Frontmatter
 

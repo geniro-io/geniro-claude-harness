@@ -232,7 +232,7 @@ M7 has **NO hard kill caps**. All limits are **escalation gates that surface к 
 |---|---|---|
 | **Q1** | **Keep Adversarial Mode в /debug** — dual-mode preserved | §9 |
 | **Q2** | **3 phases (M4 mirror)** — Investigate → Propose → Ship; sub-steps inline | §2, §6, §7, §8 |
-| **Q3** | **Rename HYPOTHESES-<slug>.md → state.md** под `.geniro/state/debug/<slug>/state.md` (subdir-per-slug, M1 §T1 canonical layout) | §11.1 |
+| **Q3** | **Rename HYPOTHESES-<slug>.md → state.md** под `.geniro/state/debug/<slug>/state.md` (M1 §T1 **session-bound layout** — second canonical path-root per M1 §T1 Path roots table; the per-skill subdir layout used by session-bound skills like /debug + /refactor, distinct от M4/M5's task-bound `planning/<task-dir>/` layout) | §11.1 |
 | **D1-fix** | M1 §T1 frontmatter base + M7 extensions for state.md | §11.1 |
 | **D2-fix** | M1 §T2 frontmatter base + M7 extensions for from-debug-<branch>.md | §11.2 |
 | **D3-fix** | M3 body sections (`## Tool log`, `## Errors`, `## Open Questions`, `## Termination reason`, Block 5d) обязательны в state.md и from-debug-*.md | §11 |
@@ -995,7 +995,7 @@ Listed как `rm -f` invocations in §8.5 (best-effort, 2>/dev/null wrapper).
 | Original /debug behavior | Corrected (M7) |
 |---|---|
 | Escalation routes к `/geniro:follow-up` (Trivial) или `/geniro:implement` (Non-trivial) | Both options route к `/geniro:implement` (master plan §66 absorbed /follow-up). The Trivial/Non-trivial labels survive for context, but the receiving skill is the same. |
-| Pre-M7 `HYPOTHESES-<slug>.md` is canonical | Replaced by `.geniro/state/debug/<slug>/state.md` (M1 §T1 canonical, subdir-per-slug). 5 legacy generations cleaned. |
+| Pre-M7 `HYPOTHESES-<slug>.md` is canonical | Replaced by `.geniro/state/debug/<slug>/state.md` (M1 §T1 session-bound layout — second path-root в the M1 §T1 Path roots table, used by session-bound skills like /debug + /refactor). 5 legacy generations cleaned. |
 | Pre-M7 `findings-state.md` at `.geniro/state/debug/findings-state.md` is canonical T2 | Replaced by `.geniro/state/handoff/from-debug-<branch>.md` (M1 §T2 row, M1:502). |
 | Pre-M7 `adversarial-tests.md` at `.geniro/state/debug/adversarial-tests.md` is canonical adversarial T2 | Replaced by `.geniro/state/handoff/from-debug-adversarial-<branch>.md` (M1 §T2 row, M1:503). |
 | 9-step numbering implies sub-phase granularity | 3-phase structure (M4 mirror per master plan §119). |

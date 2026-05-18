@@ -27,8 +27,8 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 
 ```
 .geniro/
-├── planning/                         # T1 + T3 mixed (see note below)
-│   ├── <task-dir>/                   # T1 — TASK (deleted at Phase Ship)
+├── planning/                         # T1 (task-bound) + T3 mixed (see note below)
+│   ├── <task-dir>/                   # T1 — TASK (task-bound layout; deleted at Phase Ship)
 │   │   ├── spec.md
 │   │   ├── plan.md
 │   │   ├── state.md
@@ -43,10 +43,17 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 │   ├── .fingerprint.json             # M2 L3 drift detection (package.json/tsconfig hashes)
 │   └── .codebase-map.lock            # M2 L3 advisory race-safety lock
 ├── state/
-│   └── handoff/                      # T2 — HANDOFF (overwritten on next produce)
-│       ├── from-debug-<branch>.md
-│       ├── from-review-<branch>.md
-│       └── from-tdd-<branch>.md
+│   ├── handoff/                      # T2 — HANDOFF (overwritten on next produce)
+│   │   ├── from-debug-<branch>.md
+│   │   ├── from-debug-adversarial-<branch>.md
+│   │   ├── from-review-<branch>.md
+│   │   └── from-tdd-<branch>.md
+│   ├── debug/                        # T1 (session-bound layout, M7)
+│   │   └── <slug>/                   # subdir per slug — deleted at Phase Ship by /debug
+│   │       └── state.md
+│   └── refactor/                     # T1 (session-bound layout, M8)
+│       └── <slug>/                   # subdir per slug — deleted at Phase Ship by /refactor
+│           └── state.md
 ├── knowledge/                        # T3 — PERSISTENT (append-only)
 │   └── learnings.jsonl
 ├── instructions/                     # T3 — PERSISTENT (CRUD)
@@ -71,13 +78,22 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 
 **Purpose:** ephemeral state owned by ONE skill run; deleted at Ship.
 
-**Path root:** `.geniro/planning/<task-dir>/` (cwd-relative; intentional — task is local to worktree).
+**Path roots (two valid layouts, producer-bound):**
+
+| Path root | Layout | Producer category | Examples |
+|---|---|---|---|
+| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan.md` + `notes.md` + …) | **Task-bound skills** — produce/consume а spec; create durable task artifacts beyond state.md | M4 (`/implement`), M5 (`/plan`) |
+| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug per skill; canonical `state.md` inside (may add sibling files) | **Session-bound skills** — work over existing code; no spec/plan artifacts; transient working state only | M7 (`/debug`), M8 (`/refactor`) |
+
+Both roots are equally canonical for T1. The choice is a producer-design decision: skills that create lasting task artifacts (spec / plan / milestone-N) belong in `planning/<task-dir>/` где those siblings live; skills that produce only а working state.md belong in а per-skill subdir under `state/<skill>/` где cleanup is bounded to the skill's own files и does not risk other skills' artifacts.
+
+T2 handoff and T3 persistent paths are unaffected — they continue to live under `.geniro/state/handoff/` and the various T3 roots regardless of the producer's T1 layout choice.
 
 **Lifecycle:** created at skill Phase 0 (or first state-write); deleted at Phase Ship by the skill that created it. If skill aborts, files remain — next invocation prompts user to resume or delete.
 
 **Worktree routing:** **cwd-relative**. T1 lives where the work is happening. Worktrees get teardown'd together with their T1 files.
 
-**Concurrency:** path-scoped via `<task-dir>` (slug-derived from branch). Different branches → different task-dirs → no collision. Same branch + same worktree + two `/implement` runs in parallel is rare/abusive; if it happens, the second run detects existing task-dir and AUQs.
+**Concurrency:** path-scoped via either `<task-dir>` (planning/ layout — slug-derived from branch or task-description) or `<skill>/<slug>` (state/ layout — slug-derived from $ARGUMENTS). Different branches → different slugs → no collision. Same branch + same worktree + two `/implement` runs in parallel is rare/abusive; if it happens, the second run detects existing task-dir and AUQs. Parallel session-bound runs (e.g., `/debug` and `/refactor` on the same branch) get independent slugs and write to distinct `state/<skill>/<slug>/` subdirs — they do not collide with each other or with а concurrent task-bound run in `planning/<task-dir>/`.
 
 **Required frontmatter:**
 
@@ -495,10 +511,10 @@ One-line config change in `hooks/enforce-state-helper.sh`: `MODE=warn` → `MODE
 | (new in M2) | `.geniro/planning/_architecture.md` | T3 CRUD | Architecture patterns per M2 §6.1. User-authored. |
 | (new in M2) | `.geniro/planning/.fingerprint.json` | T3 CRUD | M2 L3 drift detection — hashes of package.json/tsconfig.json. Sidecar `.meta.yaml` required. |
 | (new in M2) | `.geniro/planning/.codebase-map.lock` | T3 advisory lock | M2 L3 lock-guard for `_CODEBASE_MAP.md` bounded writes. Not a state file; no frontmatter. |
-| `.geniro/state/follow-up/state-<slug>.md` | `.geniro/planning/<task-dir>/state.md` | T1 | **Consolidated**: one state.md per task, not per skill. |
-| `.geniro/state/refactor/state-<slug>.md` | `.geniro/planning/<task-dir>/state.md` | T1 | Same. |
-| `.geniro/state/improve-template/state-<slug>.md` | `.geniro/planning/<task-dir>/state.md` | T1 | Same. |
-| `.geniro/state/debug/HYPOTHESES-<slug>.md` | `.geniro/planning/<task-dir>/hypotheses.md` | T1 | Move into task-dir. |
+| `.geniro/state/follow-up/state-<slug>.md` | (absorbed into `/implement` per master plan §66 — uses M4 task-bound layout `.geniro/planning/<task-dir>/state.md`) | T1 | Skill deleted; state-file path migrates to М4's task-dir on first `/implement` invocation. |
+| `.geniro/state/refactor/state-<slug>.md` | `.geniro/state/refactor/<slug>/state.md` | T1 | **M8 session-bound layout** (per §T1 Path roots, second row): subdir-per-slug under `state/refactor/`. Replaces flat `state-<slug>.md` filename. |
+| `.geniro/state/improve-template/state-<slug>.md` | `.geniro/planning/<task-dir>/state.md` | T1 | Task-bound layout (template authoring is а task-creating flow с associated spec/template artifacts). |
+| `.geniro/state/debug/HYPOTHESES-<slug>.md` | `.geniro/state/debug/<slug>/state.md` | T1 | **M7 session-bound layout** (per §T1 Path roots, second row): subdir-per-slug under `state/debug/`. Hypothesis tracking lives как `## Hypotheses` body section inside state.md (M7 §11.1.B). |
 | `.geniro/state/debug/findings-state.md` | `.geniro/state/handoff/from-debug-<branch>.md` | T2 | Branch-scoped path. |
 | `.geniro/state/debug/adversarial-tests.md` | `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | T2 | Branch-scoped path. |
 | `.geniro/state/review-findings-state.md` | `.geniro/state/handoff/from-review-<branch>.md` | T2 | Branch-scoped path. |
