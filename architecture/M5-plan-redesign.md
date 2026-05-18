@@ -1134,7 +1134,7 @@ Add `hooks/plan-mode-write-guard.sh` (per §19) — а new PreToolUse hook. Regi
 | Phase 6 (Write spec) | M1 `atomic_state_write` | write T1 | n/a | state.md path; new ## Tool log entry | whole-file rewrite | After spec.md `Write`. |
 | Phase 7 (Validate) | none | — | — | — | — | Deterministic — no helpers needed. |
 | Phase 8 (User approve) | M1 `atomic_state_write` | write T1 | n/a | state.md path; append approvals[] + non-resumable-actions[] | whole-file rewrite | After `git commit`. |
-| Phase 8 emit | `emit-learning` (conditional) | write L2 | n/a | producer = `/geniro:plan`; scope = task-area; summary = «approach: <name>»; type = `decision` | append к `learnings.jsonl` | Fires только if Phase 4 had ≥2 distinct approaches AND picked approach has «non-trivial trade-off» (heuristic flag set by Phase 4 prompt). Dedup + sanitization per М2 §5.2. |
+| Phase 8 emit | `emit-learning` (conditional) | write L2 | n/a | producer = `/geniro:plan`; scope = task-area; summary = «approach: <name>»; type = `decision`; required `ext.{options, chosen, reasoning}` per M2 §5.2 typed-extension table | append к `learnings.jsonl` | Fires только if Phase 4 had ≥2 distinct approaches AND picked approach has «non-trivial trade-off» (heuristic flag set by Phase 4 prompt). Default trust `verified` per M2 §5.3 row /plan. Dedup + sanitization per М2 §5.2. |
 | Phase 9 (Hand-off) | none | — | — | — | — | terminal — no helpers needed. |
 
 ### 21.2 L2 emit triggers (per М2 §5.3 patched contract)

@@ -988,7 +988,7 @@ Listed как `rm -f` invocations in §8.5 (best-effort, 2>/dev/null wrapper).
 | §332 (P-M7-1) | 8-step feedback loop closing M2 L2 emit auto-step contract | ✅ §6 (validate state → §6.2 query-learnings; gather SoT → §6.3; propose → §7.3; execute → §7.4; validate against objective → §7.4 F→P invariant; capture proof → §7.4 monkey-patch verify; record → §8.1; feed recurring issues → §8.3 + §8.4) |
 | §337 (P-M7-2) | Diagnose-by-missing-component taxonomy when /debug stalls | ✅ §10 + §6.8 stall gate AUQ rendering |
 | §405 (P-X5 design guidance) | Budget section mirroring M4 §2.3 | ✅ §2.3 |
-| §107 lines 162-179 (P-MP-1) | Anti-pattern check audit | ✅ §16 |
+| Anti-patterns guardrail (P-MP-1) | Anti-pattern check audit | ✅ §16 |
 
 ### 15.3 Stale assumptions corrected
 

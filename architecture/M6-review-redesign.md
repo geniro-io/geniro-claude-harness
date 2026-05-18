@@ -1108,8 +1108,8 @@ P-M6 obligations deferred к M-later:
 | §328 (P-M6-1) | 4-tier risk model | ⏳ Deferred к M-later (§22) |
 | §329 (P-M6-2) | Mechanical validators before LLM | ✅ §7 |
 | §330 (P-M6-3) | Trace-grading hooks | ⏳ Deferred к P-X6 (§22) |
-| §107 lines 162-179 (P-MP-1) | Anti-pattern audit | ✅ §25 |
-| §107 lines 397-405 (P-X5) | Budgets quality-first | ✅ §2.3 |
+| Anti-patterns guardrail (P-MP-1) | Anti-pattern audit | ✅ §25 |
+| Per-skill quality-first budget guidance (P-X5) | Budgets quality-first | ✅ §2.3 |
 | M5 §22.4 | spec.md consumption | ✅ §16 |
 | M2 §5.3 | pitfall auto-emit trigger | ✅ §11.2 |
 

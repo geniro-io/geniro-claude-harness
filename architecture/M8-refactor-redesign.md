@@ -829,7 +829,7 @@ M8 finalizes 1 of the 11 surviving skills. State after M8 implementation:
 | §69 | /learnings auto-step replaces standalone skill | ✅ §8.5 L2 emit (mirror of M4 §7.5 step 5 + P-M4-5 promotion suggestion) |
 | §120 | "Same [as M7]" — align с /implement simplification, reuse M1–M3 conventions | ✅ 3-phase mirror (§6/§7/§8); M1 §T1 frontmatter (§9); M3 body sections (§9) + Block 5d approvals (§6.6, §8.3); M2 helpers (§10) |
 | §405 (P-X5 design guidance) | Budget section mirroring M4 §2.3 | ✅ §2.3 |
-| §107 lines 162-179 (P-MP-1) | Anti-pattern check audit | ✅ §14 |
+| Anti-patterns guardrail (P-MP-1) | Anti-pattern check audit | ✅ §14 |
 | M2 §5.3 row /refactor | Emit `discovery` (pattern extracted) и `pitfall` (footgun discovered) | ✅ §8.5 + §10.2 |
 
 ### 13.3 Stale assumptions corrected
