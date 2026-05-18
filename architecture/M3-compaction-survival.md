@@ -295,7 +295,7 @@ the re-ask in your next message.
 
 Hook reads `approvals[]` from state.md frontmatter (M1 P-M1-1 optional field) и iterates entries. For each: render `[category] User picked: "<picked>"` с asked-in-phase + timestamp. Empty array → block omitted entirely.
 
-Categories rendered today: `disambiguate_arguments` (M4 §5.1), `ship_mode` (M4 §7.5), `disambiguate_mode` (M7 §6.1 — empty $ARGUMENTS scientific-vs-adversarial routing), `multi_path_fix` (M7 §7.2 — fix-path selection on multi-valid root cause). Escalation categories (`phase_2_escalation`, `phase_3_escalation`, M7 stall escalations) explicitly **not persisted** by producer — they appear neither в state.md `approvals[]` nor в this block.
+Categories rendered today: `disambiguate_arguments` (M4 §5.1), `ship_mode` (M4 §7.5), `disambiguate_mode` (M7 §6.1 — empty $ARGUMENTS scientific-vs-adversarial routing), `multi_path_fix` (M7 §7.2 — fix-path selection on multi-valid root cause), `refactor_high_step` (M8 §6.6 — HIGH-risk step approval at refactor plan-build time), `refactor_product_decision` (M8 §8.3 — PRODUCT-DECISION finding escalation pick during refactor Verify). Escalation categories (`phase_2_escalation`, `phase_3_escalation`, M7 stall escalations, M8 §7.3 ≥30%-blocked escalations) explicitly **not persisted** by producer — they appear neither в state.md `approvals[]` nor в this block.
 
 ### Block 6 — Resume protocol (always)
 
