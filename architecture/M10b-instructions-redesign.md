@@ -225,15 +225,15 @@ Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars p
 
 When a `Additional Steps` subsection is encountered during validate-mode, it must match a real phase enum value from the corresponding skill's M-doc. Phase enum values are **lowercase-hyphenated** per M4-M9 convention; subsection prose may use any case, validate-mode normalizes for comparison.
 
-| Scope | Real phase enum (M-doc) | Allowed `Additional Steps` subsection names (canonical lowercase form; Title-Case prose also accepted) |
+| Scope | Real phase enum (M-doc) — complete | Example `Additional Steps` subsection names (illustrative; any phase enum value is valid) |
 |---|---|---|
-| `implement` | M4 §2.1: `analyze \| implement \| self-review \| ship \| phase-2-escalated \| phase-3-escalated \| done \| aborted \| debug-handoff` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
+| `implement` | M4 §2.1: `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
 | `plan` | M5 §2.1: `mode-detect \| explore \| clarify \| approaches \| section-approve \| write-spec \| validate \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
 | `review` | M6 §2.1: `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
-| `debug` | M7 §2.1: `investigate \| propose \| ship \| phase-1-escalated \| ship-summary-only \| aborted` | `After investigate`, `After propose`, `Before ship` |
-| `refactor` | M8 §2.1: `plan \| apply \| verify \| plan-escalated \| routed \| reverted \| done` | `After plan`, `After apply`, `Before verify` |
-| `onboard` | M9 §6/§7: `mode-detect \| discover \| map \| done \| aborted \| *-escalated` | `After discover`, `Before map` |
-| `investigate` | M9 §8/§9/§10: `classify \| investigate \| present \| done \| aborted \| *-escalated` | `After classify`, `After investigate`, `Before present` |
+| `debug` | M7 §2.1: `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| debug-handoff \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
+| `refactor` | M8 §2.1: `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
+| `onboard` | M9 §2.1: `discover \| map \| map-truncated \| discover-escalated \| done \| aborted \| routed` | `After discover`, `Before map` |
+| `investigate` | M9 §2.1: `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | `After classify`, `After investigate`, `Before present` |
 
 Subsection names are case-insensitive; validate-mode lowercases-and-hyphenates before comparing against the enum.
 
