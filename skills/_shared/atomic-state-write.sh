@@ -83,21 +83,23 @@ atomic_state_append() {
     return 65
   }
 
-  # Read one line from stdin.
-  local line
-  IFS= read -r line || {
-    # EOF on empty stdin — nothing to append, treat as success.
+  # Capture stdin (handles content without trailing newline; `read -r` would
+  # return non-zero on EOF and lose the partial line).
+  local content
+  content="$(cat)"
+  if [ -z "$content" ]; then
+    # Empty stdin — nothing to append, treat as success.
     return 0
-  }
+  fi
 
   # POSIX-atomic append for writes ≤ PIPE_BUF (4096 on Linux).
   # Shell `>>` opens with O_APPEND, so the kernel serializes concurrent writes.
-  if [ "${#line}" -gt 4096 ]; then
-    echo "atomic_state_append: line exceeds 4096 bytes (got ${#line}); atomicity not guaranteed" >&2
+  if [ "${#content}" -gt 4096 ]; then
+    echo "atomic_state_append: content exceeds 4096 bytes (got ${#content}); atomicity not guaranteed" >&2
     return 68
   fi
 
-  printf '%s\n' "$line" >> "$target" || {
+  printf '%s\n' "$content" >> "$target" || {
     echo "atomic_state_append: append to $target failed" >&2
     return 69
   }
