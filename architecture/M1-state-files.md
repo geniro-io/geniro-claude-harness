@@ -57,9 +57,11 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 │   ├── onboard/                      # T1 (session-bound layout, M9)
 │   │   └── <slug>/                   # subdir per slug — deleted at Phase Ship by /onboard
 │   │       └── state.md
-│   └── investigate/                  # T1 (session-bound layout, M9)
-│       └── <slug>/                   # subdir per slug — deleted at Phase Ship by /investigate
-│           └── state.md
+│   ├── investigate/                  # T1 (session-bound layout, M9)
+│   │   └── <slug>/                   # subdir per slug — deleted at Phase Ship by /investigate
+│   │       └── state.md
+│   └── setup/                        # T1 (singleton layout, M10a)
+│       └── state.md                  # no <slug>/ subdir — /setup is singleton bootstrap; deleted at Phase DONE
 ├── knowledge/                        # T3 — PERSISTENT (append-only)
 │   └── learnings.jsonl
 ├── instructions/                     # T3 — PERSISTENT (CRUD)
@@ -84,14 +86,15 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 
 **Purpose:** ephemeral state owned by ONE skill run; deleted at Ship.
 
-**Path roots (two valid layouts, producer-bound):**
+**Path roots (three valid layouts, producer-bound):**
 
 | Path root | Layout | Producer category | Examples |
 |---|---|---|---|
 | `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan.md` + `notes.md` + …) | **Task-bound skills** — produce/consume а spec; create durable task artifacts beyond state.md | M4 (`/implement`), M5 (`/plan`) |
 | `.geniro/state/<skill>/<slug>/` | Subdir-per-slug per skill; canonical `state.md` inside (may add sibling files) | **Session-bound skills** — work over existing code; no spec/plan artifacts; transient working state only | M7 (`/debug`), M8 (`/refactor`), M9 (`/onboard`, `/investigate`) |
+| `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir; one canonical state.md per skill | **Singleton-lifecycle skills** — bootstrap or maintenance operations that cannot run в parallel | M10a (`/setup`) |
 
-Both roots are equally canonical for T1. The choice is a producer-design decision: skills that create lasting task artifacts (spec / plan / milestone-N) belong in `planning/<task-dir>/` где those siblings live; skills that produce only а working state.md belong in а per-skill subdir under `state/<skill>/` где cleanup is bounded to the skill's own files и does not risk other skills' artifacts.
+Three roots are equally canonical for T1. The choice is a producer-design decision: skills that create lasting task artifacts (spec / plan / milestone-N) belong in `planning/<task-dir>/` где those siblings live; skills that produce only а working state.md belong in а per-skill subdir under `state/<skill>/` где cleanup is bounded to the skill's own files и does not risk other skills' artifacts; **singleton-lifecycle skills** (where parallel runs would corrupt project-root files like `CLAUDE.md`) use the no-`<slug>` `state/<skill>/state.md` layout — `/setup` is the canonical example.
 
 T2 handoff and T3 persistent paths are unaffected — they continue to live under `.geniro/state/handoff/` and the various T3 roots regardless of the producer's T1 layout choice.
 
