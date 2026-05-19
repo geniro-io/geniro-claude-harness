@@ -114,6 +114,18 @@ else
   fail "atomic_state_write — multi-line content mangled"
 fi
 
+# Test 6b: empty stdin must not nuke existing target.
+# Regression test for a bug where `failing_gen | atomic_state_write target`
+# silently truncated target to zero bytes.
+target="$TMPDIR/t6b.md"
+printf 'precious state\n' > "$target"
+true | atomic_state_write "$target"
+if [ -f "$target" ] && [ "$(cat "$target")" = "precious state" ]; then
+  pass "atomic_state_write — empty stdin preserves existing target"
+else
+  fail "atomic_state_write — empty stdin clobbered target (got: '$(cat "$target" 2>/dev/null)')"
+fi
+
 # ---------------------------------------------------------------------------
 # atomic_state_append
 # ---------------------------------------------------------------------------

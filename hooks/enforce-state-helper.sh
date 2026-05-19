@@ -62,6 +62,13 @@ esac
 # Match relative or absolute paths — the leading `.*` makes both work.
 matches_state_path() {
   local p="$1"
+  # Exclusions — files under .geniro/ that are NOT frontmatter-bearing state
+  # files and shouldn't trigger the helper warning:
+  #   *.lock      — coordination locks (e.g., .geniro/planning/.codebase-map.lock)
+  #   .fingerprint.json — pure JSON, no frontmatter
+  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$'; then
+    return 1
+  fi
   # T1, T2, T3 directories under .geniro/.
   if echo "$p" | grep -qE '(^|/)\.geniro/(state|planning|knowledge|instructions|actions|workflow)/'; then
     return 0

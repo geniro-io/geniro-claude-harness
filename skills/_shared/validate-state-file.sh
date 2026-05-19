@@ -34,18 +34,21 @@ _vsf_extract_frontmatter() {
   awk '
     NR == 1 && $0 != "---" { exit 2 }
     NR == 1 { in_fm = 1; next }
-    in_fm && $0 == "---" { found_close = 1; exit }
+    in_fm && $0 == "---" { found_close = 1; exit 0 }
     in_fm { print }
-    END { if (!found_close) exit 3 }
+    END { if (in_fm && !found_close) exit 3 }
   ' "$file"
 }
 
 # Extract body (everything after closing `---`).
+# One-shot fence counter: stop counting at 2, so `---` rules in the body
+# (markdown horizontal rule) are preserved verbatim instead of treated as
+# fence markers.
 _vsf_extract_body() {
   local file="$1"
   awk '
-    /^---$/ { count++; next }
-    count == 2 { print }
+    /^---$/ && fences < 2 { fences++; next }
+    fences == 2 { print }
   ' "$file"
 }
 
@@ -55,13 +58,25 @@ _vsf_fm_has_key() {
   printf '%s\n' "$fm" | grep -qE "^${key}:"
 }
 
+# Check if key is present AND its scalar value is non-empty.
+# Use for required scalar fields. (For block-list fields like
+# `non-resumable-actions:` whose inline value can be empty, use _vsf_fm_has_key.)
+_vsf_fm_has_nonempty_key() {
+  local fm="$1" key="$2"
+  local val
+  val="$(_vsf_fm_get_value "$fm" "$key")"
+  [ -n "$val" ]
+}
+
 # Extract scalar value for a key. Strips surrounding whitespace and quotes.
+# Order matters: strip leading `key:[ws]`, then trailing ws, then outer quotes.
 _vsf_fm_get_value() {
   local fm="$1" key="$2"
   printf '%s\n' "$fm" \
     | awk -v k="$key" '
         $0 ~ "^" k ":" {
           sub("^" k ":[[:space:]]*", "")
+          gsub(/[[:space:]]+$/, "")
           gsub(/^[\"'\'']+|[\"'\'']+$/, "")
           print
           exit
@@ -103,10 +118,12 @@ validate_state_file() {
   fi
 
   # Step 3: common-base required fields.
+  # Scalars must be non-empty; we have no block-list base fields, so all use
+  # the nonempty-key check.
   local field
   for field in tier producer schema-version branch timestamp; do
-    if ! _vsf_fm_has_key "$fm" "$field"; then
-      echo "validate_state_file: $target — missing required field '$field' (common base)" >&2
+    if ! _vsf_fm_has_nonempty_key "$fm" "$field"; then
+      echo "validate_state_file: $target — missing or empty required field '$field' (common base)" >&2
       return "$_VSF_MISSING_BASE_FIELD"
     fi
   done
@@ -116,22 +133,29 @@ validate_state_file() {
   tier="$(_vsf_fm_get_value "$fm" tier)"
   case "$tier" in
     T1)
-      for field in phase status non-resumable-actions; do
-        if ! _vsf_fm_has_key "$fm" "$field"; then
-          echo "validate_state_file: $target — missing required field '$field' (T1 schema)" >&2
+      # Scalar fields (phase, status) must be non-empty.
+      # `non-resumable-actions` is a block-list — key-presence sufficient
+      # (`non-resumable-actions: []` and multi-line block forms both pass).
+      for field in phase status; do
+        if ! _vsf_fm_has_nonempty_key "$fm" "$field"; then
+          echo "validate_state_file: $target — missing or empty required field '$field' (T1 schema)" >&2
           return "$_VSF_MISSING_TIER_FIELD"
         fi
       done
+      if ! _vsf_fm_has_key "$fm" non-resumable-actions; then
+        echo "validate_state_file: $target — missing required field 'non-resumable-actions' (T1 schema)" >&2
+        return "$_VSF_MISSING_TIER_FIELD"
+      fi
       ;;
     T2)
-      if ! _vsf_fm_has_key "$fm" consumer; then
-        echo "validate_state_file: $target — missing required field 'consumer' (T2 schema)" >&2
+      if ! _vsf_fm_has_nonempty_key "$fm" consumer; then
+        echo "validate_state_file: $target — missing or empty required field 'consumer' (T2 schema)" >&2
         return "$_VSF_MISSING_TIER_FIELD"
       fi
       ;;
     T3)
-      if ! _vsf_fm_has_key "$fm" concurrency; then
-        echo "validate_state_file: $target — missing required field 'concurrency' (T3 schema)" >&2
+      if ! _vsf_fm_has_nonempty_key "$fm" concurrency; then
+        echo "validate_state_file: $target — missing or empty required field 'concurrency' (T3 schema)" >&2
         return "$_VSF_MISSING_TIER_FIELD"
       fi
       ;;

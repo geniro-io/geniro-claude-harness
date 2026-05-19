@@ -95,17 +95,28 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 
 ## Caller-side mtime check (T3 CRUD only)
 
-For T3 CRUD files (`instructions/*.md`, `actions/*.md`, etc.), the caller is responsible for optimistic-concurrency mtime check **before** invoking `atomic_state_write`:
+For T3 CRUD files (`instructions/*.md`, `actions/*.md`, etc.), the caller is responsible for optimistic-concurrency mtime check **before** invoking `atomic_state_write`.
+
+**Important:** GNU `stat -c %Y` is Linux-only. BSD/macOS `stat` uses `-f %m`. Without a portable wrapper, the check silently no-ops on macOS (both `stat -c` calls error → both fallback to `echo 0` → values always equal → check disabled). Use this portable helper:
 
 ```bash
+# Portable file-mtime — works on Linux (GNU coreutils) and macOS/BSD.
+_get_mtime() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null
+}
+
 # At read time:
-initial_mtime=$(stat -c %Y "$target" 2>/dev/null || echo 0)
+initial_mtime=$(_get_mtime "$target")
 
 # ... user edits content ...
 
 # At write time:
-current_mtime=$(stat -c %Y "$target" 2>/dev/null || echo 0)
-if [ "$current_mtime" != "$initial_mtime" ]; then
+current_mtime=$(_get_mtime "$target")
+if [ -z "$initial_mtime" ] || [ -z "$current_mtime" ]; then
+  # File didn't exist before (initial write) or was deleted between read and
+  # write — no concurrency conflict possible. Proceed.
+  :
+elif [ "$current_mtime" != "$initial_mtime" ]; then
   # File changed since read — open AUQ:
   #   - Overwrite (lose remote changes)
   #   - Show diff

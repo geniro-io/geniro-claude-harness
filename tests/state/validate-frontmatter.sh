@@ -252,6 +252,63 @@ EOF
 } > "$TMPDIR/cksum-bad.md"
 expect_rc "$TMPDIR/cksum-bad.md" 7 "checksum mismatch"
 
+# Test 15b: positive checksum — body contains markdown `---` horizontal rule.
+# Regression test for the body-extractor bug where any `---` rule in the body
+# advanced the fence counter past 2, silently dropping content after it.
+# Steps: build body, compute sha256, write file with that checksum, validate.
+body_15b=$'\n## Section A\nFirst part.\n\n---\n\n## Section B\nAfter the rule.\n'
+cksum_15b=$(printf '%s' "$body_15b" | sha256sum | awk '{print $1}')
+{
+  cat <<EOF
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: main
+timestamp: 2026-05-19T14:30:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+checksum: $cksum_15b
+---
+EOF
+  printf '%s' "$body_15b"
+} > "$TMPDIR/cksum-good.md"
+expect_rc "$TMPDIR/cksum-good.md" 0 "positive checksum — body with markdown --- rule preserved"
+
+# Test 15c: trailing whitespace on tier value passes (regression).
+# Regression test for `tier: T1 ` (trailing space) yielding rc=9 'invalid tier value T1 '.
+cat > "$TMPDIR/trailing-ws.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: main
+timestamp: 2026-05-19T14:30:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+EOF
+expect_rc "$TMPDIR/trailing-ws.md" 0 "trailing whitespace on tier value tolerated"
+
+# Test 15d: empty required-field value rejected.
+# Regression test — previously key-presence alone passed, so `branch:` (empty
+# value) yielded rc=0 instead of rc=4.
+cat > "$TMPDIR/empty-branch.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch:
+timestamp: 2026-05-19T14:30:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+EOF
+expect_rc "$TMPDIR/empty-branch.md" 4 "empty 'branch:' value rejected as missing base field"
+
 # Test 16: worktree path that doesn't exist (inside a real git repo) → 8
 cat > "$TMPDIR/bogus-worktree.md" <<'EOF'
 ---

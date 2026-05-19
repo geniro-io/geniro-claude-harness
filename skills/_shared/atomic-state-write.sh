@@ -52,6 +52,16 @@ atomic_state_write() {
     return 66
   fi
 
+  # 1.5. Empty-stdin guard. Without this, a pipe that errors before producing
+  # output (e.g., `failing_generator | atomic_state_write target`) would
+  # silently truncate target to zero bytes — a data-loss footgun.
+  # Callers that intentionally want to write an empty file must `echo ""`
+  # or use `truncate -s 0` directly.
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
+    return 0
+  fi
+
   # 2. fsync tmp file (best effort).
   _atomic_state_sync_file "$tmp"
 
