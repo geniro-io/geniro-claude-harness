@@ -19,7 +19,7 @@ Upgrade the plugin in-place to the latest version available via the Claude Code 
 
 1. **Plugin path resolves once per session** — after `claude plugin update`, the in-memory `${CLAUDE_PLUGIN_ROOT}` still points to the OLD version. The update cache and stable-copy statusline script must be refreshed against the NEW path; `/update` does both atomically.
 2. **User content needs a survival check** — `.geniro/instructions/*.md` and `.geniro/actions/*.md` are user-authored and must NOT be touched by an update. A post-update hash check verifies this; the integrity check exists because the alternative is silent data loss.
-3. **Breaking changes need guided application** — if v1.5 renamed `phase: implement_step_1` to `phase: IMPLEMENT`, user-authored `.geniro/instructions/implement.md` files may have stale subsection headers. `/update` reads `MIGRATION.md` and walks the user through fixes.
+3. **Breaking changes need guided application** — if a future plugin version renames a phase enum value (e.g., `phase: implement_step_1` → `phase: implement` per M4 §2.1 final scheme), user-authored `.geniro/instructions/implement.md` files may have stale `### After implement_step_1` subsection headers. `/update` reads `MIGRATION.md` and walks the user through fixes.
 
 **Anti-goal:** No autonomous file mutation outside the plugin install path. `/update` never edits user content; if MIGRATION.md says "user must rename a phase header," `/update` surfaces a `/geniro:instructions edit implement` suggestion, but does not auto-edit.
 
@@ -177,14 +177,17 @@ Sub-decisions:
 
 ### Breaking change — phase enum renamed
 
-`/implement` Phase 4 was renamed `IMPLEMENT_STEP_1` → `IMPLEMENT`.
+`/implement` phase `implement_step_1` was renamed to `implement` (per M4 §2.1
+final phase enum). Custom instruction files that used the old enum subsection
+header need a one-line rename.
 
 **Action required:** Edit `.geniro/instructions/implement.md` (if present); rename any
-subsection `### After IMPLEMENT_STEP_1` → `### After IMPLEMENT`.
+subsection `### After implement_step_1` → `### After implement`.
 
-**Auto-detect:** `grep -r "After IMPLEMENT_STEP_1" .geniro/instructions/`
+**Auto-detect:** `grep -rn "After implement_step_1" .geniro/instructions/`
 
-**Severity:** MEDIUM — old name still works for v1.5; will be removed in v2.0.
+**Severity:** MEDIUM — old subsection name is ignored silently by the loader (no error);
+file behaves as if the subsection was empty until renamed.
 
 ---
 

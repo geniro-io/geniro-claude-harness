@@ -163,7 +163,7 @@ Sub-decisions during defect-inventory walk:
 | # | Defect | Fix |
 |---|---|---|
 | **D1** | Valid scopes list contains dropped skills (`decompose`, `follow-up`, `deep-simplify`, `brainstorm`, `features`, `learnings`, `actions`, `cleanup`, `vendor`) | New valid scopes set (§6.1): `global`, `code-style`, `user-preferences`, `review-extra` (directory), and 7 per-skill files (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`) |
-| **D2** | Per-skill file phase mapping uses old phase names (e.g., "After Phase 1 (Discover)", "After Phase 4 (Implement)") that don't match M4-M9 phase enums | §6.3 phase-name table cites M4-M9 phase enums verbatim (`IMPLEMENT` / `REVIEW_AND_VALIDATE` / `SHIP` for `/implement`, `PLAN_STAGE_A` ... etc.) |
+| **D2** | Per-skill file phase mapping uses old phase names (e.g., "After Phase 1 (Discover)", "After Phase 4 (Implement)") that don't match M4-M9 phase enums | §6.3 phase-name table cites M4-M9 phase enums verbatim, lowercase-hyphenated (e.g. `### After analyze` / `### After implement` / `### Before ship` for `/implement`; `### After explore` / `### After clarify` for `/plan`, etc. — see §6.3 full mapping) |
 | **D3** | `validate` mode mentioned in CLAUDE.md skill blurb but not actually specced in SKILL.md | §10 specs the validate mode rule set (P-M10-2 closure) |
 | **D4** | No L4 (procedural memory) layer documentation — readers don't know how instructions relate to M2 layers | §11 Memory I/O links every scope to its M2 layer; all `.geniro/instructions/*.md` files are L4 procedural |
 | **D5** | No reference to M3 SessionStart compact hook re-injection (instructions are part of the compact-recovery surface) | §11 Memory I/O notes the compact-survival route via M3 §6 Block 1 (file-on-disk) |
@@ -184,7 +184,7 @@ Sub-decisions during defect-inventory walk:
 | `global` | `.geniro/instructions/global.md` | L4 | Every Geniro pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only (no `Additional Steps` — global has no canonical phase enum to attach to) |
 | `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase Review, `refactor` Phase Verify); also pre-inlined into reviewer-agent prompts for `guidelines` / `conventions` / `design` / `architecture` dimensions | Cross-cutting scope; no per-skill phase mapping |
 | `user-preferences` | `.geniro/instructions/user-preferences.md` | L4 | Every Geniro pipeline + discovery skill at Step 0 + phase-boundary refresh | Created by `/setup` Phase Generate; `/instructions edit user-preferences` is the manual-edit path. Rules and Constraints only |
-| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style — one file per slug) | L4 | `/review` Phase 2, `/implement` Phase REVIEW_AND_VALIDATE, `/refactor` Phase VERIFY via `_shared/load-custom-reviewers.md`; spawned as additional reviewer-agent dimensions | Frontmatter schema preserved verbatim from current skill (`slug`, `description`, `model`, `paths`, `severity-default`) |
+| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style — one file per slug) | L4 | `/review` Phase `llm-spawn` (M6 §2.1), `/implement` Phase `self-review` (M4 §2.1), `/refactor` Phase `verify` (M8 §2.1) via `_shared/load-custom-reviewers.md`; spawned as additional reviewer-agent dimensions | Frontmatter schema preserved verbatim from current skill (`slug`, `description`, `model`, `paths`, `severity-default`) |
 | `implement` | `.geniro/instructions/implement.md` | L4 | `/implement` at Step 0 + phase-boundary refresh | `Additional Steps` subsections map to M4 phase enum |
 | `plan` | `.geniro/instructions/plan.md` | L4 | `/plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to M5 phase enum |
 | `review` | `.geniro/instructions/review.md` | L4 | `/review` at Step 0 + phase-boundary refresh | `Additional Steps` map to M6 phase enum |
@@ -331,10 +331,10 @@ Every Geniro pipeline + discovery skill at Step 0 and at each phase-boundary ref
 
 ## Additional Steps
 
-### After IMPLEMENT
+### After implement
 - (example: "Run npm run codegen before declaring implementation complete")
 
-### Before SHIP
+### Before ship
 - (example: "Ensure CHANGELOG.md has an entry for the change")
 
 ## Constraints
@@ -425,7 +425,7 @@ For each `.geniro/instructions/<file>`:
 | Check | Severity | Example violation |
 |---|---|---|
 | No references to dropped skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) | `HIGH` | "After /decompose" subsection in `implement.md` |
-| No references to dropped phase names (e.g., "Phase 4 Implement" was renamed to `IMPLEMENT` in M4) | `MEDIUM` | `### After Phase 4 (Implement)` instead of `### After IMPLEMENT` |
+| No references to dropped phase names (e.g., "Phase 4 (Implement)" predates M4's enum redesign — real enum is `implement` lowercase per M4 §2.1) | `MEDIUM` | `### After Phase 4 (Implement)` instead of `### After implement` |
 | `Additional Steps` subsections match the per-skill phase enum (§6.3) | `MEDIUM` | `### After QA-PHASE` in `implement.md` (no such phase) |
 
 **Per-scope checks:**
@@ -454,7 +454,7 @@ Validation results: 3 files checked, 2 issues found.
 
 ✓ global.md                       no issues
 ⚠ implement.md                    1 MEDIUM
-  └── Line 14: "### After Phase 4 (Implement)" → should be "### After IMPLEMENT" (M4 phase enum)
+  └── Line 14: "### After Phase 4 (Implement)" → should be "### After implement" (M4 §2.1 phase enum, lowercase)
 ⚠ review-extra/sql-bindings.md    1 LOW
   └── Frontmatter description: missing "Skip for" boundary clause (LOW — informational)
 

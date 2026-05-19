@@ -547,7 +547,7 @@ Next:
 
 Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. This is the **only** Geniro state file that gets deleted on success — `/setup` is a singleton bootstrap and the state file has zero value once DONE.
 
-Exception: if `mode == re-run` AND user opted for `accept-with-warnings` at §9.2 round 4, the state file is **kept** with `phase: DONE` and `## Open Questions` populated — surfaces for the next `/setup` re-run.
+Exception: if `mode == re-run` AND user opted for `accept-with-warnings` at §9.2 round 4, the state file is **kept** with `phase: done` and `## Open Questions` populated — surfaces for the next `/setup` re-run.
 
 ### 10.3 Restart-session warning (re-run only, plugin-version delta)
 
@@ -575,18 +575,23 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1 tier (session-bound, eph
 
 ```yaml
 ---
-skill: setup
-slug: setup                      # singleton — no parallel runs, no slug-collision concern
-version: 1                       # frontmatter schema version
-phase: detect                    # one of init|detect|interview|generate|validate|done|failed (lowercase per M4-M9 convention)
-mode: init                       # init | re-run
-worktree: /absolute/path         # P-M1-2 cross-check on rehydration
-created: 2026-05-19T14:00:00Z
-updated: 2026-05-19T14:32:00Z
-template_dir: /Users/you/.claude/plugins/geniro-claude-plugin@geniro-claude-harness/abc123
-approvals:                       # P-M1-1 (Block 5d render target)
+tier: T1                                  # M1 §T1 required
+producer: setup                           # M1 §T1 required
+schema-version: 1                         # M1 §T1 required
+branch: <git-branch>                      # M1 §T1 required (may be empty if not a git repo — see §4 sub-decision)
+timestamp: 2026-05-19T14:32:00Z           # M1 §T1 required — last-updated ISO-8601 UTC
+phase: detect                             # M1 §T1 required — one of init|detect|interview|generate|validate|done|failed (lowercase per M4-M9 convention)
+status: in-progress                       # M1 §T1 required — one of in-progress|done|failed
+non-resumable-actions: []                 # M1 §T1 required — typically empty (`/setup` ships no external sends)
+approvals:                                # M1 §T1 optional (P-M1-1 schema; populated by Interview/Generate)
   - {category: ship_mode_default, prompt: "Default ship mode?", options: [...], picked: "open-pr-draft", at: "2026-05-19T14:05:00Z", asked_in_phase: interview}
   - {category: claude_md_section_hooks_details, prompt: "Include hooks details inline?", options: ["inline","spin out","drop"], picked: "spin out", at: "...", asked_in_phase: generate}
+geniro_kind: setup-state                  # M10a schema marker per M1 §Frontmatter contract §Producer-specific extensions
+geniro_schema_version: m10a-v1            # M10a producer schema-version marker
+worktree: /absolute/path                  # M1 §T1 optional, M10a strongly recommended (P-M1-2 cross-check on rehydration)
+# M10a-specific producer extensions:
+mode: init                                # init | re-run
+template_dir: /Users/you/.claude/plugins/geniro-claude-plugin@geniro-claude-harness/abc123
 detected:
   stack: node/npm
   lang: node
