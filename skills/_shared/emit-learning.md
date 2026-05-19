@@ -22,6 +22,13 @@ echo '<json-object>' | emit_learning
 - `64` — required field missing, or invalid JSON on stdin.
 - `68` — serialized entry > 4096 bytes (POSIX atomic-append guarantee lost).
 
+## MODE contract (M3 §7.4)
+
+Write-side helper — **no MODE parameter, compaction-immune.** Behavior is
+identical at initial-load, refresh, and post-compaction. Skill flow decides
+when to re-invoke after а SessionStart event; the helper itself does not
+distinguish.
+
 ## Required fields
 
 - `producer` (string)

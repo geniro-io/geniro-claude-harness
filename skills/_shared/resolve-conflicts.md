@@ -4,6 +4,8 @@
 
 **Spec source:** `architecture/M2-memory-layers.md` §10 (cross-layer conflict resolution).
 
+**MODE contract (M3 §7.4):** formatting helper — **no MODE parameter, compaction-immune.** Behavior is derived from `load-*` outputs at call time; refreshes cascade from the load-side and need no signaling here.
+
 ## What this helper does — and what it doesn't
 
 **It does:**

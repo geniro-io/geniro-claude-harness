@@ -16,6 +16,25 @@ content=$(load_semantic [--extras "name1 name2 ..."] [--quiet])
 update_fingerprint [<path1> <path2> ...]
 ```
 
+## MODE contract (M3 §7)
+
+The helper has a conceptual MODE — `initial-load` (Step 0 of every consumer)
+or `refresh` (post-compaction or phase-boundary re-load). The procedure is
+**identical** under both modes — every Read fires again, the fingerprint
+drift check fires again. There is no MODE flag on the bash function; the
+mode is documentary, signaling to the caller why they're invoking.
+
+| Mode | When | Caller |
+|------|------|--------|
+| `initial-load` | First action of every L3-consuming skill | Pipeline skill at Step 0 |
+| `refresh` | Post-compaction (via `hooks/session-start-restore.sh` Block 6 step 3) or on-demand if a phase explicitly needs fresh L3 facts | Model on next turn after a compact / resume / startup SessionStart |
+
+**Phase-boundary refresh sites:** unlike `load-custom-instructions`, this
+helper has NO mid-pipeline refresh sites — L3 facts are baseline awareness
+(model corroborates via direct Grep/Read of code, not L3 prose). Per M3
+§7.3: skills MAY invoke on-demand if a phase explicitly needs a fresh
+module map, but no skill is required to do so.
+
 ### `load_semantic`
 
 Concatenates the requested L3 markdown files to stdout. Each file is prefixed with a `=== file: <relative-path> ===` header so the model knows the source of each block.

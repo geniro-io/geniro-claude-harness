@@ -23,6 +23,13 @@ Exit codes:
 - `70` — append failed (filesystem / IO).
 - `71` — atomic write of replacement failed.
 
+## MODE contract (M3 §7.4)
+
+Write-side helper — **no MODE parameter, compaction-immune.** Each
+invocation is а one-shot file mutation; the helper holds no context-resident
+state across calls. Skill flow decides when to re-invoke after а SessionStart
+event.
+
 ## Constraints (from M2 §6.3)
 
 - **Applies only to `_CODEBASE_MAP.md` and `_FEATURES.md`.** Other L3 files (`_project.md`, `_architecture.md`, `_focus-*.md`) are manual-only.
