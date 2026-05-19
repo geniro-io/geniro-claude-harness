@@ -209,6 +209,99 @@ _fm_block_list_count() {
   ' "$file" 2>/dev/null
 }
 
+# Convert a YAML block-list field in frontmatter to JSONL on stdout.
+# Each `- key: value` entry becomes one JSON object; nested fields
+# (4-space indented) are merged into the same object until the next `-`.
+# Returns empty output for absent or `[]` lists. Unquoted values are
+# kept as strings; quoted values lose one balanced outer pair.
+_fm_block_list_to_jsonl() {
+  local file="$1" key="$2"
+  awk -v k="$key" '
+    function jesc(s,   t) {
+      t = s
+      gsub(/\\/, "\\\\", t)
+      gsub(/"/, "\\\"", t)
+      gsub(/\t/, "\\t", t)
+      gsub(/\r/, "\\r", t)
+      gsub(/\n/, "\\n", t)
+      return t
+    }
+    function dequote(s) {
+      if (s ~ /^"[^"]*"$/ || s ~ /^\047[^\047]*\047$/) {
+        return substr(s, 2, length(s) - 2)
+      }
+      return s
+    }
+    function add_pair(line,   pos, kk, vv) {
+      pos = index(line, ":")
+      if (pos < 2) return
+      kk = substr(line, 1, pos - 1)
+      vv = substr(line, pos + 1)
+      sub(/^[[:space:]]+/, "", vv)
+      sub(/[[:space:]]+$/, "", vv)
+      vv = dequote(vv)
+      if (have == 0) {
+        keynum = 0
+        delete keys
+        delete vals
+        have = 1
+      }
+      keys[++keynum] = kk
+      vals[kk] = vv
+    }
+    function flush(   i, out) {
+      if (!have) return
+      out = "{"
+      for (i = 1; i <= keynum; i++) {
+        if (i > 1) out = out ","
+        out = out "\"" jesc(keys[i]) "\":\"" jesc(vals[keys[i]]) "\""
+      }
+      print out "}"
+      have = 0
+    }
+    NR == 1 && $0 != "---" { exit 0 }
+    NR == 1 { in_fm = 1; next }
+    in_fm && $0 == "---" { exit 0 }
+    in_fm && $0 ~ "^" k ":[[:space:]]*\\[\\][[:space:]]*$" { exit 0 }
+    in_fm && $0 ~ "^" k ":[[:space:]]*$" { in_list = 1; next }
+    in_list && /^[a-zA-Z_][a-zA-Z0-9_-]*:/ { exit 0 }
+    in_list && /^[[:space:]]+-[[:space:]]/ {
+      flush()
+      line = $0
+      sub(/^[[:space:]]+-[[:space:]]+/, "", line)
+      add_pair(line)
+      next
+    }
+    in_list && /^[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*:/ {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      add_pair(line)
+      next
+    }
+    END { flush() }
+  ' "$file" 2>/dev/null
+}
+
+# Render a non-resumable-actions JSONL stream into Block 5 bullet lines.
+# Per §8: structured rendering for known action types, fallback for unknown.
+_render_non_resumable_block() {
+  jq -r '
+    .action as $a
+    | (.["completed-at"] // "?") as $c
+    | if $a == "git-push" then
+        "  - git-push (target: \(.target // "?"), ref: \(.ref // "?"), completed: \($c))"
+      elif $a == "pr-comment-posted" then
+        "  - pr-comment-posted (pr: \(.pr // "?"), comment-id: \(.["comment-id"] // "?"), completed: \($c))"
+      elif $a == "slack-notify-sent" then
+        "  - slack-notify-sent (channel: \(.channel // "?"), ts: \(.ts // "?"), completed: \($c))"
+      elif $a == "release-tagged" then
+        "  - release-tagged (tag: \(.tag // "?"), completed: \($c))"
+      else
+        "  - \($a) (completed: \($c))"
+      end
+  ' 2>/dev/null
+}
+
 if [ -n "$state_file" ] && [ -f "$state_file" ]; then
   active_skill="$(_fm_scalar "$state_file" producer)"
   spec_file="$(_fm_scalar "$state_file" spec-file)"
@@ -301,10 +394,19 @@ not landed yet). Treat resumed state with caution — confirm 'phase:' and
 'status:' fields look sane before continuing."
 fi
 
-# Block 5 — non-resumable-actions rendering (deferred to a follow-up commit;
-# the count is already surfaced in systemMessage). Future commit implements
-# §6 Block 5 + §8 structured rendering.
+# Block 5 — non-resumable-actions warning. Renders structured entries per §8.
 BLOCK5=""
+if [ -n "$state_file" ] && [ "$non_resumable_count" -gt 0 ]; then
+  _rendered=$(_fm_block_list_to_jsonl "$state_file" non-resumable-actions \
+    | _render_non_resumable_block)
+  if [ -n "$_rendered" ]; then
+    BLOCK5="⚠️ ALREADY COMPLETED in prior turns — DO NOT repeat:
+$_rendered
+Resuming should re-validate code state but MUST NOT re-trigger these actions.
+If a re-trigger is genuinely required (e.g., rebase + re-push), explicitly
+acknowledge in your next message before performing it."
+  fi
+fi
 
 # Block 6 — resume protocol.
 if [ -n "$active_skill" ]; then
