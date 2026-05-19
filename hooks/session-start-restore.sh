@@ -302,6 +302,106 @@ _render_non_resumable_block() {
   ' 2>/dev/null
 }
 
+# Convert a body YAML block-list section (e.g. `## Errors`) to JSONL.
+# Body sections use indent-0 `- key: val` + indent-2 `key: val` continuations
+# (distinct from frontmatter block-list which uses 2/4). Skips frontmatter
+# entirely. Terminates at next `##` heading or EOF.
+_body_section_to_jsonl() {
+  local file="$1" section="$2"
+  awk -v section="$section" '
+    function jesc(s,   t) {
+      t = s
+      gsub(/\\/, "\\\\", t)
+      gsub(/"/, "\\\"", t)
+      gsub(/\t/, "\\t", t)
+      gsub(/\r/, "\\r", t)
+      gsub(/\n/, "\\n", t)
+      return t
+    }
+    function dequote(s) {
+      if (s ~ /^"[^"]*"$/ || s ~ /^\047[^\047]*\047$/) {
+        return substr(s, 2, length(s) - 2)
+      }
+      return s
+    }
+    function add_pair(line,   pos, kk, vv) {
+      pos = index(line, ":")
+      if (pos < 2) return
+      kk = substr(line, 1, pos - 1)
+      vv = substr(line, pos + 1)
+      sub(/^[[:space:]]+/, "", vv)
+      sub(/[[:space:]]+$/, "", vv)
+      vv = dequote(vv)
+      if (have == 0) {
+        keynum = 0
+        delete keys
+        delete vals
+        have = 1
+      }
+      keys[++keynum] = kk
+      vals[kk] = vv
+    }
+    function flush(   i, out) {
+      if (!have) return
+      out = "{"
+      for (i = 1; i <= keynum; i++) {
+        if (i > 1) out = out ","
+        out = out "\"" jesc(keys[i]) "\":\"" jesc(vals[keys[i]]) "\""
+      }
+      print out "}"
+      have = 0
+    }
+    NR == 1 && $0 != "---" { in_body = 1; next }
+    NR == 1 { in_fm = 1; next }
+    in_fm && $0 == "---" { in_fm = 0; in_body = 1; next }
+    in_fm { next }
+    in_body && $0 ~ "^## " section "[[:space:]]*$" { in_sect = 1; next }
+    in_sect && /^## / { flush(); exit 0 }
+    in_sect && /^-[[:space:]]/ {
+      flush()
+      line = $0
+      sub(/^-[[:space:]]+/, "", line)
+      add_pair(line)
+      next
+    }
+    in_sect && /^[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*:/ {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      add_pair(line)
+      next
+    }
+    END { flush() }
+  ' "$file" 2>/dev/null
+}
+
+# Render `## Errors` body section into Block 5b bullets.
+# Filter: entries with `resolved: "true"` are excluded; default (missing field) renders.
+_render_errors_block() {
+  jq -r '
+    if .resolved == "true" then empty
+    else
+      "  - \(.ts // "?") · \(.tool // "?") `\(.detail // "")` failed: \(.error // "(no error message)")\n      attempted_fix: \(.attempted_fix // "?") — did NOT resolve"
+    end
+  ' 2>/dev/null
+}
+
+# Render `## Open Questions` body section into Block 5c bullets.
+_render_open_questions_block() {
+  jq -r '
+    if .resolved == "true" then empty
+    else "  - \"\(.question // "?")\""
+    end
+  ' 2>/dev/null
+}
+
+# Render frontmatter `approvals[]` into Block 5d bullets.
+# No filter — producer controls which categories persist (M3 §6 Block 5d).
+_render_approvals_block() {
+  jq -r '
+    "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked в phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
+  ' 2>/dev/null
+}
+
 if [ -n "$state_file" ] && [ -f "$state_file" ]; then
   active_skill="$(_fm_scalar "$state_file" producer)"
   spec_file="$(_fm_scalar "$state_file" spec-file)"
@@ -408,6 +508,55 @@ acknowledge in your next message before performing it."
   fi
 fi
 
+# Block 5b — Last-known errors from state.md `## Errors` body section.
+# Per P-M3-1: surface unresolved errors so the model doesn't repeat the
+# same approach after compaction.
+BLOCK5B=""
+if [ -n "$state_file" ]; then
+  _errors_rendered=$(_body_section_to_jsonl "$state_file" "Errors" \
+    | _render_errors_block)
+  if [ -n "$_errors_rendered" ]; then
+    BLOCK5B="⚠️ ERRORS ENCOUNTERED IN PRIOR TURNS — do not repeat the same approach:
+$_errors_rendered
+Consider a fundamentally different approach or escalate per M4 §6.3 (Phase 2)
+or §7.4 (Phase 3)."
+  fi
+fi
+
+# Block 5c — Open questions from state.md `## Open Questions` body section.
+# Per P-M3-1: pending user-facing questions surface as AUQ-FIRST directive.
+BLOCK5C=""
+if [ -n "$state_file" ]; then
+  _oq_rendered=$(_body_section_to_jsonl "$state_file" "Open Questions" \
+    | _render_open_questions_block)
+  if [ -n "$_oq_rendered" ]; then
+    BLOCK5C="❓ PENDING QUESTIONS FROM PRIOR TURN — ask user before continuing:
+$_oq_rendered
+Open Question Protocol: surface these via AskUserQuestion as your FIRST action
+this turn. Do not advance pipeline phase until resolved."
+  fi
+fi
+
+# Block 5d — Persisted approvals from frontmatter `approvals[]`.
+# Per P-M3-2 (depends on P-M1-1): one-time user picks surface so the model
+# doesn't re-ask after compaction. Producer decides which categories persist;
+# the hook just renders what's there.
+BLOCK5D=""
+if [ -n "$state_file" ]; then
+  _approvals_count=$(_fm_block_list_count "$state_file" approvals)
+  if [ -n "$_approvals_count" ] && [ "$_approvals_count" -gt 0 ]; then
+    _approvals_rendered=$(_fm_block_list_to_jsonl "$state_file" approvals \
+      | _render_approvals_block)
+    if [ -n "$_approvals_rendered" ]; then
+      BLOCK5D="✓ DECISIONS ALREADY MADE in prior turns — do NOT re-ask:
+$_approvals_rendered
+Use these picked values directly. Only re-ask if context has materially
+changed (e.g., spec file deleted, branch switched) — explicitly acknowledge
+the re-ask in your next message."
+    fi
+  fi
+fi
+
 # Block 6 — resume protocol.
 if [ -n "$active_skill" ]; then
   _step2="2. Re-invoke the canonical instruction loader at
@@ -456,6 +605,9 @@ _append_block "$BLOCK2"
 _append_block "$BLOCK3"
 _append_block "$BLOCK4"
 _append_block "$BLOCK5"
+_append_block "$BLOCK5B"
+_append_block "$BLOCK5C"
+_append_block "$BLOCK5D"
 _append_block "$BLOCK6"
 
 # ---------------------------------------------------------------------------
