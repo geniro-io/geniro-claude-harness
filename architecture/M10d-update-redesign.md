@@ -102,7 +102,7 @@ Per M4 §2.2:
 | `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update`, `python3 -c "json.load"` to parse registry) | `Read`, `Write`, `Edit` on project files (no project edits during update); `Agent`; `mcp__github__*` |
 | `post-check` | `Read`, `Bash` (`sha256sum`, `stat`, `cp` to refresh statusline), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`; `mcp__*` |
 | `migration` | `Read`, `AskUserQuestion`, `Bash` (`grep -r` for stale references), `Glob` | `Write`, `Edit` (migration suggestions are surfaced as `/geniro:instructions edit` recommendations, NEVER auto-applied); `Agent`; `mcp__*` |
-| `DONE` | (terminal report) | (none) |
+| `done` | (terminal report) | (none) |
 
 External sends: not in `/update` ACI ever.
 

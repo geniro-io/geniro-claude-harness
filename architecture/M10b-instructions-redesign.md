@@ -88,7 +88,7 @@ Per M4 §2.2 — `/instructions` inherits all 7 invariants. Specifics for this C
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, `Bash` (mutating), all `mcp__*`, network |
 | `execute` | `Read`, `Write`, `Edit`, `Bash` (`mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Agent` (no subagents), `mcp__github__*`, network egress |
-| `DONE` | (none — terminal report) | (none) |
+| `done` | (none — terminal report) | (none) |
 
 External sends: not in `/instructions` ACI ever.
 

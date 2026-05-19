@@ -102,7 +102,7 @@ Per M4 §2.2:
 | | **edit:** `Read`, `Edit`, `Bash(stat, mv)`, `AskUserQuestion` | `mcp__*`, network egress | |
 | | **delete:** `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress | Per-file `rm` of `.geniro/actions/<slug>.md` is allowed by the `.geniro/` deletion guard |
 | | **run:** **determined by the action's frontmatter `allowed-tools:` field**, intersected with the global `/actions` allowed-tools | (whatever is NOT in the intersection) | Action authorship is user-controlled; tool surface is per-action-declared |
-| `DONE` | (terminal report only) | (none) | |
+| `done` | (terminal report only) | (none) | |
 
 **Run mode tool gating** (concrete rule):
 
