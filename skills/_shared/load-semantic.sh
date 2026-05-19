@@ -19,17 +19,11 @@
 if [ -z "${_LS_DEPS_LOADED:-}" ]; then
   _ls_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck disable=SC1091
+  source "$_ls_script_dir/repo-root.sh"
+  # shellcheck disable=SC1091
   source "$_ls_script_dir/atomic-state-write.sh"
   _LS_DEPS_LOADED=1
 fi
-
-_ls_repo_root() {
-  if git rev-parse --show-toplevel >/dev/null 2>&1; then
-    git rev-parse --show-toplevel
-  else
-    echo "$PWD"
-  fi
-}
 
 # Default fingerprint candidates — every file from this list that EXISTS in
 # the repo gets hashed by `update_fingerprint` when called with no args.
@@ -112,7 +106,7 @@ load_semantic() {
   done
 
   local root
-  root=$(_ls_repo_root)
+  root=$(_geniro_repo_root)
 
   if [ "$quiet" = "false" ]; then
     _ls_check_drift "$root"
@@ -121,8 +115,15 @@ load_semantic() {
   # Default top-2 per M2 §6.4 + any extras.
   local -a names=("_project" "_CODEBASE_MAP")
   if [ -n "$extras" ]; then
+    # `read -ra` splits on IFS (default whitespace) into the array WITHOUT
+    # glob-expanding tokens. Bare `for e in $extras` would word-split AND
+    # glob-expand against cwd — a token like `_focus-*` would expand to
+    # matching files instead of staying literal.
+    local -a extras_arr
+    IFS=' ' read -ra extras_arr <<< "$extras"
     local e
-    for e in $extras; do
+    for e in "${extras_arr[@]}"; do
+      [ -z "$e" ] && continue
       # Accept either bare name or with leading underscore.
       case "$e" in
         _*) names+=("$e") ;;
@@ -144,7 +145,7 @@ load_semantic() {
 
 update_fingerprint() {
   local root
-  root=$(_ls_repo_root)
+  root=$(_geniro_repo_root)
   local fp="$root/.geniro/planning/.fingerprint.json"
 
   # Collect files to hash: explicit args, or every default candidate that

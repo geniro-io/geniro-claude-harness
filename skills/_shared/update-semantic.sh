@@ -21,19 +21,13 @@
 if [ -z "${_US_DEPS_LOADED:-}" ]; then
   _us_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck disable=SC1091
+  source "$_us_script_dir/repo-root.sh"
+  # shellcheck disable=SC1091
   source "$_us_script_dir/atomic-state-write.sh"
   _US_DEPS_LOADED=1
 fi
 
 _US_LOCK_HELD=11
-
-_us_repo_root() {
-  if git rev-parse --show-toplevel >/dev/null 2>&1; then
-    git rev-parse --show-toplevel
-  else
-    echo "$PWD"
-  fi
-}
 
 # Map --file flag to (basename, lock-name).
 _us_resolve_target() {
@@ -108,7 +102,7 @@ update_semantic() {
   lock_name="${resolved##*$'\t'}"
 
   local root planning target_path lock_path
-  root=$(_us_repo_root)
+  root=$(_geniro_repo_root)
   planning="$root/.geniro/planning"
   target_path="$planning/$target_md"
   lock_path="$planning/$lock_name"

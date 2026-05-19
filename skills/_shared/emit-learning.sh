@@ -27,22 +27,13 @@
 if [ -z "${_EL_DEPS_LOADED:-}" ]; then
   _el_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck disable=SC1091
+  source "$_el_script_dir/repo-root.sh"
+  # shellcheck disable=SC1091
   source "$_el_script_dir/redact-secrets.sh"
   # shellcheck disable=SC1091
   source "$_el_script_dir/atomic-state-write.sh"
   _EL_DEPS_LOADED=1
 fi
-
-# Repo root — re-uses redact-secrets' helper if loaded, else falls back.
-_el_repo_root() {
-  if declare -F _red_repo_root >/dev/null; then
-    _red_repo_root
-  elif git rev-parse --show-toplevel >/dev/null 2>&1; then
-    git rev-parse --show-toplevel
-  else
-    echo "$PWD"
-  fi
-}
 
 # Normalize a summary string for dedup-key computation. Per M2 §5.1 the spec
 # just says `normalize(summary)`; we standardize on lowercase + whitespace
@@ -138,7 +129,7 @@ emit_learning() {
 
   # Dedup scan — last 200 entries.
   local log root
-  root=$(_el_repo_root)
+  root=$(_geniro_repo_root)
   log="$root/.geniro/knowledge/learnings.jsonl"
 
   if [ -f "$log" ]; then

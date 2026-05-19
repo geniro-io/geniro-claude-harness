@@ -92,6 +92,21 @@ else
   fail "missing extras file: rc=$rc out='$out'"
 fi
 
+# --extras must not glob-expand against cwd. Regression: previous code used
+# `for e in $extras` which word-splits AND glob-expands. A literal token
+# like `_focus-*` would match files in PWD and silently load wrong ones.
+new_sandbox
+# Plant files in cwd that would match a glob expansion of `_focus-*`
+touch _focus-OOPS.md _focus-WRONG.md
+# Plant the actual L3 file we want loaded
+echo 'real focus content' > .geniro/planning/_focus-auth.md
+out=$(load_semantic --quiet --extras "_focus-*" 2>/dev/null)
+if echo "$out" | grep -q 'OOPS\|WRONG'; then
+  fail "--extras glob-expanded against cwd (loaded $(echo "$out" | grep -oE 'OOPS|WRONG'))"
+else
+  pass "--extras does not glob-expand against cwd"
+fi
+
 # Unknown flag → rc=64
 new_sandbox
 set +e

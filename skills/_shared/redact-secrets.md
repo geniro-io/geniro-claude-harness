@@ -18,7 +18,7 @@ sanitized=$(printf '%s' "$raw" | redact_secrets <producer> <field> <dedup_key>)
 ```
 
 - **Input:** arbitrary text on stdin (may contain newlines).
-- **Output:** sanitized text on stdout (preserves byte-shape — no extra trailing newline added by the helper).
+- **Output:** sanitized text on stdout. The helper itself does NOT add a trailing newline, but note that command-substitution capture (`$(redact_secrets ...)`) always strips trailing newlines per POSIX shell semantics. Callers that need byte-exact preservation should pipe to a file or `xxd`/`od` rather than capture via `$(...)`. All current callers re-serialize via `jq`, so this is academic.
 - **Side effect:** for each built-in pattern that fires AND for each safety.json `additional_pattern` that fires, one JSONL line is appended to `.geniro/knowledge/.redaction-log.jsonl` (unless `audit_log_enabled: false`).
 - **Args:** producer (skill name), field (e.g. `summary`, `ext.body`), dedup_key (the L2 entry's dedup_key — links the audit row to the entry being sanitized). All three are echoed verbatim into the audit log.
 

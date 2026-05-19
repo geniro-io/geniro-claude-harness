@@ -18,26 +18,17 @@
 #       "audit_log_enabled": true
 #   } }
 
-# Repo-root resolution. Prefer git, else walk up looking for `.geniro/`, else PWD.
-_red_repo_root() {
-  if git rev-parse --show-toplevel >/dev/null 2>&1; then
-    git rev-parse --show-toplevel
-    return 0
-  fi
-  local d="$PWD"
-  while [ "$d" != "/" ] && [ -n "$d" ]; do
-    if [ -d "$d/.geniro" ]; then
-      echo "$d"
-      return 0
-    fi
-    d="$(dirname "$d")"
-  done
-  echo "$PWD"
-}
+# Source the shared repo-root helper once.
+if [ -z "${_GENIRO_REPO_ROOT_LOADED:-}" ]; then
+  _red_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck disable=SC1091
+  source "$_red_script_dir/repo-root.sh"
+  _GENIRO_REPO_ROOT_LOADED=1
+fi
 
 _red_safety_json() {
   local root
-  root=$(_red_repo_root)
+  root=$(_geniro_repo_root)
   if [ -f "$root/.geniro/safety.json" ]; then
     echo "$root/.geniro/safety.json"
   fi
@@ -71,7 +62,7 @@ _red_is_ignored() {
 _red_audit_append() {
   local producer="$1" field="$2" pattern="$3" chars="$4" dedup_key="$5"
   local root log ts line
-  root=$(_red_repo_root)
+  root=$(_geniro_repo_root)
   log="$root/.geniro/knowledge/.redaction-log.jsonl"
   ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 

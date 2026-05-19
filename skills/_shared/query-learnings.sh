@@ -15,13 +15,12 @@
 #   0 — query ran (may have zero matches)
 #  64 — unknown flag / bad argument
 
-_ql_repo_root() {
-  if git rev-parse --show-toplevel >/dev/null 2>&1; then
-    git rev-parse --show-toplevel
-  else
-    echo "$PWD"
-  fi
-}
+if [ -z "${_QL_DEPS_LOADED:-}" ]; then
+  _ql_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck disable=SC1091
+  source "$_ql_script_dir/repo-root.sh"
+  _QL_DEPS_LOADED=1
+fi
 
 query_learnings() {
   local type_filter=""
@@ -59,7 +58,7 @@ query_learnings() {
   esac
 
   local root log
-  root=$(_ql_repo_root)
+  root=$(_geniro_repo_root)
   log="$root/.geniro/knowledge/learnings.jsonl"
 
   # Build the source stream: main log + optionally archive files.
