@@ -34,6 +34,54 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 
 **NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` is NOT expanded by these tools and creates a literal `~` directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or fully resolved absolute paths for project files.
 
+## State Files
+
+Every state file under `.geniro/` belongs to exactly one tier and must be written through the atomic-write helpers — not direct `Edit`/`Write` calls.
+
+| Tier | Paths | Helper |
+|------|-------|--------|
+| **T1 — TASK** (ephemeral, deleted at Phase Ship) | `.geniro/planning/<task-dir>/*` (M4 `/implement`, M5 `/plan`) · `.geniro/state/<skill>/<slug>/state.md` (M7 `/debug`, M8 `/refactor`, M9 `/onboard`, M9 `/investigate`) · `.geniro/state/setup/state.md` singleton (M10a `/setup`) | `atomic_state_write` |
+| **T2 — HANDOFF** (inter-skill, overwritten by producer) | `.geniro/state/handoff/from-<producer>-<branch>.md` | `atomic_state_write` |
+| **T3 — PERSISTENT CRUD** | `.geniro/instructions/*` · `.geniro/actions/*` · `.geniro/workflow/*` · `.geniro/planning/_*.md` · `.geniro/.geniro-state.json` | `atomic_state_write` (caller does optimistic mtime check first) |
+| **T3 — PERSISTENT append-only** | `.geniro/knowledge/learnings.jsonl` | `atomic_state_append` |
+
+**Helper invocation** (from inside a skill's Bash call):
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+atomic_state_write ".geniro/planning/<task-dir>/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: <git-branch>
+timestamp: <ISO-8601 UTC>
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+
+## Body
+...
+EOF
+```
+
+**Validation before resume:**
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh"
+if ! validate_state_file ".geniro/planning/<task-dir>/state.md"; then
+  # Open recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency)
+  ...
+fi
+```
+
+**Full reference:**
+- `skills/_shared/state-tier-spec.md` — canonical schema and per-tier required fields.
+- `skills/_shared/atomic-state-write.md` — write helper, exit codes, mtime-check pattern.
+- `skills/_shared/validate-state-file.md` — validator, exit codes, recovery AUQ template.
+- `architecture/M1-state-files.md` — design rationale.
+
 ## Custom Agent Invocation
 
 When a skill spawns a plugin-defined agent (`reviewer-agent`, `relevance-filter-agent`, `adversarial-tester-agent`, `refactor-agent`, `architect-agent`, `skeptic-agent`, `knowledge-retrieval-agent`, `backend-agent`, `frontend-agent`) via the `Agent(subagent_type="<name>", ...)` tool, the registered form varies by runtime: interactive Claude Code with the plugin marketplace-installed registers agents under `geniro-claude-plugin:<agent>`; `/geniro:vendor`-ed projects register them under bare `<agent>`; Claude Code SDK / harness / cloud runners do not register them at all and the call hard-errors with `Agent type '<name>' not found. Available agents: …`.
@@ -49,6 +97,7 @@ This plugin provides safety hooks that run automatically:
 - **Post-compaction recovery** — wired as `SessionStart` with `matcher: "compact"` (Anthropic-canonical; `PostCompact` itself does not support `additionalContext`). Re-injects suggested-file list including `.geniro/instructions/global.md`, the active skill's `<skill>.md`, and `.geniro/instructions/code-style.md` so custom workflow rules and code-style rules survive compaction. On the next turn, the model re-invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: refresh) for the active skill — the helper's Echo contract makes the re-Read user-visible.
 - **Evidence-on-completion** — Stop hook (warn-only) — scans last assistant message for completion phrases (e.g., "shipped", "all tests pass", "ready to ship", "Done!") that lack an Evidence Block; cites `skills/_shared/evidence-standard.md`. Stop hooks fire ~50-80% of the time, so this is a soft reminder layer, not enforcement. Bypass: `evidence-stop` in `.geniro/safety.json` `allow_patterns`.
 - **TDD-order enforcement** — PreToolUse `Edit|Write` (hard-block) — when `.geniro/state/tdd/state-<slug>.md` shows phase=RED, blocks `Edit`/`Write` on production-code files (test files still allowed). State file absence means the skill hasn't opted in to TDD, so no surprise blocks. Bypass: `tdd-order` in `.geniro/safety.json` `allow_patterns`.
+- **State-helper enforcement** — PreToolUse `Edit|Write` (warn-mode initially; flips to hard-block in M1 PR-final) — warns when a direct `Edit`/`Write` targets a canonical state path (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`). Suggests `atomic_state_write` (or `atomic_state_append` for JSONL) per `skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper` in `.geniro/safety.json` `allow_patterns`.
 
 ### Per-project allowlist for safety guardrails
 
@@ -66,6 +115,7 @@ Pattern IDs:
 - **`.geniro/` deletion guard**: `rm-geniro-tree` (bulk `rm -rf .geniro/`), `rm-geniro-subdir` (`rm -rf .geniro/<top>/`), `rm-geniro-state-subdir` (`rm -rf .geniro/state/<skill>/`), `find-geniro-delete` (`find .geniro ... -delete`), `worktree-remove-with-state` (`git worktree remove`), `git-add-force-geniro` (`git add -f` on `.geniro/` paths)
 - **Evidence-on-completion**: `evidence-stop` (skip the Stop-hook completion-phrase warning)
 - **TDD-order enforcement**: `tdd-order` (skip the RED-phase production-code Edit/Write block)
+- **State-helper enforcement**: `enforce-state-helper` (skip the warning on direct Edit/Write to `.geniro/` state paths — once block-mode is enabled in PR-final, this becomes the hard-block bypass)
 
 The allowlist is read from the nearest `.geniro/safety.json` walking up from the cwd.
 
