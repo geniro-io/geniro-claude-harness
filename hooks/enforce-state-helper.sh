@@ -66,7 +66,11 @@ matches_state_path() {
   # files and shouldn't trigger the helper warning:
   #   *.lock      — coordination locks (e.g., .geniro/planning/.codebase-map.lock)
   #   .fingerprint.json — pure JSON, no frontmatter
-  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$'; then
+  #   *.tmp / *.tmp.PID.HOST — atomic-write temp files (helper's own intermediate
+  #                            file before mv), generic .tmp suffix
+  #   *.swp       — vim swap files
+  #   *~          — emacs backup files
+  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$'; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.

@@ -41,15 +41,20 @@ _vsf_extract_frontmatter() {
 }
 
 # Extract body (everything after closing `---`).
-# One-shot fence counter: stop counting at 2, so `---` rules in the body
-# (markdown horizontal rule) are preserved verbatim instead of treated as
-# fence markers.
+# Byte-exact: emits the original file's bytes from the line after the closing
+# fence onward, with NO extra newline appended and NO normalization. This lets
+# checksum verification succeed for producers that don't end the body with `\n`
+# (e.g., a `printf '%s'` pipeline). awk's `print` would otherwise tack on `\n`.
+# `---` rules inside the body are preserved (the fence-counter exits at the
+# second `---`, so subsequent `---` lines are emitted as plain content by tail).
 _vsf_extract_body() {
   local file="$1"
-  awk '
-    /^---$/ && fences < 2 { fences++; next }
-    fences == 2 { print }
-  ' "$file"
+  local close_line
+  close_line=$(awk '/^---$/ { c++ } c == 2 { print NR; exit }' "$file")
+  if [ -z "$close_line" ]; then
+    return 0
+  fi
+  tail -n "+$((close_line + 1))" "$file"
 }
 
 # Check if key is present in frontmatter (case-sensitive, line-anchored).
@@ -68,8 +73,12 @@ _vsf_fm_has_nonempty_key() {
   [ -n "$val" ]
 }
 
-# Extract scalar value for a key. Strips surrounding whitespace and quotes.
-# Order matters: strip leading `key:[ws]`, then trailing ws, then outer quotes.
+# Extract scalar value for a key. Strips surrounding whitespace and at most
+# one outer pair of matched quotes (single or double). Order matters: strip
+# leading `key:[ws]`, then trailing ws, then strip ONE balanced outer pair.
+# Unbalanced/mixed runs of quotes (`"im'plement'"`) are left intact so the
+# downstream consumer sees what was actually in the YAML rather than a
+# greedy-stripped half-value.
 _vsf_fm_get_value() {
   local fm="$1" key="$2"
   printf '%s\n' "$fm" \
@@ -77,7 +86,9 @@ _vsf_fm_get_value() {
         $0 ~ "^" k ":" {
           sub("^" k ":[[:space:]]*", "")
           gsub(/[[:space:]]+$/, "")
-          gsub(/^[\"'\'']+|[\"'\'']+$/, "")
+          if ($0 ~ /^"[^"]*"$/ || $0 ~ /^\047[^\047]*\047$/) {
+            $0 = substr($0, 2, length($0) - 2)
+          }
           print
           exit
         }

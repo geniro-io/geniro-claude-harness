@@ -112,10 +112,15 @@ initial_mtime=$(_get_mtime "$target")
 
 # At write time:
 current_mtime=$(_get_mtime "$target")
-if [ -z "$initial_mtime" ] || [ -z "$current_mtime" ]; then
-  # File didn't exist before (initial write) or was deleted between read and
-  # write — no concurrency conflict possible. Proceed.
+if [ ! -e "$target" ]; then
+  # Initial write — target didn't exist at read time AND doesn't now.
+  # No prior state to conflict with; proceed.
   :
+elif [ -z "$initial_mtime" ] || [ -z "$current_mtime" ]; then
+  # File exists but stat failed at read time and/or write time. Could be a
+  # permission flip, transient FS error, or signal mid-call. Treat as
+  # conflict — never silently disable the check. Open AUQ.
+  exit 1
 elif [ "$current_mtime" != "$initial_mtime" ]; then
   # File changed since read — open AUQ:
   #   - Overwrite (lose remote changes)

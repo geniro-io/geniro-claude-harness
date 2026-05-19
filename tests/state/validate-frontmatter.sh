@@ -309,6 +309,55 @@ non-resumable-actions: []
 EOF
 expect_rc "$TMPDIR/empty-branch.md" 4 "empty 'branch:' value rejected as missing base field"
 
+# Test 15e: positive checksum — body has NO trailing newline.
+# Regression test for the awk-print body extractor that always appended `\n`,
+# causing false-positive checksum-mismatch for byte-exact producers
+# (e.g., `printf '%s'`, Python, jq pipelines).
+body_15e="one line no terminator"
+cksum_15e=$(printf '%s' "$body_15e" | sha256sum | awk '{print $1}')
+{
+  cat <<EOF
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: main
+timestamp: 2026-05-19T14:30:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+checksum: $cksum_15e
+---
+EOF
+  printf '%s' "$body_15e"
+} > "$TMPDIR/cksum-no-trailing-nl.md"
+expect_rc "$TMPDIR/cksum-no-trailing-nl.md" 0 "positive checksum — body without trailing newline (byte-exact)"
+
+# Test 15f: balanced quote-strip preserves embedded apostrophes (unit test).
+# Regression test — old `gsub(/^["']+|["']+$/, "")` was greedy and would
+# turn `"im'plement'"` into `im'plement` (stripping the trailing apos
+# along with the outer quote). New balanced-pair logic keeps inner quotes.
+set +e
+fm_in=$'producer: "im\047plement\047"\n'
+val=$(_vsf_fm_get_value "$fm_in" producer)
+set -e
+if [ "$val" = "im'plement'" ]; then
+  pass "balanced quote-strip preserves embedded apostrophes (got: '$val')"
+else
+  fail "balanced quote-strip mangled value (got: '$val', want: \"im'plement'\")"
+fi
+
+# Test 15g: single-quoted value strips one outer pair only.
+set +e
+fm_in=$'producer: \047refactor\047\n'
+val=$(_vsf_fm_get_value "$fm_in" producer)
+set -e
+if [ "$val" = "refactor" ]; then
+  pass "single-quoted scalar strips one outer pair (got: '$val')"
+else
+  fail "single-quote strip wrong (got: '$val', want: 'refactor')"
+fi
+
 # Test 16: worktree path that doesn't exist (inside a real git repo) → 8
 cat > "$TMPDIR/bogus-worktree.md" <<'EOF'
 ---
