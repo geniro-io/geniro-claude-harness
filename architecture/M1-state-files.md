@@ -51,8 +51,14 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 │   ├── debug/                        # T1 (session-bound layout, M7)
 │   │   └── <slug>/                   # subdir per slug — deleted at Phase Ship by /debug
 │   │       └── state.md
-│   └── refactor/                     # T1 (session-bound layout, M8)
-│       └── <slug>/                   # subdir per slug — deleted at Phase Ship by /refactor
+│   ├── refactor/                     # T1 (session-bound layout, M8)
+│   │   └── <slug>/                   # subdir per slug — deleted at Phase Ship by /refactor
+│   │       └── state.md
+│   ├── onboard/                      # T1 (session-bound layout, M9)
+│   │   └── <slug>/                   # subdir per slug — deleted at Phase Ship by /onboard
+│   │       └── state.md
+│   └── investigate/                  # T1 (session-bound layout, M9)
+│       └── <slug>/                   # subdir per slug — deleted at Phase Ship by /investigate
 │           └── state.md
 ├── knowledge/                        # T3 — PERSISTENT (append-only)
 │   └── learnings.jsonl
@@ -83,7 +89,7 @@ Every state file in `.geniro/` lands in exactly one of three tiers, determined b
 | Path root | Layout | Producer category | Examples |
 |---|---|---|---|
 | `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan.md` + `notes.md` + …) | **Task-bound skills** — produce/consume а spec; create durable task artifacts beyond state.md | M4 (`/implement`), M5 (`/plan`) |
-| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug per skill; canonical `state.md` inside (may add sibling files) | **Session-bound skills** — work over existing code; no spec/plan artifacts; transient working state only | M7 (`/debug`), M8 (`/refactor`) |
+| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug per skill; canonical `state.md` inside (may add sibling files) | **Session-bound skills** — work over existing code; no spec/plan artifacts; transient working state only | M7 (`/debug`), M8 (`/refactor`), M9 (`/onboard`, `/investigate`) |
 
 Both roots are equally canonical for T1. The choice is a producer-design decision: skills that create lasting task artifacts (spec / plan / milestone-N) belong in `planning/<task-dir>/` где those siblings live; skills that produce only а working state.md belong in а per-skill subdir under `state/<skill>/` где cleanup is bounded to the skill's own files и does not risk other skills' artifacts.
 
