@@ -117,9 +117,16 @@ update_semantic() {
   local rc=0
   case "$op" in
     append)
-      if ! printf '%s\n' "$arg1" >> "$target_path"; then
-        echo "update_semantic: append to $target_path failed" >&2
-        rc=70
+      # Route through atomic_state_append so we inherit (a) the
+      # last-byte-is-newline guard against no-trailing-newline corruption,
+      # (b) the POSIX-atomic append for writes ≤ PIPE_BUF, and (c) fsync.
+      # atomic_state_append's own rc semantics propagate verbatim:
+      # rc=68 oversized, rc=69 append IO failure.
+      local ap_rc
+      printf '%s' "$arg1" | atomic_state_append "$target_path"
+      ap_rc=$?
+      if [ "$ap_rc" -ne 0 ]; then
+        rc=$ap_rc
       fi
       ;;
     replace)

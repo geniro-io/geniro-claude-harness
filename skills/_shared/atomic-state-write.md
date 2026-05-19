@@ -136,6 +136,12 @@ EOF
 
 T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-branch parallel writes are rare/abusive and last-writer-wins is acceptable.
 
+## Known limitations
+
+- **Symlinks are replaced, not followed.** The internal `mv tmp target` follows POSIX rename semantics — if `target` is a symlink, the symlink itself is replaced with a regular file (the linked-to file becomes orphaned with its old content). Don't symlink state files. If you need shared state between worktrees, share the `.geniro/` directory itself, not individual files inside it.
+
+- **Append race on no-newline files can produce a blank line.** When two concurrent `atomic_state_append` calls both find a target file missing its trailing newline, both prepend `\n` independently. The POSIX `O_APPEND` write atomicity is preserved (no torn line), but the result is one harmless blank line in JSONL. `jq -cs` and `query-learnings` tolerate it; `wc -l` and strict line-number-based diagnostics over-count by 1. Acceptable for now — a single appender doesn't trigger it, and the first append after the race "heals" the file (subsequent appends see the trailing newline).
+
 ---
 
 ## What this helper does NOT do

@@ -33,7 +33,12 @@ atomic_state_write() {
   fi
 
   # PID + hostname suffix prevents collision on NFS-shared .geniro/.
+  # Sanitize: hostnames with `/`, spaces, or other path-breaking chars
+  # (legal per POSIX, observed in some k8s/container envs) would create a
+  # tmp path that `cat > "$tmp"` can't write to. Replace anything outside
+  # [A-Za-z0-9.-] with `_`.
   local host="${HOSTNAME:-localhost}"
+  host="${host//[^A-Za-z0-9.-]/_}"
   local tmp="${target}.tmp.$$.${host}"
 
   # Ensure parent directory exists. Creating it now keeps the helper

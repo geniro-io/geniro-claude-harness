@@ -36,6 +36,19 @@ else
   fail "append to missing file"
 fi
 
+# Append to a file WITHOUT trailing newline must NOT concatenate onto the
+# prior final line. Regression for the P0 found in round-3 review where
+# `printf '%s\n' >> file` produced "old line- new line\n" on no-nl files.
+new_sandbox
+printf 'pre-existing line without newline' > .geniro/planning/_CODEBASE_MAP.md
+update_semantic --file codebase-map --append "- new line"
+n=$(wc -l < .geniro/planning/_CODEBASE_MAP.md)
+if [ "$n" = "2" ]; then
+  pass "append to no-trailing-newline file produces 2 lines (P0 regression)"
+else
+  fail "no-trailing-newline append: got $n lines (want 2). content: $(cat .geniro/planning/_CODEBASE_MAP.md)"
+fi
+
 # Append second line preserves first
 new_sandbox
 update_semantic --file codebase-map --append "- a"

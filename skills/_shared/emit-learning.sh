@@ -59,7 +59,7 @@ emit_learning() {
   fi
 
   # Extract required fields up front.
-  local producer scope summary tags_present
+  local producer scope summary tags_present tags_type
   producer=$(printf '%s' "$input" | jq -r '.producer // empty')
   scope=$(printf '%s' "$input" | jq -r '.scope // empty')
   summary=$(printf '%s' "$input" | jq -r '.summary // empty')
@@ -69,6 +69,31 @@ emit_learning() {
     echo "emit_learning: required fields missing (producer, scope, summary, tags)" >&2
     return 64
   fi
+
+  # Type-check `tags` (must be an array). A bare string like `"tags":"bug"`
+  # would otherwise round-trip through write+read but break query-side
+  # filtering: `((.tags // []) | index($tag_filter))` on a string does
+  # SUBSTRING match (jq's index() semantics) — so `--tag b` would match a
+  # tags field of just `"bug"`. Fail fast at the writer.
+  tags_type=$(printf '%s' "$input" | jq -r '.tags | type')
+  if [ "$tags_type" != "array" ]; then
+    echo "emit_learning: 'tags' must be an array (got '$tags_type')" >&2
+    return 64
+  fi
+
+  # Type-check `trust` if present. Spec M2 §5.1 defines a closed enum
+  # {verified, retrieved, inferred}; an invalid value would silently filter
+  # under --min-trust queries and confuse readers. Absent trust is allowed
+  # (query-side treats it as `inferred`).
+  local trust
+  trust=$(printf '%s' "$input" | jq -r '.trust // empty')
+  case "$trust" in
+    ""|verified|retrieved|inferred) ;;
+    *)
+      echo "emit_learning: 'trust' must be verified|retrieved|inferred (got '$trust')" >&2
+      return 64
+      ;;
+  esac
 
   # Compute dedup_key if absent.
   local dedup_key

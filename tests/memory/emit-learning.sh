@@ -114,6 +114,68 @@ else
   fail "invalid JSON should rc=64; got $rc"
 fi
 
+# Non-array `tags` must be rejected — round-3 regression. A bare string like
+# `"tags":"bug"` would round-trip but cause query-side substring matches
+# (`((.tags // []) | index($tag))` on a string does substring match).
+new_sandbox
+set +e
+echo '{"producer":"/d","scope":"s","summary":"y","tags":"not-an-array"}' | emit_learning 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "non-array tags (string) → rc=64"
+else
+  fail "non-array tags should rc=64; got $rc"
+fi
+new_sandbox
+set +e
+echo '{"producer":"/d","scope":"s","summary":"y","tags":{"a":1}}' | emit_learning 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "non-array tags (object) → rc=64"
+else
+  fail "non-array tags object should rc=64; got $rc"
+fi
+
+# Invalid trust enum value rejected — round-3 regression.
+new_sandbox
+set +e
+echo '{"producer":"/d","scope":"s","summary":"y","tags":["bug"],"trust":"BANANAS"}' | emit_learning 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "invalid trust value ('BANANAS') → rc=64"
+else
+  fail "invalid trust should rc=64; got $rc"
+fi
+
+# Absent trust still accepted (query side treats it as 'inferred').
+new_sandbox
+set +e
+echo '{"producer":"/d","scope":"s","summary":"y","tags":["bug"]}' | emit_learning
+rc=$?
+set -e
+if [ "$rc" -eq 0 ]; then
+  pass "absent trust still accepted"
+else
+  fail "absent trust should rc=0; got $rc"
+fi
+
+# All three valid trust values accepted.
+for t in verified retrieved inferred; do
+  new_sandbox
+  set +e
+  printf '{"producer":"/d","scope":"s","summary":"y","tags":["bug"],"trust":"%s"}' "$t" | emit_learning
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
+    pass "trust='$t' accepted"
+  else
+    fail "trust='$t' should rc=0; got $rc"
+  fi
+done
+
 # Sanitization: summary
 new_sandbox
 echo '{"producer":"/debug","scope":"x","summary":"key=AKIAIOSFODNN7EXAMPLE leaked","tags":["bug"]}' | emit_learning
