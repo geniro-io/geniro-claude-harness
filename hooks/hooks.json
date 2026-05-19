@@ -59,12 +59,12 @@
         ]
       },
       {
-        "matcher": "compact",
+        "matcher": "compact|resume|startup",
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/post-compact-notification.sh",
-            "statusMessage": "Restoring context after compaction...",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-start-restore.sh",
+            "statusMessage": "Restoring Geniro context...",
             "timeout": 10
           }
         ]
