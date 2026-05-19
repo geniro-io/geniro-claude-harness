@@ -131,17 +131,44 @@ echo "$ac" | grep -q "Active task detected at startup" \
   || fail "startup with task: systemMessage suppressed (should be emitted)"
 
 # ---------------------------------------------------------------------------
-# 5. startup source with NO active task → systemMessage suppressed
+# 5. startup source with NO active task → cold-startup phrasing,
+#    Block 6 suppressed, systemMessage suppressed (§3 lines 92, 95).
 # ---------------------------------------------------------------------------
 
 sandbox="$TMPDIR_BASE/cold-$$"
 mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null
 out=$(run_hook startup "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
 [ -z "$sm" ] \
   && pass "cold startup: systemMessage suppressed" \
   || fail "cold startup: systemMessage should be suppressed — '$sm'"
+
+# Block 1 phrasing — must NOT claim a task was detected.
+if echo "$ac" | grep -q "Active task detected"; then
+  fail "cold startup: Block 1 says 'Active task detected' (spec §3 line 92 — must omit)"
+else
+  pass "cold startup: Block 1 omits 'Active task detected'"
+fi
+
+echo "$ac" | grep -q "no in-flight task" \
+  && pass "cold startup: Block 1 cold-startup phrasing fires" \
+  || fail "cold startup: Block 1 cold-startup phrasing missing"
+
+# Block 6 — entire resume protocol must be suppressed (§3 line 95: «no
+# 'active task' block»). State.md / spec.md / plan.md references would
+# be meaningless.
+if echo "$ac" | grep -q "Resume steps:"; then
+  fail "cold startup: Block 6 should be suppressed (no active task)"
+else
+  pass "cold startup: Block 6 suppressed"
+fi
+if echo "$ac" | grep -q "Read state.md"; then
+  fail "cold startup: should not reference state.md (no active task)"
+else
+  pass "cold startup: no state.md reference"
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Validation FAIL → Block 3, state.md pointer suppressed
@@ -255,6 +282,41 @@ echo "$ac" | grep -q "pr-comment-posted (pr: 142, comment-id: 1834720" \
 echo "$ac" | grep -q "custom-unknown (completed:" \
   && pass "Block 5: unknown-action fallback" \
   || fail "Block 5: unknown-action fallback missing"
+
+# slack-notify-sent + release-tagged rendering (M3 §8 lines 378-385).
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: ship
+status: in-progress
+non-resumable-actions:
+  - action: slack-notify-sent
+    channel: "#deploys"
+    ts: 1747393200.123456
+    completed-at: 2026-05-19T14:40:00Z
+  - action: release-tagged
+    tag: v1.85.0
+    completed-at: 2026-05-19T14:45:00Z
+---
+
+body
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q "slack-notify-sent (channel: #deploys, ts: 1747393200.123456" \
+  && pass "Block 5: slack-notify-sent structured rendering" \
+  || fail "Block 5: slack-notify-sent not rendered correctly"
+
+echo "$ac" | grep -q "release-tagged (tag: v1.85.0, completed:" \
+  && pass "Block 5: release-tagged structured rendering" \
+  || fail "Block 5: release-tagged not rendered correctly"
 
 # ---------------------------------------------------------------------------
 # 10. Block 5b — Errors (resolved filter)
@@ -398,6 +460,70 @@ if echo "$ac" | grep -qE "ERRORS ENCOUNTERED|PENDING QUESTIONS|DECISIONS ALREADY
   fail "empty state.md should produce no 5b/5c/5d blocks"
 else
   pass "empty state.md: no false-positive 5b/5c/5d emission"
+fi
+
+# ---------------------------------------------------------------------------
+# 13b. Validation-fail suppresses Blocks 5/5b/5c/5d (§6 Block 3 "below")
+# ---------------------------------------------------------------------------
+# Frontmatter is partially valid (non-resumable + approvals + body have
+# content), but schema-version is bumped к force validation failure.
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 99
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: ship
+status: in-progress
+non-resumable-actions:
+  - action: git-push
+    target: origin/feature/x
+    ref: leaked
+    completed-at: 2026-05-19T14:32:00Z
+approvals:
+  - category: ship_mode
+    picked: "leaked-pick"
+    at: 2026-05-19T14:00:00Z
+    asked_in_phase: ship
+---
+
+## Errors
+- ts: 2026-05-19T10:42:00Z
+  tool: Bash
+  detail: "leaked-error-detail"
+  error: "leaked-error"
+  attempted_fix: "leaked-fix"
+  resolved: false
+
+## Open Questions
+- ts: 2026-05-19T10:30:00Z
+  asked_in_phase: analyze
+  question: "leaked-question"
+  resolved: false
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+# Block 3 must fire.
+echo "$ac" | grep -q "STATE FILE FAILED VALIDATION" \
+  && pass "validation fail (schema-version): Block 3 fires" \
+  || fail "validation fail (schema-version): Block 3 missing"
+
+# Blocks 5/5b/5c/5d must all be suppressed.
+if echo "$ac" | grep -qE "ALREADY COMPLETED|ERRORS ENCOUNTERED|PENDING QUESTIONS|DECISIONS ALREADY MADE"; then
+  fail "validation fail: Blocks 5/5b/5c/5d leaked content from invalid state.md"
+else
+  pass "validation fail: Blocks 5/5b/5c/5d all suppressed"
+fi
+
+# Direct grep — make sure no leaked value made it through.
+if echo "$ac" | grep -qE "leaked-error|leaked-question|leaked-pick|leaked-fix|ref: leaked"; then
+  fail "validation fail: state.md content leaked into additionalContext"
+else
+  pass "validation fail: no leaked content from suspect state.md"
 fi
 
 # ---------------------------------------------------------------------------
