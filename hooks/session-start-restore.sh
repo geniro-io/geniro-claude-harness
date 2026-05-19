@@ -153,9 +153,14 @@ if [ -n "$state_file" ]; then
     if ! source "$_vsf_helper" 2>/dev/null; then
       validation_status="skipped"
     else
-      validation_error=$(validate_state_file "$state_file" 2>&1 >/dev/null) || true
-      if [ -z "$validation_error" ]; then
+      # Capture stderr + exit code separately — exit code is the truth
+      # signal. A future stderr-emitting helper update wouldn't accidentally
+      # flip pass→fail.
+      validation_error=$(validate_state_file "$state_file" 2>&1 >/dev/null)
+      _vsf_rc=$?
+      if [ "$_vsf_rc" -eq 0 ]; then
         validation_status="pass"
+        validation_error=""
       else
         validation_status="fail"
         validation_error=$(printf '%s' "$validation_error" | head -n 1)
@@ -427,11 +432,19 @@ esac
 # additionalContext assembly (§6)
 # ---------------------------------------------------------------------------
 
-# Block 1 — source-phrased prefix.
+# Block 1 — source-phrased prefix. §3 line 92: the `startup` phrasing
+# "Active task detected" applies **only if active task found**; cold-startup
+# (no state.md) gets а distinct phrasing per §3 line 95.
 case "$SOURCE" in
   compact) _prefix="Context was compressed by compaction (SessionStart source: compact)." ;;
   resume)  _prefix="Restoring from prior session (SessionStart source: resume)." ;;
-  startup) _prefix="Active task detected at startup (SessionStart source: startup)." ;;
+  startup)
+    if [ -n "$state_file" ]; then
+      _prefix="Active task detected at startup (SessionStart source: startup)."
+    else
+      _prefix="Geniro plugin active at startup — no in-flight task (SessionStart source: startup)."
+    fi
+    ;;
   *)       _prefix="Restoring Geniro context (SessionStart source: $SOURCE)." ;;
 esac
 
@@ -482,7 +495,7 @@ On next turn, fire AskUserQuestion with the M1 recovery options:
   2. Open file in editor and fix manually            (skill pauses; retry validation)
   3. Skip validation and continue (emergency)        (risk: silent corruption)
 After user picks, follow the validation-helper recovery flow in M1 §Validation
-helper. Suppress all state.md Reads above — pointer was withheld for safety."
+helper. Suppress all state.md Reads below — pointer was withheld for safety."
 fi
 
 # Block 4 — M1 helper-missing notice.
@@ -495,8 +508,11 @@ not landed yet). Treat resumed state with caution — confirm 'phase:' and
 fi
 
 # Block 5 — non-resumable-actions warning. Renders structured entries per §8.
+# §6 Block 3: when validation fails, suppress all state.md-derived blocks
+# (5/5b/5c/5d). Their contents may be partially trusted; the recovery AUQ
+# must run first.
 BLOCK5=""
-if [ -n "$state_file" ] && [ "$non_resumable_count" -gt 0 ]; then
+if [ -n "$state_file" ] && [ "$validation_status" != "fail" ] && [ "$non_resumable_count" -gt 0 ]; then
   _rendered=$(_fm_block_list_to_jsonl "$state_file" non-resumable-actions \
     | _render_non_resumable_block)
   if [ -n "$_rendered" ]; then
@@ -512,7 +528,7 @@ fi
 # Per P-M3-1: surface unresolved errors so the model doesn't repeat the
 # same approach after compaction.
 BLOCK5B=""
-if [ -n "$state_file" ]; then
+if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
   _errors_rendered=$(_body_section_to_jsonl "$state_file" "Errors" \
     | _render_errors_block)
   if [ -n "$_errors_rendered" ]; then
@@ -526,7 +542,7 @@ fi
 # Block 5c — Open questions from state.md `## Open Questions` body section.
 # Per P-M3-1: pending user-facing questions surface as AUQ-FIRST directive.
 BLOCK5C=""
-if [ -n "$state_file" ]; then
+if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
   _oq_rendered=$(_body_section_to_jsonl "$state_file" "Open Questions" \
     | _render_open_questions_block)
   if [ -n "$_oq_rendered" ]; then
@@ -542,7 +558,7 @@ fi
 # doesn't re-ask after compaction. Producer decides which categories persist;
 # the hook just renders what's there.
 BLOCK5D=""
-if [ -n "$state_file" ]; then
+if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
   _approvals_count=$(_fm_block_list_count "$state_file" approvals)
   if [ -n "$_approvals_count" ] && [ "$_approvals_count" -gt 0 ]; then
     _approvals_rendered=$(_fm_block_list_to_jsonl "$state_file" approvals \
@@ -557,24 +573,29 @@ the re-ask in your next message."
   fi
 fi
 
-# Block 6 — resume protocol.
-if [ -n "$active_skill" ]; then
-  _step2="2. Re-invoke the canonical instruction loader at
+# Block 6 — resume protocol. Per §3 line 95 the cold-startup branch
+# (no active task) emits no "active task" block — i.e., the 7-step
+# resume protocol is suppressed entirely. Loader-refresh advice still
+# matters, so we emit а trimmed 1-step block in that case.
+BLOCK6=""
+if [ -n "$state_file" ]; then
+  if [ -n "$active_skill" ]; then
+    _step2="2. Re-invoke the canonical instruction loader at
    \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md
    with SKILL_SLUG: $active_skill, LOAD_TIER: $load_tier, MODE: refresh.
    The helper's Echo contract makes the re-Read user-visible."
-  _step3="3. Invoke load-semantic with MODE: refresh:
+    _step3="3. Invoke load-semantic with MODE: refresh:
    \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md (MODE: refresh).
    Fingerprint drift check fires; if drift detected, soft notice surfaces."
-else
-  _step2="2. Re-invoke the canonical instruction loader at
+  else
+    _step2="2. Re-invoke the canonical instruction loader at
    \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md
    with SKILL_SLUG: <active-skill>, LOAD_TIER: rules-only, MODE: refresh.
    The helper's Echo contract makes the re-Read user-visible."
-  _step3="3. (load-semantic refresh skipped — no active skill detected; invoke on demand if a phase explicitly needs the L3 module map.)"
-fi
+    _step3="3. (load-semantic refresh skipped — no active skill detected; invoke on demand if a phase explicitly needs the L3 module map.)"
+  fi
 
-BLOCK6="Resume steps:
+  BLOCK6="Resume steps:
 1. Read the current skill's SKILL.md to restore phase instructions.
 $_step2
 $_step3
@@ -582,6 +603,7 @@ $_step3
 5. Read spec.md and plan.md (if present) for task context.
 6. If a feature ID is set in state.md, read the .geniro/planning/_FEATURES.md row and the linked spec.
 7. Continue from the next incomplete phase."
+fi
 
 # ---------------------------------------------------------------------------
 # Concatenate blocks (omit empty ones, blank line between blocks)
