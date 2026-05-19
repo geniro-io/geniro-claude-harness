@@ -1,66 +1,83 @@
-#!/bin/bash
-# post-compact-notification.sh
-# SessionStart hook (matcher: "compact") — restores context after compaction by injecting
-# additionalContext that names files the model should re-read (custom instructions,
-# planning state, active spec). PostCompact event itself does not support additionalContext
-# per Anthropic docs — SessionStart with matcher: "compact" is the canonical mechanism.
+#!/usr/bin/env bash
+# session-start-restore.sh — SessionStart hook (matcher: "compact|resume|startup").
+#
+# Spec: architecture/M3-compaction-survival.md §5, §6, §8, §10.
+#
+# Responsibilities:
+#   1. Read $SOURCE from input (compact|resume|startup|clear); exit 0 on clear.
+#   2. Resolve the active T1 state file using the M1-canonical slug + frontmatter
+#      `branch:` fallback (see §5 step 4 and skills/_shared/state-tier-spec.md §Slug rule).
+#   3. Pre-flight validate via skills/_shared/validate-state-file.sh; if the helper
+#      itself is missing (M1 PR-0 not landed), degrade gracefully with Block 4 notice.
+#   4. Parse frontmatter — producer, spec-file, phase, non-resumable-actions[] count.
+#   5. Assemble `additionalContext` from the ordered Block 1..6 set. Sub-blocks
+#      5/5b/5c/5d land in later commits per the M3 split.
+#   6. Emit `systemMessage` per §10 (suppressed on cold startup with no active task).
+#
+# Read-only guarantee (§5): this hook NEVER writes state.md. State writes are the
+# consumer-skill's exclusive responsibility — keeps the hook idempotent across re-runs.
 
-set -euo pipefail
+set -uo pipefail
 
-# Consume stdin - REQUIRED first step
+# ---------------------------------------------------------------------------
+# Input plumbing
+# ---------------------------------------------------------------------------
+
 INPUT=$(cat)
 
-# Honor cwd from input — defensive against harnesses that invoke hooks from a different cwd
-HOOK_CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo "")
+HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo "")
 if [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
   cd "$HOOK_CWD" || true
 fi
 
-# Extract SessionStart fields. SessionStart provides `source` (one of:
-# startup/resume/clear/compact) — not `trigger`. compact_summary is not part of the
-# SessionStart input shape; we drop it.
-SOURCE=$(echo "$INPUT" | jq -r '.source // "compact"' 2>/dev/null || echo "compact")
+SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // "compact"' 2>/dev/null || echo "compact")
 
-# Check for active pipeline state
-PIPELINE_RESUME=""
-TASK_DIR=""
-FEATURE_ID=""
-SPEC_FILE=""
-FEATURE_ANCHOR=""
-# Pick the active pipeline state.md using a three-tier branch-aware strategy:
-#   1. Direct directory match — tries .geniro/planning/<slug>/state.md (slug form) AND
-#      .geniro/planning/<branch>/state.md (original branch name). The branch-name lookup handles
-#      task-dirs with a '/' in the branch name (e.g. feat/ci-22-foo → planning/feat/ci-22-foo/).
-#   2. Branch:-field grep — recursively search all state.md files for a 'Branch:' line matching
-#      the current branch (mtime tiebreak among multiple matches). Handles arbitrary task-dir depth.
-#   3. Mtime fallback — most-recently-modified state.md found via recursive find (preserves
-#      behavior for older pipelines written before the Branch: field existed).
-state_file=""
+# §3 — `clear` source: explicit user reset; no auto-reload.
+if [ "$SOURCE" = "clear" ]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Branch + slug resolution (state-tier-spec.md §Slug rule)
+# ---------------------------------------------------------------------------
+
 branch="$(git branch --show-current 2>/dev/null || true)"
 if [ -z "${branch:-}" ]; then
   branch="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 fi
-slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
-slug="${slug:0:60}"
-slug="${slug%-}"
 
-# Tier 1: direct directory match — try slug form first, then original branch name (handles feat/foo).
-# Two layouts are supported per skills/_shared/within-skill-state-handoff.md:
-#   - .geniro/planning/<slug>/state.md (per-task pipeline planning dir; implement/decompose/review)
-#   - .geniro/state/<skill>/state-<slug>.md OR .geniro/state/debug/HYPOTHESES-<slug>.md
-#     (per-skill state dir; follow-up/refactor/debug/improve-template)
-# First hit wins. Probe per-task layout first (slug+branch), then per-skill layouts (slug-scoped names).
-if [ -n "${slug:-}" ] && [ -f "./.geniro/planning/$slug/state.md" ]; then
-  state_file="./.geniro/planning/$slug/state.md"
-elif [ -n "${branch:-}" ] && [ -f "./.geniro/planning/$branch/state.md" ]; then
-  state_file="./.geniro/planning/$branch/state.md"
+slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
+if [ "${#slug}" -gt 60 ]; then
+  _suffix="$(printf '%s' "$slug" | sha256sum | head -c 8)"
+  slug="$(printf '%s' "$slug" | head -c 52)-${_suffix}"
 fi
-if [ -z "$state_file" ] && [ -n "${slug:-}" ]; then
-  for _candidate in \
-    "./.geniro/state/follow-up/state-${slug}.md" \
-    "./.geniro/state/refactor/state-${slug}.md" \
-    "./.geniro/state/debug/HYPOTHESES-${slug}.md" \
-    "./.geniro/state/improve-template/state-${slug}.md"; do
+
+# ---------------------------------------------------------------------------
+# Active T1 state-file resolution (§5 step 4)
+# ---------------------------------------------------------------------------
+#
+# Layouts (state-tier-spec §Path roots):
+#   A. .geniro/planning/<task-dir>/state.md       (multi-file task-bound — M4/M5)
+#   B. .geniro/state/<skill>/<slug>/state.md      (session-bound — M7/M8/M9)
+#   C. .geniro/state/<skill>/state.md             (singleton — M10a setup)
+#
+# Tier 1: direct slug-match within layouts A, B, plus singleton C.
+# Tier 2: glob all candidate state.md files and grep frontmatter `branch:` field
+#         (handles task-dirs that don't match the slug exactly).
+
+state_file=""
+task_dir=""
+
+# Tier 1a — layout A (task-dir = slug)
+if [ -n "$slug" ] && [ -f "./.geniro/planning/$slug/state.md" ]; then
+  state_file="./.geniro/planning/$slug/state.md"
+fi
+
+# Tier 1b — layout B (session-bound skills)
+if [ -z "$state_file" ] && [ -n "$slug" ]; then
+  for _skill_dir in ./.geniro/state/*/; do
+    [ -d "$_skill_dir" ] || continue
+    _candidate="${_skill_dir}${slug}/state.md"
     if [ -f "$_candidate" ]; then
       state_file="$_candidate"
       break
@@ -68,25 +85,47 @@ if [ -z "$state_file" ] && [ -n "${slug:-}" ]; then
   done
 fi
 
-# Tier 2: grep Branch: field across all state files (mtime-ordered for tiebreak).
-# Uses recursive find so task-dirs with '/' in branch names (e.g. feat/ci-22-foo) are included.
-# Combines both layouts: planning/*/state.md AND state/<skill>/{state-*.md,HYPOTHESES-*.md}.
+# Tier 1c — layout C (singleton — currently only setup)
+if [ -z "$state_file" ] && [ -f "./.geniro/state/setup/state.md" ]; then
+  state_file="./.geniro/state/setup/state.md"
+fi
+
+# Tier 2 — frontmatter `branch:` field grep across all candidate state.md files.
+# Iterates layouts A+B+C, with mtime tiebreak when multiple match.
 _state_candidates() {
   {
-    find ./.geniro/planning -name 'state.md' -type f 2>/dev/null
-    find ./.geniro/state -name 'state-*.md' -type f 2>/dev/null
-    find ./.geniro/state -name 'HYPOTHESES-*.md' -type f 2>/dev/null
+    find ./.geniro/planning -maxdepth 2 -name 'state.md' -type f 2>/dev/null
+    find ./.geniro/state -maxdepth 3 -name 'state.md' -type f 2>/dev/null
   } | while IFS= read -r p; do
-    mtime=$(stat -f '%m' "$p" 2>/dev/null || stat -c '%Y' "$p" 2>/dev/null || true)
-    [ -n "$mtime" ] && printf '%s %s\n' "$mtime" "$p"
+    _mtime=$(stat -c %Y "$p" 2>/dev/null || stat -f %m "$p" 2>/dev/null)
+    [ -n "$_mtime" ] && printf '%s %s\n' "$_mtime" "$p"
   done | sort -rn | cut -d' ' -f2-
 }
-if [ -z "$state_file" ] && [ -n "${branch:-}" ]; then
-  while IFS= read -r candidate; do
-    [ -z "$candidate" ] && continue
-    branch_field=$(grep -m1 '^Branch:' "$candidate" 2>/dev/null | sed 's/^Branch:[[:space:]]*//' || true)
-    if [ -n "$branch_field" ] && [ "$branch_field" = "$branch" ]; then
-      state_file="$candidate"
+
+# Extract `branch:` value from frontmatter (line-anchored, between first two `---` fences).
+_fm_branch_of() {
+  awk '
+    NR == 1 && $0 != "---" { exit 0 }
+    NR == 1 { in_fm = 1; next }
+    in_fm && $0 == "---" { exit 0 }
+    in_fm && /^branch:/ {
+      sub(/^branch:[[:space:]]*/, "")
+      gsub(/[[:space:]]+$/, "")
+      if ($0 ~ /^"[^"]*"$/ || $0 ~ /^\047[^\047]*\047$/) {
+        $0 = substr($0, 2, length($0) - 2)
+      }
+      print
+      exit
+    }
+  ' "$1" 2>/dev/null
+}
+
+if [ -z "$state_file" ]; then
+  while IFS= read -r _candidate; do
+    [ -z "$_candidate" ] && continue
+    _fm_branch="$(_fm_branch_of "$_candidate")"
+    if [ -n "$_fm_branch" ] && [ "$_fm_branch" = "$branch" ]; then
+      state_file="$_candidate"
       break
     fi
   done <<EOF
@@ -94,104 +133,275 @@ $(_state_candidates)
 EOF
 fi
 
-# Tier 3: mtime fallback (legacy pipelines without Branch: field)
-if [ -z "$state_file" ]; then
-  state_file=$(_state_candidates | head -1 || true)
+if [ -n "$state_file" ]; then
+  task_dir="$(dirname "$state_file")"
 fi
-ACTIVE_SKILL=""
-if [ -n "$state_file" ] && [ -f "$state_file" ]; then
-  TASK_DIR=$(dirname "$state_file")
-  FEATURE_ID=$(grep -m1 '^Feature:' "$state_file" 2>/dev/null | sed 's/^Feature:[[:space:]]*//' || echo "")
-  SPEC_FILE=$(grep -m1 '^Spec-file:' "$state_file" 2>/dev/null | sed 's/^Spec-file:[[:space:]]*//' || echo "")
-  PIPELINE_RESUME="Active pipeline detected. Read $state_file to resume from the correct phase. Then re-read the current skill file to restore phase instructions."
-  if [ -n "$FEATURE_ID" ] && [ "$FEATURE_ID" != "none" ]; then
-    FEATURE_ANCHOR="Active feature: $FEATURE_ID. Finalization gate: before ending the pipeline, you MUST run '/geniro:features complete $FEATURE_ID' to move the FEATURES.md row to done."
+
+# ---------------------------------------------------------------------------
+# Pre-flight validation (§5 step 5, §12)
+# ---------------------------------------------------------------------------
+
+validation_status="not-applicable"  # values: pass | fail | skipped | not-applicable
+validation_error=""
+
+if [ -n "$state_file" ]; then
+  _vsf_helper="${CLAUDE_PLUGIN_ROOT:-.}/skills/_shared/validate-state-file.sh"
+  if [ ! -f "$_vsf_helper" ]; then
+    validation_status="skipped"
+  else
+    # shellcheck source=/dev/null
+    if ! source "$_vsf_helper" 2>/dev/null; then
+      validation_status="skipped"
+    else
+      validation_error=$(validate_state_file "$state_file" 2>&1 >/dev/null) || true
+      if [ -z "$validation_error" ]; then
+        validation_status="pass"
+      else
+        validation_status="fail"
+        validation_error=$(printf '%s' "$validation_error" | head -n 1)
+      fi
+    fi
   fi
-  # Derive active skill from state-file path. Two layouts are possible:
-  #   .geniro/state/<skill>/state-*.md      (per-skill state dir)
-  #   .geniro/planning/<task-slug>/state.md (per-task planning dir)
-  # For the planning layout the slug is a branch name, not a skill — leave ACTIVE_SKILL
-  # empty in that case so we don't suggest a non-existent instructions file.
-  case "$state_file" in
-    *"/.geniro/state/"*)
-      # strip leading "*/.geniro/state/" then take the first path segment
-      _tail="${state_file#*/.geniro/state/}"
-      ACTIVE_SKILL="${_tail%%/*}"
-      ;;
-  esac
 fi
 
-# Assemble the suggested-files list as a newline-separated bullet list. Always include
-# CLAUDE.md, the FEATURES.md backlog, the global instructions, and the cross-cutting
-# code-style instructions. Conditionally add the active-skill instructions file and the
-# spec file when known.
-SUGGESTED_FILES="- CLAUDE.md
-- .geniro/planning/FEATURES.md
-- .geniro/instructions/global.md
-- .geniro/instructions/code-style.md"
-if [ -n "$ACTIVE_SKILL" ]; then
-  SUGGESTED_FILES="$SUGGESTED_FILES
-- .geniro/instructions/$ACTIVE_SKILL.md (if present)"
-fi
-if [ -n "$SPEC_FILE" ] && [ "$SPEC_FILE" != "none" ]; then
-  SUGGESTED_FILES="$SUGGESTED_FILES
-- $SPEC_FILE"
+# ---------------------------------------------------------------------------
+# Frontmatter parse (§5 step 6) — producer, spec-file, phase, list counts
+# ---------------------------------------------------------------------------
+
+active_skill=""
+spec_file=""
+phase=""
+non_resumable_count=0
+
+_fm_scalar() {
+  local file="$1" key="$2"
+  awk -v k="$key" '
+    NR == 1 && $0 != "---" { exit 0 }
+    NR == 1 { in_fm = 1; next }
+    in_fm && $0 == "---" { exit 0 }
+    in_fm && $0 ~ "^" k ":" {
+      sub("^" k ":[[:space:]]*", "")
+      gsub(/[[:space:]]+$/, "")
+      if ($0 ~ /^"[^"]*"$/ || $0 ~ /^\047[^\047]*\047$/) {
+        $0 = substr($0, 2, length($0) - 2)
+      }
+      print
+      exit
+    }
+  ' "$file" 2>/dev/null
+}
+
+# Count entries of a YAML block-list field. Returns 0 for absent, `[]`,
+# or unparseable. Counts `- ` entries indented under the parent key.
+# END block is the single print site — mid-stream conditions just set
+# `done=1` and `exit` (awk runs END regardless of where exit is called).
+_fm_block_list_count() {
+  local file="$1" key="$2"
+  awk -v k="$key" '
+    NR == 1 && $0 != "---" { exit 0 }
+    NR == 1 { in_fm = 1; next }
+    in_fm && $0 == "---" { exit 0 }
+    in_fm && $0 ~ "^" k ":[[:space:]]*\\[\\][[:space:]]*$" { exit 0 }
+    in_fm && $0 ~ "^" k ":[[:space:]]*$" { in_list = 1; next }
+    in_list && /^[a-zA-Z_][a-zA-Z0-9_-]*:/ { exit 0 }
+    in_list && /^[[:space:]]+-[[:space:]]/ { c++ }
+    END { print c+0 }
+  ' "$file" 2>/dev/null
+}
+
+if [ -n "$state_file" ] && [ -f "$state_file" ]; then
+  active_skill="$(_fm_scalar "$state_file" producer)"
+  spec_file="$(_fm_scalar "$state_file" spec-file)"
+  phase="$(_fm_scalar "$state_file" phase)"
+  non_resumable_count="$(_fm_block_list_count "$state_file" non-resumable-actions)"
+  [ -z "$non_resumable_count" ] && non_resumable_count=0
 fi
 
-# Build the additionalContext string. Numbered resume steps mention the three custom-
-# instruction files so the model re-hydrates the user's workflow rules first.
-case "$ACTIVE_SKILL" in
-  implement|decompose|review|debug|follow-up|refactor|deep-simplify)
-    _load_tier="pipeline"
-    ;;
-  investigate|onboard|learnings|features|actions|brainstorm)
-    _load_tier="rules-only"
+# ---------------------------------------------------------------------------
+# LOAD_TIER for active skill (used in Block 6 resume protocol)
+# ---------------------------------------------------------------------------
+
+case "$active_skill" in
+  implement|plan|review|debug|refactor|decompose|follow-up|deep-simplify)
+    load_tier="pipeline"
     ;;
   *)
-    _load_tier="rules-only"
+    load_tier="rules-only"
     ;;
 esac
-if [ -n "$ACTIVE_SKILL" ]; then
-  _skill_step="2. Re-invoke the canonical instruction loader at \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md with SKILL_SLUG: $ACTIVE_SKILL, LOAD_TIER: $_load_tier, MODE: refresh — this re-Reads the instruction files for this tier and echoes one line per file (the helper's Echo contract is the user-visible proof the re-Read fired)"
+
+# ---------------------------------------------------------------------------
+# additionalContext assembly (§6)
+# ---------------------------------------------------------------------------
+
+# Block 1 — source-phrased prefix.
+case "$SOURCE" in
+  compact) _prefix="Context was compressed by compaction (SessionStart source: compact)." ;;
+  resume)  _prefix="Restoring from prior session (SessionStart source: resume)." ;;
+  startup) _prefix="Active task detected at startup (SessionStart source: startup)." ;;
+  *)       _prefix="Restoring Geniro context (SessionStart source: $SOURCE)." ;;
+esac
+
+BLOCK1="$_prefix
+SKILL.md instructions and conversation nuance may have been lost — re-read these
+files before continuing (the .geniro/instructions/* entries route through the
+canonical loader, NOT direct cwd Reads; CLAUDE.md, .geniro/planning/_FEATURES.md,
+spec/plan files remain direct Reads):"
+
+# Block 2 — suggested files. State.md pointer is suppressed when validation
+# failed (§6 last paragraph of Block 3). Spec.md and plan.md remain pointers.
+BLOCK2="- CLAUDE.md
+- .geniro/planning/_FEATURES.md
+- .geniro/instructions/global.md         (loader-routed, MODE: refresh)
+- .geniro/instructions/code-style.md     (loader-routed, MODE: refresh)"
+
+if [ -n "$active_skill" ]; then
+  BLOCK2="$BLOCK2
+- .geniro/instructions/$active_skill.md (loader-routed, MODE: refresh)"
+fi
+
+if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
+  BLOCK2="$BLOCK2
+- $state_file"
+fi
+
+if [ -n "$spec_file" ]; then
+  BLOCK2="$BLOCK2
+- $spec_file"
+elif [ -n "$task_dir" ] && [ -f "$task_dir/spec.md" ]; then
+  BLOCK2="$BLOCK2
+- $task_dir/spec.md"
+fi
+
+if [ -n "$task_dir" ] && [ -f "$task_dir/plan.md" ]; then
+  BLOCK2="$BLOCK2
+- $task_dir/plan.md"
+fi
+
+# Block 3 — validation-failure recovery.
+BLOCK3=""
+if [ "$validation_status" = "fail" ]; then
+  BLOCK3="⚠️ STATE FILE FAILED VALIDATION
+State file at $state_file failed validation: $validation_error.
+Do NOT resume from it.
+On next turn, fire AskUserQuestion with the M1 recovery options:
+  1. Delete state file and restart skill from spec   (lose in-flight state)
+  2. Open file in editor and fix manually            (skill pauses; retry validation)
+  3. Skip validation and continue (emergency)        (risk: silent corruption)
+After user picks, follow the validation-helper recovery flow in M1 §Validation
+helper. Suppress all state.md Reads above — pointer was withheld for safety."
+fi
+
+# Block 4 — M1 helper-missing notice.
+BLOCK4=""
+if [ "$validation_status" = "skipped" ]; then
+  BLOCK4="⚠️ M1 helpers not installed — validation skipped.
+The state.md file was NOT validated by validate_state_file (M1 PR-0 has
+not landed yet). Treat resumed state with caution — confirm 'phase:' and
+'status:' fields look sane before continuing."
+fi
+
+# Block 5 — non-resumable-actions rendering (deferred to a follow-up commit;
+# the count is already surfaced in systemMessage). Future commit implements
+# §6 Block 5 + §8 structured rendering.
+BLOCK5=""
+
+# Block 6 — resume protocol.
+if [ -n "$active_skill" ]; then
+  _step2="2. Re-invoke the canonical instruction loader at
+   \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md
+   with SKILL_SLUG: $active_skill, LOAD_TIER: $load_tier, MODE: refresh.
+   The helper's Echo contract makes the re-Read user-visible."
+  _step3="3. Invoke load-semantic with MODE: refresh:
+   \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md (MODE: refresh).
+   Fingerprint drift check fires; if drift detected, soft notice surfaces."
 else
-  _skill_step="2. Re-invoke the canonical instruction loader at \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md with SKILL_SLUG: <active-skill>, LOAD_TIER: <pipeline-or-rules-only>, MODE: refresh — this re-Reads the instruction files for this tier and echoes one line per file (the helper's Echo contract is the user-visible proof the re-Read fired)"
+  _step2="2. Re-invoke the canonical instruction loader at
+   \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md
+   with SKILL_SLUG: <active-skill>, LOAD_TIER: rules-only, MODE: refresh.
+   The helper's Echo contract makes the re-Read user-visible."
+  _step3="3. (load-semantic refresh skipped — no active skill detected; invoke on demand if a phase explicitly needs the L3 module map.)"
 fi
 
-ADDITIONAL_CONTEXT="Context was compressed by compaction (SessionStart source: $SOURCE). SKILL.md instructions and conversation nuance were lost — re-read these files before continuing (the .geniro/instructions/* entries are the inputs to Step 2's canonical loader, NOT direct cwd Read targets — see Step 2 below; CLAUDE.md, FEATURES.md, and the spec file remain direct Reads):
+BLOCK6="Resume steps:
+1. Read the current skill's SKILL.md to restore phase instructions.
+$_step2
+$_step3
+4. Read state.md (if not suppressed by Block 3) to identify the current phase.
+5. Read spec.md and plan.md (if present) for task context.
+6. If a feature ID is set in state.md, read the .geniro/planning/_FEATURES.md row and the linked spec.
+7. Continue from the next incomplete phase."
 
-$SUGGESTED_FILES
+# ---------------------------------------------------------------------------
+# Concatenate blocks (omit empty ones, blank line between blocks)
+# ---------------------------------------------------------------------------
 
-Resume steps:
-1. Read the current skill SKILL.md to restore phase instructions
-$_skill_step
-3. (Step 2 covers code-style.md re-Read for pipeline skills via the canonical loader, which now falls back to PRIMARY_ROOT on cwd-miss; for rules-only skills or when no active skill is detected, invoke that same canonical loader at \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md with LOAD_TIER: pipeline + MODE: refresh if you'll be writing or reviewing code in this turn — do NOT do a bare cwd-relative Read on .geniro/instructions/code-style.md, that re-introduces the stale-worktree bug the loader's fallback solves)
-4. Read state.md from the active task directory to find your current phase
-5. Read spec.md and plan file for task context
-6. If a feature ID is set, re-read the FEATURES.md row and the linked spec file
-7. Continue from the next incomplete phase"
+_append_block() {
+  local block="$1"
+  [ -z "$block" ] && return 0
+  if [ -z "$ADDITIONAL_CONTEXT" ]; then
+    ADDITIONAL_CONTEXT="$block"
+  else
+    ADDITIONAL_CONTEXT="$ADDITIONAL_CONTEXT
 
-if [ -n "$PIPELINE_RESUME" ]; then
-  ADDITIONAL_CONTEXT="$ADDITIONAL_CONTEXT
+$block"
+  fi
+}
 
-$PIPELINE_RESUME"
+ADDITIONAL_CONTEXT=""
+_append_block "$BLOCK1"
+_append_block "$BLOCK2"
+_append_block "$BLOCK3"
+_append_block "$BLOCK4"
+_append_block "$BLOCK5"
+_append_block "$BLOCK6"
+
+# ---------------------------------------------------------------------------
+# systemMessage (§10)
+# ---------------------------------------------------------------------------
+
+_active_label="none"
+_phase_label="—"
+if [ -n "$task_dir" ]; then
+  _active_label="$(basename "$task_dir")"
 fi
-if [ -n "$FEATURE_ANCHOR" ]; then
-  ADDITIONAL_CONTEXT="$ADDITIONAL_CONTEXT
-
-$FEATURE_ANCHOR"
+if [ -n "$phase" ]; then
+  _phase_label="$phase"
 fi
 
-# Emit SessionStart-shaped output. Per Anthropic docs, hookSpecificOutput.additionalContext
-# is a STRING that is injected into Claude's next-turn context.
-NOTIFICATION=$(jq -n \
-  --arg additional_context "$ADDITIONAL_CONTEXT" \
-  '{
-    "hookSpecificOutput": {
-      "hookEventName": "SessionStart",
-      "additionalContext": $additional_context
-    }
-  }')
+SYSTEM_MESSAGE="Geniro: restoring context (source: $SOURCE, active: $_active_label · phase: $_phase_label · non-resumable: $non_resumable_count)"
 
-echo "$NOTIFICATION"
+# Suppression rule: cold startup with no active task → no systemMessage spam.
+emit_system_message=true
+if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ]; then
+  emit_system_message=false
+fi
 
+# ---------------------------------------------------------------------------
+# Emit JSON output
+# ---------------------------------------------------------------------------
+
+if [ "$emit_system_message" = "true" ]; then
+  OUTPUT=$(jq -n \
+    --arg ac "$ADDITIONAL_CONTEXT" \
+    --arg sm "$SYSTEM_MESSAGE" \
+    '{
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: $ac
+      },
+      systemMessage: $sm
+    }')
+else
+  OUTPUT=$(jq -n \
+    --arg ac "$ADDITIONAL_CONTEXT" \
+    '{
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: $ac
+      }
+    }')
+fi
+
+printf '%s\n' "$OUTPUT"
 exit 0
