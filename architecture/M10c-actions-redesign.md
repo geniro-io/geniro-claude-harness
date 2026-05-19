@@ -34,13 +34,13 @@ A CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-help
 `/actions` is **stateless** (per M10a Q5). The phase enum below describes runtime flow only — not persisted to disk.
 
 ```
-INIT (parse $ARGUMENTS)
+init (parse $ARGUMENTS)
   │
   ▼
-PARSE
+parse
   │ resolve intent + slug; bare-slug fast-path triggers `run` mode by default
   ▼
-EXECUTE
+execute
   │ branch by mode:
   │   list   → read directory + format table
   │   create → interview + scaffold + validate frontmatter (P-M10-1 minimal)
@@ -48,9 +48,9 @@ EXECUTE
   │   run    → AUQ-gate by risk_class → execute body steps
   │   delete → AUQ-confirm → rm
   ▼
-DONE
+done
        │
-       └─ FAILED (parse failed, slug not found after 3 AUQ rounds, run-mode user aborted, validation rejected by hook)
+       └─ failed (parse failed, slug not found after 3 AUQ rounds, run-mode user aborted, validation rejected by hook)
 ```
 
 ### 2.1.1 Termination case → state mapping
@@ -75,7 +75,7 @@ Per M4 §2.2:
 3. **Permission before side-effect** — `risk_class: medium | high` gates execution via AUQ; `risk_class: low` skips the gate but still respects per-step tool-allowlist if declared.
 4. **Bounded structured results** — `list` truncates per-action body display at 200 chars (full body shown only via `view <slug>`).
 5. **Hard escalation gates** — 3-retry on slug ambiguity → final abort AUQ.
-6. **Observations not assumed success** — each step in `run` mode checks return status; failed step transitions to `FAILED` with step number captured.
+6. **Observations not assumed success** — each step in `run` mode checks return status; failed step transitions to `failed` with step number captured.
 7. **Errors as structured observations** — surfaced inline in final message.
 
 ### 2.3 Budgets — quality-first framing (per M4 §2.3)
@@ -95,8 +95,8 @@ Per M4 §2.2:
 
 | Phase | Allowed tools | Forbidden tools | Notes |
 |---|---|---|---|
-| `PARSE` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, `Bash` (mutating), `Agent` | No mutation in parse |
-| `EXECUTE` | mode-dependent | mode-dependent | See sub-rules below |
+| `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, `Bash` (mutating), `Agent` | No mutation in parse |
+| `execute` | mode-dependent | mode-dependent | See sub-rules below |
 | | **list:** `Read`, `Glob`, `Bash(ls ...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` | Read-only |
 | | **create:** `Read`, `Write`, `Bash(mkdir -p .geniro/actions/, grep, echo >> .gitignore)`, `AskUserQuestion` | `mcp__github__*`, network egress, `Agent` | No subagents in create |
 | | **edit:** `Read`, `Edit`, `Bash(stat, mv)`, `AskUserQuestion` | `mcp__*`, network egress | |
@@ -132,7 +132,7 @@ Action frontmatter MAY include risky tools (`Bash(curl ...)`, `mcp__github__*`) 
 | Kept item | Adaptation |
 |---|---|
 | 5-op CRUD (`list`, `create`, `edit`, `run`, `delete`) | Preserved verbatim |
-| Bare-slug fast path in PARSE | Preserved — `/geniro:actions slack-release-ping` defaults to `run` mode |
+| Bare-slug fast path in `parse` phase | Preserved — `/geniro:actions slack-release-ping` defaults to `run` mode |
 | Interview-driven `create` flow (Q1 Purpose, Q2 When, Q3 Output, Q4 Test) | Preserved + **Q5 added: Risk class** (low/medium/high) |
 | Draft-preview AUQ before Write | Preserved verbatim |
 | Phase 3.6 validation gate | Adapted — now enforces P-M10-1 minimal 3-prop schema; full check list in §10 |
@@ -160,7 +160,7 @@ Action frontmatter MAY include risky tools (`Bash(curl ...)`, `mcp__github__*`) 
 | ID | Question | Decision |
 |---|---|---|
 | **Q1** | Bundle vs split | Split — part c of 4 |
-| **Q2** | Phase model | Skill-natural — 3 phases (PARSE → EXECUTE → DONE), stateless |
+| **Q2** | Phase model | Skill-natural — 3 phases (parse → execute → done), stateless |
 | **Q3** | CLAUDE.md split | N/A — `/actions` doesn't write CLAUDE.md |
 | **Q4** | Connector safety enforcement depth | **Minimal 3-property** (`name`, `description`, `risk_class`); 5 others documented |
 | **Q5** | State file | None — `/actions` is stateless |
@@ -267,14 +267,14 @@ Step 2 — Risk-class gate:
       "Run action `<slug>` (medium risk)?"
       Options: [Run] [Cancel]
     Recommended option: Run.
-    If Cancel → FAILED (user aborted).
+    If Cancel → failed (user aborted).
 
   elif risk_class == "high":
     AUQ:
       "Run action `<slug>` (HIGH risk — confirm explicitly)?"
       Options: [Cancel] [Run anyway]
     Recommended option: Cancel.   # forces explicit Run pick
-    If Cancel → FAILED.
+    If Cancel → failed.
 
 Step 3 — Execute action body:
   Read action body. For each numbered step in `## Steps`:
@@ -282,7 +282,7 @@ Step 3 — Execute action body:
     - Each tool call uses the intersection of /actions allowed-tools AND action's allowed-tools.
     - If step has a `## AUQ:` or `## Confirm:` annotation, fire AUQ at that step.
     - Capture step output.
-    - On non-zero exit or tool failure → halt; transition to FAILED with step number.
+    - On non-zero exit or tool failure → halt; transition to `failed` with step number.
 
 Step 4 — Final report:
   Print results to user.

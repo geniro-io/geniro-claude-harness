@@ -7,7 +7,7 @@
 **Cross-cutting closures landing here:**
 
 - **Q6 decision** — `/update` scope expanded to **wrapper + integrity check + MIGRATION.md reader**. Most-ambitious of the three Q6 options. M10d specs the MIGRATION.md contract that plugin maintainers populate going forward.
-- **OQ-M10a-2 partial** — plugin-side breaking changes (e.g., a previously-spun-out `.geniro/docs/<topic>.md` template changed in the new plugin version) surfaced in MIGRATION.md and walked by `/update` Phase MIGRATION.
+- **OQ-M10a-2 partial** — plugin-side breaking changes (e.g., a previously-spun-out `.geniro/docs/<topic>.md` template changed in the new plugin version) surfaced in MIGRATION.md and walked by `/update` Phase Migration.
 
 ---
 
@@ -32,27 +32,27 @@ Upgrade the plugin in-place to the latest version available via the Claude Code 
 `/update` is **stateless** (per M10a Q5). The phase enum below describes runtime flow only.
 
 ```
-INIT
+init
   │
   ▼
-PRE_CHECK
+pre-check
   │ read current version from plugin.json; locate $CLAUDE_USER_DIR + registry
   │ verify pre-update state (existence of .geniro/instructions/* + .geniro/actions/*)
   ▼
-UPDATE
+update
   │ shell call: claude plugin marketplace update + claude plugin update
   │ discover new install path from registry
   ▼
-POST_CHECK
+post-check
   │ hash-check plugin files + verify user-authored content untouched
   │ refresh update-cache + refresh stable statusline copy
   ▼
-MIGRATION
+migration
   │ if MIGRATION.md exists in new plugin AND new version > old version → read it, walk user
   ▼
-DONE
+done
        │
-       └─ FAILED (network error, version not found, hash-check failed,
+       └─ failed (network error, version not found, hash-check failed,
                   user-content tampered, MIGRATION.md walked then aborted by user)
 ```
 
@@ -64,8 +64,8 @@ DONE
 | Update succeeded but new plugin path not found in registry | `aborted: registry missing geniro-claude-plugin entry after update — see ~/.claude/plugins/installed_plugins.json` |
 | Hash-check failed (plugin file corrupted) | `aborted: plugin integrity check failed — manifest hash mismatch on <file>` |
 | User-content tampering detected (e.g., `.geniro/instructions/global.md` modified-time changed during update) | `WARNING: user content under .geniro/instructions/global.md was modified during update; please verify file integrity. Continue?` (AUQ — non-terminal; user picks Continue or Abort) |
-| MIGRATION.md walked successfully | DONE |
-| MIGRATION.md walked, user aborted mid-walk | `aborted: user aborted MIGRATION walk at step <N>; new plugin version is installed but breaking changes not yet applied` |
+| MIGRATION.md walked successfully | `done` |
+| MIGRATION.md walked, user aborted mid-walk | `aborted: user aborted migration walk at step <N>; new plugin version is installed but breaking changes not yet applied` |
 | No update available (already on latest) | `info: already on latest version (<version>)` — DONE |
 | Restart-session warning emitted | DONE |
 
@@ -98,10 +98,10 @@ Per M4 §2.2:
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
-| `PRE_CHECK` | `Read`, `Bash` (`cat plugin.json`, `grep`, `python3 -c "json.load"`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, `Bash` (mutating), `Agent`, `mcp__*` |
-| `UPDATE` | `Bash` (`claude plugin marketplace update`, `claude plugin update`, `python3 -c "json.load"` to parse registry) | `Read`, `Write`, `Edit` on project files (no project edits during update); `Agent`; `mcp__github__*` |
-| `POST_CHECK` | `Read`, `Bash` (`sha256sum`, `stat`, `cp` to refresh statusline), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`; `mcp__*` |
-| `MIGRATION` | `Read`, `AskUserQuestion`, `Bash` (`grep -r` for stale references), `Glob` | `Write`, `Edit` (migration suggestions are surfaced as `/geniro:instructions edit` recommendations, NEVER auto-applied); `Agent`; `mcp__*` |
+| `pre-check` | `Read`, `Bash` (`cat plugin.json`, `grep`, `python3 -c "json.load"`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, `Bash` (mutating), `Agent`, `mcp__*` |
+| `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update`, `python3 -c "json.load"` to parse registry) | `Read`, `Write`, `Edit` on project files (no project edits during update); `Agent`; `mcp__github__*` |
+| `post-check` | `Read`, `Bash` (`sha256sum`, `stat`, `cp` to refresh statusline), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`; `mcp__*` |
+| `migration` | `Read`, `AskUserQuestion`, `Bash` (`grep -r` for stale references), `Glob` | `Write`, `Edit` (migration suggestions are surfaced as `/geniro:instructions edit` recommendations, NEVER auto-applied); `Agent`; `mcp__*` |
 | `DONE` | (terminal report) | (none) |
 
 External sends: not in `/update` ACI ever.
@@ -118,12 +118,12 @@ Nothing removed from current 92-LOC SKILL.md — it was a thin wrapper and most 
 
 | Kept item | Adaptation |
 |---|---|
-| Version check via `cat plugin.json | grep version` | Moved to Phase PRE_CHECK §6.1 |
-| `claude plugin marketplace update` + `claude plugin update` shell calls | Moved to Phase UPDATE §7.1; retry-with-exponential-backoff added per CLAUDE.md network rules |
-| Plugin path discovery via `installed_plugins.json` registry | Moved to Phase UPDATE §7.2; preserved verbatim |
-| Update cache refresh (`GENIRO_UPDATE_BG=1 node hooks/geniro-check-update.js`) | Moved to Phase POST_CHECK §8.3 |
-| Statusline stable-copy refresh (conditional on file existence) | Moved to Phase POST_CHECK §8.4 |
-| Restart-session warning at end | Moved to Phase DONE §10.1 — emitted always (vs M10a §10.3 conditional logic, since `/update` IS a version transition by definition) |
+| Version check via `cat plugin.json | grep version` | Moved to Phase Pre-check §6.1 |
+| `claude plugin marketplace update` + `claude plugin update` shell calls | Moved to Phase Update §7.1; retry-with-exponential-backoff added per CLAUDE.md network rules |
+| Plugin path discovery via `installed_plugins.json` registry | Moved to Phase Update §7.2; preserved verbatim |
+| Update cache refresh (`GENIRO_UPDATE_BG=1 node hooks/geniro-check-update.js`) | Moved to Phase Post-check §8.3 |
+| Statusline stable-copy refresh (conditional on file existence) | Moved to Phase Post-check §8.4 |
+| Restart-session warning at end | Moved to Phase Done §10.1 — emitted always (vs M10a §10.3 conditional logic, since `/update` IS a version transition by definition) |
 
 ### 3.3 Added (new in M10d)
 
@@ -132,7 +132,7 @@ Nothing removed from current 92-LOC SKILL.md — it was a thin wrapper and most 
 | **Pre-update version-confirm AUQ** | Q6 + invariant #3 (permission before side-effect) — user gets one chance to abort before shell call |
 | **Pre-update user-content snapshot** | Q6 integrity — capture mtime / sha256 of `.geniro/instructions/*.md` and `.geniro/actions/*.md` before update |
 | **Post-update hash check on plugin files** | Q6 integrity — verify all plugin-installed files match the manifest (if marketplace publishes one) OR sanity-check that key files (`agents/*.md`, `skills/_shared/*.md`, `hooks/*.js`) exist |
-| **Post-update user-content survival verification** | Q6 integrity — diff snapshot from PRE_CHECK; surface tampering if any |
+| **Post-update user-content survival verification** | Q6 integrity — diff snapshot from Pre-check; surface tampering if any |
 | **MIGRATION.md reader** | Q6 migration; new contract specced in §5 |
 | **Walk-user-through-MIGRATION.md flow** | Q6 migration; AUQ-per-step for each breaking change |
 | Cross-version diff of plugin's own CLAUDE.md split state | OQ-M10a-2 partial — if new plugin spun out `.geniro/docs/*.md` differently, surface to user |
@@ -144,7 +144,7 @@ Nothing removed from current 92-LOC SKILL.md — it was a thin wrapper and most 
 | ID | Question | Decision |
 |---|---|---|
 | **Q1** | Bundle vs split | Split — part d of 4 |
-| **Q2** | Phase model | Skill-natural — 5 phases (PRE_CHECK → UPDATE → POST_CHECK → MIGRATION → DONE) |
+| **Q2** | Phase model | Skill-natural — 5 phases (pre-check → update → post-check → migration → done) |
 | **Q3** | CLAUDE.md split | N/A — `/update` doesn't write CLAUDE.md (delegate to `/setup re-run` if user-project CLAUDE.md needs refresh) |
 | **Q5** | State file | None — stateless one-shot |
 | **Q6** | `/update` scope | **Wrapper + integrity + MIGRATION.md reader** — most ambitious option |
@@ -155,7 +155,7 @@ Sub-decisions:
 |---|---|
 | Should `/update` auto-trigger `/setup re-run` if plugin's own CLAUDE.md changed? | **No** — auto-mutate of user's CLAUDE.md is anti-pattern. Surface a recommendation: "Plugin's CLAUDE.md template changed in this version. Consider running `/geniro:setup` to refresh your project's CLAUDE.md." |
 | Should hash-check fail abort, or warn-and-continue? | **Abort on failure**, but with an AUQ giving user `[Abort | Continue anyway (NOT recommended)]`. Recommended option = Abort. Same Cancel-default pattern as M10c risk_class:high actions |
-| What if MIGRATION.md is missing in new plugin version? | Skip Phase MIGRATION entirely; print one-line info "no migration notes for v<old> → v<new>" |
+| What if MIGRATION.md is missing in new plugin version? | Skip Phase Migration entirely; print one-line info "no migration notes for v<old> → v<new>" |
 | Should `/update` refuse to run if there are uncommitted changes in `.geniro/`? | **No** — `/update` doesn't touch `.geniro/` user content (only checks integrity). Uncommitted changes are user's prerogative |
 | Should `/update` support a `--dry-run` mode? | Yes — defer to implementation. `--dry-run` prints what would happen but does not invoke `claude plugin update`. Useful for ops teams |
 | Should `/update` support pinning to a specific version (`--to v1.5.0`)? | Out of scope MVP — Claude Code's marketplace doesn't expose pin-to-version cleanly. If a user wants downgrade, they edit `installed_plugins.json` manually (out of `/update`'s scope) |
@@ -215,7 +215,7 @@ edit each with `/geniro:actions edit <slug>` and add risk_class.
 
 ### 5.2 How `/update` consumes it
 
-Phase MIGRATION (§9):
+Phase Migration (§9):
 
 1. Read `MIGRATION.md`.
 2. Find entries between `v<old>` (exclusive) and `v<new>` (inclusive).
@@ -229,7 +229,7 @@ Phase MIGRATION (§9):
    - If not affected: skip silently.
 4. After last entry: transition to DONE.
 
-If MIGRATION.md is absent (plugin maintainer didn't write one for this release), skip Phase MIGRATION with one info line.
+If MIGRATION.md is absent (plugin maintainer didn't write one for this release), skip Phase Migration with one info line.
 
 ### 5.3 Plugin maintainer guidance (out-of-scope of M10d but documented)
 
@@ -249,7 +249,7 @@ This is what plugin authors writing `MIGRATION.md` should know:
 
 | # | Defect | Fix |
 |---|---|---|
-| **D1** | No pre-update AUQ confirmation — running `/update` invokes shell update immediately | §6.2 PRE_CHECK Step 3 adds version-confirm AUQ |
+| **D1** | No pre-update AUQ confirmation — running `/update` invokes shell update immediately | §6.2 Pre-check Step 3 adds version-confirm AUQ |
 | **D2** | No integrity check — silently corrupted plugin install (e.g., partial download) goes undetected | §8.1 hash-check; §8.2 user-content survival check |
 | **D3** | No MIGRATION.md reader — breaking changes between versions are user's responsibility to read CHANGELOG | §5 + §9 specs the contract and the walk |
 | **D4** | No exponential-backoff on network errors (CLAUDE.md rule) | §7.1 retry-up-to-4-times with 2s, 4s, 8s, 16s |
@@ -260,7 +260,7 @@ This is what plugin authors writing `MIGRATION.md` should know:
 
 ---
 
-## 7. Phase PRE_CHECK — **DECIDED**
+## 7. Phase Pre-check — **DECIDED**
 
 ### 7.1 Step 1 — Read current version
 
@@ -282,7 +282,7 @@ REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
 USER_SNAPSHOT=$(find .geniro/instructions .geniro/actions -type f -name "*.md" 2>/dev/null \
   | sort \
   | xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}") {}"')
-# Store in env var for §POST_CHECK §8.2 reuse
+# Store in env var for §Post-check §8.2 reuse
 ```
 
 ### 7.3 Step 3 — Version-confirm AUQ
@@ -305,13 +305,13 @@ Options:
   - "Cancel" — Exit without updating
 ```
 
-On `Cancel` → DONE with one-line message "Update cancelled by user."
+On `Cancel` → `done` with one-line message "Update cancelled by user."
 
-Transition to Phase UPDATE on `Confirm update`.
+Transition to Phase Update on `Confirm update`.
 
 ---
 
-## 8. Phase UPDATE — **DECIDED**
+## 8. Phase Update — **DECIDED**
 
 ### 8.1 Step 1 — Marketplace refresh + plugin update
 
@@ -329,7 +329,7 @@ while [ $attempt -le 4 ]; do
 done
 if [ $attempt -gt 4 ]; then
   echo "ERROR: marketplace update failed after 4 retries — abort." >&2
-  exit 1  # → FAILED
+  exit 1  # → failed
 fi
 
 # Same retry pattern for plugin update
@@ -342,7 +342,7 @@ while [ $attempt -le 4 ]; do
   attempt=$((attempt + 1))
 done
 if [ $attempt -gt 4 ]; then
-  exit 1  # → FAILED
+  exit 1  # → failed
 fi
 ```
 
@@ -351,7 +351,7 @@ fi
 ```bash
 if [ ! -f "$REGISTRY" ]; then
   echo "ERROR: registry not found at $REGISTRY — abort." >&2
-  exit 1  # → FAILED
+  exit 1  # → failed
 fi
 
 PLUGIN_PATH=$(python3 -c "
@@ -372,11 +372,11 @@ fi
 NEW_VERSION=$(cat "$PLUGIN_PATH/.claude-plugin/plugin.json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('version','unknown'))")
 ```
 
-Transition to Phase POST_CHECK.
+Transition to Phase Post-check.
 
 ---
 
-## 9. Phase POST_CHECK — **DECIDED**
+## 9. Phase Post-check — **DECIDED**
 
 ### 9.1 Step 1 — Plugin file hash-check
 
@@ -461,11 +461,11 @@ fi
 
 Skip if file doesn't exist (user didn't run `/setup` or doesn't have a `statusLine` settings entry).
 
-Transition to Phase MIGRATION.
+Transition to Phase Migration.
 
 ---
 
-## 10. Phase MIGRATION — **DECIDED**
+## 10. Phase Migration — **DECIDED**
 
 Implements §5.2 reader logic.
 
@@ -511,7 +511,7 @@ After last entry: transition to DONE.
 
 ---
 
-## 11. Phase DONE — **DECIDED**
+## 11. Phase Done — **DECIDED**
 
 ### 11.1 Final report + restart warning
 
@@ -543,7 +543,7 @@ Restart warning is **always emitted** by `/update` (unlike `/setup` which condit
 | **L1 (CLAUDE.md)** | not read | not written | `/setup re-run` handles CLAUDE.md refresh; `/update` only emits a recommendation if user-project CLAUDE.md may be stale |
 | **L2 (`learnings.jsonl`)** | not read | not written | `/update` is operational, not knowledge-producing |
 | **L3 (semantic project files)** | not read | not written | N/A |
-| **L4 (`.geniro/instructions/*.md`)** | read only for snapshot+integrity check (Phase PRE_CHECK §7.2, POST_CHECK §9.2) | not written | The migration walk emits suggestions, never auto-edits |
+| **L4 (`.geniro/instructions/*.md`)** | read only for snapshot+integrity check (Phase Pre-check §7.2, Phase Post-check §9.2) | not written | The migration walk emits suggestions, never auto-edits |
 | **Actions (`.geniro/actions/*.md`)** | same — snapshot only | not written | Same |
 
 **M3 compaction-survival route:** `/update` is single-pass and brief; compaction during the skill itself is unlikely. The output (new plugin install) survives compaction trivially (file-on-disk).
@@ -569,7 +569,7 @@ Restart warning is **always emitted** by `/update` (unlike `/setup` which condit
 |---|---|---|
 | 1 | One giant prompt | ✅ SKILL.md will be ~150 LOC after redesign; no helper sprawl needed |
 | 2 | One giant tool | ✅ N/A — shell + python3 + native tools |
-| 3 | Unbounded autonomous loop | ✅ 4-retry exponential backoff on network errors; 4 → abort. MIGRATION walk has explicit "Cancel" path at every step |
+| 3 | Unbounded autonomous loop | ✅ 4-retry exponential backoff on network errors; 4 → abort. Migration walk has explicit "Cancel" path at every step |
 | 4 | Autonomous external sends in first release | ✅ N/A — `/update` doesn't send externally (marketplace fetches are inbound) |
 | 5 | No approval state | ✅ Pre-update AUQ confirm (§7.3); hash-fail AUQ; content-tamper AUQ; per-migration-step AUQ. Approvals[] persistence is N/A (stateless, context-dependent decisions intentionally re-asked) |
 | 6 | No durable plans or goals | ✅ N/A — operational maintenance |
@@ -589,7 +589,7 @@ Restart warning is **always emitted** by `/update` (unlike `/setup` which condit
 | **OQ-M10d-1** | Should MIGRATION.md support a `Auto-apply:` field (alongside `Auto-detect:`) that `/update` can run with user confirmation? | Deferred — anti-pattern (autonomous mutation of user content); current design's "Show me how to fix" pattern is safer |
 | **OQ-M10d-2** | Should `/update --check` mode preview the new version + MIGRATION entries without actually updating? | Yes-in-principle — defer to implementation. Read MIGRATION.md from a temp marketplace fetch without invoking `claude plugin update` |
 | **OQ-M10d-3** | If the user has multiple `.geniro/` directories across worktrees, does `/update` snapshot all of them or just cwd's? | cwd only — `/update` is cwd-bound. Other worktrees get their own `/update` runs |
-| **OQ-M10d-4** | Should `/update` validate that the new plugin's MIGRATION.md is well-formed before walking it? | Yes — parser should fail-soft: if MIGRATION.md is malformed, skip Phase MIGRATION with a warning ("MIGRATION.md present but malformed; proceeding") |
+| **OQ-M10d-4** | Should `/update` validate that the new plugin's MIGRATION.md is well-formed before walking it? | Yes — parser should fail-soft: if MIGRATION.md is malformed, skip Phase Migration with a warning ("MIGRATION.md present but malformed; proceeding") |
 
 ---
 

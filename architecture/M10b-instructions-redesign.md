@@ -31,19 +31,19 @@ A CRUD frontend over the `.geniro/instructions/` directory — the L4 procedural
 `/instructions` has **no state file** (per M10a Q5 — stateless single-pass operation). The phase enum below describes runtime flow only — not persisted.
 
 ```
-INIT (parse $ARGUMENTS, no AUQ)
+init (parse $ARGUMENTS, no AUQ)
   │
   ▼
-PARSE
+parse
   │ resolve intent (list|create|edit|validate|delete) and scope(s)
   │ ambiguity → AskUserQuestion
   ▼
-EXECUTE
+execute
   │ branch on intent: list (read+print) | create (scaffold) | edit (open) | validate (lint) | delete (rm + confirm)
   ▼
-DONE
+done
        │
-       └─ FAILED (parse failed, scope invalid after 3 AUQ retries, write blocked by hooks)
+       └─ failed (parse failed, scope invalid after 3 AUQ retries, write blocked by hooks)
 ```
 
 ### 2.1.1 Termination case → state mapping
@@ -86,8 +86,8 @@ Per M4 §2.2 — `/instructions` inherits all 7 invariants. Specifics for this C
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
-| `PARSE` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, `Bash` (mutating), all `mcp__*`, network |
-| `EXECUTE` | `Read`, `Write`, `Edit`, `Bash` (`mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Agent` (no subagents), `mcp__github__*`, network egress |
+| `parse` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, `Bash` (mutating), all `mcp__*`, network |
+| `execute` | `Read`, `Write`, `Edit`, `Bash` (`mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Agent` (no subagents), `mcp__github__*`, network egress |
 | `DONE` | (none — terminal report) | (none) |
 
 External sends: not in `/instructions` ACI ever.
@@ -138,7 +138,7 @@ External sends: not in `/instructions` ACI ever.
 | ID | Question | Decision |
 |---|---|---|
 | **Q1** | Bundle vs split | Split — this is part b of 4 |
-| **Q2** | Phase model | Skill-natural — `/instructions` gets a 3-step PARSE → EXECUTE → DONE flow (no state machine, no resume) |
+| **Q2** | Phase model | Skill-natural — `/instructions` gets a 3-step parse → execute → done flow (no state machine, no resume) |
 | **Q4** | Connector safety | Out of scope here — applies to M10c (`/actions`) |
 | **Q5** | State files | None — `/instructions` is stateless |
 | **Q8** | user-preferences home | Confirmed — `user-preferences.md` joins the scope list (was created by `/setup`; `/instructions edit user-preferences` is the manual-edit interface) |
@@ -183,7 +183,7 @@ Sub-decisions during defect-inventory walk:
 |---|---|---|---|---|
 | `global` | `.geniro/instructions/global.md` | L4 | Every Geniro pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only (no `Additional Steps` — global has no canonical phase enum to attach to) |
 | `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase Review, `refactor` Phase Verify); also pre-inlined into reviewer-agent prompts for `guidelines` / `conventions` / `design` / `architecture` dimensions | Cross-cutting scope; no per-skill phase mapping |
-| `user-preferences` | `.geniro/instructions/user-preferences.md` | L4 | Every Geniro pipeline + discovery skill at Step 0 + phase-boundary refresh | Created by `/setup` Phase GENERATE; `/instructions edit user-preferences` is the manual-edit path. Rules and Constraints only |
+| `user-preferences` | `.geniro/instructions/user-preferences.md` | L4 | Every Geniro pipeline + discovery skill at Step 0 + phase-boundary refresh | Created by `/setup` Phase Generate; `/instructions edit user-preferences` is the manual-edit path. Rules and Constraints only |
 | `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style — one file per slug) | L4 | `/review` Phase 2, `/implement` Phase REVIEW_AND_VALIDATE, `/refactor` Phase VERIFY via `_shared/load-custom-reviewers.md`; spawned as additional reviewer-agent dimensions | Frontmatter schema preserved verbatim from current skill (`slug`, `description`, `model`, `paths`, `severity-default`) |
 | `implement` | `.geniro/instructions/implement.md` | L4 | `/implement` at Step 0 + phase-boundary refresh | `Additional Steps` subsections map to M4 phase enum |
 | `plan` | `.geniro/instructions/plan.md` | L4 | `/plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to M5 phase enum |
@@ -223,21 +223,21 @@ Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars p
 
 ### 6.3 Per-skill `Additional Steps` phase mapping
 
-When a `Additional Steps` subsection is encountered during validate-mode, it must match a real phase enum value from the corresponding skill's M-doc:
+When a `Additional Steps` subsection is encountered during validate-mode, it must match a real phase enum value from the corresponding skill's M-doc. Phase enum values are **lowercase-hyphenated** per M4-M9 convention; subsection prose may use any case, validate-mode normalizes for comparison.
 
-| Scope | Allowed `Additional Steps` subsection names |
-|---|---|
-| `implement` | `After CONTEXT`, `After IMPLEMENT`, `After REVIEW_AND_VALIDATE`, `Before SHIP` (per M4 §2.1 phase enum) |
-| `plan` | `After PLAN_STAGE_A`, `After PLAN_STAGE_B`, `Before APPROVAL` (per M5 phase enum) |
-| `review` | `After COLLECT`, `After JUDGE`, `Before SHIP` (per M6 phase enum) |
-| `debug` | `After OBSERVE`, `After FIX`, `Before VERIFY` (per M7 phase enum) |
-| `refactor` | `After PLAN`, `After APPLY`, `Before VERIFY` (per M8 phase enum) |
-| `onboard` | `After DISCOVER`, `Before MAP` (per M9 §6/§7) |
-| `investigate` | `After CLASSIFY`, `After INVESTIGATE`, `Before SYNTHESIZE` (per M9 §8/§9/§10) |
+| Scope | Real phase enum (M-doc) | Allowed `Additional Steps` subsection names (canonical lowercase form; Title-Case prose also accepted) |
+|---|---|---|
+| `implement` | M4 §2.1: `analyze \| implement \| self-review \| ship \| phase-2-escalated \| phase-3-escalated \| done \| aborted \| debug-handoff` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
+| `plan` | M5 §2.1: `mode-detect \| explore \| clarify \| approaches \| section-approve \| write-spec \| validate \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
+| `review` | M6 §2.1: `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
+| `debug` | M7 §2.1: `investigate \| propose \| ship \| phase-1-escalated \| ship-summary-only \| aborted` | `After investigate`, `After propose`, `Before ship` |
+| `refactor` | M8 §2.1: `plan \| apply \| verify \| plan-escalated \| routed \| reverted \| done` | `After plan`, `After apply`, `Before verify` |
+| `onboard` | M9 §6/§7: `mode-detect \| discover \| map \| done \| aborted \| *-escalated` | `After discover`, `Before map` |
+| `investigate` | M9 §8/§9/§10: `classify \| investigate \| present \| done \| aborted \| *-escalated` | `After classify`, `After investigate`, `Before present` |
 
-Subsection names are case-insensitive but whitespace-sensitive; validate-mode normalizes whitespace before comparison.
+Subsection names are case-insensitive; validate-mode lowercases-and-hyphenates before comparing against the enum.
 
-Free-form subsections (e.g., `After my-custom-rule`) are flagged as `LOW` severity warning, not error — users may want narrative names. Only ones referencing the dropped phase enums (`After Phase 4 (Implement)`, `After Discover`, etc., where "Discover" was an old M-pre-1 phase) raise `MEDIUM`.
+Free-form subsections (e.g., `After my-custom-rule`) are flagged as `LOW` severity warning, not error — users may want narrative names. Subsections referencing dropped legacy phase enums (`After Phase 4 (Implement)`, `After Discover Context`, `After PHASE 1`, etc., from the pre-M4 8-phase scheme) raise `MEDIUM` — those phases no longer exist.
 
 ---
 
@@ -490,7 +490,7 @@ Per sub-decision in §4 — validate reports; does not mutate. Auto-fix would si
 | Master plan ref | Closure |
 |---|---|
 | §107 row M10 (operational skills) | M10b covers `/instructions` |
-| §122 row M10 ("lowest priority") | Respected — no expansion beyond CRUD; subagent count = 0; phases = 3 (PARSE → EXECUTE → DONE) |
+| §122 row M10 ("lowest priority") | Respected — no expansion beyond CRUD; subagent count = 0; phases = 3 (parse → execute → done) |
 | **P-M10-2** "Skill description lint rules" | Closed via §10.2 P-M10-2 sub-table (applied to `review-extra/<slug>.md` frontmatter description field) |
 | **P-MP-1** "Anti-patterns guardrail" | §13 below |
 | Forward-reference from M10a §7.3 (user-preferences as L4) | Closed — `user-preferences` is a first-class scope in §6.1 |

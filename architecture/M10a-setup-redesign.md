@@ -33,27 +33,27 @@ Turn an unfamiliar repository into a Geniro-ready project in **one supervised ru
 ### 2.1 State machine
 
 ```
-INIT
+init
   │
   ▼ (mode = init | re-run, detected from .geniro/state/setup/state.md presence)
-DETECT
+detect
   │ codebase scan — tech stack, commands, conventions, lockfiles
   ▼
-INTERVIEW
+interview
   │ AskUserQuestion batches — preferences only (not detectable)
   ▼
-GENERATE
+generate
   │ write CLAUDE.md (thin map) + .geniro/instructions/*.md (incl. user-preferences.md) + .geniro/docs/*.md
   ▼
-VALIDATE
+validate
   │ verification subagent re-reads codebase + generated CLAUDE.md, surfaces drift
   ▼
-DONE (state file deleted at Phase Ship)
+done (state file deleted at Phase Ship)
        │
-       └─ FAILED (terminal: validation failed > 3 rounds OR user-aborted at Validate AUQ)
+       └─ failed (terminal: validation failed > 3 rounds OR user-aborted at Validate AUQ)
 ```
 
-Phase enum values (frontmatter `phase:`): `INIT | DETECT | INTERVIEW | GENERATE | VALIDATE | DONE | FAILED`. Opaque to other skills — only `/setup` reads its own phase enum.
+Phase enum values (frontmatter `phase:`, lowercase-hyphenated per M4-M9 convention): `init | detect | interview | generate | validate | done | failed`. Opaque to other skills — only `/setup` reads its own phase enum.
 
 ### 2.1.1 Termination case → state mapping (shared)
 
@@ -61,11 +61,11 @@ Mirrors M4 §2.1.1 / M9 §2.1.1 — every terminal path declares its reason.
 
 | Termination cause | Phase enum on exit | `## Termination reason` body section |
 |---|---|---|
-| User aborted at Validate AUQ (rejected generated content) | `FAILED` | "user-aborted at Validate AUQ — generated content rejected; restart fresh via re-run mode" |
-| Validation drift cleared after retry | `DONE` | not written (success path) |
-| Validation drift unresolved after 3 retry rounds | `FAILED` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort" |
-| Generation hit write-protection (e.g., `CLAUDE.md` protected) | `FAILED` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
-| Bootstrap completed without drift | `DONE` | not written |
+| User aborted at Validate AUQ (rejected generated content) | `failed` | "user-aborted at Validate AUQ — generated content rejected; restart fresh via re-run mode" |
+| Validation drift cleared after retry | `done` | not written (success path) |
+| Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort" |
+| Generation hit write-protection (e.g., `CLAUDE.md` protected) | `failed` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
+| Bootstrap completed without drift | `done` | not written |
 
 ### 2.2 Loop invariants
 
@@ -96,11 +96,11 @@ Per **M4 §2.2** — `/setup` inherits all 7 invariants verbatim. The relevant s
 
 | Phase | Allowed tools | Forbidden tools | Rationale |
 |---|---|---|---|
-| `DETECT` | `Read`, `Bash` (read-only: `git`, `find`, `grep`, `cat`), `Glob`, `Grep`, `Agent(subagent_type=…)` | `Write`, `Edit`, `Bash` (any state-mutating), `mcp__github__*` | Detect is observation-only; mutation is deferred to Generate |
-| `INTERVIEW` | `AskUserQuestion`, `Read` | `Write`, `Edit`, `Bash` (mutating) | Interview is dialogue-only; preferences captured in working memory, not yet persisted |
-| `GENERATE` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod) | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) | Generation writes only to local project files; no external sends |
-| `VALIDATE` | `Read`, `Bash` (read-only), `Agent` (verification subagent) | `Write`, `Edit` | Validate is read-only audit; fixes routed back through Generate via 3-retry loop |
-| `DONE` (cleanup) | `Bash` (rm of state file) | everything else | Phase-Ship terminal cleanup only |
+| `detect` | `Read`, `Bash` (read-only: `git`, `find`, `grep`, `cat`), `Glob`, `Grep`, `Agent(subagent_type=…)` | `Write`, `Edit`, `Bash` (any state-mutating), `mcp__github__*` | Detect is observation-only; mutation is deferred to Generate |
+| `interview` | `AskUserQuestion`, `Read` | `Write`, `Edit`, `Bash` (mutating) | Interview is dialogue-only; preferences captured in working memory, not yet persisted |
+| `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod) | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) | Generation writes only to local project files; no external sends |
+| `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent) | `Write`, `Edit` | Validate is read-only audit; fixes routed back through Generate via 3-retry loop |
+| `done` (cleanup) | `Bash` (rm of state file) | everything else | Phase-Ship terminal cleanup only |
 
 External sends (GitHub PR creation, Slack pings) are not part of `/setup` ACI. Users wire those via `/actions` if needed (see M10c).
 
@@ -122,12 +122,12 @@ External sends (GitHub PR creation, Slack pings) are not part of `/setup` ACI. U
 
 | Kept item | Adaptation |
 |---|---|
-| Codebase tech-stack detection (`package.json`, `pyproject.toml`, lockfiles, etc.) | Moved into Phase DETECT; results structured as Evidence Block per M4 §6 |
-| Interview-driven preference capture | Moved into Phase INTERVIEW; **persistence target changed**: preferences now write to `.geniro/instructions/user-preferences.md` (L4), not into CLAUDE.md body |
-| Verification subagent (validates generated CLAUDE.md against codebase) | Moved into Phase VALIDATE; `model: sonnet` per M4 §13.4 model-tiering; constrained tool surface (`tools: [Read, Bash, Glob, Grep]` — no Write) |
-| Conflict-resolution agent (merge existing CLAUDE.md with generated content on re-run) | Kept for `re-run` mode only; spawned during Phase GENERATE as a sub-step when target `CLAUDE.md` already exists |
+| Codebase tech-stack detection (`package.json`, `pyproject.toml`, lockfiles, etc.) | Moved into Phase Detect; results structured as Evidence Block per M4 §6 |
+| Interview-driven preference capture | Moved into Phase Interview; **persistence target changed**: preferences now write to `.geniro/instructions/user-preferences.md` (L4), not into CLAUDE.md body |
+| Verification subagent (validates generated CLAUDE.md against codebase) | Moved into Phase Validate; `model: sonnet` per M4 §13.4 model-tiering; constrained tool surface (`tools: [Read, Bash, Glob, Grep]` — no Write) |
+| Conflict-resolution agent (merge existing CLAUDE.md with generated content on re-run) | Kept for `re-run` mode only; spawned during Phase Generate as a sub-step when target `CLAUDE.md` already exists |
 | Existing path-constraint rule ("never use `~`") | Preserved verbatim — already enforced by hooks |
-| Restart-session warning at end | Moved to Phase DONE final-report (not relevant for fresh init; only emitted in re-run mode after plugin-version mismatch) |
+| Restart-session warning at end | Moved to Phase Done final-report (not relevant for fresh init; only emitted in re-run mode after plugin-version mismatch) |
 
 ### 3.3 Replaced
 
@@ -145,7 +145,7 @@ External sends (GitHub PR creation, Slack pings) are not part of `/setup` ACI. U
 |---|---|---|
 | **Q1** | Bundle vs split for M10 | **Split** — `M10a-setup`, `M10b-instructions`, `M10c-actions`, `M10d-update` as 4 separate docs |
 | **Q2** | Phase model | **Skill-natural** — `/setup` gets 4 phases (Detect → Interview → Generate → Validate) |
-| **Q3** | CLAUDE.md verbosity audit | **Document split methodology**; concrete cut decided per project via `/setup` runtime AUQ at Phase GENERATE |
+| **Q3** | CLAUDE.md verbosity audit | **Document split methodology**; concrete cut decided per project via `/setup` runtime AUQ at Phase Generate |
 | **Q4** | Connector safety enforcement | Minimal 3-property (`name`, `description`, `risk_class`) — full details land in M10c `/actions` |
 | **Q5** | State files | **`/setup` only** — singleton state file `state/setup/state.md` (no slug subdir); other M10 skills are stateless |
 | **Q6** | `/update` scope | Wrapper + integrity check + MIGRATION.md reader (lands in M10d) |
@@ -157,7 +157,7 @@ Sub-decisions during defect-inventory walk (§5):
 | Sub-decision | Resolution |
 |---|---|
 | Conflict-resolution model on re-run | Spawn `architect-agent` (M4 §13.4 tiering: `sonnet`) with `tools: [Read, Edit]` constrained to `CLAUDE.md` and `.geniro/instructions/*.md` only — no write access elsewhere |
-| When does `/setup` write `.gitignore`? | Phase GENERATE writes `.geniro/planning/`, `.geniro/state/`, `.geniro/knowledge/` rules **only if** `.gitignore` exists and doesn't already cover them; never creates `.gitignore` from scratch (project conventions vary) |
+| When does `/setup` write `.gitignore`? | Phase Generate writes `.geniro/planning/`, `.geniro/state/`, `.geniro/knowledge/` rules **only if** `.gitignore` exists and doesn't already cover them; never creates `.gitignore` from scratch (project conventions vary) |
 | What if user has no `git` repo? | Detect emits `## Errors` row "not a git repo — skipping git-based detection (branch, remotes)"; Interview asks for default branch manually |
 | What gets re-generated in re-run mode? | Only CLAUDE.md and `.geniro/instructions/*.md` files. User-authored `.geniro/instructions/<custom>.md`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl` are **never** touched |
 
@@ -169,22 +169,22 @@ Sub-decisions during defect-inventory walk (§5):
 
 | # | Defect | Fix |
 |---|---|---|
-| **D1** | References dropped skills (`/cleanup`, `/vendor`, `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`) in installation-model and skill-table examples | Phase GENERATE template uses the 11-skill set only; skill table generated from `<PRIMARY_ROOT>/.geniro/state/setup/state.md` frontmatter `skill_inventory:` field populated by Detect Step 4 (read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/marketplace.json` if available, else fallback list of 11) |
+| **D1** | References dropped skills (`/cleanup`, `/vendor`, `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`) in installation-model and skill-table examples | Phase Generate template uses the 11-skill set only; skill table generated from `<PRIMARY_ROOT>/.geniro/state/setup/state.md` frontmatter `skill_inventory:` field populated by Detect Step 4 (read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/marketplace.json` if available, else fallback list of 11) |
 | **D2** | `.geniro/.geniro-state.json` JSON-marker conflicts with M1 T1 framework | Removed — state lives at `.geniro/state/setup/state.md` (M1 T1 schema); `init` vs `re-run` detection switches to "file exists at `.geniro/state/setup/state.md` OR `CLAUDE.md` has `<!-- geniro-setup-version: -->` marker" |
 | **D3** | "Vendored mode" routing (`$VENDOR_MODE`, `Vendored Mode Resync`) references a dropped skill | Phase 1.4 (`Feature Sync`) entirely removed; re-run mode goes straight from Detect → Interview (diff-mode, only asks new questions) → Generate (diff-write only changed sections) → Validate |
 | **D4** | User-preferences inlined into CLAUDE.md make it self-modify on every preference change — violates M3 "CLAUDE.md is a stable map" goal | Preferences → `.geniro/instructions/user-preferences.md` (L4); CLAUDE.md `## User Preferences` section becomes a 1-line reference: "See `.geniro/instructions/user-preferences.md`. Loaded automatically by every Geniro pipeline skill." |
-| **D5** | Self-contained CLAUDE.md (~300 LOC) crosses encyclopedia threshold (P-M10-3) | Phase GENERATE Step 3.2 runs **section-by-section AUQ** (per Q3): for each section >40 LOC, options are `inline | spin to .geniro/docs/<topic>.md | drop`. Default suggestion follows the heuristic in §6.4 (Phase GENERATE §6.4 "Split heuristic") |
-| **D6** | No `## Tool log`, no `## Errors`, no `## Termination reason` — current skill cannot survive compaction | State file body sections added per M3 §6: `## Tool log` (subagent spawns, project-root writes), `## Errors` (Block 5b), `## Open Questions` (Block 5c), `## Persisted approvals` (Block 5d — `disambiguate_arguments`, `ship_mode_default`, `claude_md_section_<name>`), `## Termination reason` (only on FAILED) |
-| **D7** | No P-M1-1 approvals[] frontmatter persistence — same questions re-asked across compactions | Phase INTERVIEW emits `approvals[]` entries on every AUQ; Phase GENERATE pre-checks `approvals[]` before re-asking. Categories registered: `ship_mode_default`, `default_branch`, `default_reviewer_set`, `communication_style`, `claude_md_section_<section-id>` |
-| **D8** | Verification subagent has uncapped tool surface — could mutate generated CLAUDE.md during validation | Phase VALIDATE spawn passes `tools: [Read, Bash, Glob, Grep]` constraint via `_shared/spawn-agent.md` template; no Write/Edit |
-| **D9** | No L2 emit on completion — pattern-of-bootstrap reuse impossible | Phase VALIDATE final step emits a single L2 `discovery` entry: `{type: 'discovery', trust: 'verified', detected_stack, ship_mode_default, ...}` per M2 §5.3 trigger table. Auto-replaces the dropped `/learnings` skill pattern |
+| **D5** | Self-contained CLAUDE.md (~300 LOC) crosses encyclopedia threshold (P-M10-3) | Phase Generate Step 3.2 runs **section-by-section AUQ** (per Q3): for each section >40 LOC, options are `inline | spin to .geniro/docs/<topic>.md | drop`. Default suggestion follows the heuristic in §6.4 (Phase Generate §6.4 "Split heuristic") |
+| **D6** | No `## Tool log`, no `## Errors`, no `## Termination reason` — current skill cannot survive compaction | State file body sections added per M3 §6: `## Tool log` (subagent spawns, project-root writes), `## Errors` (Block 5b), `## Open Questions` (Block 5c), `## Persisted approvals` (Block 5d — `disambiguate_arguments`, `ship_mode_default`, `claude_md_section_<name>`), `## Termination reason` (only on `failed`) |
+| **D7** | No P-M1-1 approvals[] frontmatter persistence — same questions re-asked across compactions | Phase Interview emits `approvals[]` entries on every AUQ; Phase Generate pre-checks `approvals[]` before re-asking. Categories registered: `ship_mode_default`, `default_branch`, `default_reviewer_set`, `communication_style`, `claude_md_section_<section-id>` |
+| **D8** | Verification subagent has uncapped tool surface — could mutate generated CLAUDE.md during validation | Phase Validate spawn passes `tools: [Read, Bash, Glob, Grep]` constraint via `_shared/spawn-agent.md` template; no Write/Edit |
+| **D9** | No L2 emit on completion — pattern-of-bootstrap reuse impossible | Phase Validate final step emits a single L2 `discovery` entry: `{type: 'discovery', trust: 'verified', detected_stack, ship_mode_default, ...}` per M2 §5.3 trigger table. Auto-replaces the dropped `/learnings` skill pattern |
 | **D10** | No anti-pattern check section — fails P-MP-1 lint criterion | §14 added (12-item anti-pattern table); CI guard documented in §15 (lint script template) |
 | **D11** | No master plan reconciliation section | §13 added (closes P-M2-1 user-preferences, P-M3-3-deferred → P-M10-3 split-methodology, master plan §122 row) |
-| **D12** | Restart-session warning emitted on every `/setup` run, including fresh init (where there's no old session to restart) | Phase DONE Step 4 (`emit_restart_warning`) conditional: only if `mode == 're-run' AND detected plugin-version delta` |
+| **D12** | Restart-session warning emitted on every `/setup` run, including fresh init (where there's no old session to restart) | Phase Done Step 4 (`emit_restart_warning`) conditional: only if `mode == 're-run' AND detected plugin-version delta` |
 
 ---
 
-## 6. Phase DETECT — **DECIDED**
+## 6. Phase Detect — **DECIDED**
 
 ### 6.1 Step 0 — Mode detect and state-file rehydration
 
@@ -193,7 +193,7 @@ Mode resolution (deterministic, no AUQ):
 ```
 if exists(.geniro/state/setup/state.md):
   rehydrate state via `_shared/state-helpers.md::validate_state_file` (M1 §Validation helper, includes P-M1-2 worktree cross-check)
-  if frontmatter.phase != DONE:
+  if frontmatter.phase != "done":
     resume from frontmatter.phase
   else:
     mode = re-run (a prior /setup completed cleanly; user is re-invoking)
@@ -234,7 +234,7 @@ if [ -z "$TEMPLATE_DIR" ] || [ ! -d "$TEMPLATE_DIR/agents" ]; then
     TEMPLATE_DIR="$ARGUMENTS"
   else
     echo "ERROR: cannot locate plugin source. \${CLAUDE_PLUGIN_ROOT} unset and no \$ARGUMENTS fallback." >&2
-    exit 1  # → Phase FAILED, ## Errors row
+    exit 1  # → Phase Failed, ## Errors row
   fi
 fi
 ```
@@ -288,14 +288,14 @@ If marketplace.json read fails, fallback to a hard-coded list embedded in `/setu
 All §6.3-6.5 outputs land in state frontmatter `detected:` block. Phase log captures one summary line:
 
 ```
-[<timestamp>] DETECT complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=11, evidence_count=14
+[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=11, evidence_count=14
 ```
 
-Transition to Phase INTERVIEW.
+Transition to Phase Interview.
 
 ---
 
-## 7. Phase INTERVIEW — **DECIDED**
+## 7. Phase Interview — **DECIDED**
 
 ### 7.1 Approvals precheck (P-M1-1)
 
@@ -308,11 +308,11 @@ Categories registered for `/setup` (P-M1-1 expansion, persisted across compactio
 
 | Category | Asked at | Trigger to re-ask |
 |---|---|---|
-| `ship_mode_default` | INTERVIEW Step 2 | User invokes `/setup` in re-run mode AND `--reset-prefs` flag passed |
-| `default_branch` | INTERVIEW Step 1 | Not git repo at first run, then `git init` happens, then re-run |
-| `default_reviewer_set` | INTERVIEW Step 3 | `--reset-prefs` flag |
-| `communication_style` | INTERVIEW Step 4 | `--reset-prefs` flag |
-| `claude_md_section_<id>` | GENERATE Step 3.2 (per long section) | Section >40 LOC AND not previously decided |
+| `ship_mode_default` | Interview Step 2 | User invokes `/setup` in re-run mode AND `--reset-prefs` flag passed |
+| `default_branch` | Interview Step 1 | Not git repo at first run, then `git init` happens, then re-run |
+| `default_reviewer_set` | Interview Step 3 | `--reset-prefs` flag |
+| `communication_style` | Interview Step 4 | `--reset-prefs` flag |
+| `claude_md_section_<id>` | Generate Step 3.2 (per long section) | Section >40 LOC AND not previously decided |
 
 ### 7.2 Question batches
 
@@ -360,11 +360,11 @@ CLAUDE.md `## User Preferences` section becomes a 1-line reference:
 See `.geniro/instructions/user-preferences.md`. Loaded automatically by every Geniro pipeline skill.
 ```
 
-Transition to Phase GENERATE.
+Transition to Phase Generate.
 
 ---
 
-## 8. Phase GENERATE — **DECIDED**
+## 8. Phase Generate — **DECIDED**
 
 ### 8.1 Pre-write existing-content audit (re-run only)
 
@@ -393,7 +393,7 @@ Generated CLAUDE.md body is assembled from candidate sections. Each candidate is
 | Optional MCP Dependencies table | ~30 | **AUQ-gated** — defaults to `spin out` to `.geniro/docs/mcp.md` |
 | Custom Agent Invocation ladder | ~25 | **AUQ-gated** — defaults to `spin out` to `.geniro/docs/agent-runtime.md` |
 | Updating instructions (1 line ref to `/update`) | ~5 | **inline** (always) |
-| Tech stack summary (detected from Phase DETECT) | ~10-30 | **inline** (always — this is project-specific) |
+| Tech stack summary (detected from Phase Detect) | ~10-30 | **inline** (always — this is project-specific) |
 | Commands (npm scripts / make targets / pyproject scripts) | ~10-30 | **inline** (always — project-specific) |
 | Project conventions (from `code-style.md` if exists) | varies | **inline** (always — project-specific) |
 
@@ -426,9 +426,9 @@ After AUQ resolution:
 - `<PROJECT_ROOT>/.geniro/docs/agent-runtime.md` (if spun out) — same pattern.
 - `<PROJECT_ROOT>/.geniro/instructions/user-preferences.md` — per §7.3.
 - `<PROJECT_ROOT>/.geniro/instructions/global.md` — only created if user opted in to Batch 2 question "create empty global.md for project-wide workflow rules?"; default = no (avoid clutter).
-- `<PROJECT_ROOT>/.geniro/state/setup/state.md` — final frontmatter update (`phase: GENERATE → VALIDATE`).
+- `<PROJECT_ROOT>/.geniro/state/setup/state.md` — final frontmatter update (`phase: generate → validate`).
 
-All Writes are AUQ-gated at the **batch level** (one AUQ "Generate all of: CLAUDE.md (X lines), .geniro/instructions/user-preferences.md (Y lines), …? Options: yes / show preview first / edit which files"). Per ACI (§2.4), Phase GENERATE has write surface to project root and `.geniro/` only — no external sends, no network.
+All Writes are AUQ-gated at the **batch level** (one AUQ "Generate all of: CLAUDE.md (X lines), .geniro/instructions/user-preferences.md (Y lines), …? Options: yes / show preview first / edit which files"). Per ACI (§2.4), Phase Generate has write surface to project root and `.geniro/` only — no external sends, no network.
 
 ### 8.5 Conflict-resolution agent prompt template
 
@@ -456,11 +456,11 @@ Model: sonnet.
 
 Output is appended to `## Tool log` as a single `merge_section spawn` entry (M3 §6 selective logging).
 
-Transition to Phase VALIDATE.
+Transition to Phase Validate.
 
 ---
 
-## 9. Phase VALIDATE — **DECIDED**
+## 9. Phase Validate — **DECIDED**
 
 ### 9.1 Verification subagent spawn
 
@@ -496,10 +496,10 @@ Agent(
 
 | Round | Action |
 |---|---|
-| 1 | Spawn subagent. If `DRIFT items` empty → transition to Phase DONE. Else → regenerate the affected sections (jump back to Phase GENERATE for those sections only). |
+| 1 | Spawn subagent. If `DRIFT items` empty → transition to Phase Done. Else → regenerate the affected sections (jump back to Phase Generate for those sections only). |
 | 2 | Re-spawn subagent. Same logic. |
 | 3 | Re-spawn subagent. Same logic. |
-| 4 | **AUQ escalation** (P-M4-3 Class-B gate): `accept-with-warnings (proceed to DONE, drift documented in ## Open Questions) | abort (transition to FAILED) | re-run from Detect`. |
+| 4 | **AUQ escalation** (P-M4-3 Class-B gate): `accept-with-warnings (proceed to done, drift documented in ## Open Questions) | abort (transition to failed) | re-run from Detect`. |
 
 `## Open Questions` (M3 §6 Block 5c) accumulates the DRIFT items across rounds — survives compaction.
 
@@ -515,7 +515,7 @@ Per M2 §5.3 trigger table — emit one L2 `discovery` row on transition to DONE
 
 ---
 
-## 10. Phase DONE — **DECIDED**
+## 10. Phase Done — **DECIDED**
 
 ### 10.1 Final report to user
 
@@ -569,7 +569,7 @@ Fresh `init` runs never emit this warning (no old session to restart).
 
 ## 11. State file schema
 
-Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1 tier (session-bound, ephemeral, deleted at Phase DONE). M1 §T1 schema.
+Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1 tier (session-bound, ephemeral, deleted at Phase Done). M1 §T1 schema.
 
 ### 11.1 Frontmatter (consolidated per M1 §Frontmatter contract)
 
@@ -578,15 +578,15 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1 tier (session-bound, eph
 skill: setup
 slug: setup                      # singleton — no parallel runs, no slug-collision concern
 version: 1                       # frontmatter schema version
-phase: DETECT                    # one of INIT|DETECT|INTERVIEW|GENERATE|VALIDATE|DONE|FAILED
+phase: detect                    # one of init|detect|interview|generate|validate|done|failed (lowercase per M4-M9 convention)
 mode: init                       # init | re-run
 worktree: /absolute/path         # P-M1-2 cross-check on rehydration
 created: 2026-05-19T14:00:00Z
 updated: 2026-05-19T14:32:00Z
 template_dir: /Users/you/.claude/plugins/geniro-claude-plugin@geniro-claude-harness/abc123
 approvals:                       # P-M1-1 (Block 5d render target)
-  - {category: ship_mode_default, prompt: "Default ship mode?", options: [...], picked: "open-pr-draft", at: "2026-05-19T14:05:00Z", asked_in_phase: INTERVIEW}
-  - {category: claude_md_section_hooks_details, prompt: "Include hooks details inline?", options: ["inline","spin out","drop"], picked: "spin out", at: "...", asked_in_phase: GENERATE}
+  - {category: ship_mode_default, prompt: "Default ship mode?", options: [...], picked: "open-pr-draft", at: "2026-05-19T14:05:00Z", asked_in_phase: interview}
+  - {category: claude_md_section_hooks_details, prompt: "Include hooks details inline?", options: ["inline","spin out","drop"], picked: "spin out", at: "...", asked_in_phase: generate}
 detected:
   stack: node/npm
   lang: node
@@ -601,16 +601,16 @@ detected:
 skill_inventory:
   - {slug: implement, purpose: "..."}
   - ... (11 total)
-preferences:                     # captured in INTERVIEW, written to .geniro/instructions/user-preferences.md in GENERATE
+preferences:                     # captured in interview, written to .geniro/instructions/user-preferences.md in generate
   default_branch: main
   ship_mode_default: open-pr-draft
   default_reviewer_set: full
   communication_style: concise
-write_targets:                   # populated in GENERATE
+write_targets:                   # populated in generate
   - {path: CLAUDE.md, op: write, loc: 67}
   - {path: .geniro/instructions/user-preferences.md, op: write, loc: 12}
   - {path: .geniro/docs/hooks.md, op: write, loc: 84}
-validate_rounds: 1                # set in VALIDATE
+validate_rounds: 1                # set in validate
 ---
 ```
 
@@ -618,16 +618,16 @@ validate_rounds: 1                # set in VALIDATE
 
 ```markdown
 ## Phase log
-[2026-05-19T14:00:00Z] INIT → DETECT  (mode=init)
-[2026-05-19T14:02:00Z] DETECT complete — stack=node/npm, evidence_count=14
-[2026-05-19T14:05:00Z] INTERVIEW Batch 1 → 4 preferences captured
-[2026-05-19T14:10:00Z] GENERATE Step 3.2 → 3 sections spun out (hooks, mcp, agent-runtime)
-[2026-05-19T14:30:00Z] VALIDATE round 1 → 0 DRIFT
-[2026-05-19T14:32:00Z] → DONE
+[2026-05-19T14:00:00Z] init → detect  (mode=init)
+[2026-05-19T14:02:00Z] detect complete — stack=node/npm, evidence_count=14
+[2026-05-19T14:05:00Z] interview Batch 1 → 4 preferences captured
+[2026-05-19T14:10:00Z] generate Step 3.2 → 3 sections spun out (hooks, mcp, agent-runtime)
+[2026-05-19T14:30:00Z] validate round 1 → 0 DRIFT
+[2026-05-19T14:32:00Z] → done
 
 ## Tool log                        # M3 §6 selective logging
 [14:02:00] Detect: read package.json (evidence #1), package-lock.json (#2), ...
-[14:30:00] VALIDATE: spawn verification-agent → 0 drift items
+[14:30:00] validate: spawn verification-agent → 0 drift items
 
 ## Errors                          # M3 §6 Block 5b (rare — only on failure paths)
 (empty)
@@ -636,12 +636,12 @@ validate_rounds: 1                # set in VALIDATE
 (empty)
 
 ## Persisted approvals             # M3 §6 Block 5d (renders frontmatter approvals[])
-- ship_mode_default = "open-pr-draft" (asked at INTERVIEW, 2026-05-19T14:05:00Z)
-- claude_md_section_hooks_details = "spin out" (asked at GENERATE, 2026-05-19T14:10:00Z)
-- claude_md_section_mcp = "spin out" (asked at GENERATE, 2026-05-19T14:10:00Z)
-- claude_md_section_agent_runtime = "spin out" (asked at GENERATE, 2026-05-19T14:10:00Z)
+- ship_mode_default = "open-pr-draft" (asked at interview, 2026-05-19T14:05:00Z)
+- claude_md_section_hooks_details = "spin out" (asked at generate, 2026-05-19T14:10:00Z)
+- claude_md_section_mcp = "spin out" (asked at generate, 2026-05-19T14:10:00Z)
+- claude_md_section_agent_runtime = "spin out" (asked at generate, 2026-05-19T14:10:00Z)
 
-## Termination reason              # only set on FAILED — empty here (DONE path)
+## Termination reason              # only set on `failed` — empty here (`done` path)
 ```
 
 ---
@@ -650,10 +650,10 @@ validate_rounds: 1                # set in VALIDATE
 
 | Layer | Read at | Write at | Notes |
 |---|---|---|---|
-| **L1 (CLAUDE.md)** | DETECT §6.2 (Step 0 instructions load) | GENERATE §8.4 (writes thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §8.5 conflict resolver in re-run mode |
-| **L2 (`learnings.jsonl`)** | DETECT §6.2 (prior `discovery` query, tag `setup`) | VALIDATE §9.3 (one `discovery` row on DONE) | `trust: verified` — code-grounded; auto-replaces dropped `/learnings` skill |
+| **L1 (CLAUDE.md)** | Phase Detect §6.2 (Step 0 instructions load) | Phase Generate §8.4 (writes thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §8.5 conflict resolver in re-run mode |
+| **L2 (`learnings.jsonl`)** | Phase Detect §6.2 (prior `discovery` query, tag `setup`) | Phase Validate §9.3 (one `discovery` row on `done`) | `trust: verified` — code-grounded; auto-replaces dropped `/learnings` skill |
 | **L3 (`.geniro/planning/_project.md` etc.)** | not read (L3 is M2 Semantic — `/onboard` writes it) | not written | `/setup` and `/onboard` are different skills with non-overlapping write surfaces; `/setup` writes CLAUDE.md and `.geniro/instructions/*`, `/onboard` writes `.geniro/planning/_CODEBASE_MAP.md` and `.geniro/planning/_project.md` |
-| **L4 (`.geniro/instructions/*.md`)** | DETECT §6.2 (rules-only load via `_shared/load-custom-instructions.md`) | GENERATE §8.4 — writes `.geniro/instructions/user-preferences.md` (always); optionally creates empty `.geniro/instructions/global.md` if user opts in | Schema: standard custom-instruction format (`## Rules`, `## Additional Steps`, `## Constraints`) |
+| **L4 (`.geniro/instructions/*.md`)** | Phase Detect §6.2 (rules-only load via `_shared/load-custom-instructions.md`) | Phase Generate §8.4 — writes `.geniro/instructions/user-preferences.md` (always); optionally creates empty `.geniro/instructions/global.md` if user opts in | Schema: standard custom-instruction format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 
 L5 (Episodic — current-session working memory, M2 §5.5) is implicit; not persisted by `/setup`.
 
@@ -680,7 +680,7 @@ L5 (Episodic — current-session working memory, M2 §5.5) is implicit; not pers
 | 1 | One giant prompt | ✅ N/A — `/setup` SKILL.md modular; phase sections will be in `_shared/setup/*.md` helpers if SKILL.md grows beyond ~400 LOC |
 | 2 | One giant tool | ✅ N/A — Edit/Write/Bash/Glob/Grep native, no plugin meta-tool |
 | 3 | Unbounded autonomous loop | ✅ §9.2 3-retry validation loop with AUQ escalation; no infinite retry |
-| 4 | Autonomous external sends in first release | ✅ Phase GENERATE ACI forbids `mcp__github__*` and network egress; no Slack/PR auto-send |
+| 4 | Autonomous external sends in first release | ✅ Phase Generate ACI forbids `mcp__github__*` and network egress; no Slack/PR auto-send |
 | 5 | No approval state | ✅ P-M1-1 `approvals[]` populated (§7.1) and rendered as Block 5d (§11.2) |
 | 6 | No durable plans or goals | ✅ State file mandatory (§11) — singleton at `state/setup/state.md` |
 | 7 | No compaction strategy | ✅ `## Tool log` + `## Errors` + `## Open Questions` + `## Persisted approvals` populated (§11.2) — survives compaction via M3 §6 SessionStart re-injection |
@@ -709,10 +709,10 @@ Implementation-time CI lint (out-of-scope for this design doc, but documented as
 
 | Item | When | Mechanism |
 |---|---|---|
-| `<PRIMARY_ROOT>/.geniro/state/setup/state.md` | Phase DONE (success path) | `rm` in §10.2 |
-| `<PRIMARY_ROOT>/.geniro/state/setup/state.md` | Phase DONE (accept-with-warnings path) | **Kept** with `## Open Questions` populated — surfaces for next re-run |
-| `<PRIMARY_ROOT>/.geniro/state/setup/state.md` | Phase FAILED | Kept — diagnostic value; cleaned by user via `rm .geniro/state/setup/state.md` |
-| State frontmatter `detected:` block | survives indefinitely on FAILED | acceptable — re-run reads `detected:` and offers "re-use prior detection or re-scan?" AUQ |
+| `<PRIMARY_ROOT>/.geniro/state/setup/state.md` | Phase Done (success path) | `rm` in §10.2 |
+| `<PRIMARY_ROOT>/.geniro/state/setup/state.md` | Phase Done (accept-with-warnings path) | **Kept** with `## Open Questions` populated — surfaces for next re-run |
+| `<PRIMARY_ROOT>/.geniro/state/setup/state.md` | Phase Failed | Kept — diagnostic value; cleaned by user via `rm .geniro/state/setup/state.md` |
+| State frontmatter `detected:` block | survives indefinitely on `failed` | acceptable — re-run reads `detected:` and offers "re-use prior detection or re-scan?" AUQ |
 
 No bulk cleanup of `.geniro/` ever — that's protected by the `.geniro/` deletion guard hook regardless.
 
@@ -742,7 +742,7 @@ M1 §Architecture overview directory tree currently includes `state/onboard/<slu
 
 ```
 │   ├── setup/                       # T1 (singleton layout, M10a) — no <slug>/ subdir
-│   │   └── state.md                 # deleted at Phase DONE (success path)
+│   │   └── state.md                 # deleted at Phase Done (success path)
 ```
 
 And in §T1 Path-roots table Examples column:
