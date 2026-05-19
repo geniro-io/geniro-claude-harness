@@ -186,6 +186,30 @@ fi
 # Summary
 # ---------------------------------------------------------------------------
 
+# Test 12: append to file without trailing newline must NOT concatenate.
+# Regression for the bug where a hand-edited learnings.jsonl ending without
+# `\n` caused emit-learning to merge two JSONL objects onto one physical line.
+target="$TMPDIR/t12.jsonl"
+printf '{"first":"line"}' > "$target"   # No trailing newline.
+printf '{"second":"line"}' | atomic_state_append "$target"
+n=$(wc -l < "$target")
+if [ "$n" = "2" ]; then
+  pass "atomic_state_append — appends to no-trailing-newline file with leading-\\n guard"
+else
+  fail "no-trailing-newline append produced $n lines (want 2). File: $(cat "$target")"
+fi
+
+# Test 13: append to file WITH trailing newline must NOT add an extra blank line.
+target="$TMPDIR/t13.jsonl"
+printf '{"first":"line"}\n' > "$target"  # WITH trailing newline.
+printf '{"second":"line"}' | atomic_state_append "$target"
+n=$(wc -l < "$target")
+if [ "$n" = "2" ]; then
+  pass "atomic_state_append — newline-terminated file gets exactly one more line"
+else
+  fail "newline-terminated append produced $n lines (want 2)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

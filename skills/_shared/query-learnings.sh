@@ -84,6 +84,12 @@ query_learnings() {
   fi
 
   # Build the jq predicate.
+  # Supersede filter is POSITION-AWARE: entry X is superseded iff some LATER
+  # entry Y (higher file-position) has Y.supersedes == X.dedup_key. A naive
+  # set-membership filter would exclude the NEWEST entry too whenever
+  # emit_learning auto-injects supersedes=<dedup_key> on a self-collision
+  # (auto-computed dedup_key is content-insensitive, so two entries with the
+  # same producer/scope/normalized-summary collide).
   local jq_filter='
     def trust_allowed($min):
       if $min == "verified" then ["verified"]
@@ -103,12 +109,19 @@ query_learnings() {
        end);
 
     . as $all
-    | ($all | map(.supersedes? // empty) | map(select(. != "")) | unique) as $superseded
-    | $all
+    | [range(0; length) as $i
+       | $all[$i] as $cur
+       | $cur + {
+           _superseded: (
+             [$all[($i + 1):][] | .supersedes? // empty]
+             | index($cur.dedup_key // null) != null
+           )
+         }]
     | map(select(matches_filters))
     | (if $include_superseded then .
-       else map(select((.dedup_key as $k | $superseded | index($k)) == null))
+       else map(select(._superseded | not))
        end)
+    | map(del(._superseded))
     | .[]
   '
 

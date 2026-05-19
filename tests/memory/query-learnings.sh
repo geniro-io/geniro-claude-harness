@@ -237,6 +237,49 @@ else
   fail "expected 1 result; got $got"
 fi
 
+# Position-aware supersede filter — regression for P0 bug where
+# emit_learning auto-injects supersedes=<own_dedup_key> on self-collision,
+# and a naive set-membership filter then hides BOTH the new AND old entry.
+new_sandbox
+cat > .geniro/knowledge/learnings.jsonl <<'EOF'
+{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"same","tags":["x"],"dedup_key":"selfk","body":"v1"}
+{"ts":"2026-05-02T10:00:00Z","producer":"/d","scope":"s","summary":"same","tags":["x"],"dedup_key":"selfk","body":"v2","supersedes":"selfk"}
+EOF
+out=$(query_learnings | jq -r .body | tr '\n' ',' | sed 's/,$//')
+if [ "$out" = "v2" ]; then
+  pass "self-supersede chain keeps only the LATEST entry (position-aware)"
+else
+  fail "self-supersede should keep v2 only; got '$out'"
+fi
+
+# Position-aware: a supersede points BACKWARD only. The earlier entry must
+# be hidden, the later kept.
+new_sandbox
+cat > .geniro/knowledge/learnings.jsonl <<'EOF'
+{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"ka"}
+{"ts":"2026-05-02T10:00:00Z","producer":"/d","scope":"s","summary":"b","tags":["x"],"dedup_key":"kb","supersedes":"ka"}
+EOF
+out=$(query_learnings | jq -r .dedup_key | tr '\n' ',' | sed 's/,$//')
+if [ "$out" = "kb" ]; then
+  pass "supersede with distinct dedup_keys hides predecessor only"
+else
+  fail "distinct-key supersede should keep kb only; got '$out'"
+fi
+
+# Edge case: a supersede appearing BEFORE its target (out-of-order file).
+# Position-aware filter should NOT treat the target as superseded.
+new_sandbox
+cat > .geniro/knowledge/learnings.jsonl <<'EOF'
+{"ts":"2026-05-02T10:00:00Z","producer":"/d","scope":"s","summary":"b","tags":["x"],"dedup_key":"kb","supersedes":"ka"}
+{"ts":"2026-05-03T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"ka"}
+EOF
+out=$(query_learnings | jq -r .dedup_key | LC_ALL=C sort | tr '\n' ',' | sed 's/,$//')
+if [ "$out" = "ka,kb" ]; then
+  pass "supersede pointing forward (target appears AFTER) does not retroactively hide"
+else
+  fail "forward-pointing supersede semantics; got '$out'"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

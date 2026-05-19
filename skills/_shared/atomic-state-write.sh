@@ -109,7 +109,19 @@ atomic_state_append() {
     return 68
   fi
 
-  printf '%s\n' "$content" >> "$target" || {
+  # Newline-terminator guard. If the target exists and its last byte is not
+  # `\n` (typical of hand-edited files or partial migrations), a bare append
+  # would concatenate onto the previous final line, corrupting JSONL — a
+  # single line containing two adjacent objects. Prepend a `\n` in that case.
+  # `[ -n "$(tail -c 1 "$target")" ]` is the portable last-byte-is-not-newline
+  # check: command substitution strips trailing newlines, so when the last
+  # byte IS `\n`, `$(tail -c 1)` becomes empty, and `-n` returns false.
+  local prefix=""
+  if [ -s "$target" ] && [ -n "$(tail -c 1 "$target" 2>/dev/null)" ]; then
+    prefix=$'\n'
+  fi
+
+  printf '%s%s\n' "$prefix" "$content" >> "$target" || {
     echo "atomic_state_append: append to $target failed" >&2
     return 69
   }
