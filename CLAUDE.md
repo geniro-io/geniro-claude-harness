@@ -82,6 +82,41 @@ fi
 - `skills/_shared/validate-state-file.md` — validator, exit codes, recovery AUQ template.
 - `architecture/M1-state-files.md` — design rationale.
 
+## Memory Layers (M2)
+
+Every persisted fact lives in exactly one of four layers. Writers know **what** to record and **where**; readers know **which layer** answers a question. Anything that doesn't fit one of these layers is by definition out of scope for the memory subsystem.
+
+| Layer | Name | Lifespan | Routing rule (writer intent → layer) | Path |
+|-------|------|----------|---------------------------------------|------|
+| **L1** | Working | Per-task | "Right now, phase X of task Y is running." | `.geniro/planning/<task-dir>/state.md` (M1 T1) |
+| **L2** | Episodic | Append-only event log | "In this run we observed event X." | `.geniro/knowledge/learnings.jsonl` |
+| **L3** | Semantic | Current-state snapshot | "In this project, fact X is currently true." | `.geniro/planning/_*.md` |
+| **L4** | Procedural | Stable rules | "When doing X, always do Y." | `.geniro/instructions/*.md` |
+
+**Cross-layer precedence (when layers disagree): L4 > L3 > L2.** L4 is user-curated explicit rules (highest trust); L3 is drift-monitored current state; L2 is historical events with the lowest cross-layer trust. L1 is task-scoped and never conflicts cross-layer.
+
+**Within-layer:** recency wins. L2 uses the `supersedes` chain. L3 uses fingerprint refresh / file mtime. L4 uses file mtime.
+
+### Helper invocation
+
+| Helper | Purpose |
+|--------|---------|
+| `_shared/load-custom-instructions.md` | Load L4 — `global.md` + `<skill>.md` + `code-style.md` (already in use pre-M2) |
+| `_shared/load-semantic.sh` | Load L3 — `_project.md` + `_CODEBASE_MAP.md` by default; `--extras "..."` for additional files; auto-runs fingerprint drift check to stderr |
+| `_shared/update-semantic.sh` | Bounded-write L3 — `--file <codebase-map\|features> --append "<line>"` or `--replace "<prefix>" "<new>"`. Per-file POSIX-O_EXCL lock; rc=11 if held |
+| `_shared/emit-learning.sh` | Append L2 — JSON on stdin, auto-sanitization, auto-dedup with supersede chain |
+| `_shared/query-learnings.sh` | Read L2 — flags: `--type`, `--tag`, `--scope`, `--min-trust`, `--include-superseded`, `--include-deprecated`, `--include-archive`, `--limit` |
+| `_shared/redact-secrets.sh` | Regex sanitization for any free-form text — called automatically by `emit_learning`; also reusable standalone |
+
+### Conflict surfacing protocol
+
+When a load-* helper detects layers disagreeing, the calling skill prints a notice in its output and continues using the precedence-winning value. For **hard conflicts** (L4 rule directly contradicts L3 reality), the skill halts and calls `AskUserQuestion`. Both notice format and AUQ template live in `skills/_shared/resolve-conflicts.md`.
+
+**Full reference:**
+- `architecture/M2-memory-layers.md` — full layer model, lifecycle, and reflection-cycle triggers.
+- `skills/_shared/redact-secrets.md` · `emit-learning.md` · `query-learnings.md` · `load-semantic.md` · `update-semantic.md` — per-helper API contracts.
+- `skills/_shared/resolve-conflicts.md` — cross-layer conflict notice format.
+
 ## Custom Agent Invocation
 
 When a skill spawns a plugin-defined agent (`reviewer-agent`, `relevance-filter-agent`, `adversarial-tester-agent`, `refactor-agent`, `architect-agent`, `skeptic-agent`, `knowledge-retrieval-agent`, `backend-agent`, `frontend-agent`) via the `Agent(subagent_type="<name>", ...)` tool, the registered form varies by runtime: interactive Claude Code with the plugin marketplace-installed registers agents under `geniro-claude-plugin:<agent>`; `/geniro:vendor`-ed projects register them under bare `<agent>`; Claude Code SDK / harness / cloud runners do not register them at all and the call hard-errors with `Agent type '<name>' not found. Available agents: …`.
