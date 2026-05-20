@@ -1,6 +1,12 @@
 # Simplify Analysis Criteria
 
-Reference file shared between `/geniro:deep-simplify` skill and `/geniro:implement` Phase 5. Contains the three analysis passes, severity classification, anti-patterns, and ground rules for code simplification.
+Reference file for the `/geniro:review --simplify` flag (M6 §13 — absorbs the deleted `/geniro:deep-simplify` skill). When `--simplify` is present в `$ARGUMENTS`, /review's Phase 2 prepends these criteria onto 5 dimension reviewer prompts: **architecture** (Reuse), **conventions** (aggressive modal-pattern threshold), **guidelines** (Quality), **bugs** (Quality bug-class extensions), **optimizations** (Efficiency).
+
+Severity reconciliation per M6 §13.3: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `--tdd` or risk-tier:high).
+
+NOT а new dimension — folds into existing dims per M6 §13.6 anti-pattern. The pre-M6 standalone `/deep-simplify` carried а Fix agent + Verify agent that auto-applied edits + auto-reverted; M6 does NOT carry those (Reporter contract H-2). Users wanting auto-applied fixes pipe `/review --simplify` output к `/implement`.
+
+Also referenced (legacy — to be cleaned up в the consuming skill's milestone) by `/geniro:implement` Phase 5 / Ship sub-step и `/geniro:refactor`.
 
 ---
 
