@@ -52,7 +52,7 @@ These are intended to outlive any single task. The resolver applies to both read
 | `.geniro/knowledge/learnings.jsonl` | `/learnings`, `/implement` Phase 7, `/follow-up` Phase 6, `/debug` Step 7, `/refactor` Phase 6, `/investigate` Step 2a | `knowledge-retrieval-agent`, `/refactor` Phase 1, `/decompose`, `/debug` Step 1, `/features` triage, `/investigate` Step 1 | structured corpus |
 | `.geniro/state/debug/findings-state.md` | `/debug` Step 6.5a | `/follow-up`, `/implement` Phase 1 Step 1 | carries `Source branch:` / `Source worktree:` already; resolver removes the need to copy across worktrees |
 | `.geniro/state/debug/adversarial-tests.md` | `/debug` adversarial mode | `/follow-up`, `/implement` Phase 1 Step 1 | same handoff |
-| `.geniro/state/review-findings-state.md` | `/review` | `/follow-up`, `/implement` Phase 6 fix-loop | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
+| `.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 M1-T2 canonical; legacy `.geniro/state/review-findings-state.md` read once for backward-compat resume per SKILL.md §5.2) | `/review` | `/implement` Phase 1 step 8 «Persist T2 handoffs» | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
 | `.geniro/planning/FEATURES.md` | `/features` (CRUD) | `/implement` (binding), `/decompose` | persistent registry |
 | `.geniro/planning/CODEBASE_MAP.md`, `.geniro/planning/focus-<area>.md` | `/onboard` | every skill that consults the map | persistent orientation artifacts |
 

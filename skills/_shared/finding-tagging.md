@@ -49,7 +49,7 @@ The Trivial lane in `/geniro:follow-up` and the Fast Lane in `/geniro:implement`
 
 Tags persist in two artifact families, mirroring the existing `[CONFIRMED-BY-TEST]` persistence pattern (per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema):
 
-**1. Reviewer findings — `<task-dir>/review-feedback.md` (`/implement`) and `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` (`/review`, `/follow-up`):**
+**1. Reviewer findings — `<task-dir>/review-feedback.md` (`/implement` Phase 3 self-review intermediate) и `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 — M1 §T2 canonical — `/review` writer; consumed by `/implement` Phase 1 step 8 «Persist T2 handoffs»). Legacy path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` is read once on resume для backward-compat per SKILL.md §5.2 only.**
 
 The per-finding line gains a `cause:` field (lowercase to match existing field convention — `decision:`, `recommendation:`, `confidence:`). The field is appended after `confidence:` for both severity-section rows (CRITICAL/HIGH/MEDIUM) and Intent-section rows. Exact line format:
 
