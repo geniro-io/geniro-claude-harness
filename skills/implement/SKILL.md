@@ -243,7 +243,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 ## PHASE 1: ANALYZE
 
-**Load L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, и `code-style.md`; the §Echo contract requires one observable line per file. Both are mandatory.
+**Load L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh` (per M4 §13.1 / §13.4 — procedure identical к initial-load, mode name signals compaction-survival intent). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, и `code-style.md`; the §Echo contract requires one observable line per file. Both are mandatory.
 
 **Refresh L3 semantic snapshot.** `load_semantic` с default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification к user.
 

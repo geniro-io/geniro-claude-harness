@@ -177,13 +177,13 @@ Use `AskUserQuestion` (header: `"Ship mode"`):
 - **Label:** `"Open PR"` / **Description:** `"git push then gh pr create (ready-for-review). Appends task ID к PR title."`
 - **Label:** `"Open draft PR"` / **Description:** `"git push then gh pr create --draft. Cannot combine с --web — if browser-view requested, run gh pr view --web afterward."`
 
-The user can always type а custom response via "Other" (e.g., "review diff first", "leave uncommitted"):
+The user can always type а custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back к ship-mode AUQ.
-- **"Leave uncommitted"** (via Other) → skip commit AND push entirely, transition к `phase: ship-committed-only` (terminal).
+- **"Don't push"** (via Other; semantically equivalent к the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses step 3's push, не the upstream commit.
 
 **Approvals-persistence protocol (P-M1-1, M4 §7.5 step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` для а prior entry с `category: ship_mode`. If found, use prior `picked` value и skip the AUQ (typical compaction-resume: user already picked в the original flow). If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
-**Step 4 — Non-resumable-actions update (M4 §8, M1 helpers).** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append а structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
+**Step 4 — Non-resumable-actions update (M3 §8, M1 helpers).** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append а structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
 **Inline modifiers from $ARGUMENTS** (semantic parsing per Phase 1 table) override the ship-mode AUQ deterministically:
 
@@ -196,7 +196,7 @@ The user can always type а custom response via "Other" (e.g., "review diff firs
 
 ---
 
-### Update Docs (M4 §7.5 step 4 — auxiliary)
+### Update Docs (M4 §7.5 auxiliary sub-step)
 
 Check whether existing docs need updating based on what was implemented. **Skip if nothing changed that affects documented surfaces.** This is а thin fallback over the Phase 3 architecture reviewer's docs-staleness check — if that reviewer already surfaced doc-update findings, they would have been fixed inline during the fix loop. This step catches anything left over.
 
@@ -243,7 +243,7 @@ Follow the canonical routing в `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvemen
 
 ---
 
-### Integration Updates (M4 §7.5 step 4 — auxiliary)
+### Integration Updates (M4 §7.5 auxiliary sub-step)
 
 **Worktree:** if working в а worktree (from Phase 1 workspace decision), leave the session in it. Do NOT call `ExitWorktree` proactively — runtime already prompts on session exit to keep or remove the worktree.
 
