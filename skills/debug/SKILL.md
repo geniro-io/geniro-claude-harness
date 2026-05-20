@@ -14,8 +14,10 @@ Use this skill к systematically debug complex issues. Replaces guessing with ev
 **Architecture spec:** `architecture/M7-debug-redesign.md`. Detailed contracts:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/infrastructure-investigation.md` — infrastructure-cause guidance (M7 §6.5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/isolation-techniques.md` — binary search / git bisect / profiling (M7 §6.7)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate (§7.2) и repro-infeasible escape hatch (§7.4)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate (M7 §7.2) и repro-infeasible escape hatch (M7 §7.4)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol для downstream skills reading our T2 hand-offs
+
+**Section-reference convention:** plain `§1.x` / `§2.x` / `§3.x` references in this SKILL.md point к local sub-sections (Phase 1, Phase 2, Phase 3 respectively — header lines `### 1.1`, `### 2.4`, etc. below). References к the architecture spec are explicitly prefixed `M7 §X.Y` (e.g. `M7 §6.8 stall gate`). The architecture spec uses §6/§7/§8 numbering for the same three phases; the SKILL.md mirrors М6's local-numbering convention для readability.
 
 ---
 
