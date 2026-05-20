@@ -78,7 +78,7 @@ What do we accept by choosing this? What becomes harder? What becomes easier?
 - `/geniro:investigate` Phase 5 — "Save key findings to memory" gains an ADR sub-option when the finding meets all 3 criteria.
 - `/geniro:debug` §3.4 (M7) — root causes traced к an undocumented architectural choice trigger an ADR proposal alongside the L2 emit (§3.3).
 - `/geniro:refactor` §8.3 (M8) — refactor candidates explicitly REJECTED by the user (PRODUCT-DECISION findings, escalated work) propose an ADR capturing "why we did NOT do X." 4th AUQ option fires only when ADR-eligibility criteria met (hard к reverse + surprising без context + genuine trade-offs).
-- `/geniro:implement` Phase 7 Step 3 — Suggest Improvements presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
+- `/geniro:implement` Phase 3 ship sub-step (М4 §7.5 auxiliary «Suggest Improvements») presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
 
 ## Why code rules go to `.claude/rules/`, not CLAUDE.md
 

@@ -1,6 +1,6 @@
 ---
 name: architect-agent
-description: "Codebase analyzer and implementation planner. Produces architectural specifications and may implement minor improvements directly. Scales effort to task complexity; researches best practices before designing; evaluates multiple approaches with file-level verification criteria. Spawned by /geniro:implement Phase 2 and /geniro:decompose Phases 2-3 (Decomposition Mode for milestone breakdown)."
+description: "Codebase analyzer and implementation planner. Produces architectural specifications, evaluates multiple approaches with file-level verification criteria, and (in decomposition mode) authors per-milestone detail files. Currently spawned only by /geniro:setup §3.5 conflict-resolution mode (constrained to `tools: [Read, Edit]` on CLAUDE.md). /geniro:plan (M5) consumes plan-criteria.md as the authoring schema but uses Explore + orchestrator-side authoring rather than spawning this agent directly."
 tools: [Read, Write, Edit, Glob, Grep, Bash, Task, WebSearch, WebFetch]
 model: opus
 maxTurns: 60
@@ -130,7 +130,7 @@ Before designing, confirm you understand these aspects (skip clearly irrelevant 
 - Database/migration implications (if applicable)
 - Dependencies and imports the change will interact with
 - API contract impacts (if the change spans client/server boundaries)
-- Design system context (if frontend files in scope) — tokens, primitives, spacing/type/color scales, named design exemplars; produce a DESIGN_CONVENTIONS brief for the downstream frontend-agent (see Output Format §3)
+- Design system context (if frontend files in scope) — tokens, primitives, spacing/type/color scales, named design exemplars; emit a DESIGN_CONVENTIONS brief in the CONVENTIONS_BRIEF output (see Output Format §3) so the downstream implementer (the orchestrator's executor — typically `/geniro:implement` Phase 2) doesn't re-discover design every cycle
 
 ---
 
@@ -215,7 +215,7 @@ For every standard or complex task, research the following before designing:
    - Read `docs/architecture.md` or equivalent if it exists
    - Note: CLAUDE.md is already auto-loaded by Claude Code — do NOT re-read it
 
-4. **Explore the codebase (minimum necessary)** — identify relevant modules, entry points, and current patterns. Use the Discovery Checklist. Delegate broad exploration to subagents. If the task touches UI files (see UI-file detection rule in `skills/review/SKILL.md`), also extract design-system context — tokens, primitives, scales, named design exemplars — and produce a DESIGN_CONVENTIONS brief for the downstream frontend-agent (see Output Format §3).
+4. **Explore the codebase (minimum necessary)** — identify relevant modules, entry points, and current patterns. Use the Discovery Checklist. Delegate broad exploration to subagents. If the task touches UI files (see UI-file detection rule in `skills/review/SKILL.md`), also extract design-system context — tokens, primitives, scales, named design exemplars — and emit a DESIGN_CONVENTIONS brief in the CONVENTIONS_BRIEF output (see Output Format §3) for the downstream implementer.
 
 5. **Research online (MANDATORY for standard/complex tasks)** — before designing, search for native/built-in solutions in the project's frameworks, existing ecosystem packages, and current best practices. Follow the "Internet Research" section rules. Start with native-first searches, then broaden if needed.
 
@@ -257,13 +257,13 @@ For standard tasks, skip Phase 1 and deliver the full specification directly.
 
 ## Decomposition Mode
 
-The orchestrator invokes this mode when a task is too big for a single plan — when it passes the complexity threshold that /geniro:decompose uses (Big task + one of: score 9+, >15 plan steps, or explicit user request). Detect this mode from an explicit flag in the task prompt (look for a line like "Operate in DECOMPOSITION mode" or "mode: decomposition"). If no such flag, use the Standard Workflow + Progressive Delivery paths above.
+The orchestrator invokes this mode when a task is too big for a single plan — when it passes the complexity threshold that /geniro:plan (M5) Big-tier milestone-output mode uses (Big task + one of: score 9+, >15 plan steps, or explicit user request). /geniro:plan absorbed the legacy /geniro:decompose responsibility per master plan §22.5. Detect this mode from an explicit flag in the task prompt (look for a line like "Operate in DECOMPOSITION mode" or "mode: decomposition"). If no such flag, use the Standard Workflow + Progressive Delivery paths above.
 
 **Decomposition mode produces two artifacts in a single pass:**
 
 1. **Master plan** at `.geniro/planning/<task-dir>/plan-<slug>.md` — same structure as the canonical plan-criteria schema (Goal, Approach, Steps, Files Affected, Key Decisions, Test Scenarios, Risks & Assumptions, Execution Strategy) PLUS a new `## Milestones` section before `## Files Affected`. The `## Milestones` section is a table: `| # | Name | Goal | Upstream Deps | Wave | Status | File |`. Status starts as `pending` for every row. File column is the per-milestone detail filename (e.g., `milestone-1-setup.md`).
 
-2. **Per-milestone detail files** at `.geniro/planning/<task-dir>/milestone-<N>-<slug>.md` — one file per milestone listed in the Milestones table. Use the milestone schema from `${CLAUDE_PLUGIN_ROOT}/skills/decompose/decompose-criteria.md` (pre-inlined by the orchestrator in your task prompt). Each milestone file is self-contained — a fresh /geniro:implement run with no prior context must be able to execute the milestone using only the milestone file + the master plan's Goal + any prior milestones' Implementation Notes.
+2. **Per-milestone detail files** at `.geniro/planning/<task-dir>/milestone-<N>-<slug>.md` — one file per milestone listed in the Milestones table. Use the milestone schema from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md` (pre-inlined by the orchestrator in your task prompt; /plan М5 owns this schema after absorbing /decompose). Each milestone file is self-contained — a fresh /geniro:implement run with no prior context must be able to execute the milestone using only the milestone file + the master plan's Goal + any prior milestones' Implementation Notes.
 
 ### Decomposition Principles
 
@@ -280,7 +280,7 @@ The orchestrator invokes this mode when a task is too big for a single plan — 
 2. **Draft the master plan** first — treat it as if you were writing a standard plan-criteria-style plan for the whole task. Use the normal plan structure.
 3. **Partition into milestones.** Identify natural vertical slices. Group related steps into milestones such that each milestone's Acceptance Criteria can be verified independently. If no natural partitioning produces 3-7 vertical slices, STOP and tell the orchestrator the task is not actually decomposable — recommend `/geniro:implement` instead (single architect+skeptic pass).
 4. **Fill the `## Milestones` table** in the master plan.
-5. **Write each milestone detail file.** The orchestrator will pre-inline the milestone schema from decompose-criteria.md in your prompt. Every milestone must carry: Goal, "Why this is independently shippable", Upstream Dependencies, Files Affected table, Steps (same schema as plan-criteria.md), Acceptance Criteria, Verify Commands, Rollback, Status header.
+5. **Write each milestone detail file.** The orchestrator will pre-inline the milestone schema from plan-criteria.md in your prompt. Every milestone must carry: Goal, "Why this is independently shippable", Upstream Dependencies, Files Affected table, Steps (same schema as plan-criteria.md), Acceptance Criteria, Verify Commands, Rollback, Status header.
 6. **Write all files using the Write tool.** Do NOT return plans inline — the orchestrator reads them from disk.
 7. **Report back.** Return a 3-5 line summary: number of milestones, the Setup/Foundational/Feature/Polish skeleton used (or the custom shape + why), and any decisions that merit user attention.
 
@@ -338,7 +338,7 @@ Per design unit:
 
 **CONVENTIONS_BRIEF** — anchor patterns the implementer must mirror, captured with exemplar `file:line` references (not vague descriptions): naming, import order, error handling, test patterns, logging. Point at 1–2 concrete code exemplars per pattern.
 
-**Design Conventions** (when frontend files in scope) — a `DESIGN_CONVENTIONS` subsection inside the CONVENTIONS_BRIEF, consumed by the downstream frontend-agent so design isn't re-discovered every cycle. Capture with concrete snippets and `file:line` references:
+**Design Conventions** (when frontend files in scope) — a `DESIGN_CONVENTIONS` subsection inside the CONVENTIONS_BRIEF, consumed by the downstream implementer (typically `/geniro:implement` Phase 2) so design isn't re-discovered every cycle. Capture with concrete snippets and `file:line` references:
 
 1. **Tokens and theme location** — paths to `tailwind.config.*`, `theme.*`, `tokens.css`, CSS custom properties, design-system package imports. Quote 5–10 key tokens (primary color names, base spacing, default font).
 2. **Component library and primitives** — which library (shadcn / MUI / Chakra / Mantine / Radix / custom), where its primitives live, an example primitive import path.
