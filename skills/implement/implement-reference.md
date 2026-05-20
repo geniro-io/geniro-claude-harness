@@ -99,6 +99,14 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 **Parallel invocation:** all 5 (or fewer, on round N+1) spawns happen в ONE assistant response — multiple `Agent(...)` tool uses in the same message. Serial invocation doubles wall-time and the spec's design intent is parallelism.
 
+### Custom reviewer dimensions (`.geniro/instructions/review-extra/`)
+
+Round 1 only — before issuing the 5 built-in spawns, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored `review-extra/<slug>.md` files. The helper returns а list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing the ≤10 cap. Append one `Agent(subagent_type="reviewer-agent", ...)` call per spec to the SAME parallel batch as the 5 built-ins (one assistant turn, one parallel batch — same rule as `/review` Phase llm-spawn and `/refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs).
+
+Round N+1: re-fire а custom reviewer only if its prior round flagged а CRITICAL or HIGH finding (mirrors the failing-dim rule for built-ins). The custom reviewer's spawn-spec list is recomputed only on round 1; round N+1 reuses the round-1 spec cache.
+
+If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero matches after path filtering, this section is а silent no-op — the round proceeds with the 5 built-ins.
+
 ---
 
 ## Phase 3: Bounded fix loop (M4 §7.3)

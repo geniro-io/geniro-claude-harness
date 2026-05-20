@@ -458,8 +458,9 @@ spec/plan files remain direct Reads):"
 # failed (§6 last paragraph of Block 3). Spec.md and plan.md remain pointers.
 BLOCK2="- CLAUDE.md
 - .geniro/planning/_FEATURES.md
-- .geniro/instructions/global.md         (loader-routed, MODE: refresh)
-- .geniro/instructions/code-style.md     (loader-routed, MODE: refresh)"
+- .geniro/instructions/global.md            (loader-routed, MODE: refresh)
+- .geniro/instructions/code-style.md        (loader-routed, MODE: refresh)
+- .geniro/instructions/user-preferences.md  (loader-routed, MODE: refresh)"
 
 if [ -n "$active_skill" ]; then
   BLOCK2="$BLOCK2

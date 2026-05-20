@@ -15,7 +15,7 @@ argument-hint: "[task description | spec.md path | empty к resume | 'continue']
 
 1. **Analyze (Phase 1)** — semantic-parse `$ARGUMENTS`, resolve spec source (spec.md / plan.md / DESIGN_DOC frontmatter OR inline-task fallback), refresh L4+L3 memory, persist T2 handoffs к state.md.
 2. **Implement (Phase 2)** — single whole-feature edit batch; one end-of-phase test-suite run; bounded 3-retry fix loop on test failure → escalate-AUQ on exhaust.
-3. **Self-review + Ship (Phase 3)** — 5 reviewer-agents в parallel (bugs / security / architecture / tests / code-quality); bounded 3-round fix loop, round N+1 = failing dims only; on clean exit, ship sub-step (Pre-Ship Visual Verification if applicable, commit, ship-mode AUQ, L2/L3 writes, cleanup).
+3. **Self-review + Ship (Phase 3)** — 5 built-in reviewer-agents в parallel (bugs / security / architecture / tests / code-quality) + any custom dimensions discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, ≤10 cap, path-filtered); bounded 3-round fix loop, round N+1 = failing dims only; on clean exit, ship sub-step (Pre-Ship Visual Verification if applicable, commit, ship-mode AUQ, L2/L3 writes, cleanup).
 
 **Reference material** (templates, $ARGUMENTS-parse table, reviewer-agent spawn template, fix-loop, ship sub-step): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` AT each phase. Do NOT pre-load the entire file.
 
@@ -155,7 +155,7 @@ Phase 1 entry triggers four helper calls — three reads + one cross-layer proto
 3. `query-learnings` (L2) — see §L2 below.
 4. `resolve-conflicts` (L4/L3/L2 protocol) — see §Cross-layer conflict surfacing. Fires only if disagreement detected after the three reads.
 
-Phase 2 makes no new helper calls. Phase 3 entry re-fires `load-custom-instructions(MODE: refresh)`. Phase 3 fix-loop iterations may re-fire `query-learnings`. Phase 3 ship sub-step adds writes: `emit-learning` (L2), `update-semantic` (L3 bounded append), и `atomic_state_write` (T1 frontmatter `non-resumable-actions[]`).
+Phase 2 makes no new helper calls. Phase 3 entry re-fires `load-custom-instructions(MODE: refresh)` AND fires `load-custom-reviewers` once (round 1 only) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` — spawn-specs are appended to the parallel reviewer batch alongside the 5 built-ins. Phase 3 fix-loop iterations may re-fire `query-learnings`. Phase 3 ship sub-step adds writes: `emit-learning` (L2), `update-semantic` (L3 bounded append), и `atomic_state_write` (T1 frontmatter `non-resumable-actions[]`).
 
 ### L4 — Custom instructions (procedural)
 
