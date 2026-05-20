@@ -27,7 +27,7 @@ Bias hard toward **flow, architectural, and recurring-mistake** learnings — th
 
 ### When A2 (architectural-prevention) fires
 
-Tier A2 is the canonical capture for **post-mortem insights from `/geniro:debug` Step 8 and `/geniro:refactor` Phase 6** — situations where a confirmed root cause OR a surfaced refactor opportunity points to a *design change* that would prevent the *class* of issue. Unlike Tier A (which states an architectural rule), A2 names the specific design change as the prevention. Use the canonical vocabulary from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` (depth, seam, adapter, leverage, locality) to describe the change so multiple skills can recognize and apply it.
+Tier A2 is the canonical capture for **post-mortem insights from `/geniro:debug` §3.3 (M7 L2 auto-emit) and `/geniro:refactor` §8.5 (M8 L2 auto-emit)** — situations where a confirmed root cause OR a surfaced refactor opportunity points to a *design change* that would prevent the *class* of issue. Unlike Tier A (which states an architectural rule), A2 names the specific design change as the prevention. Use the canonical vocabulary from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` (depth, seam, adapter, leverage, locality) to describe the change so multiple skills can recognize and apply it.
 
 **Promotion to ADR:** if the prevention design meets the ADR criteria in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` (hard to reverse + surprising + genuine trade-offs), the learning entry SHOULD also propose an ADR. The two are not mutually exclusive: the learning is the searchable summary; the ADR is the durable record.
 
