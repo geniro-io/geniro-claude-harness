@@ -1,299 +1,239 @@
 ---
 name: geniro:setup
-description: "Use when starting on a new codebase or after vendoring/onboarding the plugin. Analyzes the repo, interviews you about conventions, and generates a tailored CLAUDE.md with detected tech stack, commands, and project rules."
+description: "Use when starting on а new codebase or after а major plugin update. Detects tech stack, interviews you about preferences, generates а thin-map CLAUDE.md + .geniro/instructions/user-preferences.md, и validates the result. Singleton bootstrap — one canonical state file."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
-argument-hint: "[optional: path to template directory]"
+argument-hint: "[optional: path к template directory] [--reset-prefs]"
 ---
 
 # Setup: AI-Driven Plugin Setup
 
-This skill uses AI to analyze your codebase, interview you about preferences, and generate tailored configuration files — specific to your project's language, framework, and conventions.
+M10a 4-phase loop: **Detect → Interview → Generate → Validate**. Turns an unfamiliar repository into а Geniro-ready project в one supervised run. **Singleton bootstrap** — one canonical state file at `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (no `<slug>/` subdir, no parallel runs). Supports `init` (first time) и `re-run` (refresh after stack changes). Uninstall is out of scope. Architecture spec: `architecture/M10a-setup-redesign.md`.
 
-## Subagent Model Tiering
-
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. Setup spawns subagents for verification and conflict-merge work. Those subagents must NOT inherit the orchestrator's model — they perform bounded, mechanical work and stay on `sonnet` (or `haiku` if a future spawn is purely rubric).
-
-**Skill-specific mapping:**
-
-| Spawn | Tier | Why |
-|---|---|---|
-| Verification agent (validate generated CLAUDE.md against codebase) | `sonnet` | Reads files, checks claims — reasoning but bounded |
-| Conflict resolution agent (merge existing CLAUDE.md with generated content) | `sonnet` | Pattern-matching merge with judgment calls |
-
-## Installation Model
-
-The **plugin** provides agents, skills, hooks, and review criteria globally. Your **project** gets only what needs to be project-specific: CLAUDE.md.
-
-**Plugin** (source — distributed via Claude Code marketplace, lives at `${CLAUDE_PLUGIN_ROOT}`):
-```
-geniro-claude-plugin/
-├── agents/               # Global — agents read CLAUDE.md for project context
-├── skills/               # Global — provided by plugin (including review criteria)
-├── hooks/                # Global — provided via hooks.json
-├── rules/                # Plugin-internal conventions (not copied to projects)
-└── settings.json         # StatusLine + permissions (global)
-```
-
-**Your project** (target — what actually gets committed):
-```
-your-project/
-├── CLAUDE.md                    # Enriched with tech stack, commands, conventions
-│
-└── .geniro/
-    ├── workflow/                 # Committed — integration configs (Linear, etc.)
-    ├── instructions/            # Committed — custom skill instructions (optional)
-    ├── planning/                # Git-ignored
-    ├── debug/                   # Git-ignored
-    └── knowledge/               # Git-ignored
-```
-
-**How to set up** (the user runs this in their project):
-1. Install the plugin
-2. Run `/geniro:setup` in Claude Code
-3. Commit: `git add CLAUDE.md && git commit -m 'chore: add geniro plugin config'`
-
-**To re-sync later:**
-1. Update the plugin: `claude plugin update geniro-claude-plugin@geniro-claude-harness` (or run `/geniro:update`)
-2. Run `/geniro:setup` in Claude Code — it analyzes your files against what would be generated and shows differences
+**Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than в `.geniro/docs/<topic>.md` (P-M10-3 split methodology).
 
 ## Path Constraints
 
-**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` character is NOT expanded by these tools — it creates a literal `~` directory in the working directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
+**NEVER use `~` in file paths passed к Read, Write, Edit, или Glob tools.** Use `${CLAUDE_PLUGIN_ROOT}` for plugin files или absolute paths for project files.
 
-Before doing anything else, resolve the user's Claude config directory. Honor `CLAUDE_CONFIG_DIR` so users with a relocated config dir resolve correctly — falling back to `$HOME/.claude` when unset:
+Resolve the user's Claude config dir once, honoring `CLAUDE_CONFIG_DIR`:
+
 ```bash
-echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-```
-Store the output as `$CLAUDE_USER_DIR` (e.g., `/Users/username/.claude` or `/custom/claude-config`). Use `$CLAUDE_USER_DIR` wherever you would otherwise have written `~/.claude` or `$HOME/.claude` — never `~`. The literal home directory (without the `.claude` suffix) is rarely needed; if you do need it, use `$HOME` directly inside bash blocks (which expands correctly), but never `~` in tool arguments.
-
-## Phase 0: Locate Template Source
-
-### Locate template files
-
-Find the template files using this priority order:
-
-1. **Plugin location**: Check `${CLAUDE_PLUGIN_ROOT}/agents/` exists
-   - If found: use `${CLAUDE_PLUGIN_ROOT}` as `$TEMPLATE_DIR` — this is the standard plugin installation path
-
-2. **Explicit argument**: If `$ARGUMENTS` contains a path -> verify it contains `agents/` directory
-
-Store the resolved path as `$TEMPLATE_DIR` for all subsequent phases.
-
-Also check for `.geniro/.geniro-state.json`:
-- If it exists -> read it. Store as `$GENIRO_STATE`. Its presence means a previous `/geniro:setup` completed successfully — this is an **update**, not a fresh install.
-- If it does not exist -> **fresh install**.
-
-Store the detected mode as `$INSTALL_MODE` (one of: `fresh`, `update`).
-
-If `$GENIRO_STATE` exists AND has `mode: "vendored"` at the top level, set `$VENDOR_MODE=true` and store the `vendor` block as `$VENDOR_STATE`. This branches Phase 1.4 routing: vendored installs use the **Vendored Mode Resync** flow below instead of Feature Sync. Otherwise, `$VENDOR_MODE=false`.
-
-## What Gets Written to Your Project
-
-**Written to project (committed):**
-- `CLAUDE.md` — enriched with tech stack, commands, conventions (with user permission)
-- `.geniro/workflow/*.md` — integration workflow files (Linear, etc.), created based on user choices
-- `.geniro/instructions/*.md` — custom skill instructions (optional, created based on user choices)
-
-**Not written (provided by plugin globally):**
-- All 13 agents (read CLAUDE.md for project context at runtime)
-- All skills (including review criteria)
-- All hooks (via plugin hooks.json)
-- StatusLine (in plugin settings.json)
-
-**Written to .geniro/ (git-ignored, not committed):**
-- `.geniro/planning/` — created empty, populated during /geniro:implement
-- `.geniro/state/debug/` — created empty, populated during /geniro:debug
-- `.geniro/knowledge/` — created empty, populated during /geniro:learnings
-
-## Phase 1: Codebase Analysis
-
-Scan the repository to gather objective facts. Do NOT ask the user for this — detect it.
-
-### 1.1 Language & Framework Detection
-
-Read these files to determine the tech stack:
-
-```
-package.json, package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb
-requirements.txt, pyproject.toml, setup.py, setup.cfg, Pipfile
-Cargo.toml, Cargo.lock
-go.mod, go.sum
-pom.xml, build.gradle, build.gradle.kts
-Gemfile, Gemfile.lock
-*.csproj, *.sln, Directory.Build.props
+CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 ```
 
-Detect:
-- **Language** (JavaScript/TypeScript, Python, Rust, Go, Java, Ruby, C#, etc.)
-- **Framework** (Next.js, Django, FastAPI, Express, Rails, Spring Boot, etc.)
-- **Package manager** (npm, yarn, pnpm, bun, pip, cargo, go, maven, gradle, bundler)
-- **ORM/database** (Prisma, SQLAlchemy, ActiveRecord, GORM, Diesel, TypeORM, etc.)
-- **Test runner** (Jest, Vitest, pytest, cargo test, go test, JUnit, RSpec, etc.)
-- **Linter/formatter** (ESLint, Prettier, Ruff, Black, Clippy, golangci-lint, RuboCop, etc.)
-- **Component library** (React, Vue, Angular, Svelte — if frontend exists)
-- **State management** (Redux, Zustand, Jotai, Pinia — if frontend exists)
-- **Styling** (Tailwind, styled-components, CSS Modules, SASS — if frontend exists)
-- **Design tokens** (Tailwind config tokens, CSS custom properties in `*.css`/`*.scss`, theme files, design-token packages — if frontend exists)
-- **Component library primitives** (shadcn/ui in `components/ui/`, MUI/Chakra/Mantine imports, custom primitive directories — if frontend exists)
-- **Spacing & type scale** (read from Tailwind config or theme file — if frontend exists)
-- **Design exemplars** (1-2 canonical existing components the frontend-agent should visually mirror — if frontend exists)
+## Subagent Model Tiering
 
-**Fallback:** If no language or framework can be detected (empty repo, documentation-only, or unsupported language), use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "I couldn't auto-detect your tech stack. What language and framework does this project use?" If the user says it's a new/empty project, proceed with CLAUDE.md generation only.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn passes `model=` explicitly.
 
-### 1.2 Validation Command Discovery
+| Spawn | Tier | Why |
+|---|---|---|
+| Verification agent (validate generated CLAUDE.md against codebase) | `sonnet` | Reads files, checks claims — reasoning но bounded |
+| Conflict resolution agent (re-run mode, merge existing CLAUDE.md с generated content) | `sonnet` | Pattern-matching merge with judgment calls |
 
-Three-source priority:
+## Loop invariants (M4 §2.2)
 
-1. **Explicit scripts** — Read `package.json` scripts, `Makefile` targets, `Taskfile.yml` tasks, `justfile` recipes
-2. **Config inference** — `tsconfig.json` implies `tsc --noEmit`, `pyproject.toml [tool.ruff]` implies `ruff check .`
-3. **Language defaults** — Fallback commands for the detected language
+1. One result per subagent call — Verification и Conflict-resolver each return one structured report.
+2. Args validated before exec — every Write к `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff в re-run mode.
+3. Permission before side-effect — Write к project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate.
+4. Bounded structured results — verification subagent output truncated at ~4K (M4 §2.3 escalation gate); over-long reports trigger AUQ.
+5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | re-run`.
+6. Observations not assumed success — every Bash command в Detect requires explicit observation parse, no silent skips.
+7. Errors as structured observations — Detect failures written к `## Errors` (M3 §6 Block 5b), not swallowed.
 
-Map each discovered command to these categories:
-- `build`, `test`, `lint`, `typecheck`, `format_fix`, `lint_fix`, `start`
-- `codegen`, `e2e`, `preflight`, `migrate`, `seed`
-- `test_affected` (optional) — incremental test command targeting only tests affected by the current diff (e.g., `npm test -- --findRelatedTests <files>` for Jest, `vitest --changed` for Vitest, `pytest --testmon` for pytest, `nx affected:test` for Nx, `go test ./<changed-pkg>/...` for Go). Detect from package.json scripts or test-runner config; if not discoverable, leave undefined and downstream agents fall back to `test`.
+`## Tool log` selective logging (M3 §6): record verification subagent spawns + every Write к project root or `.geniro/`. Skip routine Read/Bash inside Detect.
 
-### 1.3 Architecture & Convention Scan
+## Budgets — quality-first (M4 §2.3)
 
-Use Glob and Grep to detect:
-- **Directory structure** — `src/`, `lib/`, `app/`, `pages/`, `routes/`, `services/`, `models/`, `tests/`
-- **Architecture pattern** — Layered (routes -> services -> models), hexagonal, MVC, modular
-- **Naming conventions** — camelCase vs snake_case, file naming patterns
-- **Error handling** — Custom error classes, Result types, try/catch patterns
-- **Testing patterns** — Test file naming (`.test.ts`, `_test.go`, `test_*.py`), fixtures, mocks
-- **CI/CD** — `.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`
-- **Docker** — `Dockerfile`, `docker-compose.yml`
-- **Database** — Migration files, schema files, seed files
+`/setup` has **zero Class-A hard kill caps**. Aborting mid-bootstrap leaves the project в а half-configured state.
 
-### 1.4 Existing Configuration
+| Layer | Lever | Why |
+|---|---|---|
+| **Class-B escalation gates** | 3-retry validation loop → AUQ | Validation drift after 3 rounds means structural disagreement; surface к user |
+| | Verification report truncation at ~4K chars | Long reports inflate context без commensurate signal |
+| **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/setup` runs would race и corrupt `CLAUDE.md` |
+| **NOT capped** | Detect duration, Interview question count, total `Read`/`Bash`/`Glob` calls, total subagent spawns | Quality-first |
 
-Check for pre-existing configuration:
-- `.claude/` directory (existing plugin files)
-- `CLAUDE.md` (existing project instructions — preserve as-is, do not overwrite)
-- `.cursorrules`, `.windsurfrules` (offer to port)
-- `.github/copilot-instructions.md`, `.copilot/` (Copilot rules — offer to port)
-- `.continue/`, `.cody/` (Continue / Cody configs — read for project rules)
-- `AGENTS.md`, `.agents.md` (generic agent instructions — read for context)
-- `.editorconfig`, `.prettierrc`, `eslint.config.*`
+## ACI surface per phase (M4 §13.5)
 
-#### Issue tracker detection
+| Phase | Allowed tools | Forbidden tools |
+|---|---|---|
+| `detect` | `Read`, `Bash` (read-only: `git`, `find`, `grep`, `cat`), `Glob`, `Grep`, `Agent` | `Write`, `Edit`, mutating `Bash`, `mcp__github__*` |
+| `interview` | `AskUserQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
+| `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod) | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
+| `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent) | `Write`, `Edit` |
+| `done` (cleanup) | `Bash` (rm of state file) | everything else |
 
-Detect the project's issue tracker so Phase 2.3 can offer the right integration. Inspect (in order; first match wins):
+External sends are not part of `/setup` ACI. Users wire those via `/actions` if needed.
 
-1. **`git remote get-url origin`**:
-   - Contains `github.com` → tentative `github-issues` (most projects use it; confirm in Phase 2.3)
-   - Contains `gitlab.com` or `gitlab.<custom>` → tentative `gitlab-issues`
-   - Contains `bitbucket.org` → tentative `bitbucket-issues`
-   - Contains `git.<custom>` (self-hosted) → `unknown-self-hosted` — ask in Phase 2.3
-   - No remote / file remote → `none-detected`
-2. **Linear signals** (override #1 if present — many GitHub-hosted repos use Linear instead of Issues):
-   - `.linear/` directory exists
-   - `package.json` includes `@linear/sdk` or `@linear/codegen`
-   - `.geniro/workflow/linear.md` already present (re-install on existing project)
-3. **Jira signals** (override #1):
-   - `.jira/` directory exists
-   - any tracked file matches `*.jira.yml`, `jira-config.json`
-4. **GitHub Issues confirmation signals** (strengthen #1 → confirmed):
-   - `.github/ISSUE_TEMPLATE/` directory with templates
-   - PRs/commits reference `#123` issue numbers (sample `git log --oneline -50 | grep '#[0-9]'`)
-5. **GitLab Issues confirmation signals** (strengthen #1 → confirmed):
-   - `.gitlab/issue_templates/` directory with templates
+## Termination case → state mapping (M4 §2.1.1)
 
-Store the result as `$ISSUE_TRACKER` for Phase 2.3 (one of: `github-issues` / `gitlab-issues` / `bitbucket-issues` / `linear` / `jira` / `unknown-self-hosted` / `none-detected`). Strength values: `confirmed` (signals from step 4-5 fired), `tentative` (only step 1 fired), `none-detected` (no remote, no signals).
+| Cause | Phase enum on exit | `## Termination reason` body section |
+|---|---|---|
+| User aborted at Validate AUQ (rejected generated content) | `failed` | "user-aborted at Validate AUQ — generated content rejected; restart via re-run mode" |
+| Validation drift cleared after retry | `done` | not written (success path) |
+| Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort" |
+| Generation hit write-protection | `failed` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
+| Bootstrap completed без drift | `done` | not written |
 
-Route based on `$INSTALL_MODE` and `$VENDOR_MODE` detected in Phase 0:
+## Phase 0: Pre-flight
 
-- **`fresh`**: No existing plugin files. Continue to Phase 2 (User Interview) as normal.
-- **`update` + `$VENDOR_MODE=true`**: Vendored mode is active. Skip to the **Vendored Mode Resync** flow below — do NOT run the normal Feature Sync, and do NOT run Phases 2-3 unless the user explicitly opts into Full Re-run.
-- **`update` + `$VENDOR_MODE=false`**: Normal plugin-installed update. Skip to the **Re-Running Setup (Feature Sync)** flow below. Do NOT run Phases 2-3 unless the user chooses Full Re-run.
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: setup`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Echo contract requires one observable line.
 
-If `.claude/` exists but contains only non-template files (no `.geniro/.geniro-state.json`), run the **Existing File Conflict Resolution** process below before continuing to Phase 2.
+**Resolve `PRIMARY_ROOT`** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. `/setup` writes к `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (singleton — main worktree only, even when invoked from а linked worktree).
 
-If `.claude/` does NOT exist but `CLAUDE.md` exists at the project root, this is a hand-written instructions file (common). **Leave it untouched.** The rest of `.claude/` is installed normally as a fresh setup.
+## Phase 1: Detect
 
-### 1.5 Existing File Conflict Resolution
+### 1.1 Mode detect и state-file rehydration
 
-If `.claude/` exists but contains only non-template files, the user has pre-existing files from a different source. **Read `skills/setup/conflict-resolution.md` using the Read tool** and follow its instructions before continuing to Phase 2.
-
-### 1.6 Project Documentation & Knowledge Scan
-
-Scan existing project documentation to extract domain context, conventions, and project knowledge. This informs how rules and CLAUDE.md are tailored — tech stack detection alone is not enough.
-
-**Files to scan (read if they exist):**
+Deterministic resolution (no AUQ):
 
 ```
-# Project documentation
-README.md                           # Project purpose, architecture overview, setup
-CONTRIBUTING.md                     # Development workflow, PR process, conventions
-CONVENTIONS.md, CODING_STANDARDS.md # Explicit coding rules
-ARCHITECTURE.md                     # System design, component relationships (root-level)
-SECURITY.md                         # Security guidelines, threat model
-API.md, API_REFERENCE.md            # API patterns, versioning, auth model
-docs/architecture.md                # System design (docs/ subfolder variant)
-docs/adr/ or docs/decisions/        # Architecture Decision Records
-
-# API specifications (read structure, not full content — extract endpoints, auth, entities)
-openapi.yaml, openapi.json          # OpenAPI/Swagger specs
-swagger.yaml, swagger.json          # Swagger specs (legacy naming)
-asyncapi.yaml, asyncapi.json        # AsyncAPI specs for event-driven systems
-
-# Environment documentation
-.env.example, .env.sample           # Documents required env vars and their purpose
-
-# Existing AI tool instructions (read content for domain rules, not just detect presence)
-CLAUDE.md                           # Existing Claude instructions (read for context, don't overwrite)
-.cursorrules, .windsurfrules        # Cursor / Windsurf rules
-.github/copilot-instructions.md    # GitHub Copilot instructions
-.copilot/                           # Copilot workspace config
-AGENTS.md, .agents.md              # Generic agent instructions
-.continue/config.json               # Continue IDE config (may contain project rules)
-.cody/                              # Sourcegraph Cody config
-
-# GitHub/GitLab knowledge
-.github/pull_request_template.md    # Review expectations and checklist
-.github/ISSUE_TEMPLATE/             # Bug/feature templates (reveals project priorities)
-
-# Monorepo structure (if present — reveals workspace organization)
-turbo.json                          # Turborepo task pipelines and workspace config
-nx.json                             # Nx monorepo config
-pnpm-workspace.yaml                 # pnpm workspace definitions
-lerna.json                          # Lerna monorepo config
+if exists(<PRIMARY_ROOT>/.geniro/state/setup/state.md):
+  rehydrate via ${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh
+  if frontmatter.phase != "done":
+    resume from frontmatter.phase
+  else:
+    mode = re-run (а prior /setup completed; user is re-invoking)
+elif exists(CLAUDE.md) AND grep "<!-- geniro-setup-version:" CLAUDE.md:
+  mode = re-run (no state file, but generated marker present)
+else:
+  mode = init
 ```
 
-Also check `docs/` for any `*.md` files that describe domain concepts, API contracts, or data flows (Glob `docs/**/*.md`, read headers to identify relevant ones — don't read every file).
+Write `mode: init | re-run` к state frontmatter; persists across the run.
 
-**For API specs and monorepo configs:** Don't read the entire file — extract the structural knowledge (endpoint names, entity schemas, workspace layout). These files can be large; scan for the project-relevant context only.
+### 1.2 L2 prior-knowledge query
 
-**Extract and store as `$PROJECT_KNOWLEDGE`** (internal, used in Phase 3):
+After load-custom-instructions, query L2 (`.geniro/knowledge/learnings.jsonl`) per M2 §5.3 for prior `discovery` entries tagged `setup`:
 
-1. **Project purpose** — What does this project do? What domain is it in? (from README first paragraph)
-2. **Domain terms** — Key entities, concepts, and terminology specific to the business domain (e.g., "tenant", "workspace", "pipeline run", "invoice"). Sources: README, API specs (schema/model names), docs/
-3. **Architecture decisions** — Why things are built this way, constraints, trade-offs (from ADR, ARCHITECTURE.md, architecture docs)
-4. **Domain safety rules** — Business-critical constraints (e.g., "financial data must not leave EU", "never delete user data without audit trail", "Keycloak realm config is read-only"). Sources: SECURITY.md, .cursorrules, CLAUDE.md, docs/
-5. **Team conventions** — Workflow rules, PR process, review expectations, naming decisions beyond what code analysis reveals (from CONTRIBUTING, CONVENTIONS, .github/pull_request_template.md)
-6. **API contracts** — Key API patterns, versioning strategy, auth model, endpoint structure (from API.md, openapi.yaml/json, swagger specs)
-7. **Existing AI instructions** — Rules already established in CLAUDE.md, .cursorrules, .windsurfrules, .github/copilot-instructions.md, .continue config, .cody config, AGENTS.md (to avoid contradicting them)
-8. **Project structure** — Monorepo workspace layout, package boundaries, shared vs isolated modules (from turbo.json, nx.json, pnpm-workspace.yaml, lerna.json). Only relevant for multi-package repos.
-9. **Environment requirements** — Required env vars, external service dependencies, feature flags (from .env.example/.env.sample — extract variable names and comments, never values)
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh"
+query_learnings --type discovery --tag setup --limit 10
+```
 
-**What NOT to extract:** Raw code patterns (Phase 1.3 handles that), dependency lists (Phase 1.1 handles that), or command discovery (Phase 1.2 handles that).
+Surface в `## Phase log` as `Prior /setup runs: N (last: <timestamp>, stack: <stack>)`. If N ≥ 1, this is at least the 2nd `/setup` — useful context for Interview.
 
-**If no documentation exists:** That's fine — `$PROJECT_KNOWLEDGE` is empty and tailoring proceeds with tech stack info only. Don't ask the user to write docs.
+### 1.3 Locate plugin source
 
-## Phase 2: User Interview
+```bash
+TEMPLATE_DIR="${CLAUDE_PLUGIN_ROOT}"
+if [ -z "$TEMPLATE_DIR" ] || [ ! -d "$TEMPLATE_DIR/agents" ]; then
+  if [ -n "$ARGUMENTS" ] && [ -d "$ARGUMENTS/agents" ]; then
+    TEMPLATE_DIR="$ARGUMENTS"
+  else
+    echo "ERROR: cannot locate plugin source. \${CLAUDE_PLUGIN_ROOT} unset и no \$ARGUMENTS fallback." >&2
+    # → Phase Failed, ## Errors row
+    exit 1
+  fi
+fi
+```
 
-Use the `AskUserQuestion` tool for each question. Ask only what can't be auto-detected.
+Resolved path written к state frontmatter `template_dir:`.
 
-### 2.1 Confirm Detection (single question)
+### 1.4 Codebase scan (Evidence Block per M4 §6)
 
-Present what was detected and ask for confirmation:
+Detect via **lockfile / config presence**, NOT inference:
+
+| Stack signal | Evidence file(s) | Captured |
+|---|---|---|
+| Node/npm | `package.json` + `package-lock.json` | `pkg_mgr: npm`, `lang: node`, `scripts: {...}` |
+| Node/yarn | `package.json` + `yarn.lock` | `pkg_mgr: yarn` |
+| Node/pnpm | `package.json` + `pnpm-lock.yaml` | `pkg_mgr: pnpm` |
+| Node/bun | `package.json` + `bun.lockb` | `pkg_mgr: bun` |
+| Python/uv | `pyproject.toml` + `uv.lock` | `pkg_mgr: uv`, `lang: python` |
+| Python/poetry | `pyproject.toml` + `poetry.lock` | `pkg_mgr: poetry` |
+| Python/pip | `requirements.txt` | `pkg_mgr: pip` |
+| Rust | `Cargo.toml` + `Cargo.lock` | `lang: rust` |
+| Go | `go.mod` + `go.sum` | `lang: go` |
+| Ruby | `Gemfile` + `Gemfile.lock` | `lang: ruby` |
+| Java | `pom.xml`, `build.gradle*` | `lang: java` |
+
+Each detection records `{ file: <path>, line: <N>, snippet: "<exact text>" }`. No inference without evidence — if `package.json` exists но no lockfile, `pkg_mgr: unknown` (Interview asks).
+
+**Conventions detected** (read-only — never inferred from heuristic, only from explicit config):
+
+- ESLint config → naming/formatting hints
+- Prettier config → style hints
+- `.editorconfig` → indentation rules
+- `tsconfig.json` / `jsconfig.json` → module resolution
+- Test runner: `jest.config.*`, `vitest.config.*`, `pytest.ini`, etc.
+
+**Existing AI tool instructions** (read для domain rules, not just detect presence):
+
+- `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`, `.continue/config.json`, `.cody/`, `AGENTS.md`, `.agents.md`
+
+**Project documentation scan** (extract domain context):
+
+- `README.md`, `CONTRIBUTING.md`, `CONVENTIONS.md`, `ARCHITECTURE.md`, `SECURITY.md`, `API.md`, `docs/architecture.md`, `docs/adr/`, `docs/decisions/`
+- API specs: `openapi.{yaml,json}`, `swagger.{yaml,json}`, `asyncapi.{yaml,json}` (extract endpoints/auth/entities — not full content)
+- Env docs: `.env.example`, `.env.sample` (variable names и comments; never values)
+- GitHub knowledge: `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/`
+- Monorepo structure: `turbo.json`, `nx.json`, `pnpm-workspace.yaml`, `lerna.json`
+
+Store as `$PROJECT_KNOWLEDGE` для Phase 3.
+
+### 1.5 Skill inventory
+
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/marketplace.json` (или `plugin.json`). Extract the canonical 11-skill list:
+
+```yaml
+skill_inventory:
+  - {slug: implement, purpose: "Spec-driven implementation (M4)"}
+  - {slug: plan, purpose: "Spec-first planning (M5)"}
+  - {slug: review, purpose: "Multi-dim code review (M6)"}
+  - {slug: debug, purpose: "Scientific-method investigation (M7)"}
+  - {slug: refactor, purpose: "Zero-behavior-change restructuring (M8)"}
+  - {slug: onboard, purpose: "Codebase mapping (M9)"}
+  - {slug: investigate, purpose: "Codebase Q&A (M9)"}
+  - {slug: instructions, purpose: "L4 rules CRUD (M10b)"}
+  - {slug: actions, purpose: "Workflow-helper CRUD + runner (M10c)"}
+  - {slug: setup, purpose: "Project bootstrap (M10a)"}
+  - {slug: update, purpose: "Plugin update + integrity check (M10d)"}
+```
+
+If marketplace.json read fails, fallback к the hardcoded list above. **The 8 deleted skills** (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) MUST NOT appear in generated CLAUDE.md — they were dropped per master plan §60.
+
+### 1.6 Detect output
+
+All §1.3-§1.5 results land в state frontmatter `detected:` block. Phase log captures one summary line:
+
+```
+[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=11, evidence_count=14
+```
+
+Transition к Phase 2.
+
+## Phase 2: Interview
+
+### 2.1 Approvals precheck (P-M1-1)
+
+Before opening any AUQ, read state frontmatter `approvals[]`. For each AUQ slot, check `category == <slot-name>`:
+
+- If present и `picked != null` → reuse the prior answer; emit `## Phase log` line: "Reused prior answer for `<slot>`: `<picked>` (asked_in_phase: `<phase>`)". **No re-ask.**
+- If absent → ask via `AskUserQuestion`; on answer, append к `approvals[]`.
+
+Categories registered для `/setup`:
+
+| Category | Asked at | Trigger к re-ask |
+|---|---|---|
+| `ship_mode_default` | 2.3 Step 2 | Re-run mode AND `--reset-prefs` flag passed |
+| `default_branch` | 2.3 Step 1 | Not git repo at first run, then `git init` happens, then re-run |
+| `default_reviewer_set` | 2.3 Step 3 | `--reset-prefs` flag |
+| `communication_style` | 2.3 Step 4 | `--reset-prefs` flag |
+| `claude_md_section_<id>` | Phase 3 Step 3 (per long section) | Section >40 LOC AND not previously decided |
+
+`--reset-prefs` flag clears ONLY the preference-category subset (`ship_mode_default`, `default_branch`, `default_reviewer_set`, `communication_style`); leaves `claude_md_section_*` alone.
+
+### 2.2 Confirm detection
+
+Present what was detected:
 
 ```
 I analyzed your codebase. Here's what I found:
 
-Tech Stack: TypeScript . Next.js . Prisma . React . Zustand . Tailwind CSS
+Tech Stack: TypeScript . Next.js . Prisma . React . Tailwind CSS
 Package Manager: pnpm
 Test Runner: Vitest
 Linter: ESLint + Prettier
@@ -303,567 +243,467 @@ Validation Commands:
   test:        pnpm run test
   lint:        pnpm run lint
   typecheck:   pnpm exec tsc --noEmit
-  format_fix:  pnpm run format:fix
 
 From project documentation:
-  Project: Multi-tenant SaaS platform for project management
+  Project: Multi-tenant SaaS platform
   Domain entities: Tenants, Workspaces, Projects, Members
-  Safety rules: Tenant isolation in all queries, PII encrypted at rest
-  Architecture: Event-driven between services, REST API v2
-  API: 42 endpoints via OpenAPI spec, JWT auth, v2 versioning
-  Structure: Monorepo — 3 packages (api, web, shared)
-  Env vars: 12 required (DB, Redis, S3, auth provider)
-  AI rules: Ported from .cursorrules (8 rules), .github/copilot-instructions.md
-  (Source: README.md, docs/architecture.md, CONTRIBUTING.md, openapi.yaml, turbo.json, .env.example)
+  Architecture: Event-driven между services, REST API v2
+  (Source: README.md, docs/architecture.md, openapi.yaml, turbo.json)
 
-Is this correct, or do you want to adjust anything?
+Is this correct, or want к adjust?
 ```
 
-If `$PROJECT_KNOWLEDGE` is empty (no docs found), omit the "From project documentation" section entirely.
+If `$PROJECT_KNOWLEDGE` is empty, omit the "From project documentation" section.
 
-Options: "Looks correct" / "I need to adjust some things"
+AUQ options: `Looks correct` / `Adjust some things`. If adjust, ask specifically what к change.
 
-If adjusting, ask specifically what to change.
+### 2.3 Question batches (max 2 batches)
 
-### 2.2 Team Conventions (only if not detectable)
+**Batch 1 — preferences** (always asked unless `approvals[]` cache hit):
 
-Ask about conventions that can't be auto-detected from code:
-
-**Architecture pattern** (only if ambiguous from directory structure):
-```
-I see a src/ directory with routes/, services/, and models/. Which best describes your architecture?
-
-A) Layered — routes -> services -> models (most common)
-B) Hexagonal — ports & adapters with clear domain boundaries
-C) Feature-based — grouped by feature/domain, not layer
-D) Other — I'll describe it
-```
-
-**Error handling** (only if no clear pattern detected):
-```
-How does your project handle errors?
-
-A) Throw/catch with custom error classes
-B) Result/Either types (never throw)
-C) Error codes / status objects
-D) Mixed / no clear pattern yet
-```
-
-**Frontend design anchors** (only if frontend exists): ask for (a) 1-3 named exemplar component files the frontend-agent should visually mirror, and (b) opt-in aesthetic direction for greenfield work (e.g., "minimal/editorial") or "stay on universal baseline" if the project is already matured.
-
-### 2.3 Optional Integrations — Issue Tracker
-
-Use the `AskUserQuestion` tool with header "Tracker" to ask which issue tracker the project uses (the recommended default reflects the `$ISSUE_TRACKER` value detected in Phase 1.4):
-
-| Detected ($ISSUE_TRACKER) | Recommended-first option | Other options |
+| Slot | Question | Options |
 |---|---|---|
-| `linear` | "Linear (Recommended — detected)" | GitHub Issues / Skip / GitLab Issues |
-| `github-issues` confirmed | "GitHub Issues (Recommended — detected via .github/ISSUE_TEMPLATE/)" | Linear / Skip / GitLab Issues |
-| `gitlab-issues` confirmed | "GitLab Issues (Recommended — detected via .gitlab/issue_templates/)" | GitHub Issues / Linear / Skip |
-| `github-issues` tentative (remote only) | "GitHub Issues (Recommended — based on git remote)" | Linear / Skip / GitLab Issues |
-| `gitlab-issues` tentative | "GitLab Issues (Recommended)" | Linear / GitHub Issues / Skip |
-| `jira` | "Jira (detected, no built-in workflow yet)" | GitHub Issues / Linear / Skip |
-| `bitbucket-issues` | "Bitbucket Issues (detected, no built-in workflow yet)" | GitHub Issues / Linear / Skip |
-| `unknown-self-hosted` | "Pick one" — no recommendation; show GitHub Issues / GitLab Issues / Linear / Skip evenly |
-| `none-detected` | "Skip — no tracker (Recommended)" | GitHub Issues / GitLab Issues / Linear |
+| `default_branch` | Default branch для PRs? | `main`, `master`, `develop`, `Other (free-text)` |
+| `ship_mode_default` | Default ship mode in `/implement`? | `commit-only`, `push (no PR)`, `open PR (draft)`, `open PR (ready)` |
+| `default_reviewer_set` | Which built-in reviewers default-on? | `full set (7 dimensions)`, `bugs+security+tests`, `custom` |
+| `communication_style` | Reply style для Geniro skills? | `concise (default)`, `verbose (more rationale)`, `minimal (results-only)` |
 
-Question text: "Which issue tracker does this project use? The integration adds a workflow file to `.geniro/workflow/` that adapts skill behavior — issue-ID detection in `$ARGUMENTS`, fetching issue context, posting AI-disclosure-prefixed comments, linking commits, and (for `/geniro:features triage`) updating triage state on the external issue."
+**Batch 2 — codebase confirmations** (only if Detect was ambiguous):
 
-**Per-tracker behavior on selection:**
+E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package manager?" Skip Batch 2 entirely if no ambiguity.
 
-- **Linear** → install `.geniro/workflow/linear.md` from `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md`; instruct user to run `claude mcp add --transport http linear https://mcp.linear.app/mcp`.
-- **GitHub Issues** → install `.geniro/workflow/github-issues.md` from `${CLAUDE_SKILL_DIR}/workflow-templates/github-issues.md` if the template exists; if not, write a stub file with TODO sections matching the linear.md structure (Argument Detection, Fetching Issue Context, Status Transitions, AI-Disclosure Prefix, Commit Message Format, PR Description) and note "GitHub Issues integration is partial — workflow file is a stub; please customize for your team's labeling conventions."
-- **GitLab Issues** → same as GitHub Issues, write a stub if no template.
-- **Jira / Bitbucket Issues** → no built-in workflow file; report "No built-in workflow for this tracker. You can author one at `.geniro/workflow/<tracker>.md` using `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md` as a structural example." Skip integration without blocking setup.
-- **Skip** → no workflow file written.
+### 2.4 Optional integrations — issue tracker
 
-Store the user's selection as `$ISSUE_TRACKER_CHOICE` for Phase 3.2 file generation.
+Use `AskUserQuestion` header "Tracker" — recommended default reflects `$ISSUE_TRACKER` detected в §1.4:
 
-### 2.4 Custom Instructions
+- Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) preserved verbatim from current skill — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates.
+- On selection, install `.geniro/workflow/<tracker>.md` from template (или stub for non-Linear). All workflow files MUST include AI-Disclosure Prefix section.
 
-Use the `AskUserQuestion` tool to ask:
+Store as `$ISSUE_TRACKER_CHOICE` для Phase 3.
 
-```
-Would you like to create a custom instructions file?
+### 2.5 Custom instructions
 
-Custom instructions let you add project-specific rules and steps that modify how all skills behave — like "always update documentation" or "always run E2E tests before shipping". You can edit .geniro/instructions/global.md anytime.
-```
+AUQ: "Create а custom `.geniro/instructions/global.md` for project-wide workflow rules?" Default: no (avoid clutter). Users can run `/geniro:instructions create global` later.
 
-Options: "Create instructions file" / "Skip for now"
+Transition к Phase 3.
 
-### 2.5 Component Summary
+## Phase 3: Generate
 
-**What setup writes to the project:**
-- `CLAUDE.md` — enriched with detected tech stack, validation commands, and conventions (with your permission)
+### 3.1 Pre-write existing-content audit (re-run only)
 
-All agents, skills, hooks, and review criteria are provided globally by the plugin — nothing is copied to the project.
+If `mode == re-run`:
 
-**If no frontend framework was detected**, frontend-related context is omitted from CLAUDE.md.
+1. Read existing `CLAUDE.md`. Compute diff against the к-be-generated body (§3.2 output).
+2. For each section с `<!-- geniro-setup-managed -->` HTML comment marker, mark for replacement.
+3. Sections без the marker = user-edited → spawn **conflict-resolution agent** (`architect-agent`, `model: sonnet`, `tools: [Read, Edit]` constrained к `CLAUDE.md` only) per the §3.5 prompt template.
+4. Agent returns а merged body. Display diff к user; AUQ if diff is non-trivial.
 
-## Phase 3: Generate Files
+If `mode == init`: skip §3.1.
 
-### 3.1 CLAUDE.md Generation
+### 3.2 CLAUDE.md generation — split methodology (P-M10-3 closure)
 
-Use the `AskUserQuestion` tool (do NOT output options as plain text) to ask the user:
+Generated CLAUDE.md body is assembled from candidate sections, each classified by LOC count и content type:
 
-```
-Should I create/enrich your CLAUDE.md with the detected project context?
+| Section | Default LOC | Default classification |
+|---|---|---|
+| Header (project name + 1-line purpose) | ~5 | **inline** (always) |
+| Getting Started (3-5 lines) | ~5 | **inline** (always) |
+| Skill table (slug → 1-line purpose, 11 rows) | ~15 | **inline** (always) |
+| Path rules (~6 lines on `~` expansion) | ~10 | **inline** (always) |
+| User Preferences (1-line reference) | ~3 | **inline** (always) |
+| Safety hooks summary (1 line: "Hooks active — see `.geniro/docs/hooks.md`") | ~2 | **inline** (always) |
+| Safety hooks full allowlist details | ~80 | **spin out** к `.geniro/docs/hooks.md` (default) |
+| Optional MCP Dependencies table | ~30 | **AUQ-gated** — defaults к `spin out` к `.geniro/docs/mcp.md` |
+| Custom Agent Invocation ladder | ~25 | **AUQ-gated** — defaults к `spin out` к `.geniro/docs/agent-runtime.md` |
+| Updating instructions (1 line ref к `/update`) | ~5 | **inline** (always) |
+| Tech stack summary (Detect output) | ~10-30 | **inline** (always — project-specific) |
+| Commands (npm scripts / make targets / pyproject scripts) | ~10-30 | **inline** (always — project-specific) |
+| Project conventions (from `code-style.md` if exists) | varies | **inline** (always — project-specific) |
 
-A) Yes, create CLAUDE.md
-B) Enrich existing CLAUDE.md (add missing sections only)
-C) Skip — I'll maintain CLAUDE.md myself
-```
-
-If user skips: proceed without CLAUDE.md generation.
-
-If user approves creation or enrichment:
-
-Read `${CLAUDE_SKILL_DIR}/reference/CLAUDE.md.example` as a structural guide. Generate the CLAUDE.md content (do NOT write to disk yet) that includes:
-
-1. **Project Overview** — Brief description from README/docs
-2. **Tech Stack** — All detected technologies (language, framework, ORM, etc.)
-3. **Essential Commands** — All validation commands discovered in Phase 1.2 (build, test, test_affected (optional — incremental test command for diff-aware runs, e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`, `go test ./<changed-pkg>/...`; when defined, `/geniro:implement` and `/geniro:follow-up` agents use it for per-WU/per-step Verify steps and fall back to `test` otherwise), lint, typecheck, format_fix, lint_fix, start, codegen, etc.)
-4. **Architecture** — Detected patterns (layered, hexagonal, etc.), directory structure
-5. **Conventions** — From $PROJECT_KNOWLEDGE: naming, error handling, PR process
-6. **Domain Context** — From $PROJECT_KNOWLEDGE: key entities, safety rules, API patterns
-
-If enriching existing CLAUDE.md: read the existing file, identify what's already covered, only add missing sections. Never overwrite existing content.
-
-**Preview step:** Display the full generated CLAUDE.md content to the user inside a markdown code block so they can review exactly what will be written.
-
-Then use the `AskUserQuestion` tool to ask:
+**Split heuristic** (default suggestion when AUQ fires):
 
 ```
-Here's the generated CLAUDE.md. How should I proceed?
-
-A) Looks good — write it
-B) I want to adjust some things
-C) Skip — I'll write it myself
+if section.is_plugin_global (same across all Geniro projects):
+  if LOC > 40: default = spin out
+  else:        default = inline
+else:  # project-specific
+  default = inline  (project-specific content always inline)
 ```
 
-- If **A) write it**: write the content to disk.
-- If **B) adjust**: ask the user what they want to change, apply the requested changes, show the updated preview in a code block, and ask again with the same A/B/C question. Repeat until the user selects A or C.
-- If **C) skip**: proceed without writing.
+### 3.3 Section-by-section AUQ (per Q3)
 
-### 3.2 Create Workflow Files (if integrations selected)
+For each candidate flagged "AUQ-gated" или "spin out (default)", emit one AUQ:
 
-Based on `$ISSUE_TRACKER_CHOICE` from Phase 2.3:
+- **Approvals precheck:** category = `claude_md_section_<section-id>`. If `picked != null` → reuse.
+- **AUQ options (≤4):** `inline (keep verbose section в CLAUDE.md)` / `spin out (move к .geniro/docs/<topic>.md, CLAUDE.md gets 1-line ref)` / `drop entirely (project doesn't use this feature)`. Recommended option (per heuristic) is first.
 
-**Linear:**
-1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/linear.md`
-2. Copy it to `.geniro/workflow/linear.md` (create the directory if needed: `mkdir -p .geniro/workflow`)
-3. Inform the user to run: `claude mcp add --transport http linear https://mcp.linear.app/mcp`
+To stay under the 4-AUQ-per-call budget, batch section AUQs в groups of 4. Typical run with `hooks-details + mcp + agent-runtime` is one AUQ call.
 
-**GitHub Issues:**
-1. Check for `${CLAUDE_SKILL_DIR}/workflow-templates/github-issues.md`. If present, copy it to `.geniro/workflow/github-issues.md`.
-2. If absent, write a stub file at `.geniro/workflow/github-issues.md` with the same section headings as linear.md (Argument Detection, Fetching Issue Context, Status Transitions, AI-Disclosure Prefix, Commit Message Format, PR Description) and TODO placeholders for each section. Add a header note: "Stub file — please populate with your team's GitHub Issues conventions. See `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` for the structural example."
-3. Inform the user: "GitHub Issues integration installed as a stub. The `gh` CLI is the recommended interface; no MCP setup needed."
+### 3.4 Write targets
 
-**GitLab Issues:**
-1. Same pattern as GitHub Issues but for `gitlab-issues.md`.
-2. Inform the user: "GitLab Issues integration installed as a stub. The `glab` CLI is the recommended interface; no MCP setup needed."
+After AUQ resolution:
 
-**Skip / Jira / Bitbucket / unsupported:** no workflow file written.
+- `<PROJECT_ROOT>/CLAUDE.md` — inline sections only; section markers (`<!-- geniro-setup-managed -->` / `<!-- geniro-setup-end -->`) wrap each generated section для re-run safety.
+- `<PROJECT_ROOT>/.geniro/docs/hooks.md` (if spun out) — from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/docs-templates/hooks.md`.
+- `<PROJECT_ROOT>/.geniro/docs/mcp.md` (if spun out) — same pattern.
+- `<PROJECT_ROOT>/.geniro/docs/agent-runtime.md` (if spun out) — same pattern.
+- `<PROJECT_ROOT>/.geniro/instructions/user-preferences.md` — per §3.6 (always created).
+- `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in §2.5.
+- `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per §2.4.
+- `<PROJECT_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`).
 
-Future integrations follow the same pattern: read from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md` if present, otherwise write a stub. All workflow files MUST include the AI-Disclosure Prefix section so `/geniro:features triage` and `/geniro:implement` know what prefix to use when posting tracker comments.
+All Writes AUQ-gated at **batch level** (one AUQ "Generate all of: CLAUDE.md (X lines), .geniro/instructions/user-preferences.md (Y lines), ...? Options: yes / show preview first / edit which files").
 
-**Custom Instructions:**
-If the user chose to create custom instructions in Phase 2.4:
-1. Read the template from `${CLAUDE_SKILL_DIR}/workflow-templates/instructions-template.md`
-2. Copy it to `.geniro/instructions/global.md` (create the directory if needed: `mkdir -p .geniro/instructions`)
-3. Inform the user they can edit `.geniro/instructions/global.md` anytime, or create per-skill files like `.geniro/instructions/implement.md`
+### 3.5 Conflict-resolution agent prompt (re-run only)
 
-### 3.3 Install StatusLine
+For each user-edited section в re-run mode:
 
-Copy the statusline script to a stable location and configure it in user settings. This ensures the statusline works across all projects and survives plugin version updates.
+```
+You are merging two versions of а CLAUDE.md section. The plugin generated NEW_CONTENT
+based on а fresh codebase scan; the user has EDITED_CONTENT в their existing CLAUDE.md.
+
+NEW_CONTENT (auto-generated):
+<...>
+
+EDITED_CONTENT (user-modified):
+<...>
+
+Rules:
+1. Preserve all user customizations from EDITED_CONTENT.
+2. Apply any factual updates from NEW_CONTENT (e.g., new commands detected).
+3. If conflict (same statement contradicted), emit `<!-- CONFLICT: ... -->` HTML comment с both versions; do not pick а side.
+4. Output ONLY the merged section body. No prose, no explanation outside the merged content itself.
+
+Tools: Read, Edit (constrained к CLAUDE.md only).
+Model: sonnet.
+```
+
+Output appended к `## Tool log` as one `merge_section spawn` entry (M3 §6 selective logging).
+
+### 3.6 user-preferences.md generation (P-M2-1 closure)
+
+ALL preferences captured в §2.3 Batch 1 land в `<PROJECT_ROOT>/.geniro/instructions/user-preferences.md` (Q8 — L4 procedural). Format:
+
+```markdown
+# User Preferences
+
+## Rules
+
+- **Default branch:** `main`
+- **Default ship mode:** `open PR (draft)` — `/implement` Phase Ship pre-selects this option.
+- **Default reviewer set:** full (7 built-in dimensions).
+- **Communication style:** concise.
+
+## Loaded by
+
+Every Geniro pipeline + discovery skill at Step 0 (initial-load) и at each phase-boundary refresh via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`. Edit via `/geniro:instructions edit user-preferences`.
+```
+
+CLAUDE.md `## User Preferences` section becomes а 1-line reference:
+
+```markdown
+## User Preferences
+
+See `.geniro/instructions/user-preferences.md`. Loaded automatically by every Geniro pipeline skill.
+```
+
+### 3.7 Runtime directories + gitignore
 
 ```bash
-# Resolve Claude config dir, honoring CLAUDE_CONFIG_DIR (never use ~)
-CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+mkdir -p .geniro/workflow .geniro/instructions .geniro/planning .geniro/knowledge
 
-# Copy statusline script to stable path under the active config dir
+# .gitignore — only write if file exists и doesn't already cover these (never create from scratch)
+if [ -f .gitignore ]; then
+  grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
+  grep -q "^\!\.geniro/$" .gitignore 2>/dev/null || echo "!.geniro/" >> .gitignore
+  grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
+  grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
+  grep -q "^\!\.geniro/instructions/$" .gitignore 2>/dev/null || echo "!.geniro/instructions/" >> .gitignore
+  grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/instructions/**" >> .gitignore
+fi
+```
+
+### 3.8 Install StatusLine (preserved from current skill)
+
+Copy statusline script к stable location и configure user settings:
+
+```bash
 mkdir -p "$CLAUDE_USER_DIR/hooks"
 cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js" "$CLAUDE_USER_DIR/hooks/geniro-statusline.js"
 ```
 
-Then check if `$CLAUDE_USER_DIR/settings.json` already has a `statusLine` entry. If not, add one:
-```json
-"statusLine": {
-  "type": "command",
-  "command": "node \"$CLAUDE_USER_DIR/hooks/geniro-statusline.js\""
-}
+Check `$CLAUDE_USER_DIR/settings.json` for а `statusLine` entry. If absent, add one pointing к `<config-dir>/hooks/geniro-statusline.js`. If present и points к something else, ask the user before replacing.
+
+Transition к Phase 4.
+
+## Phase 4: Validate
+
+### 4.1 Verification subagent spawn
+
+```
+Agent(
+  subagent_type=<resolved-rung>,  # via _shared/spawn-agent.md ladder
+  model="sonnet",
+  tools=["Read", "Bash", "Glob", "Grep"],  # NO Write/Edit per §ACI
+  prompt="""
+    Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
+
+    Checklist:
+    1. Every command в the `## Commands` section runs locally (try `bash -n` syntax check; do not execute).
+    2. Every claimed file path в `## Tech Stack` exists.
+    3. Skill table lists exactly 11 skills; no references к dropped skills (/brainstorm, /decompose, /follow-up, /deep-simplify, /features, /learnings, /cleanup, /vendor).
+    4. Path rules section warns against `~` literal.
+    5. User Preferences section is а 1-line reference, NOT inlined preferences.
+    6. Hooks summary line points к `.geniro/docs/hooks.md` if that file exists, else inlines (consistency check).
+    7. Template variable residue grep: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`, `customize this`, `replace with`, `fill in`.
+    8. Stack contamination check: ONLY the detected language/framework appears; no wrong-language commands or code blocks; no multi-framework lists.
+
+    Output а markdown report:
+    ## PASS items (one per line)
+    ## DRIFT items (one per line with file:line)
+
+    Tools allowed: Read, Bash (read-only), Glob, Grep. Do NOT mutate any file.
+    Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT).
+
+    Anchor: stay within current cwd; verify с `pwd && git branch --show-current` on first Bash call.
+  """
+)
 ```
 
-Use the actual resolved `$CLAUDE_USER_DIR` path in the JSON (e.g., `/Users/username/.claude` or the user's relocated config dir), not the variable.
+### 4.2 3-retry escalation loop (P-M4-3 Class-B gate)
 
-If a `statusLine` entry already exists and points to `geniro-statusline.js`, leave it. If it points to something else, ask the user before replacing.
+| Round | Action |
+|---|---|
+| 1 | Spawn subagent. If `DRIFT items` empty → transition к Phase Done. Else → regenerate affected sections (jump back к Phase 3 для those sections only). |
+| 2 | Re-spawn subagent. Same logic. |
+| 3 | Re-spawn subagent. Same logic. |
+| 4 | **AUQ escalation:** `accept-with-warnings (proceed к done, drift documented в ## Open Questions) | abort (transition к failed) | re-run from Detect`. |
 
-### 3.4 Create Runtime Directories
+`## Open Questions` (M3 §6 Block 5c) accumulates DRIFT items across rounds — survives compaction.
+
+### 4.3 L2 emit on successful Validate (D9 closure)
+
+Per M2 §5.3 — emit one L2 `discovery` row on transition к DONE (auto-replaces dropped `/learnings`):
 
 ```bash
-mkdir -p .geniro/workflow .geniro/instructions .geniro/planning .geniro/debug .geniro/knowledge
-```
-
-## Phase 4: Verify, Track & Report
-
-### 4.1 Verify Generated Files
-
-**Formatting checks:**
-- All generated files are valid markdown (no broken formatting, unclosed code blocks)
-- No `{{placeholder}}` or `{{PLACEHOLDER}}` patterns remain in ANY generated file
-- CLAUDE.md has no placeholder text
-
-**Read `skills/setup/verification-checks.md` using the Read tool** and run all verification checks against the generated files.
-
-### 4.2 Independent Verification Agent
-
-After the orchestrator's own checks (4.1), spawn a **separate subagent** for an independent, comprehensive review of all generated files. A fresh agent catches issues the orchestrator is blind to — it didn't generate the files, so it has no anchoring bias.
-
-**Spawn the verification agent:**
-
-```
-Agent(prompt="""
-You are verifying a freshly generated geniro plugin configuration. Your job: find every
-residual issue the setup process missed. You did NOT generate these files — review
-them with fresh eyes.
-
-DETECTED STACK: [language, framework, ORM, test runner, linter]
-PROJECT ROOT: [path]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-
-## What to check
-
-Read CLAUDE.md and verify:
-
-### 1. Template Variable Residue
-Grep CLAUDE.md for these patterns:
-- `{{` and `}}` — unreplaced template variables
-- `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `$BOOTSTRAPPED` — internal setup variables leaked
-- `PLACEHOLDER`, `TODO`, `FIXME` — unfinished markers
-- `customize this`, `replace with`, `fill in` — template instructions left behind
-
-### 2. Path Correctness
-For every file path referenced inside CLAUDE.md:
-- Verify the referenced file actually exists (Glob or ls)
-- Check relative vs absolute paths are appropriate
-- Verify `${CLAUDE_PLUGIN_ROOT}` references are valid plugin paths
-
-### 3. Stack Contamination
-For CLAUDE.md:
-- Verify ONLY the detected language/framework appears
-- No wrong-language commands (e.g., `npm` in a Python project)
-- No wrong-language code blocks (e.g., ```typescript in a Python project)
-- No multi-framework lists like "(Django, Rails, FastAPI)" — file must be specific
-
-## Output Format
-
-Return a structured report:
-
-PASSED CHECKS: [list of check categories that passed cleanly]
-
-ISSUES FOUND:
-- [CRITICAL] <file>: <description> — must fix before committing
-- [WARNING] <file>: <description> — should fix, not blocking
-- [INFO] <file>: <description> — minor, optional fix
-
-If no issues found, return: "ALL CHECKS PASSED — configuration is ready to commit."
-
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""", description="Verify setup output", model="sonnet")
-```
-
-**Route based on results:**
-- **ALL PASSED** -> proceed to 4.3
-- **CRITICAL issues** -> fix them immediately (Edit tool), then re-verify the specific files
-- **WARNING issues** -> fix if straightforward, otherwise note in the summary report for the user
-- **Max 2 fix-verify iterations** — if issues persist after 2 rounds, present remaining issues to user in the summary report
-
-### 4.3 Ensure Runtime Directories are Git-Ignored
-
-Add `.geniro/*` to `.gitignore` (use `*` not `/` so negation patterns work — `.geniro/` would ignore the directory itself, preventing git from seeing any exceptions):
-
-```bash
-grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
-grep -q "^\!\.geniro/$" .gitignore 2>/dev/null || echo "!.geniro/" >> .gitignore
-grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
-grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
-grep -q "^\!\.geniro/instructions/$" .gitignore 2>/dev/null || echo "!.geniro/instructions/" >> .gitignore
-grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/instructions/**" >> .gitignore
-```
-
-If old patterns exist from a previous install, clean them up:
-```bash
-sed -i '' '/^\.geniro\/$/d' .gitignore 2>/dev/null
-sed -i '' '/^\!\.geniro\/project\/$/d' .gitignore 2>/dev/null
-```
-
-Do NOT create `.claude/.gitignore` — all ignore rules go in the project root.
-
-### 4.4 Write Plugin State File
-
-Write `.geniro/.geniro-state.json` to track the installation state for future re-runs. This file is git-ignored (covered by the `.geniro/` entry already in `.gitignore`).
-
-Use the Bash tool to get the template commit hash (if `$TEMPLATE_DIR` is a git repo):
-
-```bash
-TEMPLATE_COMMIT=$(cd "$TEMPLATE_DIR" && git rev-parse HEAD 2>/dev/null || echo "unknown")
-```
-
-Write the state file:
-
-```json
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+emit_learning <<'EOF'
 {
-  "plugin_version": "$TEMPLATE_COMMIT",
-  "installed_at": "ISO-8601 timestamp",
-  "install_mode": "fresh|update",
-  "features_enabled": {
-    "issue_tracker": "linear|github-issues|gitlab-issues|jira|bitbucket-issues|none",
-    "custom_instructions": true
-  },
-  "files": {
-    "generated": [
-      "CLAUDE.md",
-      ".geniro/workflow/linear.md",
-      ".geniro/instructions/global.md"
-    ],
-    "user_created": [
-      "...any files in .claude/ that are NOT from the template"
-    ]
+  "type": "discovery",
+  "trust": "verified",
+  "skill": "setup",
+  "mode": "init",
+  "tags": ["setup", "stack", "bootstrap"],
+  "summary": "bootstrap complete: node/npm/jest, ship_mode=open-PR-draft, full reviewer set",
+  "entry": {
+    "stack": "node/npm",
+    "test_runner": "jest",
+    "ship_mode_default": "open-pr-draft",
+    "reviewer_set": "full",
+    "claude_md_loc": 67,
+    "spun_out_docs": ["hooks.md", "mcp.md"]
   }
 }
+EOF
 ```
 
-Populate the lists from the actual files installed during Phase 3. The categories are:
-- **features_enabled**: Record which optional features the user chose (integration and feature names as keys, boolean values). This allows re-runs to know what was configured without re-asking.
-- **generated**: Files created by the plugin (CLAUDE.md if plugin-generated, plus any `.geniro/workflow/*.md` and `.geniro/instructions/*.md` files created from templates)
-- **user_created**: Files that existed in `.claude/` before setup and are not part of the template
+`trust: verified` per M2 §5.1 base schema (code-grounded — Detect read real files; no WebFetch).
 
-Note: Only include `CLAUDE.md` in `generated` if the plugin created or enriched it. If the user chose to maintain it themselves, omit it.
+## Phase 5: Done
 
-Ensure `.geniro/.geniro-state.json` is git-ignored. The `.geniro/` entry added in Phase 4.3 already covers this — no separate gitignore entry is needed.
-
-### 4.5 Summary Report
-
-Present to the user:
+### 5.1 Final report
 
 ```
-Setup complete! Here's what was generated:
+✓ /geniro:setup complete (init)
 
-CLAUDE.md          — tech stack, commands, conventions
-[If Linear] .geniro/workflow/linear.md — Linear integration workflow
-[If Instructions] .geniro/instructions/global.md — Custom workflow instructions
+Wrote:
+  CLAUDE.md (67 lines — thin map)
+  .geniro/instructions/user-preferences.md (12 lines)
+  .geniro/docs/hooks.md (84 lines — spun out per AUQ)
+  .geniro/docs/mcp.md (28 lines — spun out per AUQ)
+  .geniro/.gitignore (no change — existing ignores cover .geniro/planning/, .geniro/state/, .geniro/knowledge/)
 
-All agents, skills, hooks, and review criteria are provided globally by the plugin.
+Detected:
+  Stack: node/npm + jest tests + ESLint
+  Default branch: main
+  Ship mode default: open PR (draft)
+  Reviewer set: full (7 built-in dimensions)
 
-Tech Stack: [detected]
-Integrations: [list enabled]
-
-Next steps:
-1. [If Linear] Run: claude mcp add --transport http linear https://mcp.linear.app/mcp
-2. Commit: git add CLAUDE.md .geniro/workflow/ .geniro/instructions/ && git commit -m 'chore: add geniro plugin config'
-3. Orient (optional): /geniro:onboard — generate a CODEBASE_MAP.md for this project
-4. Start working: /geniro:implement <feature>, /geniro:decompose <big task>, /geniro:features add, or /geniro:review (for existing diffs)
+Next:
+  • Commit: git add CLAUDE.md .geniro/instructions/user-preferences.md .geniro/docs/
+  • Run а real task: /geniro:plan "your-task-here"
+  • Or browse skills: /geniro:investigate "what does /geniro:debug do?"
 ```
 
-## Re-Running Setup (Feature Sync)
+(re-run mode adds а section "Changed since last setup: …" с the section-level diff summary.)
 
-If `/geniro:setup` detects `$INSTALL_MODE` is `update`, it enters Feature Sync mode. This flow is self-maintaining — it discovers features by scanning the template filesystem, so new features appear automatically without updating this section.
+### 5.2 State file cleanup
 
-### Step 1: Scan & Compare
-
-**Scan template capabilities** (what the plugin currently offers):
-- Glob `${CLAUDE_SKILL_DIR}/workflow-templates/*.md` → available integration templates
-- Check this skill's Phase 2 and Phase 3 for other configurable features (custom instructions, StatusLine)
-
-**Scan project state** (what the user has installed):
-- Read `.geniro/.geniro-state.json` → tracked files and `features_enabled`
-- Glob `.geniro/workflow/*.md` → installed integrations
-- Check `.geniro/instructions/` → custom instructions present?
-- Check `.gitignore` → all required entries present? (`.geniro/*`, `!.geniro/`, `!.geniro/workflow/`, `!.geniro/workflow/**`, `!.geniro/instructions/`, `!.geniro/instructions/**`)
-- Check runtime directories: `.geniro/planning/`, `.geniro/state/debug/`, `.geniro/knowledge/`
-- Check StatusLine: `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` exists?
-
-**Classify each item:**
-- **NEW** — in template but not in project (e.g., new workflow template added to plugin, instructions/ not set up)
-- **CURRENT** — installed and up to date
-- **ORPHANED** — in project but no longer in template (deprecated feature removed from plugin)
-- **MISSING INFRA** — gitignore entries, directories, or StatusLine not present
-
-### Step 2: Present Feature Sync Report
-
-```
-Plugin configuration status:
-
-| Feature | Status | Action |
-|---------|--------|--------|
-| CLAUDE.md | [Plugin-generated / User-maintained] | [Regenerate / —] |
-| Linear integration | [Installed / Not installed] | [— / Install] |
-| Custom instructions | [Installed / Not installed] | [— / Install] |
-| [Any new template] | Not installed | Install |
-| [Any orphaned file] | Orphaned (removed from plugin) | Remove |
-| StatusLine | [Current / Missing] | [— / Install] |
-| .gitignore entries | [Complete / N missing] | [— / Repair] |
-| Runtime directories | [Complete / N missing] | [— / Repair] |
-```
-
-Use `AskUserQuestion` (do NOT output options as plain text):
-- **Question:** "How should I proceed with these changes?"
-- **Options:**
-  - "Apply all recommended changes (Recommended)" — install new, repair infra, flag orphans
-  - "Let me pick which changes to apply" — per-feature selection
-  - "Re-run full setup" — re-analyze codebase, regenerate everything (see Fresh Install below)
-  - "Cancel — no changes"
-
-### Step 3: Execute Selected Changes
-
-For each approved change, run the corresponding fresh-install step:
-- **Install integration:** Read template from `${CLAUDE_SKILL_DIR}/workflow-templates/<name>.md`, copy to `.geniro/workflow/<name>.md`
-- **Install custom instructions:** Read template from `${CLAUDE_SKILL_DIR}/workflow-templates/instructions-template.md`, copy to `.geniro/instructions/global.md`
-- **Remove orphaned files:** Confirm with user, then delete from `.geniro/workflow/`
-- **Repair gitignore:** Run Phase 4.3 gitignore commands
-- **Repair directories:** Run Phase 3.4 mkdir command
-- **Install StatusLine:** Run Phase 3.3 StatusLine installation
-- **Regenerate CLAUDE.md:** Re-run Phases 1-3 (analysis → interview → generate) for CLAUDE.md only
-
-After applying changes, update `.geniro/.geniro-state.json` with new `plugin_version`, `installed_at`, and updated `features_enabled` and `files.generated`.
-
-Run Phase 4 verification checks (4.1, 4.2) on all changed files. Then proceed to Phase 5 (Finalize).
-
-**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Finalize) now.
-
-## Vendored Mode Resync
-
-If `$VENDOR_MODE=true` was detected in Phase 0, this is a vendored install. Setup must delegate drift detection and sync to the vendor skill rather than running Feature Sync (which is designed for plugin-installed projects).
-
-### Step 1: Detect drift
-
-Read `$VENDOR_STATE.plugin_version` from `$GENIRO_STATE`. Read the current plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. If they match, recompute sha256 for each entry in `$VENDOR_STATE.file_manifest` (the `src` path under `${CLAUDE_PLUGIN_ROOT}`) and compare to the stored hash. Files whose hash differs are drifted.
-
-### Step 2: Present drift report and ask
-
-If no drift is detected, report "Vendored copy is in sync with plugin v$VERSION. No action needed." and stop.
-
-If drift is detected, present a summary:
-
-```
-Vendored copy is out of sync with the installed plugin:
-
-| File class | Drifted count |
-|------------|---------------|
-| Verbatim (skills, agents, hooks) | N |
-| Tailored (backend-agent, frontend-agent, rules/*) | M |
-
-Plugin version: X -> Y
-```
-
-Use the `AskUserQuestion` tool:
-- **Question:** "How should I resync the vendored copy?"
-- **Options:**
-  - "Delegate to /geniro:vendor --sync (Recommended)" — invoke the vendor skill's Phase 8 resync flow which preserves tailored-file user edits
-  - "Show me the drifted file list first" — print the list, then re-ask
-  - "Skip resync — I'll run /geniro:vendor --sync manually later" — note in state, continue to Phase 5
-
-### Step 3: Execute
-
-If the user chose to delegate, instruct them to run `/geniro:vendor --sync` (the vendor skill owns the resync mechanics). Do NOT attempt to run the sync logic inside setup — the vendor skill is the single source of truth for file rewrites and manifest updates.
-
-After resync completes, re-read `.geniro/.geniro-state.json` and continue to Phase 5 (Finalize).
-
-**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 5 (Finalize) now.
-
-### Fresh Install (with Knowledge Preservation)
-
-If the user chose "Re-run full setup" and wants a completely fresh start:
-
-1. **Backup** CLAUDE.md if it was plugin-generated:
-   ```bash
-   mkdir -p .geniro/_backup
-   cp CLAUDE.md .geniro/_backup/CLAUDE.md 2>/dev/null || true
-   ```
-
-2. **Remove plugin-generated CLAUDE.md**, then re-run from Phase 1.
-
-3. **Run fresh install** (Phases 1-5) — codebase analysis, user interview, file generation, verification.
-
-4. **Delete backups** (per-file via Python; the `block-geniro-deletion.sh` hook blocks `find .geniro/... -delete` patterns by design):
-   ```bash
-   python3 <<'PY'
-   import pathlib
-   backup = pathlib.Path(".geniro/_backup")
-   if backup.exists():
-       for p in sorted(backup.rglob("*"), reverse=True):
-           try:
-               p.unlink() if p.is_file() else p.rmdir()
-           except OSError:
-               pass
-       try:
-           backup.rmdir()
-       except OSError:
-           pass
-   PY
-   ```
-
-**DO NOT end the conversation or ask "anything else?" here.** You MUST proceed to Phase 4 (Verify) and Phase 5 (Finalize) now.
-
-## Phase 5: Finalize
-
-After setup is complete and verified, finalize the installation.
-
-**Note:** Do NOT delete `.geniro/.geniro-state.json` — this is a persistent state file needed for future `/geniro:setup` re-runs.
-
-### 5.1 Ask User Feedback
-
-Before cleanup, use the `AskUserQuestion` tool (do NOT output options as plain text) to ask for confirmation:
-
-```
-Setup is complete. Does everything look correct?
-
-A) Yes, looks good — I'll commit the changes
-B) Something needs adjustment — let me tell you what to fix
-C) Start over — re-run setup from scratch
-```
-
-- **If A**: Print the commit instructions from Phase 4.5's "Next steps" list, and remind the user: "After committing, run `/geniro:onboard` to build a codebase map, or jump straight to `/geniro:implement <feature>` to start work."
-- **If B**: Ask what needs fixing, apply changes, then ask again
-- **If C**: Remove plugin-generated CLAUDE.md, then re-run from Phase 1
-
-**Note**: The `/geniro:setup` skill is provided by the plugin and persists across runs. It does not need to be removed — the user can re-run `/geniro:setup` at any time to update their plugin configuration.
-
-### 5.2 Verify State
+Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`:
 
 ```bash
-# State files should exist for future re-runs
-[[ -f ".geniro/.geniro-state.json" ]] && echo "State file saved"
+rm -f "$PRIMARY_ROOT/.geniro/state/setup/state.md"
+rmdir "$PRIMARY_ROOT/.geniro/state/setup/" 2>/dev/null
 ```
 
-## Compliance — Do Not Skip Phases
+This is the **only** Geniro state file deleted on success — `/setup` is а singleton bootstrap и the state file has zero value once DONE.
 
-| Your reasoning | Why it's wrong |
+**Exception:** if `mode == re-run` AND user opted for `accept-with-warnings` at §4.2 round 4, the state file is **kept** с `phase: done` и `## Open Questions` populated — surfaces для the next re-run.
+
+### 5.3 Restart-session warning (re-run only, plugin-version delta)
+
+```
+⚠ Restart your Claude Code session before using any other Geniro skill.
+
+Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once at session start. The plugin
+update brought а new install path, но in-memory skill bodies still reference
+the old one. Restart и you're done.
+```
+
+Only emitted when `mode == re-run` AND `/setup` detected `plugin.json` version delta vs the version recorded в the prior state file или CLAUDE.md `<!-- geniro-setup-version: -->` marker. Fresh `init` runs never emit this.
+
+## State file schema (M1 §T1 singleton layout)
+
+Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1 tier (session-bound, ephemeral, deleted at Phase Done).
+
+### Frontmatter
+
+```yaml
+---
+tier: T1
+producer: setup
+schema-version: 1
+branch: <git-branch>             # may be empty if not а git repo
+timestamp: 2026-05-19T14:32:00Z  # last-updated ISO-8601 UTC
+phase: detect                    # init|detect|interview|generate|validate|done|failed
+status: in-progress              # in-progress|done|failed
+non-resumable-actions: []        # typically empty (/setup ships no external sends)
+approvals:                       # P-M1-1 schema
+  - {category: ship_mode_default, prompt: "Default ship mode?", options: [...], picked: "open-pr-draft", at: "2026-05-19T14:05:00Z", asked_in_phase: interview}
+  - {category: claude_md_section_hooks_details, prompt: "Include hooks details inline?", options: ["inline","spin out","drop"], picked: "spin out", at: "...", asked_in_phase: generate}
+geniro_kind: setup-state
+geniro_schema_version: m10a-v1
+worktree: /absolute/path         # P-M1-2 cross-check on rehydration
+mode: init                       # init | re-run
+template_dir: /Users/you/.claude/plugins/geniro-claude-plugin@.../abc123
+detected:
+  stack: node/npm
+  lang: node
+  pkg_mgr: npm
+  test_runner: jest
+  has_eslint: true
+  default_branch_candidates: [main]
+  evidence:
+    - {file: package.json, line: 5, snippet: "\"name\": \"my-project\""}
+skill_inventory:
+  - {slug: implement, purpose: "..."}
+  # ... 11 total
+preferences:
+  default_branch: main
+  ship_mode_default: open-pr-draft
+  default_reviewer_set: full
+  communication_style: concise
+write_targets:
+  - {path: CLAUDE.md, op: write, loc: 67}
+  - {path: .geniro/instructions/user-preferences.md, op: write, loc: 12}
+  - {path: .geniro/docs/hooks.md, op: write, loc: 84}
+validate_rounds: 1
+---
+```
+
+### Body sections (M3 §6)
+
+```markdown
+## Phase log
+[2026-05-19T14:00:00Z] init → detect  (mode=init)
+[2026-05-19T14:02:00Z] detect complete — stack=node/npm, evidence_count=14
+[2026-05-19T14:05:00Z] interview Batch 1 → 4 preferences captured
+[2026-05-19T14:10:00Z] generate Step 3.3 → 3 sections spun out (hooks, mcp, agent-runtime)
+[2026-05-19T14:30:00Z] validate round 1 → 0 DRIFT
+[2026-05-19T14:32:00Z] → done
+
+## Tool log                        # M3 §6 selective logging
+[14:02:00] Detect: read package.json (evidence #1), package-lock.json (#2), ...
+[14:30:00] validate: spawn verification-agent → 0 drift items
+
+## Errors                          # M3 §6 Block 5b (only on failure)
+(empty)
+
+## Open Questions                  # M3 §6 Block 5c (populated on accept-with-warnings)
+(empty)
+
+## Persisted approvals             # M3 §6 Block 5d (renders frontmatter approvals[])
+- ship_mode_default = "open-pr-draft" (asked at interview, 2026-05-19T14:05:00Z)
+- claude_md_section_hooks_details = "spin out" (asked at generate, 2026-05-19T14:10:00Z)
+
+## Termination reason              # only set on `failed`
+```
+
+## Memory I/O (M2 §13)
+
+| Layer | Read at | Write at | Notes |
+|---|---|---|---|
+| L1 CLAUDE.md | Phase 1 §1.4 (existing AI-tool config scan) | Phase 3 §3.4 (thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §3.5 conflict resolver |
+| L2 learnings.jsonl | Phase 1 §1.2 (prior `discovery` query, tag `setup`) | Phase 4 §4.3 (one `discovery` row on `done`) | `trust: verified` — code-grounded; auto-replaces dropped `/learnings` |
+| L3 `.geniro/planning/_*.md` | not read | not written | `/setup` и `/onboard` are different skills with non-overlapping write surfaces |
+| L4 `.geniro/instructions/*.md` | Phase 1 §1.2 (rules-only load via `load-custom-instructions.md`) | Phase 3 §3.6 writes `user-preferences.md`; optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
+
+## Anti-pattern check (P-MP-1)
+
+| # | Anti-pattern | Status |
+|---|---|---|
+| 1 | One giant prompt | ✅ SKILL.md modular; phase sections in `_shared/setup/*.md` helpers if SKILL.md grows beyond ~600 LOC |
+| 2 | One giant tool | ✅ N/A — Edit/Write/Bash/Glob/Grep native |
+| 3 | Unbounded autonomous loop | ✅ §4.2 3-retry validation loop с AUQ escalation; no infinite retry |
+| 4 | Autonomous external sends в first release | ✅ Phase Generate ACI forbids `mcp__github__*` и network egress; no Slack/PR auto-send |
+| 5 | No approval state | ✅ P-M1-1 `approvals[]` populated (§2.1) и rendered as Block 5d |
+| 6 | No durable plans или goals | ✅ State file mandatory — singleton at `state/setup/state.md` |
+| 7 | No compaction strategy | ✅ `## Tool log` + `## Errors` + `## Open Questions` + `## Persisted approvals` populated — survives compaction via M3 §6 SessionStart re-injection |
+| 8 | All connectors loaded up front | ✅ N/A |
+| 9 | High-risk tools без policy | ✅ §ACI per-phase table; verification subagent constrained к `tools: [Read, Bash, Glob, Grep]`; conflict-resolver к `tools: [Read, Edit]` on CLAUDE.md only |
+| 10 | Subagents before single-agent MVP measured | ✅ `/setup` uses 1 verification subagent + (re-run only) 1 conflict-resolution subagent; both bounded |
+| 11 | Dynamic timestamps в plugin-distributed Markdown | ⚠ This SKILL.md must NOT embed runtime timestamps; state file timestamps are fine (state files are generated, not plugin-distributed) |
+| 12 | Non-deterministic agent registration order | ✅ N/A — `/setup` consumes registration, doesn't define it |
+
+## Anti-rationalization
+
+| Reasoning | Why it's wrong |
 |---|---|
-| "I already know this stack, skip analysis" | Every project is different. Auto-detection catches conventions code review misses. |
-| "No docs to read, skip 1.6" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
-| "Default settings are fine, skip the interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
-| "The generated files look correct, skip verification" | Placeholder text and wrong-language content are invisible without systematic scanning. |
-| "I already verified in 4.1, skip the verification agent" | You generated the files — you're blind to your own mistakes. The independent agent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
-| "The user said 'good' / 'looks good' — setup is done, I can stop" | Phase 5 finalization has not run yet. User approval of file changes is NOT session completion. You MUST proceed to Phase 4 (Verify) and Phase 5 (Finalize) before ending. |
-| "I'll skip the analysis and just ask what the user wants" | The user can't make an informed choice without seeing what changed. Always analyze BEFORE asking — show the diff summary with specific file counts and change descriptions, then let the user decide. |
-| "Stack-specific CLAUDE.md is the main value" | Correct — but it must be generated from actual codebase analysis, not assumptions. |
-| "Vendored mode? I'll run normal Feature Sync anyway" | Vendored and plugin-installed have different sync semantics. Feature Sync overwrites tailored files blindly; vendor resync surfaces conflicts. Always delegate vendored drifts to /geniro:vendor --sync. |
+| "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
+| "No docs к read, skip §1.4 documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
+| "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
+| "The generated files look correct, skip Validate" | Placeholder text и wrong-language content are invisible без systematic scanning. |
+| "I already verified в §3.x checks, skip the verification agent" | You generated the files — you're blind к your own mistakes. The independent agent catches residual placeholders, broken paths, и cross-file inconsistencies you anchored past. |
+| "I'll write user preferences inline into CLAUDE.md instead of `.geniro/instructions/user-preferences.md`" | No — D4 fix. Preferences in CLAUDE.md make it self-modify on every preference change, violating M3 "CLAUDE.md is а stable map". |
+| "I'll inline every section к make CLAUDE.md comprehensive" | No — P-M10-3 split methodology. Sections >40 LOC default к spin-out. CLAUDE.md is а thin map. |
+| "I'll skip the section-by-section AUQ to save time" | No — Q3 decision. Concrete cut is runtime-AUQ-driven; defaulting к а fixed cut means losing user control over verbosity. |
+| "I'll re-ask preferences every run к keep them fresh" | No — P-M1-1 approvals[] persists one-time decisions. Re-ask only on `--reset-prefs` flag. |
+| "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done §5.2 deletes the state file (which has zero value once DONE). Forgetting к delete leaves stale state for the next re-run. |
 
 ## Definition of Done
 
-- [ ] Phase 0: Template source located (plugin root or explicit path)
-- [ ] Phase 0: Install mode detected (`$INSTALL_MODE`: fresh/update)
-- [ ] Phase 0: Vendored mode detected (`$VENDOR_MODE`); if true, Vendored Mode Resync flow executed
-- [ ] Phase 1: Codebase analyzed, all detectable info gathered
-- [ ] Phase 1.6: Project documentation scanned, domain context extracted (if docs exist)
-- [ ] Phase 1.5: Existing file conflicts resolved (if any)
-- [ ] Phase 2: User interviewed, preferences recorded
-- [ ] Phase 3.1: CLAUDE.md generated or enriched (with user permission)
-- [ ] Phase 4.1: Orchestrator verification passed (formatting, placeholders, stack contamination)
-- [ ] Phase 4.2: Independent verification agent passed (paths, consistency)
-- [ ] Phase 4.4: `.geniro/.geniro-state.json` written with file manifest
-- [ ] Phase 5: Finalization complete, state files verified
-- [ ] Re-Running Setup: Analysis completed before user prompt
-- [ ] User has received summary with next steps
+- [ ] Phase 0: Template source located (plugin root или explicit path)
+- [ ] Phase 1: Mode detected (init/re-run); codebase analyzed; project documentation scanned; skill inventory captured (11 skills, no dropped refs); L2 prior queries surfaced
+- [ ] Phase 2: User interviewed via approvals[]-aware AUQ batches; preferences captured
+- [ ] Phase 3: CLAUDE.md generated (thin map); user-preferences.md written; .geniro/docs/*.md spun out per AUQ; .gitignore updated; statusline installed
+- [ ] Phase 4: Verification subagent passed (≤3 retry rounds или AUQ escalation на round 4); L2 `discovery` emit fired
+- [ ] Phase 5: Final report printed; state file deleted on success path (kept on `accept-with-warnings` или `failed`)
+- [ ] Generated CLAUDE.md skill table lists exactly 11 skills; no references to /brainstorm /decompose /follow-up /deep-simplify /features /learnings /cleanup /vendor
+- [ ] All user interactions used `AskUserQuestion`
+- [ ] If re-run mode + plugin-version delta: restart-session warning emitted
+
+## Cross-references
+
+- M1 §T1 — singleton state-file tier definition; `/setup` writes а T1 file
+- M2 §5.1 — L2 base schema with `trust:` field; §4.3 emit conforms
+- M2 §5.3 — L2 emit trigger table; §4.3 `discovery` row matches the bootstrap trigger
+- M2 §12 — P-M2-1 deferred categories; user-preferences row closed here (§3.6)
+- M3 §6 — body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason)
+- M3 §6 Block 5d — approvals[] category list; §2.1 adds setup-specific categories
+- M4 §2.2 — 7 loop invariants
+- M4 §2.3 — quality-first budgets
+- M4 §6 — Evidence Block standard; §1.4 conforms
+- M4 §13.4 — model tiering; verification subagent on `sonnet`, conflict-resolver on `sonnet`
+- M4 §13.5 — per-phase ACI
+- M9 (latest doc shape) — TOC structure, anti-rationalization placement; M10a mirrors
+- `architecture/M10a-setup-redesign.md` — full design rationale
