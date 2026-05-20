@@ -27,7 +27,12 @@ Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged
 - **IDEA(topic)** — free-form text; proceeds к Phase 1 с topic as initial context.
 - **DESIGN_DOC(path)** — existing design doc; flows к §0.2 AUQ.
 - **CODE_REFERENCE(path)** — error per design-doc-detect.md per-consumer table: «code reference passed к /plan; pass а topic or design-doc path. Did you mean /geniro:implement <path>?». Exit без writing state.md.
-- **None** (empty $ARGUMENTS) — fires empty-argument AUQ с three options ("New feature" / "Existing problem to solve" / "Cancel") + free-text capture; non-empty answer → IDEA mode; «Cancel» → terminal без state.md.
+- **None** (empty $ARGUMENTS) — fires empty-argument AUQ:
+  - `header`: "Topic"
+  - `question`: "What do you want к plan?"
+  - `options[]` (single-select, 3 options + Other free-text): "New feature" / "Existing problem to solve" / "Cancel"
+  - Non-empty answer (via а picked option OR free-text Other) → IDEA mode; «Cancel» → terminal без state.md.
+  - Persist outcome к `approvals[]` с `category: disambiguate_arguments` per М1 P-M1-1 (М5 §22.1 schema extension).
 
 ### 0.2 DESIGN_DOC mode AUQ (D3 fix — Refine path removed)
 
@@ -35,7 +40,7 @@ Fire `AskUserQuestion` с:
 - `header`: "Existing design doc"
 - `question`: "Design doc already exists at `<path>`. What now?"
 - `options[]` (single-select, 2 options):
-  - **Start fresh с this as context** (Recommended) — load the doc into Phase 1 explore context; run full 8-phase loop; emit а new spec.md at а fresh task-dir.
+  - **Start fresh с this as context** (Recommended) — load the doc into Phase 1 explore context; run full 9-phase loop (Phases 0-9, Phase 2 DROPPED per §"Phase 2 — DROPPED"); emit а new spec.md at а fresh task-dir.
   - **Cancel** — exit без writing state.md.
 
 **On "Start fresh"** → flow к Phase 1 с the doc body inlined into Phase 1 Explore-agent prompts under а `## Prior Design Doc` section. The doc is NOT used as section template (D3 fix); Phase 5 uses the §17 10-section schema unconditionally.
@@ -418,10 +423,11 @@ Max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 �
 On user picks "Approve":
 
 1. **Persist approval** к `approvals[]` с category `final_approve`.
-2. **`git commit`** fires HERE (NOT in Phase 6):
+2. **Flip spec.md `lifecycle: draft` → `lifecycle: approved`** in spec.md frontmatter via а fresh Write (idempotent regeneration per §6.4; the only field changing is `lifecycle:`). Per §17.1 design-doc lifecycle marker.
+3. **`git commit`** fires HERE (NOT in Phase 6):
    - `git add .geniro/planning/<slug>/spec.md` + every sibling `milestone-N.md`
    - `git commit -m "plan: <task-slug> — <one-line summary от section 1 Objective>"`
-3. **Append к `non-resumable-actions[]`** per M3 §8:
+4. **Append к `non-resumable-actions[]`** per M3 §8:
    ```yaml
    non-resumable-actions:
      - action: git-commit
@@ -429,7 +435,7 @@ On user picks "Approve":
        commit-sha: <sha>
        files: [".geniro/planning/<slug>/spec.md"]
    ```
-4. **Transition к Phase 9** (`phase: handoff`).
+5. **Transition к Phase 9** (`phase: handoff`).
 
 If commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), surface а structured error к user — do NOT proceed к Phase 9 с а stale state. Fall back к §8.3 escalation с the error inlined.
 
