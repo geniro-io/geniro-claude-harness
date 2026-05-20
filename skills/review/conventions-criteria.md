@@ -8,7 +8,7 @@ Per Allamanis et al. NATURALIZE and Microsoft IntelliCode: structural convention
 
 For every pattern category checked, follow this recipe before emitting any finding:
 
-1. **Read explicit conventions first.** Check `CLAUDE.md`, `.claude/rules/`, `AGENTS.md`, `CONTRIBUTING.md`, ADRs at `docs/adr/` or `docs/decisions/`. Explicit rules override modal inference; if a rule exists, defer to `guidelines-criteria.md` §8.
+1. **Read explicit conventions first.** Check `CLAUDE.md`, `.claude/rules/`, `AGENTS.md`, `CONTRIBUTING.md`, ADRs at `docs/adr/` or `docs/decisions/`. Explicit rules override modal inference — when an explicit rule exists for the pattern, emit а finding citing the rule; do not duplicate с а modal-inferred finding.
 2. **Identify the file kind.** Component file? Service? Test? Schema? Migration? Hook? The kind determines which siblings are relevant.
 3. **Glob siblings of the same kind.** Same directory first; then analogous directories if the immediate parent has fewer than 3 siblings (`src/components/Button.tsx` → also check `src/ui/`, `packages/*/components/`).
 4. **Compute the modal frequency.** For each pattern category, count each variant across siblings.
@@ -177,12 +177,12 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 
 **Other dimensions — defer:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → `guidelines-criteria.md`
-- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → `guidelines-criteria.md` §8
+- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → owned here (М6 §17 H-3 collapsed guidelines §8 into this dimension — emit с modal inference и/или explicit-rule citation per the recipe at §What to Check).
 - Module-scale organization, utils sprawl, circular imports, file-structure inconsistency at module scale → `architecture-criteria.md` §4
 - Findings that match repo patterns and should be silenced → handled by `relevance-filter-agent` post-filter
 - Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md` §9
 
-If a finding fits a rubric/checklist mold, it is `guidelines`'s job. If a finding requires sampling siblings and computing a mode, it is conventions's job.
+If a finding fits a style/naming/docs rubric mold, it is `guidelines`'s job. If a finding requires sampling siblings и computing а mode (repo-modal patterns / single-exemplar rubric drift / ADR contradictions / file placement / convention guard), it is conventions's job (М6 §17 H-3).
 
 ## How to Detect — Worked Example
 
