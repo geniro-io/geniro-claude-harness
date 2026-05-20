@@ -68,7 +68,7 @@ If you find yourself writing the file path INTO the learning text as the load-be
 
 ## Storage routing
 
-- **Architectural / flow / cross-cutting → `.geniro/knowledge/learnings.jsonl`** (searchable across sessions by knowledge-retrieval-agent) — resolve the path prefix via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so writes land in the main worktree, not a linked worktree's gitignored tree.
+- **Architectural / flow / cross-cutting → `.geniro/knowledge/learnings.jsonl`** (searchable across sessions via `_shared/query-learnings.sh`) — resolve the path prefix via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so writes land in the main worktree, not a linked worktree's gitignored tree.
 - **User-preference / collaboration corrections → auto-memory `feedback_*.md`** (per the user's profile, not project-wide)
 - **Project-wide ongoing-work facts → auto-memory `project_*.md`**
 - **Skip if nothing genuinely novel was discovered** — empty extraction is the correct outcome for routine sessions.

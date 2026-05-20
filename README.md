@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 9 agents, 11 skills, and 8 safety hooks + statusline + update check out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 5 agents, 11 skills, and 8 safety hooks + statusline + update check out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 

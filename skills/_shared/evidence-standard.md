@@ -1,6 +1,6 @@
 # Evidence Standard
 
-Authoritative for evidence-attached findings, completion claims, and reviewer-agent CRITICAL/HIGH dispositions. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` (M7 hypothesis confirmation), `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` (M6 every CRITICAL/HIGH finding), `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` (M4 Phase 3 Self-review-and-Ship completion claims), `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md` (M8 §1.2 baseline validation, §2.2 per-step regression gate, §2.4 final regression run), `${CLAUDE_PLUGIN_ROOT}/agents/backend-agent.md` and `${CLAUDE_PLUGIN_ROOT}/agents/frontend-agent.md` (PASS/FAIL claims from test-suite runs).
+Authoritative for evidence-attached findings, completion claims, and reviewer-agent CRITICAL/HIGH dispositions. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` (M7 hypothesis confirmation), `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` (M6 every CRITICAL/HIGH finding), `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` (M4 Phase 3 Self-review-and-Ship completion claims), `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md` (M8 §1.2 baseline validation, §2.2 per-step regression gate, §2.4 final regression run).
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the schema or the forbidden-phrases list.
 

@@ -22,7 +22,7 @@ The `[ROOT-CAUSE] ⇄ [SYMPTOM-ACK]` transition is also possible at gate result-
 - Layer where causation originates → `[ROOT-CAUSE]`.
 - Cannot tell within the dimension's review budget → `[UNKNOWN]`.
 
-When the reviewer cites cross-dimension evidence (e.g., the bugs reviewer notices the architecture reviewer would have more context), it still emits its best-effort tag — the orchestrator's judge pass (`/geniro:review` Phase 4) reconciles cross-dimension overlap.
+When the reviewer cites cross-dimension evidence (e.g., the bugs reviewer notices the architecture reviewer would have more context), it still emits its best-effort tag — the orchestrator's filter pass (`/geniro:review` Phase 3 Filter & Aggregate — relevance-filter-agent) reconciles cross-dimension overlap.
 
 **`agents/architect-agent.md` adds a mandatory "Root-cause classification" output section per design unit** — one of `ROOT-CAUSE`, `SYMPTOM-PATCH`, or `MIXED` (architect-flavored 3-tag set; `MIXED` indicates one design unit contains both root-cause and symptom-patch components, OR confidence in a clean ROOT-CAUSE / SYMPTOM-PATCH split is below 60%). The section sits after the design unit's "Approach" / "Trade-offs" blocks. The architect applies the classification based on the same structural signal as the reviewer, scaled to design units rather than finding lines:
 - Design unit changes the originating layer → `ROOT-CAUSE`.
@@ -35,10 +35,10 @@ Both agents tag every finding/design unit. Omission is never acceptable — see 
 
 ## How orchestrators route by tag
 
-The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Phase 4 filter / `/geniro:refactor` Phase 3 verify) reads the `Cause:` field (reviewer findings) from the persisted artifact and routes:
+The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Phase 3 filter / `/geniro:refactor` Phase 3 verify) reads the `Cause:` field (reviewer findings) from the persisted artifact and routes:
 
 - **`[ROOT-CAUSE]` / `ROOT-CAUSE`** → proceeds in the upstream skill's normal flow. The finding/design enters the fix-loop pool / implementation pool unchanged.
-- **`[SYMPTOM]` / `SYMPTOM-PATCH`** that survives the upstream filter step (Phase 4 relevance-filter for `/geniro:review`; Phase 3 self-review filter for `/geniro:implement`; Phase 3 verify for `/geniro:refactor`) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
+- **`[SYMPTOM]` / `SYMPTOM-PATCH`** that survives the upstream filter step (Phase 3 relevance-filter for `/geniro:review`; Phase 3 self-review filter for `/geniro:implement`; Phase 3 verify for `/geniro:refactor`) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
 - **`MIXED`** (architect only) → fires the same gate per design unit; the user picks per-unit, just as `[SYMPTOM]` findings fire per-finding.
 - **`[UNKNOWN]`** (reviewer only — architect emits the 3-tag set ROOT-CAUSE / SYMPTOM-PATCH / MIXED and does NOT have UNKNOWN as an option) → orchestrator requires the reviewer to escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the agent itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause and emits the (now classified) finding.
 - **`[SYMPTOM-ACK]`** → already user-acknowledged; orchestrator proceeds AND appends the entry to the Ship summary's `## Acknowledged tech debt` section (the gate's Result handling already wrote it; this is the read-back for ship-time rendering).

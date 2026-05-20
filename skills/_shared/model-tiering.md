@@ -38,7 +38,6 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 ## Hard rules (override the table)
 
 - **Architect work always uses `opus`.** Architectural decisions, new-feature planning, multi-file design, threat modeling. Encoded in `agents/architect-agent.md` frontmatter AND must be set explicitly (`model="opus"`) at every spawn site so the choice survives any future change to the agent default.
-- **Read-only / classifier agents stay on `haiku`** regardless of caller: `knowledge-retrieval-agent`.
 - **Reviewer agents never use `opus`.** Stay on `sonnet` for reasoning dimensions (bugs, security, architecture, tests, optimizations, conventions, design) or `haiku` for rubric dimensions (guidelines). Design weighs visual/UX reasoning beyond pure rubric matching (token conformance, WCAG checks, exemplar drift, responsive coverage) — `sonnet` is the accuracy-floor.
 - **Reasoning-grade carve-out agents** declare `model: inherit` in their frontmatter; spawn sites **omit `model=`** so the tier mirrors the orchestrator's. Three covered categories: synthesis-of-review-findings (e.g., `relevance-filter-agent`); per-finding validators that independently confirm CRITICAL/HIGH findings; reasoning-grade test authors (e.g., `adversarial-tester-agent`). They are NOT reviewer agents and the "never use `opus`" rule does not apply. (Do NOT pass `model="inherit"` at the call site — the Agent tool's enum is `sonnet|opus|haiku` and rejects `inherit` as Invalid tool parameters.)
 

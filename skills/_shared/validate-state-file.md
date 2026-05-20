@@ -127,4 +127,4 @@ schema-ref: "M2 §5.1 (canonical L2 entry schema)"
 ---
 ```
 
-Call `validate_state_file` on the sidecar; the JSONL itself uses line-by-line parsing in the consumer (knowledge-retrieval-agent).
+Call `validate_state_file` on the sidecar; the JSONL itself uses line-by-line parsing in the consumer (`query-learnings.sh`).

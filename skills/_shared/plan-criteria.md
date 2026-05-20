@@ -1,6 +1,6 @@
 # Plan Criteria
 
-Guidelines for generating implementation plans. Pre-inlined into architect-agent and skeptic-agent prompts by `/geniro:plan` (M5 — owns plan + spec authoring). This is the canonical schema for plan files saved to `.geniro/planning/`. `/geniro:implement` (M4) consumes spec.md emitted by `/plan`; it does NOT spawn architect-agent itself — see `architecture/M4-implement-redesign.md` §3.1.
+Guidelines for generating implementation plans. Pre-inlined into architect-agent prompts by `/geniro:plan` (M5 — owns plan + spec authoring) когда architect mode is invoked. This is the canonical schema for plan files saved to `.geniro/planning/`. `/geniro:implement` (M4) consumes spec.md emitted by `/plan`; it does NOT spawn architect-agent itself — see `architecture/M4-implement-redesign.md` §3.1.
 
 ## Plan File Naming
 
@@ -147,7 +147,7 @@ Before the plan is presented to the user, verify:
 
 ## Validation Standard
 
-Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The skeptic-agent validates dimensions 1-8 for every plan. Dimensions 9-10 apply only when the plan has a `## Milestones` section (produced by `/geniro:plan` (M5) Big-tier milestone-output mode; pre-M4 owner was `/geniro:decompose`, now deleted).
+Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The /plan Phase 7 mechanical validator checks dimensions 1-8 for every plan. Dimensions 9-10 apply only when the plan has a `## Milestones` section (produced by `/geniro:plan` (M5) Big-tier milestone-output mode; pre-M4 owner was `/geniro:decompose`, now deleted).
 
 1. **Requirement coverage** — every user requirement appears as a step or is covered by a step
 2. **Task atomicity** — each step is independently verifiable and scoped to 1-5 files

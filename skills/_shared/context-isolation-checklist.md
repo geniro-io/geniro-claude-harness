@@ -21,8 +21,9 @@ Every Agent() spawn in the following skills MUST satisfy the checklist:
 - `/geniro:implement` (reviewer-agent x 5 self-review dimensions + custom reviewers per `_shared/load-custom-reviewers.md`)
 - `/geniro:review` (reviewer-agent x N dimensions, relevance-filter-agent, adversarial-tester-agent)
 - `/geniro:refactor` (refactor-agent in Phase 2; reviewer-agent + custom reviewers in Phase 3 verify)
-- `/geniro:debug` (knowledge-retrieval-agent, adversarial-tester-agent in adversarial mode)
-- `/geniro:investigate` (1-3 parallel research agents — Codebase Analyst / Git Historian / Internet Researcher)
+- `/geniro:debug` (adversarial-tester-agent in adversarial mode)
+- `/geniro:investigate` (1-3 parallel `Agent(subagent_type="general-purpose", …)` research spawns — Codebase Analyst / Git Historian / Internet Researcher)
+- `/geniro:setup` (architect-agent in §3.5 conflict-resolution mode only)
 
 Eight skills total. The checklist is non-optional for every spawn — bare-prompt spawns are forbidden.
 
@@ -37,9 +38,10 @@ Every Agent() prompt MUST include all six fields. Missing any one is a defect.
 **(3) Relevant file paths with content.** Orchestrator reads files in advance and pastes the content into the prompt. Agents do NOT discover via Glob unless explicitly dispatched as Explore-type — discovery duplicates work the orchestrator already did. Paste the verbatim content under a `## Pre-Inlined Files` section with path headers; do not summarize.
 
 **(4) Prohibited tools list.** When the agent must NOT touch certain surfaces, declare it explicitly via `disallowedTools: [<list>]` AND restate the constraint inside the prompt body (belt-and-suspenders, since degraded `general-purpose` calls per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` lose the tool allowlist enforcement). Common patterns:
-- reviewer-agent / skeptic-agent / relevance-filter-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` — read-only by contract.
-- knowledge-retrieval-agent / investigate research agents: `disallowedTools: ["Edit", "Write"]` — research is read-only.
-- backend-agent / frontend-agent / refactor-agent: no prohibition (mutation is the deliverable) — but pin the file allowlist via `## Definition of Done` instead.
+- reviewer-agent / relevance-filter-agent / adversarial-tester-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` — read-only by contract.
+- `/investigate` research spawns (general-purpose): `disallowedTools: ["Edit", "Write"]` — research is read-only.
+- refactor-agent: no prohibition (mutation is the deliverable) — but pin the file allowlist via `## Definition of Done` instead.
+- architect-agent (when invoked via /setup §3.5 conflict-resolution): `tools: [Read, Edit]` constrained к CLAUDE.md only via the spawn prompt.
 
 **(5) Output schema.** The exact format the agent's response must match. Examples: a Markdown table with named headers, a JSON block matching a stated schema, or finding objects matching the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. If the orchestrator cannot parse the agent's output, re-spawning is wasted work — pin the schema upfront. Include a one-example block showing the literal shape.
 
