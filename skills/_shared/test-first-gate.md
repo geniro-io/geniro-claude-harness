@@ -12,13 +12,13 @@ Skipping the gate is the documented anti-pattern in the superpowers `test-driven
 
 ## When this fires
 
-- `/geniro:follow-up` Phase 2 (Small + Medium scope) — before the fixer-agent spawn.
 - `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change constitution requires existing tests to lock the behavior; if none exists, the gate fires before the refactor-agent spawn).
-- `/geniro:implement` Phase 4 in TDD Lane — formalized here. The Lane Selection AUQ at Phase 1 Step 0 is upstream of this gate; Test-First Gate confirms per-WU.
 
 The gate does NOT fire in:
-- `/geniro:implement` Lane: full or Lane: light — those Lanes use the architect's plan + Phase 6 reviewer pipeline as the test-coverage gate; the per-WU Test-First check would be redundant.
+- `/geniro:implement` (M4) — Phase 2 runs а single whole-feature edit batch followed by Phase 3's 5-dim reviewer pipeline (`tests` dimension covers test-first behaviour); per-WU Test-First check would be redundant against M4's design (`architecture/M4-implement-redesign.md` §6 + §7.2). Lane modes (TDD / Light / Full) were removed in M4.
 - `/geniro:debug` — debug's evidence requirement is hypothesis confirmation per `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`, not a test-first gate. Debug's adversarial mode is the closest analogue and runs the cycle in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` directly.
+
+(Legacy `/geniro:follow-up` consumer removed — skill deleted per master plan §65.)
 
 ## Required AUQ shape
 
@@ -37,7 +37,7 @@ This gate is **Always-WAIT** in every mode and lane that fires it (per § When t
 
 Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask. Never auto-default.
 
-The single exception is `/geniro:follow-up` in Small scope when auto-mode is explicitly active per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` AND the change footprint is `<= 1 file AND <= 5 LOC` — the gate auto-selects "Author failing test first" (the recommended option) without prompting. Auto-defaulting to the SKIP option is forbidden in every case.
+Auto-defaulting to the SKIP option is forbidden in every case. `/geniro:refactor` is the sole remaining consumer (post-M4); it fires the gate per its own SKILL.md flow.
 
 ## Result handling
 

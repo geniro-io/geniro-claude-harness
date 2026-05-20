@@ -7,9 +7,10 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 ## When this fires
 
 Used by:
-- `/geniro:implement` Phase 2 — when the architect-agent's design output contains `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit
+- `/geniro:plan` (M5) — when the spec/plan authoring surfaces а proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. `/plan` owns the architect-agent под M4+M5 split (see `architecture/M4-implement-redesign.md` §3.1); the gate fires upstream of `/implement`.
 - `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives the relevance-filter (i.e., wasn't dropped at Phase 4c) and is about to enter the fix-loop pool
-- `/geniro:follow-up` Phase 1 Step 2.5 — Root vs Symptom assessment for the Small and Medium lanes (Trivial lane bypasses the gate; the Trivial scope is too narrow for symptom-vs-root to apply meaningfully)
+
+(Legacy `/geniro:follow-up` consumer removed — skill deleted per master plan §65; ad-hoc post-ship tweaks now route through `/geniro:implement` directly.)
 
 Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step, or when the upstream skill is in a lane that bypasses architect/reviewer entirely (Fast Lane in `/geniro:implement`, Trivial in `/geniro:follow-up`).
 
@@ -42,8 +43,8 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
   ```
 
   Pull the `<title>` / `<file:line or design-section>` / `<symptom>` / `<suspected root cause>` / `<why this matters>` values from the upstream artifact's persisted body fields:
-  - For `/geniro:review` and `/geniro:follow-up`: from each finding's `File:` / finding-title / `Why this matters:` plus the new `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
-  - For `/geniro:implement` Phase 2: from the architect-agent's design unit fields (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
+  - For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the new `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
+  - For `/geniro:plan` (M5): from the architect-agent's design unit fields в spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
 
   When more than one `[SYMPTOM]` finding/design fires the gate in the same skill phase, fire the AUQ once per finding (sequentially) — the user's choice on one symptom does not transfer to another. The single-select shape stays the same per call; do NOT batch into a multi-select.
 

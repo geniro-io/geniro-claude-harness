@@ -1,6 +1,6 @@
 # Plan Criteria
 
-Guidelines for generating implementation plans. Pre-inlined into architect-agent and skeptic-agent prompts by `/geniro:implement` (Phase 2) and `/geniro:decompose`. This is the canonical schema for plan files saved to `.geniro/planning/`.
+Guidelines for generating implementation plans. Pre-inlined into architect-agent and skeptic-agent prompts by `/geniro:plan` (M5 — owns plan + spec authoring). This is the canonical schema for plan files saved to `.geniro/planning/`. `/geniro:implement` (M4) consumes spec.md emitted by `/plan`; it does NOT spawn architect-agent itself — see `architecture/M4-implement-redesign.md` §3.1.
 
 ## Plan File Naming
 
