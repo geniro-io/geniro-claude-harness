@@ -1,6 +1,6 @@
 # Load Custom Reviewers — Discovery + Spawn-Spec Helper
 
-Canonical rule for discovering and spawning user-authored custom review dimensions. Referenced from every skill that spawns the parallel reviewer batch: `/geniro:review` Phase 2 (Standard + Batched modes), `/geniro:implement` Phase 6 Stage C, `/geniro:follow-up` Phase 5 Step 1, `/geniro:refactor` Phase 5 Step 2.
+Canonical rule for discovering and spawning user-authored custom review dimensions. Referenced from every skill that spawns the parallel reviewer batch: `/geniro:review` Phase 2 (Standard + Batched modes), `/geniro:implement` Phase 6 Stage C, `/geniro:follow-up` Phase 5 Step 1, `/geniro:refactor` M8 §3.2 (Phase 3 — independent reviewer + custom reviewers, Medium+ tier only).
 
 ## When to invoke
 
@@ -116,7 +116,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every custom-revi
 
 When `/geniro:review` is in Batched Mode (large diffs), the built-in reviewers fan out per-batch. Custom reviewers do NOT fan out per-batch — they spawn ONCE per review run regardless of batch count, each one seeing the full changed-files list.
 
-Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spawning would multiply identical `Agent()` calls; one-per-run is simpler and matches the per-PR rule already used for the pr-metadata reviewer. This applies only to `/geniro:review` Phase 2 Step 3 (Batched Mode) — the other three consumer skills (`/implement` Phase 6 Stage C, `/follow-up` Phase 5, `/refactor` Phase 5) run only the standard parallel batch.
+Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spawning would multiply identical `Agent()` calls; one-per-run is simpler and matches the per-PR rule already used для the pr-metadata reviewer. This applies only to `/geniro:review` Phase 2 Step 3 (Batched Mode) — the other three consumer skills (`/implement` Phase 6 Stage C, `/follow-up` Phase 5, `/refactor` M8 §3.2 Phase 3) run only the standard parallel batch.
 
 ## Anti-rationalization
 
