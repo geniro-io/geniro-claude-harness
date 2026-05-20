@@ -1,11 +1,11 @@
 ---
 name: learnings-extraction
-description: "Canonical doctrine for the auto-learning extraction step that runs at the end of /implement, /follow-up, /debug, and other pipelines. Single source — referenced from each consumer."
+description: "Canonical doctrine for the auto-learning extraction step that runs at the end of every pipeline + discovery skill (/implement Phase 3, /debug Phase 3, /refactor Phase 3, /plan, /onboard, /investigate, /review). Single source — referenced from each consumer. Canonical L2 emit helper: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh`."
 ---
 
 # Canonical: Auto-Learnings Extraction
 
-Used by `/implement` Phase 7, `/follow-up` Phase 6, and `/debug` step 7. Other pipelines that auto-extract learnings should adopt this canonical as they are converted.
+Used by every pipeline + discovery skill at its terminal auto-emit step per M2 §5.3 trigger table: `/implement` Phase 3 (M4 §13.2), `/debug` Phase 3 (M7 §3.3 `diagnosis`), `/refactor` Phase 3 (M8 §3.5 `discovery` + `pitfall`), `/plan` (M5 `decision`), `/review` (M6 §5b `pitfall`), `/onboard` (M9 §7.3 `discovery`), `/investigate` (M9 §10.5 `discovery`). The canonical L2 emit helper is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh`.
 
 ## What we capture (preferred tier)
 
@@ -97,7 +97,7 @@ Then add skill-specific context (where to save, when to skip).
 
 ## JSONL schema
 
-Single source of truth for the structure of `.geniro/knowledge/learnings.jsonl` entries (consumed by `/geniro:learnings` and the auto-extraction step in `/implement`, `/follow-up`, `/debug`).
+Single source of truth for the structure of `.geniro/knowledge/learnings.jsonl` entries (consumed by the auto-extraction step in every pipeline + discovery skill — /implement, /plan, /review, /debug, /refactor, /onboard, /investigate; auto-replaces the dropped `/learnings` skill per master plan §60).
 
 ### Base entry format
 

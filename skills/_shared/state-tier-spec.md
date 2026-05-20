@@ -41,7 +41,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 - `.geniro/actions/` — CRUD (workflow actions)
 - `.geniro/workflow/` — CRUD (integration config)
 - `.geniro/planning/_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`, `_focus-<area>.md` — CRUD global registries (`_` prefix = visual cue for persistent-global)
-- `.geniro/.geniro-state.json` — CRUD (plugin metadata)
+- `.geniro/docs/` — CRUD (M10a §3.4 spin-out targets — `hooks.md`, `mcp.md`, `agent-runtime.md`)
 
 ---
 
