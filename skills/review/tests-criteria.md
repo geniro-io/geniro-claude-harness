@@ -4,7 +4,7 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 
 ## Test Design Philosophy (canonical)
 
-This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every Stage C tests-dimension reviewer (`/geniro:review`, `/geniro:implement` Phase 6 Stage C, `/geniro:refactor` Phase 5 reviewer, `/geniro:deep-simplify` aggregation), the `adversarial-tester-agent` when authoring F→P tests (`/geniro:implement` Stage D, `/geniro:debug` Adversarial Mode), and the `/geniro:debug` Step 6 reproduction-test author. Write the test according to these principles; review the test against them.
+This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), the `adversarial-tester-agent` when authoring F→P tests (`/geniro:implement` Ship sub-step, `/geniro:debug` Adversarial Mode), and the `/geniro:debug` reproduction-test author. Write the test according to these principles; review the test against them.
 
 ### 1. Tests describe behavior, not implementation
 
