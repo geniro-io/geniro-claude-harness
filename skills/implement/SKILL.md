@@ -146,12 +146,23 @@ fi
 
 ## Memory I/O (M4 §13)
 
+### Phase 1 entry inventory (M4 §13.1)
+
+Phase 1 entry triggers four helper calls — three reads + one cross-layer protocol:
+
+1. `load-custom-instructions` (L4) с `MODE: refresh` — see §L4 below.
+2. `load-semantic` (L3) с `MODE: refresh` — see §L3 below. Procedure identical under both modes per M3 §7; the mode name signals compaction-survival intent.
+3. `query-learnings` (L2) — see §L2 below.
+4. `resolve-conflicts` (L4/L3/L2 protocol) — see §Cross-layer conflict surfacing. Fires only if disagreement detected after the three reads.
+
+Phase 2 makes no new helper calls. Phase 3 entry re-fires `load-custom-instructions(MODE: refresh)`. Phase 3 fix-loop iterations may re-fire `query-learnings`. Phase 3 ship sub-step adds writes: `emit-learning` (L2), `update-semantic` (L3 bounded append), и `atomic_state_write` (T1 frontmatter `non-resumable-actions[]`).
+
 ### L4 — Custom instructions (procedural)
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: initial-load` (Phase 1) или `MODE: refresh` (Phase 3 entry). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, и `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh` (used at both Phase 1 entry и Phase 3 entry per M4 §13.4). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, и `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
 
 **Phase boundaries (M3 §7.3 + M4 §13.4):**
-- Phase 1 entry — `MODE: initial-load` — scope = `implement` + `global` + `code-style`.
+- Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style`. M3 §7.3 makes `refresh` the universal "re-Read и announce" pattern; procedure identical к initial-load (every Read fires) but the mode name signals compaction-survival intent.
 - Phase 3 entry — `MODE: refresh` ALWAYS — survives Phase 2 compaction без requiring an M3 marker contract. Cost: 1 extra helper read.
 
 The Echo contract survives compaction via M3 SessionStart re-injection.
@@ -164,7 +175,7 @@ load_semantic                                # default: _project.md + _CODEBASE_
 load_semantic --extras "_FEATURES.md"        # if spec mentions feature backlog
 ```
 
-**Phase 1 entry only.** Drift notification surfaces к user if `.fingerprint.json` mismatched. Phase 3 does NOT re-load L3 (Phase 2 doesn't materially mutate L3 — `update-semantic` writes are bounded к single-line append on `_CODEBASE_MAP.md`).
+**Phase 1 entry only.** Conceptual `MODE: refresh` per M3 §7 — no MODE flag on the function; procedure identical under both modes (every Read fires, fingerprint drift check fires). Drift notification surfaces к user if `.fingerprint.json` mismatched. Phase 3 does NOT re-load L3 (Phase 2 doesn't materially mutate L3 — `update-semantic` writes are bounded к single-line append on `_CODEBASE_MAP.md`).
 
 ### L2 — Episodic event log
 
@@ -175,7 +186,7 @@ source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh"
 query_learnings --tag <inferred-tag> --scope <inferred-scope> --limit 5
 ```
 
-Tags inferred from task description (e.g., `react`, `auth`, `bug`); skipped if task description is too generic.
+Tags inferred from task description (e.g., `react`, `auth`, `bug`); skipped if task description is too generic. Compaction-immune helper per M3 §7.4 — no MODE parameter.
 
 **Read (Phase 3 fix-loop):**
 

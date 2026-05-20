@@ -12,7 +12,7 @@ Used by:
 
 (Legacy `/geniro:follow-up` consumer removed — skill deleted per master plan §65; ad-hoc post-ship tweaks now route through `/geniro:implement` directly.)
 
-Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step, or when the upstream skill is in a lane that bypasses architect/reviewer entirely (Fast Lane in `/geniro:implement`, Trivial in `/geniro:follow-up`).
+Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step. (Pre-M4 Lane-bypass exceptions для `/implement` Fast Lane и `/follow-up` Trivial are removed — М4 has no Lane modes и `/follow-up` was deleted.)
 
 ## Always-WAIT contract
 

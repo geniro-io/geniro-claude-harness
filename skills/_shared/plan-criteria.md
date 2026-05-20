@@ -147,7 +147,7 @@ Before the plan is presented to the user, verify:
 
 ## Validation Standard
 
-Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The skeptic-agent validates dimensions 1-8 for every plan. Dimensions 9-10 apply only when the plan has a `## Milestones` section (produced by `/geniro:decompose`).
+Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The skeptic-agent validates dimensions 1-8 for every plan. Dimensions 9-10 apply only when the plan has a `## Milestones` section (produced by `/geniro:plan` (M5) Big-tier milestone-output mode; pre-M4 owner was `/geniro:decompose`, now deleted).
 
 1. **Requirement coverage** — every user requirement appears as a step or is covered by a step
 2. **Task atomicity** — each step is independently verifiable and scoped to 1-5 files
