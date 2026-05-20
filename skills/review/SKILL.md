@@ -565,7 +565,7 @@ Code review is complete when:
 - [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding
 - [ ] Phase 4 judge validation complete; Step 0 intent reconciliation applied (plan-authorized divergences demoted к `[INTENT-CHECK]`)
 - [ ] Phase 4b per-finding validation run for CRITICAL/HIGH findings
-- [ ] Phase 4c test-gate evaluated (skipped когда no eligible findings, called as sub-phase of /implement, или user declines); user approval persisted к `approvals[]`
+- [ ] Phase 4c test-gate evaluated (skipped когда no eligible findings или user declines); user approval persisted к `approvals[]`
 - [ ] TDD mode only: Phase 4c Step 2 AUQ rendered с `(Recommended)` suffix на «Author tests…»; gate itself fired exactly as в Standard mode
 - [ ] TDD mode only: Phase 6 Step 3.5 post-set filter applied
 - [ ] Confidence scoring applied (≥80 threshold standard; ≥70 высокий tier)
