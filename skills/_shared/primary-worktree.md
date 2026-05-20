@@ -49,12 +49,13 @@ These are intended to outlive any single task. The resolver applies to both read
 
 | Artifact | Producer(s) | Consumer(s) | Notes |
 |---|---|---|---|
-| `.geniro/knowledge/learnings.jsonl` | `/learnings`, `/implement` Phase 7, `/follow-up` Phase 6, `/debug` Step 7, `/refactor` Phase 6, `/investigate` Step 2a | `knowledge-retrieval-agent`, `/refactor` Phase 1, `/decompose`, `/debug` Step 1, `/features` triage, `/investigate` Step 1 | structured corpus |
+| `.geniro/knowledge/learnings.jsonl` | `/implement` (M4 §13.2 auto-emit), `/plan` (M5 `decision` emit), `/debug` (M7 §3.3 `diagnosis` emit), `/review` (M6 §5b `pitfall` emit), `/refactor` (M8 §3.5 `discovery` + `pitfall` emit), `/onboard` (M9 §7.3 `discovery` emit), `/investigate` (M9 §10.5 `discovery` emit) | `knowledge-retrieval-agent`, every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
 | `.geniro/state/handoff/from-debug-<branch>.md` (M7 §11.2 — M1-T2 canonical; legacy `.geniro/state/debug/findings-state.md` read once for backward-compat resume per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` Step 1) | `/debug` Phase 3 §8.1 | `/implement` Phase 1 Step 1 | carries M1 §T2 frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
 | `.geniro/state/handoff/from-debug-adversarial-<branch>.md` (M7 §11.3 — M1-T2 canonical; legacy `.geniro/state/debug/adversarial-tests.md` read once for backward-compat per debug-handoff.md Step 1) | `/debug` adversarial mode (M7 §9.6) | `/implement` Phase 1 Step 1 | same handoff |
 | `.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 M1-T2 canonical; legacy `.geniro/state/review-findings-state.md` read once for backward-compat resume per SKILL.md §5.2) | `/review` | `/implement` Phase 1 step 8 «Persist T2 handoffs» | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
 | `.geniro/planning/FEATURES.md` | `/features` (CRUD) | `/implement` (binding), `/decompose` | persistent registry |
-| `.geniro/planning/CODEBASE_MAP.md`, `.geniro/planning/focus-<area>.md` | `/onboard` | every skill that consults the map | persistent orientation artifacts |
+| `.geniro/planning/_CODEBASE_MAP.md` (M1:508 underscore-prefixed registry per L3 convention; legacy `.geniro/planning/CODEBASE_MAP.md` read-once for backward-compat) | `/onboard` (M9 §7.1) | every skill that consults the map (`/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` per M2 §6.1 |
+| `.geniro/planning/_focus-<area>.md` | `/onboard <area>` (manual scope-limiter via `--focus` flag persists а concentrated map alongside the full `_CODEBASE_MAP.md`); `/investigate --persist` | every skill that consults focused-area context | persistent orientation artifact for а subsystem |
 
 ## Artifacts NOT in scope (task-local — keep cwd-relative)
 
