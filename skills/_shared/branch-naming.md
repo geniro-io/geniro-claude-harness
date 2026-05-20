@@ -1,6 +1,6 @@
 # Branch Naming
 
-A shared procedure that builds a git branch name which follows the calling repo's convention instead of a hardcoded prefix. Callers invoke this whenever they need to create a new branch (direct `git checkout -b`, or `git worktree add -b`). Never hardcode `feat/<slug>` or `implement-<slug>` at the call site — route through this procedure so conventions stay consistent across `/geniro:implement`, `/geniro:follow-up`, and any future skill that branches.
+A shared procedure that builds a git branch name which follows the calling repo's convention instead of a hardcoded prefix. Callers invoke this whenever they need to create a new branch (direct `git checkout -b`, or `git worktree add -b`). Never hardcode `feat/<slug>` or `implement-<slug>` at the call site — route through this procedure so conventions stay consistent across `/geniro:implement` and any future skill that branches.
 
 ## Caller contract
 

@@ -35,15 +35,15 @@ Both agents tag every finding/design unit. Omission is never acceptable — see 
 
 ## How orchestrators route by tag
 
-The orchestrator (`/geniro:implement` Phase 2 / `/geniro:review` Phase 5 / `/geniro:follow-up` Phase 1 Step 2.5) reads the `Cause:` field (reviewer findings) or "Root-cause classification" line (architect design units) from the persisted artifact and routes:
+The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Phase 4 filter / `/geniro:refactor` Phase 3 verify) reads the `Cause:` field (reviewer findings) from the persisted artifact and routes:
 
 - **`[ROOT-CAUSE]` / `ROOT-CAUSE`** → proceeds in the upstream skill's normal flow. The finding/design enters the fix-loop pool / implementation pool unchanged.
-- **`[SYMPTOM]` / `SYMPTOM-PATCH`** that survives the upstream filter step (Phase 4c relevance-filter for `/geniro:review`; architect's own self-filter for `/geniro:implement` Phase 2; Step 2.5 root-vs-symptom assessment for `/geniro:follow-up`) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding/design unit. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
+- **`[SYMPTOM]` / `SYMPTOM-PATCH`** that survives the upstream filter step (Phase 4 relevance-filter for `/geniro:review`; Phase 3 self-review filter for `/geniro:implement`; Phase 3 verify for `/geniro:refactor`) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
 - **`MIXED`** (architect only) → fires the same gate per design unit; the user picks per-unit, just as `[SYMPTOM]` findings fire per-finding.
 - **`[UNKNOWN]`** (reviewer only — architect emits the 3-tag set ROOT-CAUSE / SYMPTOM-PATCH / MIXED and does NOT have UNKNOWN as an option) → orchestrator requires the reviewer to escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the agent itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause and emits the (now classified) finding.
 - **`[SYMPTOM-ACK]`** → already user-acknowledged; orchestrator proceeds AND appends the entry to the Ship summary's `## Acknowledged tech debt` section (the gate's Result handling already wrote it; this is the read-back for ship-time rendering).
 
-The Trivial lane in `/geniro:follow-up` and the Fast Lane in `/geniro:implement` bypass these tags entirely — those lanes do not invoke architect/reviewer agents, so no `Cause:` field exists. The gate is skipped silently, matching the same lane-bypass convention as `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`.
+(Pre-M4 lane-bypass exceptions for `/geniro:implement` Fast Lane и `/geniro:follow-up` Trivial are removed — M4 has no Lane modes per architecture/M4-implement-redesign.md §3.1, и `/follow-up` was deleted per master plan §66.)
 
 ## Persistence schema
 

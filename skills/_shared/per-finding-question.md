@@ -11,10 +11,8 @@ Any AUQ call that asks the user to act on one or more findings. Both the per-fin
 ## Single-finding gate (one finding per call)
 
 Used by:
-- `/geniro:review` Phase 6 Step 0 (PRODUCT-DECISION resolution)
-- `/geniro:review` Phase 6 Step 3 (PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
-- `/geniro:follow-up` Phase 5 Step 2 (PRODUCT-DECISION resolution)
-- `/geniro:implement` Phase 6 Fix-Loop pre-step (PRODUCT-DECISION resolution)
+- `/geniro:review` Phase action-gate (PRODUCT-DECISION resolution; PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
+- `/geniro:implement` Phase 3 self-review fix-loop pre-step (PRODUCT-DECISION resolution)
 - `/geniro:refactor` §8.3 escalation (M8 — PRODUCT-DECISION → escalate; 4 options when ADR-eligible, 3 otherwise)
 
 ### Required AUQ shape
@@ -175,7 +173,7 @@ The `(Recommended)` suffix on an AskUserQuestion option is load-bearing — user
 
 - **Override-of-prior-finding rule.** When the orchestrator's AUQ option contradicts, downgrades, or proposes-to-ignore a prior `/review` CRITICAL or HIGH finding — read from `<task-dir>/planning/*/review-feedback.md` или `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 M1-T2 canonical) — that option MUST NOT carry `(Recommended)`. The conservative path (verify the orchestrator's interpretation first; spawn skeptic to mirror-check; escalate to `/geniro:debug`) is the Recommended default instead. The orchestrator's interpretation of "this CRITICAL is stale / no-op / unused" is, by definition, an unverified claim until the skeptic mirror-check or an empirical re-run confirms it.
 - **Orchestrator-authored-hypothesis rule.** When the orchestrator wrote BOTH the hypothesis AND the option set (i.e. the user did not propose the change in `$ARGUMENTS`; the orchestrator decided mid-pipeline that the change-shape should shift — e.g. "I'll downgrade this CRITICAL to a comment-only cleanup"), the orchestrator's preferred option MUST NOT carry `(Recommended)`. The Recommended default is whichever option keeps the original change shape intact, or "Stop and let me describe the change" if no original shape applies.
-- **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option MUST NOT carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:follow-up` Phase 1 Step 2.6 skeptic mirror-check + Phase 5 Step 1.5 deletion-class adversarial-tester) OR "Keep the guard for now".
+- **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option MUST NOT carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:debug` adversarial mode — M7 §9.6 adversarial-tester-agent authors an attempted-removal RED test verifying the guard's necessity) OR "Keep the guard for now".
 
 ### Pre-selection is the lever
 

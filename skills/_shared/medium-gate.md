@@ -7,10 +7,10 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 ## When this fires
 
 Used by:
-- `/geniro:implement` Phase 6 Fix Loop pre-step (after the PRODUCT-DECISION pre-step, before fixer spawn)
-- `/geniro:follow-up` Phase 5 Step 2 disposition (after the PRODUCT-DECISION gate, before fix-loop entry)
+- `/geniro:implement` Phase 3 self-review fix-loop pre-step (after the PRODUCT-DECISION pre-step, before inline fix application)
+- `/geniro:refactor` Phase 3 verify fix-loop entry (after the PRODUCT-DECISION gate)
 
-Skip silently when zero MEDIUM findings exist after deduplication (or when no reviewer-agents ran — Trivial / Fast Lane paths that bypass Phase 5 / Stage C entirely; Light Mode runs Stage C and the gate DOES fire there).
+Skip silently when zero MEDIUM findings exist after deduplication, or when no reviewer-agents ran.
 
 ## Always-WAIT contract
 

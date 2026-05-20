@@ -18,14 +18,11 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 Every Agent() spawn in the following skills MUST satisfy the checklist:
 
-- `/geniro:implement` (architect-agent, skeptic-agent, backend-agent, frontend-agent, refactor-agent, knowledge-retrieval-agent, fixer agents)
+- `/geniro:implement` (reviewer-agent x 5 self-review dimensions + custom reviewers per `_shared/load-custom-reviewers.md`)
 - `/geniro:review` (reviewer-agent x N dimensions, relevance-filter-agent, adversarial-tester-agent)
-- `/geniro:decompose` (architect-agent for milestone slicing)
-- `/geniro:deep-simplify` (3 parallel quality reviewers)
-- `/geniro:follow-up` (fixer + Stage C reviewers)
-- `/geniro:refactor` (refactor-agent, skeptic-agent)
+- `/geniro:refactor` (refactor-agent in Phase 2; reviewer-agent + custom reviewers in Phase 3 verify)
 - `/geniro:debug` (knowledge-retrieval-agent, adversarial-tester-agent in adversarial mode)
-- `/geniro:investigate` (parallel research agents)
+- `/geniro:investigate` (1-3 parallel research agents — Codebase Analyst / Git Historian / Internet Researcher)
 
 Eight skills total. The checklist is non-optional for every spawn — bare-prompt spawns are forbidden.
 

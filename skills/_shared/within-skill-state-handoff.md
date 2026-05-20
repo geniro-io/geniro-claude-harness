@@ -1,6 +1,6 @@
 # Within-skill state handoff (canonical, shared)
 
-**Status:** Authoritative for these task-local state files: `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/<slug>/state.md` (M8 §9.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md`, `.geniro/state/follow-up/adversarial-<slug>.md`, `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/onboard/<slug>/state.md` (M9 §11.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/investigate/<slug>/state.md` (M9 §11.2 — subdir-per-slug layout, M1 §T1 session-bound).
+**Status:** Authoritative for these task-local state files: `.geniro/state/refactor/<slug>/state.md` (M8 §9.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/onboard/<slug>/state.md` (M9 §11.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/investigate/<slug>/state.md` (M9 §11.2 — subdir-per-slug layout, M1 §T1 session-bound).
 
 Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the headers every producer embeds, and the mismatch UX every consumer surfaces on resume.
 
@@ -86,19 +86,14 @@ When a skill completes its pipeline, it MUST delete its slug-scoped state file a
    - `.geniro/state/refactor/state-<slug>.md` (pre-M8 — replaced by `.geniro/state/refactor/<slug>/state.md`)
 
 2. **Intermediate legacy (pre-state-dir, slug-scoped)** — these were canonical until the `.geniro/state/` move:
-   - `.geniro/follow-up/state-<slug>.md`
    - `.geniro/refactor/state-<slug>.md`
-   - `.geniro/improve-template/state-<slug>.md`
    - `.geniro/debug/HYPOTHESES-<slug>.md`
 
 3. **Original legacy (pre-slug)** — these were canonical before slug-scoping:
-   - `.geniro/follow-up-state.md`
    - `.geniro/refactor/state.md`
-   - `.geniro/improve-template-state.md`
    - `.geniro/debug/HYPOTHESES.md`
 
-4. **Non-scoped /follow-up adversarial report (pre-rename)** — never slug-scoped, lived under the wrong skill dir:
-   - `.geniro/state/debug/follow-up-state-adversarial.md`
+(Pre-M10 `.geniro/follow-up/*` and `.geniro/improve-template/*` paths are no longer authoritative — `/follow-up` was deleted per master plan §66 and `/improve-template` was never а plugin skill. Orphan state files from pre-M10 runs may be removed manually.)
 
 Each producer must `rm -f` its own legacy paths (M7 /debug producer clears five generations per §8.5 — three pre-M7 + intermediate + original; M8 /refactor producer clears three generations per §8.7 — pre-M8 flat + intermediate slug-scoped + original non-scoped). M9 /onboard и /investigate have no legacy paths к clear — pre-M9 these skills had no state file, so the cleanup contract reduces к а single `rm -rf .geniro/state/<skill>/<slug>/`. The `2>/dev/null || true` discipline applies — these are best-effort.
 
