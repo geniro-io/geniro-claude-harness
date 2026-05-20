@@ -60,6 +60,7 @@ After mode is resolved (IDEA или DESIGN_DOC-fresh-start):
    producer: plan
    schema-version: 1
    branch: <git-branch>
+   worktree: <git-rev-parse-show-toplevel>   # M1 optional, recommended для cross-worktree resume
    timestamp: <ISO-8601 UTC>
    phase: mode-detect
    status: in-progress

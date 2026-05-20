@@ -22,6 +22,15 @@ set -uo pipefail
 # from а week ago) MUST NOT lock out unrelated Writes in а fresh session.
 # 4 hours captures typical /plan-run durations; stale state files older than
 # this are treated as inactive (user has clearly moved on).
+#
+# Edge cases:
+#   PLAN_LOCK_FRESHNESS_SEC=0 — strict `-gt` comparison means age=0 still
+#                              counts as fresh; age≥1 counts as stale.
+#                              Effectively а 1-second freshness window.
+#                              Use the safety.json `plan-mode-mutation` bypass
+#                              для а proper guard disable.
+#   Very large value — guard never expires stale locks; manual cleanup of
+#                      abandoned state.md files required.
 PLAN_LOCK_FRESHNESS_SEC=${PLAN_LOCK_FRESHNESS_SEC:-14400}  # 4h default
 
 # Consume stdin — REQUIRED first step for Claude Code hooks.
