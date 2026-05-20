@@ -159,7 +159,7 @@ Show the created file content and report:
 Created `.geniro/instructions/review-extra/{{slug}}.md`.
 
 This reviewer will run alongside the built-in 7-9 every time you invoke
-/geniro:review (or implement/follow-up/refactor's review phase).
+/geniro:review (or /geniro:implement Phase 3 self-review / /geniro:refactor Phase 3 verify).
 
 Test it: run `/geniro:review` against a PR you expect this reviewer to flag,
 and confirm findings appear and look right. Edit with

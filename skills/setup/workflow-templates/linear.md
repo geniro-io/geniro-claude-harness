@@ -23,7 +23,7 @@ When a Linear reference is detected:
 
 **Never update Linear issue status automatically.** Always ask the user first using `AskUserQuestion`.
 
-### On task start (implement/follow-up Phase 1)
+### On task start (M4 /implement Phase 1 — analyze)
 After fetching the issue, send the applicable prompts below in a single `AskUserQuestion` call. Always include the status question; include the assignment question only when the fetched `assignee` field is null (respect any existing assignment — never overwrite it).
 
 1. Status prompt (always):
@@ -38,7 +38,7 @@ After fetching the issue, send the applicable prompts below in a single `AskUser
 
 If the user accepts assignment, call `update_issue({ id: "[ISSUE-ID]", assigneeId: "me" })` — Linear MCP resolves `"me"` to the authenticated user, no separate user lookup needed.
 
-### On task completion (implement Phase 7 / follow-up Phase 6)
+### On task completion (M4 /implement Phase 3 — Ship sub-step)
 After the user approves shipping:
 
 - **After Commit + PR:** Ask "Move [ISSUE-ID] to In Review and add PR link?" — Options: "Yes" / "No"
@@ -57,7 +57,7 @@ Any Linear comment authored by a Geniro skill — implementation summary, triage
 
 (literal bracket-prefix, single trailing space, then the comment body)
 
-Rationale: human reviewers and downstream automation need to distinguish AI-authored content from human-authored content at a glance, especially in triage and review workflows where the skill speaks on behalf of the user. The prefix is required regardless of which skill authored the comment (`/geniro:features triage`, `/geniro:implement` Phase 7 status update, `/geniro:debug` finding summary posted to a Linear issue, etc.).
+Rationale: human reviewers and downstream automation need to distinguish AI-authored content from human-authored content at a glance, especially in triage and review workflows where the skill speaks on behalf of the user. The prefix is required regardless of which skill authored the comment (`/geniro:implement` Phase 3 Ship status update, `/geniro:debug` finding summary posted к a Linear issue, etc.).
 
 The prefix is NOT required for:
 - Status-only updates (no comment text — just `state: "In Progress"`)
@@ -84,7 +84,7 @@ in the PR description body.
 
 ## Implement Skill Behavior
 
-When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching Issue Context` above — the fetched title/description/acceptance criteria flow into Phase 2 (architect+skeptic) as planning input.
+When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching Issue Context` above — the fetched title/description/acceptance criteria flow into Phase 1 (analyze) as planning input. /geniro:plan (M5) also reads Linear context if а PLAN CONTEXT references а Linear ID.
 
 ## MCP Setup
 
