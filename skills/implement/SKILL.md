@@ -148,16 +148,13 @@ fi
 
 ### L4 — Custom instructions (procedural)
 
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.sh"
-load_custom_instructions implement
-```
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: initial-load` (Phase 1) или `MODE: refresh` (Phase 3 entry). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, и `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
 
 **Phase boundaries (M3 §7.3 + M4 §13.4):**
-- Phase 1 entry — `MODE: refresh` (initial load) — scope = `implement` + `global` + `code-style`.
+- Phase 1 entry — `MODE: initial-load` — scope = `implement` + `global` + `code-style`.
 - Phase 3 entry — `MODE: refresh` ALWAYS — survives Phase 2 compaction без requiring an M3 marker contract. Cost: 1 extra helper read.
 
-The helper's §Echo contract requires one observable line per file — survives compaction via M3 SessionStart re-injection.
+The Echo contract survives compaction via M3 SessionStart re-injection.
 
 ### L3 — Semantic snapshot
 
@@ -235,7 +232,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 ## PHASE 1: ANALYZE
 
-**Refresh L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.sh` (MODE: refresh) с scope = `implement` + `global` + `code-style`. The Echo contract requires one observable line per file.
+**Load L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, и `code-style.md`; the §Echo contract requires one observable line per file. Both are mandatory.
 
 **Refresh L3 semantic snapshot.** `load_semantic` с default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification к user.
 
@@ -300,7 +297,7 @@ Persist choice к state.md `## Workspace`. Pre-M4 multi-question Phase 1 Startup
 
 **State.md `phase: self-review`** on entry.
 
-**Refresh L4 instructions** (always, regardless of compaction-marker presence). `load_custom_instructions` MODE: refresh, scope = same as Phase 1.
+**Refresh L4 instructions** (always, regardless of compaction-marker presence). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `MODE: refresh`, scope = same as Phase 1.
 
 **Idempotent green-light verification on entry.** Re-run test suite once. Should be green from Phase 2. If not, rollback к Phase 2 §6.2 retry loop (treats as а retry round).
 
@@ -412,7 +409,7 @@ Per master plan P-MP-1 anti-patterns guardrail — М4 must NOT reintroduce thes
 - Reviewer-agent contract: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`
 - Review criteria files: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files changed)
 - State helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh`
-- Memory helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.sh`, `load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `update-semantic.sh`, `resolve-conflicts.md`
+- Memory helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (L4 directive doc), `load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `update-semantic.sh`, `resolve-conflicts.sh` (+ companion `.md` API docs)
 - Agent spawn-degradation ladder: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`
 - Evidence standard: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`
 - Architecture spec: `architecture/M4-implement-redesign.md`
