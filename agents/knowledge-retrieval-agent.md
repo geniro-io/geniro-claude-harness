@@ -49,9 +49,13 @@ Grep across all JSONL files in subdirectories.
 
 ### 3. Debug History
 ```
-<DEBUG_ROOT>/HYPOTHESES-*.md
+<DEBUG_ROOT>/handoff/from-debug-*.md          # M7 §11.2 — T2 hand-offs (current branch)
+<DEBUG_ROOT>/<slug>/state.md                  # M7 §11.1 — T1 session-bound state (active runs)
+<DEBUG_ROOT>/HYPOTHESES-*.md                  # legacy (pre-M7 — fallback only)
 <DEBUG_ROOT>/*.md
 ```
+
+Note: `/geniro:debug` (M7) cleans up its T1 state.md at session end (§3.5 Cleanup), so only completed-run T2 hand-offs typically persist. Legacy `HYPOTHESES-*.md` may remain in upgraded projects until the next debug run.
 
 ### 4. Planning Artifacts
 
@@ -79,7 +83,7 @@ Return a condensed summary:
 - [decision] — Source: decisions/architectural-decisions.jsonl
 
 ### Prior Debug History
-- [hypothesis/result] — Source: debug/HYPOTHESES-<branch>.md
+- [root-cause/hypothesis/result] — Source: state/handoff/from-debug-<branch>.md (M7 T2 hand-off) или state/debug/<slug>/state.md (M7 T1 active run) или legacy HYPOTHESES-<slug>.md (pre-M7)
 
 ### No Results
 "No prior knowledge found for '{query}'."
