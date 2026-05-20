@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 9 agents, 17 skills, and 7 safety hooks + statusline + update check out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 9 agents, 11 skills, and 8 safety hooks + statusline + update check out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -28,24 +28,28 @@ Add to your repo's `.claude/settings.json` so teammates get prompted to install:
 ## Quick Start
 
 1. **Install** the plugin (see above) and open Claude Code in your project.
-2. **Run setup** — analyzes your stack and generates a tailored `CLAUDE.md`:
+2. **Run setup** — analyzes your stack and generates a tailored thin-map `CLAUDE.md` + `.geniro/instructions/user-preferences.md`:
    ```
    /geniro:setup
    ```
-3. **Map the codebase** (optional, recommended for larger repos) — produces `CODEBASE_MAP.md`:
+3. **Map the codebase** (optional, recommended for larger repos) — produces `.geniro/planning/_CODEBASE_MAP.md`:
    ```
    /geniro:onboard
    ```
-4. **Build a feature** — 8-phase pipeline with architecture, implementation, validation, and review:
+4. **Plan a feature** — spec-first planning, turns a vague idea into an approved `spec.md`:
    ```
-   /geniro:implement add user authentication with JWT tokens
+   /geniro:plan add user authentication with JWT tokens
    ```
-5. **Review your work** before shipping:
+5. **Implement** — consumes the spec.md (or inline-task if /plan wasn't run), 2-phase autonomous loop:
+   ```
+   /geniro:implement
+   ```
+6. **Review your work** before shipping:
    ```
    /geniro:review
    ```
 
-From there, pick the right skill for each task: `/geniro:debug` to investigate bugs (proposes the fix; hands it to `/geniro:follow-up` or `/geniro:implement`), `/geniro:follow-up` for small tweaks, `/geniro:refactor` for restructuring, `/geniro:investigate` for codebase Q&A.
+From there, pick the right skill for each task: `/geniro:debug` to investigate bugs (authors a fix proposal + reproduction test, escalates to `/geniro:implement` to ship), `/geniro:refactor` for zero-behavior-change restructuring, `/geniro:investigate` for codebase Q&A.
 
 ## How it works
 
@@ -53,80 +57,88 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 
 ```
 .geniro/
-├── .geniro-state.json      # what setup generated (used by cleanup + vendor)
-├── planning/               # specs, plans, CODEBASE_MAP.md, FEATURES.md backlog
-├── knowledge/              # learnings.jsonl + session summaries across runs
-├── instructions/           # project-specific rules (global.md + per-skill files)
-├── debug/                  # HYPOTHESES-<branch>.md scratchpad for /geniro:debug (branch-scoped)
+├── planning/               # specs, plans, _CODEBASE_MAP.md, _FEATURES.md, _project.md, _focus-*.md
+│   └── <task-dir>/         # M4/M5 task-bound: spec.md, plan.md, state.md, milestone-N.md
+├── state/                  # M1 §T1 session-bound + handoff
+│   ├── <skill>/<slug>/state.md  # M7 /debug, M8 /refactor, M9 /onboard, M9 /investigate
+│   ├── setup/state.md      # M10a /setup singleton
+│   └── handoff/            # M1 §T2 inter-skill: from-<producer>-<branch>.md
+├── knowledge/              # learnings.jsonl (L2 episodic) + session summaries
+├── instructions/           # L4 procedural: global.md, code-style.md, user-preferences.md,
+│                           # per-skill.md, review-extra/<slug>.md
+├── actions/                # T3 user-authored workflow helpers (Slack/PR/release)
+├── docs/                   # M10a §3.4 spin-out targets (hooks.md, mcp.md, agent-runtime.md)
 └── workflow/               # optional integrations (issue tracker, PR flow)
 ```
 
-`.geniro/` is gitignored by default, except `workflow/` and `instructions/` which are meant to be committed so the team shares the same rules and integrations.
+`.geniro/` is gitignored by default, except `workflow/`, `instructions/`, and `actions/` which are meant to be committed so the team shares the same rules and integrations.
 
 ### Typical workflow
 
 ```
-  /geniro:brainstorm  →  /geniro:implement   →  /geniro:follow-up
-  (refine idea into            ↑                 (small tweaks
-   approved design)      /geniro:decompose        after shipping)
-                         (for Big tasks —
-                          splits into milestones)
+  /geniro:plan  →  /geniro:implement  →  /geniro:review
+  (spec-first      (2-phase autonomous     (multi-dim code review
+   planning)        execute + ship)         before merge)
 ```
 
-Want to go deeper on quality?
+For investigation and maintenance:
 
 ```
-  /geniro:deep-simplify   →   /geniro:review
-  (reuse/quality/efficiency   (7–8 parallel reviewers:
-   — zero behavior change)     bugs, security, architecture,
-                               tests, optimizations,
-                               guidelines, conventions,
-                               +design)
+  /geniro:debug          /geniro:refactor       /geniro:investigate
+  (scientific-method     (zero-behavior-change   (parallel research
+   bug investigation)     restructuring)          agents Q&A)
 ```
 
 Each skill reads from and writes to `.geniro/` so context survives across compaction, branches, and sessions:
 
-- **Plan → implement** — `/geniro:implement`'s Phase 2 (architect + skeptic) drops a validated plan into `.geniro/planning/<branch>/plan-<slug>.md` before coding starts; for Big tasks, `/geniro:decompose` produces a master plan plus per-milestone files in the same directory.
-- **Knowledge accumulates** — `/geniro:learnings` appends gotchas to `knowledge/learnings.jsonl`; future `/geniro:debug` and `/geniro:implement` runs grep it before investigating.
-- **Rules persist** — `/geniro:instructions` writes rules into `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + its own file + `code-style.md`, with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
-- **State survives compaction** — long pipelines checkpoint to `.geniro/state/follow-up/state-<branch>.md` or the planning dir, so the next turn can resume exactly where it left off. Within-skill state files are branch-scoped per `skills/_shared/within-skill-state-handoff.md` so parallel sessions on different branches don't clobber each other.
+- **Plan → implement** — `/geniro:plan` writes an approved `spec.md` to `.geniro/planning/<task-dir>/`; `/geniro:implement` consumes it (or accepts inline-task input as a fallback). For Big tasks, `/geniro:plan` Phase 5 milestone-mode emits sibling `milestone-N.md` files.
+- **Knowledge accumulates** — every pipeline + discovery skill auto-emits `discovery` / `pitfall` / `diagnosis` L2 entries to `knowledge/learnings.jsonl` per M2 §5.3 trigger table. Future runs grep them before investigating.
+- **Rules persist** — `/geniro:instructions` manages `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + per-skill file + `code-style.md` + `user-preferences.md` (M10b), with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
+- **State survives compaction** — long pipelines checkpoint to M1 §T1 state files (`<task-dir>/state.md` or `state/<skill>/<slug>/state.md`); the M3 SessionStart hook re-injects them after every `compact|resume|startup` event. Within-skill state files are slug-scoped per `skills/_shared/within-skill-state-handoff.md` so parallel sessions on different branches don't clobber each other.
 
-If you ever want to walk away cleanly, `/geniro:cleanup` removes everything listed in `.geniro-state.json` and leaves user-created files untouched.
+## Skills (11 total — post-M4 redesign)
 
-## Skills
+### `/geniro:setup` (M10a) — AI-driven project setup
 
-### `/geniro:setup` — AI-driven project setup
-
-Scans your codebase, interviews you about preferences, and generates a tailored CLAUDE.md with detected tech stack, commands, and conventions.
+4-phase singleton bootstrap (Detect → Interview → Generate → Validate → Done). Scans codebase via lockfile/config presence; interviews you for preferences that can't be auto-detected; generates a **thin-map** CLAUDE.md + `.geniro/instructions/user-preferences.md` (L4). Phase 3 P-M10-3 split methodology: sections >40 LOC default to spin out to `.geniro/docs/<topic>.md`. Phase 4 verification subagent + 3-retry escalation loop. L2 `discovery` emit on done.
 
 ```
 /geniro:setup
+/geniro:setup --reset-prefs        # reset preference categories only
 ```
 
-### `/geniro:implement` — Full-featured implementation
+### `/geniro:plan` (M5) — Spec-first planning
 
-Eight-phase pipeline: discover scope, architect a solution, get your approval, implement with parallel agents, validate, simplify, review, and ship.
-
-```
-/geniro:implement add user authentication with JWT tokens
-/geniro:implement create a REST API for managing blog posts
-/geniro:implement integrate Stripe payments for subscriptions
-```
-
-### `/geniro:review` — Parallel multi-agent code review
-
-Spawns 7–10 specialized reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files are present, +pr-metadata when input was a PR ref — audits PR title clarity and description completeness against a rubric: test plan when logic changed, screenshots when UI changed, breaking-change note when API/migration changed, scope alignment, linked issue, description-vs-code drift on re-review, +spec-compliance when PLAN CONTEXT is non-none AND (PR ref OR risk-tier: high) — originates findings about what's MISSING from the diff vs the plan: scope items, migration paths, rollback story, tests for stated acceptance criteria, feature-flag wiring) in parallel with confidence-scored findings. **Stratifies on hard-escalation signals** (migration / multi-write / auth / new entity / 3+ modules; canonical list at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`) — high-tier diffs lower the confidence threshold (≥80 → ≥70), expand Phase 4b validation budget, and auto-fire the spec-compliance reviewer. **Inherits prior-round findings across re-runs** so round 2+ focuses on what prior rounds missed; round-3+ fires an escalate-AUQ before spawning reviewers. Optional **TDD mode** authors a failing test that reproduces each bug-class finding (F→P verified — red today, green after fix) and gates Draft PR review comments on confirmed findings only. On PR-ref input, prompts to run the review in a dedicated `.claude/worktrees/pr-<N>-review/` worktree so any authored tests or commits land on the PR's head branch — silently reuses an existing worktree if one is already in `git worktree list`, or if the session is already inside the matching one. When picking findings to post as a Draft PR review, each finding fires its own AskUserQuestion (Single-finding gate) with the code snippet and suggested fix in the preview — no batched multi-select; "Stop posting" exits the loop early. Findings are submitted via the GitHub reviews API in PENDING state — visible only to you on the PR's "Finish your review" panel until you explicitly submit (Comment / Approve / Request Changes); no notifications fire until then. When authored tests exist and the user opts to draft a review, the Failing-tests commit+push gate fires BEFORE the `gh api` post so the test paths cited in comments resolve against the pushed head SHA.
+9-phase loop (mode-detect → explore → clarify ≤5 questions → 2-3 approaches → 10-section approval → write → mechanical validate → user approve → hand-off). Produces an approved `spec.md` in `.geniro/planning/<task-dir>/` with goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for). Milestone-mode for Big tasks emits sibling `milestone-N.md` files.
 
 ```
-/geniro:review                               # review uncommitted changes
+/geniro:plan add user authentication with JWT tokens
+/geniro:plan migrate from Sequelize to Prisma
+```
+
+### `/geniro:implement` (M4) — Autonomous implementation
+
+2-phase loop: Analyze → Implement → Self-review-and-Ship. Consumes `spec.md` from `/plan` (or inline-task fallback when `/plan` hasn't been run). Single solo execution path with 5-dim parallel self-review (bugs / security / architecture / tests / code-quality). Absorbs post-ship tweaks from the legacy `/follow-up`.
+
+```
+/geniro:implement                              # consume spec.md from /plan
+/geniro:implement add a CHANGELOG entry        # inline-task fallback
+```
+
+### `/geniro:review` (M6) — Parallel multi-agent code review
+
+6-phase reporter loop (triage → mechanical pre-pass → 9-dim LLM reviewers → filter → stratify → persist → action-gate). Dimensions: bugs / security / architecture / tests / optimizations / guidelines / conventions (+design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT non-none). Phase 1.5 mechanical pre-pass (lint / schema / secret scan) feeds prior-context. Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria (absorbs deleted `/deep-simplify`). Optional `--tdd` flag tightens validation budget + F→P test-gate.
+
+```
+/geniro:review                                # review uncommitted changes
 /geniro:review src/auth/ src/middleware/      # review specific files/dirs
-/geniro:review HEAD~3..HEAD                   # review a commit range
+/geniro:review HEAD~3..HEAD                   # review а commit range
 /geniro:review #1234 --tdd                    # PR review with TDD-mode draft-review posting gate
 ```
 
-### `/geniro:debug` — Scientific-method bug investigation
+### `/geniro:debug` (M7) — Scientific-method bug investigation
 
-Systematic debugging: observe → hypothesize → test → isolate → propose fix → author repro test & verify → escalate → document. Never applies the fix itself; escalates to `/geniro:follow-up` or `/geniro:implement`. Tracks all hypotheses and rejects speculation.
+3-phase loop (Investigate → Propose → Ship). Phase 1 observes / hypothesizes / tests / isolates root cause; Phase 2 authors a text fix proposal + F→P reproduction test (no production-source edits); Phase 3 persists T2 hand-off at `.geniro/state/handoff/from-debug-<branch>.md` and escalates к `/geniro:implement`. §1.7 stall gate (5 inconclusive → AUQ); §2.5 fix-fail gate (2 attempts → AUQ). Phase 3 §3.3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`. **Never ships code.**
 
 ```
 /geniro:debug login returns 500 after password reset
@@ -134,28 +146,9 @@ Systematic debugging: observe → hypothesize → test → isolate → propose f
 /geniro:debug tests pass locally but fail in CI on the date formatting step
 ```
 
-### `/geniro:follow-up` — Quick post-implementation changes
+### `/geniro:refactor` (M8) — Safe code restructuring
 
-For small changes that skip architecture. Assesses complexity, implements, validates, reviews, and ships. Escalates to `/geniro:implement` if scope is too large.
-
-```
-/geniro:follow-up rename the "users" endpoint to "accounts"
-/geniro:follow-up add created_at timestamp to the response DTO
-/geniro:follow-up fix the typo in the error message on line 42
-```
-
-### `/geniro:deep-simplify` — Three-pass parallel code review
-
-Spawns 3 agents (reuse, quality, efficiency) on changed files. Applies P1/P2 fixes and reverts if CI breaks. Zero behavior change guaranteed.
-
-```
-/geniro:deep-simplify                        # review uncommitted changes
-/geniro:deep-simplify src/services/          # review specific directory
-```
-
-### `/geniro:refactor` — Safe code restructuring
-
-Incremental refactoring with continuous test verification. Detects code smells, applies transformations atomically, guarantees zero behavior change.
+3-phase loop (Plan → Apply → Verify) with **zero-behavior-change guarantee**. Phase 1 classifies tier via canonical `_shared/effort-scaling.md` (Trivial / Small / Medium / Big); spawns smell-detection refactor-agent. Phase 2 spawns refactor-agent (model: opus when max_risk=HIGH else sonnet) to execute one transformation at a time with per-step regression. Phase 3 runs independent reviewer + custom reviewers; PRODUCT-DECISION → ESCALATE к /implement (4-option ADR-aware AUQ). Auto-emits L2 `discovery` + `pitfall`. **Never ships code** — diff IS the deliverable; user commits manually or runs `/geniro:implement`.
 
 ```
 /geniro:refactor extract payment logic from OrderService into PaymentService
@@ -163,139 +156,93 @@ Incremental refactoring with continuous test verification. Detects code smells, 
 /geniro:refactor convert callback-based auth module to async/await
 ```
 
-### `/geniro:investigate` — Deep codebase Q&A
+### `/geniro:onboard` (M9) — Rapid codebase orientation
 
-Parallel research agents explore codebase structure, git history, and internet sources to produce evidence-backed answers.
-
-```
-/geniro:investigate how does the caching layer invalidate stale entries?
-/geniro:investigate what happens when a WebSocket connection drops mid-transaction?
-/geniro:investigate why was the ORM switched from Sequelize to Prisma?
-```
-
-### `/geniro:features` — Feature backlog management
-
-Track features with status, priority, and complexity. Create detailed specs with codebase scouting and adaptive questioning.
-
-```
-/geniro:features list                          # show all tracked features
-/geniro:brainstorm dark mode support           # standalone ideation → design doc
-/geniro:features add dark mode support         # ideation + backlog registration
-/geniro:features next                          # pick the next feature to work on
-/geniro:features complete dark mode support    # mark as done
-```
-
-Both `/geniro:brainstorm` and `/features add` use the same canonical brainstorming loop — the difference is whether the result is registered in FEATURES.md backlog (`/features add`) or remains a standalone draft (`/geniro:brainstorm`).
-
-### `/geniro:onboard` — Rapid codebase orientation
-
-Scans structure, files, patterns, and conventions. Produces a CODEBASE_MAP.md with architecture, module relationships, critical paths, and entry points.
+2-phase loop (Discover → Map). Scans codebase structure and produces `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` with the canonical 8-section template (M1:508 underscore-prefixed L3 registry). Phase 1 applies P-M9-2 ≤50-file scan cap (user-confirmable expansion via AUQ). Phase 2 calls `update-semantic` (M2 §6.1 bounded auto-incremental L3 write), emits L2 `discovery`, fires Next-step AUQ routing to /plan / /investigate / /implement / `_FEATURES.md`. `--focus` / `--depth` retained as scope-limiters on the full 8-section template.
 
 ```
 /geniro:onboard
-/geniro:onboard focus on the API layer
+/geniro:onboard --focus api
 ```
 
-### `/geniro:instructions` — Custom instruction management
+### `/geniro:investigate` (M9) — Deep codebase Q&A
 
-Create, list, edit, validate, and delete project-specific rules that customize how skills behave. Scopes: `global`, the 7 pipeline skills, `code-style` (cross-cutting), and `review-extra` (directory-style — one file per custom code-review dimension that runs alongside the built-in 7-9 reviewers).
+3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Phase 1 classifies $ARGUMENTS into 9-type taxonomy + 5-step JIT retrieval cadence. Phase 2 spawns 1-3 parallel research agents (Codebase Analyst / Git Historian / Internet Researcher — literal classified set, never over-spawned). Phase 3 synthesizes, spawns fresh reviewer-agent, presents with Sources + Open questions, fires save-routing AUQ (CLAUDE.md / ADR / learnings.jsonl). L2 `discovery` emit with trust label (`verified` if code-grounded; `retrieved` if WebFetch/WebSearch load-bearing). **Never ships code.**
+
+```
+/geniro:investigate how does the caching layer invalidate stale entries?
+/geniro:investigate what happens when а WebSocket connection drops mid-transaction?
+/geniro:investigate why was the ORM switched from Sequelize to Prisma?
+```
+
+### `/geniro:instructions` (M10b) — Custom instruction management
+
+3-phase stateless CRUD (parse → execute → done) over `.geniro/instructions/`. 5 operations: list / create / edit / validate / delete. 11-scope set: `global`, `code-style`, `user-preferences`, `review-extra/<slug>`, and per-skill (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`). §10 `validate` mode (P-M10-2 closure): structural + reference + per-scope lint with CRITICAL/HIGH/MEDIUM/LOW severities; catches refs to dropped skills and outdated phase names.
 
 ```
 /geniro:instructions list
-/geniro:instructions create "always use snake_case for database columns"
-/geniro:instructions create "skip review for test files" --scope review
-/geniro:instructions create review-extra sql-bindings              # add a custom code-review dimension
-/geniro:instructions delete no-orm-rule
+/geniro:instructions create implement
+/geniro:instructions create review-extra sql-bindings    # add а custom code-review dimension
+/geniro:instructions edit user-preferences
+/geniro:instructions validate
+/geniro:instructions delete debug
 ```
 
-### `/geniro:actions` — Create, edit, run, and remove custom workflow actions
+### `/geniro:actions` (M10c) — Custom workflow-helper management
 
-Scaffold custom workflow-helper actions (Slack pings, PR inspections, release summaries) into `.geniro/actions/` and run, edit, or delete them through the parent skill. Custom actions are NOT top-level slash commands — they're only reachable through `/geniro:actions <verb>` (e.g., `run` to execute the body, `edit` to modify the file, `delete` to remove it). The bare-slug fast path `/geniro:actions <slug>` is shorthand for `run <slug>` when the slug exists.
+3-phase stateless CRUD + runner over `.geniro/actions/`. 6 operations: list / create / edit / run / delete / validate. **P-M10-1 minimal enforcement (Q4):** `risk_class: low | medium | high` mandatory frontmatter field; run-mode AUQ ladder gates by risk class (`low` skips AUQ, `medium` 1-click confirm, `high` Cancel-as-recommended default). §Phase 8 `validate` mode shares the P-M10-2 rule set with `/instructions validate review-extra`. L2 `discovery` emit on successful runs with `external-send: true`.
 
 ```
 /geniro:actions list                                       # show all custom actions
-/geniro:actions create pr-notify-slack                     # interview-driven scaffold of a new action
-/geniro:actions edit pr-notify-slack                       # open existing action for external edit + re-validate
-/geniro:actions run pr-notify-slack 1234                   # invoke by exact slug + positional args
-/geniro:actions run "post release notes to slack"          # invoke by free-text description (resolved via picker)
-/geniro:actions pr-notify-slack 1234                       # bare-slug fast path: defaults to run when slug exists
-/geniro:actions delete pr-notify-slack                     # remove a custom action
+/geniro:actions create pr-notify-slack                     # interview-driven scaffold
+/geniro:actions edit pr-notify-slack                       # external edit + re-validate
+/geniro:actions run pr-notify-slack 1234                   # invoke by exact slug + args
+/geniro:actions run "post release notes к slack"          # invoke by free-text (picker)
+/geniro:actions pr-notify-slack 1234                       # bare-slug fast path (defaults to run)
+/geniro:actions validate                                   # lint all .geniro/actions/*.md
+/geniro:actions delete pr-notify-slack
 ```
 
-By default `.geniro/actions/` is committed (team-shared). Remove the `!.geniro/actions/` lines from `.gitignore` to keep them local-only. When invoked from a linked git worktree, `run` falls back to the main worktree's registry (with confirmation) if the action isn't present locally; `delete` refuses cross-worktree deletion and asks you to switch to main first.
+When invoked from а linked git worktree, `run` falls back to the main worktree's registry (with confirmation); `delete` refuses cross-worktree deletion.
 
-### `/geniro:brainstorm` — refine an idea into an approved design
+### `/geniro:update` (M10d) — Update plugin
 
-Standalone ideation layer (no backlog commitment). Runs the canonical 8-phase
-brainstorming loop (HARD-GATE → Explore → Visual companion → Clarifying →
-Approaches → Section approval → Design doc → Self-review → User re-review),
-then offers a hand-off menu (Implement / Decompose / Add to backlog / Stop).
-
-Cites `skills/_shared/brainstorming-loop.md` (8-phase loop) and `skills/_shared/design-doc-detect.md` (auto-detect existing design via path + HTML marker + YAML frontmatter — no flags).
-
-For backlog-tracked ideation, use `/geniro:features add` (same loop + F-id registration).
-
-### `/geniro:learnings` — Extract session learnings
-
-Captures patterns, gotchas, decisions, and anti-patterns from completed work into categorized memory with reusability gates.
-
-```
-/geniro:learnings
-/geniro:learnings focus on the auth refactor decisions
-```
-
-### `/geniro:vendor` — Vendor plugin into project
-
-Copies the plugin into `.claude/` with a `geniro-` prefix so it runs on cloud runners, sandboxed CI, or offline environments where the marketplace isn't available. After vendoring, slash commands change from `/geniro:setup` to `/geniro-setup`.
-
-```
-/geniro:vendor                               # vendor fresh
-/geniro:vendor --sync                        # resync after plugin update
-/geniro:vendor --fresh                       # force re-vendor from scratch
-```
-
-### `/geniro:cleanup` — Remove plugin files
-
-Removes all geniro-claude-plugin files from the project. Uses plugin state to preserve user-created files. Includes confirmation before any deletion.
-
-```
-/geniro:cleanup
-```
-
-### `/geniro:update` — Update plugin
-
-Updates to the latest version. The status line shows an arrow when updates are available.
+5-phase stateless loop (Pre-check → Update → Post-check → Migration → Done). Pre-update version-confirm AUQ. User-content snapshot at Pre-check + survival diff at Post-check (catches silent corruption). 4-retry exponential backoff (2s/4s/8s/16s) on network errors. Hash-check sanity mode. **§Phase 4 MIGRATION.md reader** (Q6 most-ambitious option) — for each user-affected breaking change, surfaces "Show me how к fix" / "Skip for now" / "Cancel walk"; NEVER auto-applies fixes. Restart-session warning always emitted.
 
 ```
 /geniro:update
+/geniro:update --dry-run                     # preview without invoking update
 ```
 
-## The Pipeline: /geniro:implement
+## Skills deleted in M4 redesign
 
-```
-/geniro:implement add user authentication
-```
+The pre-M4 surface had 18 skills. The current 11-skill set absorbed or dropped 8:
 
-1. **Discover** — Clarify scope, edge cases, decisions
-2. **Architect** — Design solution; skeptic agent validates; you approve
-3. **Approval** — Full plan presented; you confirm before coding starts
-4. **Implement** — Backend and frontend agents build in parallel
-5. **Validate** — Automated checks (lint, build, test, startup)
-6. **Simplify** — 3 parallel agents review for reuse, quality, efficiency
-7. **Review** — Code quality review across 7–8 dimensions with fix cycles
-8. **Ship** — Present results; you decide to commit/push/PR
+| Deleted | Replacement |
+|---|---|
+| `/geniro:brainstorm` | Merged → `/geniro:plan` (M5) |
+| `/geniro:decompose` | Merged → `/geniro:plan` (M5, milestones as output mode) |
+| `/geniro:follow-up` | Absorbed → `/geniro:implement` (handles any size via spec input) |
+| `/geniro:deep-simplify` | Optional `--simplify` flag on `/geniro:review` (M6) |
+| `/geniro:features` | Manual `_FEATURES.md` или via `/geniro:plan` |
+| `/geniro:learnings` | Auto-step в `/geniro:implement` Phase 3 + every pipeline skill |
+| `/geniro:cleanup` | Dropped — niche |
+| `/geniro:vendor` | Dropped — no cloud-runner requirement |
 
 ## Safety Hooks
 
-All hooks run automatically after installation:
+All hooks run automatically after installation. Per-project bypass via `.geniro/safety.json`.
 
 | Hook | Protection |
 |------|-----------|
-| `db-guard` | Prevents `DROP DATABASE`, `DELETE FROM` without WHERE |
-| `file-protection` | Prevents writing to `.env`, `.pem`, secrets |
-| `block-dangerous-git` | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch (per-project opt-out via `.geniro/safety.json`) |
-| `post-compact-notification` | `SessionStart` hook (`matcher: "compact"`) — re-injects suggested files (CLAUDE.md, `.geniro/instructions/global.md`, active `<skill>.md`, `code-style.md`, planning state) so custom rules and workflow context survive compaction |
-| `backpressure` | Compresses verbose test/build output to save context |
+| **File protection** | Blocks writes к `.env`, `*.key`, `*.pem`, lock files, credentials, `*.tfstate`, `*.vault*` |
+| **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
+| **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/`, `git worktree remove`, `git add -f` on `.geniro/` paths |
+| **Session-start restore** (M3) | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions trio + CLAUDE.md so context survives compaction |
+| **Evidence-on-completion** | `Stop` hook (warn-only) — scans last assistant message for completion phrases that lack an Evidence Block |
+| **TDD-order enforcement** | PreToolUse `Edit\|Write` (hard-block) — when TDD state shows phase=RED, blocks edits к production-code files |
+| **State-helper enforcement** | PreToolUse warn-mode — surfaces when а direct `Edit`/`Write` targets а canonical state path; suggests `atomic_state_write` |
+| **Plan-mode write-guard** (M5) | PreToolUse hard-block — restricts Writes к `.geniro/planning/**` and `.geniro/state/**` while а `/plan` run is active |
 
 ## Updating
 
@@ -305,30 +252,38 @@ The plugin auto-updates via the Claude Code marketplace. To manually update:
 claude plugin update geniro-claude-plugin@geniro-claude-harness
 ```
 
-Or run `/geniro:update` inside Claude Code. The status line shows an arrow when updates are available.
+Or run `/geniro:update` inside Claude Code — preserves user content, walks any breaking changes in MIGRATION.md, and emits а restart-session warning. The status line shows an arrow when updates are available.
 
 ## Plugin Structure
 
 ```
 geniro-claude-plugin/
 ├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest
-├── agents/                      # 14 specialized agent definitions
-├── skills/                      # 15 reusable workflow definitions
-│   ├── setup/                   # AI-driven project setup
-│   ├── implement/               # 8-phase feature pipeline
-│   ├── review/                  # 7–8 dimension code review
-│   ├── vendor/                  # Vendor into .claude/ for cloud runners
-│   └── ...
-├── hooks/                       # 7 safety hooks + statusline + update check
+│   ├── plugin.json              # Plugin manifest
+│   └── marketplace.json         # 11-skill canonical inventory
+├── agents/                      # 9 specialized agent definitions
+├── skills/                      # 11 reusable workflow definitions
+│   ├── setup/                   # M10a AI-driven project setup
+│   ├── plan/                    # M5 spec-first planning
+│   ├── implement/               # M4 autonomous implementation
+│   ├── review/                  # M6 multi-dim code review
+│   ├── debug/                   # M7 scientific-method investigation
+│   ├── refactor/                # M8 zero-behavior-change restructuring
+│   ├── onboard/                 # M9 codebase mapping
+│   ├── investigate/             # M9 codebase Q&A
+│   ├── instructions/            # M10b L4 rules CRUD
+│   ├── actions/                 # M10c workflow-helper CRUD + runner
+│   ├── update/                  # M10d plugin update
+│   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
+│                                # load-custom-instructions, query/emit-learnings, etc.)
+├── hooks/                       # 8 safety hooks + statusline + update check
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer
 │   └── *.sh                     # Safety hook scripts
-├── rules/                       # Plugin-internal conventions
-├── settings.json                # Permissions config
+├── architecture/                # M1-M10 design specs
 ├── CLAUDE.md                    # Plugin instructions (auto-loaded)
-└── HOOKS.md                     # Hook documentation
+└── MIGRATION.md                 # Per-release breaking-change notes (consumed by /update)
 ```
 
 ## Credits
