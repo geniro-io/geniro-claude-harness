@@ -70,11 +70,11 @@ Every newly-authored test must demonstrate red-then-green at least once before b
 2. **Green**: run the test against code WITH the change → it must pass.
 
 A test that passes the first time you run it (without any production change) is testing something that already works — either it's redundant with existing coverage OR it's not actually exercising the new behavior. Investigate before committing. This rule applies to:
-- New tests authored during `/geniro:implement` Phase 4
-- Reproduction tests authored during `/geniro:debug` Step 6
-- F→P tests authored during `/geniro:debug` Adversarial Mode and `/geniro:implement` Stage D
+- New tests authored during `/geniro:implement` Phase 2
+- Reproduction tests authored during `/geniro:debug` Phase 2 §2.4
+- F→P tests authored during `/geniro:debug` Adversarial Mode and `/geniro:review` Phase 4c TDD mode
 
-`/geniro:debug` Adversarial Mode and `/geniro:implement` Stage D both enforce F→P with 3-run determinism checks; the `adversarial-tester-agent` deletes tests that pass on current code.
+`/geniro:debug` Adversarial Mode and `/geniro:review` Phase 4c TDD mode both enforce F→P with 3-run determinism checks; the `adversarial-tester-agent` deletes tests that pass on current code.
 
 ## What to Check
 

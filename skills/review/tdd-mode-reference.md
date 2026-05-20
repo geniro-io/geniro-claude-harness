@@ -30,8 +30,6 @@ TDD mode is an opt-in variant of `/geniro:review` that biases the run toward aut
 
 **`--tdd` combined with `--plan <path>`.** Both flags coexist freely. `--plan` feeds PLAN CONTEXT into reviewer prompts in Phase 1; `--tdd` controls Phase 4c default-highlighting and the Phase 6 filter. They don't interact at any phase — document this so users don't treat them as mutually exclusive.
 
-**`--tdd` combined with `/geniro:review` running as a sub-phase of `/geniro:implement`.** Phase 4c is skipped entirely when called as a sub-phase (the parent already runs Phase 6 Stage D's adversarial-tester against the same diff — running it twice double-spawns). TDD mode in this branch is a no-op for Phase 4c. The Phase 6 PR-comment posting gate is also skipped because the parent owns its own PR-handling. The mode flag is preserved in the state file but does not affect the sub-run.
-
 **PR ref provided but `gh` unavailable.** Phase 1 already errors and stops (existing behavior, not TDD-specific). Mode detection still runs first; the failure happens at the PR-fetch step regardless of mode.
 
 **Mode mismatch on resume.** If a session resumed from compaction reads a state-file with `mode: tdd` but the user re-invokes `/geniro:review` without `--tdd` (and without re-firing the Mode AUQ), the saved `mode:` is the source of truth — do not silently switch back to Standard. If ambiguity matters, the resumed run can re-fire the Mode AUQ.
