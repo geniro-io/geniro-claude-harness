@@ -15,7 +15,7 @@ Used by:
 - `/geniro:review` Phase 6 Step 3 (PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
 - `/geniro:follow-up` Phase 5 Step 2 (PRODUCT-DECISION resolution)
 - `/geniro:implement` Phase 6 Fix-Loop pre-step (PRODUCT-DECISION resolution)
-- `/geniro:refactor` Phase 5 escalation (PRODUCT-DECISION → escalate)
+- `/geniro:refactor` §8.3 escalation (M8 — PRODUCT-DECISION → escalate; 4 options when ADR-eligible, 3 otherwise)
 
 ### Required AUQ shape
 
@@ -30,9 +30,9 @@ Used by:
   How do you want to resolve this?
   ```
 
-- **`options[]`** — one per enumerated path (from the finding's `Options:` field for PRODUCT-DECISION resolution gates; from the calling skill's escalation menu for refactor-style escalation gates):
+- **`options[]`** — one per enumerated path (from the finding's `Options:` field для PRODUCT-DECISION resolution gates; from the calling skill's escalation menu для refactor-style escalation gates — see /refactor M8 §8.3 для the 4-fixed-option menu):
   - **`label`**: 1-5 words — the action name (e.g. `"Move to utils"`, `"Keep as-is"`, `"Run /geniro:implement"`).
-  - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/refactor` Phase 5 escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
+  - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` с а fixed menu (e.g. `/refactor` §8.3 escalation per M8), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
   - **`preview`**: full finding body, formatted as:
 
     ````
