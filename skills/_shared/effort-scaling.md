@@ -1,6 +1,6 @@
 # Effort Scaling
 
-Canonical complexity rubric for routing tasks to the correct pipeline depth. Used by `/geniro:plan` (M5 — sizing the spec; Big-tier triggers milestone-output mode) and `/geniro:review` (hard-escalation stratification). `/geniro:refactor` uses a deliberate override that reweights dimensions toward zero-behavior-change concerns — see `skills/refactor/SKILL.md` §"Complexity Gate". `/geniro:implement` (M4) does NOT branch on tier — it runs а single whole-feature edit batch + 5-dim self-review regardless of size (`architecture/M4-implement-redesign.md` §6.1 + §7.2).
+Canonical complexity rubric for routing tasks to the correct pipeline depth. Used by `/geniro:plan` (M5 — sizing the spec; Big-tier triggers milestone-output mode), `/geniro:review` (hard-escalation stratification), и `/geniro:refactor` (M8 §6.3 — adopts the canonical rubric verbatim, с refactor-specific hard signals layered orthogonally per `skills/refactor/SKILL.md` §"Refactor-specific hard escalation signals" к escalate OUT of /refactor entirely). `/geniro:implement` (M4) does NOT branch on tier — it runs а single whole-feature edit batch + 5-dim self-review regardless of size (`architecture/M4-implement-redesign.md` §6.1 + §7.2).
 
 Match planning depth to task complexity. **File count is a smell detector, not a complexity detector.** A 2-file migration + API contract change is Big. A 10-file rename propagation is Small.
 
@@ -46,7 +46,7 @@ If no hard signals, score these dimensions:
 
 | Size | Planning Depth |
 |------|----------------|
-| **Trivial** | `/plan` (M5) emits а minimal Goal + Approach + Steps spec; `/implement` (M4) consumes it as ordinary spec input. No Lane-mode branching exists в M4 — the runtime is constant. |
-| **Small** | Lightweight spec: Goal + Approach + Steps (no wave grouping, no test scenarios table). `/plan` may skip skeptic-validation at this tier. |
-| **Medium** | Standard spec: full structure from `plan-criteria.md`. `/plan` runs architect + skeptic. |
-| **Big** | Full architect + skeptic spec at /plan time. If score 9+ or >15 steps → /plan switches into milestone-output mode (emits per-milestone spec files); `/implement` consumes each milestone spec individually. |
+| **Trivial** | `/plan` (M5) emits а minimal Goal + Approach + Steps spec; `/implement` (M4) consumes it as ordinary spec input. `/refactor` (M8 §6.3 Step 3): skip smell-detection refactor-agent + relevance-filter + independent reviewer + custom reviewers — orchestrator authors plan directly от scope-files. No Lane-mode branching exists в M4 — the runtime is constant. |
+| **Small** | Lightweight spec: Goal + Approach + Steps (no wave grouping, no test scenarios table). `/plan` may skip skeptic-validation at this tier. `/refactor` (M8 §6.3 Step 3): full smell-detection in Phase 1 BUT skip relevance-filter + independent reviewer + custom reviewers. |
+| **Medium** | Standard spec: full structure from `plan-criteria.md`. `/plan` runs architect + skeptic. `/refactor` (M8 §6.3 Step 3): full pipeline — refactor-agent smell-detect + relevance-filter dossier + reviewer-agent + custom reviewers. |
+| **Big** | Full architect + skeptic spec at /plan time. If score 9+ or >15 steps → /plan switches into milestone-output mode (emits per-milestone spec files); `/implement` consumes each milestone spec individually. `/refactor` (M8 §6.3 Step 3): recommend running `/geniro:plan` first к split the refactor into independently shippable milestones; refactor then runs one milestone at а time against an approved spec.md. If user proceeds без а plan, Big runs the Medium pipeline (с accepted risk). |
