@@ -1,6 +1,6 @@
 # Within-skill state handoff (canonical, shared)
 
-**Status:** Authoritative for these task-local state files: `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/<slug>/state.md` (M8 §9.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md`, `.geniro/state/follow-up/adversarial-<slug>.md`, `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound).
+**Status:** Authoritative for these task-local state files: `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/<slug>/state.md` (M8 §9.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/follow-up/skeptic-hypothesis-<slug>.md`, `.geniro/state/follow-up/adversarial-<slug>.md`, `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/onboard/<slug>/state.md` (M9 §11.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/investigate/<slug>/state.md` (M9 §11.2 — subdir-per-slug layout, M1 §T1 session-bound).
 
 Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the headers every producer embeds, and the mismatch UX every consumer surfaces on resume.
 
@@ -29,7 +29,7 @@ When `git` is unavailable or the project isn't a git repo, the fallback chain pr
 Every producer of a within-skill state file MUST:
 
 1. Compute the slug per `## Slug rules`.
-2. Write to the slug-scoped path: `.geniro/state/<skill>/state-<slug>.md` (or `.geniro/state/debug/<slug>/state.md` for debug — M7 §11.1 subdir-per-slug layout; or `.geniro/state/refactor/<slug>/state.md` for refactor — M8 §9.1 subdir-per-slug layout — both M1 §T1 session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
+2. Write to the slug-scoped path: `.geniro/state/<skill>/state-<slug>.md` (or `.geniro/state/debug/<slug>/state.md` for debug — M7 §11.1 subdir-per-slug layout; or `.geniro/state/refactor/<slug>/state.md` for refactor — M8 §9.1 subdir-per-slug layout; or `.geniro/state/onboard/<slug>/state.md` for onboard — M9 §11.1 subdir-per-slug layout; or `.geniro/state/investigate/<slug>/state.md` for investigate — M9 §11.2 subdir-per-slug layout — all four M1 §T1 session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
 3. Embed these three headers at the TOP of the file, before any other content:
 
 ```
@@ -45,7 +45,7 @@ The `Branch:` header is the source of truth on resume — even if two branch nam
 On skill start (or resume after compaction), every consumer MUST:
 
 1. Compute current branch + slug per `## Slug rules`.
-2. Try to read `.geniro/state/<skill>/state-<slug>.md` (primary path; debug uses `.geniro/state/debug/<slug>/state.md` per M7 §11.1; refactor uses `.geniro/state/refactor/<slug>/state.md` per M8 §9.1).
+2. Try to read `.geniro/state/<skill>/state-<slug>.md` (primary path; debug uses `.geniro/state/debug/<slug>/state.md` per M7 §11.1; refactor uses `.geniro/state/refactor/<slug>/state.md` per M8 §9.1; onboard uses `.geniro/state/onboard/<slug>/state.md` per M9 §11.1; investigate uses `.geniro/state/investigate/<slug>/state.md` per M9 §11.2).
 3. If the primary path exists, parse `Branch:` and `Worktree:` headers and run `## Mismatch handling` Case A/B/C.
 4. If the primary path does NOT exist BUT a legacy path exists at any of these locations, enter Case D (legacy migration). Try in this order:
    - `.geniro/<skill>/state-<slug>.md` (intermediate — slug-scoped but pre-state-dir)
@@ -77,7 +77,7 @@ Four cases — consumers MUST handle all four:
 
 When a skill completes its pipeline, it MUST delete its slug-scoped state file at `.geniro/state/<skill>/state-<slug>.md`. The slug is recomputed from the current branch at cleanup time, so the deletion targets the file the skill itself wrote — no need to grep `Branch:` headers. Skills MUST NOT glob and bulk-delete `.geniro/state/<skill>/state-*.md` — sibling slugs belong to parallel pipelines on other branches still in flight.
 
-**Legacy migration cleanup.** Producer skills MUST also `rm -f` every legacy path on cleanup, in case the user upgraded mid-pipeline and stale files persist. Three generations of legacy exist (for debug and refactor; two for other skills):
+**Legacy migration cleanup.** Producer skills MUST also `rm -f` every legacy path on cleanup, in case the user upgraded mid-pipeline and stale files persist. Three generations of legacy exist (for debug and refactor; two for other skills; M9 /onboard и /investigate have NO legacy generation — pre-M9 they had no within-skill state file, so cleanup only targets the current M9 path):
 
 1. **Pre-M7/M8 legacy (state-dir, slug-scoped — flat file)** — was canonical until the subdir layout landed:
    - `.geniro/state/debug/HYPOTHESES-<slug>.md` (pre-M7 — replaced by `.geniro/state/debug/<slug>/state.md`)
@@ -100,7 +100,7 @@ When a skill completes its pipeline, it MUST delete its slug-scoped state file a
 4. **Non-scoped /follow-up adversarial report (pre-rename)** — never slug-scoped, lived under the wrong skill dir:
    - `.geniro/state/debug/follow-up-state-adversarial.md`
 
-Each producer must `rm -f` its own legacy paths (M7 /debug producer clears five generations per §8.5 — three pre-M7 + intermediate + original; M8 /refactor producer clears three generations per §8.7 — pre-M8 flat + intermediate slug-scoped + original non-scoped). The `2>/dev/null || true` discipline applies — these are best-effort.
+Each producer must `rm -f` its own legacy paths (M7 /debug producer clears five generations per §8.5 — three pre-M7 + intermediate + original; M8 /refactor producer clears three generations per §8.7 — pre-M8 flat + intermediate slug-scoped + original non-scoped). M9 /onboard и /investigate have no legacy paths к clear — pre-M9 these skills had no state file, so the cleanup contract reduces к а single `rm -rf .geniro/state/<skill>/<slug>/`. The `2>/dev/null || true` discipline applies — these are best-effort.
 
 ## Anti-rationalization
 
@@ -110,7 +110,7 @@ Each producer must `rm -f` its own legacy paths (M7 /debug producer clears five 
 | "I'll route through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A for safety" | That helper routes cross-session state to the primary worktree's tree. Within-skill state is task-local — Mode A would make sequential branch-A and branch-B sessions in `.claude/worktrees/<X>/` write into `<primary>/.geniro/...`, RE-introducing the same collision the primary helper was designed to fix elsewhere. Use the slug here instead. |
 | "I'll use `${CLAUDE_SESSION_ID}` instead of branch slug" | Session IDs are opaque, accumulate orphans, and don't survive compaction. Branch is the natural durability anchor. |
 | "I'll auto-execute `git checkout <state-branch>` in Case C" | Forbidden by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Forbidden discovery moves. Mismatch surfaces an AUQ; the user runs the checkout themselves. |
-| "I'll delete all `.geniro/state/<skill>/state-*.md` at cleanup to be tidy" | Other slug files belong to other-branch pipelines that may still be in flight. Delete only the current branch's slug (для debug: only the current branch's `.geniro/state/debug/<slug>/state.md`, NOT sibling `<other-slug>/`; для refactor: only the current branch's `.geniro/state/refactor/<slug>/state.md`, NOT sibling `<other-slug>/`). The legacy paths (pre-M7 `.geniro/state/debug/HYPOTHESES-<slug>.md`, pre-M8 `.geniro/state/refactor/state-<slug>.md`, intermediate `.geniro/<skill>/state-<slug>.md`, original `.geniro/<skill>-state.md` / `.geniro/<skill>/state.md`) ARE yours to `rm -f` — they are not sibling slugs. |
+| "I'll delete all `.geniro/state/<skill>/state-*.md` at cleanup to be tidy" | Other slug files belong to other-branch pipelines that may still be in flight. Delete only the current branch's slug (для debug: only the current branch's `.geniro/state/debug/<slug>/state.md`, NOT sibling `<other-slug>/`; для refactor: only the current branch's `.geniro/state/refactor/<slug>/state.md`, NOT sibling `<other-slug>/`; для onboard: only the current branch's `.geniro/state/onboard/<slug>/state.md`; для investigate: only the current branch's `.geniro/state/investigate/<slug>/state.md`). The legacy paths (pre-M7 `.geniro/state/debug/HYPOTHESES-<slug>.md`, pre-M8 `.geniro/state/refactor/state-<slug>.md`, intermediate `.geniro/<skill>/state-<slug>.md`, original `.geniro/<skill>-state.md` / `.geniro/<skill>/state.md`) ARE yours to `rm -f` — they are not sibling slugs. M9 /onboard и /investigate have no legacy paths. |
 | "I'll skip Case D — legacy users can clean up themselves" | Legacy state files exist in users' trees today (two generations: pre-slug and pre-state-dir). Case D is the migration ramp; without it, the first run after upgrade silently strips a real resume. |
 
 ## Definition of Done
