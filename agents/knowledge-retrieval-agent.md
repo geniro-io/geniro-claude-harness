@@ -22,7 +22,7 @@ Your spawning skill MUST inline these absolute paths in your spawn prompt (per `
 
 - `KNOWLEDGE_ROOT`: absolute path to `<primary-worktree-root>/.geniro/knowledge`
 - `DEBUG_ROOT`: absolute path to `<primary-worktree-root>/.geniro/debug`
-- `PLANNING_ROOT`: absolute path to `<primary-worktree-root>/.geniro/planning` (cross-session subset only — `FEATURES.md`, `CODEBASE_MAP.md`, `focus-<area>.md`)
+- `PLANNING_ROOT`: absolute path to `<primary-worktree-root>/.geniro/planning` (cross-session subset only — `_FEATURES.md`, `_CODEBASE_MAP.md`, `_focus-<area>.md` per M1:508-511 underscore-prefixed registry convention; legacy unprefixed paths read once for backward-compat)
 - `TASK_PLANNING_ROOT`: absolute path to `<current-worktree>/.geniro/planning` (task-local: `<task-dir>/spec.md`, `plan-*.md`, `state.md` — these stay cwd-relative on purpose)
 
 If any required slot is missing from your spawn prompt, respond with: "Missing spawn-prompt slot: <name>. Re-spawn with the resolved absolute path." Do NOT substitute your cwd.
@@ -59,10 +59,10 @@ Note: `/geniro:debug` (M7) cleans up its T1 state.md at session end (§3.5 Clean
 
 ### 4. Planning Artifacts
 
-Cross-session (resolved via `<PLANNING_ROOT>` from spawn slots):
-- `<PLANNING_ROOT>/FEATURES.md`
-- `<PLANNING_ROOT>/CODEBASE_MAP.md`
-- `<PLANNING_ROOT>/focus-*.md`
+Cross-session (resolved via `<PLANNING_ROOT>` from spawn slots) — read M1-canonical underscore-prefixed paths first, fall back к legacy unprefixed paths once for projects upgrading mid-cycle:
+- `<PLANNING_ROOT>/_FEATURES.md` (M1:510); legacy fallback `<PLANNING_ROOT>/FEATURES.md`
+- `<PLANNING_ROOT>/_CODEBASE_MAP.md` (M1:508; canonical L3 registry, /onboard М9 writer); legacy fallback `<PLANNING_ROOT>/CODEBASE_MAP.md`
+- `<PLANNING_ROOT>/_focus-*.md` (M1:511); legacy fallback `<PLANNING_ROOT>/focus-*.md`
 
 Task-local (cwd-relative — these intentionally live in the current worktree):
 - `.geniro/planning/<task-dir>/spec.md`
