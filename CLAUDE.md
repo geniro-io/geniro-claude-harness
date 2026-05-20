@@ -9,26 +9,34 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 
 ## Available Skills
 
+Post-M4 redesign — 18 skills → 11 (master plan §22). The 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) have their replacements documented in the right-hand column. Deletions land synchronously with M4 + M5–M10; until then the legacy skill directories may still exist on disk but are not listed below.
+
 | Skill | Purpose |
 |-------|---------|
-| `/geniro:setup` | AI-driven project setup — scans codebase, interviews you, generates CLAUDE.md |
-| `/geniro:implement` | Full-featured implementation with architecture review and multi-agent execution |
-| `/geniro:decompose` | Decompose a Big task into 3-7 independently shippable milestones; hands off to `/geniro:implement milestone <N>` |
-| `/geniro:review` | Parallel 7–10 agent code review (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT non-none AND (PR ref OR risk-tier: high)). Stratifies on hard-escalation signals from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`; inherits prior-round findings across re-runs (max 3 rounds before escalate-AUQ). `--tdd` flag (or startup AUQ) gates Draft-PR-review comments on F→P-verified failing tests. |
-| `/geniro:debug` | Scientific-method bug investigation with hypothesis tracking |
-| `/geniro:follow-up` | Quick post-implementation changes (trivial/small scope) |
-| `/geniro:deep-simplify` | Three-pass parallel code review for reuse, quality, and efficiency |
-| `/geniro:refactor` | Restructure code with zero behavior change guarantee |
-| `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete. Scopes: `global`, the 7 pipeline skills, `code-style` (cross-cutting style rules loaded at every code-writing & review step), and `review-extra` (directory-style scope at `.geniro/instructions/review-extra/<slug>.md` — one file per custom code-review dimension loaded alongside the built-in reviewers). |
-| `/geniro:actions` | Create, edit, run, and remove custom workflow-helper actions stored in `.geniro/actions/` (Slack/PR/release automations) |
-| `/geniro:brainstorm` | AI-driven ideation — refines an idea into approved design (8-phase loop with HARD-GATE). Hand-off menu to /implement, /decompose, or /features add. Skip for well-formed specs. |
-| `/geniro:investigate` | Deep codebase Q&A with parallel research agents |
-| `/geniro:features` | Feature backlog management and spec creation |
-| `/geniro:onboard` | Rapid codebase mapping and orientation |
-| `/geniro:learnings` | Extract session learnings into categorized memory |
-| `/geniro:update` | Update plugin to latest version |
-| `/geniro:vendor` | Vendor the plugin into `.claude/` with `geniro-` prefix for cloud runners (offline/CI use) |
-| `/geniro:cleanup` | Remove all plugin files from project and uninstall |
+| `/geniro:plan` (M5 — placeholder until M5 ships) | Turn а vague idea or feature request into an **approved spec.md**. Big tasks also emit 3-7 milestones (per-milestone spec.md files). Absorbs the legacy `/brainstorm` + `/decompose`. |
+| `/geniro:implement` (M4) | M4 2-phase autonomous loop: Analyze → Implement → Self-review-and-Ship. Consumes spec.md from `/plan` (или inline-task fallback when `/plan` hasn't been run yet). Single solo execution path с 5-dim parallel self-review (bugs / security / architecture / tests / code-quality). Absorbs post-ship tweaks from the legacy `/follow-up`. |
+| `/geniro:review` | Parallel 7–10 agent code review (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT non-none AND (PR ref OR risk-tier: high)). Stratifies on hard-escalation signals from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`; inherits prior-round findings across re-runs (max 3 rounds before escalate-AUQ). M6 will add an optional `--simplify` flag absorbing the legacy `/deep-simplify`. |
+| `/geniro:debug` | Scientific-method bug investigation с hypothesis tracking. Auto-emits L2 `diagnosis` к learnings.jsonl (absorbing the legacy `/learnings` cadence для debug). |
+| `/geniro:refactor` | Restructure code с zero behavior change guarantee. |
+| `/geniro:onboard` | Rapid codebase mapping и orientation. |
+| `/geniro:investigate` | Deep codebase Q&A с parallel research agents. |
+| `/geniro:instructions` | Manage custom instruction files — create, list, edit, validate, delete. Scopes: `global`, the pipeline skills, `code-style` (cross-cutting style rules loaded at every code-writing & review step), и `review-extra` (directory-style scope at `.geniro/instructions/review-extra/<slug>.md` — one file per custom code-review dimension loaded alongside the built-in reviewers). |
+| `/geniro:actions` | Create, edit, run, и remove custom workflow-helper actions stored в `.geniro/actions/` (Slack/PR/release automations). |
+| `/geniro:setup` | AI-driven project setup — scans codebase, interviews you, generates CLAUDE.md. |
+| `/geniro:update` | Update plugin к latest version. |
+
+**Skills deleted в M4 redesign** (master plan §60):
+
+| Deleted | Replacement |
+|---|---|
+| `/geniro:brainstorm` | Merged → `/geniro:plan` (M5) |
+| `/geniro:decompose` | Merged → `/geniro:plan` (M5, milestones as output mode) |
+| `/geniro:follow-up` | Absorbed → `/geniro:implement` (handles any size via spec input) |
+| `/geniro:deep-simplify` | Optional flag on `/geniro:review` (M6) |
+| `/geniro:features` | Manual `FEATURES.md` или via `/geniro:plan` |
+| `/geniro:learnings` | Auto-step в `/geniro:implement` Phase 3 (M4 §13.2) и `/geniro:debug` (M7) |
+| `/geniro:cleanup` | Dropped — niche |
+| `/geniro:vendor` | Dropped — no cloud-runner requirement |
 
 ## Path Rules
 
