@@ -25,8 +25,8 @@ Callers provide three parameters in the call site:
 
 - **`SKILL_SLUG`** — kebab-case name of the invoking skill (e.g. `implement`, `debug`, `actions`). Used to compute the per-skill file path `.geniro/instructions/<SKILL_SLUG>.md`.
 - **`LOAD_TIER`** — one of:
-  - `pipeline` → loads `global.md` + `<SKILL_SLUG>.md` + `code-style.md`. Applies to: `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`.
-  - `rules-only` → loads `global.md` only. Applies to: `investigate`, `onboard`, `learnings`, `features`, `actions`, `brainstorm`.
+  - `pipeline` → loads `global.md` + `<SKILL_SLUG>.md` + `code-style.md`. Applies to: `implement` (M4), `plan` (M5), `review` (M6), `debug` (M7), `refactor` (M8), `onboard` (M9), `investigate` (M9). M9 D12-fix promotes `onboard` и `investigate` from `rules-only` к `pipeline` — discovery skills emit к L2/L3 (M2 §5.3 `discovery` rows) и need code-style rules respected when their save-routing focused agents write к the user's tree (CLAUDE.md, ADR, etc.).
+  - `rules-only` → loads `global.md` only. Applies to: `actions` (M10), `instructions` (M10), `setup` (M10). These are CRUD-on-meta skills — they manage rules rather than produce code или learnings, so the per-skill + code-style layers don't apply.
 - **`MODE`** — `initial-load` (Step 0) or `refresh` (phase boundary).
 
 Callers receive (on completion):
