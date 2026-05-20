@@ -37,14 +37,6 @@ If the user really wants к surgically edit an existing design doc bypassing Pha
 
 ---
 
-## Deprecation alias note (M5 §20.3 — one-cycle)
-
-Pre-M5 `/geniro:brainstorm` is replaced by `/geniro:plan` (this skill). For one release cycle, `/geniro:brainstorm` is preserved as а deprecation stub at `skills/brainstorm/SKILL.md` — invoking it surfaces а one-line directive pointing к `/geniro:plan` и exits без running the loop.
-
-The deprecation stub does NOT run the loop. Users migrating от pre-M5 must re-invoke `/geniro:plan` once they see the deprecation message. After one release cycle (per master plan §60), the `/brainstorm` directory will be deleted entirely.
-
----
-
 ## Cross-references
 
 Shared rules consumed by this skill:
