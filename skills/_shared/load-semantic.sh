@@ -85,7 +85,7 @@ _ls_check_drift() {
     list=$(printf ', %s' "${diverged[@]}")
     list="${list:2}"
     echo "[L3 drift] Tech stack fingerprint diverged — $list changed since fingerprint captured on $captured_at." >&2
-    echo "[L3 drift] Consider /geniro:onboard --refresh-stack. Continuing with current memory." >&2
+    echo "[L3 drift] Consider re-running /geniro:onboard. Continuing with current memory." >&2
   fi
   return 0
 }

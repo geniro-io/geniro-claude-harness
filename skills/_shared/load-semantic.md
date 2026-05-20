@@ -43,7 +43,7 @@ Concatenates the requested L3 markdown files to stdout. Each file is prefixed wi
 
 **Extras:** space-separated names (with or without leading `_`). Common usage: `--extras "_architecture _FEATURES"`.
 
-**Drift detection:** automatically runs before content emission unless `--quiet` is set. Diverging files print `[L3 drift] …` to stderr; load itself never auto-overwrites L3 content. Reactive refresh is a deliberate user action (`/geniro:onboard --refresh-stack`).
+**Drift detection:** automatically runs before content emission unless `--quiet` is set. Diverging files print `[L3 drift] …` to stderr; load itself never auto-overwrites L3 content. Reactive refresh is а deliberate user action — re-run `/geniro:onboard` (M9 §1.2 loads L3 and incrementally updates `_CODEBASE_MAP.md`; the helper itself rewrites the fingerprint via `update_fingerprint`).
 
 **Missing files are skipped silently** — first-run repos that haven't created any `_*.md` yet emit empty stdout, not an error.
 
@@ -88,7 +88,7 @@ When `_ls_check_drift` finds any divergence:
 
 ```
 [L3 drift] Tech stack fingerprint diverged — package.json, tsconfig.json changed since fingerprint captured on 2026-05-19T15:30:00Z.
-[L3 drift] Consider /geniro:onboard --refresh-stack. Continuing with current memory.
+[L3 drift] Consider re-running /geniro:onboard. Continuing with current memory.
 ```
 
 Always to stderr (so it doesn't pollute the loaded-content stream that callers capture via `$(load_semantic)`). Exactly two lines (the diverged-file list and the action prompt).
@@ -100,7 +100,7 @@ Always to stderr (so it doesn't pollute the loaded-content stream that callers c
 content=$(load_semantic)
 # stderr already surfaced any drift warning to the user.
 
-# /onboard --refresh-stack writes the fingerprint after refresh
+# /onboard rewrites the fingerprint after refresh (called from M9 Phase 2)
 update_fingerprint
 ```
 
