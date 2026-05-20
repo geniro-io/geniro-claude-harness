@@ -74,7 +74,9 @@ cd .geniro/planning && \
 
 **Action required:** Run `/geniro:setup` re-run mode. Phase Generate detects the `<!-- geniro-setup-version: -->` marker, spawns the conflict-resolution agent (architect-agent, sonnet, `tools: [Read, Edit]` constrained к CLAUDE.md only) и merges the new 11-skill table while preserving user-edited prose. Phase Validate verifies zero refs к dropped skills.
 
-**Auto-detect:** `grep -Ec '/(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)\b' CLAUDE.md 2>/dev/null`
+**Auto-detect:** `grep -q '^\*\*Skills deleted' CLAUDE.md 2>/dev/null || grep -El '/geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)\b' CLAUDE.md 2>/dev/null`
+
+(Heading-gated + canonical-form-anchored. The first grep short-circuits when CLAUDE.md already carries the post-M10 «Skills deleted в M4 redesign» receipts heading — receipt mentions there are intentional. The second grep is anchored к the canonical `/geniro:<command>` form `/setup` writes; bare-text mentions like `learnings.jsonl` filenames don't match. If your CLAUDE.md uses non-canonical shorthand like bare `/brainstorm`, run `/geniro:setup` re-run regardless.)
 
 **Severity:** MEDIUM — users invoking listed commands hit «not found»; other skills work normally.
 
