@@ -61,7 +61,7 @@ These are intended to outlive any single task. The resolver applies to both read
 These are intentionally ephemeral with the current task. Promoting them to the resolver would introduce false durability where none is wanted.
 
 - `.geniro/planning/<task-dir>/*` — spec.md, plan-*.md, state.md, concerns.md, notes.md, milestone-*.md. Removed at `/implement` Phase 7 cleanup.
-- `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/state-<slug>.md`, `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound) — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
+- `.geniro/state/follow-up/state-<slug>.md`, `.geniro/state/refactor/<slug>/state.md` (M8 §9.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/improve-template/state-<slug>.md`, `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound) — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
 
 If a within-skill state file is later promoted to cross-session use, add it to the cross-session table above.
 
