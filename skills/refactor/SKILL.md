@@ -165,7 +165,7 @@ Exits к Phase 2 only when: (a) baseline validation green, (b) tier classified, 
 
 On Phase 1 entry, in order:
 
-1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style)` per M3 §7.2 Echo contract.
+1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style + user-preferences — M10b pipeline tier, 4 files)` per M3 §7.2 Echo contract.
 2. **L3 refresh** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.
 3. **L2 prior-knowledge query** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per M2 §5.3. К find prior discoveries about coupling, pitfalls, и conventions relevant к the refactor scope.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per M2 §10.
@@ -312,7 +312,7 @@ state.md `phase: apply`. Refactor-agent executes the approved plan, one step at 
 
 ### 2.1 L4 refresh entry
 
-On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style)` call. Mirrors M4 §13.4 Phase 3 entry contract. Pre-M8 had TWO refreshes (Phase 4 + Phase 5 entries) — M8 collapses к one; Phase 3 inherits the Phase 2 refresh (no code-writing в Phase 3).
+On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style + user-preferences — M10b pipeline tier, 4 files)` call. Mirrors M4 §13.4 Phase 3 entry contract. Pre-M8 had TWO refreshes (Phase 4 + Phase 5 entries) — M8 collapses к one; Phase 3 inherits the Phase 2 refresh (no code-writing в Phase 3).
 
 ### 2.2 refactor-agent execution
 

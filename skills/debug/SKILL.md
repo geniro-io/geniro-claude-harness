@@ -158,7 +158,7 @@ state.md `phase: investigate`. Mirrors M4 Phase 1 (entry-gate + context load) pl
 
 On Phase 1 entry, in order:
 
-1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style)` per M3 §7.2 Echo contract.
+1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style + user-preferences — M10b pipeline tier, 4 files)` per M3 §7.2 Echo contract.
 2. **L3 refresh** — `load-semantic(MODE: refresh, top-2 default)`. Fingerprint drift check fires если applicable.
 3. **L2 prior-knowledge query** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per M2 §5.3 «debug session start» trigger. Top-K=5 default, filter superseded + deprecated. Skipped если $ARGUMENTS too generic к infer tags. Result count IS the recurrence signal used by §8.3 L4-promotion suggestion.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per M2 §10.
@@ -254,7 +254,7 @@ state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduct
 
 ### 2.1 L4 refresh entry (single — no double-refresh)
 
-On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: debug + global + code-style)` call. Mirrors M4 §13.4 Phase 3 entry contract: always re-fires, drops the conditional-on-marker pattern. Cost: 1 helper read.
+On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: debug + global + code-style + user-preferences — M10b pipeline tier, 4 files)` call. Mirrors M4 §13.4 Phase 3 entry contract: always re-fires, drops the conditional-on-marker pattern. Cost: 1 helper read.
 
 ### 2.2 Multi-path fix gate (Always-WAIT, P-M1-1-aware)
 

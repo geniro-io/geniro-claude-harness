@@ -104,7 +104,7 @@ Pre-Phase-1 detect (transient — does не persist а state.md row):
 
 On Phase 1 entry (M9 D12-fix promotes onboard к full L4+L3+L2 load):
 
-1. **L4 refresh** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.
+1. **L4 refresh** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md` + `user-preferences.md` (M10b pipeline tier — 4 files).
 2. **L3 refresh** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). Legacy `CODEBASE_MAP.md` (без underscore) is read once for backward-compat.
 3. **L2 prior-knowledge** — `query-learnings --tag onboard --tag architecture --tag codebase --scope task --limit 5` per M2 §5.3 «discovery start» trigger. К surface prior architectural decisions и gotchas relevant к the scan.
 4. **Cross-layer conflict resolution** — `resolve-conflicts` per M2 §10 (precedence L4 > L3 > L2 when layers disagree; halt с AUQ on hard conflict).

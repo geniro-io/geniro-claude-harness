@@ -111,7 +111,7 @@ State.md `phase: classify`. Light по cost — а semantic $ARGUMENTS classific
 
 On Phase 1 entry (M9 D12-fix promotes investigate к full L4+L3+L2 load):
 
-1. **L4 refresh** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md` per M9 D12-fix (replaces pre-M9 `rules-only`). Both the helper's §Procedure imperative `Read` и §Echo contract are mandatory.
+1. **L4 refresh** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md` + `user-preferences.md` (M10b pipeline tier — 4 files; M9 D12-fix promoted /investigate от `rules-only` к `pipeline`). Both the helper's §Procedure imperative `Read` и §Echo contract are mandatory.
 2. **L3 refresh** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Note: `_CODEBASE_MAP.md` content (if exists) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
 3. **L2 prior-knowledge query** — `query-learnings --tags <inferred from $ARGUMENTS keywords> --scope task --limit 5` per M2 §5.3 «investigate session start» trigger. К find prior answers и avoid duplicate research.
 4. **Cross-layer conflict resolution** — `resolve-conflicts` per M2 §10 (precedence L4 > L3 > L2; halt с AUQ on hard conflict).

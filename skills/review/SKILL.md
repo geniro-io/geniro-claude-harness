@@ -114,7 +114,7 @@ Summary of what Phase 1 does:
 3. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`.
 4. **Peer-PR scout** (PR-ref only) — top-3 sibling PRs с file overlap; inlined into architecture + design reviewer prompts only.
 5. **Worktree pre-flight** (PR-ref only) — 3-branch routing (already-in-target / different-worktree / outside) per the reference file.
-6. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style`).
+6. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style`+`user-preferences` — M10b pipeline tier, 4 files).
 7. **Step 0.5 — Round-N counter** — increments and fires Round-N AUQ когда round ≥3.
 8. **Step 0.6 — PLAN CONTEXT load (M5-aware).** Detection per `${CLAUDE_SKILL_DIR}/plan-context-reference.md` §2. Structured-section parser когда `geniro_kind: design-doc` frontmatter present; legacy prose fallback otherwise.
 9. **Step 0.7 — Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / NEW: mechanical secret-scan strict mode).
@@ -199,6 +199,8 @@ State.md `phase: llm-spawn`.
 «5-9 dimensions per spawn batch» depending on conditions.
 
 **Refresh L4 instructions** at Phase 2 entry — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с MODE: refresh. Compaction since the previous load may have silently dropped the rules.
+
+**Discover custom reviewers (Phase 2 entry — before the parallel spawn batch).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` к discover user-authored review dimensions в `.geniro/instructions/review-extra/<slug>.md`. The helper returns spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing the ≤10 cap. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent", ...)` к the SAME parallel batch as the 7-9 built-ins (one assistant turn, parallel execution — per helper §How consumers use the spawn-specs). If the helper aborts on hard-cap error, surface error + skip the custom additions; built-ins still fire.
 
 ### 2.2 Spawn invocation
 
@@ -501,11 +503,11 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 
 | Phase | Helper | Direction | MODE | Inputs | Outputs |
 |---|---|---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` | read L4 | `initial-load` | scope = `review` + `global` + `code-style` | concatenated rule body |
+| Phase 1 entry | `load-custom-instructions` | read L4 | `initial-load` | scope = `review` + `global` + `code-style` + `user-preferences` (M10b — 4 files) | concatenated rule body |
 | Phase 1 entry | `load-semantic` | read L3 | `refresh` | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + drift check |
 | Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred от changed-file paths; type bias `pitfall` | top-K matching entries (default K=5) |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | three loaded layers | precedence-resolved |
-| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `review` + `global` + `code-style` | rule body (refreshed) |
+| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `review` + `global` + `code-style` + `user-preferences` (M10b — 4 files) | rule body (refreshed) |
 | Phase 5 | M1 `atomic_state_write` | write T2 | n/a | state file path; full body | whole-file rewrite |
 | Phase 5b | `emit-learning` | write L2 | n/a | producer = /review; type = `pitfall`; trust = `verified` | append к `learnings.jsonl` |
 | Phase 6 | M1 `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |

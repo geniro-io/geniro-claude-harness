@@ -162,7 +162,7 @@ Phase 2 makes no new helper calls. Phase 3 entry re-fires `load-custom-instructi
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh` (used at both Phase 1 entry и Phase 3 entry per M4 §13.4). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, и `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
 
 **Phase boundaries (M3 §7.3 + M4 §13.4):**
-- Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style`. M3 §7.3 makes `refresh` the universal "re-Read и announce" pattern; procedure identical к initial-load (every Read fires) but the mode name signals compaction-survival intent.
+- Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style` + `user-preferences` (M10b pipeline tier — 4 files). M3 §7.3 makes `refresh` the universal "re-Read и announce" pattern; procedure identical к initial-load (every Read fires) but the mode name signals compaction-survival intent.
 - Phase 3 entry — `MODE: refresh` ALWAYS — survives Phase 2 compaction без requiring an M3 marker contract. Cost: 1 extra helper read.
 
 The Echo contract survives compaction via M3 SessionStart re-injection.
@@ -243,7 +243,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 ## PHASE 1: ANALYZE
 
-**Load L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh` (per M4 §13.1 / §13.4 — procedure identical к initial-load, mode name signals compaction-survival intent). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, и `code-style.md`; the §Echo contract requires one observable line per file. Both are mandatory.
+**Load L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh` (per M4 §13.1 / §13.4 — procedure identical к initial-load, mode name signals compaction-survival intent). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, `code-style.md`, и `user-preferences.md` (4 files, M10b pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
 
 **Refresh L3 semantic snapshot.** `load_semantic` с default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification к user.
 

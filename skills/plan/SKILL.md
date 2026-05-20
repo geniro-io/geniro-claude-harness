@@ -170,7 +170,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 | Phase | Helper | Direction | Notes |
 |---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` (MODE: refresh) | read L4 | scope = `plan` + `global` + `code-style` |
+| Phase 1 entry | `load-custom-instructions` (MODE: refresh) | read L4 | scope = `plan` + `global` + `code-style` + `user-preferences` (M10b pipeline tier — 4 files) |
 | Phase 1 entry | `load_semantic` | read L3 | top-2 default; fingerprint drift check |
 | Phase 1 entry | `query_learnings` | read L2 | tags inferred от $ARGUMENTS topic |
 | Phase 1 entry | `resolve-conflicts` | read protocol | fires only if L4/L3/L2 disagree |
