@@ -1,25 +1,108 @@
-# Plan Context Reference
+# Plan Context Reference (M6)
 
-How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the judge pass.
+How `/geniro:review` ingests и threads plan/spec intent through reviewers, the relevance filter, и the spec-compliance dimension. М6 rewrite (D2 fix) replaces the pre-M6 «opaque-prose с 3000-char cap» model с а schema-aware loader that parses М5's 10-section `spec.md` format when present, falling back к prose detection only когда no M5 frontmatter is found.
+
+---
 
 ## 1. Accepted Input Forms
 
-The orchestrator collects PLAN CONTEXT from up to four sources, in this **priority order**:
+The orchestrator collects PLAN CONTEXT from up to four sources, в this **priority order**:
 
-1. **PR body** — when in PR mode (PR ref form), `gh pr view <ref> --json baseRefName,headRefName,body,title` returns the PR title + body. Treat as the authoritative intent statement when present.
-2. **Explicit `--plan <path>` flag** — passed in `$ARGUMENTS`. Example: `review HEAD~5..HEAD --plan docs/plan.md`. Reads the file content as-is.
-3. **Auto-discovered project files** — checked in this order, first match wins for each filename: `docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`. Skipped silently if absent.
-4. **None** — no PR body, no `--plan`, no project files. PLAN CONTEXT is rendered as the literal string `none` in every reviewer prompt.
+1. **`--plan <path>` flag** (`$ARGUMENTS`) — explicit path к а spec.md / plan.md / design-doc file. Highest priority. Example: `review HEAD~5..HEAD --plan .geniro/planning/feat-auth/spec.md`.
+2. **PR body M5-reference** — когда in PR mode, scan the PR body для а `geniro-plan: <path>` line (а convention emitted by `/plan` Phase 9 hand-off message). If found, treat as а pointer к the on-disk spec.md.
+3. **Auto-discovered M5 spec.md** — walk `.geniro/planning/*/spec.md`. First match wins (most-recently-modified preferred).
+4. **Legacy auto-discovered project files** — `docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`. Skipped silently if absent.
+5. **PR body as opaque prose** — когда PR mode but no `geniro-plan:` reference found, fall back к `gh pr view <ref> --json body` content treated as prose.
+6. **None** — no PR body, no `--plan`, no project files. PLAN CONTEXT renders as the literal string `none` в every reviewer prompt.
 
-**Concatenation:** Non-empty sources are concatenated in the order above, each prefixed with a source delimiter (see schema below). The `--plan` flag does **not** suppress auto-discovered files — both contribute. The PR body always leads when in PR mode.
+**Concatenation rule (M6 refinement):** when ≥1 source resolves к а structured M5 spec.md (frontmatter detected — see §2), that source's structured-section blob is the canonical PLAN CONTEXT. Other sources (if any) are dropped — section-tagged structured blob и prose blob do not mix cleanly. When NO source has M5 frontmatter, the legacy concat behavior runs: non-empty sources concatenated с source-delimiter, capped at ~3000 chars total.
 
-## 2. Pre-Inline Schema
+---
 
-The orchestrator formats PLAN CONTEXT for every reviewer prompt (5 standard + conditional design + every batched-mode variant), the relevance-filter-agent prompt, and the judge pass:
+## 2. Detection — М5 schema vs legacy prose
+
+Read the first 20 lines of the candidate file. If frontmatter contains:
+
+```yaml
+geniro_kind: design-doc
+geniro_schema_version: m5-v1
+```
+
+→ switch к **structured-section parser** (§3).
+
+If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing → fall back к **legacy prose mode** (§4).
+
+---
+
+## 3. Structured-section parser (М5 mode)
+
+When М5 frontmatter detected, parse the 10 named sections per М5 §17.2. Section header format is rigid (`## 1. Objective` через `## 11. Done Condition` — 10 sections numbered 1-11, since §3 is split into 3a/3b would be N/A; the spec template emits 11 numeric headers за 10 logical sections per the M5 spec-template).
+
+Sections expected:
+
+| # | Header text | Body purpose |
+|---|---|---|
+| 1 | Objective | One-sentence goal statement (P-M5-4 check #1 `single_objective`) |
+| 2 | Scope — Included | Bullet list of files/modules/surfaces touched |
+| 3 | Scope — Excluded | Bullet list of explicitly-out-of-scope items |
+| 4 | Assumptions | Conditional preconditions |
+| 5 | Risks | Risks + mitigations |
+| 6 | Steps | Numbered execution steps |
+| 7 | Tools Required | CLI binaries / libraries / MCP connectors needed |
+| 8 | Approval Points | Where mid-execution AUQ fires |
+| 9 | Validation | Test types / manual verification |
+| 10 | Rollback-Recovery | How к undo |
+| 11 | Done Condition | Observable signal of completion |
+
+Plus the goal-state **frontmatter** block (parsed separately):
+
+```yaml
+budget:
+  max_files_to_edit: <int|null>
+  max_lines_changed: <int|null>
+  time_budget: <duration|null>
+checkpoints: [<list of {step_anchor, name}>]
+forbidden_actions: [<list>]
+approval_required_for: [<list>]
+tools_required: [<list>]
+lifecycle: draft | approved | superseded
+```
+
+### Pre-inline schema (structured mode)
+
+```
+PLAN CONTEXT (M5 schema mode):
+--- Frontmatter goal-state ---
+budget: { max_files_to_edit: N, max_lines_changed: M, time_budget: T }
+checkpoints: [{step_anchor: step-3, name: "post-migration"}, …]
+forbidden_actions: ["do NOT bypass auth middleware", …]
+approval_required_for: ["DB schema changes", …]
+tools_required: ["kubectl", "helm", …]
+lifecycle: approved
+--- Section 1 (Objective) ---
+<body>
+--- Section 2 (Scope — Included) ---
+<body>
+…
+--- Section 11 (Done Condition) ---
+<body>
+```
+
+**Cap:** structured mode honors а ~6000-char total cap (2× legacy mode's 3000 char cap, since the section-tagged format adds delimiter overhead и the reviewer benefits от section anchors). Truncation policy: if total exceeds cap, drop bodies of sections 4 (Assumptions) и 5 (Risks) first (less critical для diff-completeness checks); keep section 1, 2, 3, 6, 9, 11 always.
+
+### Why structured wins
+
+Spec-compliance reviewer can cite specific sections («section 2 names `src/api/auth/*` но diff touches no auth file») instead of grepping prose. Findings carry section anchors в evidence — auditable, не fuzzy.
+
+---
+
+## 4. Legacy prose mode (fallback)
+
+When no М5 frontmatter is detected, treat PLAN CONTEXT as opaque prose. Pre-M6 behavior preserved verbatim:
 
 ```
 PLAN CONTEXT:
---- Source: <PR body | docs/spec.md | docs/plan.md | PLAN.md | SPEC.md | none> ---
+--- Source: <PR body | docs/spec.md | docs/plan.md | PLAN.md | SPEC.md> ---
 <content, capped at ~3000 chars total across all sources; truncate with "[…truncated…]" marker if needed>
 --- Source: <next source if any> ---
 <content>
@@ -31,72 +114,93 @@ When no sources resolve, the entire field collapses to:
 PLAN CONTEXT: none
 ```
 
-## 3. Decision-Marker Convention
+In legacy mode, spec-compliance reviewer runs checks 1-9 only (skips М5-mandated checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` backward-compat fallback). Surface а one-line note в `## Open Questions`: «PLAN CONTEXT lacks M5 schema — falling back к prose checks; Done Condition + Tools Required не verified».
 
-Project plans commonly label decisions with markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning with such a marker as an authoritative intent statement.
+---
 
-**Example marker line in a plan:**
+## 5. Decision-Marker Convention (preserved verbatim от pre-M6)
+
+Project plans commonly label decisions с markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning с such а marker as an authoritative intent statement. This applies в both М5 mode (markers may appear в any section body) и legacy mode.
+
+**Example marker line в а plan:**
 
 ```
 D-09: existing timeline entries are NOT backfilled.
 ```
 
-When a reviewer encounters a finding like "missing backfill for old timeline rows," it must:
+When а reviewer encounters а finding like "missing backfill for old timeline rows," it must:
 
-- Tag the finding `[ALIGNS-WITH-PLAN-D-09]` (preserve the decision ID in the tag for traceability)
-- NOT report it as a bug
+- Tag the finding `[ALIGNS-WITH-PLAN-D-09]` (preserve the decision ID в the tag для traceability)
+- NOT report it as а bug
 
-When a reviewer encounters a finding that contradicts a marker (e.g., the plan says "use COALESCE" but the code uses raw NULL), it must:
+When а reviewer encounters а finding that contradicts а marker (e.g., the plan says "use COALESCE" но the code uses raw NULL), it must:
 
 - Tag the finding `[DIVERGES-FROM-PLAN-D-XX]`
-- The Phase 4 judge Step 0 reconciliation will then verify and either keep as a bug or auto-demote to `[INTENT-CHECK]`.
+- The Phase 4 judge Step 0 reconciliation will then verify и either keep as а bug или auto-demote к `[INTENT-CHECK]`.
 
-## 4. Cap Rationale
+---
 
-The ~3000-character total cap exists because:
+## 6. Cap Rationale
 
-- Each reviewer prompt already carries criteria + changed files + diff + project context. Plan context is one more field competing for the same window.
-- A typical PR body + a 1-page decision summary fits well under 3000 chars.
-- Larger plan documents (multi-page specs, long ADRs) lose signal when stuffed verbatim into every reviewer prompt — the reviewer's attention spreads thin (U-shaped attention curve, see SKILL.md batched-mode rationale).
+М5-mode ~6000-char total cap exists because:
 
-**If your plan exceeds the cap:** summarize externally (extract the decision list, drop prose) and either pass the summary via `--plan` or commit it as `docs/plan.md`. The orchestrator does NOT auto-summarize — it just truncates with `[…truncated…]`.
+- Section-tagged format adds delimiter overhead (~10% of total).
+- Section anchors enable focused reviewer reasoning (less prose-scan needed).
+- Larger M5 specs lose signal под U-shaped attention (still applies).
 
-## Decision Type values (canonical)
+Legacy-mode 3000-char cap preserved (pre-M6 rationale: each reviewer prompt already carries criteria + changed files + diff + project context).
 
-The four canonical decision-type values, shared with `agents/reviewer-agent.md`:
+**If your М5 spec exceeds the 6000-char cap:** drop frontmatter `## Considered Alternatives` (optional М5 section) AND/OR shrink section 4 (Assumptions) / section 5 (Risks) bodies. The orchestrator does NOT auto-summarize — it just truncates с `[…truncated…]`.
+
+---
+
+## 7. Decision Type values (canonical)
+
+The four canonical decision-type values, shared с `agents/reviewer-agent.md`:
 
 - `[FIX-NOW]` — Mechanical correction, obvious target, low risk (e.g., test title vs assertion mismatch, typo, broken cross-reference).
-- `[TESTABLE]` — Defense-in-depth or edge case worth a test before action (e.g., empty-string guard, boundary case).
+- `[TESTABLE]` — Defense-in-depth or edge case worth а test before action (e.g., empty-string guard, boundary case).
 - `[PRODUCT-DECISION]` — Multiple valid resolution paths; needs human triage (e.g., snapshot vs live-fetch trade-off, COALESCE vs CHECK vs catch+log).
-- `[INTENT-CHECK]` — Looks like a divergence from explicit plan; verify against spec before treating as bug. Auto-applied by Phase 4 Step 0 when a reviewer tagged `[ALIGNS-WITH-PLAN]` or `[DIVERGES-FROM-PLAN]` and the plan authorized the divergence.
+- `[INTENT-CHECK]` — Looks like а divergence от explicit plan; verify against spec before treating as bug. Auto-applied by Phase 4 Step 0 when а reviewer tagged `[ALIGNS-WITH-PLAN]` или `[DIVERGES-FROM-PLAN]` AND the plan authorized the divergence.
 
-## 5. Worked Example
+---
 
-**Setup:** PR titled "Add timeline events". PR body contains:
+## 8. Worked Example (М5 mode)
 
+**Setup:** PR titled "Add timeline events". PR body includes `geniro-plan: .geniro/planning/feat-timeline/spec.md`.
+
+Loaded spec.md has frontmatter:
+
+```yaml
+geniro_kind: design-doc
+geniro_schema_version: m5-v1
+budget:
+  max_files_to_edit: 5
+  max_lines_changed: 300
+forbidden_actions: ["do NOT backfill existing timeline rows"]
+lifecycle: approved
 ```
-Adds timeline events table + insert path.
 
-D-09: existing timeline entries are NOT backfilled.
-D-10: events use UTC timestamps without timezone column.
-```
+Section 1 (Objective): «Add а timeline-events table с insert path.»
+Section 2 (Scope — Included): «`migrations/2026-04-add-timeline.sql`, `src/timeline/events.ts`, `tests/timeline.test.ts`»
+Section 11 (Done Condition): «all 5 acceptance tests green AND telemetry shows ≥1 successful event insert»
 
 Three reviewer findings come back:
 
-1. **Bugs reviewer:** "Missing backfill for existing rows in `migrations/2026-04-add-timeline.sql`. Old data won't appear in the timeline UI."
-2. **Architecture reviewer:** "Timestamp column lacks `WITH TIME ZONE` in `schema/events.sql:14`. Recommend `TIMESTAMPTZ` for portability."
-3. **Tests reviewer:** "No test for the empty-events-list rendering path in `tests/timeline.test.ts`. Should add boundary case."
+1. **Bugs reviewer:** "Missing backfill для existing rows в `migrations/2026-04-add-timeline.sql`. Old data won't appear в the timeline UI."
+2. **Architecture reviewer:** "Timestamp column lacks `WITH TIME ZONE` в `schema/events.sql:14`. Recommend `TIMESTAMPTZ` для portability."
+3. **Spec-compliance reviewer (Check #10):** "Done Condition (section 11) names «telemetry shows ≥1 successful event insert» но diff carries no metric emission. Add `metrics.increment('timeline.event.insert')` at the writer."
 
 **Reviewer self-tagging (Phase 2):**
 
-- Finding 1 — reviewer sees `D-09` in PLAN CONTEXT, tags `[ALIGNS-WITH-PLAN-D-09]` (intentional, not a bug). Routed to `[INTENT-CHECK]` decision-type, not a bug severity.
-- Finding 2 — reviewer sees `D-10` mandates "without timezone column," contradicts its own suggestion. Tags `[DIVERGES-FROM-PLAN-D-10]`.
-- Finding 3 — no plan reference. Untagged, regular review path.
+- Finding 1 — reviewer sees `forbidden_actions: ["do NOT backfill"]` в frontmatter, tags `[ALIGNS-WITH-PLAN]` (intentional, not а bug). Routed к `[INTENT-CHECK]` decision-type, not bug severity.
+- Finding 2 — no plan reference. Untagged, regular review path.
+- Finding 3 — spec-compliance finding с section 11 anchor, severity HIGH (per spec-compliance-criteria.md §11 Severity Tagging).
 
 **Phase 4 Step 0 reconciliation (judge):**
 
-- Finding 1 — already `[ALIGNS-WITH-PLAN]`, exits the bug pipeline; appears in the report as `[INTENT-CHECK]` with the plan citation, not in CRITICAL/HIGH.
-- Finding 2 — `[DIVERGES-FROM-PLAN-D-10]` → judge re-reads PLAN CONTEXT, confirms `D-10` explicitly authorizes the divergence → demote to `[INTENT-CHECK]`, exclude from CRITICAL/HIGH severity.
-- Finding 3 — no plan tag, normal severity scoring → ends up `[TESTABLE]` (defense-in-depth boundary case).
+- Finding 1 — already `[ALIGNS-WITH-PLAN]`, exits the bug pipeline; appears в the report как `[INTENT-CHECK]` с the frontmatter citation (`forbidden_actions[0]`), not в CRITICAL/HIGH.
+- Finding 2 — no plan tag, normal severity scoring → `[TESTABLE]` или regular bug-severity per rubric.
+- Finding 3 — spec-compliance dimension; severity HIGH preserved.
 
-**Net result:** the report calls out two `[INTENT-CHECK]` items (with plan-decision citations) for human triage, plus one `[TESTABLE]` finding. Zero false bug reports against the explicit plan.
+**Net result:** the report calls out one `[INTENT-CHECK]` item (frontmatter-authorized backfill skip), one regular bug, и one HIGH spec-compliance finding с section-11 citation. Zero false bug reports against the explicit plan.
