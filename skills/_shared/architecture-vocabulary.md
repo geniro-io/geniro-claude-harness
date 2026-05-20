@@ -1,11 +1,11 @@
 ---
 name: architecture-vocabulary
-description: "Canonical vocabulary for module-design discussions across skills. Defines depth, seam, adapter, leverage, locality so refactor / deep-simplify / investigate / implement reason in shared terms."
+description: "Canonical vocabulary for module-design discussions across skills. Defines depth, seam, adapter, leverage, locality so refactor / review --simplify / investigate / implement reason in shared terms."
 ---
 
 # Canonical: Architecture Vocabulary
 
-Single source of truth for the design-vocabulary used by `/geniro:refactor`, `/geniro:deep-simplify`, `/geniro:investigate`, and `/geniro:implement` (architect-agent + spec template's "Modules & Interfaces" subsection). Skills cite this file rather than redefining terms inline so that "deepen this module" means the same thing in every skill.
+Single source of truth for the design-vocabulary used by `/geniro:refactor` (M8), `/geniro:review --simplify` (M6 §13 absorbed /deep-simplify), `/geniro:investigate` (M9), and `/geniro:implement` (M4 architect-agent + spec template's "Modules & Interfaces" subsection). Skills cite this file rather than redefining terms inline so that "deepen this module" means the same thing in every skill.
 
 ## Core terms
 
@@ -45,8 +45,8 @@ Each consumer cites this file rather than redefining vocabulary:
 | Skill | Where it cites this file |
 |---|---|
 | `/geniro:refactor` | M8 Phase 1 §6.4 smell-detection refactor-agent spawn ("deepening opportunities" lens) |
-| `/geniro:deep-simplify` | `simplify-criteria.md` Pass A (Reuse & Duplication — Existing Abstraction Audit asks "could deepening absorb this duplication?") |
-| `/geniro:investigate` | Phase 3 synthesis templates ("Why" and "Compare" answer formats) |
+| `/geniro:review --simplify` | `simplify-criteria.md` Pass A (Reuse & Duplication — Existing Abstraction Audit asks "could deepening absorb this duplication?") |
+| `/geniro:investigate` | M9 §10.1 synthesis templates ("Why" and "Compare" answer formats) |
 | `/geniro:implement` | architect-agent prompt (so plan vocabulary matches reviewer vocabulary) + spec template's "Modules & Interfaces" subsection |
 | `/geniro:instructions` "Writing Effective Instructions" | Reference when authoring rules about module design |
 
