@@ -96,14 +96,14 @@ Used by:
 ## Investigation-driven fix gate (debug-flavored)
 
 Used by:
-- `/geniro:debug` Step 5 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
-- `/geniro:debug` Step 6 escape hatch (Repro infeasible — alternative regression-guard picker when the bug is non-deterministic)
+- `/geniro:debug` Phase 2 §7.2 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
+- `/geniro:debug` Phase 2 §7.4 escape hatch (Repro infeasible — alternative regression-guard picker when the bug is non-deterministic)
 
-Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/HYPOTHESES-<slug>.md` (slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules) instead of the reviewer-agent output.
+Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules) instead of the reviewer-agent output.
 
 ### Required AUQ shape
 
-- **`header`**: short chip label set by the calling skill (`"Fix path"` for Step 5, `"Repro infeasible"` for Step 6).
+- **`header`**: short chip label set by the calling skill (`"Fix path"` for §7.2, `"Repro infeasible"` for §7.4).
 - **`question`**: multi-line markdown:
 
   ```
@@ -114,8 +114,8 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
   How do you want to <resolve | regression-guard> this?
   ```
 
-  Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/state/debug/HYPOTHESES-<slug>.md` (the confirmed hypothesis's "Isolate" file:line + title + "Fix Evidence" pre-fix output).
-- **`options[]`** — one per fix path (Step 5) or per alternative regression guard (Step 6):
+  Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` file:line + title + `## Hypotheses` Result field pre-fix output per M7 §11.1.B).
+- **`options[]`** — one per fix path (§7.2) or per alternative regression guard (§7.4):
   - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
   - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
   - **`preview`**: investigation context, formatted as:
@@ -128,30 +128,30 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
     ## Evidence
 
     ```<lang>
-    <2-5 lines from the failing-test output OR captured pre-fix snippet from HYPOTHESES-<slug>.md "Fix Evidence">
+    <2-5 lines from the failing-test output OR captured pre-fix snippet from state.md `## Hypotheses` Result field>
     ```
 
     ## Reproduction status
 
-    <"Hypothesis confirmed at Step 4; reproduction test pending Step 6" for Step 5; "Reproduction infeasible — <reason from Reproduction Decision>" for Step 6 escape hatch>
+    <"Hypothesis confirmed at Phase 1 §6.7 Isolate; reproduction test pending Phase 2 §7.4" for §7.2; "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" for §7.4 escape hatch>
 
     ## Hypothesis
 
-    Hypothesis <number> from `.geniro/state/debug/HYPOTHESES-<slug>.md`
+    Hypothesis <number> from `.geniro/state/debug/<slug>/state.md` § Hypotheses
     ````
 
   Render the same `preview` body on every option for the same investigation — the body is per-investigation, not per-option.
 
 ### Source-field map
 
-| AUQ field | `.geniro/state/debug/HYPOTHESES-<slug>.md` field |
+| AUQ field | `.geniro/state/debug/<slug>/state.md` field (M7 §11.1.B) |
 |-----------|--------------------------------------|
-| `path:lines` in `question` | confirmed hypothesis's "Isolate" section (file:line of root cause) |
+| `path:lines` in `question` | confirmed hypothesis's `## Root Cause` section (file:line of root cause) |
 | `<hypothesis title>` in `question` | confirmed hypothesis's title |
-| `<observed failure>` in `question` | first line of confirmed hypothesis's "Fix Evidence" → captured pre-fix output |
-| `preview` Evidence codeblock | full captured pre-fix output (2-5 lines) from "Fix Evidence" |
-| `preview` Reproduction status | "Hypothesis confirmed at Step 4; reproduction test pending Step 6" (Step 5 multi-path fix gate) OR "Reproduction infeasible — <reason from Reproduction Decision>" (Step 6 escape hatch) |
-| `preview` Hypothesis number | hypothesis ID from `HYPOTHESES-<slug>.md` |
+| `<observed failure>` in `question` | first line of confirmed hypothesis's `## Hypotheses` Result field → captured pre-fix output |
+| `preview` Evidence codeblock | full captured pre-fix output (2-5 lines) from `## Hypotheses` Result field |
+| `preview` Reproduction status | "Hypothesis confirmed at Phase 1 §6.7 Isolate; reproduction test pending Phase 2 §7.4" (§7.2 multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" (§7.4 escape hatch) |
+| `preview` Hypothesis number | hypothesis ID from state.md `## Hypotheses` |
 
 ## Where the body fields come from
 
@@ -159,7 +159,7 @@ For skills running findings end-to-end in one invocation (`/geniro:review`), the
 
 For cross-skill consumers (`/geniro:implement` Phase 1 step 8 «Persist T2 handoffs» per M4 §13.2), findings arrive via the `<task-dir>/review-feedback.md` artifact (Phase 3 self-review intermediate) или `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 M1-T2 canonical path written by `/review` Phase 5). Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema for the persisted shape.
 
-For `/geniro:debug` Step 5 / Step 6 gates, body fields come from `.geniro/state/debug/HYPOTHESES-<slug>.md` (the confirmed hypothesis's "Isolate" + "Fix Evidence" + "Reproduction Decision" sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
+For `/geniro:debug` Phase 2 §7.2 / §7.4 gates, body fields come from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` + `## Hypotheses` Result + `## Reproduction Test` Reproduction Decision sections per M7 §11.1.B) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
 
 ## Recommended-label policy
 
