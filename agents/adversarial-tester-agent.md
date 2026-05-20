@@ -36,7 +36,7 @@ The orchestrating skill passes you:
 2. **Shared edge-case checklist** — READ `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` yourself at runtime to pick up the canonical taxonomy (boundary, async, integration, critical-path, weak-test anti-patterns). Do not expect its content to be inlined. Do not duplicate its content into your output.
 3. **Project test framework hints** — pre-inlined from CLAUDE.md or package.json scripts: the test runner command, the existing test-file naming convention, and 1–2 exemplar test files you can mirror.
 4. **Prior review findings** (optional) — from Phase 6 Stage C. Use these as hypothesis seeds, not as a replacement for independent generation. You are the fresh adversarial pass.
-5. **Output path** — where to write the findings report, e.g. `<task-dir>/adversarial-tests.md`.
+5. **Output path** — where to write the findings report. The orchestrator pre-inlines the resolved absolute path in the spawn prompt — typical values are `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (M7 §11.3 — `/geniro:debug` Adversarial Mode) or `<task-dir>/review-adversarial-tests.md` (legacy review caller). Write to the exact path provided and only that path.
 
 Treat every input as authoritative for its slice: the diff bounds your scope, the framework hints bound your tooling choices, the prior findings are seeds not a ceiling, and the output path is where the orchestrator will look — write there and only there.
 
