@@ -247,7 +247,7 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 Follow the canonical routing в `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — it owns the routing table, decision logic, и presentation pattern. Skip findings already captured в L2 emit (Step 5); this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture.
 
-`AskUserQuestion` is always-WAIT here. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — use `/improve-template`.
+`AskUserQuestion` is always-WAIT here. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — submit а PR к the plugin repo OR edit your local plugin install directly.
 
 ---
 
