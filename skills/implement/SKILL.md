@@ -1,496 +1,418 @@
 ---
 name: geniro:implement
-description: "Use when implementing a new feature, endpoint, page, or significant change that needs architecture review and multi-agent implementation."
+description: "Use when shipping а new feature, endpoint, page, or significant change against а spec.md / plan.md (from /geniro:plan) OR а raw inline task description. M4 2-phase autonomous loop: Analyze → Implement → Self-review-and-Ship."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, EnterWorktree]
-argument-hint: "[description or issue tracker reference]"
+argument-hint: "[task description | spec.md path | empty к resume | 'continue']"
 ---
 
-# Implement Skill: 7-Phase Pipeline Orchestrator
+# Implement Skill — M4 2-Phase Autonomous Loop
 
-**You are a coordinator.** You delegate ALL implementation work to subagents. You do NOT read source files to diagnose errors, fix code, or verify logic yourself — not even for "simple" type errors or one-line fixes. You run shell commands (build, test, lint) and read their output to determine pass/fail. When something fails, you copy the raw terminal output into a fixer agent prompt and let it handle diagnosis and repair. Never open a source file to understand an error — forward the error verbatim.
+**You are an autonomous executor.** You consume an externally-provided spec (or inline task description), make all required code edits, run the test suite, then run а 5-dim self-review pass before shipping. Pre-M4 architect / skeptic / approval / simplify phases are removed — strategic concerns belong upstream в `/geniro:plan` (M5). Pre-M4 Lane modes (TDD / Light / Auto) и per-WU parallel decomposition are removed — М4 runs а single solo execution path per task.
 
-**The ONLY code you write directly:** Phase 4 Step 5 hotspot micro-edits (1-2 line registrations in routing/config/barrel files). Everything else is delegated.
+**Phases (M4 §2):**
 
-**PHASES:**
-1. Discover (WAIT) — eliminate ambiguity, produce spec; Phase 1 Step 0 selects Lane (full / light / tdd)
-2. Architect + Validate — architect proposes, skeptic validates; **Light Lane: skipped** — orchestrator writes Small-tier lightweight plan instead. **TDD Lane: architect produces a numbered behavior list + interface signatures** (not a Steps table)
-3. Approval (WAIT) — present plan, user confirms before coding starts. **TDD Lane: Interface-Design Pre-Approval Gate fires BEFORE the plan-approval AUQ** (runs in all lanes)
-4. Implement (delegated) — backend/frontend agents execute scope. **TDD Lane: sequential RED→GREEN per behavior** (one test → one impl → repeat) instead of parallel waves
-5. Simplify (delegated) — simplify agent cleans changed files, revert if CI breaks; **Light Lane: skipped**. **TDD Lane: per-cycle micro-refactor** instead of whole-feature pass
-6. Review & Validate (delegated) — Stage A automated checks, Stage B spec compliance, Stage C 7–8 reviewers, Stage D adversarial-tester; **Light Lane: skips Stage B and Stage D — keeps Stage A and the full Stage C review grid**. **TDD Lane: skips Stage D** (every behavior is already F→P-verified at cycle authoring time); keeps Stages A/B/C
-7. Ship & Finalize (WAIT) — finalize (docs, learnings, improvements), then ship decision + commit (runs in all lanes)
+1. **Analyze (Phase 1)** — semantic-parse `$ARGUMENTS`, resolve spec source (spec.md / plan.md / DESIGN_DOC frontmatter OR inline-task fallback), refresh L4+L3 memory, persist T2 handoffs к state.md.
+2. **Implement (Phase 2)** — single whole-feature edit batch; one end-of-phase test-suite run; bounded 3-retry fix loop on test failure → escalate-AUQ on exhaust.
+3. **Self-review + Ship (Phase 3)** — 5 reviewer-agents в parallel (bugs / security / architecture / tests / code-quality); bounded 3-round fix loop, round N+1 = failing dims only; on clean exit, ship sub-step (Pre-Ship Visual Verification if applicable, commit, ship-mode AUQ, L2/L3 writes, cleanup).
 
-**Reference material** (templates, examples, error tables): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` when you reach each phase. Do NOT load the entire file upfront — read the relevant section at the relevant phase.
+**Reference material** (templates, $ARGUMENTS-parse table, reviewer-agent spawn template, fix-loop, ship sub-step): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` AT each phase. Do NOT pre-load the entire file.
 
 ---
 
-## Subagent Model Tiering
+## State machine (M4 §2.1)
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (architect, skeptic, knowledge-retrieval, backend, frontend, reviewer, relevance-filter, adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` — spawn-agent.md handles bare-name first / on `Agent type '<name>' not found` degrade to `general-purpose` with the agent body inlined; context-isolation-checklist.md pins the six required pre-inlined-context fields (scope, criteria, files, prohibited tools, output schema, model tier) every spawn must satisfy.
+State.md frontmatter `phase:` enum:
 
-**Skill-specific mapping:**
+```
+[entry]
+  └── analyze ──┬── implement ──┬── self-review ──┬── ship ──┬── done (terminal)
+                │               │                  │           ├── ship-committed-only (terminal — "don't push" / "no push" / "commit only" modifier)
+                │               │                  │           └── (non-resumable-actions[] update per side-effect)
+                │               │                  │
+                │               │                  └── self-review-only (terminal — "stop after review" modifier)
+                │               │
+                │               └── phase-2-escalated ──┬── debug-handoff (terminal)
+                │                                       ├── self-review (user picked "accept failures")
+                │                                       └── aborted (terminal)
+                │
+                └── (analyze surface failures inline; no дополнительная escalation state)
 
-| Where used in this skill | Tier |
+      self-review ──┬── (happy: → ship)
+                    │
+                    └── phase-3-escalated ──┬── debug-handoff (terminal)
+                                            ├── ship (user picked "accept findings" → `## Accepted Findings` body block)
+                                            └── aborted (terminal)
+```
+
+**Terminal states** (M3 SessionStart treats as "task complete — no resume needed"): `done`, `ship-committed-only`, `self-review-only`, `debug-handoff`, `aborted`.
+
+**Non-terminal states** (M3 rolls back к phase-entry point on resume): `analyze`, `implement`, `self-review`, `ship`.
+
+**Termination reason convention (M4 §2.1.1).** When `phase: aborted` is reached, write one line to state.md body under `## Termination reason`: `repeated-failure: phase-N retry-limit` / `safety-denied: <rule>` / `tool-unavailable: <tool>`. M3 SessionStart re-injects this on resume.
+
+---
+
+## Loop invariants (M4 §2.2)
+
+Apply throughout all 3 phases:
+
+1. **One result per tool call.** Every Edit / Write / Bash / Agent spawn produces exactly one structured result. Failed spawn → result с `status: failed`; never absent.
+2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Paths absolute; slugs match M1 §Slug rules.
+3. **Permission before side-effect.** Any tool call mutating external state (`git push`, `gh pr create`, posted PR comment) is preceded by AUQ approval or recorded approval (persisted via P-M1-1 schema).
+4. **Bounded и structured tool results.** Reviewer-agent output capped at ~4000 chars per dimension; longer truncated с marker. Bash output >8000 chars summarized before downstream use.
+5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds в §6.2, 3 rounds в §7.3) surface к user via `AskUserQuestion` at exhaustion — never silent abort, never infinite loop.
+6. **Final answer grounded в observations.** Phase 3 Ship result text MUST quote actual tool output (push ref, PR URL, commit SHA) — never "git push succeeded" без evidence. Self-review reads `## Tool log` entries before claiming clean state.
+7. **Errors, denials, cancellations, timeouts → structured observations.** Failed `gh pr create`, denied permission, hook-blocked Write, subagent timeout, non-zero Bash exit becomes а structured observation entry — never silently skipped.
+
+**Side-effect — `## Tool log` section в state.md.** Invariants 1 и 7 motivate persisting subagent-spawn outcomes и side-effect tool calls (`git push`, `gh pr create`, file deletions) into а body section per the schema in `${CLAUDE_SKILL_DIR}/implement-reference.md`. Routine Read/Edit/Bash on local files do NOT need logging — Claude Code's tool_result return is sufficient.
+
+---
+
+## Budgets — quality-first framing (M4 §2.3, P-M4-3 revised)
+
+**NO hard kill caps.** No wall-time / tool-call / model-turn / cost ceilings. User tokens unlimited.
+
+**Quality gates (Class-B — escalate к user, do not abort):**
+
+| Gate | Cap | Where | Past threshold |
+|---|---|---|---|
+| Fix-loop retries per phase | 3 | §6.2 (Phase 2 test fix), §7.3 (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. |
+| Reviewer output size | ~4K chars per dim | §2.2 invariant #4 | Truncation с marker, NOT abort. |
+
+**Architecture constraints (design intent, not budget):**
+- Parallel reviewer spawns per round: 5 dimensions (`bugs` / `security` / `architecture` / `tests` / `code-quality`).
+
+**Explicitly NOT capped:**
+- Wall-time per run. Complex implementation can take hours.
+- Total tool calls per phase. Large refactors easily exceed 100 calls; no cap.
+- Total model turns per phase. Multi-file work needs many turns.
+- Total cost per run. Deferred к P-X6 if а cost-aware mode is opted into.
+
+---
+
+## State persistence (M1 + M4)
+
+**Task directory** (M1 T1):
+
+```
+.geniro/planning/<task-slug>/
+```
+
+Where `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch per M1 §Slug rules. Created at start of Phase 1.
+
+**State.md frontmatter (M1 §T1 + M4 §5):**
+
+```yaml
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: <git-branch>
+worktree: <git-rev-parse-show-toplevel>
+timestamp: <ISO-8601 UTC>
+phase: <state-machine-enum>
+status: in-progress
+non-resumable-actions: []   # appended after each git push / gh pr create / posted comment
+approvals: []               # appended after each one-time AUQ resolution (P-M1-1)
+---
+```
+
+**Write contract.** Every state.md mutation goes through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh`). NEVER direct `Edit` или `Write` on canonical state paths — the State-helper enforcement hook will warn (and в M1 PR-final, hard-block).
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+atomic_state_write ".geniro/planning/<task-slug>/state.md" <<'EOF'
+---
+<frontmatter>
+---
+
+<body sections>
+EOF
+```
+
+**Validation before resume.** When Phase 1 detects а pre-existing state.md (resume path), pre-flight via `validate_state_file`:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh"
+if ! validate_state_file ".geniro/planning/<task-slug>/state.md"; then
+  # Open recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency)
+  ...
+fi
+```
+
+---
+
+## Memory I/O (M4 §13)
+
+### L4 — Custom instructions (procedural)
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.sh"
+load_custom_instructions implement
+```
+
+**Phase boundaries (M3 §7.3 + M4 §13.4):**
+- Phase 1 entry — `MODE: refresh` (initial load) — scope = `implement` + `global` + `code-style`.
+- Phase 3 entry — `MODE: refresh` ALWAYS — survives Phase 2 compaction без requiring an M3 marker contract. Cost: 1 extra helper read.
+
+The helper's §Echo contract requires one observable line per file — survives compaction via M3 SessionStart re-injection.
+
+### L3 — Semantic snapshot
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.sh"
+load_semantic                                # default: _project.md + _CODEBASE_MAP.md
+load_semantic --extras "_FEATURES.md"        # if spec mentions feature backlog
+```
+
+**Phase 1 entry only.** Drift notification surfaces к user if `.fingerprint.json` mismatched. Phase 3 does NOT re-load L3 (Phase 2 doesn't materially mutate L3 — `update-semantic` writes are bounded к single-line append on `_CODEBASE_MAP.md`).
+
+### L2 — Episodic event log
+
+**Read (Phase 1 entry):**
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh"
+query_learnings --tag <inferred-tag> --scope <inferred-scope> --limit 5
+```
+
+Tags inferred from task description (e.g., `react`, `auth`, `bug`); skipped if task description is too generic.
+
+**Read (Phase 3 fix-loop):**
+
+```bash
+query_learnings --tag <inferred-tag> --scope <changed-file-path> --limit 5
+```
+
+Used к prime reviewer-agent prompts с known conventions/pitfalls.
+
+**Write (Phase 3 ship sub-step, auto-emit):**
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+echo '{"type":"convention","scope":"...","summary":"...","tags":[...],"trust":"verified"}' | emit_learning
+```
+
+Triggers per M4 §13.2 (M2 §5.3 patched contract):
+- `type=convention` → when Phase 3 architecture или code-quality reviewer reports ≥3 instances of same pattern.
+- `type=decision` → when spec.md records а non-trivial approach choice с `## Considered Alternatives` (M4-only path; once /plan M5 ships, /plan emits decisions directly).
+
+Default trust = `verified` (Phase 3 findings are test-validated на entry).
+
+Promotion suggestion (P-M4-5) fires ONLY for `convention` emits — see reference.md §"Extract Learnings".
+
+### L3 — Bounded write (Phase 3 ship sub-step)
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.sh"
+update_semantic --file codebase-map --append "- <path> — <short description>, used by <consumer>"
+```
+
+Fires when Phase 2 added а new module. Lock-guarded; rc=11 (lock held) is а recoverable skip-and-defer.
+
+### Cross-layer conflict surfacing (M2 §10)
+
+When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md`:
+- **Soft conflict:** print `emit_conflict_notice` text, continue using precedence-winning value.
+- **Hard conflict (L4 rule contradicts L3 reality):** halt, call `hard_conflict_block` + `AskUserQuestion` к surface к user.
+
+---
+
+## ACI per-phase tool surface (M4 §13.5)
+
+| Phase | Allowed | Blocked |
+|---|---|---|
+| **Phase 1 (Analyze)** | Read / Grep / Glob / Bash (read-only: `git status`, `gh pr view`) | All mutations |
+| **Phase 2 (Implement) inner loop** | Read / Grep / Glob / Edit / Write / Bash (incl. test runs) | `git push`, `gh pr create`, `gh pr comment`, Agent spawns (Phase 3 territory only) |
+| **Phase 3 reviewer-agent spawns** | Per dim: Read / Grep / Glob / Bash (read-only) — enforced by `agents/reviewer-agent.md` frontmatter `tools:` whitelist | Edit / Write / Agent / mutating Bash / external network |
+| **Phase 3 Ship sub-step** | `git commit`, `git push` (draft-grade — auto per P-M4-4), `gh pr create` (commit-grade — AUQ-gated) | External commits before AUQ resolution |
+
+**Existing safety layer:** file-protection hook, git-guardrail hook, и `.geniro/` deletion guard apply across ALL phases regardless of this matrix.
+
+---
+
+## PHASE 1: ANALYZE
+
+**Refresh L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.sh` (MODE: refresh) с scope = `implement` + `global` + `code-style`. The Echo contract requires one observable line per file.
+
+**Refresh L3 semantic snapshot.** `load_semantic` с default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification к user.
+
+### Steps
+
+1. **Semantic-parse `$ARGUMENTS`.** Apply the M4 §5.1 table в `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: $ARGUMENTS semantic-parse table".
+2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: Spec discovery walk-list"). If no spec.md / plan.md / DESIGN_DOC frontmatter found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` к state.md body).
+3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Persist outcome к state.md frontmatter `approvals[]` с `category: disambiguate_arguments` (P-M1-1 protocol — check `approvals[]` first to skip already-decided).
+4. **Resolve task slug per M1.** Used для state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`.
+5. **Query L2 learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Skip if task description is too generic к infer tags.
+6. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
+7. **Detect frontend files в scope.** Gates Phase 3 reviewer-agent design-conventions injection и Phase 3 Pre-Ship Visual Verification.
+8. **Persist T2 handoffs.** If `.geniro/state/handoff/from-<producer>-<branch>.md` exists, read и persist под state.md `## Inputs from <producer>` body section. M3 §9 obligation.
+9. **State.md write.** `atomic_state_write` с frontmatter `phase: analyze` → upon completion `phase: implement`.
+
+**Workflow plumbing.** Workflow integrations (`.geniro/workflow/*.md`) apply their argument-detection patterns BEFORE the semantic-parse table. Non-blocking — log warning if integration backend unavailable.
+
+**Git-workspace setup.** Setup happens via workflow integration OR inline modifier OR existing checkout. Если user provided а bare task description с no workspace hint, fire а single workspace AUQ (header: `"Git workspace"`):
+- A) New feature branch (recommended for most features)
+- B) Current branch
+- C) Git worktree (`.claude/worktrees/<dir>` — isolated; allows parallel work or instant rollback)
+
+Persist choice к state.md `## Workspace`. Pre-M4 multi-question Phase 1 Startup Consolidation is removed (no Lane / Mode / Feature questions remain).
+
+---
+
+## PHASE 2: IMPLEMENT
+
+**State.md `phase: implement`** during this phase.
+
+**No L4 / L3 refresh at Phase 2 entry** — code-style instructions from Phase 1 remain в context.
+
+### Steps
+
+1. **Read spec source** (Phase 1 resolved either а spec.md path OR wrote `## Inline Plan` к state.md body).
+2. **Whole-feature edit batch** (M4 §6.1). Make all required Edit/Write changes к the codebase в а single phase pass. NOT file-by-file. NOT sub-task decomposition.
+3. **Run project test suite ONCE at end-of-phase.** Use commands from CLAUDE.md's Essential Commands section. Attach an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines).
+4. **In-phase mini fix loop on test failure (M4 §6.2).** Up к 3 retries:
+   ```
+   retry = 1
+   while retry ≤ 3:
+       inspect failing test output
+       edit code (or test) к address the failure
+       re-run test suite
+       if all green → exit Phase 2 к Phase 3
+       retry += 1
+   else:
+       escalate (§6.3 below)
+   ```
+5. **Escalation on retry exhaust (M4 §6.3).** Fire AUQ (header: `"Test failure"`):
+   - A) Hand off к /geniro:debug — state.md `phase: debug-handoff` (terminal)
+   - B) Accept failing tests as documented limitation — state.md `phase: self-review`, append `## Accepted Failures` block
+   - C) Abort — state.md `phase: aborted` (terminal)
+
+   Empty answer = upstream bug, fall back к plain text and re-ask. NEVER auto-default.
+
+**State.md update on phase exit.** `phase: self-review` (happy path) или `phase: phase-2-escalated` (если §6.3 fires). On `aborted`, write `## Termination reason: repeated-failure: phase-2 retry-limit (<N> failing tests)`.
+
+---
+
+## PHASE 3: SELF-REVIEW + SHIP
+
+**State.md `phase: self-review`** on entry.
+
+**Refresh L4 instructions** (always, regardless of compaction-marker presence). `load_custom_instructions` MODE: refresh, scope = same as Phase 1.
+
+**Idempotent green-light verification on entry.** Re-run test suite once. Should be green from Phase 2. If not, rollback к Phase 2 §6.2 retry loop (treats as а retry round).
+
+### Steps
+
+1. **Round 1 spawn — all 5 dims в parallel.** Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". One `Agent(subagent_type="reviewer-agent", ...)` call per dimension, all five в the SAME assistant response.
+
+   Dimensions: `bugs` / `security` / `architecture` / `tests` / `code-quality`. Architecture dim covers docs-staleness + spec-compliance (OQ-9 + master plan §139). See reference.md §"The 5 dimensions" table for full criteria-file mapping.
+
+2. **Collect findings.** Reviewer-agent output schema per `agents/reviewer-agent.md` §Output Format. Cap per-dim output at ~4K chars (invariant #4); truncate с marker on overflow.
+
+3. **Bounded fix loop (M4 §7.3).** Up к 3 rounds:
+   ```
+   round = 1
+   while round ≤ 3:
+       collect findings from this round's spawns
+       if no findings across all dimensions:
+           break  # exit к Ship sub-step
+       apply fixes inline (single Edit-driven sub-loop, NO further agent spawns)
+       re-run project test suite (must stay green; if not, rollback к Phase 2 §6.2)
+       round += 1
+       spawn reviewer-agents on failing dimensions only (round N+1 ≠ all 5)
+   else:
+       # round 4 would start — DO NOT enter
+       escalate via AskUserQuestion (§7.4 in reference.md)
+   ```
+
+4. **Escalation on round-3 exhaust (M4 §7.4).** AUQ (header: `"Resolve findings"`):
+   - A) Hand off к /geniro:debug — state.md `phase: debug-handoff` (terminal)
+   - B) Accept findings, ship anyway — state.md `phase: ship`, append `## Accepted Findings` block
+   - C) Abort — state.md `phase: aborted` (terminal)
+
+   Empty answer = upstream bug, fall back к plain text and re-ask. NEVER auto-default.
+
+### Ship sub-step (M4 §7.5)
+
+State.md `phase: ship` on entry.
+
+1. **Pre-Ship Visual Verification** — fires only когда frontend files в scope AND Playwright MCP available. Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Pre-Ship Visual Verification".
+2. **Commit.** Stage relevant files, `git commit` с conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata.
+3. **Ship-mode AUQ (M4 §7.5 step 3, P-M4-4).** Push is draft-grade (auto); AUQ gates only commit-grade PR creation. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Commit + Push + PR" for the canonical AUQ shape and approvals-persistence protocol (P-M1-1 — check state.md `approvals[]` с `category: ship_mode` before firing). Inline modifiers from $ARGUMENTS (`"don't push"`, `"draft only"`, `"with PR"`, `"stop after review"`) override the AUQ deterministically.
+4. **Atomic `non-resumable-actions[]` update (M3 §8).** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append а structured entry к state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. Write AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
+5. **L2 auto-emit (M4 §13.2 + P-M4-5).** Emit `convention` к learnings.jsonl when ≥3-instance pattern detected; emit `decision` if spec.md recorded а non-trivial approach choice. Default trust = `verified`. Surface promotion suggestion only for `convention` type. Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Extract Learnings".
+6. **L3 update (M4 §13.3).** If Phase 2 added а new module, `update_semantic --file codebase-map --append "..."`. Lock-guarded; rc=11 = recoverable skip.
+7. **Update Docs / Suggest Improvements / Integration Updates / Cleanup.** Apply reference.md sub-sections в order. Cleanup deletes `<task-dir>` per M1 T1 contract (ephemeral, deleted at Phase Ship).
+8. **State.md final transition.** Frontmatter `phase: done` (or `ship-committed-only` / `self-review-only` depending on modifier / user pick). M3 SessionStart treats terminal states as "no resume needed".
+
+### Adjustment routing (post-ship feedback)
+
+When ship-feedback arrives via PR comments или as а follow-up `$ARGUMENTS` invocation, route per the Big/Medium/Small classification в `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3 — Adjustment Routing". Pre-M4 the legacy `/follow-up` handled this; M4 absorbs it (master plan §27 — /implement "handles any size via spec input").
+
+---
+
+## Modifier handling (semantic, deterministic)
+
+Inline modifiers from Phase 1 `$ARGUMENTS` parse override the ship-mode AUQ деterministically (M4 §7.5 step 3):
+
+| Modifier | Effect |
 |---|---|
-| Phase 7 doc updates, Phase 6 Stage C guidelines reviewer | `haiku` |
-| backend-agent, frontend-agent, Phase 5 simplify, Phase 6 Stage B & C reviewers (incl. design when UI files present) | `sonnet` |
-| Phase 6 Stage D adversarial-tester-agent, relevance-filter (carve-out — synthesis tier mirrors orchestrator) | `inherit` |
-| architect-agent (Phase 2) — other phases MUST NOT spawn `opus` directly | `opus` |
+| "don't push" / "no push" / "commit only" | Commit succeeds, no push. State.md → `phase: ship-committed-only` (terminal). Skip ship-mode AUQ. |
+| "draft only" / "draft PR" / "open draft" | Push + `gh pr create --draft`. State.md → `phase: done`. Skip ship-mode AUQ. |
+| "open PR" / "create PR" / "with PR" | Push + `gh pr create` (ready-for-review). State.md → `phase: done`. Skip ship-mode AUQ. |
+| "stop after review" | Exit Phase 3 BEFORE commit. Clean review status is the deliverable. State.md → `phase: self-review-only` (terminal). |
 
-**Runtime escalation (Sonnet → Opus on failure):** If a `sonnet` subagent returns wrong output, fails its checklist, or fails tests during Phase 5 implementation or Phase 6 review, re-dispatch ONCE with `model="opus"` plus the failure context appended to the prompt. If the opus retry also fails, escalate to the user. Never bump twice in a row.
-
----
-
-## Task Directory
-
-```
-.geniro/planning/<branch-name>/
-```
-
-Derive `<branch-name>` from git branch. Create at start of Phase 1. All artifacts go here: `spec.md`, `state.md`, `notes.md`, `concerns.md`, `review-feedback.md`, `plan-<slug>.md`.
-
-## State Persistence & Phase Checkpoints
-
-**After completing each phase, write a checkpoint to `<task-dir>/state.md`** (`Feature:` / `Spec-file:` are canonical headers — kept at the top so the PostCompact hook's `grep -m1` surfaces the active feature/spec on resume; written once at end of Phase 1, carried forward unchanged). Read `state.md` on skill start to resume from the next incomplete phase. When running in milestone-mode (plan has `## Milestones` section), the `Milestones:` field tracks per-milestone status — update it in Phase 7 Step 8 when the milestone ships, and read it in the Task Execution Step 0 resume logic.
-```
-Feature: <F<n> if Geniro feature ID, else "none">
-Spec-file: <FEATURES.md Notes-column path, else "none">
-Branch: <git branch --show-current OR detached-<short-sha>>
-Worktree: <git rev-parse --show-toplevel>
-Mode: <interactive|auto|assumptions> — set by Phase 1 Step 1, controls auto-mode behavior at every WAIT gate
-Lane: <full|light|tdd> — set by Phase 1 Step 0, controls Phase 2/4/5/6 Stage B/D skip predicates and Phase 4 execution model (full = all phases run with parallel waves; light = architect+skeptic+simplify+spec-compliance+adversarial skipped, Stage C reviewer grid kept; tdd = sequential RED→GREEN per behavior in Phase 4, interface-design gate added in Phase 3, Stage D skipped, simplify becomes per-cycle micro-refactor)
-Milestones: <"none" | "[1: pending, 2: pending, ...]" — populated by /geniro:decompose and updated by this skill as milestones complete>
-Phase [N] completed: [phase name]
-Completed phases: [1, 2, ..., N]
-Next phase: [N+1]
-Key decisions: [brief list]
-Files changed: [count or list]
-```
+When no modifier is present, the ship-mode AUQ fires.
 
 ---
 
-## Mid-Flow User Input
+## Task execution entry
 
-When the user sends a message mid-pipeline (not at a WAIT gate), **do not stop or restart**. Classify and append to `<task-dir>/notes.md`: **Note/context** (continue), **Preference** (apply at next decision point), **Correction** (evaluate at next checkpoint), **Blocker** (halt immediately for impact assessment). At the next phase checkpoint, read `notes.md` and assess: no impact → continue; affects future phases → update spec; invalidates current output → backtrack to affected phase only.
+0. **Check for existing state.md.** Glob `<task-slug>/state.md`:
+   - **No state.md** → fresh run. Proceed к Phase 1.
+   - **state.md exists, phase in non-terminal set** → resume from `phase:` value. M3 SessionStart hook re-injects context.
+   - **state.md exists, phase в terminal set** → task complete. Surface terminal state к user; if `$ARGUMENTS` carries new task description, derive new slug, fresh run.
 
----
+1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
 
-## PHASE 0: INPUT MODE DETECTION
+2. **TodoWrite checklist.** Add: Phase 1 Analyze / Phase 2 Implement / Phase 3 Self-review-and-Ship. Mark Phase 1 in_progress; update each as it completes.
 
-**Purpose:** Classify `$ARGUMENTS` before any discovery work, so design-doc spec inputs skip Phase 1 and speculative ideation routes to `/geniro:brainstorm` first.
-
-Cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` to classify `$ARGUMENTS`:
-
-- **`mode=DESIGN_DOC`** → skip Phase 1 Discover; pass the resolved design path to Phase 2 architect as the authoritative spec (Phase 2 pre-check rule 4 consumes it).
-- **`mode=CODE_REFERENCE`** → existing Phase 1 behavior (the path is a code file the user wants implemented around).
-- **`mode=IDEA`** with speculative markers (`maybe`, `should we`, `thinking about`, `explore`, `figure out`, `what if`) → fire `AskUserQuestion` with header "Brainstorm" and 3 single-select options: "Run /geniro:brainstorm first (Recommended)" / "Proceed with discovery" / "Cancel". On Recommended, surface the brainstorm hand-off message and exit cleanly; on Proceed, continue to Phase 1; on Cancel, stop.
-- **`mode=IDEA`** without speculative markers → existing Phase 1 Discover.
-
-Persist the resolved mode to `<task-dir>/state.md` as `Phase 0: <DESIGN_DOC|CODE_REFERENCE|IDEA>` so resumed runs skip re-detection.
+3. **Begin Phase 1.**
 
 ---
 
-## PHASE 1: DISCOVER
+## Anti-rationalization
 
-**Purpose:** Eliminate gray areas, produce executable spec.
+Per master plan P-MP-1 anti-patterns guardrail — М4 must NOT reintroduce these:
 
-**Action:** Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 1: Auto-Detection Table" for argument parsing rules.
-
-**Load custom instructions (first action — runs before any Phase 1 step).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
-
-**Phase 1 Startup Consolidation (BEFORE firing any Phase 1 AUQ).** Steps 0, 1, 2, and the git-workspace bullet inside Step 7 collectively own up to four upfront always-WAIT questions. Defer per-step AUQs until you have evaluated all four conditions, then issue ONE `AskUserQuestion` call carrying whichever apply: **Lane** (Step 0 — unless skip rubric fires), **Mode** (Step 1 — unless `$ARGUMENTS` locked it via auto/assumptions signal), **Feature** (Step 2 — only when feature row status is `done`/`blocked`), **Git workspace** (Step 7 — always). Independent (no sequencing); `AskUserQuestion` accepts up to 4 questions per call. Persist each answer to `<task-dir>/state.md` as it returns, then proceed through Steps 0/1/2/7 reading from state. If only one applies, fire as single-question AUQ; if zero apply, skip the upfront AUQ entirely and proceed to Step 3.
-
-**Step 0 — Complexity Gate (Lane Selection).** Classify the request and ask which Lane to run: Full pipeline / Light Mode (architect+skeptic skipped, Trivial only) / TDD Mode (sequential RED→GREEN per behavior, opt-in via explicit signal AND ≤Small scope). Skip this gate when: milestone detected (HITL/AFK Mode tag determines Lane automatically per `decompose-criteria.md`), plan-file path present, plan-mode conversation active, or `state.md` already has a `Phase 1 Step 0:` line. Otherwise apply the rubric in `implement-reference.md` §"Phase 1 Step 0: Complexity Gate". Hard escalation signals from `_shared/effort-scaling.md` Step 1 → Light/TDD unavailable; default uncertain → Full. Persist `Lane: <full|light|tdd>` to `state.md`. Contribute Lane to the consolidated upfront AUQ above instead of firing standalone here.
-
-**Steps:**
-1. **Parse `$ARGUMENTS` and load workflow integrations.** Check for `.geniro/workflow/*.md` files — read each one to discover active integrations and their argument detection rules. Apply detection rules from workflow files (e.g., issue tracker patterns), then detect mode signals, extract core description. Follow the workflow file's instructions for any detected references (e.g., fetching issue context, asking about status transitions).
-   Then determine **pipeline mode**: if `$ARGUMENTS` already carried an explicit auto/assumptions signal (rules 3-4 of the Auto-Detection Table), lock to that mode. Otherwise the **Mode Selection prompt** is **Always-WAIT** — Mode contributes its question to the **Phase 1 Startup Consolidation** AUQ described above (a per-step Mode AUQ at this point would double-prompt the user; an empty AUQ answer is the upstream bug — fall back to plain text and re-ask). See `implement-reference.md` §Phase 1 Auto-Detection Table (Mode Selection prompt + Anti-rationalization) and `skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" for the full rationale. Persist `Mode: <interactive|auto|assumptions>` in `<task-dir>/state.md` so all later gates read it without re-prompting.
-   **Debug handoff scan.** Before contributing questions to the Phase 1 Startup Consolidation AUQ, follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to scan for `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md` and `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Persist `Debug-handoff: <none|detected>` plus the parsed `Authored-tests:` and `Debug-source-branch:` lines into `<task-dir>/state.md` so Step 10 can read them after the git-workspace decision settles. Detection happens here; the user-facing suggestion fires in Step 10 after the working branch is known.
-2. **Bind to feature row (if applicable).** If `$ARGUMENTS` matched rule 2 of the Auto-Detection Table (Geniro feature ID): look up the row in `<PRIMARY_ROOT>/.geniro/planning/FEATURES.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`); if status is `planned`, run `/geniro:features move <id> in-progress`; if `in-progress`, no action; if `done`/`blocked`, contribute a "Feature" question (header "Feature", options "Re-open and continue" / "Pick a different feature" / "Treat description as new work (skip feature link)") to the **Phase 1 Startup Consolidation** AUQ described above instead of firing a standalone Feature AUQ at this step. Persist `Feature: <id>` and `Spec-file: <path or "none">` to `<task-dir>/state.md` before Step 3 (carried forward in every later checkpoint). If no feature ID, `Feature:` is "none".
-3. **Retrieve prior knowledge.** Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, then spawn `knowledge-retrieval-agent` with task keywords AND populate its spawn-prompt slots: `KNOWLEDGE_ROOT: <PRIMARY_ROOT>/.geniro/knowledge`, `DEBUG_ROOT: <PRIMARY_ROOT>/.geniro/debug`, `PLANNING_ROOT: <PRIMARY_ROOT>/.geniro/planning` (cross-session subset), `TASK_PLANNING_ROOT: $(pwd)/.geniro/planning` (task-local). The agent searches learnings, debug history, and planning docs against these absolute paths.
-4. Scan codebase for relevant patterns, conventions, architecture
-5. **Convention Discovery & Reuse Inventory:** Read README, CONTRIBUTING, ADRs. Find 2-3 exemplar files closest to the change area; capture in CONVENTIONS_BRIEF. Then Grep/Glob the change area for existing functions, components, types, hooks, helpers, and configs that the task could reuse — categorize each candidate REUSE-AS-IS / EXTEND / NO-ANALOGUE with `file:line` and a one-line justification (do NOT force-fit: if reuse requires adding a parameter or conditional, prefer local duplication and revisit at the third occurrence). Capture in REUSE_INVENTORY section within spec file. Pre-inline both into the architect-agent prompt in Phase 2.
-6. Identify ambiguities and gray areas. If `state.md` contained `Pipeline: COMPLETE` (second run): use prior `spec.md` and `plan-*.md` already loaded in Step 0 as "Prior iteration context" so gray-area questions reference what was decided before. When the change touches UI, also identify visual gray areas: layout density, interaction patterns, empty/loading/error states, responsive priorities. These are gray areas — resolve with the user in step 7.
-7. **MANDATORY: Resolve gray areas.** Read `Mode:` from `<task-dir>/state.md` (set in Step 1) and execute the matching sub-bullet. You MUST stop here and ask the user questions before proceeding (interactive mode). Do NOT synthesize the spec without user input first. **Always-WAIT applies the same way as Step 1 Mode Selection**: harness "Auto Mode" / "minimize interruptions" reminders do NOT skip these calls, and an empty `AskUserQuestion` answer is the upstream bug — fall back to plain text and re-ask. See `skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" and §"Edge case — empty AUQ answer".
-   - **Interactive (default):** Use `AskUserQuestion` with 2-4 options each, recommend default
-   - **Auto mode:** Apply rules from `implement-reference.md` §Auto Mode Behavior (Phase 1, Step 7 row) for all gray areas; git workspace was already answered upstream in the Phase 1 Startup Consolidation AUQ (see preamble at top of Phase 1). Log gray-area defaults to `state.md` "Auto-mode decisions" section
-   - **Assumptions mode:** Propose plan, let user correct
-   - **Plan-provided:** If a detailed plan exists in the conversation (from Claude Code's built-in plan mode via Shift+Tab) or as a file (from `/geniro:decompose` or a prior `/geniro:implement` run), most gray areas are already resolved. Only ask about decisions the plan doesn't cover (e.g., git workspace). Still write the spec.
-   - **Git workspace** is asked upfront in the Phase 1 Startup Consolidation AUQ (see preamble) — always via `AskUserQuestion` regardless of mode; never auto-default. Where the implementation lands (new branch / current / worktree) is a deliberate user decision.
-8. Synthesize into spec document (only AFTER step 7). If prior `spec.md` exists, rename to `spec-v{N}.md` (glob `spec-v*.md` for highest N, use N+1; start at 1); rename `plan-<slug>.md` to `plan-<slug>-v{N}.md` likewise. Note which decisions changed vs carried forward. Write to `<task-dir>/spec.md`
-9. Document assumptions in spec file
-10. **Git workspace setup** — execute user's choice (captured upfront in the Phase 1 Startup Consolidation AUQ; see `implement-reference.md` §"Example discovery gray-area questions" Git workspace line for canonical option text). Options A and C both need a branch name; read and apply the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md` once with the spec title and `$ARGUMENTS` to produce `<branch-name>` (e.g., `feat/ci-22-case-radar-timeline`) that follows the repo's convention rather than a hardcoded prefix.
-    - **Option A (new branch):** `git checkout -b <branch-name>`. The task directory (already created above) uses this branch name.
-    - **Option B (current branch):** Pre-flight: run `git branch --show-current` and `git rev-parse --show-toplevel`, then echo both to the user on one line — `Continuing on '<branch>' at '<toplevel>'.` This makes the working tree the agents will mutate explicit so the user catches a wrong-cwd mistake before any code changes. No git action otherwise. Then continue on the current branch.
-    - **Option C (worktree):** Derive a flat directory name by replacing `/` with `-` in `<branch-name>` (e.g., `feat-ci-22-case-radar-timeline`). **Pre-flight check (mandatory before any create / enter):** run `git rev-parse --show-toplevel` to learn the current worktree root, then `git worktree list --porcelain` to enumerate existing worktrees. Compare and route to exactly one of the three branches below — never run `git worktree add` or `EnterWorktree` without first walking this fork:
-       - **Outside any `.claude/worktrees/<dir>` worktree** (toplevel's parent dir basename is NOT `worktrees`): proceed — run `git worktree add -b <branch-name> .claude/worktrees/<dir-name>` via Bash, then call `EnterWorktree` with `path: ".claude/worktrees/<dir-name>"` to switch the session into the already-created worktree.
-       - **Already inside `.claude/worktrees/<dir-name>`** (toplevel basename equals the proposed `<dir-name>` AND its parent basename is `worktrees`): skip BOTH `git worktree add` AND `EnterWorktree` — the session is already in the correct worktree. Re-entering would resolve the relative path `.claude/worktrees/<dir-name>` under the current cwd and produce a nested ENOENT (`…/worktrees/<dir-name>/.claude/worktrees/<dir-name>`). Echo `Already in worktree '<dir-name>' — skipping create+enter.` and continue to Phase 2.
-       - **Inside a different `.claude/worktrees/<other-dir>` worktree** (parent is `worktrees` but basename is NOT `<dir-name>`): stop and use `AskUserQuestion` header "Worktree" with options "Continue here in `<other-dir>` (skip create+enter)" / "Exit then create `<dir-name>` (call `ExitWorktree`, then re-run this step from repo root)" / "Abort". Do NOT silently create a nested worktree.
-
-       Do NOT use `EnterWorktree(name: ...)` here — that path auto-creates its own branch with a `worktree-` prefix, which would defeat the convention detection above. After this step settles (whether the worktree was just created, the session was already in it, or the user chose to continue in a sibling worktree), if the project has `.env` or similar gitignored config files but no `.worktreeinclude` file, warn the user that environment files won't be present and suggest creating `.worktreeinclude`. Also note: cross-session writes (knowledge/learnings, debug & review handoff state, features registry, codebase maps) auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown.
-    - **Debug handoff verification (post-workspace).** Read `Debug-handoff:`, `Authored-tests:`, and `Debug-source-branch:` from `<task-dir>/state.md` (recorded by Step 1's Debug handoff scan). If `Debug-handoff: detected`, follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` Steps 3-4 against the now-current working tree (which reflects the user's git-workspace choice from the AUQ). When Case B fires (any authored test missing OR branch differs), surface the suggestion block in chat BEFORE proceeding to Phase 2. The user runs the suggested `git checkout` or `cp` commands themselves; do NOT auto-execute. If `Debug-handoff: none`, skip silently.
-
-**Outputs:** spec.md, affected files list, Definition of Done
-
-**Checkpoint:** Write to `<task-dir>/state.md`: "Phase 1 completed."
-
----
-
-## PHASE 2: ARCHITECT & VALIDATE
-
-**Purpose:** Produce full implementation plan, validate it.
-
-**Pre-check: Existing plan or milestone detection.** Before spawning the architect, check for an existing plan OR a milestone reference from any source:
-
-1. **Milestone reference (highest priority)** — detect a request to implement a single milestone from a decomposed plan. Patterns: `milestone N` argument, milestone-file path, or `continue` with `Milestones:` state. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 2: Milestone Reference Detection for the full detection rules, skip-architect routing, and milestone-mode scope flag.
-2. **Conversation plan (plan mode):** If the conversation contains a structured implementation plan with file-level steps (from Claude Code's plan mode via Shift+Tab, or a prior planning discussion), extract it into `<task-dir>/plan-<slug>.md` following the structure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`. Set the header `Status: approved | Source: plan-mode`. Detection signal: the conversation has a multi-step plan with specific file paths and implementation details — not just a high-level discussion.
-3. **Plan files (from /geniro:decompose or a prior /geniro:implement run):** Glob `.geniro/planning/plan-*.md` (flat) AND `.geniro/planning/*/plan-*.md` (task-dir). Read headers, find plans with `Status: approved` that match the current task. If a flat plan matches, move it into `<task-dir>/`. If the plan contains a `## Milestones` section (produced by `/geniro:decompose`) AND `$ARGUMENTS` did not name a specific milestone, use the milestone-mode continue-logic from rule 1 instead of the plan as a whole — warn the user: "This plan is decomposed into N milestones. Running `/geniro:implement continue` or `/geniro:implement milestone <N>` is required. Pick one now." then `AskUserQuestion` listing milestones by name with status.
-4. **$ARGUMENTS plan:** If `$ARGUMENTS` contains or references a plan file path (not a milestone file — those are handled in rule 1), read and use it directly.
-
-**Routing (apply the FIRST matching rule):**
-
-1. **If `state.md` shows `Lane: light`:** Skip Phase 2 architect + skeptic entirely. The orchestrator writes a Small-tier lightweight plan directly to `<task-dir>/plan-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` Step 3 "Small" tier: Goal + Approach + Steps (no wave grouping, no test scenarios table). Use Phase 1's spec.md, knowledge-retrieval output, and Reuse Inventory as the input. Header: `Status: approved | Source: light-lane`. Skip skeptic-agent. Proceed to Phase 3.
-2. **If a plan or milestone is found** (rules 1-4 above matched): Skip architect-agent. Log: "Using existing plan: `<filename>`" or "Using milestone <N>: `<filename>`". Run skeptic-agent to validate (Step 3 below). If skeptic finds blockers, use `AskUserQuestion` (always-WAIT — see implement-reference.md §Auto Mode Behavior): A) Use plan as-is with issues noted, B) Re-architect from scratch (run full architect flow), C) I'll fix the plan manually, then re-validate. Proceed to Phase 3.
-3. **If no plan or milestone found AND `Lane: full`:** Run the full architect flow below.
-
-**Architect flow:**
-
-1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md` for plan structure
-2. **Spawn architect-agent** with `model="opus"` and spec + plan criteria + relevant codebase files (pre-inlined). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. **Root-cause classification (mandatory):** spawn prompt MUST require per-design-unit `Root-cause classification` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` (one of `ROOT-CAUSE`, `SYMPTOM-PATCH`, `MIXED`, with `Symptom:` + `Suspected root cause:` sub-fields when not ROOT-CAUSE) so Phase 2 routing can fire the gate. Architect emits 3 tags only (UNKNOWN is reviewer-only); MIXED triggers root-cause-gate.md AUQ. **Lane:tdd customization:** when `state.md` shows `Lane: tdd`, the spawn prompt MUST also include the TDD-mode output instructions per `${CLAUDE_SKILL_DIR}/implement-reference.md` §"TDD Mode Semantics" — specifically: "Produce a numbered behavior list (each entry = one future test, ordered for sequential RED→GREEN execution) PLUS a per-module public-interface signature block, INSTEAD OF the standard Steps-table-grouped-by-file plan structure. Each behavior names: the actor, the capability, the trigger condition, the observable outcome. Group behaviors by module so the orchestrator can sort them into cycles. **Read** `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` §'Test Design Philosophy (canonical)' yourself at runtime (the agent has Read tool) — do NOT pre-inline; it is ~75 lines and re-reading from disk is cheaper than budget bloat in every architect spawn. The behavior list MUST match that rubric so reviewers (Stage C tests-dimension) accept the tests authored against it." Without this customization, the architect would produce a normal Steps table and Lane:tdd's Phase 4 sequential cycles would have no behavior list to drive ordering.
-3. **Spawn skeptic-agent** with plan + spec. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Explicit instruction: "Write report to `<task-dir>/concerns.md`". **Lane:tdd customization:** when `state.md` shows `Lane: tdd`, the spawn prompt MUST instruct the skeptic to validate the architect's behavior list (NOT a Steps table) against: (a) coverage — every requirement in the spec maps to at least one behavior; (b) ordering — earlier behaviors do not depend on artifacts produced by later behaviors; (c) interface alignment — every behavior names a public interface that appears in the architect's signature blocks. Standard plan-criteria.md dimensions D1-D8 still apply where they make sense (mirage detection, scope, requirement coverage); the file-level dimensions (file count, step count) are skipped — TDD mode has no Steps table to count.
-4. **Root-cause gate.** After the architect returns, scan its output for any design unit classified `SYMPTOM-PATCH` or `MIXED`. For each, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per unit (Always-WAIT — auto-mode does NOT auto-default). On "Confirmed root cause (proceed)" → re-tag and continue. On "Symptom — escalate to /geniro:debug" → halt the skill and surface the hand-off message. On "Mixed — annotate and proceed" → re-tag `[SYMPTOM-ACK]` and append to the eventual Ship summary's `## Acknowledged tech debt` section. Skip silently when zero SYMPTOM-PATCH/MIXED units exist.
-5. If NEEDS REVISION: route back to architect. Max 3 iterations.
-
-**Checkpoint:** Write to `<task-dir>/state.md`: "Phase 2 completed. Plan: <filename>. Skeptic: [N blockers, M warnings]."
-
----
-
-## PHASE 3: APPROVAL (WAIT)
-
-**Purpose:** Present plan to user for approval.
-
-**Action:** Read and present the full plan file (do NOT summarize).
-
-### Interface-Design Pre-Approval Gate (conditional — Lane:tdd only — runs BEFORE the UI Preview Gate)
-
-If `state.md` shows `Lane: tdd`, run the procedure in `implement-reference.md` §"Interface-Design Pre-Approval Gate (Lane:tdd only)" before any other Phase 3 step. The gate fires `AskUserQuestion` with header "Interface" presenting the architect's proposed public-interface signatures (one code block per module + 1-line "behaviors that exercise this interface") with 3 options: "Interfaces look right (Recommended)" / "Adjust interfaces" / "Restart Phase 2". On "Interfaces look right", write `<task-dir>/interface.md` (canonical reference for all Phase 4 cycles) and proceed to UI Preview Gate (next). On "Adjust" or "Restart", route per the procedure's max-rounds logic. This gate is **Always-WAIT** in Lane:tdd; auto-mode does NOT auto-default. Skip this section entirely when Lane is `full` or `light`.
-
-### UI Preview Gate (conditional — runs before Step 1 below)
-
-If any file in the plan's affected-files list matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, run the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` BEFORE the numbered steps below. Pre-inline the spec, plan, and 1-2 exemplar UI files; save the approved description to `<task-dir>/ui-preview.md`. Phase 4 Work Unit agents that touch UI files pick it up via the `## UI Intent` slot in the Phase 4 Agent Delegation Template (see `implement-reference.md`). If the user picks "Adjust the plan instead" inside the procedure, fire `AskUserQuestion` with header "Adjust" to capture what to change, then run the Adjust path below (architect revises with that context, re-validate, re-present). Skip this section entirely when no affected file matches.
-
-1. Read plan from `<task-dir>/plan-<slug>.md`
-2. Present complete plan content to user
-3. Add metadata: plan location, skeptic validation summary (N blockers, M warnings)
-
-**Gate:** Always-WAIT — applies in every mode, including `Mode: auto` (see `implement-reference.md` §Auto Mode Behavior, "Plan approval" row). Plan approval gates all Phase 4 code generation, so the LLM MUST get explicit user confirmation; never silently auto-approve.
-
-Use the `AskUserQuestion` tool (do NOT output options as plain text):
-- A) **Approve — start building**
-- B) **Adjust** — user describes changes
-- C) **Too large — split** — decompose into smaller pieces
-
-**Routing:** Approve -> Phase 4. Adjust -> architect revises, re-validate, re-present. Too large -> stop here and tell the user to run `/geniro:decompose <task-dir>/plan-<slug>.md` — the task-dir's spec.md, plan, and concerns.md are preserved so `/geniro:decompose` can pick up where this stopped (skills cannot call skills, the user re-invokes).
-
-**After approval:** Add remaining phases to TodoWrite checklist. Under `Lane: light` (read from state.md), omit phases that Light Mode skips — see `implement-reference.md` §Light Mode Semantics for the full skip list:
-- Phase 4: Implement — decompose into WUs, execute waves
-- Phase 5: Simplify — spawn simplify agent on changed files (omit under Lane:light)
-- Phase 6: Review & Validate — Stage A automated checks, Stage B spec compliance (omit under Lane:light), Stage C code quality, Stage D adversarial tests (omit under Lane:light)
-- Phase 7: Ship & Finalize — finalize (docs, learnings), then ship decision
-
-**Checkpoint:** Write to `<task-dir>/state.md`: "Phase 3 completed. Plan approved."
-
-**Strategic compact point:** All discovery, architecture, and validation context is now captured in files (spec.md, plan.md, concerns.md, state.md). Phases 1-3 consumed significant context that Phase 4 agents don't need — they get fresh context with pre-inlined files.
-
-If state.md shows `Mode: auto`: skip the compact prompt — proceed directly to Phase 4 (matches "Continue now"). Append the decision to state.md "Auto-mode decisions" section.
-
-Otherwise, use the `AskUserQuestion` tool to ask:
-- **Question:** "All planning artifacts are saved. Compacting now frees context for higher-quality implementation in Phases 4-7. How would you like to proceed?"
-- **Header:** "Compact"
-- **Options:**
-  - Label: "Compact first (Recommended)" / Description: "Run /compact, then /geniro:implement continue to resume from Phase 4. Best for complex implementations."
-  - Label: "Continue now" / Description: "Skip compaction and proceed directly to Phase 4. Fine for smaller tasks."
-
-If the user picks "Compact first": tell them to type `/compact`, then `/geniro:implement continue` to resume.
-If the user picks "Continue now": continue normally to Phase 4.
-
----
-
-## PHASE 4: IMPLEMENT
-
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
-
-**Purpose:** Execute architecture with parallel agents (Full + Light Lanes) OR sequential RED→GREEN per behavior (TDD Lane).
-
-**Code-style pre-inline preparation:** before Step 1, use the content the Phase 4 Refresh loader echoed as `Loaded code-style.md …` (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`); pre-inline it into each implementation agent's prompt under the `## Code-style instructions` header per the Phase 4 Agent Delegation Template in `${CLAUDE_SKILL_DIR}/implement-reference.md`. If the loader echoed `No code-style.md found — skipping.`, omit the section entirely. Do NOT do a separate cwd-relative `Read` here.
-
-**Lane gate:** If `state.md` shows `Lane: tdd`, REPLACE the rest of this phase with the sequential cycle procedure in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 4 in TDD Mode". The TDD procedure replaces parallel waves with one-test-at-a-time RED→GREEN→Refactor cycles, ordered by the architect's behavior list; it does NOT use the Work Unit / Wave / Hotspot model below. Append `Phase 4 (TDD Mode): cycle <N> completed: <behavior summary>` to state.md after each cycle so resume picks up at the next behavior. Test-creation verification (Step 6 below) is REDUNDANT under TDD Mode (every behavior is F→P-verified at cycle authoring); skip it.
-
-**Action (Full + Light Lanes):** Decompose plan into Work Units, arrange into waves, spawn agents.
-
-Read `${CLAUDE_SKILL_DIR}/implement-reference.md` sections "Phase 4: Decomposition Example", "Phase 4: Agent Delegation Template", and "Phase 4: Error Handling" for templates and examples.
-
-### Step 1: Decompose into Work Units (WUs)
-
-Read the plan's steps and group into WUs — clusters of tightly coupled files. Each WU gets its own agent.
-
-**Rules:**
-- Every plan step must be assigned to a WU. No step is "too small" to delegate.
-- WU = 1-5 tightly coupled files. 6+ files -> split further.
-- **Each WU that creates or modifies source files MUST include corresponding test files in its scope.** If the plan lists `auth.service.ts`, the WU scope must also list `auth.service.test.ts` (or equivalent). No source file without its test file.
-- Files in different WUs must be independently changeable
-- In milestone-mode (Phase 2 pre-check rule 1 matched): scope is HARD-LIMITED to the milestone's Files Affected table. Any step that would touch a file outside the table must be deferred to a later milestone — do NOT expand scope mid-milestone. Forward-reference files (used only by future milestones) must NOT be created in this milestone.
-- Hotspot files (routing, config, barrel exports) -> LAST wave
-- Each WU needs a clear Definition of Done (including: "tests written and passing for all new/changed logic")
-
-**Scope-aware ordering:** Backend first -> codegen -> frontend. Never parallel when types flow between stacks.
-
-**When NOT to decompose:** Total change <=3 files -> single agent. **Still delegate even without decomposition.** 1 WU = 1 agent, NOT "orchestrator does it directly."
-
-### Step 2: Arrange into Waves
-
-- **Wave 1:** WUs with no dependencies (all parallel)
-- **Wave N:** WUs depending on prior waves
-- **Hotspot wave (last):** Orchestrator micro-edits only
-- Max 4-5 agents per wave. All spawned in ONE response — multiple Agent() calls in the same assistant turn, NOT one per turn.
-- Same-stack agents MUST work on non-overlapping files
-
-### Step 3: Execute waves
-
-For each wave:
-1. **Spawn all WU agents in ONE response** — multiple Agent() calls in the same assistant turn, NOT one per turn (use delegation template from reference file — it includes a mandatory `## Tests` section. Do NOT omit it.). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` AND `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site.
-   **Agent context:** The `backend-agent` and `frontend-agent` read `CLAUDE.md` at runtime for project-specific context. No additional context injection is needed — simply spawn the agent.
-2. **Collect results** — each agent must report: files created/modified, tests created/modified, test results
-3. **Quick gate** (build + test) — pass/fail only. Every PASS/FAIL claim MUST attach an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines). If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
-4. **Start next wave**
-
-### Step 4: Hotspot files (orchestrator micro-edits only)
-
-Strictly limited to 1-2 line registrations. If >3 lines or any logic -> delegate to subagent.
-
-### Step 5: Post-wave validation
-
-- **If only one wave was arranged in Step 2** (i.e., Step 3 ran exactly once — Trivial/Small Full Lane plans typically), skip Step 5 entirely: Step 3's quick-gate after the single wave is the post-wave gate by construction. Append "Phase 4 Step 5 skipped — single wave; Step 3 quick-gate is the post-wave gate" to `<task-dir>/state.md` and proceed.
-- **For multi-wave runs**, Step 5 still serves as the inter-wave regression gate. Run **build + test** — pass/fail gate only. Do NOT include lint (Phase 5 handles that). If fails, forward the raw error output to a fixer agent. Do NOT read source files, diagnose the error, or apply fixes yourself — copy the terminal output into the agent prompt and let it handle everything.
-
-### Step 6: Test creation verification
-
-**Action:** Check that tests were actually created for new/changed source files.
-
-1. Get the list of changed source files (resolve the base per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 — do NOT hardcode `main`): `BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || (git rev-parse --verify main >/dev/null 2>&1 && echo main) || echo master); git diff --name-only "$BASE"...HEAD | grep -v test | grep -v spec | grep -v node_modules`
-2. For each new source file, verify a corresponding test file exists (same directory or `__tests__/` directory, matching the project's test file naming convention)
-3. If any source file is missing tests, spawn a fixer agent with:
-   - The source file contents (pre-inlined)
-   - The nearest existing test file as an exemplar pattern
-   - Instruction: "Write tests for this file following the exemplar pattern"
-4. Re-run tests after fixer completes
-
-**Skip test verification for:** config files, migrations, type-only files, barrel/index files, CSS/style files.
-
-**Anti-rationalization:** "Agents already wrote tests" → verify, don't trust; agents skip tests under context pressure. "Phase 6 reviewers will catch missing tests" → Phase 6 reviews test QUALITY; Phase 4 ensures tests EXIST. "Simple code doesn't need tests" → every new source file gets tests. "I'll write tests myself" → you're an orchestrator; spawn a fixer. "Let me fix this type/build error directly" → forward raw terminal output to a fixer agent; do NOT open source files or apply edits.
-
-**Checkpoint:** Write to `<task-dir>/state.md`: "Phase 4 completed. Waves: N. Files changed: [list]. Test files created: [list]."
-
----
-
-## PHASE 5: SIMPLIFY
-
-**Purpose:** Code quality pass on changed files — catch AI-generated anti-patterns.
-
-**Lane gate:** 
-- If `state.md` shows `Lane: light`, skip Phase 5 entirely. Append to `state.md`: "Phase 5 skipped — Lane: light (Light Mode skips simplify per implement-reference.md §Light Mode Semantics)." Proceed to Phase 6.
-- If `state.md` shows `Lane: tdd`, the whole-feature simplify pass is REPLACED by per-cycle micro-refactors that ran during Phase 4 (step 6 of each TDD cycle). Skip the spawn below; append to `state.md`: "Phase 5 skipped — Lane: tdd (per-cycle micro-refactor in Phase 4 cycles, see Phase 4 (TDD Mode) cycle log)." Proceed to Phase 6.
-
-**Action (Full Lane only):** Spawn simplify agent. Read `${CLAUDE_SKILL_DIR}/implement-reference.md` section "Phase 5: Simplify Agent Template" for the agent prompt.
-
-### Step 1: Spawn simplify agent
-
-Read `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`. Spawn a **general-purpose** subagent with `model: "sonnet"` using the template from the reference file. Pre-inline the criteria and the changed file list.
-
-### Step 2: Verify after simplification
-
-1. Read the simplify-agent's `## Checks Report` from its return (the agent ran autofix + build + lint + test as part of its Definition of Done — see `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 5: Simplify Agent Template"). Every PASS/FAIL claim attached MUST carry an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
-2. **If the report shows any FAIL or is missing:** revert simplification (`git checkout -- .`), note "Simplification skipped — caused CI failures." Proceed to Phase 6.
-3. **Otherwise:** the simplify-agent's PASS verdict carries forward into Phase 6 Stage A's cache check (see `implement-reference.md` §"Phase 6: Stage A — Automated Checks Detail" — cache invalidation governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`). Do NOT re-run build/lint/test here — that would duplicate Stage A.
-
-**Anti-rationalization:** "Code is clean enough" → AI-generated code has over-abstraction or verbose patterns; run the check. "Simplification might break things" → that's why we run checks after; revert on break (zero risk). "Run Stage A first, then decide" → Phase 5 comes BEFORE Phase 6; do NOT reorder.
-
-**Checkpoint:** Write to `<task-dir>/state.md`: "Phase 5 completed. Simplify agent ran. Post-simplify verification: PASS/REVERTED."
-
----
-
-## PHASE 6: REVIEW & VALIDATE
-
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
-
-**Purpose:** Single quality gate — verify code compiles, passes tests, meets spec, and is well-written.
-
-**Action:** Run Stage A checks, spawn Stage B agent, spawn Stage C agents, then spawn Stage D adversarial-tester-agent.
-
-Read `${CLAUDE_SKILL_DIR}/implement-reference.md` sections "Phase 6: Stage A", "Phase 6: Stage B", "Phase 6: Stage C", "Phase 6: Fix Loop", and "Phase 6: Stage D" for detailed procedures and templates.
-
-**Four stages, run in order:**
-
-### Stage A — Automated Checks
-
-Run autofix, full check (build + lint + test), codegen check, runtime startup check. If any fails, forward the raw error output to a fixer agent — do NOT read source files, diagnose, or fix it yourself. Max 2 attempts, then continue to the next stage with failures noted (Stage B in Full pipeline; Stage C in Light Mode since Stage B is skipped).
-
-**Checkpoint:** Update `<task-dir>/state.md`: "Phase 6 Stage A completed."
-
-### Stage B — Spec Compliance
-
-**Lane gate:** If `state.md` shows `Lane: light`, skip Stage B entirely. Light Mode does not run architect+skeptic and therefore has no full spec.md/plan-spec contract to verify — the lightweight plan from Phase 2 already lists Goal + Approach + Steps; Stage C reviewers verify code-against-plan via the diff. Append to `state.md`: "Phase 6 Stage B skipped — Lane: light." Proceed to Stage C.
-
-**Action:** Spawn spec-compliance subagent using the template from the reference file. Pre-inline spec, plan, changed files.
-
-Read `<task-dir>/compliance.md` after agent completes. If any requirement unmet -> spawn a fixer agent with the gap details and affected files pre-inlined. Do NOT read source files, diagnose gaps, or apply fixes yourself — delegate to the agent. Max 2 rounds.
-
-**Checkpoint:** Update `<task-dir>/state.md`: "Phase 6 Stage B completed. Compliance: PASS."
-
-### Stage C — Code Quality
-
-**Action:** Spawn 7–8 parallel reviewer agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn — bugs, security, architecture, tests, optimizations, guidelines, conventions, plus design when changed files include UI (see UI-file detection rule in `skills/review/SKILL.md`). Use templates from reference file. If the Step 0 / refresh loader echoed `Loaded code-style.md …` (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`), pre-inline that content into the prompts for the guidelines / conventions / design / architecture reviewers under the `## Code-style instructions` header per the Stage C reviewer template in `${CLAUDE_SKILL_DIR}/implement-reference.md`. Skip the slot for bugs / security / tests / optimizations reviewers (code-style is orthogonal). Do NOT do a separate cwd-relative `Read` here.
-
-Aggregate findings. Pass CRITICAL/HIGH to fix loop; preserve MEDIUM findings (do NOT auto-drop) for the user-gated inclusion check at the top of the Fix Loop — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Write `<task-dir>/review-feedback.md` with body sub-fields persisted for both CRITICAL/HIGH and MEDIUM rows so the gate can render bodies correctly. Findings tagged `decision: PRODUCT-DECISION` flow through to the Fix Loop where the open-decision gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row) presents enumerated options to the user before any fixer agent spawns; MEDIUM findings flow through to the same Fix Loop where the MEDIUM inclusion gate (always-WAIT — see implement-reference.md §Auto Mode Behavior, `MEDIUM findings present in fix-loop entry` row) lets the user pick which (if any) to include.
-
-**Fix loop:** Max 3 rounds. Spawn NEW fixer + FRESH reviewers each round (anchoring bias). After 3 rounds, present handoff to user (always-WAIT — see implement-reference.md §Auto Mode Behavior).
-
-**Checkpoint:** Update `<task-dir>/state.md`: "Phase 6 Stage C completed."
-
-### Stage D — Adversarial Edge-Case Tests
-
-**Purpose:** Attacker-mindset pass that complements Stage C. Where Stage C's `tests-criteria.md` reviewer REPORTS coverage/quality gaps in EXISTING tests, Stage D AUTHORS NEW failing tests (F→P-verified: red today) for edge cases the implementer's happy-path-plus-2-edge tests missed. Authored tests feed the existing Fix Loop above ("make the red tests green").
-
-**Action:** Spawn one `adversarial-tester-agent` (per canonical model-tiering carve-out — frontmatter-declared `model: inherit`, omit `model=` at the spawn site to mirror orchestrator tier; reasoning-grade test authoring) with the diff, the shared checklist path `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`, 1-2 exemplar test files, the project test command (from CLAUDE.md or package.json), Stage C findings as hypothesis seeds, and output path `<task-dir>/adversarial-tests.md`. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 6 Stage D for the full spawn template.
-
-**Orchestrator responsibilities after the agent returns:**
-1. **Re-verify F→P independently.** Run the authored tests yourself — do NOT trust the agent's self-report. Any test that passes today is removed from scope; log it and continue.
-2. **Route confirmed failing tests into the Fix Loop.** Each F→P-confirmed test becomes a CRITICAL/HIGH item in `<task-dir>/review-feedback.md` with severity from the agent's report. The existing Fix Loop (max 3 rounds) applies — fresh fixer agents make the red tests green. Do NOT skip the flake-recheck on the fixer's output.
-3. **Scope hard cap.** The agent authors at most 10 tests per run. If the agent reported hitting the cap with more hypotheses pending, append the overflow to the Phase 7 Step 4 summary under "Deferred ideas" rather than expanding this run.
-
-**Skip Stage D entirely when:** `state.md` shows `Lane: light` (Light Mode skips Stage D — append "Phase 6 Stage D skipped — Lane: light" to state.md); OR `state.md` shows `Lane: tdd` (TDD Mode every-behavior-already-F→P-verified at cycle authoring — append "Phase 6 Stage D skipped — Lane: tdd (every behavior F→P-verified during Phase 4 cycles)" to state.md); OR diff contains zero production-code files (docs/config/lockfile-only); OR `Mode: auto` AND diff ≤3 files AND Stage C had zero CRITICAL/HIGH tests-dimension findings (note the skip in state.md "Auto-mode decisions"). Anti-rationalization: "Stage C already covers tests" — NO: Stage C REPORTS gaps; Stage D AUTHORS failing tests (different lifecycle). Never trust the agent's F→P self-report — re-run the tests yourself.
-
-**Checkpoint:** Update `<task-dir>/state.md`: if Stage D ran, write "Phase 6 completed. All stages passed."; if skipped, write "Phase 6 Stage D skipped — <reason>" then "Phase 6 completed."
-
----
-
-## PHASE 7: SHIP & FINALIZE (WAIT)
-
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
-
-**Precondition:** Do NOT enter Phase 7 until `state.md` shows Phase 5 completed-or-skipped, Phase 6 Stage A completed, Stage B completed-or-skipped, Stage C completed, and Stage D completed-or-skipped (with logged reason for skips). If any is missing, go back and complete it.
-
-### PART A: FINALIZE (Steps 1-4 — runs automatically, no user input needed)
-
-These steps run BEFORE presenting the ship decision. They cannot be skipped.
-
-**Step 1: Update Docs** — Check if existing docs need patching. Delegate if needed, skip silently if not. See reference file for details.
-
-**Step 2: Extract Learnings** — Scan conversation for corrections, gotchas, decisions. Save to learnings.jsonl and/or memory (resolved via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`). See reference file for signal table.
-
-**Step 3: Suggest Improvements (project scope only) (WAIT — auto: see implement-reference.md §Auto Mode Behavior)** — Follow the canonical routing in `skills/_shared/improvement-routing.md`: **code rules / coding conventions / style or naming patterns / file-pattern constraints → `.claude/rules/<scope>.md` with `paths:` glob** (Anthropic-native, file-scoped — auto-loads when matching files are touched); skill-behavior quality gates / workflow steps / hard constraints → `.geniro/instructions/<skill>.md` (Geniro skill-scoped); CLAUDE.md is reserved for commands, project structure, and compaction-surviving gates; gotchas / decisions → knowledge; auto-enforceable patterns → project rules/hooks. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — use `/improve-template`. Present grouped by target via `AskUserQuestion`.
-
-**Step 4: Present Summary**
-
-1. **Features implemented** (list)
-2. **Files changed** (grouped by area: backend/frontend/tests/config)
-3. **Tests added/modified**
-4. **Review feedback addressed** (count of issues fixed; for any deferred MEDIUMs from the Phase 6 Stage C MEDIUM inclusion gate, also report `Deferred MEDIUM: N — see <task-dir>/review-feedback.md ## Deferred MEDIUM` so the user has a documented backlog)
-5. **Validation results** (lint, build, test, startup, codegen — pass/fail each)
-6. **Learnings extracted** (count, or "none")
-7. **Deferred ideas** (if any)
-
-### Step 4.5: Pre-Ship Visual Verification (WAIT — conditional, runs only if UI changed — auto: see implement-reference.md §Auto Mode Behavior)
-
-If any file in the "Files changed" list from Step 4 matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule, fire a STANDALONE `AskUserQuestion` with header "Smoke-test" as the ONLY question in that call — never batch it with Step 5's Ship Decision question, because the user must not be offered a commit/push choice until UI verification is resolved:
-- **Yes — walk through it** — drive Playwright MCP to smoke-test the change before shipping. Follow the full sequence in `implement-reference.md` §Pre-Ship Visual Verification.
-- **Skip — already verified** — record skip reason in `<task-dir>/state.md` and proceed to Step 5.
-
-If verification surfaces issues, route via a second `AskUserQuestion`: "Fix and re-verify" (loop back through Phase 7 Step 6 Small tweak path — Step 4.5 re-fires automatically after Step 4 if UI files remain in the diff), "Ship anyway with noted issues" (record in `state.md` and proceed), or "Abort" (stop pipeline). Skip this step silently when no changed file matches the rule.
-
-### PART B: SHIP DECISION (Steps 5-8 — interactive)
-
-### Step 5: Ship Decision (WAIT — always-WAIT regardless of mode)
-
-Use `AskUserQuestion` (max 4 options). The user can always type a custom response via "Other" (e.g., "review diff first", "leave uncommitted"):
-- A) **Commit + PR** — commit, push, and create a pull request via `gh pr create`
-- B) **Commit + push** — commit and push to remote (`git push origin [branch]`)
-- C) **Commit only** — stage and commit on current branch with conventional commit message
-- D) **Minor tweaks needed** — small adjustments before shipping (I'll describe)
-
-**If the user picked A:** immediately fire a SECOND `AskUserQuestion` with header "PR state" and exactly 2 options before proceeding to Step 7:
-- **Draft PR** — create as draft (`gh pr create --draft`); blocks merge and suppresses CODEOWNERS review requests until promoted with `gh pr ready`. Choose this when CI validation or follow-up commits are expected before reviewers are pinged. Some orgs configure CI to skip drafts — surface that caveat if you can detect it.
-- **Ready for review** — create as a standard PR (`gh pr create`); requests review immediately.
-
-**Routing:**
-- **A, B, C** -> proceed to Step 7 (Commit)
-- **D** -> proceed to Step 6 (Adjustment Routing)
-- **"Review diff"** (via Other) -> show diff, loop back to Step 5
-- **"Leave uncommitted"** (via Other) -> skip commit, proceed to Step 8 (Cleanup)
-
-### Step 6: Adjustment Routing (if user chose D)
-
-Ask the user to describe the tweak. Classify by size (Big / Medium / Small), then follow the corresponding action sequence in `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 7 Step 6: Adjustment Routing. That section covers the per-tier numbered steps, loop target (always Step 4 summary re-presentation), and soft limits (Big: 2 rounds → `/geniro:implement`; Medium/Small: 3 rounds → `/geniro:follow-up`).
-
-### Step 7: Commit
-
-Execute user's chosen method. See reference file for commit details per option.
-
-### Step 8: Integration Updates + Cleanup — auto: see implement-reference.md §Auto Mode Behavior
-
-- **Worktree:** Leave the session in it — do NOT call `ExitWorktree` proactively. After "leave uncommitted", note changes remain at `.claude/worktrees/<name>/`.
-- **Integrations:** Follow workflow file completion actions (issue status updates, etc.) — see reference file.
-- **Cleanup:** Kill orphaned processes; remove temp files.
-- **State:** Skip if milestone-mode with milestones still non-`completed`. Otherwise append `Pipeline: COMPLETE` to state.md; on LAST milestone, also set master plan `Status: completed`.
-- **Milestone status update (milestone-mode only):** Update milestone file + master plan table + state.md, append Implementation Notes, prompt for next milestone. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §Phase 7 Step 8 for the full procedure.
-- **Feature row update:** If `state.md` `Feature:` is a Geniro ID, run `/geniro:features complete <id>`; else skip.
-- **Planning artifacts:** Fire `AskUserQuestion` header "Artifacts": A) **Keep** (if planning `/geniro:follow-up`) → leave `<task-dir>/` (gitignored), B) **Delete** → remove `<task-dir>/` recursively.
-
-**Anti-rationalization:**
 | Your reasoning | Why it's wrong |
 |---|---|
-| "Skip learning extraction, it takes too long" | Learnings make future sessions faster. Part A runs automatically — you cannot skip it. |
-| "Skip doc updates, they're boring" | Doc drift is the #1 source of confusion in future sessions. |
-| "The user said 'just finish' so skip finalize" | Part A (finalize) runs BEFORE the ship decision. It is not optional regardless of user urgency. |
-| "Implementation is done, the user can test it" | Phase 4 is one of 7 phases. Follow the pipeline to completion. |
-| "I'll skip review since the agents already tested" | Agent self-reports are unreliable. Phase 6 exists to catch what agents miss. |
-| "The tweak is small, I'll skip the re-validation loop" | Every tweak re-runs at minimum Stage A. Small bugs introduced during tweaks are the hardest to catch later. |
-| "Batch Smoke-test + Ship Decision in one AUQ" | Step 5 offers commit/push/PR — asking alongside UI-check lets the user commit before verifying UI. Smoke-test is standalone; Step 5 fires after verification resolves. |
-| "Split the Mode/Lane/Feature/Git-workspace questions across separate AUQs" | These four are independent and `AskUserQuestion` accepts 4 questions per call — splitting is pure friction. Phase 1 Startup Consolidation batches them. |
-| "Auto-pick the recommended path for a `[PRODUCT-DECISION]` finding" | `[PRODUCT-DECISION]` is Always-WAIT. The `recommendation:` field is a synthesis of valid options, not the chosen path — picking ships an unauthorized product decision. |
-
----
-
-## TASK EXECUTION
-
-0. **Check for existing state.** Glob for `<task-dir>/state.md`:
-   - **No state.md** → fresh run.
-   - **`Milestones:` field with non-`completed` milestone AND `$ARGUMENTS` empty or `continue`** → milestone-mode resume: load first non-completed milestone (prefer `in-progress` over `pending`), skip Phase 1, jump to Phase 2 pre-check rule 1.
-   - **state.md exists, no "Pipeline: COMPLETE"** → interrupted run, resume from next incomplete phase.
-   - **state.md has "Pipeline: COMPLETE"** → second run; read prior artifacts (`spec.md`, `plan-*.md`, `concerns.md`) into context before any renames, then proceed to Phase 1.
-
-1. Take user's description: `$ARGUMENTS`
-2. **Create TodoWrite checklist** (Phase 1 Discover / Phase 2 Architect & validate / Phase 3 Approval — implementation phases added after Phase 3). Mark Phase 1 `in_progress`; update each as it completes.
-3. Begin Phase 1 (Discover)
-
-**Token conservation — delegate ALL implementation work:** The orchestrator's job is to coordinate, not to code. Every line of code the orchestrator writes wastes expensive context. Delegate ALL work to subagents — including deletions, cleanups, "simple" edits. If you catch yourself thinking "I'll just do this directly since it's simple" — that's the rationalization. Spawn an agent.
-
-**Anti-rationalization:**
-| Your reasoning | Why it's wrong |
-|---|---|
-| "Steps X-Y are small, I'll handle them myself" | Every plan step becomes a WU. Group small related steps into one WU, but never execute as orchestrator. |
-| "The build failed, let me read the source and fix it quickly" | Run the check, copy the raw terminal output into a fixer agent prompt. Do NOT open source files, diagnose, search for types, or apply edits yourself. |
-| "I'll create a new helper / component / type for this — quicker than checking what exists" | Run the Reuse Inventory first (Grep/Glob for analogues with `file:line`). Convention drift is the #1 AI failure mode. Categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE; if reuse requires adding a parameter or conditional to fit, prefer local duplication and revisit at the third occurrence (Rule of Three). |
-| "I'll upgrade this haiku spawn to sonnet just to be safe" | Tier matches task nature, not risk appetite. Upgrading mechanical-task agents (docs, guidelines) to sonnet defeats the cost rationale and signals drift. Re-classify via the Subagent Model Tiering table — don't silently upsize. |
-| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. Only sequence when outputs feed into next agent (e.g., plan → skeptic) or files overlap. |
+| "/implement should ask user before each Edit — safety first." | Phase 2 Implement is the **execution** phase. Pre-approval lives upstream — /plan (M5) Phase 8 emits the spec.md; that spec.md IS the pre-approval. Per-Edit AUQs defeat the spec-driven autonomy M4 is designed for. |
+| "Add а wall-time kill cap so long-running tasks abort cleanly." | Class-A hard caps abort legitimate complex work mid-stride. M4 §2.3 quality-first framing — no Class-A caps. Past three failed Phase-2 retries (§6.2) escalates к user via AUQ. |
+| "Phase 2 should fan out backend/frontend agents для parallel edits." | M4 §3.1 — work-unit decomposition removed. Scheduler complexity overwhelmed the value. Single solo inner loop, one test run at end. |
+| "Re-run tests after each file Edit к catch regressions early." | M4 §6.1 — single end-of-Phase-2 test run. Per-file test runs explode wall-time on slow suites. |
+| "/implement should self-fix indefinitely until reviews clean." | M4 §7.3 — bounded к 3 rounds. Past 3, escalate AUQ. «Kick it until it passes» is а catalogued anti-pattern. |
+| "Skip the ship-mode AUQ — user can `git reset` if they wanted а draft PR." | M4 §7.5 step 3 — push is draft-grade (auto), но PR creation is commit-grade (AUQ-gated). Inline modifiers provide deterministic overrides. |
+| "Auto-promote L2 conventions к L4 rules when ≥3-pattern detected." | M4 §7.5 step 5 + P-M4-5 — surface а suggestion line; do NOT auto-promote. User remains source-of-truth для L4 rule curation. |
+| "Defer M3 compaction-survival к downstream skills — M4 is too complex к wire it up." | M3 contract IS M4's contract — state.md frontmatter (M1 §T1), `non-resumable-actions[]` (M3 §8), `## Tool log` (§2.2). Без these, compaction mid-Phase-2 loses the entire run. Non-negotiable. |
+| "Run reviewers серийно — easier к debug than parallel-spawn batch." | M4 §7.2 — parallel spawn в ONE assistant response. Serial spawn doubles wall-time. Wrong trade-off. |
+| "Audit trail isn't needed для local /implement runs." | The state.md `## Tool log` IS the audit trail. M3 SessionStart re-injects on compaction. Без log, post-mortem on failed runs is impossible. |
+| "Bypass safety hooks с --no-verify when commit-hook fails — saves time." | Hooks fail для а reason. Investigate root cause, не bypass. --no-verify usage is а CLAUDE.md-level prohibition. |
+| "Spawn agents one at а time для cleaner orchestration." | All 5 reviewer spawns в ONE assistant response — multiple `Agent(...)` tool uses в the same message. Separate turns = no concurrency, full wall-clock latency per agent. |
+| "Fall back к sonnet → opus escalation on reviewer failure." | M4 doesn't ship runtime-escalation. Reviewer at `sonnet` (declared в agents/reviewer-agent.md frontmatter) handles all dimensions. Sonnet-Opus escalation belongs к а future review-tier-escalation feature, not the baseline self-review loop. |
 
 ---
 
 ## REFERENCE
 
-- Agent templates, examples, error tables: `${CLAUDE_SKILL_DIR}/implement-reference.md`
-- Plan criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-criteria.md`
-- Review criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files changed)
-- Simplify criteria: `${CLAUDE_PLUGIN_ROOT}/skills/deep-simplify/simplify-criteria.md`
+- Templates, $ARGUMENTS-parse table, reviewer-agent spawn template, fix-loop, ship sub-step: `${CLAUDE_SKILL_DIR}/implement-reference.md`
+- Reviewer-agent contract: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`
+- Review criteria files: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files changed)
+- State helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh`
+- Memory helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.sh`, `load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `update-semantic.sh`, `resolve-conflicts.md`
+- Agent spawn-degradation ladder: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`
+- Evidence standard: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`
+- Architecture spec: `architecture/M4-implement-redesign.md`
