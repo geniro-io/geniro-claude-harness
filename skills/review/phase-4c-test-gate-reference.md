@@ -12,8 +12,6 @@ Reduce false positives by asking the user whether к spawn `adversarial-tester-a
 
 **The skill MUST NEVER spawn the agent без explicit user approval.** The gate IS the load-bearing safety property; inline gates degrade к "this counts as approval".
 
-**Skip когда `/geniro:review` is called as а sub-phase within `/geniro:implement`** — parent pipeline runs Phase 3 reviewer-agent against the same diff; running twice double-spawns.
-
 ---
 
 ## 2. Step 1 — Filter findings by decision-type

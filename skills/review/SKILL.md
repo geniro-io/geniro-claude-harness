@@ -313,7 +313,6 @@ Output: per-finding `validation: confirmed | refuted | partial` field added.
 **Full contract:** `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md`.
 
 Summary:
-- Skip when called as а sub-phase within `/geniro:implement` (parent owns its own reviewer-agent spawns).
 - Filter findings by decision-type per the runtime-behavior classification rule.
 - **Mandatory user-approval gate before any `adversarial-tester-agent` spawn.** Skill MUST NEVER spawn без approval — the gate IS the load-bearing safety property. Persist к `approvals[]` с category `test_gate_choice`.
 - `--tdd` flag flips the Recommended option к «Author tests for all eligible findings»; gate itself still fires.

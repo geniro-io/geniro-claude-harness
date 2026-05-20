@@ -13,7 +13,6 @@ State.md `phase: action-gate` during this phase.
 `--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention (М6 §8.3) но the output is still а finding list для consumption by other skills.
 
 **Skip Phase 6 entirely когда:**
-- `/geniro:review` is called as а sub-phase within `/geniro:implement` (parent owns its own fix loop).
 - Zero actionable findings remain (CRITICAL + HIGH + MEDIUM all zero after Phase 4b).
 
 ---
