@@ -15,7 +15,7 @@ The status messages set on each `hooks.json` entry (e.g. `"Checking for unsafe d
 
 ## Hook scripts
 
-The plugin ships 6 safety hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 8 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
@@ -23,8 +23,10 @@ The plugin ships 6 safety hooks, 1 sourced utility library, and 2 Node-based fea
 | [`block-dangerous-git.sh`](hooks/block-dangerous-git.sh) | PreToolUse `Bash` | exit 2 = block | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
 | [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
 | [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
+| [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write` | warn-mode (block in M1 PR-final) | Warns on direct Edit/Write к canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`; suggests `atomic_state_write` / `atomic_state_append` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
+| [`plan-mode-write-guard.sh`](hooks/plan-mode-write-guard.sh) | PreToolUse `Edit\|Write` | exit 2 = block | M5 belt+suspenders: when а `/geniro:plan` run is active (detected via `.geniro/planning/*/state.md` `producer: plan` + `status: in-progress`, freshness ≤4h), restricts Write к `.geniro/planning/**` OR `.geniro/state/**`. Bypass: `plan-mode-mutation`. |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
-| [`post-compact-notification.sh`](hooks/post-compact-notification.sh) | SessionStart `matcher: "compact"` | non-blocking | Outputs resume instructions and re-read suggestions for the active pipeline state |
+| [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | M3 compaction-survival. Resolves the active T1 state.md across all three M1 layouts (planning task-dir / state-per-skill / state singleton); pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Read-only — never writes state.md. Replaced the pre-M3 `post-compact-notification.sh`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
 | [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | ANSI-colored status line (model • task • dir • context%) |
 | [`backpressure.sh`](hooks/backpressure.sh) | **NOT registered** — utility library | — | Sourced by skills (e.g. /refactor, /review) to compress verbose test/build output |
@@ -55,11 +57,39 @@ Blocks destructive git operations by pattern ID: `force-push`, `force-push-with-
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist).
 
-### post-compact-notification.sh
+### session-start-restore.sh (M3)
 
-**Event:** SessionStart `matcher: "compact"`. **Block exit:** never blocks. **Timeout:** 10s.
+**Event:** SessionStart `matcher: "compact|resume|startup"`. **Block exit:** never blocks. **Timeout:** 10s.
 
-Wired as `SessionStart` with `matcher: "compact"` (Anthropic-canonical post-compaction recovery path; `PostCompact` itself does not support `additionalContext`). Globs `.geniro/planning/*/state.md` (most-recently-modified) to detect an active pipeline; outputs `additionalContext` containing resume instructions, suggested re-reads (SKILL.md, state.md, spec files), and feature-anchor reminders. Gracefully handles missing state.
+Wired as `SessionStart` with `matcher: "compact|resume|startup"` (Anthropic-canonical; `PostCompact` itself does not support `additionalContext`). `clear` is explicitly unmatched — user reset respected. Resolves the active T1 `state.md` via M1-canonical slug match + frontmatter `branch:` fallback across all three layouts (planning task-dir / state-per-skill slug / state singleton); pre-flights `validate_state_file` and degrades gracefully if the helper is missing.
+
+Emits an `additionalContext` block-set per M3 §6:
+
+- Per-source prefix (compact / resume / startup).
+- Suggested files (L4 instructions trio + `user-preferences.md` routed through `load-custom-instructions.md` MODE: refresh; CLAUDE.md, `_FEATURES.md`, state.md, spec.md, plan.md as direct Reads).
+- Validation-failure recovery directive (when `validate_state_file` reports а structural error).
+- Helper-missing notice (when the validator binary itself is absent).
+- Structured non-resumable-actions warning per state.md frontmatter (`git-push`, `pr-comment-posted`, `slack-notify-sent`, `release-tagged`, unknown-action fallback).
+- Unresolved errors от state.md `## Errors`, pending `## Open Questions`, and persisted `approvals:` от state.md frontmatter (M3 §6 Blocks 5b / 5c / 5d).
+- Resume protocol.
+
+`systemMessage` one-liner emitted on every source except cold startup with no active task. Read-only — never writes state.md. Replaced the pre-M3 `post-compact-notification.sh` (deleted; matcher widened and Block 2-6 expanded к match the M3 spec).
+
+### enforce-state-helper.sh
+
+**Event:** PreToolUse `Edit|Write`. **Block exit:** warn-mode initially (M1 §enforce-helper transitional); flips к exit-2 hard-block in M1 PR-final.
+
+Detects direct `Edit` / `Write` calls against canonical state paths and suggests routing through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (`atomic_state_write` for plain files, `atomic_state_append` для JSONL). Protected prefixes: `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`.
+
+**Per-project allowlist:** walks up от cwd looking для `.geniro/safety.json` `allow_patterns[]`; pattern ID `enforce-state-helper` skips the warning (and the future hard-block).
+
+### plan-mode-write-guard.sh (M5)
+
+**Event:** PreToolUse `Edit|Write`. **Block exit:** `exit 2` when triggered.
+
+Pairs с Layer 1 enforcement (Edit removed от `/plan`'s `allowed-tools` frontmatter). When а `/geniro:plan` run is active — detected via `.geniro/planning/*/state.md` с frontmatter `producer: plan` AND `status: in-progress` AND mtime within `PLAN_LOCK_FRESHNESS_SEC` (4h default, env-overridable) — restricts `Write` к `.geniro/planning/**` OR `.geniro/state/**`. Stale state files (>4h) treat `/plan` as abandoned к prevent permanent lockout.
+
+**Per-project allowlist:** pattern ID `plan-mode-mutation` skips the check (allows writes outside the planning/state scopes even with an active `/plan` state.md).
 
 ### geniro-check-update.js
 
