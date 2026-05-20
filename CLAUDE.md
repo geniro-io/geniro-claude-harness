@@ -13,7 +13,7 @@ Post-M4 redesign — 18 skills → 11 (master plan §22). The 8 deleted skills (
 
 | Skill | Purpose |
 |-------|---------|
-| `/geniro:plan` (M5 — placeholder until M5 ships) | Turn а vague idea or feature request into an **approved spec.md**. Big tasks also emit 3-7 milestones (per-milestone spec.md files). Absorbs the legacy `/brainstorm` + `/decompose`. |
+| `/geniro:plan` (M5) | Spec-first planning — turn а vague idea or feature request into an approved `spec.md` via а 9-phase loop (mode-detect → explore → clarify ≤5 questions → 2-3 approaches → 10-section approval → write → mechanical validate → user approve → hand-off). Fixed 10-section P-M5-1 schema; goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for / tools_required); compaction-safe `approvals[]` (M1 P-M1-1). Milestone-mode (Phase 5 §5.3) emits sibling `milestone-N.md` files для Big tasks (absorbs deleted `/decompose`). NO auto-commit (D1 fix — commit fires at Phase 8 post-approve). |
 | `/geniro:implement` (M4) | M4 2-phase autonomous loop: Analyze → Implement → Self-review-and-Ship. Consumes spec.md from `/plan` (или inline-task fallback when `/plan` hasn't been run yet). Single solo execution path с 5-dim parallel self-review (bugs / security / architecture / tests / code-quality). Absorbs post-ship tweaks from the legacy `/follow-up`. |
 | `/geniro:review` | Parallel 7–10 agent code review (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT non-none AND (PR ref OR risk-tier: high)). Stratifies on hard-escalation signals from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`; inherits prior-round findings across re-runs (max 3 rounds before escalate-AUQ). M6 will add an optional `--simplify` flag absorbing the legacy `/deep-simplify`. |
 | `/geniro:debug` | Scientific-method bug investigation с hypothesis tracking. Auto-emits L2 `diagnosis` к learnings.jsonl (absorbing the legacy `/learnings` cadence для debug). |
@@ -141,6 +141,7 @@ This plugin provides safety hooks that run automatically:
 - **Evidence-on-completion** — Stop hook (warn-only) — scans last assistant message for completion phrases (e.g., "shipped", "all tests pass", "ready to ship", "Done!") that lack an Evidence Block; cites `skills/_shared/evidence-standard.md`. Stop hooks fire ~50-80% of the time, so this is a soft reminder layer, not enforcement. Bypass: `evidence-stop` in `.geniro/safety.json` `allow_patterns`.
 - **TDD-order enforcement** — PreToolUse `Edit|Write` (hard-block) — when `.geniro/state/tdd/state-<slug>.md` shows phase=RED, blocks `Edit`/`Write` on production-code files (test files still allowed). State file absence means the skill hasn't opted in to TDD, so no surprise blocks. Bypass: `tdd-order` in `.geniro/safety.json` `allow_patterns`.
 - **State-helper enforcement** — PreToolUse `Edit|Write` (warn-mode initially; flips to hard-block in M1 PR-final) — warns when a direct `Edit`/`Write` targets a canonical state path (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`). Suggests `atomic_state_write` (or `atomic_state_append` for JSONL) per `skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper` in `.geniro/safety.json` `allow_patterns`.
+- **Plan-mode write-guard (M5)** — `hooks/plan-mode-write-guard.sh`, PreToolUse `Edit|Write` (hard-block). When а `/geniro:plan` run is active (detected via `.geniro/planning/*/state.md` с frontmatter `producer: plan` AND `status: in-progress` AND mtime within `PLAN_LOCK_FRESHNESS_SEC` — 4h default, env-overridable), restricts `Write` к `.geniro/planning/**` OR `.geniro/state/**`. Pairs с Layer 1 enforcement (Edit removed от /plan's `allowed-tools`). Belt + suspenders per M5 §19. Stale state files (>4h) treat /plan as abandoned к prevent permanent lockout. Bypass: `plan-mode-mutation` в `.geniro/safety.json` `allow_patterns`.
 
 ### Per-project allowlist for safety guardrails
 
@@ -159,6 +160,7 @@ Pattern IDs:
 - **Evidence-on-completion**: `evidence-stop` (skip the Stop-hook completion-phrase warning)
 - **TDD-order enforcement**: `tdd-order` (skip the RED-phase production-code Edit/Write block)
 - **State-helper enforcement**: `enforce-state-helper` (skip the warning on direct Edit/Write to `.geniro/` state paths — once block-mode is enabled in PR-final, this becomes the hard-block bypass)
+- **Plan-mode write-guard**: `plan-mode-mutation` (skip the /plan-active write-scope check; allows Write к paths outside `.geniro/planning/**` and `.geniro/state/**` even when а /plan state.md is in-progress)
 
 The allowlist is read from the nearest `.geniro/safety.json` walking up from the cwd.
 
