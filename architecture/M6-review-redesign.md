@@ -1035,7 +1035,7 @@ Append а «v9 audit (M6)» section noting:
 
 - **М1 PR-0 (helpers)** must land before М6 implementation.
 - **М1 §T2** row for `from-review-<branch>.md` must be canonical (verify M1 doc).
-- **М1 P-M1-1** `approvals[]` schema extended к M6 categories: `tdd_mode_choice`, `action_gate`, `round_n_escalation`, `pr_post_confirm`.
+- **М1 P-M1-1** `approvals[]` schema extended к M6 categories. As-built set (per implementation pass): `tdd_mode_choice` (Phase 1 Mode AUQ), `test_gate_choice` (Phase 4c spawn approval), `action_gate` (Phase 6 4-option pick — Post selection IS the pr-post consent, so no separate `pr_post_confirm` category), `round_n_escalation` (Phase 6 secondary AUQ когда round ≥3), `failing_tests_commit_policy` (Phase 6 commit policy для AI-authored tests). Spec draft listed `pr_post_confirm` as а candidate; implementation collapsed pr-post consent into `action_gate` since picking «Post Draft PR review» в the Action gate IS the approval per phase-6-handoff-reference.md §4 contract.
 
 ### 21.2 М2 dependencies
 
