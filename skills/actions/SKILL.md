@@ -1,59 +1,88 @@
 ---
 name: geniro:actions
-description: "Use when scaffolding a reusable workflow-helper (Slack/PR/release automations) or invoking a previously-created action. Stored at .geniro/actions/. Skip for editing core Geniro skills — use /improve-template for that."
+description: "Use when scaffolding а reusable workflow-helper (Slack/PR/release automations) or invoking а previously-created action. Stored at .geniro/actions/. Run-mode gates execution by risk_class (low/medium/high). Skip for editing core Geniro skills — edit the plugin repo directly."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
-argument-hint: "[create|list|edit|run|delete] [name] [...args]"
+argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 ---
 
 # Actions: Custom Workflow-Helper Management
 
-Create, list, run, and delete custom workflow-helper actions stored as plain Markdown files at
-`.geniro/actions/<slug>.md`. Use this skill to scaffold reusable team automations (Slack pings,
-PR finalizers, release checklists) and to invoke them on demand. Core Geniro skills are NOT
-editable here — use `/improve-template` for those.
+M10c 3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`. Stateless (per M10a Q5). Architecture spec: `architecture/M10c-actions-redesign.md`.
 
 ## Sub-commands
 
 | Sub-command | Aliases | Purpose |
 |-------------|---------|---------|
 | `list` | show, view, ls, current | Print the table of installed actions |
-| `create` | new, scaffold, make, add | Interview-driven scaffold for a new action |
+| `create` | new, scaffold, make, add | Interview-driven scaffold for а new action |
 | `edit` | change, modify, update, tweak, adjust | Open an existing action for external editing, then re-validate |
-| `run` | invoke, exec, execute, do | Read an action file and follow its steps inline |
+| `run` | invoke, exec, execute, do | Read an action file и follow its steps inline (AUQ-gated by `risk_class`) |
 | `delete` | remove, rm, drop | Remove an action file (with confirmation) |
+| `validate` | check, lint | Lint frontmatter и body against the M10c rule set |
 
 If `$ARGUMENTS` is empty, default to `list`.
 
-## What is a custom action?
+## What is а custom action?
 
-A **custom action** is a plain `.md` file at `.geniro/actions/<slug>.md`. Its frontmatter declares:
+А `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `name`, `description`, `risk_class`, и а body containing а numbered `## Steps` section. The orchestrator (Geniro) reads the body и follows the steps. Actions are NOT auto-registered as slash commands — they live as plain `.md` files (not as `<slug>/SKILL.md` subfolders) precisely so Claude Code does not pick them up as their own slash commands. They are only reachable through `/geniro:actions run <name>`.
 
-```yaml
----
-name: <slug>
-description: "Use when … (≤250 chars, starts with 'Use when')"
-model: inherit | sonnet | opus
-allowed-tools: [Read, Bash, ...]
-argument-hint: "[optional usage hint]"
-created: YYYY-MM-DD
-created-by: geniro:actions
----
+## Loop invariants (M4 §2.2)
+
+1. One result per subagent call — `/actions` does NOT spawn subagents in CRUD modes.
+2. Args validated before exec — every Write preceded by frontmatter validation; every `run` preceded by AUQ-gate matching `risk_class`.
+3. Permission before side-effect — `risk_class: medium|high` gates execution via AUQ; `risk_class: low` skips the gate but respects per-step tool-allowlist if declared.
+4. Bounded structured results — `list` truncates per-action body display at 200 chars.
+5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
+6. Observations not assumed success — each step in `run` mode checks return status; failed step transitions к `failed` with step number captured.
+7. Errors as structured observations — surfaced inline in final message.
+
+## Budgets — quality-first (M4 §2.3)
+
+`/actions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry slug ambiguity → abort, body preview truncation at 200 chars, 3-retry on create-validation failure. Architecture constraints: stateless (per M10a Q5); one action runs at а time (assumed sequential).
+
+## ACI surface per phase (M4 §13.5)
+
+| Phase | Allowed tools | Forbidden tools |
+|---|---|---|
+| `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
+| `execute` (list) | `Read`, `Glob`, `Bash(ls ...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
+| `execute` (create) | `Read`, `Write`, `Bash(mkdir -p .geniro/actions/, grep, echo >> .gitignore)`, `AskUserQuestion` | `mcp__github__*`, network egress, `Agent` |
+| `execute` (edit) | `Read`, `Edit`, `Bash(stat, mv)`, `AskUserQuestion` | `mcp__*`, network egress |
+| `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
+| `execute` (run) | **Intersection of /actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
+| `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
+| `done` | (terminal report) | (none) |
+
+**Run mode tool gating:**
+
+```
+effective_tool_surface = intersection(
+  global allowed-tools for /actions skill,  # from SKILL.md frontmatter
+  action frontmatter `allowed-tools:` field,
+)
 ```
 
-The body contains numbered steps that the orchestrator follows when the action is invoked.
+Action frontmatter MAY include risky tools (`Bash(curl ...)`, `mcp__github__*`) — these are then AUQ-gated by `risk_class` per §Phase 4 Step 2 below.
 
-**Important:** custom actions are NOT auto-registered as top-level slash commands. They live as
-plain `.md` files (not as `<slug>/SKILL.md` subfolders) precisely so Claude Code does not pick
-them up as their own slash commands. They are only reachable through `/geniro:actions run <name>`.
+## Termination case → state mapping
 
-## Phase 0: Parse intent from `$ARGUMENTS`
+| Cause | Message format |
+|---|---|
+| User cancelled at any AUQ | `aborted: user cancelled at <step>` |
+| Slug resolution failed after 3 AUQ retries | `aborted: slug unresolved after 3 AUQ rounds` |
+| Run-mode AUQ rejected (risk_class:high, user picked Cancel) | `aborted: user rejected high-risk action <slug>` |
+| Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
+| Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
+| Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>` |
+| Validate found CRITICAL/HIGH issues | exit non-zero with `validate: <slug> failed — N CRITICAL, M HIGH` |
+
+## Phase 1: Parse intent from `$ARGUMENTS`
 
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory.
 
-Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which action is targeted.
-NEVER output questions as plain text — always use the `AskUserQuestion` tool at every WAIT gate.
+Parse `$ARGUMENTS` to determine which sub-command runs и (optionally) which action is targeted. NEVER output questions as plain text — always use the `AskUserQuestion` tool at every WAIT gate.
 
 ### Action detection
 
@@ -64,74 +93,50 @@ NEVER output questions as plain text — always use the `AskUserQuestion` tool a
 | Edit | edit, change, modify, update, tweak, adjust | `edit` |
 | Run | run, invoke, exec, execute, do | `run` |
 | Delete | delete, remove, rm, drop | `delete` |
+| Validate | validate, check, lint | `validate` |
 
 If `$ARGUMENTS` is empty, default to `list`.
 
 ### Name / query detection
 
-The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`/`delete`:
+The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`/`delete`/`validate`:
 
-- **`create`** — the next non-verb token MUST be a kebab-case slug (lowercase letters, digits, hyphens; ≤64 chars; not a reserved word; no leading/trailing hyphen). Anything else fails the Phase 0 name-validation re-ask loop.
-- **`run` and `delete`** — the non-verb remainder is treated as a **resolution input** that may be either:
-  1. an exact kebab slug (e.g., `slack-release-ping`) — fast path, resolved by file-existence check; OR
-  2. a free-text description (e.g., `"post release notes to slack"`, `finalize my pr`) — routed through Phase 4.0 "Resolve target" which matches against installed actions' (slug, description) pairs and confirms the chosen action via AskUserQuestion before any execution.
-
-  An input is treated as a free-text description when it is multi-word, quoted, contains uppercase or whitespace, or fails the kebab regex. A single-token kebab input that does not resolve to an existing file also falls through to free-text matching (the user may have typed an approximate slug). Trailing positional arguments AFTER the resolved action name are still passed as extra context to Phase 4.4.
+- **`create`** — the next non-verb token MUST be а kebab-case slug (lowercase letters, digits, hyphens; ≤64 chars; not а reserved word; no leading/trailing hyphen).
+- **`run`, `delete`, `validate`** — the non-verb remainder is treated as а **resolution input** that may be either an exact kebab slug (fast path) or а free-text description (routed through Phase 4.0).
 
 ### Ambiguity resolution
 
-**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the entire `$ARGUMENTS` (treated as one quoted-or-unquoted resolution input) — either as-is OR after the deterministic kebab-normalization defined in Phase 4.0 Step 2 (trim leading/trailing whitespace, lowercase, replace whitespace-runs with hyphens; e.g., `daily recap` → `daily-recap`) — exact-matches an existing action file in the registry (`.geniro/actions/<token>.md` exists locally, OR — when in a linked worktree — in the main worktree's `.geniro/actions/`), default to `run` with that resolved slug as the target. The remaining tokens after the slug (when the literal first-token form matched) pass to Phase 4.4 as positional arguments under "User-supplied input"; when the normalized whole-arguments form matched, no positional arguments are extracted (the entire `$ARGUMENTS` was the slug). Do NOT ask the user — typing a known slug, literal or normalized, is itself the answer to "what do you want to do?" The natural intent of `/geniro:actions <slug>` (or `/geniro:actions "the slug"`) is to run that action. This is a positive resolution rule (the Phase 0 analog of the Phase 4.0 Step 2 exact-slug fast path), not an exception to the default-prompt path. When the slug resolves to the main worktree's registry, Phase 4.0 Step 2's cross-worktree confirmation gate ("Use the main-worktree copy?") still fires before execution — the Phase 0 fast path skips the verb-disambiguation prompt only, not the cross-worktree gate.
+**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the entire `$ARGUMENTS` exact-matches an existing action file (literal или kebab-normalized: `daily recap` → `daily-recap`), default to `run` with that resolved slug. Typing а known slug IS the answer to "what do you want to do?"; re-asking would violate "skip questions already answered". Cross-worktree confirmation (§Phase 4 below) still fires.
 
-**Otherwise**, if the action verb is unclear or missing (and the input was not empty), use the `AskUserQuestion` tool:
+**Otherwise** AUQ the verb:
 
 - **Question:** "What would you like to do with custom actions?"
-- **Options:**
-  - label: "List" — description: "Show all installed custom actions"
-  - label: "Create" — description: "Scaffold a new custom action"
-  - label: "Run" — description: "Invoke an existing custom action"
-  - label: "Delete" — description: "Remove a custom action file"
+- **Options:** `List` / `Create` / `Run` / `Delete` (Validate is documented but rarely the default — user invokes explicitly)
 
 ### Name validation (for `create` only)
 
-When the resolved action is `create`, validate the name before continuing:
+- kebab-case (lowercase letters, digits, hyphens only)
+- ≤64 characters
+- NOT а reserved word: `anthropic`, `claude`, `geniro`, `list`, `create`, `edit`, `run`, `delete`, `validate`
+- No leading/trailing hyphen
 
-- Must be **kebab-case** (lowercase letters, digits, and hyphens only).
-- Must be **≤64 characters**.
-- Must NOT be a reserved word: `anthropic`, `claude`, `geniro`, `list`, `create`, `edit`, `run`, `delete` (the canonical sub-command verbs — using one as a slug would shadow the verb in Phase 0 detection and make the action unrunnable via the bare-slug fast path).
-- Must NOT begin or end with a hyphen.
+Re-ask up к 3 times via AskUserQuestion until valid.
 
-If the name is missing or invalid, use the `AskUserQuestion` tool:
+## Phase 2: Mode dispatch
 
-- **Question:** "What should the action be named? (kebab-case, ≤64 chars, no reserved words)"
-- **Options:**
-  - label: "slack-release-ping" — description: "Example: post a release note to Slack"
-  - label: "pr-finalize" — description: "Example: finalize and merge a PR"
-  - label: "release-checklist" — description: "Example: walk a release checklist"
-  - label: "Other" — description: "Provide your own kebab-case name"
+Branch on resolved action: `list` → Phase 3 · `create` → Phase 4 · `run` → Phase 5 · `edit` → Phase 6 · `delete` → Phase 7 · `validate` → Phase 8.
 
-Re-ask until a valid name is provided.
+## Phase 3: Command `list`
 
-## Phase 1: Mode dispatch
-
-Once `action` (and `name`, where applicable) are resolved, branch:
-
-- `list` → Phase 2
-- `create` → Phase 3
-- `run` → Phase 4
-- `edit` → Phase 6
-- `delete` → Phase 5
-
-## Phase 2: Command `list`
-
-### Step 1: Scan directory
+### Step 1 — Scan directory
 
 ```bash
 ls -la .geniro/actions/*.md 2>/dev/null
 ```
 
-### Step 2: Present results
+### Step 2 — Present results
 
-If the directory is missing or empty, print:
+If the directory is missing или empty:
 
 ```
 No custom actions found.
@@ -140,59 +145,46 @@ Run `/geniro:actions create <name>` to scaffold your first action,
 e.g. `/geniro:actions create slack-release-ping`.
 ```
 
-Otherwise, for each `.md` file under `.geniro/actions/`, Read the frontmatter and grep the
-`description:` and `created:` lines. Present a markdown table:
+Otherwise, for each `.md` file, Read the frontmatter и extract `name`, `description`, `risk_class`, `created`. Present а markdown table:
 
 ```
 ## Custom Actions
 
-| Name | Description | Created |
-|------|-------------|---------|
-| slack-release-ping | Use when posting a release note to #releases | 2026-04-12 |
-| pr-finalize | Use when finalizing a PR before merge | 2026-04-18 |
+| Name | Description | Risk | Created |
+|------|-------------|------|---------|
+| daily-recap | Use when wrapping the day's commits + tests | low | 2026-04-12 |
+| commit-and-pr-summary | Use when finalizing а PR before push | medium | 2026-04-18 |
+| slack-release-ping | Use when posting а release note to #releases | high | 2026-04-15 |
 ```
 
-Close with a hint: "Run with `/geniro:actions run <name>`."
+Close with: "Run with `/geniro:actions run <name>`."
 
-## Phase 3: Command `create` (Mode 1)
+## Phase 4: Command `create`
 
-### Phase 3.1: Pre-check
+### Step 1 — Pre-check
 
-If `<name>` was not provided, use the `AskUserQuestion` tool from Phase 0's name-validation flow.
+If `<name>` was not provided, use the name-validation flow from Phase 1.
 
-If `.geniro/actions/<name>.md` already exists, use the `AskUserQuestion` tool:
+If `.geniro/actions/<name>.md` already exists, AUQ:
 
 - **Question:** "`.geniro/actions/<name>.md` already exists. What do you want to do?"
 - **Options:**
-  - label: "Edit in place" — description: "Open the existing file and modify it directly"
-  - label: "Version it" — description: "Rename existing to `<name>-v1.md`, then write a new `<name>.md`"
-  - label: "Cancel" — description: "Leave the existing file untouched and stop"
+  - `Edit in place` — Open the existing file and modify it directly
+  - `Version it` — Rename existing к `<name>-v1.md`, then write а new `<name>.md`
+  - `Cancel` — Leave the existing file untouched
 
-On **Edit in place**: print the absolute path, instruct the user to edit it externally, then use the `AskUserQuestion` tool to wait for the user's "done" signal:
+On **Edit in place**: route к Phase 6 (which handles external-editor flow with `edit-in-place` entry mode).
 
-- **Question:** "Have you finished editing `<absolute-path>`?"
-- **Options:**
-  - label: "Done — re-run validation" — description: "Re-read the file and run the Phase 3.6 validation gate against the resulting content"
-  - label: "Cancel" — description: "Stop without re-validating; leave the file as the user left it"
-
-On **Done**, re-run the Phase 3.6 validation gate against the file with **entry mode = `edit-in-place`** (so a validation failure leaves the existing file intact instead of `rm -f`-ing it — the file pre-existed this run, and destroying it on failure would lose user work). On **Cancel**, stop.
-
-On **Version it**: `mv .geniro/actions/<name>.md .geniro/actions/<name>-v1.md`, then continue to
-3.2.
+On **Version it**: `mv .geniro/actions/<name>.md .geniro/actions/<name>-v1.md`, then continue к Step 2.
 
 On **Cancel**: stop.
 
-### Phase 3.2: Ensure directory + gitignore
+### Step 2 — Ensure directory + gitignore
 
 ```bash
 mkdir -p .geniro/actions
-```
 
-Then ensure `.gitignore` re-includes `.geniro/actions/` so the team can share actions via git:
-
-```bash
 # Remove bare `.geniro/` if present — it would block negation patterns below.
-# (The setup skill does the same at its Phase 4.3 cleanup step.)
 sed -i.bak '/^\.geniro\/$/d' .gitignore 2>/dev/null && rm -f .gitignore.bak
 
 grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
@@ -201,319 +193,369 @@ grep -q "^\!\.geniro/actions/$" .gitignore 2>/dev/null || echo "!.geniro/actions
 grep -q "^\!\.geniro/actions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/actions/**" >> .gitignore
 ```
 
-This default keeps `.geniro/actions/` committed (so the team shares actions). Users who want
-their actions ignored can manually remove the `!.geniro/actions/` lines.
+This default keeps `.geniro/actions/` committed (team-shareable). Users who want their actions ignored can manually remove the `!.geniro/actions/` lines.
 
-### Phase 3.3: Interview (the four official skill-creator questions)
+**Hook reminder:** the `.geniro/` deletion guard hook blocks `git add -f` on `.geniro/` paths — the correct path is `.gitignore` negation (above), never `git add -f`. Force-adding ignored files makes them visible in IDE Source Control panels, и а single "Discard All Changes" click becomes а one-click data-loss vector.
 
-Use the `AskUserQuestion` tool for each question. Capture free-text answers via the "Other" /
-"Custom" option where supported.
+### Step 3 — Interview (Q1–Q5)
+
+Use `AskUserQuestion` for each question. Q1–Q4 preserved from the legacy skill; **Q5 is new (P-M10-1 closure)**.
 
 **Q1 — Purpose:** "What should this action do?"
-- label: "Slack/messaging workflow" — description: "Post or react in a chat channel"
-- label: "Pull-request workflow" — description: "Inspect, finalize, or merge a PR"
-- label: "Release/deployment workflow" — description: "Run a release checklist or deploy step"
-- label: "Custom workflow" — description: "Describe your own purpose"
+- `Slack/messaging workflow`, `Pull-request workflow`, `Release/deployment workflow`, `Custom workflow`
 
-**Q2 — When to trigger:** "When should this action be used? (think: what user phrases or situations)"
-- label: "On user demand only" — description: "Only when the user invokes it explicitly"
-- label: "When inspecting a PR" — description: "Tied to PR-review context"
-- label: "Before a release" — description: "Tied to release-prep context"
-- label: "Custom trigger context" — description: "Describe your own trigger"
+**Q2 — When to trigger:** "When should this action be used?"
+- `On user demand only`, `When inspecting а PR`, `Before а release`, `Custom trigger context`
 
 **Q3 — Output / side-effects:** "What does it produce or change?"
-- label: "Reports back to chat only" — description: "No file or external changes"
-- label: "Writes a file" — description: "Creates or modifies a file in the repo"
-- label: "Posts to an external system (Slack/GitHub/etc.)" — description: "Calls an external API"
-- label: "Multiple side effects" — description: "Combination of the above"
+- `Reports back to chat only`, `Writes а file`, `Posts to an external system`, `Multiple side effects`
 
-**Q4 — Test cases (optional):** "Should we include a brief 'how to test it' note in the action?"
-- label: "Yes — add 1–2 test cases" — description: "Include a short Test section in the body"
-- label: "Skip" — description: "No test section"
+**Q4 — Test cases (optional):** "Should we include а brief 'how to test it' note?"
+- `Yes — add 1–2 test cases`, `Skip`
 
-### Phase 3.4: Draft preview
+**Q5 — Risk class (NEW):** "What is the risk class for this action?"
+- `low` — Pure read operations: read files, list dirs, aggregate data, display info. No network, no file mutation outside cwd. Runs with no AUQ confirmation.
+- `medium` — Local file mutation, git commit (no push), tests with side effects (DB seed, integration test). External reads (HTTP GET). Runs with 1-click confirm.
+- `high` — External sends (Slack/PR/email), git push, npm publish, docker push, cloud mutations, file deletion outside `.geniro/`. Runs with explicit Cancel-default confirm.
 
-Read the template at `${CLAUDE_SKILL_DIR}/skill-template.md`, then synthesize a concrete action
-body by filling in the answers from Phase 3.3:
+**Recommended option (per scaffold heuristic, based on Q3):**
+
+- Q3 = "Reports back to chat only" → suggest `low`
+- Q3 = "Writes а file" → suggest `medium`
+- Q3 = "Posts to an external system" → suggest `high`
+- Q3 = "Multiple side effects" → suggest `high`
+
+### Step 4 — Draft preview
+
+Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, then synthesize а concrete action body by filling in answers from Step 3:
 
 - Frontmatter `name` = the kebab-case slug.
-- Frontmatter `description` MUST start with "Use when" and reflect Q2's trigger context.
+- Frontmatter `description` MUST start with "Use when" и reflect Q2's trigger context (≤250 chars).
+- Frontmatter `risk_class:` = Q5's answer (REQUIRED — new P-M10-1 minimal).
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
-- Frontmatter `allowed-tools` matches Q3's output (e.g., add scoped `Bash(<cmd> *)` only if the action shells out — see `example-actions/pr-notify-slack.md` for the pattern).
-- Body sections: `## Overview`, `## Steps` (numbered), and `## Test` (only if Q4 = Yes).
+- Frontmatter `allowed-tools:` matches Q3's output.
+- Frontmatter `external-send: true` if Q3 = "Posts к an external system" or "Multiple side effects" with external (M10c consistency check; validate-mode enforces `external-send: true ⇒ risk_class: medium|high`).
+- Body sections: `## Overview`, `## Steps` (numbered), и `## Test` (only if Q4 = Yes).
 
-**Show the drafted markdown to the user. Do NOT call Write yet.** Then use the `AskUserQuestion`
-tool:
+**Show the drafted markdown к the user. Do NOT call Write yet.** Then AUQ:
 
 - **Question:** "Approve this draft?"
 - **Options:**
-  - label: "Approve and write" — description: "Write the file as previewed"
-  - label: "Edit before writing" — description: "Describe changes; I'll re-show the draft"
-  - label: "Cancel" — description: "Discard the draft and stop"
+  - `Approve and write` — Write the file as previewed
+  - `Edit before writing` — Describe changes; I'll re-show the draft
+  - `Cancel` — Discard и stop
 
-On **Edit before writing**: prompt for the specific changes (still via `AskUserQuestion` with an
-"Other"/free-text option), apply them to the in-memory draft, then re-show. Cap at **3 edit
-rounds** — after the third round, surface the unresolved difficulty and stop.
+On `Edit before writing`: capture specific changes via `AskUserQuestion` (free-text via "Other"), apply, re-show. Cap at **3 edit rounds**.
 
-### Phase 3.5: Write the file
+### Step 5 — Write the file
 
-Use the Write tool to write `.geniro/actions/<name>.md`. The frontmatter MUST include:
+Use the Write tool to write `.geniro/actions/<name>.md`. Frontmatter MUST include `created: <YYYY-MM-DD>` (today) и `created-by: geniro:actions`. The body MUST NOT contain any `{{placeholder}}` strings.
 
-- `created: <YYYY-MM-DD>` — today's date in ISO format.
-- `created-by: geniro:actions`.
+### Step 6 — Validation gate (P-M10-1 minimal enforcement)
 
-The body MUST NOT contain any `{{placeholder}}` strings — every placeholder from the template
-must be resolved against the interview answers before Write is called.
+After Write, run these checks (orchestrator-side, no subagent):
 
-### Phase 3.6: Validation gate
+| # | Check | Severity | Source |
+|---|---|---|---|
+| 1 | YAML frontmatter parses | CRITICAL | preserved |
+| 2 | `name:` matches filename slug exactly | CRITICAL | preserved |
+| 3 | `description:` starts with "Use when" (case-insensitive) | HIGH | preserved |
+| 4 | `description:` ≤250 chars | HIGH | preserved |
+| 5 | No `{{placeholder}}` in body | HIGH | preserved |
+| 6 | File <500 lines | MEDIUM | preserved |
+| 7 | `## Steps` section present with ≥1 numbered item | HIGH | preserved |
+| 8 | **`risk_class:` field present** | **CRITICAL** | **NEW** |
+| 9 | **`risk_class:` value in `{low, medium, high}`** | **CRITICAL** | **NEW** |
+| 10 | **If `external-send: true`, `risk_class` MUST be `medium` or `high`** | **HIGH** | **NEW** |
 
-After Write, run these checks (orchestrator-side, no subagent). Refuse to mark complete if any
-check fails:
+On fail: surface the specific failure (check, line, expected). The on-failure rollback depends on **entry mode**:
 
-1. **YAML frontmatter parses** — file starts with `---`, has a closing `---`, and the block in
-   between is valid YAML.
-2. **`name:` matches the filename slug exactly** (e.g., `slack-release-ping.md` → `name: slack-release-ping`).
-3. **`description:` starts with "Use when"** (case-insensitive) and is **≤250 characters**.
-4. **No `{{placeholder}}` substrings anywhere** in the file (`grep -n "{{" .geniro/actions/<name>.md`).
-5. **File is <500 lines** (`wc -l .geniro/actions/<name>.md`).
-6. **Body has at least one numbered step** — typically a `## Steps` section with numbered items.
+- **Entry mode `create`** (Step 5 just wrote the file from а Step 4 draft): `rm -f .geniro/actions/<name>.md`. Re-run `/geniro:actions create <name>`.
+- **Entry mode `edit-in-place`** (Phase 6 OR Step 1 "Edit in place"): leave the file as the user left it. Re-run `/geniro:actions edit <name>`.
 
-If any check fails, surface the specific failure (which check, which line, what was expected) and stop. The on-failure rollback depends on **entry mode** (callers — Phase 3.5, Phase 3.1 "Edit in place", Phase 6 — pass this in):
+Do NOT auto-fix the written file in either mode. Re-validate up к 3 retry rounds.
 
-- **Entry mode `create`** (Phase 3.5 just wrote the file from a Phase 3.4 draft): delete the just-written file with `rm -f .geniro/actions/<name>.md`. Tell the user to re-run `/geniro:actions create <name>` and refine the inputs in the Phase 3.4 preview round. The rollback is safe because the file did not exist before this run.
-- **Entry mode `edit-in-place`** (Phase 3.1 "Edit in place" branch OR Phase 6 "Command edit" — the file existed before this run): do NOT delete the file. Leave it as the user left it. Tell the user to re-run `/geniro:actions edit <name>` (or for the create-collision branch, re-trigger via `/geniro:actions create <name>` and pick "Edit in place" again) to fix the validation failure.
+After all 10 checks pass, print: `Created \`.geniro/actions/<name>.md\`. Run with \`/geniro:actions run <name>\`.`
 
-Do NOT auto-fix the written file in either mode — the synthesis happens in Phase 3.4 (where the user can preview and edit) for `create`, or in the user's external editor for `edit-in-place`, not in post-write patching.
+## Phase 5: Command `run`
 
-After all six checks pass, print:
+### Phase 5.0: Resolve target by name-or-description (shared by `run` / `delete` / `validate`)
 
-```
-Created `.geniro/actions/<name>.md`. Run with `/geniro:actions run <name>`.
-```
+The resolver returns three named values: `<resolved-path>` (absolute или repo-relative), `<resolved-slug>` (basename minus `.md`), и `<source>` (`local` or `main-worktree`).
 
-## Phase 4: Command `run` (Mode 2 — INLINE-ONLY for v1)
+#### Step 1 — Build the registry index
 
-> v1 of this skill executes actions **inline only**. If an action declares `model: opus` or
-> `context: fork` in its frontmatter, future versions may dispatch to a subagent — for now, the
-> orchestrator follows the action steps directly in the current session.
-
-### Phase 4.0: Resolve target by name-or-description (shared by `run` and `delete`)
-
-Both `run` and `delete` call into this resolver before they touch any action file. The resolver returns three named values: `<resolved-path>` (absolute or repo-relative), `<resolved-slug>` (basename of `<resolved-path>` minus `.md`), and `<source>` (`local` or `main-worktree`). All downstream phases (4.2, 4.3, 4.5, 5.2, 5.3) consume `<resolved-slug>` for display/rm and `<resolved-path>` for Read. The resolver NEVER auto-executes — every selection passes through AskUserQuestion.
-
-#### Step 1: Build the registry index
-
-Glob `./.geniro/actions/*.md` to get the **local** registry. For each file, Read the frontmatter and extract `name` and `description`.
-
-Detect worktree state:
+Glob `./.geniro/actions/*.md` for the local registry. Detect worktree state:
 
 ```bash
-git rev-parse --show-toplevel    # current worktree root
-git worktree list --porcelain    # first `worktree <path>` entry is the main worktree
+git rev-parse --show-toplevel
+git worktree list --porcelain
 ```
 
-If the current `--show-toplevel` differs from the first `worktree` entry in the porcelain listing, the user is in a **linked worktree**. In that case, also Glob `<main-worktree-root>/.geniro/actions/*.md` and extract `name` + `description` for each. Tag each entry with `<source>` (`local` or `main-worktree`). When the same slug exists in both, **local wins** — drop the main-worktree entry from the candidate list.
+If cwd is а linked worktree, also Glob `<main-worktree-root>/.geniro/actions/*.md`. Tag each entry with `<source>` (`local` or `main-worktree`). When the same slug exists in both, **local wins** — drop the main-worktree entry.
 
-If `git rev-parse` fails (not a git repo) or the porcelain listing has only one entry (single worktree), there is no main-worktree fallback — the registry is just `local`.
+#### Step 2 — Exact-slug fast path (literal or normalized)
 
-#### Step 2: Exact-slug fast path (literal or normalized)
+Compute `<lookup>` from input: if already а valid kebab slug, `<lookup> = <input>`; otherwise normalize (trim, lowercase, whitespace-runs → hyphens). If `<lookup>` matches а registry entry's `name`:
 
-Compute `<lookup>` from the user's input as follows: if the input is already a valid kebab slug, `<lookup> = <input>`; otherwise, deterministically normalize by trimming leading/trailing whitespace, lowercasing the input, and replacing every run of whitespace with a single hyphen (e.g., `daily recap` → `daily-recap`, `Daily   Recap` → `daily-recap`, `"  daily-recap  "` → `daily-recap`). If `<lookup>` is a valid kebab slug AND an entry with `name == <lookup>` exists in the merged registry:
+- **Source = local:** return `(<resolved-path>, <resolved-slug>, local)`. No AUQ.
+- **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree gate per M10c §6.3 step 1, D9 closure):
+  - **Question:** "Action `<lookup>` exists in the main worktree at `<main-worktree-root>/.geniro/actions/<lookup>.md`. Use it?"
+  - **Options:** `Use the main-worktree copy` / `Cancel`
+- **Source = main-worktree, sub-command = `delete` или `edit`:** skip the gate here; Step 4 handles the refuse-and-surface.
 
-- **Source = local:** return `(<resolved-path>, <resolved-slug>, local)` immediately. No AskUserQuestion required.
-- **Source = main-worktree, sub-command = `run`:** show a confirmation via AskUserQuestion before returning.
-  - **Question:** "`<lookup>` was not found in this worktree's `.geniro/actions/`. The action `<lookup>` exists in the main worktree at `<main-worktree-root>/.geniro/actions/<lookup>.md`. Use it?"
-  - **Options:**
-    - label: "Use the main-worktree copy" — description: "Read the action from the main worktree (read-only). Execution still happens in this worktree."
-    - label: "Cancel" — description: "Stop. The action is not available in this worktree."
-  - On confirm, return `(<main-worktree-path>, <lookup>, main-worktree)`. On cancel, stop the whole sub-command.
-- **Source = main-worktree, sub-command = `delete`:** skip the "Use the main-worktree copy?" gate (it's the wrong question for `delete`). Return `(<main-worktree-path>, <lookup>, main-worktree)` directly so Step 4 can fire the single source-aware refuse-and-surface gate.
+#### Step 3 — Free-text matching path
 
-**Why normalization counts as "exact" here:** the slug regex is kebab-only (lowercase + digits + hyphens, see Phase 0 § Name validation), so the normalize-then-match path is collision-free by construction — two distinct registry slugs cannot normalize to the same `<lookup>`. This keeps the "skip questions already answered" doctrine satisfied: typing `daily recap` is the same signal as typing `daily-recap`. Free-text/fuzzy resolution still routes through Step 3 (the picker), which Phase 4.0 Step 3 forbids auto-resolving.
+If Step 2 did not resolve, score every entry by semantic fit (orchestrator scores in-context). Take top 4 candidates by score.
 
-#### Step 3: Free-text matching path
+Present an AUQ picker with up к 3 candidate options plus а final "Other" option. When "Other" is picked, surface free-text and loop. Cap loop at **3 rounds**; then surface "Could not narrow down — try `/geniro:actions list` for exact slugs" and stop.
 
-If Step 2 did not resolve (input is not a valid kebab slug, OR the input is a slug but no matching `name` exists in the merged registry), score every entry against the user's input by semantic fit between the input and the entry's `description` (and secondarily its `name`). The orchestrator does this scoring directly in-context — there is no external scorer.
+#### Step 4 — Source-aware destructive-op guard (delete only)
 
-Take the top **N=4** candidates by score. If the merged registry has fewer than 2 entries, skip the picker (≤1 candidate) and return immediately if there's exactly one match; if zero, print one of the following and stop:
-- If the main-worktree fallback was checked (linked worktree, multiple worktrees in `git worktree list`): `No custom actions in this worktree's registry, and none in the main worktree's registry either. Run \`/geniro:actions create <name>\` first.`
-- Otherwise (single worktree or `git rev-parse` failed): `No custom actions in registry. Run \`/geniro:actions create <name>\` first.`
+If `<source> == main-worktree` AND sub-command is `delete`, refuse-and-surface (no "delete from main anyway" option — sibling worktrees represent intentionally separate workstreams).
 
-Present an AskUserQuestion picker with up to **3 candidate options plus a final "Other" option** (4 total, matching the AskUserQuestion 4-option cap). When fewer than 3 strong candidates exist, "Other" appears at the 2nd or 3rd slot rather than always at the 4th — the cap is the ceiling, not a quota:
+### Phase 5.1: Resolve target
 
-- **Question:** "Which action did you mean by \"<input>\"?"
-- **Options (top-3 candidates in score order, then "Other" as the final slot):**
-  - label: `<slug>` — description: `<first 80 chars of the action's description, prefixed with "[main]" if source=main-worktree>`
-  - label: "Other" — description: "Describe more specifically — re-prompt with a refined query"
+Call **Phase 5.0**. Phase 5.0 handles empty-input, exact-slug, free-text, и main-worktree-fallback cases.
 
-When an "Other" option is selected, AskUserQuestion will surface free-text input from the user; treat that as a refined query and loop back into Step 3 with the new input. Cap the loop at **3 rounds**; after the third round, surface "Could not narrow down — try `/geniro:actions list` for the exact slugs" and stop.
+### Phase 5.2: Read + parse
 
-**Cap-extension when >4 candidates:** if more than 4 candidates have non-trivial scores, chain a second AskUserQuestion call. Use the canonical chained-AskUserQuestion pattern from `skills/review/SKILL.md` Phase 4c — batch candidates into ≤4 per call, never drop or merge candidates to fit one question. The first question asks the user to narrow to a coarse group ("Which area?" with ≤4 grouped options); the second presents the ≤4 candidates inside the chosen group.
+Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`, `allowed-tools`, `external-send`, `argument-hint`, `created`). Hold body steps in memory for Phase 5.4.
 
-When the user picks a specific slug, return `(<resolved-path>, <resolved-slug>, <source>)`. If the chosen path's source is `main-worktree` AND the sub-command is `run`, fire the same Step 2 confirmation gate ("Use the main-worktree copy?") before returning. For `delete`, skip the confirmation here and let Step 4 handle the refuse-and-surface.
+### Phase 5.3: Risk-class AUQ gate (P-M10-1 closure)
 
-#### Step 4: Source-aware destructive-op guard (delete only)
+Read action's frontmatter `risk_class`:
 
-For the `delete` sub-command, AFTER resolution, if `<source> == main-worktree`, do NOT proceed with the `rm`. Use AskUserQuestion:
+- **`risk_class: low`** — Skip AUQ. Proceed к Phase 5.4.
+- **`risk_class: medium`** — AUQ:
+  - **Question:** "Run action `<slug>` (medium risk)?"
+  - **Options:** `Run` (Recommended) / `Cancel`
+  - If Cancel → failed (user aborted).
+- **`risk_class: high`** — AUQ with **Cancel-as-recommended** default (forces explicit Run pick):
+  - **Question:** "Run action `<slug>` (HIGH risk — confirm explicitly)?"
+  - **Options:** `Cancel` (Recommended) / `Run anyway`
+  - If Cancel → failed.
 
-- **Question:** "Action `<slug>` lives in the main worktree at `<main-worktree-root>/.geniro/actions/<slug>.md`. Deleting it from a linked worktree would modify a sibling tree. How do you want to proceed?"
-- **Options:**
-  - label: "Cancel — I'll switch to main and re-run" — description: "Stop. Switch to the main worktree (`cd <main-worktree-root>`) and re-run `/geniro:actions delete <slug>`."
-  - label: "Cancel — keep the action" — description: "Stop without deleting."
+**Approvals[] persistence does NOT apply к run mode.** Risk-class AUQs are context-dependent (re-ask each run intentionally; "did I confirm `slack-release-ping` last week" must NOT auto-confirm this week). This is intentional per M10c §6.3.
 
-Both options stop. There is no "delete from main anyway" option — that's the canonical scope-anchor behavior (sibling worktrees represent intentionally separate workstreams).
+### Phase 5.4: Execute INLINE (tool-scope intersection)
 
-### Phase 4.1: Resolve target
+Follow the action body's numbered steps directly. The orchestrator is the runtime — no subagent dispatch in v1. Pass extra positional `$ARGUMENTS` (after the action name) as input context under а "User-supplied input" heading.
 
-Call **Phase 4.0** (resolve by name-or-description). Phase 4.0 handles the empty-input, exact-slug, free-text, and main-worktree-fallback cases — Phase 4.1 itself only consumes the returned `(<resolved-path>, <resolved-slug>, <source>)` tuple.
+**Tool-scope contract.** BEFORE running any step, intersect the action's frontmatter `allowed-tools` with the orchestrator's own `allowed-tools` ONCE и identify any step whose required tools fall outside the intersection. If gaps exist, surface them in а single AUQ before execution begins:
 
-If `<source> == main-worktree`, the orchestrator has already confirmed the user wants to read the main-worktree copy in Phase 4.0 Step 2 (or Step 3's tail confirm). Phase 4.4 will execute INLINE in the current worktree using the action body loaded from `<resolved-path>`; no files in the main worktree are written.
+- **Question:** "The action declares N step(s) using tools outside this run's tool scope: [list step numbers + missing tools]. How should I proceed?"
+- **Options:** `Skip the affected steps and run the rest` / `Cancel the run`
 
-### Phase 4.2: Read + parse
+If no gaps, proceed without asking. Do NOT call any tool the action did not declare in `allowed-tools`. Do NOT re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
 
-Read `<resolved-path>` (returned from Phase 4.0 — may be inside the current worktree's `.geniro/actions/` or, when `<source> == main-worktree`, the main worktree's path). Parse the frontmatter (`description`, `model`, `allowed-tools`, `argument-hint`, `created`). Hold the body steps in memory for Phase 4.4.
+If а step has а `[AUQ]` или `## Confirm:` annotation, fire AUQ at that step. On non-zero exit или tool failure → halt; transition к `failed` with step number captured.
 
-### Phase 4.3: Confirmation gate
+### Phase 5.5: Wrap-up + L2 emit (D10 closure)
 
-Trigger this gate **only when the action's frontmatter `description` declares destructive or external side effects** — concretely, when the description contains "Do NOT" (case-sensitive) or "destructive" (case-insensitive). These are the conventional caveat markers our example actions use (see `example-actions/pr-notify-slack.md` description) — they are not yet a hard requirement in `skill-template.md`, so action authors who write destructive actions but omit both markers should embed their own per-step `AskUserQuestion` gates inside the action body (see `example-actions/pr-notify-slack.md` Step 5 for the canonical inline-confirm pattern). Bare presence of `Bash` in the action's `allowed-tools` does NOT trigger the gate; routine read-only `gh` / `git` / file-glob actions would otherwise over-fire it.
-
-When triggered, use the `AskUserQuestion` tool:
-
-- **Question:** "Action `<resolved-slug>` declares destructive or external side effects in its description. Proceed?"
-- **Options:**
-  - label: "Run it" — description: "Execute the action steps now"
-  - label: "Cancel" — description: "Don't run; stop here"
-
-If the gate is not triggered (description has no risk markers), skip directly to 4.4 — typing the action name (or its kebab-normalization, per Phase 4.0 Step 2) is itself the user's intent to run; re-confirming would violate "skip questions already answered" (see anti-rationalization row at the bottom of this file).
-
-### Phase 4.4: Execute INLINE
-
-Follow the action body's numbered steps directly as the orchestrator. The orchestrator is the
-runtime — there is no subagent dispatch in v1. Pass any extra positional `$ARGUMENTS` (after the
-action name) as input context, inlined into the action's prompt under a "User-supplied input"
-heading the action steps can reference.
-
-**Tool-scope contract.** BEFORE running any step, intersect the action's frontmatter `allowed-tools` with the orchestrator's own `allowed-tools` ONCE and identify every step whose required tools fall outside the intersection. If any gaps exist, surface them all in a single `AskUserQuestion` call before execution begins:
-
-- **Question:** "The action declares <N> step(s) using tools outside this run's tool scope: [list step numbers + missing tools]. How should I proceed?"
-- **Options:**
-  - label: "Skip the affected steps and run the rest" — description: "Execute steps within scope; mark out-of-scope steps as skipped in the Phase 4.5 wrap-up"
-  - label: "Cancel the run" — description: "Stop before any step executes"
-
-If no gaps exist, proceed without asking. Do NOT call any tool the action did not declare in `allowed-tools`, and do NOT re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
-
-### Phase 4.5: Wrap-up
-
-When the action completes, print a brief summary:
+Print summary:
 
 ```
 Action `<resolved-slug>` complete.
 
 Steps run: <count>
-Steps skipped: <list, or "none">  # populated when Phase 4.4's tool-scope gate dropped out-of-scope steps
+Steps skipped: <list, or "none">
 Files changed: <list, or "none">
 External calls: <list, or "none">
 ```
 
-## Phase 5: Command `delete`
+**L2 emit on successful external-send run:** if the action's frontmatter declared `external-send: true` AND run succeeded, emit one L2 `discovery` row per M2 §5.3:
 
-### Step 1: Resolve + source-guard
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+emit_learning <<'EOF'
+{
+  "type": "discovery",
+  "trust": "verified",
+  "skill": "actions",
+  "tags": ["actions", "run", "<risk_class>"],
+  "summary": "ran <slug> (risk=<risk_class>, external=true)",
+  "entry": {"slug": "<slug>", "side_effects": [...]}
+}
+EOF
+```
 
-Call **Phase 4.0** (resolve by name-or-description). Phase 4.0's Step 4 enforces the source-aware destructive-op guard: if the resolved action lives in the main worktree (`<source> == main-worktree`), Phase 4.0 surfaces an AskUserQuestion that stops the run regardless of which option the user picks. Phase 5 only continues here when `<source> == local`.
+Else: no emit (most action runs are not novel-discovery events). This auto-replaces the dropped `/learnings` skill pattern for action runs.
 
-### Step 2: Confirm
+## Phase 6: Command `edit`
 
-Use the `AskUserQuestion` tool:
+### Step 1 — Resolve target
 
-- **Question:** "Delete `.geniro/actions/<resolved-slug>.md`? This cannot be undone unless the file is committed to git."
+Call **Phase 5.0**. If `<source> == main-worktree`, refuse-and-surface (editing а sibling worktree's action would modify а separate workstream — same rationale as `delete`).
+
+### Step 2 — Open for external editing
+
+Print absolute path: `Edit: <absolute-path-to-resolved-file>`.
+
+AUQ to wait for the user's "done" signal:
+
+- **Question:** "Have you finished editing `<absolute-path>`?"
 - **Options:**
-  - label: "Delete the file" — description: "Permanently remove this action"
-  - label: "Cancel" — description: "Keep the file unchanged"
+  - `Done — re-run validation` — Re-read the file и run Phase 4 Step 6 checks (1-10) with `edit-in-place` entry mode
+  - `Cancel` — Stop without re-validating; leave the file as the user left it
 
-### Step 3: Execute
+### Step 3 — Re-validate (on Done) + auto-validate
+
+Re-run the **Phase 4 Step 6 validation gate** with **entry mode = `edit-in-place`**. The file is NOT deleted on validation failure — pre-existing user work is preserved.
+
+**Auto-validation surfacing (M10c §8 addition):** if validation fails (CRITICAL/HIGH), surface findings + AUQ:
+
+- **Question:** "Auto-validation found issues: <list>. What next?"
+- **Options:** `Open editor again` / `Save anyway despite warnings` / `Revert to pre-edit version`
+
+The auto-validation does NOT block save; it surfaces. User remains in control.
+
+After all 10 checks pass: `Edited \`.geniro/actions/<resolved-slug>.md\`. Run with \`/geniro:actions run <resolved-slug>\`.`
+
+## Phase 7: Command `delete`
+
+### Step 1 — Resolve + source-guard
+
+Call **Phase 5.0**. Phase 5.0 Step 4 enforces the source-aware guard: if `<source> == main-worktree`, refuse and stop. Phase 7 only continues when `<source> == local`.
+
+### Step 2 — Confirm + high-risk warning
+
+Read action's frontmatter `risk_class`. AUQ:
+
+- **Question:** "Delete `.geniro/actions/<resolved-slug>.md`? This cannot be undone unless the file is committed к git." (For `risk_class: high`, prepend: "⚠ This high-risk action will be permanently removed; if it represents critical workflow, consider versioning it first via `/geniro:actions edit <resolved-slug>` and renaming к `<resolved-slug>-archived`.")
+- **Options:** `Delete the file` / `Cancel` (Recommended)
+
+### Step 3 — Execute
 
 If confirmed:
 
 ```bash
 rm -f .geniro/actions/<resolved-slug>.md
-```
-
-If the directory is now empty, silently clean up:
-
-```bash
-rmdir .geniro/actions/ 2>/dev/null
+rmdir .geniro/actions/ 2>/dev/null  # silently if empty
 ```
 
 Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
 
-## Phase 6: Command `edit`
+The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/actions/<slug>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk deletion is blocked.
 
-### Step 1: Resolve target
+## Phase 8: Command `validate` (NEW — OQ-M10b-1 closure)
 
-Call **Phase 4.0** (resolve by name-or-description). The resolver returns `(<resolved-path>, <resolved-slug>, <source>)`.
+### Step 1 — Resolve scope
 
-If `<source> == main-worktree`, refuse-and-surface the same way Phase 5 does for `delete`: editing a sibling worktree's action would modify a separate workstream. Use the `AskUserQuestion` tool:
+If `<slug>` provided: validate only `.geniro/actions/<slug>.md`. Else validate all `.geniro/actions/*.md`. Read-only; never mutates.
 
-- **Question:** "Action `<resolved-slug>` lives in the main worktree at `<main-worktree-root>/.geniro/actions/<resolved-slug>.md`. Editing it from a linked worktree would modify a sibling tree. How do you want to proceed?"
-- **Options:**
-  - label: "Cancel — I'll switch to main and re-run" — description: "Stop. Switch to the main worktree (`cd <main-worktree-root>`) and re-run `/geniro:actions edit <resolved-slug>`."
-  - label: "Cancel — keep the file unchanged" — description: "Stop without editing."
+### Step 2 — Lint rule set (shared with `/instructions validate review-extra`)
 
-Both options stop. Phase 6 only continues when `<source> == local`.
+Combined rule table (Phase 4 Step 6 checks + P-M10-2 description hygiene):
 
-### Step 2: Open for external editing
+| Check | Severity | Source |
+|---|---|---|
+| YAML frontmatter parses | CRITICAL | Phase 4 Step 6 |
+| `name:` matches filename | CRITICAL | Phase 4 |
+| `description:` starts with "Use when" | HIGH | Phase 4 + M10b P-M10-2 |
+| `description:` ≤250 chars | HIGH | Phase 4 |
+| `description:` mentions adjacent terms | LOW | M10b §10.2 |
+| `description:` includes boundary clause ("Skip for ...") | LOW | M10b §10.2 |
+| `risk_class:` present and valid (`low\|medium\|high`) | CRITICAL | M10c §7.2 (new) |
+| `external-send: true` ⇒ `risk_class: medium\|high` | HIGH | M10c §7.2 (new) |
+| `## Steps` section present with ≥1 numbered item | HIGH | Phase 4 |
+| No `{{placeholder}}` in body | HIGH | Phase 4 |
+| File <500 lines | MEDIUM | Phase 4 |
+| `allowed-tools:` field present (if action mutates) | LOW | M10c P-M10-1 "scoped" guideline |
+| No references to dropped skills in body | HIGH | M10b §10.2 alignment |
 
-Print the absolute path:
+Dropped-skill ref check uses the list: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`.
 
-```
-Edit: <absolute-path-to-resolved-file>
-```
-
-Then use the `AskUserQuestion` tool to wait for the user's "done" signal:
-
-- **Question:** "Have you finished editing `<absolute-path>`?"
-- **Options:**
-  - label: "Done — re-run validation" — description: "Re-read the file and run the Phase 3.6 validation checks (1-6) against the resulting content"
-  - label: "Cancel" — description: "Stop without re-validating; leave the file as the user left it"
-
-### Step 3: Re-validate (on Done)
-
-Re-run the **Phase 3.6 validation gate** with **entry mode = `edit-in-place`**. Phase 3.6's parametric failure path surfaces the specific failure and stops without `rm -f` — the file pre-existed this run, so the user's edit (or the original content if they made no change) stays on disk. The user can re-run `/geniro:actions edit <resolved-slug>` to fix and re-validate.
-
-After all six checks pass, print:
+### Step 3 — Output format
 
 ```
-Edited `.geniro/actions/<resolved-slug>.md`. Run with `/geniro:actions run <resolved-slug>`.
+$ /geniro:actions validate
+
+Validation results: 3 actions checked, 1 issue found.
+
+✓ daily-recap.md                  no issues
+⚠ slack-release-ping.md           1 HIGH
+  └── Line 4: risk_class missing — REQUIRED field per P-M10-1
+✓ pr-finalize.md                  no issues
+
+To fix: /geniro:actions edit slack-release-ping
 ```
 
-## Anti-rationalization table
+Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
+
+## Memory I/O (M2 §13)
+
+`.geniro/actions/*.md` is NOT а memory layer — it's executable workflow content. M2's 4 layers do not include actions.
+
+| Layer | Read | Write | Notes |
+|---|---|---|---|
+| L1 CLAUDE.md | not read | not written | `/actions` does not touch CLAUDE.md |
+| L2 learnings.jsonl | not read in CRUD modes | written в run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run; auto-replaces dropped `/learnings` |
+| L3 semantic files | not read | not written | N/A |
+| L4 `.geniro/instructions/*.md` | not read by `/actions` itself | not written | `/instructions` owns this surface |
+| Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD per M1; NOT part of M2 memory model |
+
+Actions are stored at the M1 T3 PERSISTENT/CRUD tier. They survive compaction trivially (file-on-disk M3 §6 Block 1).
+
+## Anti-pattern check (P-MP-1)
+
+| # | Anti-pattern | Status |
+|---|---|---|
+| 1 | One giant prompt | ✅ SKILL.md modular; action bodies are user-authored; action template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md` is ~80 LOC |
+| 2 | One giant tool | ✅ N/A |
+| 3 | Unbounded autonomous loop | ✅ 3-retry on slug + 3-retry on create-validation; run mode is one-pass through action body |
+| 4 | Autonomous external sends in first release | ✅ `risk_class: high` AUQ-gate with Cancel-as-recommended default; bare-slug fast path still respects the gate |
+| 5 | No approval state | ✅ Run-mode is per-invocation (context-dependent) — approvals[] persistence intentionally NOT applied; rationale documented в Phase 5.3 |
+| 6 | No durable plans or goals | ✅ N/A — actions ARE the durable plans for user-authored workflows |
+| 7 | No compaction strategy | ✅ Actions are file-on-disk; survive compaction natively |
+| 8 | All connectors loaded up front | ✅ Actions are loaded only when invoked; one at а time |
+| 9 | High-risk tools without policy | ✅ §ACI surface per phase + §Phase 5.3 risk-class AUQ ladder + Phase 4 schema constraints (allowed-tools intersection) |
+| 10 | Subagents before single-agent MVP measured | ✅ Zero subagents в /actions itself (action body may spawn agents if user-authored, but that's not /actions concern) |
+| 11 | Dynamic timestamps in plugin-distributed Markdown | ⚠ Implementation note — this SKILL.md has no runtime timestamps; the action `created:` field IS а timestamp but lives in user-authored content (not plugin-distributed) |
+| 12 | Non-deterministic agent registration order | ✅ N/A |
+
+## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll just edit a core Geniro skill instead of creating a custom action" | No — core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
-| "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via `AskUserQuestion` (Phase 3.1). For top-level `edit`, route through Phase 6 (resolve, external-edit, re-validate without `rm -f`). Silent overwrite destroys committed work. |
-| "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably; vague descriptions break Mode 2 routing. |
-| "The four interview questions are overkill for a small action" | No — they're the official skill-creator questions; even small actions need a clear purpose, trigger, and output documented in the file. |
-| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. Plain `.md` files at `.geniro/actions/` do not register. |
-| "I'll spawn a subagent to execute the action" | Not in v1 — Mode 2 is inline-only. Adding subagent dispatch is deferred until a real action proves it's needed. |
-| "I'll output the questions as plain text instead of using `AskUserQuestion`" | No — every WAIT gate uses the `AskUserQuestion` tool. Plain text doesn't block. |
-| "The `.gitignore` re-include lines are unnecessary if the user wants actions ignored" | No — default is committed (team-shareable). Users who want ignored can remove the re-include manually. Don't pre-decide for them. |
-| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. The orchestrator owns judgment, not auto-pick. Silent fuzzy execution is the picker analog of performative agreement. |
-| "I'll ask 'what do you want to do' even when the user typed a known slug (or its kebab-normalization)" | No — when `$ARGUMENTS` lacks a verb but the first token is an exact kebab slug in the registry, default to `run` (Phase 0 bare-slug fast path). The same rule extends to a deterministic kebab-normalization of the input (Phase 4.0 Step 2 — lowercase + whitespace-runs→hyphens), e.g., `daily recap` → `daily-recap`. Typing a known slug — literal or normalized — IS the answer; re-asking violates "skip questions already answered". The 4-option picker is reserved for genuinely ambiguous input (no verb AND no slug match AND no normalized match). Deterministic normalization is categorically different from the fuzzy match the row above forbids — the slug regex (kebab-only) makes normalize-then-match collision-free by construction. |
-| "I'll re-use Phase 3.6's `rm -f` failure behavior unconditionally" | No — Phase 3.6's failure path is **parametric on entry mode**. `create` (Phase 3.5 just wrote the file from a Phase 3.4 draft) → `rm -f` rollback is correct because the file didn't exist before this run. `edit-in-place` (Phase 3.1 "Edit in place" OR Phase 6 "Command edit" — the file pre-existed this run) → leave the file as the user left it. The user's pre-existing work must be preserved on failure. |
-| "I'll silently delete the action from the main worktree even though I'm in a linked worktree" | No — `delete` from a linked worktree refuses-and-surfaces. Sibling worktrees represent intentionally separate workstreams (see `skills/_shared/scope-anchor.md` § Anti-rationalization); the user must switch to main and re-run. |
+| "I'll just edit а core Geniro skill instead of creating а custom action" | No — core skills are shipped globally и overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
+| "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 6. Silent overwrite destroys committed work. |
+| "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
+| "The five interview questions are overkill for а small action" | No — they're the official skill-creator questions; even small actions need а clear purpose, trigger, output, и risk class documented in the file. |
+| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
+| "I'll spawn а subagent to execute the action" | Not in v1 — Phase 5 is inline-only. |
+| "I'll skip the risk_class AUQ if the user already confirmed last week" | No — risk-class decisions are context-dependent (P-M10-1 untrusted-by-default). Re-ask each run. The approvals[] persistence applies к one-time decisions (e.g., $ARGUMENTS disambiguation), NOT runtime confirmations. |
+| "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests а value based on Q3, but the user must confirm or pick differently. |
+| "I'll allow `--skip-confirm` flag к bypass the risk-class gate" | No — explicit anti-pattern (P-MP-1 #4). If user wants no-AUQ, they pick `risk_class: low` on create. Bypass would defeat the safety net. |
+| "I'll auto-elevate risk_class к `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine (per M10c OQ-M10c-3). The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
+| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
+| "I'll re-use Phase 4 Step 6's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
+| "I'll silently delete the action from the main worktree even though I'm in а linked worktree" | No — `delete` from а linked worktree refuses-and-surfaces. Sibling worktrees represent intentionally separate workstreams. |
+
+## Cross-references
+
+- M1 §T3 PERSISTENT (CRUD) — `.geniro/actions/` tier; optimistic mtime check
+- M2 §5.3 L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
+- M3 §6 Block 1 — file-on-disk compaction-survival channel
+- M4 §2.2 — 7 loop invariants
+- M4 §2.3 — quality-first budgets
+- M4 §13.5 — per-phase ACI
+- M10b §8 — edit dialogue-mode pattern (shared)
+- M10b §10 — validate rule set (shared P-M10-2 + structural lint)
+- `architecture/M10c-actions-redesign.md` — full design rationale
 
 ## Definition of Done
 
-- [ ] Intent parsed from `$ARGUMENTS` (or default to `list`)
-- [ ] If `create`: 4-question interview completed, draft previewed and approved, file written, all 6 validation checks passed
-- [ ] If `run`: action file located and read, confirmation gate (when needed), action steps executed inline
-- [ ] If `delete`: confirmed via `AskUserQuestion` before removal
-- [ ] If `edit`: target resolved (or refused if main-worktree), absolute path printed, AskUserQuestion "Done" gate fired, Phase 3.6 checks 1-6 re-run on Done, file NOT deleted on validation failure
-- [ ] All user interactions used `AskUserQuestion` — no plain-text questions
+- [ ] Intent parsed from `$ARGUMENTS` (или default to `list`)
+- [ ] If `create`: 5-question interview completed, draft previewed и approved, file written, all 10 validation checks passed
+- [ ] If `run`: action file located и read, risk_class AUQ fired (medium/high), action steps executed inline within tool-scope intersection
+- [ ] If `delete`: confirmed via AUQ before removal (high-risk warning added if applicable)
+- [ ] If `edit`: target resolved (или refused if main-worktree), absolute path printed, AUQ "Done" gate fired, Phase 4 Step 6 checks (1-10) re-run on Done, file NOT deleted on validation failure
+- [ ] If `validate`: 13-rule lint executed; CRITICAL/HIGH cause non-zero exit
+- [ ] All user interactions used `AskUserQuestion`
 - [ ] `.gitignore` re-include rules added on first action created (idempotent)
 - [ ] No `{{placeholder}}` left in any written file
-- [ ] File written has frontmatter `created` and `created-by: geniro:actions`
-- [ ] If `run`/`delete` received free-text input, Phase 4.0 resolved it via AskUserQuestion before any execution
-- [ ] Worktree fallback for `run` consulted the main worktree only when local registry didn't resolve, and the loaded path was confirmed via AskUserQuestion before executing
-- [ ] `delete` refused to remove actions from a sibling worktree (main-worktree source → refuse-and-surface)
+- [ ] File written has frontmatter `created`, `created-by: geniro:actions`, и `risk_class:`
+- [ ] L2 `discovery` emit fired on successful run with `external-send: true`
+- [ ] Worktree fallback for `run` consulted main worktree only when local registry didn't resolve, и path confirmed via AUQ before executing
+- [ ] `delete` / `edit` refused к operate on actions in а sibling worktree
