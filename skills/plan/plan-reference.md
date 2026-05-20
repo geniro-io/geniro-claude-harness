@@ -1,49 +1,47 @@
-# Brainstorm Reference
+# /geniro:plan Reference (M5)
 
-Companion reference for less-common usage paths of `/geniro:brainstorm`. The main flow lives in `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/SKILL.md`; this file documents refinement entry, edge cases, hand-off pre-fill, and the shared rules consumed.
+Companion reference for less-common usage paths of `/geniro:plan`. The main flow lives в `${CLAUDE_SKILL_DIR}/SKILL.md`; this file documents edge cases, the deprecation alias note, и the shared rules consumed.
 
 ---
 
-## Refining an existing design
+## DESIGN_DOC mode — refine path is removed (D3 fix)
 
-When Phase 0 mode detection returns `mode=DESIGN_DOC` and the user picks **Refine** from the Phase 0 AUQ, the brainstorming loop does NOT restart from Phase 1. Loop entry point:
+Pre-M5 `/brainstorm` shipped а "Refine" path that loaded an existing design doc и jumped к Phase 5 с the existing sections pre-populated. M5 §3.1 + §7.2 removes it per the D3 defect fix: prose docs have no machine-readable section boundaries; re-deriving sections от prose was structurally-lossy и downstream consumers couldn't reliably parse the result.
 
-- **Read the design doc in full** — the existing sections become the starting state.
-- **Jump to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` Phase 5** (Section approval) with each existing section pre-rendered as the AUQ subject. The user can Approve / Revise / Skip per the loop's section-by-section contract.
-- **Phase 1 (explore), Phase 2 (visual), Phase 3 (clarifying), Phase 4 (approaches) are skipped** — the existing doc has already encoded the explore findings and decisions. Re-running them would invalidate prior section work.
-- **Phase 6 (write), Phase 7 (self-review), Phase 8 (user re-review) run normally** — the revised doc is committed (new commit, not amend) and re-audited. The HARD-GATE remains binding until Phase 8 returns Approve.
+M5 replacement: the Phase 0 DESIGN_DOC AUQ has 2 options (per `plan-loop.md` §0.2):
 
-Cap the Phase 5 revision loop at 3 rounds per the loop's existing cap. If a section will not converge after 3 rounds, surface the loop's "re-open Phase 3 / Phase 4" AUQ — Refine may have been the wrong entry; the user can pivot to a Start-over.
+- **Start fresh с this as context** (Recommended) — the prior doc is inlined into Phase 1 Explore-agent prompts under а `## Prior Design Doc` section. Phase 5 uses the §17 10-section schema unconditionally — the prior doc is context, не template.
+- **Cancel** — exit без writing state.md.
+
+If the user really wants к surgically edit an existing design doc bypassing Phase 1-4, the correct path is к open the doc directly в an editor + manually update sections + re-run `/geniro:plan` only when ready к re-emit. /plan does NOT have an in-loop «edit existing sections» mode.
 
 ---
 
 ## Edge cases
 
-- **Empty `$ARGUMENTS`** — fire `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`:
-  - `header`: `"Topic"`.
-  - `question`: `"What are you thinking about?"`.
-  - `options[]`: include `Other` so the user can free-text the topic. Treat the response as `mode=IDEA, topic=<response>` and continue at Phase 1 of the brainstorming loop.
-  - Empty AUQ answer = upstream Claude Code bug per `medium-gate.md`; fall back to plain text and re-ask. Never auto-default.
+- **Empty $ARGUMENTS** — Phase 0 §0.1 fires an `AskUserQuestion` с 3 options ("New feature" / "Existing problem к solve" / "Cancel") followed by free-text capture. Non-empty answer → IDEA mode; "Cancel" → terminal без state.md.
 
-- **Topic spans multiple subsystems** — the brainstorming loop completes normally (one design doc), but the Phase 9 hand-off should recommend `Decompose into milestones`. Surface the multi-subsystem signal in the Phase 9 AUQ description so the user sees the recommendation. Do not auto-pick — the menu is single-select Always-WAIT.
+- **Topic spans multiple subsystems / very Big task** — the plan-loop completes normally (Phase 5 §5.3 milestone-mode fires automatically when effort tier is Big + Steps count ≥10 или wall-time ≥1 day). The Phase 9 hand-off recommends `/implement milestone 1` for sliced specs.
 
-- **User wants to brainstorm WITHOUT writing a doc** — not supported. The committed doc is the durable artifact downstream skills consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. If the user insists, write a minimal doc (Phase 5 trivial = 1-2 sections) and let them prune it manually post-commit. The three detection markers must still be present per the loop's Phase 6 contract.
+- **User wants к plan WITHOUT writing а spec.md** — not supported. The committed spec.md IS the durable artifact downstream skills (М4 /implement, М6 /review) consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. If the user insists, run /plan, pick "Stop — keep spec для later" at Phase 9 (terminal `done`, spec sits on disk но not committed). The three detection markers must still be present per Phase 6 contract.
 
-- **`mode=CODE_REFERENCE`** — error and exit per SKILL.md Phase 0. Do NOT fall back to `mode=IDEA` (silent misclassification of code references is the failure mode `design-doc-detect.md` Anti-rationalization warns against).
+- **`mode=CODE_REFERENCE`** — error и exit per Phase 0 §0.1 (design-doc-detect helper returns CODE_REFERENCE → /plan emits error: «code reference passed к /plan; pass а topic or design-doc path. Did you mean /geniro:implement <path>?»). Do NOT fall back к `mode=IDEA` — silent misclassification of code references is the failure mode `design-doc-detect.md` Anti-rationalization warns against.
+
+- **Compaction mid-Phase-5** — handled by М3 SessionStart re-injection of state.md `approvals[]` (P-M1-1) и `## Tool log`. The model re-reads `approvals[]` и skips already-answered AUQs; Phase 6 §6.4 idempotent re-entry regenerates spec.md от persisted approvals.
+
+- **Phase 7 validator hard-fail on round 3** — `plan-loop.md` §7.3 escalation AUQ fires с 3 options (accept-as-is / re-revise / abort). User has agency; no silent abort.
+
+- **Phase 8 user-revision round 3 exhaust** — `plan-loop.md` §8.3 escalation AUQ fires с 3 options (accept-as-is / re-revise / abort). Terminal `aborted` records `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
+
+- **Concurrent /plan runs in different worktrees** — each worktree has its own `.geniro/planning/<task-slug>/state.md`. The plan-mode-write-guard hook detects per-state-file (mtime within PLAN_LOCK_FRESHNESS_SEC; default 4h). Stale state files (>4h) are treated as abandoned to prevent permanent lockout.
 
 ---
 
-## Skipping the hand-off menu
+## Deprecation alias note (M5 §20.3 — one-cycle)
 
-The Phase 9 hand-off menu is Always-WAIT — auto-routing destroys the Big-vs-Small decision the user owns. However, when `$ARGUMENTS` already contains an unambiguous hand-off signal, the orchestrator MAY pre-fill the AUQ default selection so the user can confirm with one click.
+Pre-M5 `/geniro:brainstorm` is replaced by `/geniro:plan` (this skill). For one release cycle, `/geniro:brainstorm` is preserved as а deprecation stub at `skills/brainstorm/SKILL.md` — invoking it surfaces а one-line directive pointing к `/geniro:plan` и exits без running the loop.
 
-- **Forbidden:** `--implement`, `--decompose`, `--backlog` flags (per the flag-free principle in `design-doc-detect.md` Anti-rationalization — adding flags duplicates information and fragments the surface).
-- **Allowed signals (natural language in the topic string):**
-  - `"brainstorm and then implement <topic>"` → pre-select **Implement directly** in Phase 9 AUQ.
-  - `"brainstorm and then decompose <topic>"` → pre-select **Decompose into milestones**.
-  - `"brainstorm and add to backlog <topic>"` → pre-select **Add to backlog**.
-
-Pre-fill means the option is highlighted as the default; the user still confirms via `AskUserQuestion`. Never auto-execute the hand-off without the AUQ — same Always-WAIT contract as `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`.
+The deprecation stub does NOT run the loop. Users migrating от pre-M5 must re-invoke `/geniro:plan` once they see the deprecation message. After one release cycle (per master plan §60), the `/brainstorm` directory will be deleted entirely.
 
 ---
 
@@ -51,8 +49,19 @@ Pre-fill means the option is highlighted as the default; the user still confirms
 
 Shared rules consumed by this skill:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` — canonical 8-phase ideation loop (Phases 1-8 of this skill).
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:brainstorm`.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` — `AskUserQuestion` schema for the Phase 0 Refine/Start-over/Cancel gate, the empty-argument fallback, and the Phase 9 hand-off menu.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — invoked from brainstorming-loop Phase 2 when a UI signal fires.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md` — slug derivation for the design-doc path (`<branch>` segment).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` — canonical 9-phase loop (Phases 0-9 of this skill).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` — `AskUserQuestion` schema for the Phase 0 AUQ, the empty-argument fallback, и the Phase 9 hand-off menu.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — multi-select picker schema for Phase 5 §5.3 milestone-name approval.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 §1.2 effort-tier-scaled spawns и Phase 5 §5.3 milestone-mode trigger.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh` — М1 state.md write helper.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh` — М1 state.md validator for resume.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — L4 directive doc (Phase 1 entry refresh).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.sh` — L3 read helper (Phase 1 entry).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh` — L2 read helper (Phase 1 entry).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh` — L2 write helper (Phase 8 conditional `decision` emit).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` — cross-layer L4/L3/L2 conflict protocol.
+- `${CLAUDE_PLUGIN_ROOT}/hooks/plan-mode-write-guard.sh` — Layer-2 mutation guard (PreToolUse Write).
+- `${CLAUDE_SKILL_DIR}/spec-template.md` — 10-section P-M5-1 schema template (Phase 6 input).
+- `${CLAUDE_SKILL_DIR}/validator-checks.md` — 13 mechanical checks (Phase 7 input).
+- Architecture spec: `architecture/M5-plan-redesign.md`.
