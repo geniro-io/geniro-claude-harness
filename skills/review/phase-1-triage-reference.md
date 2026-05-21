@@ -57,20 +57,87 @@ If `gh` is unavailable или the PR cannot be fetched, report the error и stop
 
 ---
 
+## 3.5. Workflow integrations (issue-tracker fetch)
+
+Mirrors `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md:22` plumbing pattern — read `.geniro/workflow/*.md` integrations, apply argument-detection regex, attempt MCP fetch when backend available. Read-only от /review's perspective; status/comment updates remain в /implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
+
+Skipped когда `.geniro/workflow/` directory is absent OR empty (workflow not configured by /setup). Other inputs (files / diff range / branch / PR ref) ALL eligible — tracker IDs surface в `$ARGUMENTS` independently of PR-ref-driven flow.
+
+### 3.5.1 Detection
+
+1. `ls .geniro/workflow/*.md 2>/dev/null` — if zero matches, skip §3.5 entirely.
+2. For each workflow file, read it and extract the `## Argument Detection` regex patterns (Linear's: `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form, `\b[A-Z]{2,}-\d+\b` bare-ID form).
+3. Apply patterns against (a) `$ARGUMENTS`, (b) `pr.title`, (c) `pr.body` — in that order. First match wins. Multiple matches in one source are deduplicated to the first.
+4. Persist the matched tracker ID to state.md frontmatter:
+   - Linear: `linear-task-ref: <ENG-123|null>` (defaults к `null` когда no match).
+
+### 3.5.2 MCP fetch
+
+When а tracker ID is detected AND the corresponding MCP server is registered (heuristic: any tool prefixed `mcp__linear__*` appears в the orchestrator's tool list at runtime — exact tool names depend on the installed MCP server):
+
+1. Fetch the issue: title, description, acceptance criteria (parse `## Acceptance criteria` / numbered AC list from description body), labels, priority, parent issue ID, assignee.
+2. **Sub-task fetch (parent epic linkage):** if the fetched issue has а non-null `parent` field, fetch the parent issue AND list its children. Persist:
+   - `linear-parent-ref: <ENG-100|null>` к state.md frontmatter (the parent issue ID).
+   - Build `linear-sibling-task-ids:` slot (in-memory only — not state.md frontmatter): list of sibling sub-task IDs от the parent's children. Consumed by §4 peer-PR scout's Linear-relatedness bonus.
+3. Build `LINEAR CONTEXT:` block — schema:
+   ```
+   LINEAR CONTEXT:
+     ID: <ENG-123>
+     Title: <verbatim>
+     Description: <first ~800 chars, trimmed at sentence boundary if longer>
+     Acceptance Criteria:
+       - <AC1>
+       - <AC2>
+       …
+     Labels: <comma-separated>
+     Priority: <Urgent|High|Medium|Low|None>
+     Parent: <ENG-100|none>
+     Sibling sub-tasks (от parent): <ENG-101, ENG-102, …|none>
+   ```
+   Total cap ~2000 chars — trim Description first, then AC list (keep first 5 ACs), then Labels.
+
+### 3.5.3 Inline routing
+
+`LINEAR CONTEXT:` block is pre-inlined into Phase 2 spawn prompts для **3 reviewers only**:
+
+- **spec-compliance** — Acceptance Criteria become the rubric (in addition to PLAN CONTEXT section 9). Each AC must be reflected by а test reference or boundary assertion in the diff.
+- **pr-metadata** — Title/body alignment с issue title; issue ID prefix presence enhanced from regex-only к verified-existence check.
+- **architecture** — Parent epic + sibling sub-task IDs enable cross-PR coordination signals (see §4 expanded peer-PR scout).
+
+Other dims (bugs / security / tests / optimizations / guidelines / conventions / design) do NOT see LINEAR CONTEXT — they review the code under per-file rubrics where tracker context is noise.
+
+### 3.5.4 Fail-open behavior
+
+| Failure mode | Slot value | Caveat surfaced |
+|---|---|---|
+| Workflow directory absent | (§3.5 entirely skipped) | none — silent (workflow not configured) |
+| Tracker ID detected but MCP server unregistered | `LINEAR CONTEXT: none — MCP unavailable (degraded к regex-only ID detection)` | `## Caveats` one-liner |
+| MCP fetch error (network / scope / rate limit) | `LINEAR CONTEXT: none — MCP fetch failed (fail-open)` | `## Caveats` one-liner с error reason |
+| Sub-task list fetch fails (parent fetch ok) | `Sibling sub-tasks: none — child fetch failed` (partial block) | `## Caveats` one-liner |
+| Parent issue absent от fetched issue (top-level epic) | `Parent: none` (legitimate, no caveat) | none |
+
+Read-only — never writes к Linear; never mutates git state. Latency ~1-3s per fetch on healthy network (1-2 fetches: main issue + optional parent).
+
+---
+
 ## 4. Peer-PR scout (PR-ref input only)
 
 Skip для files / diff range / branch. Mechanism:
 
 - `gh pr list --state open --base <baseRefName> --json number,title,headRefName,author,updatedAt,files --limit 30`
 - Compute file-path intersection between current PR's changed files и each sibling. `gh pr diff <N> --name-only` для file-name list (re-derived от parsing captured diff текст or separate call).
-- Keep top-3 by overlap count (ties broken by `updatedAt` descending).
-- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -300` (bounded к 300 lines).
-- Build `PEER-PR CONTEXT:` block: one entry per sibling. Total cap ~3000 chars — drop lowest-overlap sibling first if exceeded.
-- Pre-inline into architecture и design reviewer prompts ONLY. Not threaded into bugs/security/tests/optimizations/guidelines/conventions/pr-metadata (cross-reviewer convergence anti-pattern + conventions rubric mismatch).
+- **Score each candidate sibling** (extended за пределы pure file-overlap):
+  - `file_overlap`: integer count of intersecting changed files.
+  - `linear_bonus`: +2 if sibling's PR title OR body contains а Linear ID matching `linear-parent-ref` OR appearing in `linear-sibling-task-ids:` от §3.5.2 (parent epic OR sibling sub-task linkage). Bonus is additive: PR can earn +2 for parent-match AND +2 for sibling-sub-task-match (total +4).
+  - `total_score = file_overlap + linear_bonus`.
+- Keep **top-10** by `total_score` (ties broken by `updatedAt` descending). Drop candidates с `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When §3.5 is skipped (no workflow), `linear_bonus` is always 0 и this reduces к pure file-overlap top-10.
+- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (bounded к **200 lines** per sibling — tightened от 300 к compensate for higher count).
+- Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated с `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**5000 chars** — drop lowest-`total_score` sibling first if exceeded.
+- Pre-inline into **6 reviewer prompts**: architecture, design, **bugs, conventions, optimizations, spec-compliance** (expanded от architecture + design only). Skipped для tests + security + guidelines + pr-metadata (orthogonal или target-PR-specific).
 
-Fail-open: if `gh pr list` fails или zero overlap, render slot as `none — gh unavailable (fail-open)` (error case) или `none — no overlapping open peer PRs` (legitimate empty result).
+Fail-open: if `gh pr list` fails или zero overlap-and-bonus surviving, render slot as `none — gh unavailable (fail-open)` (error case) или `none — no relevant open peer PRs` (legitimate empty result).
 
-Read-only — never writes files, never mutates git state. Latency ~1-3s on healthy network.
+Read-only — never writes files, never mutates git state. Latency ~1-3s base + ~200ms per kept sibling (vs ~300ms in pre-expansion 3-sibling cap).
 
 ---
 

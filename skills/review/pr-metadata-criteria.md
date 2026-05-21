@@ -103,6 +103,12 @@ When the repo uses an issue tracker (Linear / Jira / GitHub Issues / Pivotal), m
 
 **Red flag:** repo's modal pattern includes issue IDs (≥3/5 sampled) and this PR's title+body together contain none.
 
+**LINEAR CONTEXT enhancement (workflow integration):** when the `LINEAR CONTEXT:` slot is non-`none`, the ticket ID was both detected by regex AND verified to exist via MCP fetch. Use this к distinguish two failure modes:
+
+- **ID in title/body but LINEAR CONTEXT = `none — MCP fetch failed (fail-open)`**: surface а MEDIUM informational note (`## Open Questions` rather than а finding) — «Linear ID `ENG-NNN` cited but not verifiable (MCP unavailable); cannot confirm issue exists or matches description».
+- **ID в title/body AND LINEAR CONTEXT populated**: cross-check pr.title against `LINEAR CONTEXT.Title`. If pr.title diverges materially от issue title (different action verb / different surface area), flag as а MEDIUM finding: «PR title `<pr-title>` materially diverges от Linear issue title `<linear-title>` — verify PR addresses the right scope». Pure prefix differences (`[ENG-123]` ahead of pr-title) are NOT divergence.
+- **Repo modal expects Linear AND LINEAR CONTEXT = `none — workflow not configured`**: surface а one-line informational note in `## Caveats` — «Repo uses Linear (per modal sampling) but `.geniro/workflow/linear.md` not configured — run `/geniro:setup` к enable issue context fetch».
+
 ### 10. Description — Acceptance Criteria When Issue Linked
 
 When the PR links an issue, the description should either restate the acceptance criteria or explicitly confirm them ("Closes #123 — all ACs from the issue are covered").

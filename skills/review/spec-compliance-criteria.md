@@ -24,6 +24,16 @@ Findings MUST cite the specific section (or frontmatter field) violated/missing 
 
 **Backward-compat fallback (M6 §16.3):** when frontmatter is absent (legacy/unstructured PLAN CONTEXT), run checks 1-9 (the original 9). Skip checks #10 (Done Condition) и #11 (Tools Required) — there's no section anchor к cite. Surface а one-line note в `## Open Questions`: «PLAN CONTEXT lacks M5 schema — falling back к prose checks; Done Condition + Tools Required не verified».
 
+## LINEAR CONTEXT supplement (workflow integration)
+
+When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched а Linear issue per Phase 1 §3.5), the Linear issue's **Acceptance Criteria** field acts as an additional rubric ON TOP OF PLAN CONTEXT section 9. Two-source reconciliation:
+
+- **Both present (PLAN CONTEXT section 9 AND Linear ACs):** ACs от both sources are merged into а single rubric. Tests must reference behaviors от each. Conflicts (PLAN-AC1 contradicts Linear-AC1) are surfaced as а dedicated finding с severity HIGH, citing both sources verbatim.
+- **Only Linear ACs present (no PLAN CONTEXT OR PLAN CONTEXT lacks section 9):** Linear ACs become the sole rubric. Apply check #4 (Tests for Stated Acceptance Criteria) against the Linear AC list.
+- **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged от §What to Check rubric. The fail-open caveat от Phase 1 §3.5.4 surfaces в `## Caveats`.
+
+Findings от Linear-AC mismatches carry the prefix «Linear AC: » в the Cause field to distinguish от PLAN CONTEXT ACs (e.g., «Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path»). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
+
 ## What to Check
 
 ### 1. Scope Completeness
@@ -207,6 +217,15 @@ The detection signals above come from `gh pr view --json isDraft,author,title,bo
 Do not emit findings for items the plan did not commit to. PLAN CONTEXT is the rubric here — if a check's precondition is not visible in the plan, the check does not fire. This is the load-bearing constraint that separates this dimension from inventing requirements: a finding is only valid when the missing artifact can be cited verbatim back to a specific fragment of the plan in the `Evidence:` field.
 
 Apply the severity downgrades from the False Positives section before tagging. A precondition-met finding against an exploratory-plan item drops one level (HIGH becomes MEDIUM, MEDIUM becomes informational); a precondition-met finding against a draft PR may be suppressed entirely per the draft-PR carve-out. The final severity tag should reflect both the structural class of the gap (Check N → CRITICAL/HIGH/MEDIUM here) AND any downgrade rule that fires from the False Positives section.
+
+## Cross-PR Scope Split (peer-PR context)
+
+When the `PEER-PR CONTEXT:` slot is non-`none` AND the LINEAR CONTEXT block shows а parent epic с sibling sub-tasks (or PLAN CONTEXT enumerates а multi-PR plan per §Common False Positives «Plan covers а multi-PR effort»), the parent's scope is split across siblings. Apply scope-completeness checks **against the slice the current PR owns**, not the whole parent:
+
+- If LINEAR CONTEXT shows `linear-parent-ref: ENG-100` AND PEER-PR CONTEXT lists а sibling PR carrying а sibling sub-task ID (e.g., `ENG-101` while current is `ENG-102`): the parent's scope is split. Each sub-task PR owns its own slice. Items belonging к the sibling sub-task are NOT omissions on the current PR.
+- A finding shape: «Parent epic ENG-100 has scope items A, B, C. Current PR ENG-102 covers B. Sibling PR #N (ENG-101) covers A. Item C unassigned — surface as `## Open Questions` for user awareness, not а HIGH finding». Severity MEDIUM (open-question signal, not а blocking gap).
+
+When ALL parent scope items appear covered across current + peer PRs combined, the multi-PR effort is complete — surface а one-line informational note в `## Open Questions`: «Parent epic ENG-100 fully covered by [current + peer-PR list]».
 
 ## Output Anchor
 

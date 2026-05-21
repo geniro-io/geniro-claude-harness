@@ -225,6 +225,16 @@ Some ORMs only have axis 2 (Prisma, Drizzle) — they return POJOs by default; t
 
 Async parallelization, bulk operations, and bundle/asset patterns are similarly cross-stack: substitute `Promise.all` ↔ `asyncio.gather` ↔ `errgroup.Wait` ↔ `tokio::join!`; substitute `insertMany` ↔ `bulk_create` ↔ `insert_all` ↔ multi-row `INSERT VALUES`. React re-render hygiene is React-specific but the underlying principle (don't recompute when input unchanged) maps to Vue `computed`, Svelte `$:`, SolidJS `createMemo`.
 
+## Cross-PR Hot-Path Work (peer-PR context)
+
+When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs для parallel optimization work on the same hot path:
+
+- Same query / endpoint / render path independently optimized в both PRs — risk of compounded changes overshooting (e.g., both PRs add caching layers at different levels).
+- Sibling PR moves а hot-path resource (e.g., replaces ORM с raw SQL) while current PR also touches the same path — coordination needed на which optimization wins.
+- Sibling PR introduces а new bulk-operation helper that current PR's per-row loop should use — surfaces reuse opportunity before merge.
+
+A valid finding shape: «PR #N (peer) optimizes `<path>` at `<file:line>` via <mechanism>; current diff touches the same path с different / overlapping approach — coordinate optimization strategy before shipping both». Severity MEDIUM (optimization findings cap at HIGH per Severity Guidelines).
+
 ## Review Checklist
 
 - [ ] Read-only ORM paths use the stack's skip-hydration mechanism (`.lean()`, `raw:true`, `HYDRATE_ARRAY`, `.values()`, `.pluck()`)

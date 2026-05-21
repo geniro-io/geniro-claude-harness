@@ -268,6 +268,17 @@ A few categories are language-specific:
 
 When a category does not apply to the language, skip it — do not force-fit.
 
+## Cross-PR Convention Drift (peer-PR context)
+
+When the `PEER-PR CONTEXT:` slot is non-`none`, siblings in flight на same target branch ARE part of the modal denominator для recent / in-flight patterns. Inspect kept sibling diffs для convention conflicts:
+
+- Same code kind (helper-placement, naming style, import grouping) introduced с different conventions across parallel PRs — emerging-pattern split, neither has merged yet.
+- Sibling PR establishes а new convention (e.g., adopts а new error-handling library) while current PR uses the pre-existing convention — coordination needed на which becomes the modal once both merge.
+
+Apply the 80% modal threshold AT THE MERGE-STATE LEVEL — peer PRs in flight don't yet contribute к the merged modal. А valid finding shape: «PR #N (peer) introduces convention X for <code kind>; current diff uses convention Y. Neither has merged yet — modal not established. Coordinate on which becomes the convention before either ships». Severity HIGH когда current PR's pattern is uniquely novel AND peer's pattern matches existing minority precedent; MEDIUM otherwise.
+
+Do NOT apply the modal threshold к peer PRs as if they were merged siblings — that would inflate the denominator с unmerged code. The signal is «two-way coordination needed», not «modal violation».
+
 ## Review Checklist
 
 - [ ] Read explicit convention sources (CLAUDE.md, .claude/rules/, AGENTS.md, ADRs) before sampling

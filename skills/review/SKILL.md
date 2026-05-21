@@ -112,17 +112,18 @@ Summary of what Phase 1 does:
 1. **Input mode detect** — OUTGOING / INCOMING / pr-ref routing per `$ARGUMENTS`. Anchored NL signals («process review on #N») route к INCOMING; PR ref + K>0 unresolved threads fires Mode AUQ.
 2. **Scope resolution** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. NEVER invoke `gh pr list` к invent а target.
 3. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`.
-4. **Peer-PR scout** (PR-ref only) — top-3 sibling PRs с file overlap; inlined into architecture + design reviewer prompts only.
-5. **Worktree pre-flight** (PR-ref only) — 3-branch routing (already-in-target / different-worktree / outside) per the reference file.
-6. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style`+`user-preferences` — M10b pipeline tier, 4 files).
-7. **Step 0.5 — Round-N counter** — increments and fires Round-N AUQ когда round ≥3.
-8. **Step 0.6 — PLAN CONTEXT load (M5-aware).** Detection per `${CLAUDE_SKILL_DIR}/plan-context-reference.md` §2. Structured-section parser когда `geniro_kind: design-doc` frontmatter present; legacy prose fallback otherwise.
-9. **Step 0.7 — Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / NEW: mechanical secret-scan strict mode).
-10. **Step 0.8 — Memory layer load (M2):** `load-custom-instructions` MODE:refresh + `load-semantic` MODE:refresh + `query-learnings` (top-K, K=5 default) + `resolve-conflicts`.
-11. **Mode AUQ** (Standard vs TDD) когда neither `--tdd` nor `--standard` в `$ARGUMENTS`. Persist к `approvals[]` с category `tdd_mode_choice`.
-12. **Size triage** — classify files Trivial / Substantive когда diff >8 files или >400 LOC. Controls Phase 2 Standard vs Batched mode.
+4. **Workflow integrations** (§3.5) — read `.geniro/workflow/*.md`, apply tracker-ID regex against `$ARGUMENTS` + `pr.title` + `pr.body`. On Linear match с MCP available: fetch issue (+ parent epic + sibling sub-tasks). Build `LINEAR CONTEXT:` block. Persist `linear-task-ref:` + `linear-parent-ref:` к state.md frontmatter. Fail-open if MCP unavailable.
+5. **Peer-PR scout** (PR-ref only) — top-10 sibling PRs scored by file overlap + Linear-relatedness bonus (parent-epic / sibling-sub-task matches); inlined into 6 reviewer prompts (architecture + design + bugs + conventions + optimizations + spec-compliance).
+6. **Worktree pre-flight** (PR-ref only) — 3-branch routing (already-in-target / different-worktree / outside) per the reference file.
+7. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style`+`user-preferences` — M10b pipeline tier, 4 files).
+8. **Step 0.5 — Round-N counter** — increments and fires Round-N AUQ когда round ≥3.
+9. **Step 0.6 — PLAN CONTEXT load (M5-aware).** Detection per `${CLAUDE_SKILL_DIR}/plan-context-reference.md` §2. Structured-section parser когда `geniro_kind: design-doc` frontmatter present; legacy prose fallback otherwise.
+10. **Step 0.7 — Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / NEW: mechanical secret-scan strict mode).
+11. **Step 0.8 — Memory layer load (M2):** `load-custom-instructions` MODE:refresh + `load-semantic` MODE:refresh + `query-learnings` (top-K, K=5 default) + `resolve-conflicts`.
+12. **Mode AUQ** (Standard vs TDD) когда neither `--tdd` nor `--standard` в `$ARGUMENTS`. Persist к `approvals[]` с category `tdd_mode_choice`.
+13. **Size triage** — classify files Trivial / Substantive когда diff >8 files или >400 LOC. Controls Phase 2 Standard vs Batched mode.
 
-Exit criterion: state.md frontmatter populated с `mode`, `round`, `risk-tier`, `pr-ref`, `plan-context-ref`, `simplify-mode`, all populated; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
+Exit criterion: state.md frontmatter populated с `mode`, `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, `simplify-mode`, all populated; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
 ---
 
@@ -213,8 +214,9 @@ Single message с N parallel `Agent` tool uses, one per dimension. Each spawn:
   - Project conventions from L4 (refreshed).
   - **Mechanical pre-pass findings (Phase 1.5) as prior-context** под `## Mechanical Pre-pass Findings` section.
   - PLAN CONTEXT — spec-compliance dim ONLY (other dims see `PLAN CONTEXT: <plan tag fields only>` per the M5 schema-aware reference).
+  - **LINEAR CONTEXT** — spec-compliance + pr-metadata + architecture dims ONLY (per Phase 1 §3.5). Block omitted entirely для other dims. Slot value `none — workflow not configured` когда §3.5 was skipped.
   - PRIOR-ROUND FINDINGS (Step 0.5 prior-round-summary, или `none — first review`).
-  - PEER-PR CONTEXT — architecture + design dims ONLY (per Phase 1 §4).
+  - **PEER-PR CONTEXT** — architecture + design + bugs + conventions + optimizations + spec-compliance dims ONLY (per Phase 1 §4, expanded от 2 dims к 6).
   - Dimension-specific criteria file body inlined.
   - Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 
@@ -360,6 +362,8 @@ pr-head-sha: <40-char SHA|null>
 pr-title: <verbatim title|null>
 pr-body: <verbatim body|null>
 plan-context-ref: <abs-path|null>
+linear-task-ref: <ENG-123|null>
+linear-parent-ref: <ENG-100|null>
 simplify-mode: <true|false>
 resolved-threads-snapshot: [<path:line entries|null>]
 approvals: []
@@ -489,7 +493,7 @@ Open questions for Phase 6 deferred per spec OQ-M6-4 (hard-ceiling at round 5 or
 
 | Phase | Allowed tools | Restricted |
 |---|---|---|
-| Phase 1 / 1.5 | Read, Grep, Glob, Bash (read-only — `gh pr view`, `git diff`, `which <tool>`, lint commands, `tsc --noEmit`) | No Edit/Write apart от M1 state.md |
+| Phase 1 / 1.5 | Read, Grep, Glob, Bash (read-only — `gh pr view`, `git diff`, `which <tool>`, lint commands, `tsc --noEmit`), **`mcp__linear__*` (read-only — `get_issue` / `list_issues` for §3.5 workflow integration; degrade silently if unregistered)** | No Edit/Write apart от M1 state.md; no Linear `update_issue` / `create_comment` от /review (those remain в /implement Ship) |
 | Phase 2 / 3 / 4 | Agent (reviewer-agent, relevance-filter-agent, validation sub-agents, adversarial-tester-agent) | No Edit/Write/Bash mutations |
 | Phase 5 | Write (scoped к `.geniro/state/handoff/**`), `mcp__github__pull_request_review_write` (conditional), `emit-learning` helper | Direct edits outside scope blocked by hooks |
 | Phase 6 | AskUserQuestion | Read-only |
@@ -544,6 +548,10 @@ Per master plan P-MP-1: every milestone closes с an explicit anti-pattern check
 | "I'll spawn the adversarial-tester-agent и ask the user к confirm later." | Inline gates rationalize away into "this counts as approval". Skill MUST `AskUserQuestion` BEFORE spawning. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
 | "The findings look obviously postable — I'll just batch-post к the PR и tell the user after." | Posting к а PR is an external write к а public surface. Inline gates rationalize away. Phase 6 Action gate's "Post" selection IS the consent. |
 | "TDD mode is on, user clearly wants tests authored — skip the Phase 4c AUQ." | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable in every mode. |
+| "I'll auto-update Linear status from /review когда findings are critical — saves user а step." | /review is а Reporter (M6 H-2). Linear `update_issue` / `create_comment` are external side-effect writes; only /implement Ship runs them per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` §Status Transitions, all gated by AUQ. /review's MCP surface is read-only (`get_issue` / `list_issues`) per §13.5 ACI. |
+| "Inline LINEAR CONTEXT into ALL 9 reviewer dims — more context = better review." | Cross-reviewer convergence anti-pattern (mirror PEER-PR rationale § 4). LINEAR CONTEXT helps spec-compliance (rubric source), pr-metadata (title-divergence check), architecture (parent-epic linkage); other dims see it as noise that biases their per-file rubric. |
+| "Top-10 peer PRs is too noisy — drop к top-5 to keep prompts small." | Total cap is 5K chars (vs old 3K), not raw LOC count. Natural drop kicks в — typical run keeps 3-5 actual siblings in prompts. Top-10 is the candidate pool; ranking + cap selects which survive. Tightening к top-5 candidates risks losing parent-epic linked PRs that score 0 file overlap but +4 linear bonus. |
+| "Linear MCP unregistered — surface а HIGH finding so user installs it." | §3.5.4 fail-open contract: degraded paths surface а one-line `## Caveats` note, not findings. The skill doesn't pressure user к install tooling — that's UX hostility. |
 
 ---
 
@@ -553,12 +561,14 @@ Code review is complete when:
 
 - [ ] Phase 1 mode detection ran — Outgoing vs Incoming routed per `$ARGUMENTS` shape
 - [ ] Phase 1 PLAN CONTEXT resolved (M5 schema-aware load когда applicable, fallback к prose detection)
+- [ ] Phase 1 §3.5 Workflow integrations ran когда `.geniro/workflow/*.md` non-empty — tracker ID detected (если present в `$ARGUMENTS` / `pr.title` / `pr.body`); `linear-task-ref` + `linear-parent-ref` populated в frontmatter; `LINEAR CONTEXT:` block built (или fail-open caveat surfaced)
+- [ ] Phase 1 §4 Peer-PR scout (PR-ref only) ran с extended scoring — `total_score = file_overlap + linear_bonus`; top-10 kept; per-sibling diff ≤200 lines; total cap 5K chars; PEER-PR CONTEXT fed к 6 dims
 - [ ] Phase 1 Step 0.5 Round-N gate evaluated — round counter incremented; Round-N AUQ fired когда round ≥3
 - [ ] Phase 1 Step 0.7 risk-tier stratification ran — `risk-tier: <standard|high>` persisted; 4 downstream knobs adjusted
 - [ ] Phase 1 Step 0.8 M2 memory layers loaded (L4 instructions + L3 semantic + L2 learnings)
 - [ ] Phase 1 git-workspace decision ran когда input was а PR ref
 - [ ] Phase 1.5 mechanical pre-pass ran — 3 checks (lint / schema / secret scan) с strict-mode secret-scan когда risk-tier:high
-- [ ] Phase 2 reviewers spawned и executed в parallel, each prompt carrying PLAN CONTEXT (spec-compliance dim only) + PRIOR-ROUND FINDINGS + Mechanical Pre-pass Findings + alignment-tag instruction
+- [ ] Phase 2 reviewers spawned и executed в parallel, each prompt carrying PLAN CONTEXT (spec-compliance dim only) + LINEAR CONTEXT (spec-compliance + pr-metadata + architecture dims only) + PEER-PR CONTEXT (6 dims) + PRIOR-ROUND FINDINGS + Mechanical Pre-pass Findings + alignment-tag instruction
 - [ ] Phase 2 spec-compliance reviewer spawned когда PLAN CONTEXT non-`none` AND (input was а PR ref OR risk-tier:high)
 - [ ] Phase 2 `--simplify` flag prepended deep-simplify criteria к 5 dimensions (architecture / conventions / guidelines / bugs / optimizations) когда present
 - [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding

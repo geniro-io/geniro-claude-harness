@@ -213,6 +213,7 @@ grep -n "workaround\|temporary\|quick fix" file.js
 - Inconsistent patterns (old style mixed with new)
 - Comments saying "this is hacky but it works"
 - Code that duplicates existing patterns elsewhere — "elsewhere" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces helper `<name>` at `<file:line>` — current change reimplements it inline, consider reusing or coordinating"
+- **Linear parent-epic awareness** — when the `LINEAR CONTEXT:` slot shows а non-`none` parent + sibling sub-tasks AND `PEER-PR CONTEXT:` lists а sibling PR carrying one of those sub-task IDs, flag architectural divergence between parallel sub-tasks of the same epic. Valid finding shape: «Parent epic <ENG-100> distributes work across <current PR sub-task X> и <sibling PR #N sub-task Y>; the two PRs adopt incompatible <data model | API contract | layer boundary> for the shared epic surface — coordinate before either lands». Severity HIGH when the divergence creates а runtime contract collision; MEDIUM otherwise.
 
 ### 8. Testing Architecture
 - Code designed to be difficult to test

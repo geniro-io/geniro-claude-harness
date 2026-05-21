@@ -321,9 +321,13 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` для the 9 hard-
 
 **NEW knob (D6 fix):** Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns AKIA*/sk-*/PEM + AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH `-----BEGIN OPENSSH PRIVATE KEY-----` markers. Standard tier scans only the first 4 (preserved от pre-M6).
 
-### 6.3 Worktree pre-flight + peer-PR scout
+### 6.3 Worktree pre-flight + workflow integrations + peer-PR scout
 
-Preserved verbatim. Logic moves к `phase-1-triage-reference.md` (§18).
+Worktree pre-flight preserved verbatim. Logic moves к `phase-1-triage-reference.md` (§18).
+
+**Workflow integrations (NEW §3.5).** Mirrors `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md:22` plumbing — reads `.geniro/workflow/*.md` files, applies tracker-ID regex against `$ARGUMENTS` + `pr.title` + `pr.body`. On Linear match с MCP available: fetches issue + parent epic + sibling sub-tasks. Persists `linear-task-ref:` + `linear-parent-ref:` к state.md frontmatter. Builds `LINEAR CONTEXT:` block (cap ~2K chars) inlined для **3 reviewer dims only**: spec-compliance + pr-metadata + architecture. Fail-open: missing workflow OR unavailable MCP → degraded к regex-only с `## Caveats` one-liner. /review is read-only от Linear's perspective — status/comment updates remain в /implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` §AI-Disclosure Prefix.
+
+**Peer-PR scout expansion.** Pre-M6 top-3 by file-overlap, 300-line per-sibling cap, 3K total cap, fed к architecture + design only. M6-extended: top-10 by `file_overlap + linear_bonus` (+2 if sibling carries `linear-parent-ref` or matches sibling sub-task IDs от §3.5). Per-sibling cap 200 lines (tightened); total cap 5K chars. Fed к **6 reviewer dims**: architecture + design + bugs + conventions + optimizations + spec-compliance (skipped для tests + security + guidelines + pr-metadata — orthogonal или target-PR-specific).
 
 ### 6.4 PLAN CONTEXT load (M5-aware — §16.1)
 

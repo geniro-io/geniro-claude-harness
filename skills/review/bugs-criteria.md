@@ -187,6 +187,16 @@ grep -n "mktemp\|tmpfile\|createTempFile\|tmp\." file.js | grep -v "unlink\|remo
    - Check comments or git history
    - Only flag if causes demonstrated bugs
 
+## Cross-PR API Conflicts (peer-PR context)
+
+When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for API-shape collisions с the current PR's changed files:
+
+- Same exported function / endpoint / type / migration touched by both PRs с incompatible signatures (e.g., PR A adds parameter `foo`; PR B renames the same function).
+- Same database column / table modified by both PRs (column added in A, removed in B; type changed in both с different types).
+- Same shared module imported and mutated by both PRs (concurrent edits к the same lookup table / config object).
+
+A valid finding shape: «PR #N (peer) modifies `<symbol>` at `<file:line>`; current diff also modifies the same symbol с incompatible <shape | type | side-effect> — coordinate ordering / merge resolution before shipping both». Severity HIGH когда shipping both causes runtime breakage; MEDIUM когда it's а stale-state coordination concern.
+
 ## Stack-Agnostic Patterns
 
 This criteria works across languages:
