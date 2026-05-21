@@ -388,6 +388,8 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 
 `validate` accepts `<scope>` arg (validate one file) или no arg (validate all). Read-only; never mutates.
 
+**P-X8-5A flag:** `--max-lines N` overrides the default 200-LOC threshold (Step 2). Use `--max-lines 0` к disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
+
 ### Step 2 — Lint rule set
 
 **Structural checks (apply к all scopes):**
@@ -397,7 +399,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
 | `## Rules` heading present | HIGH | File has body but no `## Rules` header |
 | `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead) | HIGH | Missing `## Constraints` |
-| File size < 200 lines | MEDIUM | Long instruction files get ignored by the model |
+| File ≤ 200 lines (P-X8-5A; threshold env-overridable, see Step 1) | LOW | Anthropic Claude Code memory guidance: «longer files consume more context and reduce adherence». Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
 
 **Reference checks:**
 
@@ -450,15 +452,19 @@ Free-form subsections raise `LOW` warning. Subsections referencing dropped legac
 ```
 $ /geniro:instructions validate
 
-Validation results: 3 files checked, 2 issues found.
+Validation results: 4 files checked, 3 issues found.
 
 ✓ global.md                       no issues
 ⚠ implement.md                    1 MEDIUM
   └── Line 14: "### After Phase 4 (Implement)" → should be "### After implement" (M4 §2.1 phase enum, lowercase)
+⚠ code-style.md                   1 LOW
+  └── File is 380 lines (>200). Anthropic guidance: longer files reduce adherence.
+       Suggestions: split into code-style-database.md + code-style-api.md, or trim redundant rules.
 ⚠ review-extra/sql-bindings.md    1 LOW
   └── Frontmatter description: missing "Skip for" boundary clause (LOW — informational)
 
 To fix: /geniro:instructions edit implement
+       /geniro:instructions edit code-style
        /geniro:instructions edit review-extra sql-bindings
 ```
 
