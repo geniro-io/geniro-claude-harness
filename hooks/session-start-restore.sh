@@ -574,6 +574,24 @@ the re-ask in your next message."
   fi
 fi
 
+# Block 5e — Stale-learnings notice (P-X8-4 §4.4).
+# Emitted when learnings.jsonl exceeds 5000 lines, prompting the user к
+# run archive-stale.sh --dry-run к preview stale candidates. The hook
+# itself does NOT invoke archive-stale (would add latency к а hot path);
+# the check is а cheap line count.
+BLOCK5E=""
+_learnings_log="./.geniro/knowledge/learnings.jsonl"
+if [ -f "$_learnings_log" ]; then
+  _line_count=$(wc -l < "$_learnings_log" 2>/dev/null | tr -d ' ')
+  if [ -n "$_line_count" ] && [ "$_line_count" -gt 5000 ]; then
+    BLOCK5E="ℹ️ learnings.jsonl: $_line_count entries (>5000 threshold).
+Consider running:
+  bash \${CLAUDE_PLUGIN_ROOT}/skills/_shared/archive-stale.sh --dry-run
+к preview stale candidates (score<0.1, age>180d, access_count==0).
+The helper flips deprecated:true — never deletes (audit trail preserved)."
+  fi
+fi
+
 # Block 6 — resume protocol. Per §3 line 95 the cold-startup branch
 # (no active task) emits no "active task" block — i.e., the 7-step
 # resume protocol is suppressed entirely. Loader-refresh advice still
@@ -631,6 +649,7 @@ _append_block "$BLOCK5"
 _append_block "$BLOCK5B"
 _append_block "$BLOCK5C"
 _append_block "$BLOCK5D"
+_append_block "$BLOCK5E"
 _append_block "$BLOCK6"
 
 # ---------------------------------------------------------------------------
