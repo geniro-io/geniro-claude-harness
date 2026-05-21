@@ -113,8 +113,10 @@ Every persisted fact lives in exactly one of four layers. Writers know **what** 
 | `_shared/load-semantic.sh` | Load L3 — `_project.md` + `_CODEBASE_MAP.md` by default; `--extras "..."` for additional files; auto-runs fingerprint drift check to stderr |
 | `_shared/update-semantic.sh` | Bounded-write L3 — `--file <codebase-map\|features> --append "<line>"` or `--replace "<prefix>" "<new>"`. Per-file POSIX-O_EXCL lock; rc=11 if held |
 | `_shared/emit-learning.sh` | Append L2 — JSON on stdin, auto-sanitization, auto-dedup with supersede chain |
-| `_shared/query-learnings.sh` | Read L2 — flags: `--type`, `--tag`, `--scope`, `--min-trust`, `--include-superseded`, `--include-deprecated`, `--include-archive`, `--limit` |
+| `_shared/query-learnings.sh` | Read L2 — flags: `--type`, `--tag`, `--scope`, `--min-trust`, `--score-min` (P-X8-4 recency × trust × access ranking), `--include-superseded`, `--include-deprecated`, `--include-archive`, `--limit`. Also exports `record_access <dedup_key>` for access-count bumping |
 | `_shared/redact-secrets.sh` | Regex sanitization for any free-form text — called automatically by `emit_learning`; also reusable standalone |
+| `_shared/archive-stale.sh` | **(P-X8-4)** Walk `learnings.jsonl` и flip `deprecated: true` on entries matching score<0.1 + age>180d + access_count==0. `--dry-run` previews. Never deletes (audit trail). |
+| `_shared/emit-rejection.sh` | **(P-X8-2)** AUQ-rejection L2 emit helper — exports `emit_rejection_if_signal()`; detects explicit-cancel/no/skip OR picked-non-recommended signals и emits `user_rejected_suggestion` к L2. Wired в /plan §4.3, /implement Phase 3 ship-mode, /actions §5.3. |
 
 ### Conflict surfacing protocol
 
@@ -122,7 +124,8 @@ When a load-* helper detects layers disagreeing, the calling skill prints a noti
 
 **Full reference:**
 - `architecture/M2-memory-layers.md` — full layer model, lifecycle, and reflection-cycle triggers.
-- `skills/_shared/redact-secrets.md` · `emit-learning.md` · `query-learnings.md` · `load-semantic.md` · `update-semantic.md` — per-helper API contracts.
+- `architecture/P-X8-self-learning-extensions.md` — P-X8 self-learning extension spec (new L2 types, scoring, archive-stale, rejection emit).
+- `skills/_shared/redact-secrets.md` · `emit-learning.md` · `query-learnings.md` · `archive-stale.md` · `emit-rejection.md` · `load-semantic.md` · `update-semantic.md` — per-helper API contracts.
 - `skills/_shared/resolve-conflicts.md` — cross-layer conflict notice format.
 
 ## Custom Agent Invocation
