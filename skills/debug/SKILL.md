@@ -161,6 +161,15 @@ On Phase 1 entry, in order:
 1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style + user-preferences — M10b pipeline tier, 4 files)` per M3 §7.2 Echo contract.
 2. **L3 refresh** — `load-semantic(MODE: refresh, top-2 default)`. Fingerprint drift check fires если applicable.
 3. **L2 prior-knowledge query** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per M2 §5.3 «debug session start» trigger. Top-K=5 default, filter superseded + deprecated. Skipped если $ARGUMENTS too generic к infer tags. Result count IS the recurrence signal used by §8.3 L4-promotion suggestion.
+
+   **P-X8 surfacing convention:** when results include `discarded_hypothesis` entries (P-X8-1), display them с а distinct label so the orchestrator can skip dead-ends faster:
+   ```
+   Past investigations в this scope ruled out:
+     - <ext.hypothesis> (tested <ts> by <ext.tested_by>)
+   Past diagnoses:
+     - <summary> (fixed <ts>)
+   ```
+   These get surfaced при §1.4 hypothesis formation так that the orchestrator does NOT re-form а hypothesis equivalent к an already-ruled-out one without explicit re-justification.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per M2 §10.
 
 Echo lines per M3 §7.2 mandatory.
@@ -220,6 +229,26 @@ Persist к state.md `## Hypotheses` body section, one block per hypothesis (Hypo
   - "Run this query against the production DB и paste the result: `<query>`" / "I can't run that query" / "Skip this hypothesis"
   - "Provide а screenshot of the broken state" / "I don't have it — skip"
 - Record results: confirmed / rejected / inconclusive. Every Result: field MUST cite an artifact per Evidence Standard. "Confirmed" с narrative-only Result is rejected.
+
+**P-X8-1 L2 emit on REJECTED:** For each hypothesis transitioning к `Status: rejected` (eliminated by а test that produced contradicting evidence), call `emit-learning` с type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections в one Phase 1 = multiple emits).
+
+Example payload:
+```json
+{
+  "producer": "/geniro:debug", "scope": "services/payments/refunds.py",
+  "summary": "env-vars differ — eliminated (env identical local/CI)",
+  "tags": ["bug", "ci", "env-vars"], "type": "discarded_hypothesis",
+  "ext": {
+    "hypothesis": "env-vars differ between local and CI",
+    "evidence_against": "diff <(env | sort) <(ssh ci env | sort) returns empty",
+    "tested_by": "manual env diff"
+  }, "trust": "verified"
+}
+```
+
+**Sliding-window cap (Reflexion bound):** keep at most 5 latest `discarded_hypothesis` entries per `(producer, scope)`. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; if ≥5, mark the oldest matching entry `deprecated: true` via direct edit к `learnings.jsonl` (M2 §5.2 manual deprecation) BEFORE appending the new one. Prevents discarded-hypothesis chatter от drowning out `diagnosis` entries at retrieval time.
+
+`rejected` is а normal outcome of hypothesis testing — emit fires в the happy path. `inconclusive` does NOT emit (the data is ambiguous; recording it would seed noise). `confirmed` does NOT emit а `discarded_hypothesis` (it emits а `diagnosis` later at §3.3).
 
 state.md `phase: investigate` throughout. `## Hypotheses` body section grows iteratively.
 
@@ -379,8 +408,9 @@ Do NOT auto-invoke the next skill — surface the suggestion only. State file IS
 
 At Phase 3 exit:
 
-- **`emit-learning` (M2 §5.2)** — called by /debug after а confirmed root cause. Per M2 §5.3 canonical contract, the **only** emit type for /debug is `diagnosis`:
-  - **`diagnosis`** (sole M7 emit type) — every confirmed root cause emits one entry с summary, tags (inferred от affected-files + hypothesis category), scope (project-relative path glob), и required `ext.{symptom, root_cause, fix}` per M2 §5.2 typed-extension table. Default trust `verified` per M2 §5.3.
+- **`emit-learning` (M2 §5.2)** — called by /debug at two distinct points:
+  - **`diagnosis`** (primary M7 emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry с summary, tags (inferred от affected-files + hypothesis category), scope (project-relative path glob), и required `ext.{symptom, root_cause, fix}` per M2 §5.2 typed-extension table. Default trust `verified` per M2 §5.3.
+  - **`discarded_hypothesis` (P-X8-1, fires at §1.5 per-rejection during Phase 1)** — every rejected hypothesis emits one entry с required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See §1.5 for the payload schema и emit logic.
   - **NOT emitted by M7:** `pitfall` (/refactor + /review own), `convention` (/implement self-review owns), `decision` (/plan owns), `discovery` (/refactor + /onboard + /investigate own).
 
 - **L4 promotion suggestion (P-M4-5 mirror):** когда the §1.1 prior-knowledge query returned **≥1 matching prior diagnosis** (recurrence signal), surface а one-line suggestion в the Phase 3 final report:
