@@ -227,7 +227,21 @@ Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/med
 
 ### 4.3 Persistence
 
-User pick → append к `approvals[]` с category `approach_choice`. Other approaches captured к body section `## Considered Alternatives`:
+User pick → append к `approvals[]` с category `approach_choice`. Other approaches captured к body section `## Considered Alternatives`.
+
+**P-X8-2 L2 emit on rejection signal:** AFTER appending к `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.sh` и invoke:
+
+```bash
+emit_rejection_if_signal \
+  "/geniro:plan" "<topic>" "approach_choice" \
+  "<recommended approach label>" "<picked label>" "<recommended label>"
+```
+
+Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip и emits L2 `user_rejected_suggestion` only когда signal fires. Acceptance (picked == recommended, no rejection keyword) is а no-op.
+
+**Read side:** Phase 1 query-learnings on /plan entry already runs once. Extend its consumers к surface entries с `type=user_rejected_suggestion AND tags includes 'approach_choice'` matching the current topic — display as «User previously rejected <suggestion> на <ts>» so the orchestrator can re-rank or omit the rejected approach от §4.2 AUQ.
+
+Example body:
 
 ```markdown
 ## Considered Alternatives

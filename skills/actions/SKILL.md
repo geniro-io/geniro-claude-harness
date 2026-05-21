@@ -338,6 +338,16 @@ Read action's frontmatter `risk_class`:
 
 **Approvals[] persistence does NOT apply к run mode.** Risk-class AUQs are context-dependent (re-ask each run intentionally; "did I confirm `slack-release-ping` last week" must NOT auto-confirm this week). This is intentional per M10c §6.3.
 
+**P-X8-2 L2 emit on rejection signal:** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.sh` и invoke once:
+
+```bash
+emit_rejection_if_signal \
+  "/geniro:actions" "actions/<slug>" "risk_class_<low|medium|high>" \
+  "Run action <slug>" "<picked label>" "<recommended label>"
+```
+
+`<recommended label>` is the option carrying `(Recommended)` — `Run` для medium, `Cancel` для high. Helper detects rejection signal (`Cancel`/`Cancel anyway`) и emits L2 `user_rejected_suggestion` ONLY когда signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is а no-op. Cross-session signal: future /actions runs of the same slug surface «user rejected this action N times» (P-X8-2 read protocol). Note this is distinct от М1 approvals[] which is intentionally skipped here.
+
 ### Phase 5.4: Execute INLINE (tool-scope intersection)
 
 Follow the action body's numbered steps directly. The orchestrator is the runtime — no subagent dispatch in v1. Pass extra positional `$ARGUMENTS` (after the action name) as input context under а "User-supplied input" heading.

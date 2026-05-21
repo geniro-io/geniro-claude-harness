@@ -191,6 +191,16 @@ The user can always type а custom response via "Other":
 
 **Approvals-persistence protocol (P-M1-1, M4 §7.5 step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` для а prior entry с `category: ship_mode`. If found, use prior `picked` value и skip the AUQ (typical compaction-resume: user already picked в the original flow). If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
+**P-X8-2 L2 emit on rejection signal:** AFTER appending к `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.sh` и invoke:
+
+```bash
+emit_rejection_if_signal \
+  "/geniro:implement" "<branch>" "ship_mode" \
+  "<recommended ship-mode label>" "<picked label>" "<recommended label>"
+```
+
+`<branch>` = current git branch (or `global` if не detectable). Recommended label is whichever option carries the `(Recommended)` suffix per ship-mode AUQ rules (typically «Open draft PR» по умолчанию; «Commit + push» when user has just selected «Post findings as Draft PR review» from а chained AUQ). Helper detects rejection signals и emits L2 entry — acceptance is а no-op. Future /implement Phase 1 surface «user consistently picks X over Y» pattern hint.
+
 **Step 4 — Non-resumable-actions update (M3 §8, M1 helpers).** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append а structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema per M3 §8: `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
 **Inline modifiers from $ARGUMENTS** (semantic parsing per Phase 1 table) override the ship-mode AUQ deterministically:
