@@ -302,6 +302,8 @@ Persist choice к state.md `## Workspace`. Pre-M4 multi-question Phase 1 Startup
 
 **State.md update on phase exit.** `phase: self-review` (happy path) или `phase: phase-2-escalated` (если §6.3 fires). On `aborted`, write `## Termination reason: repeated-failure: phase-2 retry-limit (<N> failing tests)`.
 
+**P-X8-3 L2 emit on retry exit.** When Phase 2 exits AND `retry_count ≥ 2` (i.e., at least one fix-iteration happened), call `emit-learning` с type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "self-review-fix-loop", attempts: [...], resolution}`. Each `attempts[]` entry = `{round: N, failure: "<one-line summary of what was wrong on that round>"}`. `resolution` ∈ `{passed, escalated, aborted}` matching the actual exit state. Sliding-window cap = 3 latest per `(producer, scope, phase)`; on overflow, mark oldest `deprecated: true` via direct edit BEFORE appending. Single-retry exits (retry_count == 1) do NOT emit — too-noisy для useful pattern detection. Future Phase 1 query-learnings calls surface this as «past similar work needed N rounds; common misses: <...>» к prime reviewer-agent prompts.
+
 ---
 
 ## PHASE 3: SELF-REVIEW + SHIP

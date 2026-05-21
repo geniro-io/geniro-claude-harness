@@ -344,6 +344,8 @@ When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-
    - **Abort** — `phase: aborted` (terminal).
 3. state.md marks `phase: phase-2-escalated` с timestamp + fix-attempt count + accumulated test outputs. M3 §6 Block 5c renders open question on resume.
 
+**P-X8-3 L2 emit on fix-loop exit.** When Phase 2 exits AND `fix_attempts ≥ 2`, call `emit-learning` с type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "fix-attempts", attempts: [{round: N, failure: "<why this attempt did not verify>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` (passed = test confirmed fix; escalated = user picked "Try different approach" or "Accept as documented limitation"; aborted = terminal). Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-attempt exits (fix_attempts == 1) do NOT emit. Scope = the file/module the fix targeted.
+
 ---
 
 ## Phase 3 — Ship

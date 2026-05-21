@@ -371,6 +371,8 @@ If regression failed: fire AUQ "Regression" — "Revert all changes" / "Show me 
 
 If green: state.md transitions к `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
+**P-X8-3 L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED by refactor-agent, regardless of whether overall ratio triggered §2.3 escalation), call `emit-learning` с type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale от refactor-agent>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when §2.4 regression green AND <30% blocked; escalated when §2.3 fired AND user picked «Keep what worked» or «Force-continue»; aborted on reverted/aborted state. Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
+
 ---
 
 ## Phase 3 — Verify
