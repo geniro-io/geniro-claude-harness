@@ -27,14 +27,15 @@ resume if its hypothesis thread depends on prior findings).
 
 | Flag | Default | Effect |
 |------|---------|--------|
-| `--type TYPE` | (any) | Match `type` field exactly. Common values per M2 §5.1: `diagnosis`, `decision`, `convention`, `pitfall`, `discovery`. |
+| `--type TYPE` | (any) | Match `type` field exactly. Common values per M2 §5.1: `diagnosis`, `decision`, `convention`, `pitfall`, `discovery`. P-X8 types: `discarded_hypothesis`, `user_rejected_suggestion`, `retry_failure_sequence`. |
 | `--tag TAG` | (any) | Entries whose `tags` array contains `TAG`. |
 | `--scope SCOPE` | (any) | Match `scope` exactly. Use `--scope global` for global entries. |
 | `--min-trust LEVEL` | (any) | Only entries with trust ≥ LEVEL. Levels (high→low): `verified`, `retrieved`, `inferred`. Entries with no `trust` field are treated as `inferred`. |
+| `--score-min N` | (no scoring) | **(P-X8-4)** Compute per-entry score = recency_decay × trust_weight × access_weight; include only entries with score ≥ N AND sort result DESC by score. See §Score formula below. |
 | `--include-superseded` | excluded | Include entries whose `dedup_key` appears as `supersedes` in a later entry. Useful for audit / history. |
 | `--include-deprecated` | excluded | Include entries with `deprecated: true`. |
 | `--include-archive` | excluded | Also read `.geniro/knowledge/archive/learnings-*.jsonl` for cold history. |
-| `--limit N` | (no cap) | Emit at most N entries (after all filters; uses `tail -n N` — most-recent N). |
+| `--limit N` | (no cap) | Emit at most N entries (after all filters). Semantics depend on `--score-min`: with score, top-N by score (`head`); without, most-recent-N by append position (`tail`, original behavior). |
 
 ## Filter pipeline (matches M2 §5.2 read side)
 
@@ -42,9 +43,44 @@ resume if its hypothesis thread depends on prior findings).
 2. **Build superseded set:** collect every `supersedes` value present in the union (set of dedup_keys that some later entry invalidates).
 3. **Apply scalar filters** (`--type`, `--tag`, `--scope`, `--min-trust`) and the implicit `deprecated == false` filter (unless `--include-deprecated`).
 4. **Apply supersede filter** unless `--include-superseded`.
-5. **Apply `--limit`** by tailing the post-filter results.
+5. **Apply score filter and sort** if `--score-min N` is set (P-X8-4).
+6. **Apply `--limit`** — `head -n N` if score-sorted, otherwise `tail -n N`.
 
 Each filter is logically AND-ed.
+
+## Score formula (P-X8-4)
+
+When `--score-min N` is active:
+
+```
+score = recency_decay × trust_weight × access_weight
+
+recency_decay = exp(-Δdays / τ),  τ = 90 days (env: GENIRO_DECAY_TAU_DAYS)
+trust_weight  = { verified: 1.0, retrieved: 0.66, inferred: 0.33 }
+access_weight = 1.0 + log10(1 + access_count)
+```
+
+Defaults: missing `ts` or unparseable → `recency_decay = 0.5` (mid-range); missing `trust` → `inferred`; missing `access_count` → 0. `_score` is internal — stripped before output.
+
+**Threshold guidance (callers pick their own):**
+- `--score-min 0.5` — high-signal only (recently-emitted verified entries)
+- `--score-min 0.3` — balanced (recommended default for Phase 1 read calls)
+- `--score-min 0.1` — almost everything (mostly for debug)
+- (no flag) — return everything, original append order
+
+## `record_access` function (P-X8-4)
+
+Increments `access_count` of entry matching а given `dedup_key`. Used by callers что want to feed access-frequency signal into future `--score-min` queries.
+
+```bash
+record_access "<dedup_key>"
+```
+
+- Returns 0 on success or no-op (no log file, no matching entry).
+- Returns 1 on IO error.
+- Returns 64 if no key supplied.
+- Best-effort: no lock. Concurrent misses are acceptable (counter, not ledger). Uses POSIX `rename(2)` for atomicity.
+- Callers typically invoke after surfacing а query result they actually used. Example: `/debug` Phase 1 §1.1 surfaces 3 entries, орchestrator cites entry `bbb00002` в hypothesis → call `record_access bbb00002`.
 
 ## Trust level ordering (M2 §5.1)
 
