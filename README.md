@@ -92,7 +92,7 @@ For investigation and maintenance:
 Each skill reads from and writes to `.geniro/` so context survives across compaction, branches, and sessions:
 
 - **Plan → implement** — `/geniro:plan` writes an approved `spec.md` to `.geniro/planning/<task-dir>/`; `/geniro:implement` consumes it (or accepts inline-task input as a fallback). For Big tasks, `/geniro:plan` Phase 5 milestone-mode emits sibling `milestone-N.md` files.
-- **Knowledge accumulates** — every pipeline + discovery skill auto-emits `discovery` / `pitfall` / `diagnosis` L2 entries to `knowledge/learnings.jsonl` per M2 §5.3 trigger table. Future runs grep them before investigating.
+- **Knowledge accumulates** — every pipeline + discovery skill auto-emits L2 entries to `knowledge/learnings.jsonl` per M2 §5.3 trigger table. Types: `discovery` / `pitfall` / `diagnosis` / `convention` / `decision` (M2 baseline), plus P-X8 additions `discarded_hypothesis` (/debug Phase 1 ELIMINATED hypotheses), `retry_failure_sequence` (/implement, /debug, /refactor when retry_count ≥ 2), `user_rejected_suggestion` (any skill, AUQ rejection signal). Future runs query before investigating; `query-learnings --score-min N` ranks by recency × trust × access (P-X8-4); `archive-stale.sh` flips stale entries `deprecated: true` без deleting them (audit trail preserved).
 - **Rules persist** — `/geniro:instructions` manages `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + per-skill file + `code-style.md` + `user-preferences.md` (M10b), with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
 - **State survives compaction** — long pipelines checkpoint to M1 §T1 state files (`<task-dir>/state.md` or `state/<skill>/<slug>/state.md`); the M3 SessionStart hook re-injects them after every `compact|resume|startup` event. Within-skill state files are slug-scoped per `skills/_shared/within-skill-state-handoff.md` so parallel sessions on different branches don't clobber each other.
 
@@ -281,7 +281,7 @@ geniro-claude-plugin/
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer
 │   └── *.sh                     # Safety hook scripts
-├── architecture/                # M1-M10 design specs
+├── architecture/                # M1-M10 design specs + P-X cross-cutting (e.g. P-X8 self-learning extensions)
 ├── CLAUDE.md                    # Plugin instructions (auto-loaded)
 └── MIGRATION.md                 # Per-release breaking-change notes (consumed by /update)
 ```
