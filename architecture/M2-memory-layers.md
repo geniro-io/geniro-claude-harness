@@ -115,8 +115,17 @@ A new fact is placed into a layer based on the writer's intent, not arbitrary fi
 | `convention` | `rule` | `/review` saw same finding pattern in ≥3 reviewer outputs; `/implement` self-review (M4 §7.2 architecture/code-quality dimensions) detected ≥3 instances in changed code (replaces deleted `/learnings` skill per master plan §69) |
 | `pitfall` | `trap`, `mitigation` | `/refactor` discovered a footgun; `/review` stratified high-severity finding |
 | `discovery` | `area`, `insight` | `/onboard` mapped non-obvious pattern; `/investigate` answered after >3 search rounds |
+| `discarded_hypothesis` | `hypothesis`, `evidence_against`, `tested_by` | **(P-X8-1)** `/debug` Phase 1 §1.4 — every ELIMINATED hypothesis. Sliding-window cap = 5 latest per `(producer, scope)`; older entries auto-supersede with `deprecated: true`. |
+| `user_rejected_suggestion` | `suggestion`, `auq_category`, `rejection_signal` | **(P-X8-2)** Any skill — emit when AUQ resolution picks non-recommended option OR explicit cancel/no/skip. No sliding-window cap (preferences are high-signal; supersede chain handles natural updates). |
+| `retry_failure_sequence` | `phase`, `attempts[]`, `resolution` | **(P-X8-3)** `/implement` Phase 2, `/debug` Phase 2, `/refactor` Phase 2 — final exit if retry_count ≥ 2. Sliding-window cap = 3 latest per `(producer, scope, phase)`. |
 
 Unknown/free-form entries (no `type`) are valid — minimum is the required base.
+
+**P-X8 optional base fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `access_count` | int (≥0) | **(P-X8-4)** Number of times this entry was returned by `query-learnings`. Auto-incremented by `record_access` sub-helper. Absent = 0. Used in `--score-min` ranking (recency × trust × access). |
 
 **Example entries:**
 ```jsonl
@@ -165,6 +174,11 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 | `/geniro:refactor` | Pattern extracted to shared utility/component | `discovery` | `verified` |
 | `/geniro:onboard` | Non-obvious architectural pattern documented | `discovery` | `verified` |
 | `/geniro:investigate` | Question answered after >3 search rounds | `discovery` | `retrieved` if WebFetch/WebSearch used; `verified` if code-grounded only |
+| `/geniro:debug` (P-X8-1) | Phase 1 §1.4 — hypothesis ELIMINATED in hypothesis log | `discarded_hypothesis` | `verified` |
+| Any skill (P-X8-2) | AUQ resolution: picked-option ≠ recommended OR explicit cancel/no/skip | `user_rejected_suggestion` | `verified` |
+| `/geniro:implement` (P-X8-3) | Phase 2 §6.3 final exit, self-review fix-loop retry_count ≥ 2 | `retry_failure_sequence` | `verified` |
+| `/geniro:debug` (P-X8-3) | Phase 2 §2.5 final exit, fix_attempts ≥ 2 | `retry_failure_sequence` | `verified` |
+| `/geniro:refactor` (P-X8-3) | Phase 2 exit, blocked_count ≥ 2 | `retry_failure_sequence` | `verified` |
 
 **Manual:** post-redesign, `/learnings` skill is deleted (master plan §69). Manual curation = direct `learnings.jsonl` edits (mark `deprecated: true`, archive cold entries, etc. — see §5.2 Archive sub-section).
 
