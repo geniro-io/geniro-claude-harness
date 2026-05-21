@@ -46,7 +46,7 @@ Three new `type:` values extend the M2 §5.1 typed-extension table. Schema for e
 
 **Required `ext.*`:** `hypothesis` (string), `evidence_against` (string), `tested_by` (string — short description of the test/check that eliminated it).
 
-**Emitter:** `/geniro:debug` Phase 1 §1.4 (after each ELIMINATE decision in the hypothesis log).
+**Emitter:** `/geniro:debug` Phase 1 §1.5 (per-rejection — when hypothesis transitions к `Status: rejected` in the hypothesis log). §1.4 is where hypotheses are formed; §1.5 is where they're tested AND rejection/confirmation is recorded — emit fires при rejection-write.
 
 **Trigger:** Every hypothesis ELIMINATED in Phase 1 generates one entry. No threshold — the value is recurrence-pattern detection across sessions, not single-emit signal.
 
@@ -65,9 +65,9 @@ Three new `type:` values extend the M2 §5.1 typed-extension table. Schema for e
 
 ### 3.2 `user_rejected_suggestion` (P-X8-2)
 
-**Required `ext.*`:** `suggestion` (string — what was offered), `auq_category` (string — M1 §T1 `approvals[]` category if present, else `ad-hoc`), `rejection_signal` (enum: `picked_non_recommended` | `explicit_cancel` | `explicit_no`).
+**Required `ext.*`:** `suggestion` (string — what was offered), `auq_category` (string — M1 §T1 `approvals[]` category if present, else `ad-hoc`), `rejection_signal` (enum: `picked_non_recommended` | `explicit_cancel` | `explicit_no` | `explicit_skip`).
 
-**Emitter:** M1 `approvals[]` writer — when the AUQ result is written to state.md frontmatter, the writer also emits an L2 entry IF the picked option was either (a) not the option marked `(Recommended)`, or (b) one of `Cancel` / `No` / `Skip` / `Reject`.
+**Emitter:** `skills/_shared/emit-rejection.sh` helper (function `emit_rejection_if_signal`), invoked by each skill после appending к state.md `approvals[]`. The helper detects а rejection signal — (a) picked option ≠ recommended, OR (b) picked label matches /cancel|abort|no|reject|skip/i — и emits the L2 entry only when one fires. Acceptance (picked == recommended, no rejection keyword) is а no-op.
 
 **Trigger:** Every qualifying AUQ resolution. No threshold — preferences signal is single-emit by design.
 
@@ -200,11 +200,11 @@ Implementation: single `wc -l` invocation per file, +5-10 lines in `skills/instr
 | `_shared/archive-stale.sh` | NEW. Walks `learnings.jsonl`, flips `deprecated: true` on stale entries. | §4.3 |
 | `hooks/session-start-restore.sh` | Add optional Block 5e — stale-learnings notice. Read-only. | §4.4 |
 | `skills/instructions/SKILL.md` (Phase validate) | Add `--max-lines N` flag + LOW-severity length check. | §5 |
-| `skills/debug/SKILL.md` (Phase 1 §1.4) | Emit `discarded_hypothesis` per ELIMINATE decision. Sliding-window cap = 5 per scope. | §3.1 |
+| `skills/debug/SKILL.md` (Phase 1 §1.5) | Emit `discarded_hypothesis` per rejection (when `Status: rejected` is recorded). Sliding-window cap = 5 per scope. | §3.1 |
 | `skills/implement/SKILL.md` (Phase 2 §6.3) | Emit `retry_failure_sequence` if retry_count ≥ 2. | §3.3 |
 | `skills/debug/SKILL.md` (Phase 2 §2.5) | Emit `retry_failure_sequence` if fix_attempts ≥ 2. | §3.3 |
 | `skills/refactor/SKILL.md` (Phase 2 exit) | Emit `retry_failure_sequence` if blocked_count ≥ 2. | §3.3 |
-| M1 `approvals[]` writer (shared) | Emit `user_rejected_suggestion` on rejection-signal AUQ resolutions. | §3.2 |
+| `skills/_shared/emit-rejection.sh` (new helper) | Exports `emit_rejection_if_signal()` — called by each skill after writing к state.md `approvals[]`. Detects 4 rejection signals и emits `user_rejected_suggestion` к L2 only when fired (acceptance is а no-op). | §3.2 |
 | `skills/plan/SKILL.md` (Phase 4), `skills/implement/SKILL.md` (Phase 1), `skills/actions/SKILL.md` (run-mode) | Add `user_rejected_suggestion` query at relevant decision points. | §3.2 |
 
 Architecture/M2 §5.1 typed-extension table — extend with three new rows. M2 §5.3 reflection-cycle table — extend with new emit-trigger rows.
@@ -215,7 +215,7 @@ Architecture/M2 §5.1 typed-extension table — extend with three new rows. M2 �
 
 | Skill | New emit sites | New read sites |
 |---|---|---|
-| `/geniro:debug` | Phase 1 §1.4 (`discarded_hypothesis`), Phase 2 §2.5 (`retry_failure_sequence`) | Phase 1 §1.1 (existing query extended to surface `discarded_hypothesis`) |
+| `/geniro:debug` | Phase 1 §1.5 (`discarded_hypothesis`), Phase 2 §2.5 (`retry_failure_sequence`) | Phase 1 §1.1 (existing query extended to surface `discarded_hypothesis`) |
 | `/geniro:implement` | Phase 2 §6.3 (`retry_failure_sequence`), shared M1 writer (`user_rejected_suggestion` on Phase 3 ship-mode AUQ) | Phase 1 (existing query extended to surface `retry_failure_sequence`, `user_rejected_suggestion`) |
 | `/geniro:refactor` | Phase 2 exit (`retry_failure_sequence`), shared M1 writer (`user_rejected_suggestion` on Phase 1 HIGH-step AUQ) | Phase 1 (existing query extended) |
 | `/geniro:plan` | shared M1 writer (`user_rejected_suggestion` on Phase 4 approach AUQ) | Phase 4 (new query for prior rejections) |
