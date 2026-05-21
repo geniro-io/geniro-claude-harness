@@ -574,21 +574,78 @@ the re-ask in your next message."
   fi
 fi
 
-# Block 5e — Stale-learnings notice (P-X8-4 §4.4).
-# Emitted when learnings.jsonl exceeds 5000 lines, prompting the user к
-# run archive-stale.sh --dry-run к preview stale candidates. The hook
-# itself does NOT invoke archive-stale (would add latency к а hot path);
-# the check is а cheap line count.
+# Block 5e — Auto-archive stale L2 entries (P-X8-4 auto mode).
+#
+# Triggers archive-stale.sh on SessionStart when:
+#   - learnings.jsonl > GENIRO_AUTO_ARCHIVE_THRESHOLD lines (default 5000)
+#   - file hash changed since last archive run (skip-if-unchanged)
+#   - safety.json memory.auto_archive_stale != false (default-on, opt-out)
+#   - mkdir-lock acquired (multi-tab race protection)
+#
+# All checks are dirt-cheap (wc, sha256sum, mkdir). archive-stale itself
+# is ~50-200ms for 5000 entries — fits within SessionStart latency budget.
+# Skipped silently when nothing к do; surfaces summary block only когда
+# entries were actually flipped.
 BLOCK5E=""
+ARCHIVED_COUNT=0
 _learnings_log="./.geniro/knowledge/learnings.jsonl"
+_threshold="${GENIRO_AUTO_ARCHIVE_THRESHOLD:-5000}"
+
 if [ -f "$_learnings_log" ]; then
+  # Opt-out check (default ON; user sets false к disable).
+  _auto_enabled="true"
+  if [ -f "./.geniro/safety.json" ]; then
+    _opt=$(jq -r '.memory.auto_archive_stale // true' ./.geniro/safety.json 2>/dev/null)
+    if [ "$_opt" = "false" ]; then
+      _auto_enabled="false"
+    fi
+  fi
+
   _line_count=$(wc -l < "$_learnings_log" 2>/dev/null | tr -d ' ')
-  if [ -n "$_line_count" ] && [ "$_line_count" -gt 5000 ]; then
-    BLOCK5E="ℹ️ learnings.jsonl: $_line_count entries (>5000 threshold).
-Consider running:
-  bash \${CLAUDE_PLUGIN_ROOT}/skills/_shared/archive-stale.sh --dry-run
-к preview stale candidates (score<0.1, age>180d, access_count==0).
-The helper flips deprecated:true — never deletes (audit trail preserved)."
+
+  if [ "$_auto_enabled" = "true" ] && [ -n "$_line_count" ] && [ "$_line_count" -gt "$_threshold" ]; then
+    _hash_marker="./.geniro/knowledge/.archive-stale.hash"
+    _lock_dir="./.geniro/knowledge/.archive-stale.lock"
+
+    _current_hash=$(sha256sum "$_learnings_log" 2>/dev/null | cut -d' ' -f1)
+    _last_hash=$(cat "$_hash_marker" 2>/dev/null)
+
+    if [ -n "$_current_hash" ] && [ "$_current_hash" != "$_last_hash" ]; then
+      # File changed since last archive — eligible to run.
+      # Stale-lock cleanup (orphaned > 10 min from crashed process).
+      if [ -d "$_lock_dir" ]; then
+        _lock_mtime=$(stat -c %Y "$_lock_dir" 2>/dev/null || stat -f %m "$_lock_dir" 2>/dev/null || echo 0)
+        _lock_age=$(( $(date +%s) - _lock_mtime ))
+        if [ "$_lock_age" -gt 600 ]; then
+          rmdir "$_lock_dir" 2>/dev/null
+        fi
+      fi
+
+      # Atomic lock acquisition. Failure = another tab is running it; skip.
+      if mkdir "$_lock_dir" 2>/dev/null; then
+        _archive_output=$(bash "${CLAUDE_PLUGIN_ROOT:-.}/skills/_shared/archive-stale.sh" 2>&1)
+
+        # Update hash marker (capture POST-archive state).
+        sha256sum "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
+
+        # Release lock.
+        rmdir "$_lock_dir" 2>/dev/null
+
+        # Extract archived count from helper's stderr line:
+        # "archive-stale: flipped deprecated:true on N entries:"
+        ARCHIVED_COUNT=$(printf '%s\n' "$_archive_output" | grep -oE 'flipped deprecated:true on [0-9]+' | grep -oE '[0-9]+' | head -1)
+        ARCHIVED_COUNT="${ARCHIVED_COUNT:-0}"
+
+        if [ "$ARCHIVED_COUNT" -gt 0 ]; then
+          BLOCK5E="ℹ️ Auto-archived $ARCHIVED_COUNT stale L2 entries (deprecated:true; audit trail preserved on-disk).
+Criteria: age>180d AND score<0.1 AND access_count==0.
+learnings.jsonl: $_line_count entries (size unchanged — entries kept, flagged only).
+Opt-out: set \`memory.auto_archive_stale: false\` в .geniro/safety.json."
+        fi
+      fi
+      # mkdir failed → another tab owns the lock; silent skip.
+    fi
+    # hash unchanged → no new entries since last archive; silent skip.
   fi
 fi
 
@@ -666,10 +723,15 @@ if [ -n "$phase" ]; then
 fi
 
 SYSTEM_MESSAGE="Geniro: restoring context (source: $SOURCE, active: $_active_label · phase: $_phase_label · non-resumable: $non_resumable_count)"
+if [ "${ARCHIVED_COUNT:-0}" -gt 0 ]; then
+  SYSTEM_MESSAGE="$SYSTEM_MESSAGE · auto-archived: $ARCHIVED_COUNT"
+fi
 
 # Suppression rule: cold startup with no active task → no systemMessage spam.
+# Exception: auto-archive event (ARCHIVED_COUNT > 0) overrides suppression —
+# user wants to know maintenance happened.
 emit_system_message=true
-if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ]; then
+if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ] && [ "${ARCHIVED_COUNT:-0}" -eq 0 ]; then
   emit_system_message=false
 fi
 

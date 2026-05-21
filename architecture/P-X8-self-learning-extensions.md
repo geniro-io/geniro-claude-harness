@@ -144,25 +144,42 @@ Default behavior is unchanged (no score filter — all matching entries returned
 
 ### 4.3 `archive-stale.sh` helper
 
-New helper `skills/_shared/archive-stale.sh` walks `learnings.jsonl` and flips `deprecated: true` on every entry where `score < 0.1 AND age > 180 days` AND `access_count == 0` (never-read AND old AND already low-score). The helper:
+New helper `skills/_shared/archive-stale.sh` walks `learnings.jsonl` and flips `deprecated: true` on every entry where `score < 0.1 AND age > 180 days AND access_count == 0` (never-read AND old AND already low-score). The helper:
 
 - **Never deletes** — flips `deprecated: true` only. Audit trail preserved.
-- **Never auto-runs** — requires explicit user invocation OR M3 SessionStart hook notice (see §4.4).
+- **Auto-runs on SessionStart** when threshold met AND file changed since last archive (see §4.4). Manual invocation also supported (с `--dry-run` flag).
 - **Idempotent** — re-runs are safe; already-deprecated entries skipped.
 - **Reports** — prints summary of how many entries deprecated, with per-type breakdown.
 
 Exit codes: `0` success, `1` no entries match criteria, `2` IO error.
 
-### 4.4 M3 SessionStart notice extension
+### 4.4 M3 SessionStart auto-archive
 
-`hooks/session-start-restore.sh` (M3) gains а new optional Block 5e: stale-learnings notice. Emitted when `wc -l learnings.jsonl > 5000` AND `archive-stale.sh --dry-run` reports ≥50 candidates. Body:
+`hooks/session-start-restore.sh` (M3) gains а new Block 5e: auto-archive of stale L2 entries. **Default ON; opt-out via `.geniro/safety.json memory.auto_archive_stale: false`.**
 
-```
-ℹ️ learnings.jsonl: 5,243 entries, 87 stale candidates (score<0.1, age>180d, never read).
-Run `.geniro/skills/_shared/archive-stale.sh` to flip them to deprecated:true (audit-preserving — never deletes).
-```
+**Trigger logic (cheap precondition chain — all дешёвые проверки до actual work):**
+1. `learnings.jsonl > GENIRO_AUTO_ARCHIVE_THRESHOLD` lines (default 5000)
+2. `safety.json memory.auto_archive_stale != false`
+3. `sha256sum learnings.jsonl != cached_hash` (skip-if-unchanged)
+4. `mkdir .geniro/knowledge/.archive-stale.lock` succeeds (race lock)
 
-Read-only — never auto-runs. User decides when to clean up.
+When all 4 pass, hook invokes `archive-stale.sh`. Post-archive: hash marker updated к new file state; lock released.
+
+**Multi-tab safety:**
+- mkdir lock is POSIX-atomic; concurrent tabs lose the race и skip silently
+- Stale-lock TTL: 600 sec (orphaned locks от crashed processes auto-cleaned)
+- Hash-based skip-if-unchanged ensures only one tab does work even outside the lock window
+
+**Output (only когда entries flipped):**
+- `additionalContext`: «Auto-archived N stale L2 entries...» block with criteria + opt-out instructions
+- `systemMessage`: «...· auto-archived: N» suffix (forced visible even on cold-startup-without-state, where systemMessage is normally suppressed)
+
+**Performance:** archive-stale at 5000 entries ≈ 50-200ms. All preconditions before the jq pass are sub-millisecond (file stat + sha256sum). Skipped runs add zero latency.
+
+**Files written:**
+- `.geniro/knowledge/learnings.jsonl` — entries gain `"deprecated": true` field
+- `.geniro/knowledge/.archive-stale.hash` — sha256 of post-archive file state
+- `.geniro/knowledge/.archive-stale.lock` — transient lock dir, removed at run completion
 
 ---
 

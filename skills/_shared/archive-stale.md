@@ -68,9 +68,10 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 ## Safety invariants
 
 - **Never deletes.** Only flips `deprecated: true`. Entries remain on-disk for audit / future re-elevation.
-- **Never auto-runs.** Requires explicit user invocation OR М3 SessionStart Block 5e notice (informational — user decides).
+- **Auto-runs on SessionStart** when threshold met AND file changed since last archive (M3 hook Block 5e — default ON; opt-out via `.geniro/safety.json memory.auto_archive_stale: false`). Manual invocation also supported (typical: `--dry-run` к preview).
 - **Idempotent.** Already-deprecated entries are skipped (criterion 0). Re-runs are safe and report 0 candidates.
 - **Atomic write.** Uses tmp + POSIX `rename(2)` for the final write. Mid-run interruption leaves either the old or new file, never а partial one.
+- **Multi-tab safe.** When invoked via M3 hook, runs under а `mkdir`-acquired POSIX-atomic lock at `.geniro/knowledge/.archive-stale.lock`. Concurrent SessionStart events lose the race и skip silently; only one tab does work. Stale-lock TTL = 600s (orphans от crashed processes auto-cleaned).
 
 ## Environment
 
