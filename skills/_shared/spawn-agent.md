@@ -1,10 +1,10 @@
 # Spawn Agent — Runtime Degradation Rule
 
-Canonical rule for invoking the plugin's custom agents (`reviewer-agent`, `relevance-filter-agent`, `adversarial-tester-agent`, `refactor-agent`, `architect-agent`). Referenced from every skill that spawns one.
+Canonical rule for invoking the plugin's custom agents (`reviewer-agent`, `adversarial-tester-agent`). Referenced from every skill that spawns one.
 
 ## The problem
 
-The plugin defines 5 custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.md`. Whether they are registered as invokable `subagent_type` values — and under what name — depends on the runtime:
+The plugin defines 2 custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.md`. Whether they are registered as invokable `subagent_type` values — and under what name — depends on the runtime:
 
 | Runtime | Agents registered? | Resolvable as `<agent>`? | Resolvable as `geniro-claude-plugin:<agent>`? |
 |---|---|---|---|

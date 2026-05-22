@@ -1,6 +1,6 @@
 # Plan Criteria
 
-Guidelines for generating implementation plans. Pre-inlined into architect-agent prompts by `/geniro:plan` (M5 — owns plan + spec authoring) когда architect mode is invoked. This is the canonical schema for plan files saved to `.geniro/planning/`. `/geniro:implement` (M4) consumes spec.md emitted by `/plan`; it does NOT spawn architect-agent itself — see `architecture/M4-implement-redesign.md` §3.1.
+Guidelines for generating implementation plans. Pre-inlined into `/geniro:plan` (M5) orchestrator-side spec-authoring prompts когда the skill drafts а new spec. This is the canonical schema for plan files saved to `.geniro/planning/`. `/geniro:implement` (M4) consumes spec.md emitted by `/plan` directly — no separate planning agent involved.
 
 ## Plan File Naming
 
@@ -29,7 +29,7 @@ The plan must follow this exact structure. Every section is mandatory unless mar
 ```markdown
 # Plan: <descriptive title>
 
-> Generated: <date> | Source: <"architect-agent" or "user-provided"> | Status: <draft | approved | in-progress | completed>
+> Generated: <date> | Source: <"/geniro:plan" or "user-provided"> | Status: <draft | approved | in-progress | completed>
 
 ## Goal
 One sentence: what we're building and why.

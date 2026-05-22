@@ -7,8 +7,8 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 ## When this fires
 
 Used by:
-- `/geniro:plan` (M5) — when the spec/plan authoring surfaces а proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. `/plan` owns the architect-agent под M4+M5 split (see `architecture/M4-implement-redesign.md` §3.1); the gate fires upstream of `/implement`.
-- `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives the relevance-filter (i.e., wasn't dropped at Phase 4c) and is about to enter the fix-loop pool
+- `/geniro:plan` (M5) — when the spec/plan authoring surfaces а proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/implement`.
+- `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup и Phase 4 judge (i.e., wasn't dropped earlier) and is about to enter the fix-loop pool
 
 (Legacy `/geniro:follow-up` consumer removed — skill deleted per master plan §65; ad-hoc post-ship tweaks now route through `/geniro:implement` directly.)
 
@@ -44,7 +44,7 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
 
   Pull the `<title>` / `<file:line or design-section>` / `<symptom>` / `<suspected root cause>` / `<why this matters>` values from the upstream artifact's persisted body fields:
   - For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the new `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
-  - For `/geniro:plan` (M5): from the architect-agent's design unit fields в spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
+  - For `/geniro:plan` (M5): from /plan-emitted design unit fields в spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
 
   When more than one `[SYMPTOM]` finding/design fires the gate in the same skill phase, fire the AUQ once per finding (sequentially) — the user's choice on one symptom does not transfer to another. The single-select shape stays the same per call; do NOT batch into a multi-select.
 
@@ -62,7 +62,7 @@ After the gate resolves:
 
 ## Why this exists
 
-Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard). Extending that discipline beyond `/geniro:debug` is necessary because the reviewer-agent and architect-agent classify findings/designs by structural signals (does the change touch the surface where the defect is observed, or does it touch the layer where causation originates?) but cannot judge user intent. Two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
+Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard). Extending that discipline beyond `/geniro:debug` is necessary because the reviewer-agent and /plan's orchestrator-side spec-authoring classify findings/designs by structural signals (does the change touch the surface where the defect is observed, or does it touch the layer where causation originates?) but cannot judge user intent. Two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
 
 - intentional deferral (root cause is being addressed in a separate work stream; patch the surface for now)
 - accidental shortcut (author didn't realize the real bug sits elsewhere; patch will mask the defect until it re-emerges through a different surface)

@@ -156,7 +156,7 @@ Sub-decisions during defect-inventory walk (§5):
 
 | Sub-decision | Resolution |
 |---|---|
-| Conflict-resolution model on re-run | Spawn `architect-agent` (M4 §13.4 tiering: `sonnet`) with `tools: [Read, Edit]` constrained to `CLAUDE.md` and `.geniro/instructions/*.md` only — no write access elsewhere |
+| Conflict-resolution model on re-run | Orchestrator-side merge inline (no subagent spawn). Section-merge is а bounded reasoning task that fits orchestrator's main context cleanly; aligns с subagent-rationalization decision (5 → 2 agents). |
 | When does `/setup` write `.gitignore`? | Phase Generate writes `.geniro/planning/`, `.geniro/state/`, `.geniro/knowledge/` rules **only if** `.gitignore` exists and doesn't already cover them; never creates `.gitignore` from scratch (project conventions vary) |
 | What if user has no `git` repo? | Detect emits `## Errors` row "not a git repo — skipping git-based detection (branch, remotes)"; Interview asks for default branch manually |
 | What gets re-generated in re-run mode? | Only CLAUDE.md and `.geniro/instructions/*.md` files. User-authored `.geniro/instructions/<custom>.md`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl` are **never** touched |
@@ -372,8 +372,8 @@ If `mode == re-run`:
 
 1. Read existing `CLAUDE.md`. Compute diff against the to-be-generated body (Step 8.2 output).
 2. For each section in existing CLAUDE.md with `<!-- geniro-setup-managed -->` HTML comment marker, mark for replacement.
-3. Sections without the marker = user-edited → spawn **conflict-resolution agent** (`architect-agent`, `model: sonnet`, `tools: [Read, Edit]` constrained to `CLAUDE.md` only) with the prompt template in §8.5.
-4. Agent returns a merged body. Display diff to user (`## Phase log` entry + AUQ if diff is non-trivial).
+3. Sections without the marker = user-edited → **orchestrator-side merge inline** per §8.5 rules (no subagent spawn — section-merge is а bounded reasoning task that fits orchestrator's main context cleanly).
+4. Display merged diff to user (`## Phase log` entry + AUQ if diff is non-trivial).
 
 If `mode == init`: skip Step 8.1; proceed to 8.2 directly.
 
@@ -430,31 +430,16 @@ After AUQ resolution:
 
 All Writes are AUQ-gated at the **batch level** (one AUQ "Generate all of: CLAUDE.md (X lines), .geniro/instructions/user-preferences.md (Y lines), …? Options: yes / show preview first / edit which files"). Per ACI (§2.4), Phase Generate has write surface to project root and `.geniro/` only — no external sends, no network.
 
-### 8.5 Conflict-resolution agent prompt template
+### 8.5 Conflict-resolution merge rules (orchestrator-inline)
 
-For each user-edited section in re-run mode:
+Section merge runs **orchestrator-inline** in re-run mode — no subagent spawn. For each user-edited section, the orchestrator applies these rules to produce а merged body:
 
-```
-You are merging two versions of a CLAUDE.md section. The plugin generated NEW_CONTENT
-based on a fresh codebase scan; the user has EDITED_CONTENT in their existing CLAUDE.md.
-
-NEW_CONTENT (auto-generated):
-<...>
-
-EDITED_CONTENT (user-modified):
-<...>
-
-Rules:
 1. Preserve all user customizations from EDITED_CONTENT.
 2. Apply any factual updates from NEW_CONTENT (e.g., new commands detected, new tech-stack entries).
-3. If there is a conflict (same statement contradicted), emit a `<!-- CONFLICT: ... -->` HTML comment with both versions; do not pick a side.
-4. Output ONLY the merged section body. No prose, no explanation outside the merged content itself.
+3. If there is a conflict (same statement contradicted), emit a `<!-- CONFLICT: ... -->` HTML comment with both versions inline; do not pick a side — escalate к §8.1 step 4 AUQ.
+4. Output is the merged section body inserted directly into the CLAUDE.md draft.
 
-Tools: Read, Edit (constrained to CLAUDE.md only).
-Model: sonnet.
-```
-
-Output is appended to `## Tool log` as a single `merge_section spawn` entry (M3 §6 selective logging).
+Section merge is а bounded read+reason+rewrite task — the orchestrator reads both versions, applies the rules, и writes merged output via `atomic_state_write` к CLAUDE.md. Each merged section produces one entry в `## Tool log` (M3 §6 selective logging) as `merge_section inline` (no `Agent()` call).
 
 Transition to Phase Validate.
 
@@ -655,7 +640,7 @@ validate_rounds: 1                # set in validate
 
 | Layer | Read at | Write at | Notes |
 |---|---|---|---|
-| **L1 (CLAUDE.md)** | Phase Detect §6.2 (Step 0 instructions load) | Phase Generate §8.4 (writes thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §8.5 conflict resolver in re-run mode |
+| **L1 (CLAUDE.md)** | Phase Detect §6.2 (Step 0 instructions load) | Phase Generate §8.4 (writes thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §8.5 orchestrator-inline merge in re-run mode |
 | **L2 (`learnings.jsonl`)** | Phase Detect §6.2 (prior `discovery` query, tag `setup`) | Phase Validate §9.3 (one `discovery` row on `done`) | `trust: verified` — code-grounded; auto-replaces dropped `/learnings` skill |
 | **L3 (`.geniro/planning/_project.md` etc.)** | not read (L3 is M2 Semantic — `/onboard` writes it) | not written | `/setup` and `/onboard` are different skills with non-overlapping write surfaces; `/setup` writes CLAUDE.md and `.geniro/instructions/*`, `/onboard` writes `.geniro/planning/_CODEBASE_MAP.md` and `.geniro/planning/_project.md` |
 | **L4 (`.geniro/instructions/*.md`)** | Phase Detect §6.2 (rules-only load via `_shared/load-custom-instructions.md`) | Phase Generate §8.4 — writes `.geniro/instructions/user-preferences.md` (always); optionally creates empty `.geniro/instructions/global.md` if user opts in | Schema: standard custom-instruction format (`## Rules`, `## Additional Steps`, `## Constraints`) |

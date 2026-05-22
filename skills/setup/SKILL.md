@@ -295,8 +295,8 @@ If `mode == re-run`:
 
 1. Read existing `CLAUDE.md`. Compute diff against the к-be-generated body (§3.2 output).
 2. For each section с `<!-- geniro-setup-managed -->` HTML comment marker, mark for replacement.
-3. Sections без the marker = user-edited → spawn **conflict-resolution agent** (`architect-agent`, `model: sonnet`, `tools: [Read, Edit]` constrained к `CLAUDE.md` only) per the §3.5 prompt template.
-4. Agent returns а merged body. Display diff к user; AUQ if diff is non-trivial.
+3. Sections без the marker = user-edited → **orchestrator-side merge inline** per §3.5 rules (no subagent spawn — section-merge is а bounded reasoning task that fits the orchestrator's own context cleanly; aligns с Anthropic best practice «folding light reasoning into orchestrator when it doesn't flood main context»).
+4. Display merged diff к user; AUQ if diff is non-trivial.
 
 If `mode == init`: skip §3.1.
 
@@ -354,31 +354,16 @@ After AUQ resolution:
 
 All Writes AUQ-gated at **batch level** (one AUQ "Generate all of: CLAUDE.md (X lines), .geniro/instructions/user-preferences.md (Y lines), ...? Options: yes / show preview first / edit which files").
 
-### 3.5 Conflict-resolution agent prompt (re-run only)
+### 3.5 Conflict-resolution merge rules (re-run only)
 
-For each user-edited section в re-run mode:
+Section merge runs **orchestrator-inline** — no subagent spawn. Each user-edited section is merged against the to-be-generated counterpart per these rules:
 
-```
-You are merging two versions of а CLAUDE.md section. The plugin generated NEW_CONTENT
-based on а fresh codebase scan; the user has EDITED_CONTENT в their existing CLAUDE.md.
-
-NEW_CONTENT (auto-generated):
-<...>
-
-EDITED_CONTENT (user-modified):
-<...>
-
-Rules:
 1. Preserve all user customizations from EDITED_CONTENT.
-2. Apply any factual updates from NEW_CONTENT (e.g., new commands detected).
-3. If conflict (same statement contradicted), emit `<!-- CONFLICT: ... -->` HTML comment с both versions; do not pick а side.
-4. Output ONLY the merged section body. No prose, no explanation outside the merged content itself.
+2. Apply any factual updates from NEW_CONTENT (e.g., new commands detected, updated skill table rows).
+3. If conflict (same statement contradicted), emit `<!-- CONFLICT: ... -->` HTML comment с both versions inline; do not pick а side — escalate к AUQ at §3.1 step 4.
+4. Output is the merged section body inserted directly into the CLAUDE.md draft.
 
-Tools: Read, Edit (constrained к CLAUDE.md only).
-Model: sonnet.
-```
-
-Output appended к `## Tool log` as one `merge_section spawn` entry (M3 §6 selective logging).
+Section merge is а bounded read+reason+rewrite task — the orchestrator reads both versions, applies the rules, и writes merged output via `atomic_state_write` к CLAUDE.md. Each merged section is one entry в `## Tool log` (M3 §6 selective logging) as `merge_section inline` (no `Agent()` call, just the orchestrator's own work).
 
 ### 3.6 user-preferences.md generation (P-M2-1 closure)
 
@@ -643,7 +628,7 @@ validate_rounds: 1
 
 | Layer | Read at | Write at | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | Phase 1 §1.4 (existing AI-tool config scan) | Phase 3 §3.4 (thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §3.5 conflict resolver |
+| L1 CLAUDE.md | Phase 1 §1.4 (existing AI-tool config scan) | Phase 3 §3.4 (thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §3.5 orchestrator-inline merge |
 | L2 learnings.jsonl | Phase 1 §1.2 (prior `discovery` query, tag `setup`) | Phase 4 §4.3 (one `discovery` row on `done`) | `trust: verified` — code-grounded; auto-replaces dropped `/learnings` |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/setup` и `/onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 §1.2 (rules-only load via `load-custom-instructions.md`) | Phase 3 §3.6 writes `user-preferences.md`; optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
@@ -660,8 +645,8 @@ validate_rounds: 1
 | 6 | No durable plans или goals | ✅ State file mandatory — singleton at `state/setup/state.md` |
 | 7 | No compaction strategy | ✅ `## Tool log` + `## Errors` + `## Open Questions` + `## Persisted approvals` populated — survives compaction via M3 §6 SessionStart re-injection |
 | 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools без policy | ✅ §ACI per-phase table; verification subagent constrained к `tools: [Read, Bash, Glob, Grep]`; conflict-resolver к `tools: [Read, Edit]` on CLAUDE.md only |
-| 10 | Subagents before single-agent MVP measured | ✅ `/setup` uses 1 verification subagent + (re-run only) 1 conflict-resolution subagent; both bounded |
+| 9 | High-risk tools без policy | ✅ §ACI per-phase table; verification subagent constrained к `tools: [Read, Bash, Glob, Grep]`; section-merge runs orchestrator-inline (no subagent) per §3.5 |
+| 10 | Subagents before single-agent MVP measured | ✅ `/setup` uses 1 verification subagent (Phase 4); section-merge is orchestrator-inline per §3.5 |
 | 11 | Dynamic timestamps в plugin-distributed Markdown | ⚠ This SKILL.md must NOT embed runtime timestamps; state file timestamps are fine (state files are generated, not plugin-distributed) |
 | 12 | Non-deterministic agent registration order | ✅ N/A — `/setup` consumes registration, doesn't define it |
 
@@ -703,7 +688,7 @@ validate_rounds: 1
 - M4 §2.2 — 7 loop invariants
 - M4 §2.3 — quality-first budgets
 - M4 §6 — Evidence Block standard; §1.4 conforms
-- M4 §13.4 — model tiering; verification subagent on `sonnet`, conflict-resolver on `sonnet`
+- M4 §13.4 — model tiering; verification subagent on `sonnet` (section merge runs orchestrator-inline, no separate model assignment)
 - M4 §13.5 — per-phase ACI
 - M9 (latest doc shape) — TOC structure, anti-rationalization placement; M10a mirrors
 - `architecture/M10a-setup-redesign.md` — full design rationale
