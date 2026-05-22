@@ -130,14 +130,13 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 |---|---|---|
 | `refactor-agent` (LOW or MEDIUM risk) | `sonnet` | Default — pattern application, file moves, rename, extract method |
 | `refactor-agent` (HIGH risk) | `opus` | `plan.max_risk == "HIGH"` (15+ files OR cross-module architectural restructure OR public API surface changes) |
-| `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning to weigh repo-convention evidence against detected smells |
 | Independent reviewer-agent + custom reviewers | `sonnet` | Phase 3 §3.2 diff review (Medium+ tier only) |
 | Focused ADR-drafting agent | `sonnet` | §3.3 ADR path (only fires если ADR-eligible PRODUCT-DECISION) |
 
 ## Agent Failure Handling
 
 If any delegated agent fails (timeout, error, empty/garbage result): retry once с the same prompt. If the retry also fails:
-- **Phase 1 evidence-gathering agents (refactor-agent §1.4, relevance-filter-agent §1.5):** proceed без the failed agent's output; note "Agent [name] failed — [dimension] not available" в §3.4 completion summary, и offer user the choice via `AskUserQuestion` header "Partial evidence": "Abort refactor" / "Continue с partial evidence (risky)". Default: Abort.
+- **Phase 1 evidence-gathering agent (refactor-agent §1.4):** if refactor-agent fails, proceed без its smell list; note "refactor-agent failed — smell detection not available" в §3.4 completion summary, и offer user the choice via `AskUserQuestion` header "Partial evidence": "Abort refactor" / "Continue с partial evidence (risky)". Default: Abort. (§1.5 smell evidence runs orchestrator-inline и cannot fail separately.)
 - **Phase 2 execution agent (refactor-agent §2.2):** do NOT silently skip — revert all changes (`git checkout -- .` с user confirmation per §3.1) и escalate к user с failure context.
 - **Phase 3 reviewer-agent (§3.2):** note the failure в the completion summary и proceed (fail-open); warn the user that independent review did not complete.
 
@@ -257,31 +256,27 @@ Anchor: stay within WORKTREE on BRANCH — verify с `pwd && git branch --show-c
 """, description="Refactor analyze: $ARGUMENTS")
 ```
 
-### 1.5 Relevance-filter dossier (Medium+) → orchestrator KEEP/FILTER
+### 1.5 Orchestrator-side smell evidence + KEEP/FILTER
 
-Skipped для Trivial и Small. Spawn а relevance-filter-agent к gather evidence on detected smells against repo conventions, then orchestrator decides KEEP vs FILTER:
+Skipped для Trivial и Small. The orchestrator gathers evidence on detected smells against repo conventions inline — no subagent spawn (folded under subagent rationalization; light reasoning that fits orchestrator's main context cleanly should not be spawned).
 
-```
-Agent(subagent_type="relevance-filter-agent", model="inherit", prompt="""
-FINDINGS: [smells detected by refactor-agent, с file:line references]
-CHANGED FILES: [files в refactoring scope from §1.2]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
+For each smell detected by refactor-agent (§1.4), the orchestrator weighs three signals inline:
 
-Gather evidence для each detected smell against this repo's actual patterns:
-1. Convention alignment — is this "smell" actually the repo's chosen pattern?
-2. Over-engineering — would fixing this smell introduce more complexity than it removes?
-3. Intentional pattern — does the flagged pattern exist deliberately в 3+ other files?
+1. **Convention alignment** — is this «smell» actually the repo's chosen pattern? Cross-check с CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs (when present) и CLAUDE.md.
+2. **Over-engineering** — would fixing this smell introduce more complexity than it removes? Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` mental check.
+3. **Intentional pattern** — does the flagged pattern exist deliberately в 3+ other files? Quick Grep pass over similar paths confirms.
 
-Return an evidence dossier per smell (ALIGNS/CONTRADICTS/NEUTRAL × APPROPRIATE/OVER-ENGINEERED × ISOLATED/WIDESPREAD). Do NOT tag smells KEEP или FILTER — return evidence only; the orchestrator decides.
+Synthesis matrix per smell:
 
-Anchor: stay within WORKTREE on BRANCH — verify с `pwd && git branch --show-current` on first Bash call.
-""", description="Relevance: refactor smells")
-```
+| Convention | Complexity | Frequency | Decision |
+|---|---|---|---|
+| ALIGNS | * | * | FILTER (repo's chosen pattern) |
+| CONTRADICTS | OVER-ENGINEERED | * | FILTER (cure worse than disease) |
+| CONTRADICTS | APPROPRIATE | WIDESPREAD | FILTER OR consult user (intentional rather than smell) |
+| CONTRADICTS | APPROPRIATE | ISOLATED | KEEP (genuine smell) |
+| NEUTRAL | APPROPRIATE | ISOLATED | KEEP (default) |
 
-After dossier returns, orchestrator synthesizes: для each smell, weigh evidence и tag KEEP or FILTER. Remove FILTERED smells from plan; note в summary. If agent fails, pass all smells through as KEEP (fail-open).
+KEEP smells enter §1.6 plan-build. FILTERED smells are noted в state.md `## Filtered smells` section с the synthesis reason. No fail-open caveat needed — dedup и judgment run в orchestrator's main context.
 
 ### 1.6 Risk classification + plan build + approval AUQ
 
@@ -592,7 +587,7 @@ Body sections:
 
 **Phase 1 (Plan):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation для baseline).
-- Allowed Agent spawns: refactor-agent (evidence-only), relevance-filter-agent.
+- Allowed Agent spawns: refactor-agent (evidence-only). §1.5 smell evidence runs orchestrator-inline.
 - Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**

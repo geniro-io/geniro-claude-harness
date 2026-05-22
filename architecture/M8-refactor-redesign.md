@@ -207,7 +207,7 @@ M8 has **NO hard kill caps**. All limits are **escalation gates that surface к 
 | Refactor-specific hard escalation signals | Preserved (4 signals — see §6.3.2). Trigger escalation OUT of /refactor entirely (route к /implement или другим skills). Orthogonal к the effort-scaling tier classifier. |
 | Phase 1 baseline validation + test-first gate | Preserved verbatim. Folded into Phase 1 §6.2. |
 | Phase 2 refactor-agent evidence-only spawn (smell detect + consumer count + Existing Abstraction Audit) | Preserved verbatim. Folded into Phase 1 §6.4. |
-| Phase 3 relevance-filter-agent dossier + orchestrator KEEP/FILTER tagging | Preserved verbatim. Folded into Phase 1 §6.5. |
+| Phase 3 relevance-filter-agent dossier + orchestrator KEEP/FILTER tagging | **Subagent-rationalization update:** dossier-spawn removed; orchestrator-inline smell evidence + KEEP/FILTER runs entirely в §6.5. |
 | Phase 4 refactor-agent execution + per-step protocol + blocked-step contract + ≥30% session cap | Preserved verbatim. Folded into Phase 2 §7. |
 | Phase 5 reviewer-agent + custom reviewers + orchestrator disposition (PRODUCT-DECISION escalation / CRITICAL-HIGH fix loop / MEDIUM note) | Preserved verbatim. Folded into Phase 3 §8. P-M1-1 `approvals[]` persistence added к PRODUCT-DECISION gate. |
 | Refactor-agent model tiering (opus when max_risk=HIGH, else sonnet) | Preserved verbatim. References `_shared/model-tiering.md`. |
@@ -361,7 +361,7 @@ Spawn invocation per `skills/_shared/spawn-agent.md` (degradation ladder) + `ski
 
 ### 6.5 Relevance-filter dossier (Medium+) → orchestrator KEEP/FILTER
 
-Skipped для Trivial и Small. Spawn а relevance-filter-agent to gather evidence on detected smells against repo conventions, then orchestrator decides KEEP vs FILTER (preserves pre-M8 contract, SKILL.md:200-222).
+Skipped для Trivial и Small. **Orchestrator-side smell evidence + KEEP/FILTER** runs inline — no subagent spawn (subagent rationalization). Orchestrator weighs convention alignment + over-engineering + intentional-pattern signals against detected smells per the synthesis matrix in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md` §1.5.
 
 Spawn contract preserved verbatim:
 - FINDINGS / CHANGED FILES / WORKTREE / BRANCH / PROJECT CONTEXT / CONVENTION FILES slots
@@ -657,7 +657,7 @@ worktree: <abs-path>                      # M1 §T1 optional, M8 strongly recomm
 | Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred от $ARGUMENTS (e.g., `react`, `auth`, `coupling`); scope = task path | top-K matching entries (K=5 default) | Per M2 §5.3. К find prior discoveries about coupling, pitfalls, conventions relevant к the refactor scope. |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | three layers | precedence-resolved или AUQ on hard conflict | Per M2 §10. |
 | Phase 1 (Medium+) | refactor-agent spawn (evidence-only) | — | — | — | smells + consumer counts | One spawn; орchestrator builds plan after. |
-| Phase 1 (Medium+) | relevance-filter-agent spawn | — | — | — | evidence dossier per smell | One spawn; orchestrator KEEP/FILTER tags after. |
+| Phase 1 (Medium+) | orchestrator-inline smell evidence | — | — | — | per-smell KEEP/FILTER decision | No spawn — runs in orchestrator's main context. |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | same scope as Phase 1 | re-inlined | Single re-fire — drops pre-M8 double-refresh. |
 | Phase 2 | refactor-agent spawn (execution) | — | — | approved plan + test cmd + autofix cmd | structured execution report | Model: opus if max_risk=HIGH else sonnet. |
 | Phase 3 (Medium+) | reviewer-agent spawn (independent) | — | — | diff + agent report + conventions + 3 criteria files | CRITICAL/HIGH/MEDIUM findings | One spawn, parallel с custom reviewers. |
@@ -702,7 +702,7 @@ Mirrors M4 §13.5 structure. Per master plan P-M4-6 — minimal scope.
 
 **Phase 1 (Plan):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation для baseline).
-- Allowed Agent spawns: refactor-agent (evidence-only), relevance-filter-agent.
+- Allowed Agent spawns: refactor-agent (evidence-only). Phase 1 §6.5 smell evidence runs orchestrator-inline.
 - Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**
@@ -784,7 +784,7 @@ Listed как `rm -f` invocations in §8.7 (best-effort, 2>/dev/null wrapper).
   - L49: Remove `/geniro:follow-up` Fast Lane reference + `/geniro:implement` Light Mode reference (both stale per M4 §9.3 + master plan §66). Replace с simpler "Trivial: skip planning agents и proceed directly к execution" line.
   - L52: Remove `/geniro:decompose` reference (deleted master plan §65). Replace с `/geniro:plan` (M5) recommendation для Big tier.
 - `skills/_shared/within-skill-state-handoff.md` — verify § Slug rules clause supports `.geniro/state/refactor/<slug>/state.md` layout (subdir-per-slug). If pre-M7 helper assumed flat filename pattern, update к subdir layout (М7 already did this if M7 implementation PR landed).
-- `skills/_shared/spawn-agent.md` — verify refactor-agent + relevance-filter-agent + reviewer-agent spawn sites follow the ladder. Already used pre-M8; no change expected.
+- `skills/_shared/spawn-agent.md` — verify refactor-agent + reviewer-agent spawn sites follow the ladder. Already used pre-M8; no change expected.
 - `skills/_shared/existing-abstraction-audit.md` — referenced from refactor-agent spawn prompt. No change expected.
 - `skills/_shared/evidence-standard.md` — referenced by §6.2 baseline и §7.4 regression. No change expected.
 - `skills/_shared/test-first-gate.md` — referenced from §6.2 step 6. No change expected.
@@ -796,7 +796,7 @@ Listed как `rm -f` invocations in §8.7 (best-effort, 2>/dev/null wrapper).
 - `skills/_shared/primary-worktree.md` — referenced для cross-session artifact resolution. No change expected.
 - `skills/_shared/scope-anchor.md` — referenced from §6.2 prior-planning context + agent spawn anchors. No change expected.
 - `agents/refactor-agent.md` — verify Phase 2 (Execution) и Phase 1 (Evidence Only) contracts both supported. Verify model tier carve-out (sonnet default / opus on HIGH). If pre-M8 included references к Phase 6 TDD post-GREEN, remove those references per Q3 drop. Verify `tools:` frontmatter blocks `git`/`gh` external commits (OQ-M8-4 deferred decision).
-- `agents/relevance-filter-agent.md` — verify Phase 1 dossier contract (return evidence dossier, not KEEP/FILTER tags). No change expected.
+- `agents/relevance-filter-agent.md` — ✅ deleted under subagent rationalization; Phase 1 §6.5 now orchestrator-inline.
 - `agents/reviewer-agent.md` — verify it accepts refactor-flavored prompts (5 Focus Areas в §8.2). Already used pre-M8; no change expected.
 
 ---
@@ -906,6 +906,5 @@ Per master plan P-MP-1 (lines 162-179): every milestone closes с an explicit an
 - improvement-routing: `skills/_shared/improvement-routing.md` (§ ADR template)
 - architecture-vocabulary: `skills/_shared/architecture-vocabulary.md`
 - refactor-agent: `agents/refactor-agent.md`
-- relevance-filter-agent: `agents/relevance-filter-agent.md`
 - reviewer-agent: `agents/reviewer-agent.md`
 - Pre-M8 /refactor: `skills/refactor/SKILL.md` (510 lines — reference для verbatim preservation per §12.1)

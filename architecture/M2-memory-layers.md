@@ -170,7 +170,7 @@ Unknown/free-form entries (no `type`) are valid — minimum is the required base
 | `/geniro:plan` (M5) | `spec.md` records chosen approach with considered alternatives | `decision` | `verified` |
 | `/geniro:implement` (M4) | Self-review reviewer-agent (architecture or code-quality dimension §7.2) detects ≥3 instances of same pattern in changed code | `convention` | `verified` |
 | `/geniro:implement` (M4) | Inline-task mode (no /plan available) where Phase 1 produced an inline approach choice — mirrors `/plan`'s `decision` emit для cross-session recall | `decision` | `verified` |
-| `/geniro:review` | `relevance-filter-agent` aggregated same finding from ≥3 reviewers | `pitfall` | `verified` |
+| `/geniro:review` | Phase 3 orchestrator-inline dedup aggregated same finding from ≥3 reviewers | `pitfall` | `verified` |
 | `/geniro:refactor` | Pattern extracted to shared utility/component | `discovery` | `verified` |
 | `/geniro:onboard` | Non-obvious architectural pattern documented | `discovery` | `verified` |
 | `/geniro:investigate` | Question answered after >3 search rounds | `discovery` | `retrieved` if WebFetch/WebSearch used; `verified` if code-grounded only |

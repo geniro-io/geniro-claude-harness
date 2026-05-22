@@ -76,7 +76,7 @@ The pre-M6 `/geniro:review` (1025-line `SKILL.md` + 10 criteria files + 4 refere
                                       ▼
         ┌─────────────────────────────────────────┐
         │  Phase 3 — Filter & Aggregate           │
-        │  • relevance-filter-agent dedup         │
+        │  • Orchestrator-inline dedup            │
         │  • Cross-reviewer convergence detection │
         │    (≥3 reviewers → pitfall candidate    │
         │    per M2 §5.3 P-M6-learnings)          │
@@ -150,7 +150,7 @@ State.md `phase:` enum transitions:
                │                        │                │            │              │
                │                        │                │            │              └── (severity rollup; --simplify P1/P2/P3 mapped к HIGH/MED/info)
                │                        │                │            │
-               │                        │                │            └── (relevance-filter-agent dedup; cross-reviewer convergence detect)
+               │                        │                │            └── (orchestrator-inline dedup; cross-reviewer convergence detect)
                │                        │                │
                │                        │                └── (5-9 parallel reviewer spawns; conditional dimensions; --simplify weights)
                │                        │
@@ -192,7 +192,7 @@ Per master plan P-M4-2 extended к M6. Identical pattern к M4 §2.1.1, M5 §2.1
 2. **Args validated before execution.** `$ARGUMENTS` flag parsing (semantic, no CLI grammar); PR ref validation via `mcp__github__pull_request_read` или GraphQL fallback.
 3. **Permission before side-effect.** Phase 6 «Post Draft PR» action requires AUQ approval before `mcp__github__pull_request_review_write` посчitcalls. State.md writes via M1 `atomic_state_write` (permission-checked at hook layer).
 4. **Bounded и structured tool results.** Reviewer-agent output ≤4000 chars per dim; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
-5. **Escalation gates, not silent abort.** Round-N ≥3 → Phase 6 escalation gate. relevance-filter-agent recursion bounded by reviewer-count.
+5. **Escalation gates, not silent abort.** Round-N ≥3 → Phase 6 escalation gate. Phase 3 dedup pass is а single orchestrator-inline scan bounded by reviewer-count.
 6. **Final answer grounded в observations.** Phase 6 hand-off message MUST cite the state.md path; finding bodies MUST include Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Reviewer spawn failures → `## Errors` body section. `gh` failures fail-open per existing logic — но НОВЫЙ обязательство: log fail-open к `## Errors` (currently silent).
 
@@ -210,7 +210,7 @@ Per master plan P-M4-2 extended к M6. Identical pattern к M4 §2.1.1, M5 §2.1
 |---|---|---|---|
 | Round-N reviewer re-spawn | 3 | Phase 6 Round-N gate | AUQ — debug-handoff / continue / abort. User picks. |
 | Reviewer output size | ~4K chars per dim | §2.2 invariant #4 | Truncation marker, not abort. |
-| relevance-filter-agent dedup pass | 1 per round | Phase 3 | If filter agent fails, fall back к orchestrator-side dedup heuristic + `## Errors` entry. |
+| Phase 3 dedup pass | 1 per round | Phase 3 | Orchestrator-inline (no subagent — folded under subagent rationalization). Cannot fail separately. |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -233,7 +233,7 @@ Per master plan P-M4-2 extended к M6. Identical pattern к M4 §2.1.1, M5 §2.1
 | `skills/deep-simplify/` directory entirely (552 LOC) | Master plan §67 — absorb as а flag. P1/P2/P3 severity tier divergent от /review's CRITICAL/HIGH/MEDIUM. | `/review --simplify` flag (§13) folds the 3 simplify passes (Reuse / Quality / Efficiency) into existing dimensions. Severity reconciled: P1→HIGH, P2→MEDIUM, P3→informational. |
 | Custom state.md schema (`.geniro/state/review-findings-state.md` overwrite-per-run) | М1 §T2 non-conformance (no frontmatter, no `geniro_kind`, no `approvals[]`). | Path: `.geniro/state/handoff/from-review-<branch>.md`. Schema: М1-T1 frontmatter + М3 body sections (§15). |
 | Inline 280+120+250 = ~650 lines из SKILL.md (Phase 1 triage / Phase 4c test-gate / Phase 6 hand-off) | Surface inflation (D8). Reduces readability + dilutes orchestration shell. | Extract к 3 reference files (§18): `phase-1-triage-reference.md`, `phase-4c-test-gate-reference.md`, `phase-6-handoff-reference.md`. SKILL.md target: ~400 lines orchestration shell. |
-| Phase 5b «emit pitfall via AUQ» | Master plan §69 — /learnings deleted; auto-emit replaces. | Auto-emit `pitfall` к L2 when relevance-filter-agent reports ≥3-reviewer convergence (P-M6-learnings, §11.2). |
+| Phase 5b «emit pitfall via AUQ» | Master plan §69 — /learnings deleted; auto-emit replaces. | Auto-emit `pitfall` к L2 when orchestrator-inline dedup reports ≥3-reviewer convergence (P-M6-learnings, §11.2). |
 
 ### 3.2 Kept (with adaptation)
 
@@ -244,7 +244,7 @@ Per master plan P-M4-2 extended к M6. Identical pattern к M4 §2.1.1, M5 §2.1
 | Input mode detection (OUTGOING / INCOMING / pr-ref) | Preserved unchanged in Phase 1. |
 | `effort-scaling.md` 9 hard-escalation signals → risk-tier | Preserved. Pre-M6 only adjusted 3 downstream knobs (threshold, validator budget, spec-compliance default); М6 adds а 4th: risk-tier:high gates mechanical pre-pass secret scan к «strict mode» (additional patterns scanned). |
 | --tdd flag (F→P test gate, Phase 4c) | Preserved verbatim. Cross-checked against M4 §3.1 ("TDD discipline belongs к external guidance, not gating") — the M6 --tdd flag is не gating, it's а Phase-4c default-flip. M4's removal of TDD «lane» mode is а different feature; M6 --tdd is reviewer-side test-gate emphasis. Names differ; semantics differ. |
-| relevance-filter-agent (Phase 3 dedup) | Preserved. М6 extends its output к include а `convergence_count` field per finding — required для P-M6-learnings auto-emit trigger. |
+| Phase 3 dedup | **М6 changed: orchestrator-inline instead of relevance-filter-agent spawn** (subagent rationalization). Output schema extended к include `convergence_count: int` per dedup'd finding — required для P-M6-learnings auto-emit trigger. |
 | 4-option action-gate AUQ (Phase 6) | Preserved options: `/implement` / Post Draft PR / Continue / Skip. Defaults к Recommended /implement when CRITICAL/HIGH count >0. |
 
 ### 3.3 Replaced
@@ -470,18 +470,19 @@ Each reviewer returns а list of findings per finding-tagging.md schema. Finding
 
 State.md `phase: filter` during this phase.
 
-### 9.1 relevance-filter-agent spawn
+### 9.1 Orchestrator-side dedup + convergence
 
-Spawn `relevance-filter-agent` (plugin) с the full per-dimension findings list. Agent's job:
-- Dedup cross-reviewer duplicates (same `path:line` + same finding-title across 2-9 reviewers).
-- Tag converged findings с а `convergence_count` field (= N reviewers reported same issue).
-- Drop irrelevant findings (e.g., LLM hallucinations с no real file:line correspondence).
+The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent outputs + Phase 1.5 mechanical findings) and performs dedup inline — no subagent spawn:
+- Dedup cross-reviewer duplicates by `path:line + finding-title` (case-insensitive title match).
+- Tag converged findings с а `convergence_count: int` field (= N reviewers + mechanical checks reporting same key).
+- Drop irrelevant findings (e.g., LLM hallucinations с no real file:line correspondence — verified via Read).
+- Convention context — read CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs when present.
 
-М6 NEW: relevance-filter-agent output schema extended к include `convergence_count: int` per dedup'd finding (required для P-M6-learnings auto-emit trigger §11.2).
+Folded from former relevance-filter-agent (deleted under subagent rationalization). Anthropic best practice: light reasoning that fits orchestrator's main context cleanly should not be spawned. Google/MIT 2025 study (arXiv 2512.08296) shows multi-agent dedup adds 58-515% turn overhead vs orchestrator-inline.
 
 ### 9.2 Mechanical+LLM dedup
 
-Mechanical pre-pass findings (Phase 1.5) and LLM findings may overlap (e.g., lint says «unused import on line 42», bugs reviewer says «dead code on line 42»). filter-agent identifies overlap, preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. The convergence_count for that finding gains +1 for the mechanical contribution.
+Mechanical pre-pass findings (Phase 1.5) and LLM findings may overlap (e.g., lint says «unused import on line 42», bugs reviewer says «dead code on line 42»). Orchestrator-inline dedup identifies overlap by `path:line + finding-title` key, preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. The convergence_count for that finding gains +1 for the mechanical contribution.
 
 ### 9.3 Severity rollup
 
@@ -554,7 +555,7 @@ If pre-M6 file exists at legacy path `.geniro/state/review-findings-state.md`, �
 
 ### 11.2 Phase 5b — L2 pitfall auto-emit (P-M6-learnings closure)
 
-Trigger condition: relevance-filter-agent (Phase 3 §9.1) reported а finding с `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
+Trigger condition: Phase 3 §9.1 orchestrator-side dedup produced а finding с `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
 
 When trigger fires, auto-spawn (no AUQ — replaces deleted /learnings skill per master plan §69):
 
@@ -963,14 +964,14 @@ Per M2 §13: every pipeline skill declares helpers + boundaries.
 | `convention` | Not by М6. М4 /implement owns. |
 | `decision` | Not by М6. М5 /plan owns. |
 | `diagnosis` | Not by М6. М7 /debug owns. |
-| `pitfall` | **YES** — Phase 5b auto-emit when relevance-filter-agent reports convergence ≥3. Replaces deleted /learnings skill per master plan §69. |
+| `pitfall` | **YES** — Phase 5b auto-emit when Phase 3 orchestrator-inline dedup reports convergence ≥3. Replaces deleted /learnings skill per master plan §69. |
 | `discovery` | Not by М6. |
 
 ### 19.3 ACI per-phase tool surface
 
 **Phase 1 / 1.5:** Read / Grep / Glob / Bash (read-only — `gh pr view`, `git diff`, `which <tool>`, project lint commands, `tsc --noEmit`). No Edit/Write apart от М1 state.md.
 
-**Phase 2 / 3 / 4:** Agent spawns (`reviewer-agent`, `relevance-filter-agent`). No Edit/Write/Bash mutations.
+**Phase 2 / 4:** Agent spawns (`reviewer-agent`, validation sub-agents, `adversarial-tester-agent`). Phase 3 dedup orchestrator-inline (no spawn). No Edit/Write/Bash mutations.
 
 **Phase 5:** Write (scoped к `.geniro/state/handoff/**` via existing safety hooks). `mcp__github__pull_request_review_write` (conditional). `emit-learning` helper writes к `.geniro/learnings.jsonl`.
 
@@ -1043,7 +1044,7 @@ Append а «v9 audit (M6)» section noting:
 
 ### 21.2 М2 dependencies
 
-- **М2 §5.3** patched contract for `pitfall` emission triggered by relevance-filter-agent convergence_count.
+- **М2 §5.3** patched contract for `pitfall` emission triggered by Phase 3 orchestrator-inline dedup convergence_count.
 - **М2 §9** `emit-learning` helper called Phase 5b.
 - **М2 §13** Memory I/O obligation closed (§19).
 
@@ -1086,7 +1087,7 @@ Append а «v9 audit (M6)» section noting:
 |---|---|---|
 | **OQ-M6-1** | **Phase 1.5 mechanical pre-pass — script vs inline orchestrator logic?** Lint/schema/secret checks could live in а Bash script invoked once OR be enumerated as orchestrator-side tool-call sequence in SKILL.md. Trade-off: script = testable, has а DAG; inline = no infra. | ⏳ Deferred к implementation. Tentative: inline initially; promote к script if complexity grows. |
 | **OQ-M6-2** | **Risk-tier:high strict secret scan pattern list — versioned ontology?** The 8 patterns в §7.2 are baseline. Should they live в а separate `secret-patterns.md` reference file (versioned, project-overridable) или inline? | ⏳ Deferred. Tentative inline initially; promote к file if project-overrides become а common feature request. |
-| **OQ-M6-3** | **relevance-filter-agent output schema extension** — adding `convergence_count` field. Does the existing agent prompt support this, или needs amendment? | ⏳ Deferred к implementation step 8. Verify agent file + amend prompt if needed. |
+| **OQ-M6-3** | **~~relevance-filter-agent output schema extension~~** — ✅ Closed under subagent rationalization. Phase 3 dedup now runs orchestrator-inline; orchestrator computes `convergence_count` directly. No agent prompt к amend. |
 | **OQ-M6-4** | **Round-N hard ceiling at round 5 (§12.2) — accidentally infinite loop guard.** Pre-M6 had no hard ceiling. The proposed ceiling is fail-safe but never tested. Should this be soft (warning) или hard (force-escalate)? | ⏳ Deferred. Tentative hard ceiling at round 6 (so user has 3 free rounds + 1 round-3-escalation-pick + 2 «Continue»-picks + automatic escalate at round 6). |
 | **OQ-M6-5** | **--simplify + risk-tier:high interaction** — does --simplify imply high tier? Or are they orthogonal? | ⏳ Deferred. Tentative: orthogonal (user can run --simplify on а standard-tier task). |
 

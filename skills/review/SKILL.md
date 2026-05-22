@@ -74,7 +74,7 @@ State.md `phase:` enum transitions:
 |---|---|---|---|
 | Round-N reviewer re-spawn | 3 | Phase 6 Round-N gate | AUQ — debug-handoff / continue / abort. User picks. |
 | Reviewer output size | ~4K chars per dim | §2.2 invariant #4 | Truncation marker, not abort. |
-| relevance-filter-agent dedup pass | 1 per round | Phase 3 | If filter agent fails, fall back к orchestrator-side dedup heuristic + `## Errors` entry. |
+| Phase 3 dedup pass | 1 per round | Phase 3 | Orchestrator-inline (no subagent — folded under subagent rationalization). Cannot «fail» — runs in orchestrator's main context. |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -97,7 +97,6 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 |---|---|---|
 | `reviewer-agent` (bugs, security, architecture, tests, optimizations, conventions, design, pr-metadata, spec-compliance) | `sonnet` | Reasoning-heavy review |
 | `reviewer-agent` (guidelines) | `haiku` | Rubric-based — pattern matching against checklist |
-| `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning к weigh repo-convention evidence |
 | `adversarial-tester-agent` (Phase 4c only) | `inherit` | Reasoning-grade test authoring |
 | Per-finding validation sub-agents (CRITICAL/HIGH) | `inherit` | Reasoning-grade verification |
 
@@ -265,26 +264,26 @@ Feed pass/fail into Phase 4 judge. Failing build is automatically а CRITICAL fi
 
 State.md `phase: filter`.
 
-### 3.1 relevance-filter-agent spawn
+### 3.1 Orchestrator-side dedup + convergence
 
-Spawn `relevance-filter-agent` (plugin) с the full per-dimension findings list. Agent's job:
-- Dedup cross-reviewer duplicates (same `path:line` + finding-title across 2-9 reviewers).
-- Tag converged findings с а `convergence_count: int` field (= N reviewers reported same issue).
-- Drop irrelevant findings (LLM hallucinations с no real file:line correspondence).
+The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent outputs + Phase 1.5 mechanical findings) and performs dedup inline — no subagent spawn:
 
-**М6 NEW (§9.1):** relevance-filter-agent output schema extended к include `convergence_count: int` per dedup'd finding (required для P-M6-learnings auto-emit trigger §11.2). Verify the agent prompt supports this или amend at implementation time (OQ-M6-3).
+- **Dedup key:** `path:line + finding-title` (case-insensitive title match).
+- **Convergence_count:** for each dedup'd finding, count how many reviewers + mechanical checks reported the same key. Persisted as а field on the finding (consumed by Phase 5b auto-emit threshold §5.3).
+- **Drop hallucinations:** findings without а real file:line correspondence (orchestrator verifies file exists и line is within bounds via Read; if not, drop with а `## Caveats` line citing the dropped finding).
+- **Convention context:** orchestrator reads convention files when present — CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs. These inform §3.3 KEEP/FILTER decisions.
 
-**Convention context gathering:** Before spawning, read convention files that exist в the project — CONTRIBUTING.md, ADRs (docs/adr/), architecture docs. Pass alongside CLAUDE.md context.
+Folded from former relevance-filter-agent (deleted under subagent rationalization — Anthropic best practice: light reasoning that fits orchestrator's main context cleanly should not be spawned as а separate agent).
 
 ### 3.2 Mechanical+LLM dedup
 
-Mechanical findings (Phase 1.5) и LLM findings may overlap (e.g., lint says «unused import on line 42», bugs reviewer says «dead code on line 42»). filter-agent identifies overlap, preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. Convergence_count для that finding gains +1 для the mechanical contribution.
+Mechanical findings (Phase 1.5) и LLM findings may overlap (e.g., lint says «unused import on line 42», bugs reviewer says «dead code on line 42»). Orchestrator-inline dedup identifies overlap by dedup key (§3.1), preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. Convergence_count для that finding gains +1 для the mechanical contribution.
 
-### 3.3 Orchestrator tagging
+### 3.3 KEEP/FILTER judgment
 
-After dossier returns, the **orchestrator** synthesizes per finding: weigh convention-alignment, over-engineering, и pattern-frequency evidence against severity и judge KEEP / FILTER. CRITICAL findings с `safety_override=true` are always KEEP regardless of convention evidence. Pass only KEEP findings к Phase 4. FILTERED appear в the report's `## Filtered` section.
+After dedup, the orchestrator synthesizes per finding: weighs convention-alignment, over-engineering, и pattern-frequency evidence against severity и judges KEEP / FILTER. CRITICAL findings с `safety_override=true` are always KEEP regardless of convention evidence. Pass only KEEP findings к Phase 4. FILTERED appear в the report's `## Filtered` section с reason annotation.
 
-If relevance-filter-agent fails или returns malformed output, pass all findings through к Phase 4 as KEEP (fail-open). Surface "relevance-filter fail-open — convention check skipped" под `## Caveats` + write `## Errors` entry.
+No external agent к fail — dedup и judgment run в orchestrator's main context.
 
 ---
 
@@ -426,7 +425,7 @@ If pre-M6 file exists at legacy path `<PRIMARY_ROOT>/.geniro/state/review-findin
 
 ### 5.3 Phase 5b — L2 pitfall auto-emit (P-M6-learnings, replaces /learnings)
 
-**Trigger condition:** relevance-filter-agent (Phase 3 §3.1) reported а finding с `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
+**Trigger condition:** Phase 3 §3.1 orchestrator-side dedup produced а finding с `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
 
 When trigger fires, **auto-spawn (no AUQ — replaces deleted /learnings skill per master plan §69)**:
 
@@ -494,7 +493,7 @@ Open questions for Phase 6 deferred per spec OQ-M6-4 (hard-ceiling at round 5 or
 | Phase | Allowed tools | Restricted |
 |---|---|---|
 | Phase 1 / 1.5 | Read, Grep, Glob, Bash (read-only — `gh pr view`, `git diff`, `which <tool>`, lint commands, `tsc --noEmit`), **`mcp__linear__*` (read-only — `get_issue` / `list_issues` for §3.5 workflow integration; degrade silently if unregistered)** | No Edit/Write apart от M1 state.md; no Linear `update_issue` / `create_comment` от /review (those remain в /implement Ship) |
-| Phase 2 / 3 / 4 | Agent (reviewer-agent, relevance-filter-agent, validation sub-agents, adversarial-tester-agent) | No Edit/Write/Bash mutations |
+| Phase 2 / 3 / 4 | Agent (reviewer-agent, validation sub-agents, adversarial-tester-agent); Phase 3 dedup orchestrator-inline (no spawn) | No Edit/Write/Bash mutations |
 | Phase 5 | Write (scoped к `.geniro/state/handoff/**`), `mcp__github__pull_request_review_write` (conditional), `emit-learning` helper | Direct edits outside scope blocked by hooks |
 | Phase 6 | AskUserQuestion | Read-only |
 
