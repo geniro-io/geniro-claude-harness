@@ -6,7 +6,7 @@ Severity reconciliation per M6 §13.3: P1 → HIGH, P2 → MEDIUM, P3 → inform
 
 NOT а new dimension — folds into existing dims per M6 §13.6 anti-pattern. The pre-M6 standalone `/deep-simplify` carried а Fix agent + Verify agent that auto-applied edits + auto-reverted; M6 does NOT carry those (Reporter contract H-2). Users wanting auto-applied fixes pipe `/review --simplify` output к `/implement`.
 
-Also referenced (legacy — к be cleaned up в the consuming skill's milestone) by `/geniro:implement` Phase 5 / Ship sub-step. (M8 /refactor does NOT reference this file — its smell-detection routes через existing-abstraction-audit.md + refactor-agent's deepening lens per M8 §1.4.)
+Also referenced (legacy — к be cleaned up в the consuming skill's milestone) by `/geniro:implement` Phase 5 / Ship sub-step. (M8 /refactor does NOT reference this file — its smell-detection routes через existing-abstraction-audit.md + orchestrator-inline deepening lens per M8 §1.4 + `_shared/refactor-patterns.md`.)
 
 ---
 

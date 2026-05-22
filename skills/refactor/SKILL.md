@@ -25,7 +25,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 You refactor. You validate behavior preservation. You do NOT commit или push the diff. Phase 3 endpoint is а working-tree diff (the deliverable) + а chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship.
 
-The constitutional rule (zero behavior change) is enforced per-step via the refactor-agent's regression test gate AND post-execution via the final regression run (§2.4). PRODUCT-DECISION findings ALWAYS escalate (§3.3) — picking one resolution path is а behavior change.
+The constitutional rule (zero behavior change) is enforced per-step via the orchestrator-inline regression test gate (§2.2 post-condition check) AND post-execution via the final regression run (§2.4). PRODUCT-DECISION findings ALWAYS escalate (§3.3) — picking one resolution path is а behavior change.
 
 ---
 
@@ -85,11 +85,11 @@ state.md `phase:` enum transitions:
 
 M4 §2.2's 7 invariants apply unchanged. Three M8-specific notes:
 
-1. **Invariant #4 (bounded structured tool results)** — refactor-agent's structured execution report (per-step status, blocked-step reasons) capped at ~8K chars; longer truncated с marker.
+1. **Invariant #4 (bounded structured tool results)** — orchestrator-inline execution writes per-step status и blocked-step reasons к state.md `## Plan steps`; total file body capped at ~8K chars via atomic_state_write truncation marker.
 2. **Invariant #5 (escalation gates, not silent abort)** — §2.3 ≥30% blocked AUQ + §3.3 PRODUCT-DECISION always-WAIT.
-3. **Invariant #7 (errors → structured observations)** — refactor-agent per-step blocked rationale, baseline validation failure, и reviewer CRITICAL findings all become structured `## Tool log` / `## Errors` entries.
+3. **Invariant #7 (errors → structured observations)** — per-step blocked rationale (§2.2), baseline validation failure (§1.2), и reviewer CRITICAL findings (§3.2) all become structured `## Tool log` / `## Errors` entries.
 
-`## Tool log` schema: typical run produces 3-6 entries (refactor-agent Phase 1 evidence + relevance-filter + refactor-agent Phase 2 execution + reviewer-agent + custom reviewers + escalation entries).
+`## Tool log` schema: typical run produces 3-6 entries (reviewer-agent + custom reviewers + escalation entries; smell detection и per-step execution run orchestrator-inline и emit к state.md `## Plan steps` directly).
 
 ---
 
@@ -101,7 +101,7 @@ M8 has **NO hard kill caps**. Same model as M4 / M5 / M6 / M7.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Per-step retry в refactor-agent | 3 | §2.2 (agent-internal) | Mark BLOCKED, continue к next step |
+| Per-step retry (orchestrator-inline Blocked Step Protocol) | 3 | §2.2 | Mark BLOCKED, continue к next step |
 | Session-level blocked ratio | 30% (post-rejection denominator) | §2.3 | AUQ — keep what worked & escalate / revert / force-continue. User picks. |
 | Phase 3 fix-loop | 1 round | §3.3 | Re-spawn reviewer once; if still failing, AUQ (escalate / accept / abort). |
 | Reviewer output size | ~4K chars per dim | §2.2 invariant #4 | Truncation с marker. |
@@ -111,7 +111,7 @@ M8 has **NO hard kill caps**. Same model as M4 / M5 / M6 / M7.
 | Constraint | Value | Source |
 |---|---|---|
 | Parallel reviewer spawns | 1 independent + N custom reviewers | §3.2 |
-| Smell-detection rounds | 1 (refactor-agent evidence-only) | §1.4 |
+| Smell-detection rounds | 1 (orchestrator-inline) | §1.4 |
 | Relevance-filter rounds | 1 (Medium+ only) | §1.5 |
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale as M4 §2.3.
@@ -128,23 +128,23 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 | Spawn | Tier | When |
 |---|---|---|
-| `refactor-agent` (LOW or MEDIUM risk) | `sonnet` | Default — pattern application, file moves, rename, extract method |
-| `refactor-agent` (HIGH risk) | `opus` | `plan.max_risk == "HIGH"` (15+ files OR cross-module architectural restructure OR public API surface changes) |
+| Orchestrator-inline execution (LOW or MEDIUM risk) | Orchestrator's model | Smell detection (§1.4) + per-step execution (§2.2) run on orchestrator's main thread (typically Opus 4.7) |
+| Orchestrator-inline execution (HIGH risk) | Orchestrator's model | Same — orchestrator already на highest tier; HIGH-risk plan steps don't warrant а separate tier (no subagent к re-tier) |
 | Independent reviewer-agent + custom reviewers | `sonnet` | Phase 3 §3.2 diff review (Medium+ tier only) |
 | Focused ADR-drafting agent | `sonnet` | §3.3 ADR path (only fires если ADR-eligible PRODUCT-DECISION) |
 
 ## Agent Failure Handling
 
 If any delegated agent fails (timeout, error, empty/garbage result): retry once с the same prompt. If the retry also fails:
-- **Phase 1 evidence-gathering agent (refactor-agent §1.4):** if refactor-agent fails, proceed без its smell list; note "refactor-agent failed — smell detection not available" в §3.4 completion summary, и offer user the choice via `AskUserQuestion` header "Partial evidence": "Abort refactor" / "Continue с partial evidence (risky)". Default: Abort. (§1.5 smell evidence runs orchestrator-inline и cannot fail separately.)
-- **Phase 2 execution agent (refactor-agent §2.2):** do NOT silently skip — revert all changes (`git checkout -- .` с user confirmation per §3.1) и escalate к user с failure context.
+- **Smell detection (§1.4) и smell evidence (§1.5)** run orchestrator-inline и cannot fail separately — failures bubble up как normal orchestrator errors (Read / Grep / Glob unavailable would halt the skill).
+- **Per-step execution (§2.2)** failures: do NOT silently skip. If а step's Blocked Step Protocol exhausts 3 retries, revert that step и continue per §2.3 (≥30% blocked → AUQ). Catastrophic Edit failures (filesystem error) → revert all changes (`git checkout -- .` с user confirmation per §3.1) и escalate к user с failure context.
 - **Phase 3 reviewer-agent (§3.2):** note the failure в the completion summary и proceed (fail-open); warn the user that independent review did not complete.
 
 ---
 
 ## Evidence Standard
 
-Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. М8 applies it at §1.2 baseline validation, §2.2 per-step regression gate (within the refactor-agent), и §2.4 final regression run.
+Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. М8 applies it at §1.2 baseline validation, §2.2 per-step regression gate (orchestrator-inline pre/post-check), и §2.4 final regression run.
 
 ---
 
@@ -156,7 +156,7 @@ Every user-facing choice в this skill MUST go through the `AskUserQuestion` too
 
 ## Phase 1 — Plan
 
-state.md `phase: plan`. Light by cost vs Phase 2 — а scope-discovery batch (Read + Grep) + 1 baseline validation run + 1 refactor-agent spawn (Medium+) + 1 relevance-filter spawn (Medium+) + orchestrator plan-build.
+state.md `phase: plan`. Light by cost vs Phase 2 — а scope-discovery batch (Read + Grep) + 1 baseline validation run + orchestrator-inline smell detection (Medium+) + orchestrator-inline smell evidence (Medium+) + orchestrator plan-build.
 
 Exits к Phase 2 only when: (a) baseline validation green, (b) tier classified, (c) hard signals checked, (d) smells identified (Medium+) + relevance-filtered (Medium+), (e) plan built и approved (HIGH-risk steps gated).
 
@@ -201,7 +201,7 @@ Echo lines per M3 §7.2 mandatory.
 |---|---|
 | **Trivial** | 1-2 files, mechanical (rename, single extract). Skip §1.4 smell-detection. Skip §1.5 relevance-filter. Skip §3.2 independent reviewer + custom reviewers. Orchestrator authors the plan directly от $ARGUMENTS + scope-files Read; goes straight к Phase 2 execution. |
 | **Small** | Full smell-detection в §1.4 BUT skip §1.5 relevance-filter (scope too narrow к matter). Skip §3.2 independent reviewer + custom reviewers. |
-| **Medium** | Full pipeline as specified — refactor-agent smell-detect + relevance-filter dossier + reviewer-agent + custom reviewers. |
+| **Medium** | Full pipeline as specified — orchestrator-inline smell-detect (§1.4) + orchestrator-inline smell evidence (§1.5) + reviewer-agent (§3.2) + custom reviewers. |
 | **Big** | Recommend running `/geniro:plan` first к split the refactor into independently shippable milestones; refactor then runs one milestone at а time against an approved spec.md. If user wants к proceed без planning, require explicit confirmation via `AskUserQuestion` header "Scope": "Run /geniro:plan first" / "Proceed без а plan (risky)". On "Proceed без а plan", Big runs the Medium pipeline. The only difference is user has accepted the added risk of proceeding без architectural review. |
 
 #### 1.3.2 Refactor-specific hard escalation signals (escalate OUT — orthogonal к effort-scaling)
@@ -215,52 +215,45 @@ These 4 refactor-specific signals are orthogonal к the canonical effort-scaling
 | Test assertions touched (not just imports) | Not refactoring — `/geniro:implement` |
 | Auth, crypto, или payment code touched | Escalate (owner review required) — surface к user, не auto-route |
 
-### 1.4 Smell detection (refactor-agent evidence-only — Medium+)
+### 1.4 Smell detection (orchestrator-inline — Medium+)
 
 Skipped для Trivial и Small per §1.3.1 Step 3.
 
-Spawn а refactor-agent к detect smells и count consumers — evidence only. The orchestrator then classifies risk, orders the plan, и marks HIGH-risk steps for user confirmation.
+The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn (subagent rationalization; sequential refactoring is exactly the failure mode the Google/MIT 2025 study predicts for multi-agent variants, arXiv 2512.08296: −70% accuracy на sequential reasoning).
 
+**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 — full smell taxonomy + change-impact scoring + escalation rules. The orchestrator reads this file once at §1.4 entry и applies the rubric inline.
+
+**Per-smell procedure:**
+
+1. Apply the 6 smell categories (duplication / long methods / god classes / dead code / tight coupling / type+import issues) via Read + Grep against the FILES IN SCOPE from §1.2.
+2. Apply the Deepening Opportunities lens — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first for vocabulary grounding, then scan for wide-interface shallow modules / pass-through wrappers / repeated cross-call orchestration / high-leverage shallow code.
+3. For every detected smell, run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (Grep designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format.
+4. Count consumers per smell via Grep (`Grep(pattern="SymbolName", output_mode="count")`). Adjust glob filter based on language (`*.ts` / `*.py` / etc).
+5. Public-surface guard: flag smells that change public API signature, module export, или shared type — these are HIGH-risk regardless of consumer count.
+
+Output (write directly to state.md `## Smells Detected`):
+
+```yaml
+smells:
+  - id: s-001
+    category: duplication
+    file_lines: <file:line references>
+    proposed_transformation: <mechanical description>
+    consumer_count: <int>
+    files_affected: <bounded list>
+    public_surface: <true|false>
+    abstraction_audit: <REUSE-AS-IS|EXTEND|NO-ANALOGUE — per audit output>
 ```
-Agent(subagent_type="refactor-agent", model="sonnet", prompt="""
-You are analyzing code for refactoring. Your task:
 
-WHAT TO REFACTOR: $ARGUMENTS
+Risk classification (LOW / MEDIUM / HIGH) и ordering happen в §1.6 (orchestrator decisions, не §1.4's job).
 
-FILES IN SCOPE:
-[list the files you read в Phase 1]
-
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-
-PROJECT CONVENTIONS:
-[paste any relevant conventions from CLAUDE.md или project docs]
-
-PHASE: EVIDENCE GATHERING ONLY.
-- Execute ONLY your Phase 1 (Code Smell Detection). Skip all planning, risk scoring, и ordering.
-- Skip Phase 2 (Refactoring Plan), Phase 3 (Atomic Application), и Phase 4 (Reporting) entirely.
-- Do NOT use Write or Edit tools during this invocation. You are producing raw evidence, not а plan.
-- Return smells + consumer counts as your final output.
-- For every detected smell, also run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (Grep designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format.
-
-Run all 6 smell detection categories (duplication, long methods, god classes, dead code, tight coupling, type/import issues) AND the Deepening Opportunities lens per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md`. For each finding, count consumers с Grep.
-
-Return as а flat list:
-- Smell 1: [type, file:line references, proposed transformation, consumer count, files affected]
-- Smell 2: ...
-- Public surface notes: [smells that change public API signature, module export, или shared type — orchestrator will treat these as HIGH risk regardless of consumer count]
-
-Do NOT classify risk (LOW/MEDIUM/HIGH). Do NOT order the smells. Do NOT flag steps for user confirmation. Those are orchestrator decisions.
-
-Anchor: stay within WORKTREE on BRANCH — verify с `pwd && git branch --show-current` on first Bash call; abort if either differs.
-""", description="Refactor analyze: $ARGUMENTS")
-```
+Anchor: stay within WORKTREE on BRANCH — orchestrator verifies с `pwd && git branch --show-current` once at §1.4 entry; abort if either differs.
 
 ### 1.5 Orchestrator-side smell evidence + KEEP/FILTER
 
 Skipped для Trivial и Small. The orchestrator gathers evidence on detected smells against repo conventions inline — no subagent spawn (folded under subagent rationalization; light reasoning that fits orchestrator's main context cleanly should not be spawned).
 
-For each smell detected by refactor-agent (§1.4), the orchestrator weighs three signals inline:
+For each smell detected по §1.4, the orchestrator weighs three signals inline:
 
 1. **Convention alignment** — is this «smell» actually the repo's chosen pattern? Cross-check с CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs (when present) и CLAUDE.md.
 2. **Over-engineering** — would fixing this smell introduce more complexity than it removes? Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` mental check.
@@ -280,7 +273,7 @@ KEEP smells enter §1.6 plan-build. FILTERED smells are noted в state.md `## Fi
 
 ### 1.6 Risk classification + plan build + approval AUQ
 
-Orchestrator builds the plan from refactor-agent output (Medium+) или directly from scope-files (Trivial/Small):
+Orchestrator builds the plan from §1.4-§1.5 inline output (Medium+) или directly from scope-files (Trivial/Small):
 
 1. **Classify risk per smell** (lookup):
    - 1-3 consumers → LOW
@@ -309,44 +302,44 @@ state.md `phase: apply`. Refactor-agent executes the approved plan, one step at 
 
 On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style + user-preferences — M10b pipeline tier, 4 files)` call. Mirrors M4 §13.4 Phase 3 entry contract. Pre-M8 had TWO refreshes (Phase 4 + Phase 5 entries) — M8 collapses к one; Phase 3 inherits the Phase 2 refresh (no code-writing в Phase 3).
 
-### 2.2 refactor-agent execution
+### 2.2 Per-step execution (orchestrator-inline)
 
-Spawn the refactor-agent к execute the approved plan. Model tier: `opus` if `plan.max_risk == "HIGH"`, else `sonnet`.
+The orchestrator executes the approved plan inline, one step at а time — no subagent spawn. Sequential refactoring с per-step regression is exactly the failure mode the Google/MIT 2025 study predicts for multi-agent variants (arXiv 2512.08296: -70% accuracy на sequential reasoning); orchestrator-inline preserves state continuity и halves test runs via the skip predicate.
 
-Pre-spawn step: use the content the §1.1 / §2.1 loader echoed as `Loaded code-style.md …` (cwd OR primary-worktree fallback per `load-custom-instructions.md`). Pre-inline content into agent prompt под `## Code-style instructions`. Omit когда loader echoed `No code-style.md found — skipping.`
+**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 3 — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. The orchestrator applies this verbatim inline.
 
-```
-Agent(subagent_type="refactor-agent", model="<sonnet|opus per risk>", prompt="""
-You are executing а refactoring plan. Your task:
+**Pre-loop setup:**
 
-APPROVED PLAN:
-[paste the plan from §1.6, marking any HIGH steps the user rejected]
+- Read the approved plan от state.md `## Plan steps` (skipping any HIGH steps the user rejected в §1.6).
+- Read code-style content as echoed by §1.1 / §2.1 loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip когда loader echoed `No code-style.md found — skipping.`
+- Resolve test commands: `<test_cmd_affected>` от CLAUDE.md's Essential Commands (per-step gate; falls back к `<test_cmd>` if undefined); `<test_cmd>` для §2.4 final regression.
+- Anchor: verify `pwd && git branch --show-current` once at §2.2 entry; abort if either differs от §1.2 baseline.
 
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
+**Per-step loop** (orchestrator runs sequentially для each pending step):
 
-PER-STEP TEST COMMAND: [<test_cmd_affected> from CLAUDE.md if defined, else <test_cmd>]
-REGRESSION TEST COMMAND: [<test_cmd> from CLAUDE.md] — full suite; orchestrator runs this separately for §1.2 baseline / §2.4 final regression
-AUTOFIX COMMAND: [autofix command from CLAUDE.md, if any]
-BACKPRESSURE: source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "<validation_cmd>". If unavailable, pipe through tail -80.
+For each step N в `## Plan steps` where `status: pending`:
 
-## Code-style instructions (pre-inlined from `code-style.md` as loaded by §1.1 / §2.1 — cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`; omit когда loader echoed `No code-style.md found — skipping.`)
-[paste content here, OR omit section when absent]
+1. **Re-read the target files** (Read tool) — capture current state of files affected by step N.
+2. **Pre-condition check** (orchestrator applies skip predicate per `refactor-patterns.md` Phase 3 Step 2):
+   - REQUIRED if N == 1, OR `last_post_check == unset|REVERTED`, OR external edits intervened
+   - SKIPPED if N > 1 AND `last_post_check == PASS` (no edits intervene между sequential transformations — the previous step's post-check already validated the same baseline)
+   - When required: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check step <N>" "<test_cmd_affected>"`. On fail: stop и report (broken baseline).
+3. **Apply change** (Edit tool, surgical, scope-bounded к step's `files_affected`).
+4. **Post-condition check**: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Post-check step <N>" "<test_cmd_affected>"`. Persist result к state.md `## Plan steps` row as `last_post_check: PASS|FAIL` (atomic_state_write).
+5. **Result handling**:
+   - **PASS**: mark `status: complete`, `attempts: <N>`, `last_post_check: PASS`. Continue к next step.
+   - **FAIL**: enter Blocked Step Protocol (below).
 
-Execute each step following the Step Execution Protocol в your agent definition.
+**Blocked Step Protocol** (orchestrator-inline per `refactor-patterns.md`):
 
-CRITICAL RULES:
-- One logical transformation per step
-- Run validation after each step
-- If а step fails 3 times: REVERT it, mark as BLOCKED, и CONTINUE к the next step
-- Do NOT stop the entire session because one step is blocked
-- No git operations (no add, commit, push, checkout)
+1. Attempt 1: analyze failure от tail-80 output, fix issue, re-run `<test_cmd_affected>`.
+2. Attempt 2: try а different approach к the same transformation, re-run.
+3. Attempt 3: try one more variation, re-run.
+4. After 3 failures: REVERT step's Edit changes (orchestrator uses Edit tool's `old_string`/`new_string` reversal или re-reads file и rewrites к pre-step content), mark `status: blocked`, `attempts: 3`, `last_post_check: REVERTED`, append blocked-rationale row к state.md. Continue к next step (NOT stop session).
 
-Return а structured report of what was applied, what was blocked, и final validation status.
+State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
 
-Anchor: stay within WORKTREE on BRANCH — verify с `pwd && git branch --show-current` on first Bash call; abort if either differs.
-""", description="Refactor execute: $ARGUMENTS")
-```
+Model tier note: the orchestrator's own model (Opus 4.7 typically) runs the loop. HIGH-risk plan steps don't need separate model tiering — orchestrator is already на the highest tier; per-step reasoning runs at orchestrator-grade quality throughout.
 
 ### 2.3 Session-level cap + escalation AUQ
 
@@ -366,7 +359,7 @@ If regression failed: fire AUQ "Regression" — "Revert all changes" / "Show me 
 
 If green: state.md transitions к `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
-**P-X8-3 L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED by refactor-agent, regardless of whether overall ratio triggered §2.3 escalation), call `emit-learning` с type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale от refactor-agent>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when §2.4 regression green AND <30% blocked; escalated when §2.3 fired AND user picked «Keep what worked» or «Force-continue»; aborted on reverted/aborted state. Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
+**P-X8-3 L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED по orchestrator-inline Blocked Step Protocol, regardless of whether overall ratio triggered §2.3 escalation), call `emit-learning` с type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale от state.md ## Plan steps row>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when §2.4 regression green AND <30% blocked; escalated when §2.3 fired AND user picked «Keep what worked» or «Force-continue»; aborted on reverted/aborted state. Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
 
 ---
 
@@ -376,7 +369,7 @@ state.md `phase: verify`. Diff sanity + independent review + completion summary 
 
 ### 3.1 Diff sanity (all tiers)
 
-Run `git diff --name-only` и `git diff --stat`. Cross-check the refactor-agent's self-reported file list (от §2.2 structured report) against the actual diff — flag mismatches.
+Run `git diff --name-only` и `git diff --stat`. Cross-check state.md `## Plan steps` rows' `files_affected` aggregated list against the actual diff — flag mismatches.
 
 If §2.4 final regression failed AND user picked "Revert all changes", state.md is already `phase: reverted` — skip к §3.7 cleanup (no review needed).
 
@@ -397,7 +390,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
 DIFF: [paste git diff output]
-AGENT SELF-REPORT: [refactor-agent's structured report]
+PLAN-STEPS REPORT: [paste state.md `## Plan steps` rows with final status]
 PROJECT CONVENTIONS: [paste relevant conventions от CLAUDE.md]
 
 ## Code-style instructions
@@ -445,7 +438,7 @@ Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings �
 
 **CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
 
-Spawn fresh refactor-agent к address specific findings, then re-spawn reviewer-agent fresh on the updated diff. After 1 round, если still failing — surface к user via AUQ header "Verify-fix" с options: "Escalate к /implement" / "Document remaining findings и ship as-is" / "Revert all changes". state.md → `verify-escalated` с timestamp + 1-round fix attempt summary.
+Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, если still failing — surface к user via AUQ header "Verify-fix" с options: "Escalate к /implement" / "Document remaining findings и ship as-is" / "Revert all changes". state.md → `verify-escalated` с timestamp + 1-round fix attempt summary.
 
 **MEDIUM findings only → note в completion summary; proceed.**
 
@@ -568,13 +561,13 @@ worktree: <abs-path>
 Body sections:
 - `## Scope` — files + symbols в refactor scope
 - `## Baseline` — Evidence Block от §1.2 step 5 (test count + pass status)
-- `## Smells Detected` — (Medium+) refactor-agent output от §1.4
+- `## Smells Detected` — (Medium+) orchestrator-inline output от §1.4
 - `## Plan` — (after §1.6) ordered steps + risk + consumer counts + KEEP/FILTER decisions
 - `## Apply Summary` — (after §2) executed / blocked / final-suite status
 - `## Accepted Blocks` — (optional, §2.3 path "Keep what worked")
 - `## Review Findings` — (Medium+, after §3.2) CRITICAL/HIGH/MEDIUM lists
 - `## Persisted approvals` — M3 §6 Block 5d (render of frontmatter approvals[])
-- `## Tool log` — M3 §6 selective logging (refactor-agent + relevance-filter + reviewer spawns, escalations)
+- `## Tool log` — M3 §6 selective logging (reviewer + custom reviewer spawns, escalations; smell detection и per-step execution log к `## Plan steps`)
 - `## Errors` — M3 §6 Block 5b
 - `## Open Questions` — M3 §6 Block 5c (escalation AUQs + outcome)
 - `## Termination reason` — M3 §6 (only on terminal aborted/reverted/routed states)
@@ -587,12 +580,12 @@ Body sections:
 
 **Phase 1 (Plan):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation для baseline).
-- Allowed Agent spawns: refactor-agent (evidence-only). §1.5 smell evidence runs orchestrator-inline.
+- Allowed Agent spawns: none. §1.4 smell detection + §1.5 smell evidence both run orchestrator-inline.
 - Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**
-- Allowed Agent spawn: refactor-agent (execution).
-- The refactor-agent itself uses Edit / Write / Bash (test cmd) per its agent definition. Orchestrator-level: monitor agent return, run final regression suite.
+- Allowed Agent spawns: none. Per-step execution (§2.2) runs orchestrator-inline (Edit + Bash для tests).
+- Orchestrator uses Edit / Write / Bash (test cmd) directly. Per-step regression runs via backpressure helper.
 - Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
 
 **Phase 3 (Verify):**
@@ -645,7 +638,7 @@ Do NOT run `git add`, `git commit`, или `git push`. The orchestrating workflo
 | "I noticed а bug mid-refactor, I'll fix it" | That's feature work. Note it для `/geniro:implement` и stay в refactor scope. |
 | "This change is obviously safe" | "Obviously safe" is the #1 predictor of broken builds. Run validation. |
 | "I'll upgrade this sonnet spawn к opus just to be safe" | Model tier is task-nature-matched, not risk-appetite-matched. Re-classify via Subagent Model Tiering table; don't silently upsize. |
-| "Reviewer flagged а `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | А `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is а behavior change, which contradicts refactor's zero-behavior-change guarantee. §3.3 disposition logic ESCALATES PRODUCT-DECISION к `/geniro:implement` (always-WAIT) — never gates-and-fixes them в-skill. If you find yourself spawning the refactor-agent для а PRODUCT-DECISION finding, that's the rationalization. Stop и route the escalation. |
+| "Reviewer flagged а `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | А `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is а behavior change, which contradicts refactor's zero-behavior-change guarantee. §3.3 disposition logic ESCALATES PRODUCT-DECISION к `/geniro:implement` (always-WAIT) — never gates-and-fixes them в-skill. If you find yourself orchestrator-inline editing for а PRODUCT-DECISION finding, that's the rationalization. Stop и route the escalation. |
 | "Add а wall-time kill cap so long-running refactor sessions abort cleanly." | Class-A hard caps abort legitimate complex refactors mid-stride. M8 §2.3 quality-first — no Class-A caps. §2.3 ≥30% blocked gate + §3.3 PRODUCT-DECISION + 1-round fix-loop gate all escalate к user via AUQ. User has agency. |
 | "Auto-handle MEDIUM-tier findings к reduce user friction." | The Metaswarm anti-pattern catalogued в `report.md`. M8 §3.3 routes MEDIUM finds к "note в completion summary; proceed" — visible, not auto-dropped. Never auto-drop. |
 | "Auto-promote L2 discoveries к L4 rules когда refactor completes." | §3.5 + P-M4-5 — surface а suggestion line; do NOT auto-promote. User remains source-of-truth для L4 curation. Auto-promotion creates noise + drift. |
@@ -672,7 +665,7 @@ Do NOT run `git add`, `git commit`, или `git push`. The orchestrating workflo
 7. ✅ **No compaction strategy** — M3 SessionStart re-injects via Block 2-6 (+5b errors + 5c open questions + 5d approvals).
 8. ✅ **All connectors loaded up front** — Claude Code's MCP plugin model gates this.
 9. ✅ **High-risk tools без policy** — file-protection, git-guardrail, .geniro/ deletion hooks + § ACI per-phase blocks.
-10. ⚠️ **Subagents before single-agent MVP measured** — М8 spawns refactor-agent (Phase 1 + Phase 2) + relevance-filter + reviewer + custom reviewers; single-agent measurement deferred к P-X6.
+10. ⚠️ **Subagents before single-agent MVP measured** — M8 now spawns only reviewer + custom reviewers (Phase 3); smell detection (§1.4), smell evidence (§1.5), и per-step execution (§2.2) all orchestrator-inline. Single-agent measurement of remaining reviewer spawns deferred к P-X6.
 11. ✅ **Dynamic timestamps в plugin-distributed Markdown** — N/A; this SKILL.md has no runtime-timestamp bodies.
 12. ✅ **Non-deterministic agent registration order** — N/A; agent registration is alphabetic by slug.
 
@@ -703,7 +696,7 @@ Use `TodoWrite` к expose per-phase progress. At skill start, create phase-level
 - [ ] All tests pass before и after each change (§1.2 baseline + §2.4 regression)
 - [ ] Tier classified per canonical effort-scaling (§1.3)
 - [ ] Hard escalation signals checked (§1.3.2 — refactor-specific orthogonal к effort-scaling)
-- [ ] Smell-detection refactor-agent + relevance-filter spawned (Medium+ only)
+- [ ] Smell detection (§1.4) + smell evidence (§1.5) ran orchestrator-inline (Medium+ only)
 - [ ] Plan built и presented в chat; HIGH-risk steps gated via AUQ (§1.6 — Always-WAIT, P-M1-1-aware)
 - [ ] Refactor-agent executes plan, one transformation at а time (§2.2)
 - [ ] ≥30% blocked → §2.3 stuck AUQ fired (User picks; never silent abort)

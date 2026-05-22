@@ -1,6 +1,6 @@
 # Existing Abstraction Audit
 
-Canonical procedure for "before creating new code, check what already exists." Consumed by `/geniro:refactor` M8 Phase 1 §6.4 (smell-detection refactor-agent spawn), `/geniro:review` `--simplify` flag (M6 absorbed /deep-simplify Pass A — Reuse & Duplication), и `/geniro:implement` Phase 3 self-review (code-quality dimension, which subsumes the pre-M4 Simplify pass per M4 §7.2). Define ONCE here; reference from N consumers.
+Canonical procedure for "before creating new code, check what already exists." Consumed by `/geniro:refactor` M8 Phase 1 §1.4 (orchestrator-inline smell detection), `/geniro:review` `--simplify` flag (M6 absorbed /deep-simplify Pass A — Reuse & Duplication), и `/geniro:implement` Phase 3 self-review (code-quality dimension, which subsumes the pre-M4 Simplify pass per M4 §7.2). Define ONCE here; reference from N consumers.
 
 ## When to run
 

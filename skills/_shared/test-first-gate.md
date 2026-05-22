@@ -12,7 +12,7 @@ Skipping the gate is the documented anti-pattern in the superpowers `test-driven
 
 ## When this fires
 
-- `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change constitution requires existing tests to lock the behavior; if none exists, the gate fires before the refactor-agent spawn).
+- `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change constitution requires existing tests to lock the behavior; if none exists, the gate fires before Phase 2 per-step execution begins).
 
 The gate does NOT fire in:
 - `/geniro:implement` (M4) — Phase 2 runs а single whole-feature edit batch followed by Phase 3's 5-dim reviewer pipeline (`tests` dimension covers test-first behaviour); per-WU Test-First check would be redundant against M4's design (`architecture/M4-implement-redesign.md` §6 + §7.2). Lane modes (TDD / Light / Full) were removed in M4.

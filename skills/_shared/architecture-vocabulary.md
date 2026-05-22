@@ -44,7 +44,7 @@ Each consumer cites this file rather than redefining vocabulary:
 
 | Skill | Where it cites this file |
 |---|---|
-| `/geniro:refactor` | M8 Phase 1 §6.4 smell-detection refactor-agent spawn ("deepening opportunities" lens) |
+| `/geniro:refactor` | M8 Phase 1 §1.4 orchestrator-inline smell detection ("deepening opportunities" lens) |
 | `/geniro:review --simplify` | `simplify-criteria.md` Pass A (Reuse & Duplication — Existing Abstraction Audit asks "could deepening absorb this duplication?") |
 | `/geniro:investigate` | M9 §10.1 synthesis templates ("Why" and "Compare" answer formats) |
 | `/geniro:plan` | M5 orchestrator-side spec-authoring prompts + spec template's "Modules & Interfaces" subsection |

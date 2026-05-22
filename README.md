@@ -148,7 +148,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:refactor` (M8) — Safe code restructuring
 
-3-phase loop (Plan → Apply → Verify) with **zero-behavior-change guarantee**. Phase 1 classifies tier via canonical `_shared/effort-scaling.md` (Trivial / Small / Medium / Big); spawns smell-detection refactor-agent. Phase 2 spawns refactor-agent (model: opus when max_risk=HIGH else sonnet) to execute one transformation at a time with per-step regression. Phase 3 runs independent reviewer + custom reviewers; PRODUCT-DECISION → ESCALATE к /implement (4-option ADR-aware AUQ). Auto-emits L2 `discovery` + `pitfall`. **Never ships code** — diff IS the deliverable; user commits manually or runs `/geniro:implement`.
+3-phase loop (Plan → Apply → Verify) with **zero-behavior-change guarantee**. Phase 1 classifies tier via canonical `_shared/effort-scaling.md` (Trivial / Small / Medium / Big); runs orchestrator-inline smell detection per `_shared/refactor-patterns.md`. Phase 2 runs orchestrator-inline per-step execution with per-step regression check + Blocked Step Protocol (3 retries → revert + continue). Phase 3 runs independent reviewer + custom reviewers; PRODUCT-DECISION → ESCALATE к /implement (4-option ADR-aware AUQ). Auto-emits L2 `discovery` + `pitfall`. **Never ships code** — diff IS the deliverable; user commits manually or runs `/geniro:implement`.
 
 ```
 /geniro:refactor extract payment logic from OrderService into PaymentService
