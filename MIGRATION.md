@@ -72,7 +72,7 @@ cd .geniro/planning && \
 
 `/setup`-generated CLAUDE.md от pre-M10 installs lists 18 skills including the 8 deleted ones. Users following the table hit «command not found».
 
-**Action required:** Run `/geniro:setup` re-run mode. Phase Generate detects the `<!-- geniro-setup-version: -->` marker, spawns the conflict-resolution agent (architect-agent, sonnet, `tools: [Read, Edit]` constrained к CLAUDE.md only) и merges the new 11-skill table while preserving user-edited prose. Phase Validate verifies zero refs к dropped skills.
+**Action required:** Run `/geniro:setup` re-run mode. Phase Generate detects the `<!-- geniro-setup-version: -->` marker и runs orchestrator-inline section merge per §3.5 — preserves user-edited prose while applying the new 11-skill table. Phase Validate verifies zero refs к dropped skills.
 
 **Auto-detect:** `grep -q '^\*\*Skills deleted' CLAUDE.md 2>/dev/null || grep -El '/geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)\b' CLAUDE.md 2>/dev/null`
 

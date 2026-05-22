@@ -122,7 +122,7 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "npm 
 
 On success: emits `✓ Tests passed (N lines suppressed)` (~5 tokens). On failure: filters and caps output at 150 lines. Manages its own `mktemp` lifecycle; no persistence.
 
-Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/SKILL.md`](skills/review/SKILL.md), [`skills/implement/implement-reference.md`](skills/implement/implement-reference.md), [`agents/refactor-agent.md`](agents/refactor-agent.md).
+Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/SKILL.md`](skills/review/SKILL.md), [`skills/implement/implement-reference.md`](skills/implement/implement-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
 
 ## Testing
 
