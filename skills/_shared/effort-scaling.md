@@ -1,6 +1,6 @@
 # Effort Scaling
 
-Canonical complexity rubric for routing tasks to the correct pipeline depth. Used by `/geniro:plan` (M5 — sizing the spec; Big-tier triggers milestone-output mode), `/geniro:review` (hard-escalation stratification), и `/geniro:refactor` (M8 §6.3 — adopts the canonical rubric verbatim, с refactor-specific hard signals layered orthogonally per `skills/refactor/SKILL.md` §"Refactor-specific hard escalation signals" к escalate OUT of /refactor entirely). `/geniro:implement` (M4) does NOT branch on tier — it runs а single whole-feature edit batch + 5-dim self-review regardless of size (`architecture/M4-implement-redesign.md` §6.1 + §7.2).
+Canonical complexity rubric for routing tasks to the correct pipeline depth.
 
 Match planning depth to task complexity. **File count is a smell detector, not a complexity detector.** A 2-file migration + API contract change is Big. A 10-file rename propagation is Small.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/query-learnings.sh
+# Smoke test for lib/query-learnings.sh
 
 set -uo pipefail
 
@@ -14,7 +14,7 @@ new_sandbox() {
   cd "$SANDBOX_DIR" || return 1
   git init -q
   # shellcheck disable=SC1091
-  source "$REPO_ROOT/skills/_shared/query-learnings.sh"
+  source "$REPO_ROOT/lib/query-learnings.sh"
 }
 
 # Seed log with the canonical fixture.

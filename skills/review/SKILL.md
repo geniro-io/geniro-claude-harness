@@ -338,7 +338,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per M1 §T2
 **Write via M1 `atomic_state_write`** — never direct Edit/Write на the canonical state path (the `enforce-state-helper` hook will warn-mode flag direct writes; PR-final will hard-block).
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
 ---
 tier: T2
@@ -440,7 +440,7 @@ emit-learning:
   note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
 ```
 
-Helper: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh` (M2 §9). Dedup + sanitization per M2 §5.2.
+Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` (M2 §9). Dedup + sanitization per M2 §5.2.
 
 Threshold tuning (exact «≥3» semantics) — fixed по spec, не deferred. М2 §5.3 codifies this.
 

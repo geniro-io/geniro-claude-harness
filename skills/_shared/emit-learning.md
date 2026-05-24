@@ -1,13 +1,13 @@
 # L2 episodic-memory write helper
 
-**Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`. Skills that auto-emit learnings (per M2 §5.3) — `/debug`, `/implement`, `/plan`, `/review`, `/refactor`, `/onboard`, `/investigate` — call this helper.
+**Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`.
 
 **Spec source:** `architecture/M2-memory-layers.md` §5.1 (schema) and §5.2 (lifecycle).
 
 ## API
 
 ```bash
-source skills/_shared/emit-learning.sh
+source lib/emit-learning.sh
 echo '<json-object>' | emit_learning
 ```
 

@@ -67,7 +67,7 @@ Three new `type:` values extend the M2 §5.1 typed-extension table. Schema for e
 
 **Required `ext.*`:** `suggestion` (string — what was offered), `auq_category` (string — M1 §T1 `approvals[]` category if present, else `ad-hoc`), `rejection_signal` (enum: `picked_non_recommended` | `explicit_cancel` | `explicit_no` | `explicit_skip`).
 
-**Emitter:** `skills/_shared/emit-rejection.sh` helper (function `emit_rejection_if_signal`), invoked by each skill после appending к state.md `approvals[]`. The helper detects а rejection signal — (a) picked option ≠ recommended, OR (b) picked label matches /cancel|abort|no|reject|skip/i — и emits the L2 entry only when one fires. Acceptance (picked == recommended, no rejection keyword) is а no-op.
+**Emitter:** `lib/emit-rejection.sh` helper (function `emit_rejection_if_signal`), invoked by each skill после appending к state.md `approvals[]`. The helper detects а rejection signal — (a) picked option ≠ recommended, OR (b) picked label matches /cancel|abort|no|reject|skip/i — и emits the L2 entry only when one fires. Acceptance (picked == recommended, no rejection keyword) is а no-op.
 
 **Trigger:** Every qualifying AUQ resolution. No threshold — preferences signal is single-emit by design.
 
@@ -144,7 +144,7 @@ Default behavior is unchanged (no score filter — all matching entries returned
 
 ### 4.3 `archive-stale.sh` helper
 
-New helper `skills/_shared/archive-stale.sh` walks `learnings.jsonl` and flips `deprecated: true` on every entry where `score < 0.1 AND age > 180 days AND access_count == 0` (never-read AND old AND already low-score). The helper:
+New helper `lib/archive-stale.sh` walks `learnings.jsonl` and flips `deprecated: true` on every entry where `score < 0.1 AND age > 180 days AND access_count == 0` (never-read AND old AND already low-score). The helper:
 
 - **Never deletes** — flips `deprecated: true` only. Audit trail preserved.
 - **Auto-runs on SessionStart** when threshold met AND file changed since last archive (see §4.4). Manual invocation also supported (с `--dry-run` flag).
@@ -221,7 +221,7 @@ Implementation: single `wc -l` invocation per file, +5-10 lines in `skills/instr
 | `skills/implement/SKILL.md` (Phase 2 §6.3) | Emit `retry_failure_sequence` if retry_count ≥ 2. | §3.3 |
 | `skills/debug/SKILL.md` (Phase 2 §2.5) | Emit `retry_failure_sequence` if fix_attempts ≥ 2. | §3.3 |
 | `skills/refactor/SKILL.md` (Phase 2 exit) | Emit `retry_failure_sequence` if blocked_count ≥ 2. | §3.3 |
-| `skills/_shared/emit-rejection.sh` (new helper) | Exports `emit_rejection_if_signal()` — called by each skill after writing к state.md `approvals[]`. Detects 4 rejection signals и emits `user_rejected_suggestion` к L2 only when fired (acceptance is а no-op). | §3.2 |
+| `lib/emit-rejection.sh` (new helper) | Exports `emit_rejection_if_signal()` — called by each skill after writing к state.md `approvals[]`. Detects 4 rejection signals и emits `user_rejected_suggestion` к L2 only when fired (acceptance is а no-op). | §3.2 |
 | `skills/plan/SKILL.md` (Phase 4), `skills/implement/SKILL.md` (Phase 1), `skills/actions/SKILL.md` (run-mode) | Add `user_rejected_suggestion` query at relevant decision points. | §3.2 |
 
 Architecture/M2 §5.1 typed-extension table — extend with three new rows. M2 §5.3 reflection-cycle table — extend with new emit-trigger rows.

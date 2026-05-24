@@ -5,7 +5,7 @@ description: "Canonical vocabulary for module-design discussions across skills. 
 
 # Canonical: Architecture Vocabulary
 
-Single source of truth for the design-vocabulary used by `/geniro:refactor` (M8), `/geniro:review --simplify` (M6 §13 absorbed /deep-simplify), `/geniro:investigate` (M9), и `/geniro:plan` (M5 — orchestrator-side spec authoring + spec template's "Modules & Interfaces" subsection). Skills cite this file rather than redefining terms inline so that "deepen this module" means the same thing in every skill.
+Single source of truth for design vocabulary. Skills cite this file rather than redefining terms inline so that "deepen this module" means the same thing in every skill.
 
 ## Core terms
 

@@ -6,7 +6,7 @@
 # Design rationale: architecture/M1-state-files.md §Atomic write helper
 #
 # Source this file from a skill's Bash invocation:
-#   source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+#   source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 #   atomic_state_write <target-path> <<'CONTENT'
 #   ...
 #   CONTENT

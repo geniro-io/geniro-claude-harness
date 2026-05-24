@@ -7,7 +7,7 @@
 ## API
 
 ```bash
-source skills/_shared/update-semantic.sh
+source lib/update-semantic.sh
 
 # Append a fresh line
 update_semantic --file <codebase-map|features> --append "<line>"

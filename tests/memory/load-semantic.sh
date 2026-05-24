@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/load-semantic.sh
+# Smoke test for lib/load-semantic.sh
 
 set -uo pipefail
 
@@ -14,7 +14,7 @@ new_sandbox() {
   cd "$SANDBOX_DIR" || return 1
   git init -q
   # shellcheck disable=SC1091
-  source "$REPO_ROOT/skills/_shared/load-semantic.sh"
+  source "$REPO_ROOT/lib/load-semantic.sh"
 }
 
 TESTS_RUN=0

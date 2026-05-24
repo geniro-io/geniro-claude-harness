@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/emit-learning.sh
+# Smoke test for lib/emit-learning.sh
 #
 # Run: bash tests/memory/emit-learning.sh
 
@@ -17,7 +17,7 @@ new_sandbox() {
   cd "$SANDBOX_DIR" || return 1
   git init -q
   # shellcheck disable=SC1091
-  source "$REPO_ROOT/skills/_shared/emit-learning.sh"
+  source "$REPO_ROOT/lib/emit-learning.sh"
 }
 
 TESTS_RUN=0

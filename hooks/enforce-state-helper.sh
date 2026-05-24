@@ -3,7 +3,7 @@
 # PreToolUse hook for Write and Edit — nudges skills toward atomic-state-write.
 #
 # Scope: writes to canonical state paths under .geniro/ should go through the
-# atomic-state-write helper (skills/_shared/atomic-state-write.sh), not direct
+# atomic-state-write helper (lib/atomic-state-write.sh), not direct
 # Edit/Write calls. The helper guarantees tmp + fsync + rename + fsync-dir
 # atomicity. Direct calls truncate-and-rewrite — a reader during the window
 # sees a partial file.
@@ -104,7 +104,7 @@ MSG_PREFIX="State-helper [enforce-state-helper]"
 MSG_BODY="Direct Edit/Write to canonical state path: $FILE_PATH
 $MSG_PREFIX:   Use \`$HELPER\` via Bash for atomicity guarantee.
 $MSG_PREFIX:   Pattern:
-$MSG_PREFIX:     source \"\${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh\"
+$MSG_PREFIX:     source \"\${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh\"
 $MSG_PREFIX:     $HELPER \"$FILE_PATH\" <<'EOF'
 $MSG_PREFIX:     ...content...
 $MSG_PREFIX:     EOF

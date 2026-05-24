@@ -13,7 +13,7 @@ The same helper is reusable from any future skill that wants to sanitize free-fo
 ## API
 
 ```bash
-source skills/_shared/redact-secrets.sh
+source lib/redact-secrets.sh
 sanitized=$(printf '%s' "$raw" | redact_secrets <producer> <field> <dedup_key>)
 ```
 

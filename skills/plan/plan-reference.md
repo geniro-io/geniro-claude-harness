@@ -33,7 +33,7 @@ If the user really wants к surgically edit an existing design doc bypassing Pha
 
 - **Phase 8 user-revision round 3 exhaust** — `plan-loop.md` §8.3 escalation AUQ fires с 3 options (accept-as-is / re-revise / abort). Terminal `aborted` records `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
 
-- **Concurrent /plan runs in different worktrees** — each worktree has its own `.geniro/planning/<task-slug>/state.md`. The plan-mode-write-guard hook detects per-state-file (mtime within PLAN_LOCK_FRESHNESS_SEC; default 4h). Stale state files (>4h) are treated as abandoned to prevent permanent lockout.
+- **Concurrent /plan runs in different worktrees** — each worktree has its own `.geniro/planning/<task-slug>/state.md`.
 
 ---
 
@@ -46,14 +46,13 @@ Shared rules consumed by this skill:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` — `AskUserQuestion` schema for the Phase 0 AUQ, the empty-argument fallback, и the Phase 9 hand-off menu.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — multi-select picker schema for Phase 5 §5.3 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 §1.2 effort-tier-scaled spawns и Phase 5 §5.3 milestone-mode trigger.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh` — М1 state.md write helper.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh` — М1 state.md validator for resume.
+- `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — М1 state.md write helper.
+- `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` — М1 state.md validator for resume.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — L4 directive doc (Phase 1 entry refresh).
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.sh` — L3 read helper (Phase 1 entry).
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh` — L2 read helper (Phase 1 entry).
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh` — L2 write helper (Phase 8 conditional `decision` emit).
+- `${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh` — L3 read helper (Phase 1 entry).
+- `${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh` — L2 read helper (Phase 1 entry).
+- `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` — L2 write helper (Phase 8 conditional `decision` emit).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` — cross-layer L4/L3/L2 conflict protocol.
-- `${CLAUDE_PLUGIN_ROOT}/hooks/plan-mode-write-guard.sh` — Layer-2 mutation guard (PreToolUse Write).
 - `${CLAUDE_SKILL_DIR}/spec-template.md` — 10-section P-M5-1 schema template (Phase 6 input).
 - `${CLAUDE_SKILL_DIR}/validator-checks.md` — 13 mechanical checks (Phase 7 input).
 - Architecture spec: `architecture/M5-plan-redesign.md`.

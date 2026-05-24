@@ -16,7 +16,7 @@ The two layers complement: М1 stays the authoritative within-task record; L2 ca
 ## API
 
 ```bash
-source skills/_shared/emit-rejection.sh
+source lib/emit-rejection.sh
 
 emit_rejection_if_signal \
     <producer> <scope> <auq_category> <suggestion> <picked> [recommended]

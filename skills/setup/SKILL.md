@@ -91,7 +91,7 @@ Deterministic resolution (no AUQ):
 
 ```
 if exists(<PRIMARY_ROOT>/.geniro/state/setup/state.md):
-  rehydrate via ${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh
+  rehydrate via ${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh
   if frontmatter.phase != "done":
     resume from frontmatter.phase
   else:
@@ -109,7 +109,7 @@ Write `mode: init | re-run` к state frontmatter; persists across the run.
 After load-custom-instructions, query L2 (`.geniro/knowledge/learnings.jsonl`) per M2 §5.3 for prior `discovery` entries tagged `setup`:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"
 query_learnings --type discovery --tag setup --limit 10
 ```
 
@@ -471,7 +471,7 @@ Agent(
 Per M2 §5.3 — emit one L2 `discovery` row on transition к DONE (auto-replaces dropped `/learnings`):
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 emit_learning <<'EOF'
 {
   "type": "discovery",

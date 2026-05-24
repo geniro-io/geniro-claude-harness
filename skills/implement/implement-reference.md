@@ -191,7 +191,7 @@ The user can always type а custom response via "Other":
 
 **Approvals-persistence protocol (P-M1-1, M4 §7.5 step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` для а prior entry с `category: ship_mode`. If found, use prior `picked` value и skip the AUQ (typical compaction-resume: user already picked в the original flow). If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
-**P-X8-2 L2 emit on rejection signal:** AFTER appending к `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.sh` и invoke:
+**P-X8-2 L2 emit on rejection signal:** AFTER appending к `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` и invoke:
 
 ```bash
 emit_rejection_if_signal \
@@ -229,7 +229,7 @@ If updates needed, delegate к а general-purpose subagent с `model="haiku"` co
 
 ### Extract Learnings (M4 §7.5 step 5, L2 auto-emit)
 
-Per master plan §69, the standalone `/learnings` skill is deleted; learning capture is an auto-step at the end of /implement. Phase 3 calls the L2 helper `emit-learning` (M2 §9, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh`) when conditions are met.
+Per master plan §69, the standalone `/learnings` skill is deleted; learning capture is an auto-step at the end of /implement. Phase 3 calls the L2 helper `emit-learning` (M2 §9, `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`) when conditions are met.
 
 **Emit triggers per M2 §5.3 (M4 owner) + M4 §13.2:**
 

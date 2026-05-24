@@ -6,9 +6,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 ## When this fires
 
-Used by:
-- `/geniro:implement` Phase 3 self-review fix-loop pre-step (after the PRODUCT-DECISION pre-step, before inline fix application)
-- `/geniro:refactor` Phase 3 verify fix-loop entry (after the PRODUCT-DECISION gate)
+Fires at the top of any code-review fix loop when MEDIUM-severity findings exist.
 
 Skip silently when zero MEDIUM findings exist after deduplication, or when no reviewer-agents ran.
 

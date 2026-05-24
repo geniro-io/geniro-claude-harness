@@ -1,6 +1,6 @@
 # Isolation Techniques (canonical, shared)
 
-**Status:** Authoritative for `/geniro:debug` Phase 1 — Isolate (M7 §6.7) techniques для narrowing the bug source after а hypothesis is confirmed.
+**Status:** Authoritative isolation techniques for narrowing the bug source after a hypothesis is confirmed.
 
 Pre-M7 lived inline в `skills/debug/SKILL.md`; extracted to keep the SKILL.md orchestration shell focused on the 3-phase loop.
 

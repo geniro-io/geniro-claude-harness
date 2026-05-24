@@ -7,7 +7,7 @@
 ## API
 
 ```bash
-source skills/_shared/query-learnings.sh
+source lib/query-learnings.sh
 query_learnings [flags] > matches.jsonl
 ```
 

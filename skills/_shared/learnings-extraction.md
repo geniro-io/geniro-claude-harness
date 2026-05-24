@@ -1,11 +1,11 @@
 ---
 name: learnings-extraction
-description: "Canonical doctrine for the auto-learning extraction step that runs at the end of every pipeline + discovery skill (/implement Phase 3, /debug Phase 3, /refactor Phase 3, /plan, /onboard, /investigate, /review). Single source — referenced from each consumer. Canonical L2 emit helper: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh`."
+description: "Canonical doctrine for the auto-learning extraction step that runs at the end of pipeline and discovery skills. Canonical L2 emit helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`."
 ---
 
 # Canonical: Auto-Learnings Extraction
 
-Used by every pipeline + discovery skill at its terminal auto-emit step per M2 §5.3 trigger table: `/implement` Phase 3 (M4 §13.2), `/debug` Phase 3 (M7 §3.3 `diagnosis`), `/refactor` Phase 3 (M8 §3.5 `discovery` + `pitfall`), `/plan` (M5 `decision`), `/review` (M6 §5b `pitfall`), `/onboard` (M9 §7.3 `discovery`), `/investigate` (M9 §10.5 `discovery`). The canonical L2 emit helper is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh`.
+The canonical L2 emit helper is `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`.
 
 ## What we capture (preferred tier)
 

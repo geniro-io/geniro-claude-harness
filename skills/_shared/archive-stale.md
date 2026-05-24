@@ -7,13 +7,13 @@
 ## API
 
 ```bash
-source skills/_shared/archive-stale.sh
+source lib/archive-stale.sh
 archive_stale_learnings [--dry-run]
 ```
 
 Or direct invocation:
 ```bash
-./skills/_shared/archive-stale.sh [--dry-run]
+./lib/archive-stale.sh [--dry-run]
 ```
 
 **Exit codes:**
@@ -81,7 +81,7 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 
 ## Caller conventions
 
-- User runs `./skills/_shared/archive-stale.sh --dry-run` first к preview, then real run.
+- User runs `./lib/archive-stale.sh --dry-run` first к preview, then real run.
 - M3 SessionStart Block 5e surfaces а notice when `wc -l learnings.jsonl > 5000`, prompting the user к check via dry-run. The hook itself never invokes archive-stale (would add latency к а hot path).
 - Compatible с `query-learnings`: queries default к excluding `deprecated: true` entries; if user wants к see archived ones, pass `--include-deprecated`.
 

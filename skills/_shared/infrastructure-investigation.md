@@ -1,6 +1,6 @@
 # Infrastructure Investigation (canonical, shared)
 
-**Status:** Authoritative for `/geniro:debug` Phase 1 — Hypothesize (M7 §6.5) infrastructure-cause guidance.
+**Status:** Authoritative infrastructure-cause investigation guidance for when symptoms suggest the bug may not be in the code.
 
 When symptoms suggest the bug may not be in the code (timeouts, intermittent failures, environment-specific errors, deployment regressions), investigate infrastructure before or alongside code hypotheses. Pre-M7 lived inline in `skills/debug/SKILL.md`; extracted to keep the SKILL.md orchestration shell focused on the 3-phase loop.
 

@@ -56,7 +56,7 @@ Every state file under `.geniro/` belongs to exactly one tier and must be writte
 **Helper invocation** (from inside a skill's Bash call):
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write ".geniro/planning/<task-dir>/state.md" <<'EOF'
 ---
 tier: T1
@@ -77,7 +77,7 @@ EOF
 **Validation before resume:**
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
 if ! validate_state_file ".geniro/planning/<task-dir>/state.md"; then
   # Open recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency)
   ...
@@ -144,7 +144,6 @@ This plugin provides safety hooks that run automatically:
 - **Evidence-on-completion** — Stop hook (warn-only) — scans last assistant message for completion phrases (e.g., "shipped", "all tests pass", "ready to ship", "Done!") that lack an Evidence Block; cites `skills/_shared/evidence-standard.md`. Stop hooks fire ~50-80% of the time, so this is a soft reminder layer, not enforcement. Bypass: `evidence-stop` in `.geniro/safety.json` `allow_patterns`.
 - **TDD-order enforcement** — PreToolUse `Edit|Write` (hard-block) — when `.geniro/state/tdd/state-<slug>.md` shows phase=RED, blocks `Edit`/`Write` on production-code files (test files still allowed). State file absence means the skill hasn't opted in to TDD, so no surprise blocks. Bypass: `tdd-order` in `.geniro/safety.json` `allow_patterns`.
 - **State-helper enforcement** — PreToolUse `Edit|Write` (warn-mode initially; flips to hard-block in M1 PR-final) — warns when a direct `Edit`/`Write` targets a canonical state path (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`). Suggests `atomic_state_write` (or `atomic_state_append` for JSONL) per `skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper` in `.geniro/safety.json` `allow_patterns`.
-- **Plan-mode write-guard (M5)** — `hooks/plan-mode-write-guard.sh`, PreToolUse `Edit|Write` (hard-block). When а `/geniro:plan` run is active (detected via `.geniro/planning/*/state.md` с frontmatter `producer: plan` AND `status: in-progress` AND mtime within `PLAN_LOCK_FRESHNESS_SEC` — 4h default, env-overridable), restricts `Write` к `.geniro/planning/**` OR `.geniro/state/**`. Pairs с Layer 1 enforcement (Edit removed от /plan's `allowed-tools`). Belt + suspenders per M5 §19. Stale state files (>4h) treat /plan as abandoned к prevent permanent lockout. Bypass: `plan-mode-mutation` в `.geniro/safety.json` `allow_patterns`.
 
 ### Per-project allowlist for safety guardrails
 
@@ -163,7 +162,6 @@ Pattern IDs:
 - **Evidence-on-completion**: `evidence-stop` (skip the Stop-hook completion-phrase warning)
 - **TDD-order enforcement**: `tdd-order` (skip the RED-phase production-code Edit/Write block)
 - **State-helper enforcement**: `enforce-state-helper` (skip the warning on direct Edit/Write to `.geniro/` state paths — once block-mode is enabled in PR-final, this becomes the hard-block bypass)
-- **Plan-mode write-guard**: `plan-mode-mutation` (skip the /plan-active write-scope check; allows Write к paths outside `.geniro/planning/**` and `.geniro/state/**` even when а /plan state.md is in-progress)
 
 The allowlist is read from the nearest `.geniro/safety.json` walking up from the cwd.
 

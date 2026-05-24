@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/repo-root.sh.
+# Smoke test for lib/repo-root.sh.
 #
 # Run: bash tests/memory/repo-root.sh
 
@@ -16,7 +16,7 @@ pass() { TESTS_RUN=$((TESTS_RUN + 1)); echo "PASS: $1"; }
 fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo "FAIL: $1" >&2; }
 
 # shellcheck disable=SC1091
-source "$REPO_ROOT/skills/_shared/repo-root.sh"
+source "$REPO_ROOT/lib/repo-root.sh"
 
 # Helper: cd into a sandboxed dir, resolve root, assert. cd happens in the
 # CURRENT shell so the test counters update correctly (subshells would lose

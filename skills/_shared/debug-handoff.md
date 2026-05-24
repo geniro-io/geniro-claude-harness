@@ -1,6 +1,6 @@
 # Debug Handoff Detection (canonical, shared)
 
-**Status:** Authoritative for `/geniro:implement` Phase 1 (and any future consumer of /debug T2 handoffs).
+**Status:** Authoritative for consuming `/geniro:debug` T2 handoff files.
 
 When `/geniro:debug` ran earlier in the same project, it left T2 hand-off files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode, M7 §11.2 — M1 §T2 canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode, M7 §11.3 — M1 §T2 canonical) — and authored regression tests at the project's normal test paths. Consumer skills MUST detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations).
 

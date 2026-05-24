@@ -119,10 +119,10 @@ approvals: []               # appended after each one-time AUQ resolution (P-M1-
 ---
 ```
 
-**Write contract.** Every state.md mutation goes through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh`). NEVER direct `Edit` или `Write` on canonical state paths — the State-helper enforcement hook will warn (and в M1 PR-final, hard-block).
+**Write contract.** Every state.md mutation goes through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`). NEVER direct `Edit` или `Write` on canonical state paths — the State-helper enforcement hook will warn (and в M1 PR-final, hard-block).
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write ".geniro/planning/<task-slug>/state.md" <<'EOF'
 ---
 <frontmatter>
@@ -135,7 +135,7 @@ EOF
 **Validation before resume.** When Phase 1 detects а pre-existing state.md (resume path), pre-flight via `validate_state_file`:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
 if ! validate_state_file ".geniro/planning/<task-slug>/state.md"; then
   # Open recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency)
   ...
@@ -170,7 +170,7 @@ The Echo contract survives compaction via M3 SessionStart re-injection.
 ### L3 — Semantic snapshot
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh"
 load_semantic                                # default: _project.md + _CODEBASE_MAP.md
 load_semantic --extras "_FEATURES.md"        # if spec mentions feature backlog
 ```
@@ -182,7 +182,7 @@ load_semantic --extras "_FEATURES.md"        # if spec mentions feature backlog
 **Read (Phase 1 entry):**
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"
 query_learnings --tag <inferred-tag> --scope <inferred-scope> --limit 5
 ```
 
@@ -199,7 +199,7 @@ Used к prime reviewer-agent prompts с known conventions/pitfalls.
 **Write (Phase 3 ship sub-step, auto-emit):**
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 echo '{"type":"convention","scope":"...","summary":"...","tags":[...],"trust":"verified"}' | emit_learning
 ```
 
@@ -214,7 +214,7 @@ Promotion suggestion (P-M4-5) fires ONLY for `convention` emits — see referenc
 ### L3 — Bounded write (Phase 3 ship sub-step)
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/update-semantic.sh"
 update_semantic --file codebase-map --append "- <path> — <short description>, used by <consumer>"
 ```
 
@@ -421,8 +421,8 @@ Per master plan P-MP-1 anti-patterns guardrail — М4 must NOT reintroduce thes
 - Templates, $ARGUMENTS-parse table, reviewer-agent spawn template, fix-loop, ship sub-step: `${CLAUDE_SKILL_DIR}/implement-reference.md`
 - Reviewer-agent contract: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`
 - Review criteria files: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files changed)
-- State helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh`
-- Memory helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (L4 directive doc), `load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `update-semantic.sh`, `resolve-conflicts.sh` (+ companion `.md` API docs)
+- State helpers: `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh`
+- Memory helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (L4 directive doc), `${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `update-semantic.sh`, `resolve-conflicts.sh` (+ companion `.md` API docs in `skills/_shared/`)
 - Agent spawn-degradation ladder: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`
 - Evidence standard: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`
 - Architecture spec: `architecture/M4-implement-redesign.md`

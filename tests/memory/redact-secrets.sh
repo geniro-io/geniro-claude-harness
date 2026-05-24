@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/redact-secrets.sh
+# Smoke test for lib/redact-secrets.sh
 #
 # Run: bash tests/memory/redact-secrets.sh
 # Exits non-zero on any failure.
@@ -26,7 +26,7 @@ new_sandbox() {
   cd "$SANDBOX_DIR" || return 1
   git init -q
   # shellcheck disable=SC1091
-  source "$REPO_ROOT/skills/_shared/redact-secrets.sh"
+  source "$REPO_ROOT/lib/redact-secrets.sh"
 }
 
 TESTS_RUN=0

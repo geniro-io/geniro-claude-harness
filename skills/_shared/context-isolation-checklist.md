@@ -16,16 +16,7 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 ## When this applies
 
-Every Agent() spawn in the following skills MUST satisfy the checklist:
-
-- `/geniro:implement` (reviewer-agent x 5 self-review dimensions + custom reviewers per `_shared/load-custom-reviewers.md`)
-- `/geniro:review` (reviewer-agent x N dimensions, adversarial-tester-agent)
-- `/geniro:refactor` (reviewer-agent + custom reviewers in Phase 3 verify — Phase 1 smell detection and Phase 2 execution are orchestrator-inline per M8 redesign)
-- `/geniro:debug` (adversarial-tester-agent in adversarial mode)
-- `/geniro:investigate` (1-3 parallel `Agent(subagent_type="general-purpose", …)` research spawns — Codebase Analyst / Git Historian / Internet Researcher)
-- `/geniro:setup` (verification subagent via `general-purpose` ladder in Phase 4)
-
-Six skills total. The checklist is non-optional for every spawn — bare-prompt spawns are forbidden.
+Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden.
 
 ## Required pre-inlined context
 

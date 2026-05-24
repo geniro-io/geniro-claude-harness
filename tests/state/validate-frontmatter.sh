@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/validate-state-file.sh
+# Smoke test for lib/validate-state-file.sh
 #
 # Run: bash tests/state/validate-frontmatter.sh
 # Exits non-zero on any failure.
@@ -10,7 +10,7 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck disable=SC1091
-source "$REPO_ROOT/skills/_shared/validate-state-file.sh"
+source "$REPO_ROOT/lib/validate-state-file.sh"
 
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT

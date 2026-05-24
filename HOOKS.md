@@ -24,7 +24,6 @@ The plugin ships 8 safety / lifecycle hooks, 1 sourced utility library, and 2 No
 | [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
 | [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
 | [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write` | warn-mode (block in M1 PR-final) | Warns on direct Edit/Write к canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`; suggests `atomic_state_write` / `atomic_state_append` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
-| [`plan-mode-write-guard.sh`](hooks/plan-mode-write-guard.sh) | PreToolUse `Edit\|Write` | exit 2 = block | M5 belt+suspenders: when а `/geniro:plan` run is active (detected via `.geniro/planning/*/state.md` `producer: plan` + `status: in-progress`, freshness ≤4h), restricts Write к `.geniro/planning/**` OR `.geniro/state/**`. Bypass: `plan-mode-mutation`. |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | M3 compaction-survival. Resolves the active T1 state.md across all three M1 layouts (planning task-dir / state-per-skill / state singleton); pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Read-only — never writes state.md. Replaced the pre-M3 `post-compact-notification.sh`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
@@ -82,14 +81,6 @@ Emits an `additionalContext` block-set per M3 §6:
 Detects direct `Edit` / `Write` calls against canonical state paths and suggests routing through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (`atomic_state_write` for plain files, `atomic_state_append` для JSONL). Protected prefixes: `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`.
 
 **Per-project allowlist:** walks up от cwd looking для `.geniro/safety.json` `allow_patterns[]`; pattern ID `enforce-state-helper` skips the warning (and the future hard-block).
-
-### plan-mode-write-guard.sh (M5)
-
-**Event:** PreToolUse `Edit|Write`. **Block exit:** `exit 2` when triggered.
-
-Pairs с Layer 1 enforcement (Edit removed от `/plan`'s `allowed-tools` frontmatter). When а `/geniro:plan` run is active — detected via `.geniro/planning/*/state.md` с frontmatter `producer: plan` AND `status: in-progress` AND mtime within `PLAN_LOCK_FRESHNESS_SEC` (4h default, env-overridable) — restricts `Write` к `.geniro/planning/**` OR `.geniro/state/**`. Stale state files (>4h) treat `/plan` as abandoned к prevent permanent lockout.
-
-**Per-project allowlist:** pattern ID `plan-mode-mutation` skips the check (allows writes outside the planning/state scopes even with an active `/plan` state.md).
 
 ### geniro-check-update.js
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/resolve-conflicts.sh
+# Smoke test for lib/resolve-conflicts.sh
 
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck disable=SC1091
-source "$REPO_ROOT/skills/_shared/resolve-conflicts.sh"
+source "$REPO_ROOT/lib/resolve-conflicts.sh"
 
 TESTS_RUN=0
 TESTS_FAILED=0

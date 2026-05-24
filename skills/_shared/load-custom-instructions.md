@@ -1,6 +1,6 @@
 # Load custom instructions (canonical, shared)
 
-**Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, `.geniro/instructions/code-style.md`, and `.geniro/instructions/user-preferences.md` (M10a) in any Geniro skill that ingests user-authored rules. Every consumer calls this helper at Step 0 (initial load) and at each phase-boundary refresh site.
+**Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, `.geniro/instructions/code-style.md`, and `.geniro/instructions/user-preferences.md` (M10a).
 
 ## Why this exists
 

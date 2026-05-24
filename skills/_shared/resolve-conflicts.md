@@ -20,7 +20,7 @@ This split matches M1's pattern: `validate-state-file.sh` validates schema (mech
 ## API
 
 ```bash
-source skills/_shared/resolve-conflicts.sh
+source lib/resolve-conflicts.sh
 
 # Soft conflict — skill continues, prints notice
 emit_conflict_notice \

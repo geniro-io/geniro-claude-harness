@@ -169,7 +169,7 @@ Replaces deleted `/learnings` skill (master plan §69). After `_CODEBASE_MAP.md`
 - `emit-learning` per M2 §5.2 — emit `discovery` type entry per M2 §5.3 row /onboard. Required `ext.{area, insight}`. Default trust `verified` per M2 §5.3 (code-grounded).
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 emit_learning <<'EOF'
 {
   "producer": "/geniro:onboard",
@@ -218,7 +218,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/onboard/<slug>/state.md` (resolve `<PRIMARY_
 Write via `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write ".geniro/state/onboard/<slug>/state.md" <<EOF
 ---
 tier: T1

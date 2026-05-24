@@ -150,12 +150,12 @@ mode: <IDEA|DESIGN_DOC>
 ---
 ```
 
-**Write contract.** Every state.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh`. NEVER direct `Edit`/`Write` on canonical state paths — the State-helper enforcement hook will warn (and в M1 PR-final, hard-block). The §19 plan-mode mutation guard restricts Write tool to `.geniro/planning/**` OR `.geniro/state/**` while а /plan run is active.
+**Write contract.** Every state.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`. NEVER direct `Edit`/`Write` on canonical state paths — the State-helper enforcement hook will warn (and в M1 PR-final, hard-block). The §19 plan-mode mutation guard restricts Write tool to `.geniro/planning/**` OR `.geniro/state/**` while а /plan run is active.
 
 **Validation before resume.** When Phase 0 detects а pre-existing state.md (resume path), pre-flight via `validate_state_file`:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
 if ! validate_state_file ".geniro/planning/<task-slug>/state.md"; then
   # Open recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency)
   ...
@@ -198,9 +198,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
 | Phase 9 (Hand-off) | AskUserQuestion / Read | All mutations |
 
-**Layer 1 enforcement:** frontmatter `allowed-tools` excludes `Edit` (this skill never edits в place).
-
-**Layer 2 enforcement:** `hooks/plan-mode-write-guard.sh` — PreToolUse hook scopes Write к `.geniro/planning/**` OR `.geniro/state/**` when а /plan run is active. Bypass: `plan-mode-mutation` в `.geniro/safety.json` `allow_patterns`.
+**Mutation enforcement:** frontmatter `allowed-tools` excludes `Edit` (this skill never edits in place).
 
 **Existing safety layer:** file-protection hook, git-guardrails, `.geniro/` deletion guard apply across all phases.
 
@@ -252,8 +250,7 @@ Per master plan P-MP-1 anti-patterns guardrail — М5 must NOT reintroduce thes
 - 13 validator checks: `${CLAUDE_SKILL_DIR}/validator-checks.md`
 - Design-doc detection: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`
 - Effort scaling: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`
-- State helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh`, `validate-state-file.sh`
+- State helpers: `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, `validate-state-file.sh`
 - Memory helpers: `load-custom-instructions.md` (L4 directive), `load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `resolve-conflicts.md`
-- Mutation guard hook: `${CLAUDE_PLUGIN_ROOT}/hooks/plan-mode-write-guard.sh`
 - Architecture spec: `architecture/M5-plan-redesign.md`
 - Edge cases + alias note: `${CLAUDE_SKILL_DIR}/plan-reference.md`

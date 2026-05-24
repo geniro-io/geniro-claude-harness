@@ -2,7 +2,7 @@
 
 **Helper for atomic state-file writes.** Skills source this from Bash to write `.geniro/` state files without partial-write corruption.
 
-- **Library:** `skills/_shared/atomic-state-write.sh`
+- **Library:** `lib/atomic-state-write.sh`
 - **Schema reference:** `skills/_shared/state-tier-spec.md`
 - **Design rationale:** `architecture/M1-state-files.md` §Atomic write helper
 - **Validator:** `skills/_shared/validate-state-file.md`
@@ -32,7 +32,7 @@
 Reads content from stdin, writes atomically via `tmp + fsync + rename + fsync-dir`.
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 
 atomic_state_write ".geniro/planning/dark-mode/state.md" <<'EOF'
 ---
@@ -71,7 +71,7 @@ EOF
 Reads one line from stdin, appends with POSIX `O_APPEND` semantics.
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 
 printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"feature/dark-mode","summary":"Use CSS variables not styled-components","tags":["css","ui"],"trust":"verified","dedup_key":"abc123def456"}' \
   | atomic_state_append ".geniro/knowledge/learnings.jsonl"

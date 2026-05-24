@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for skills/_shared/atomic-state-write.sh
+# Smoke test for lib/atomic-state-write.sh
 #
 # Run: bash tests/state/atomic-write.sh
 # Exits non-zero on any failure.
@@ -10,7 +10,7 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck disable=SC1091
-source "$REPO_ROOT/skills/_shared/atomic-state-write.sh"
+source "$REPO_ROOT/lib/atomic-state-write.sh"
 
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT

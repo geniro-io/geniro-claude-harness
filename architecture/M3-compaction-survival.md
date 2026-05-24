@@ -518,7 +518,7 @@ M4+ per-skill work (refresh sites, T2 persist obligation, non-resumable emission
 
 If `validate_state_file` shell helper is not present on disk (M1 PR-0 has not landed), the hook:
 
-1. Detects absence: `if [ ! -x "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh" ]` or equivalent.
+1. Detects absence: `if [ ! -x "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh" ]` or equivalent.
 2. Sets `validation_status=skipped`.
 3. Adds Block 4 (§6) to additionalContext explicitly notifying the model.
 4. Continues with state.md pointer in Block 2 (no suppression).

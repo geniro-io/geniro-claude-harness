@@ -1,6 +1,6 @@
 # Plan Loop (M5)
 
-Canonical phase pattern for `/geniro:plan` (M5). Sole consumer: `skills/plan/SKILL.md`. Replaces pre-M5 `brainstorming-loop.md` (renamed via `git mv`; body rewritten against the M5 spec).
+Canonical phase pattern for `/geniro:plan` (M5). Replaces pre-M5 `brainstorming-loop.md` (renamed via `git mv`; body rewritten against the M5 spec).
 
 **Spec source:** `architecture/M5-plan-redesign.md` (Phase 0 §6-7, Phase 1 §8, Phase 3 §10, Phase 4 §11, Phase 5 §12, Phase 6 §13, Phase 7 §14, Phase 8 §15, Phase 9 §16; schemas §17-19; memory I/O §21).
 
@@ -100,8 +100,8 @@ State.md `phase: explore` during this phase.
 At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 
 - **L4:** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` с `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`. Scope = `plan` + `global` + `code-style`.
-- **L3:** `source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.sh" && load_semantic`. Default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Fingerprint drift check fires; surface drift к user.
-- **L2:** `source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic к infer tags.
+- **L3:** `source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh" && load_semantic`. Default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Fingerprint drift check fires; surface drift к user.
+- **L2:** `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic к infer tags.
 - **Cross-layer resolution:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
 
 Rationale: pre-M5 /brainstorm loaded only L4 rules. The audit found Phase 1 Explore agents worked blind к prior decisions (L2) и codebase map (L3) → repeated rediscovery. M5 closes the gap.
@@ -229,7 +229,7 @@ Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/med
 
 User pick → append к `approvals[]` с category `approach_choice`. Other approaches captured к body section `## Considered Alternatives`.
 
-**P-X8-2 L2 emit on rejection signal:** AFTER appending к `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.sh` и invoke:
+**P-X8-2 L2 emit on rejection signal:** AFTER appending к `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` и invoke:
 
 ```bash
 emit_rejection_if_signal \
@@ -459,7 +459,7 @@ If commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), sur
 If Phase 4 had ≥2 distinct approaches AND the picked approach has а recorded trade-off rationale, emit а `decision` type entry к L2:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 echo '{
   "type":"decision",
   "scope":"<task-area>",

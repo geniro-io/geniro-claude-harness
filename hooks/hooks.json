@@ -33,11 +33,6 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-state-helper.sh",
             "statusMessage": "Checking state-helper usage (warn-mode)..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/plan-mode-write-guard.sh",
-            "statusMessage": "Checking /plan write-scope..."
           }
         ]
       }

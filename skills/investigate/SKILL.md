@@ -574,7 +574,7 @@ If user picks "Done — answer is sufficient": chain а second `AskUserQuestion`
 Per master plan §69 (/learnings deleted) + P-M9-3 (master plan §345) minimal scope per design Q3:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 emit_learning <<'EOF'
 {
   "producer": "/geniro:investigate",
@@ -619,7 +619,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/investigate/<slug>/state.md` (resolve `<PRIM
 Write via `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write ".geniro/state/investigate/<slug>/state.md" <<EOF
 ---
 tier: T1

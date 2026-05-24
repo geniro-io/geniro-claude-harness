@@ -7,7 +7,7 @@
 #   1. Read $SOURCE from input (compact|resume|startup|clear); exit 0 on clear.
 #   2. Resolve the active T1 state file using the M1-canonical slug + frontmatter
 #      `branch:` fallback (see §5 step 4 and skills/_shared/state-tier-spec.md §Slug rule).
-#   3. Pre-flight validate via skills/_shared/validate-state-file.sh; if the helper
+#   3. Pre-flight validate via lib/validate-state-file.sh; if the helper
 #      itself is missing (M1 PR-0 not landed), degrade gracefully with Block 4 notice.
 #   4. Parse frontmatter — producer, spec-file, phase, non-resumable-actions[] count.
 #   5. Assemble `additionalContext` from the ordered Block 1..6 set. Sub-blocks
@@ -145,7 +145,7 @@ validation_status="not-applicable"  # values: pass | fail | skipped | not-applic
 validation_error=""
 
 if [ -n "$state_file" ]; then
-  _vsf_helper="${CLAUDE_PLUGIN_ROOT:-.}/skills/_shared/validate-state-file.sh"
+  _vsf_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/validate-state-file.sh"
   if [ ! -f "$_vsf_helper" ]; then
     validation_status="skipped"
   else
@@ -623,7 +623,7 @@ if [ -f "$_learnings_log" ]; then
 
       # Atomic lock acquisition. Failure = another tab is running it; skip.
       if mkdir "$_lock_dir" 2>/dev/null; then
-        _archive_output=$(bash "${CLAUDE_PLUGIN_ROOT:-.}/skills/_shared/archive-stale.sh" 2>&1)
+        _archive_output=$(bash "${CLAUDE_PLUGIN_ROOT:-.}/lib/archive-stale.sh" 2>&1)
 
         # Update hash marker (capture POST-archive state).
         sha256sum "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"

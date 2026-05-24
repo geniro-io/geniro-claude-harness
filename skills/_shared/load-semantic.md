@@ -1,13 +1,13 @@
 # L3 semantic-memory read helper + fingerprint drift detection
 
-**Status:** Authoritative for L3 read-side access. Every pipeline skill that ingests current-state project facts (`/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/onboard`, `/investigate`) calls `load_semantic` at start of run.
+**Status:** Authoritative for L3 read-side access.
 
 **Spec source:** `architecture/M2-memory-layers.md` §6 (file layout, ownership table, drift detection, reader contract).
 
 ## API
 
 ```bash
-source skills/_shared/load-semantic.sh
+source lib/load-semantic.sh
 
 # Read — default top-2 + optional extras
 content=$(load_semantic [--extras "name1 name2 ..."] [--quiet])

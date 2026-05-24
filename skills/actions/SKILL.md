@@ -338,7 +338,7 @@ Read action's frontmatter `risk_class`:
 
 **Approvals[] persistence does NOT apply к run mode.** Risk-class AUQs are context-dependent (re-ask each run intentionally; "did I confirm `slack-release-ping` last week" must NOT auto-confirm this week). This is intentional per M10c §6.3.
 
-**P-X8-2 L2 emit on rejection signal:** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.sh` и invoke once:
+**P-X8-2 L2 emit on rejection signal:** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` и invoke once:
 
 ```bash
 emit_rejection_if_signal \
@@ -377,7 +377,7 @@ External calls: <list, or "none">
 **L2 emit on successful external-send run:** if the action's frontmatter declared `external-send: true` AND run succeeded, emit one L2 `discovery` row per M2 §5.3:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 emit_learning <<'EOF'
 {
   "type": "discovery",

@@ -2,7 +2,7 @@
 
 **Helper for state-file frontmatter validation.** Skills source this from Bash before resume / after recovery to verify a state file is well-formed.
 
-- **Library:** `skills/_shared/validate-state-file.sh`
+- **Library:** `lib/validate-state-file.sh`
 - **Schema reference:** `skills/_shared/state-tier-spec.md`
 - **Design rationale:** `architecture/M1-state-files.md` §Validation helper
 - **Write helper:** `skills/_shared/atomic-state-write.md`
@@ -25,7 +25,7 @@ Producers do NOT need to validate the file they just wrote — the write helper 
 ## API
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.sh"
+source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
 
 if ! validate_state_file ".geniro/planning/dark-mode/state.md"; then
   rc=$?
