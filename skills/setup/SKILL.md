@@ -468,7 +468,7 @@ Agent(
 
 ### 4.3 L2 emit on successful Validate (D9 closure)
 
-Per M2 §5.3 — emit one L2 `discovery` row on transition к DONE (auto-replaces dropped `/learnings`):
+Per M2 §5.3 — emit one L2 `discovery` row on transition к DONE:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
@@ -629,7 +629,7 @@ validate_rounds: 1
 | Layer | Read at | Write at | Notes |
 |---|---|---|---|
 | L1 CLAUDE.md | Phase 1 §1.4 (existing AI-tool config scan) | Phase 3 §3.4 (thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via §3.5 orchestrator-inline merge |
-| L2 learnings.jsonl | Phase 1 §1.2 (prior `discovery` query, tag `setup`) | Phase 4 §4.3 (one `discovery` row on `done`) | `trust: verified` — code-grounded; auto-replaces dropped `/learnings` |
+| L2 learnings.jsonl | Phase 1 §1.2 (prior `discovery` query, tag `setup`) | Phase 4 §4.3 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/setup` и `/onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 §1.2 (rules-only load via `load-custom-instructions.md`) | Phase 3 §3.6 writes `user-preferences.md`; optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 

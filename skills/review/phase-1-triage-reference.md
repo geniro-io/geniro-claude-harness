@@ -184,11 +184,11 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 
 ## 8. Step 0.6 — PLAN CONTEXT load (M5-aware)
 
-Per M6 §16.1 и `plan-context-reference.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR legacy filenames exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
+Per `plan-context-reference.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
 1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version: m5-v1` frontmatter present → structured-section parser (10 sections + frontmatter goal-state).
-2. Else fall back к prose detection с ~3000-char cap (legacy mode).
+2. Else fall back к prose detection с ~3000-char cap.
 
 PLAN CONTEXT body inlined в spec-compliance reviewer spawn prompt only (Phase 2). Other dimensions don't see it.
 

@@ -1,6 +1,6 @@
 # Plan Loop (M5)
 
-Canonical phase pattern for `/geniro:plan` (M5). Replaces pre-M5 `brainstorming-loop.md` (renamed via `git mv`; body rewritten against the M5 spec).
+Canonical phase pattern for `/geniro:plan` (M5).
 
 **Spec source:** `architecture/M5-plan-redesign.md` (Phase 0 §6-7, Phase 1 §8, Phase 3 §10, Phase 4 §11, Phase 5 §12, Phase 6 §13, Phase 7 §14, Phase 8 §15, Phase 9 §16; schemas §17-19; memory I/O §21).
 
@@ -95,7 +95,7 @@ If state.md already created when user cancels (e.g., deep cancel via Other): wri
 
 State.md `phase: explore` during this phase.
 
-### 1.1 Memory layer loading (replaces pre-M5 LOAD_TIER: rules-only)
+### 1.1 Memory layer loading
 
 At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 
@@ -104,7 +104,7 @@ At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 - **L2:** `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic к infer tags.
 - **Cross-layer resolution:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
 
-Rationale: pre-M5 /brainstorm loaded only L4 rules. The audit found Phase 1 Explore agents worked blind к prior decisions (L2) и codebase map (L3) → repeated rediscovery. M5 closes the gap.
+Loading all three layers ensures Explore agents have full context — prior decisions (L2), codebase map (L3), and user rules (L4) — preventing repeated rediscovery.
 
 ### 1.2 Effort-tier-scaled Explore spawns (§8.2)
 
@@ -147,15 +147,9 @@ Model synthesizes findings into а brief inline summary held в context (no sepa
 
 ---
 
-## Phase 2 — DROPPED (§9 rationale)
+## Phase 2 — DROPPED
 
-Phase 2 of pre-M5 /brainstorm was а visual companion (textual UI sketch + AUQ). M5 drops it:
-
-1. Sketch did NOT persist into spec.md.
-2. Phase 5 sections (§17.2 sections 6 & 9) absorb UI intent when the topic warrants.
-3. Visual companion fired UNCONDITIONALLY — high friction for non-UI tasks.
-
-Migration: UI intent now belongs в Phase 3 clarifying questions ("should we add а new screen or extend an existing view?") и Phase 5 section content.
+Phase 2 is not used. UI intent belongs в Phase 3 clarifying questions ("should we add а new screen or extend an existing view?") и Phase 5 section content (§17.2 sections 6 & 9).
 
 ---
 
@@ -276,7 +270,7 @@ Use the **fixed 10-section P-M5-1 schema** detailed в M5 §17 (and reproduced �
 10. Rollback-Recovery
 11. Done Condition  (header «## 11.» — schema counts 10 sections starting at ## 1; this is section #10 by count)
 
-М5 does NOT support "1-6 sections scaled by complexity" (pre-M5 free-form). Every spec.md has exactly the same 10 sections — schema-stable downstream consumers.
+Every spec.md has exactly the same 10 sections — schema-stable downstream consumers.
 
 For Trivial tasks, sections 4 / 5 / 10 may have body content «none — task scope precludes» с brief rationale. Headers MUST exist; bodies MAY be «none с rationale».
 
@@ -294,7 +288,7 @@ One AUQ per section, sequentially:
 
 After 10 sections approved → transition к Phase 6.
 
-### 5.3 Milestone-mode (§12.3 — absorbs /decompose)
+### 5.3 Milestone-mode (§12.3)
 
 If during section authoring the model detects а Big task (effort tier Big AND section 6 «Steps» has ≥10 discrete steps OR estimated wall-time ≥1 day), fire а new AUQ BEFORE Phase 6 entry:
 
@@ -311,7 +305,7 @@ If "Slice into milestones" picked:
 
 Hand-off (Phase 9) offers `/implement milestone 1` for sliced specs.
 
-Rationale: /decompose was deleted (master plan §65). М5 absorbs the milestone-authoring responsibility — but only when the task warrants it. For Medium/Trivial, the milestone-mode AUQ does not fire.
+Milestone-mode fires only when the task warrants it. For Medium/Trivial, the milestone-mode AUQ does not fire.
 
 ---
 
@@ -339,7 +333,7 @@ After writing spec.md, append а `## Tool log` entry к state.md via `atomic_sta
 
 ### 6.2 NO auto-commit (D1 fix)
 
-М5 does **not** `git commit` at Phase 6 exit. The pre-M5 auto-commit violated Always-WAIT — а Phase 8 «Request changes» would force а second commit per round.
+`git commit` does NOT fire at Phase 6 exit. It is deferred к Phase 8 §15.4 post-approval to avoid polluting git history with per-revision commits.
 
 The `git commit` is deferred к Phase 8 §15.4 post-approval. At Phase 6 exit, spec.md sits unstaged on disk; state.md `phase: validate` written before Phase 7 entry.
 
@@ -363,11 +357,11 @@ State.md `phase: validate` during this phase.
 
 ### 7.1 Mechanical pass-through (not Opus self-prompt)
 
-Pre-M5 Phase 7 was а free-form Opus self-prompt. M5 replaces с а **deterministic validator** — script-checkable rules executed orchestrator-side. No LLM round-trip per check.
+Phase 7 uses а **deterministic validator** — script-checkable rules executed orchestrator-side. No LLM round-trip per check.
 
 ### 7.2 Validator checks (§14.2 — 13 checks)
 
-See `skills/plan/validator-checks.md` for the canonical check definitions (9 P-M5-4 good-goal criteria + 4 legacy linter checks). Each check returns `(check_id, status, finding_text, fix_hint)`. Run all 13 в sequence.
+See `skills/plan/validator-checks.md` for the canonical check definitions (13 checks total). Each check returns `(check_id, status, finding_text, fix_hint)`. Run all 13 в sequence.
 
 ### 7.3 Hard-fail handling
 
@@ -392,7 +386,7 @@ State.md `phase: user-approve` during this phase.
 
 ### 8.1 Approval AUQ — P-M5-5 closure
 
-Pre-M5 Phase 8 AUQ body was «Spec committed к <path>. Review it?» — user approved blind. M5 fires а **schema-rich AUQ** carrying P-M5-5 fields inline в the question body.
+Phase 8 fires а **schema-rich AUQ** carrying P-M5-5 fields inline в the question body.
 
 ### 8.2 AUQ shape
 
@@ -485,7 +479,7 @@ Fire `AskUserQuestion` с header "Next step":
 - **/implement directly** (Recommended) — exit /plan, suggest the next command. For non-milestone specs: `/implement .geniro/planning/<slug>/spec.md`. For milestone specs: `/implement .geniro/planning/<slug>/milestone-1.md`.
 - **Stop — keep spec для later** — terminal exit; spec sits on disk; user resumes when ready via `/implement <path>`.
 
-Pre-M5 options для `/features add` и `/decompose` removed — both skills deleted (master plan §65, §68). Milestone responsibility is absorbed into Phase 5 §5.3. Backlog responsibility was always vestigial — а design doc on disk IS the backlog entry.
+Two options: `/implement directly` или `Stop — keep spec for later`. А design doc on disk IS the backlog entry.
 
 ### 9.2 Persistence
 
@@ -541,11 +535,11 @@ Both paths terminate в `done`. M3 SessionStart recovery treats it as completed.
 | "I'll keep the Phase 2 visual companion — nice when planning UI" | Dropped (§9). Sketch did NOT persist into spec.md; UI intent belongs в Phase 3 questions + Phase 5 sections 6 (Steps) / 9 (Validation) at the right granularity. |
 | "I'll write the design doc с only the YAML frontmatter — that's enough" | Defense in depth requires all three markers (path + HTML comment + frontmatter). See `design-doc-detect.md` § Why defense in depth — each marker survives а different user action. |
 | "Phase 4 — 4 or 5 approaches gives the user more choice" | More than 3 indicates Phase 3 didn't narrow scope; loop back к Phase 3 с а tighter scope-boundary question. |
-| "Auto-commit at Phase 6 is convenient — drop а commit if Phase 8 rejects" | D1 fix. Rejection-induced commit-drop = forced `git reset` / `git revert`. Pre-M5 pattern polluted git history (every revision round left а commit). Phase 8 post-approve commit is а single commit per approved spec. |
+| "Auto-commit at Phase 6 is convenient — drop а commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave а commit). Phase 8 post-approve commit is а single commit per approved spec. |
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Metaswarm anti-pattern. Compaction mid-Phase-5 loses 5 AUQs of user input. P-M1-1 `approvals[]` persistence is non-negotiable. |
 | "I'll bypass the plan-mode mutation guard для performance" | §19 guard is а safety contract, not а perf knob. Adds <1ms per Write (path glob check). Bypass invites the failure mode the guard exists к prevent. |
-| "Phase 0 Refine path saves three phases of re-work — keep it" | D3 fix. Refine re-derived sections from prose — structurally-lossy. Downstream consumers parse а malformed spec.md. «Start fresh с doc as context» is honest and produces а schema-clean spec.md. |
-| "Hand-off menu should keep `/features add` for backlog discipline" | /features deleted (master plan §68). А «backlog» IS а spec.md saved on disk. No separate skill needed. |
+| "Phase 0 Refine path saves three phases of re-work — keep it" | Refine re-derives sections from prose — structurally-lossy. Downstream consumers parse а malformed spec.md. «Start fresh с doc as context» is honest and produces а schema-clean spec.md. |
+| "Hand-off menu should keep `/features add` for backlog discipline" | А «backlog» IS а spec.md saved on disk. No separate skill needed. |
 | "Auto-default empty AUQ answer к the Recommended option" | Forbidden (§3.2). Empty answer = upstream Claude Code bug; fall back к plain-text re-ask. Auto-default silently mutates user intent. |
 | "Add а wall-time / token kill cap so runaway /plan sessions abort cleanly" | Class-A hard caps forbidden by M5 §2.3 quality-first framing. M5 has Class-B gates (Phase 3 ≤5 AUQs, Phase 7 3-round, Phase 8 3-round) — escalate к user, do not abort. |
 | "Bypass git pre-commit hooks с --no-verify when committing spec.md в Phase 8.4" | Hooks fail для а reason. Investigate root cause, не bypass. CLAUDE.md-level prohibition; М5 honors it. |

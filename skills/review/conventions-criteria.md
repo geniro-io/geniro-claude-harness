@@ -177,12 +177,12 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 
 **Other dimensions — defer:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → `guidelines-criteria.md`
-- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → owned here (М6 §17 H-3 collapsed guidelines §8 into this dimension — emit с modal inference и/или explicit-rule citation per the recipe at §What to Check).
+- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → owned here (emit с modal inference и/или explicit-rule citation per the recipe at §What to Check).
 - Module-scale organization, utils sprawl, circular imports, file-structure inconsistency at module scale → `architecture-criteria.md` §4
 - Findings that match repo patterns and should be silenced → handled by orchestrator-side Phase 3 dedup + KEEP/FILTER (SKILL.md §3.1-§3.3)
 - Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md` §9
 
-If a finding fits a style/naming/docs rubric mold, it is `guidelines`'s job. If a finding requires sampling siblings и computing а mode (repo-modal patterns / single-exemplar rubric drift / ADR contradictions / file placement / convention guard), it is conventions's job (М6 §17 H-3).
+If a finding fits a style/naming/docs rubric mold, it is `guidelines`'s job. If a finding requires sampling siblings и computing а mode (repo-modal patterns / single-exemplar rubric drift / ADR contradictions / file placement / convention guard), it is conventions's job.
 
 ## How to Detect — Worked Example
 

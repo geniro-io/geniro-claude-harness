@@ -2,7 +2,7 @@
 
 This file contains templates, examples, and detailed procedures referenced by SKILL.md. The orchestrator reads specific sections at the relevant phase — not the entire file upfront.
 
-**Scope under M4:** `/geniro:implement` is а 2-phase autonomous loop (Analyze → Implement → Self-review-and-Ship). Pre-M4 Lane modes (TDD / Light / Auto), per-WU parallel decomposition, milestone-mode special-casing, and the standalone `/geniro:follow-up` flow are removed (see `architecture/M4-implement-redesign.md` §3.1).
+**Scope:** `/geniro:implement` is а 2-phase autonomous loop (Analyze → Implement → Self-review-and-Ship).
 
 ---
 
@@ -30,8 +30,8 @@ No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 
 When `$ARGUMENTS` does not directly carry а spec path, walk these in order и stop at the first hit:
 
 1. `<task-dir>/spec.md` — preferred (`/geniro:plan` M5 canonical output).
-2. `<task-dir>/plan.md` — legacy alias (pre-M4 convention).
-3. design-doc frontmatter detect via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — covers legacy /brainstorm-emitted design docs that don't follow naming convention.
+2. `<task-dir>/plan.md` — alias.
+3. design-doc frontmatter detect via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — covers design docs that don't follow naming convention.
 
 If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task mode** (M4 §5.3): write а brief inline plan to state.md body under `## Inline Plan` containing one-sentence goal, file list (best-effort), и approach summary. This becomes the source-of-truth для Phase 3 self-review (the `spec` field consumed by reviewer-agents).
 
@@ -91,7 +91,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 | `security` | `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 |
 | `architecture` | `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` | Layering, coupling, abstractions, dead code, duplication, naming, file placement. **Also covers docs-staleness** (OQ-9 closure): explicit check for README / architecture-doc / contributing-guide references к patterns or files renamed in Phase 2. **Also covers spec-compliance** (M4 §7.2 + master plan §139): explicit check that the Phase 2 diff matches spec.md scope — no unspec'd files touched, no spec'd requirements unaddressed. |
 | `tests` | `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases. **Pre-condition:** tests are green per Phase 2 §6.2; this dim NEVER sees failing tests. |
-| `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities. **Subsumes pre-M4 Phase 5 SIMPLIFY agent.** |
+| `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities. |
 
 **Code-style pre-inline slot (code-quality + architecture reviewers only):** if the Phase 1 / Phase 3-entry L4 loader echoed `Loaded code-style.md …`, pre-inline that content under а `## Code-style instructions` header per the reviewer-agent contract. If the loader echoed `No code-style.md found — skipping.`, omit the slot. Bugs / security / tests reviewers do NOT get the slot (code-style is orthogonal).
 
@@ -289,7 +289,7 @@ This deletes `spec.md`, `state.md`, `notes.md`, и any other files created durin
 
 ## Phase 3 — Adjustment Routing (Big / Medium / Small)
 
-Used when ship-feedback arrives via PR comments или as а follow-up `$ARGUMENTS` invocation. Pre-M4 the legacy `/follow-up` handled this; M4 absorbs it — all adjustments route back through `/implement` itself с the original spec + adjustment description as new $ARGUMENTS.
+Used when ship-feedback arrives via PR comments или as а follow-up `$ARGUMENTS` invocation. All adjustments route back through `/implement` itself с the original spec + adjustment description as new $ARGUMENTS.
 
 ### Big — changes к data model, API contract, new endpoints
 

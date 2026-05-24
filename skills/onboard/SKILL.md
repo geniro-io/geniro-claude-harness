@@ -16,7 +16,7 @@ Section-reference convention: local refs like §1.x are within this SKILL.md; sp
 ## Arguments
 
 - **No arguments** — full codebase scan; produces the 8-section `_CODEBASE_MAP.md` (default mode).
-- `--focus area1,area2,...` — scope-limiter. Scans all, но concentrates the map output on focus areas; non-focus areas get summary-level coverage. NOT а separate output (M9 dropped the legacy quick-mode `focus-<area>.md` artifact per design Q4 — full mode с `--focus` covers concentrated mapping без а separate 1-page output).
+- `--focus area1,area2,...` — scope-limiter. Scans all, но concentrates the map output on focus areas; non-focus areas get summary-level coverage. Full mode с `--focus` covers concentrated mapping.
 - `--depth N` — limit directory scanning to N levels deep. Useful for large monorepos где full traversal is too slow. Orthogonal к `--focus` (combine as needed).
 
 Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, concentrate on auth+api).
@@ -25,7 +25,7 @@ Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, conce
 
 **Primary artifact:** `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` (M1:508 underscore-prefixed L3 registry per M2 §6.1). Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees и isn't lost when а linked worktree is removed.
 
-8-section template (preserved verbatim from pre-M9):
+8-section template:
 1. **Project Overview** — name, purpose, language/stack, entry points
 2. **Directory Structure** — file organization, key folders
 3. **Module Relationships** — module dependency graph
@@ -39,7 +39,7 @@ When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate det
 
 **Map quality bar:** under 1000 lines, skimmable в 5 minutes.
 
-**Backward-compat:** legacy `<PRIMARY_ROOT>/.geniro/planning/CODEBASE_MAP.md` (без underscore) is read once at Phase 1 §1.2 для context, then the new write lands at the underscored canonical path. Legacy file stays on disk one release cycle для existing references.
+**Compatibility:** `<PRIMARY_ROOT>/.geniro/planning/CODEBASE_MAP.md` (without underscore) is read once at Phase 1 §1.2 for context, then the new write lands at the underscored canonical path `_CODEBASE_MAP.md`.
 
 ## State machine
 
@@ -98,14 +98,13 @@ Pre-Phase-1 detect (transient — does не persist а state.md row):
 | `--depth N` | Limit scanning к N levels. |
 | Combined | Both flags supported. |
 
-(M9 §3.1 drops pre-M9 `--quick` mode entirely. The legacy `focus-<area>.md` artifact is removed; full mode с `--focus` covers concentrated mapping без а separate 1-page output.)
 
 ### 1.2 Step 0 — Load custom instructions + L2 prior-knowledge
 
 On Phase 1 entry (M9 D12-fix promotes onboard к full L4+L3+L2 load):
 
 1. **L4 refresh** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md` + `user-preferences.md` (M10b pipeline tier — 4 files).
-2. **L3 refresh** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). Legacy `CODEBASE_MAP.md` (без underscore) is read once for backward-compat.
+2. **L3 refresh** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
 3. **L2 prior-knowledge** — `query-learnings --tag onboard --tag architecture --tag codebase --scope task --limit 5` per M2 §5.3 «discovery start» trigger. К surface prior architectural decisions и gotchas relevant к the scan.
 4. **Cross-layer conflict resolution** — `resolve-conflicts` per M2 §10 (precedence L4 > L3 > L2 when layers disagree; halt с AUQ on hard conflict).
 
@@ -129,7 +128,7 @@ P-M9-2 obligation per master plan §344 — "Avoid loading entire repositories" 
 
 **Approvals-persistence (P-M1-1 producer-side contract):** before firing the expand-scope AUQ, check state.md frontmatter `approvals[]` for а prior entry с `category: expand_scope`. If found, use prior `picked` (typical compaction-resume scenario). M3 §6 Block 5d renders this.
 
-**Edge cases (preserved от pre-M9):**
+**Edge cases:**
 - **Empty or near-empty repo** (no source files found): terminal `routed` с suggestion "Repo appears empty. Use `/geniro:investigate` to clarify project state."
 - **Permission errors on key directories** — log к `## Errors` body section; note gaps в final map's `## Tech Debt & Notes`.
 - **Very large repos (50,000+ files)** — auto-applies `--depth 2` AND fires the AUQ above; user picks; default к truncate.
@@ -164,7 +163,7 @@ After `_CODEBASE_MAP.md` write, call `update-semantic --file codebase-map --repl
 
 ### 2.3 L2 `discovery` emit (M9 §7.3)
 
-Replaces deleted `/learnings` skill (master plan §69). After `_CODEBASE_MAP.md` write:
+After `_CODEBASE_MAP.md` write:
 
 - `emit-learning` per M2 §5.2 — emit `discovery` type entry per M2 §5.3 row /onboard. Required `ext.{area, insight}`. Default trust `verified` per M2 §5.3 (code-grounded).
 
@@ -194,9 +193,9 @@ After map ships, route user via `AskUserQuestion`:
 - **Header:** "Next step"
 - **Question:** "The codebase map is ready. What do you want to do next?"
 - **Options:**
-  - **"Plan а feature"** — description: "Run `/geniro:plan <feature>` to draft an approved spec (M5 spec.md emits а structured plan you approve before code)" (replaces stale pre-M9 routing к /implement direct + /decompose).
+  - **"Plan а feature"** — description: "Run `/geniro:plan <feature>` to draft an approved spec (spec.md you approve before code)"
   - **"Investigate specifics"** — description: "Run `/geniro:investigate <question>` to dig deeper into а subsystem"
-  - **"Implement а change"** — description: "Run `/geniro:implement` to design и build (consumes а spec.md from /plan OR inline-task mode)" (replaces stale /follow-up).
+  - **"Implement а change"** — description: "Run `/geniro:implement` to design и build (consumes а spec.md from /plan OR inline-task mode)"
   - **"Review feature backlog"** — description: "Read `_FEATURES.md` (manual backlog) or run `/geniro:plan` to author one"
 
 ### 2.5 Cleanup
@@ -207,7 +206,7 @@ State.md `phase: map` → `done`. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/with
 rm -rf .geniro/state/onboard/<slug>/ 2>/dev/null || true
 ```
 
-**Persistent artifacts STAY:** `_CODEBASE_MAP.md` is T3 — never auto-deleted. Legacy `CODEBASE_MAP.md` (без underscore) stays one release cycle; user-managed cleanup.
+**Persistent artifacts STAY:** `_CODEBASE_MAP.md` is T3 — never auto-deleted.
 
 ---
 
@@ -289,7 +288,7 @@ Existing safety hooks apply across all phases (file-protection / git-guardrail /
 
 ## Anti-rationalization (P-MP-1 closure)
 
-Per master plan P-MP-1 — every milestone closes с an explicit anti-pattern check. Preserves 4 rows verbatim от pre-M9 + M9 §16.1 additions + cross-cutting LLM rows.
+Per master plan P-MP-1 — every milestone closes с an explicit anti-pattern check.
 
 | Your reasoning | Why it's wrong |
 |---|---|

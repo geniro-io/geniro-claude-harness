@@ -6,27 +6,27 @@ When `/geniro:debug` ran earlier in the same project, it left T2 hand-off files 
 
 ## Step 1: Scan
 
-Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the hand-off files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back к detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob both M7 paths AND the legacy fallback paths; for each that exists, read fully.
+Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the hand-off files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back к detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths and fallback paths; for each that exists, read fully.
 
-**M7-canonical (read first):**
+**Canonical paths (read first):**
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`
 
-**Legacy fallback (read only if M7-canonical absent — backward-compat resume per M7 §3.1):**
+**Fallback paths (read only if canonical absent):**
 - `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md`
 - `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`
 
-If neither M7-canonical nor legacy exists, this whole file is a no-op — skip to your next step.
+If neither canonical nor fallback exists, this whole file is a no-op — skip to your next step.
 
 ## Step 2: Extract
 
-From `from-debug-<branch>.md` (M1 §T2 frontmatter + M7 §8.1 findings body — also covers legacy `findings-state.md` whose body schema matches):
-- frontmatter `branch:` field → record as `debug-source-branch` (M7 §11.2). Falls back to body `**Source branch:**` line for legacy files.
-- frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for legacy files.
+From `from-debug-<branch>.md` (M1 §T2 frontmatter + findings body — also covers `findings-state.md` whose body schema matches):
+- frontmatter `branch:` field → record as `debug-source-branch`. Falls back to body `**Source branch:**` line for older files.
+- frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for older files.
 - body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim leading/trailing whitespace from the result. Treat as one entry in the `authored-test-paths` set; skip if value is `none` or starts with `escape hatch:`.
 
-From `from-debug-adversarial-<branch>.md` (M1 §T2 frontmatter + M7 §11.3 body — also covers legacy `adversarial-tests.md`):
-- frontmatter `branch:` and `worktree:` fields (M1 §T2). Falls back к top-of-body `**Source branch:**` / `**Source worktree:**` lines for legacy. Overwrite values from `from-debug-<branch>.md` only if it was absent (otherwise prefer the scientific-mode values for consistency).
+From `from-debug-adversarial-<branch>.md` (M1 §T2 frontmatter + body — also covers `adversarial-tests.md`):
+- frontmatter `branch:` and `worktree:` fields (M1 §T2). Falls back к top-of-body `**Source branch:**` / `**Source worktree:**` lines for older files. Overwrite values from `from-debug-<branch>.md` only if it was absent (otherwise prefer the scientific-mode values for consistency).
 - For each `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace. Add to `authored-test-paths`.
 
 **When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on a single line. Consumers split on `,` and trim each token before re-resolving.
@@ -62,7 +62,7 @@ The user runs the commands themselves — never invoke them via Bash. Cross-bran
 
 **Case B2 — All PRESENT but `debug-source-branch` differs from current branch.** Typical of implement Option A (`git checkout -b <new-branch>`) where uncommitted test files follow the working tree to the new branch. Surface a one-line note in the Phase 1 context summary: `Debug ran on '<debug-source-branch>'; you are now on '<current-branch>'; all <N> authored test(s) carried over to the new working tree.` No commands suggested — the tests are already where they need to be.
 
-**Case C — State files exist but `Source branch:` / `Source worktree:` fields are missing** (older debug run, pre-handoff-feature). Treat the existence check as the only signal: if any authored path is missing, surface a degraded suggestion ("Debug findings detected; <N> authored test(s) missing — source branch unknown, run `git log --all -- <path>` to locate") and skip the explicit `git checkout` recommendation. Do not block the consumer skill.
+**Case C — State files exist but `Source branch:` / `Source worktree:` fields are missing.** Treat the existence check as the only signal: if any authored path is missing, surface a degraded suggestion ("Debug findings detected; <N> authored test(s) missing — source branch unknown, run `git log --all -- <path>` to locate") and skip the explicit `git checkout` recommendation. Do not block the consumer skill.
 
 ## Anti-rationalization
 

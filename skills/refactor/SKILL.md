@@ -9,7 +9,7 @@ argument-hint: "[what to refactor and why]"
 
 # Refactor with Test Verification (M8)
 
-Safe incremental refactoring that validates behavior is preserved at every step. Restructures code для better organization, reduces tech debt, и improves patterns без changing observable behavior. Pre-M8 5+1-phase workflow collapsed к 3 phases mirroring `/geniro:implement` per master plan §120.
+Safe incremental refactoring that validates behavior is preserved at every step. Restructures code для better organization, reduces tech debt, и improves patterns без changing observable behavior. 3 phases mirroring `/geniro:implement`.
 
 **Architecture spec:** `architecture/M8-refactor-redesign.md`. Detailed contracts:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big) adopted per M8 §6.3 Q2
@@ -40,7 +40,7 @@ The constitutional rule (zero behavior change) is enforced per-step via the orch
 ## When NOT to use
 
 - For behavioral changes или feature additions (use `/geniro:implement`)
-- To optimize performance (use `/geniro:review --simplify` и measure first — M6 absorbed /deep-simplify as а flag)
+- To optimize performance (use `/geniro:review --simplify` и measure first)
 - To add error handling not previously present (behavioral change → `/geniro:implement`)
 - To reorganize без clear architectural benefit
 
@@ -300,7 +300,7 @@ state.md `phase: apply`. Refactor-agent executes the approved plan, one step at 
 
 ### 2.1 L4 refresh entry
 
-On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style + user-preferences — M10b pipeline tier, 4 files)` call. Mirrors M4 §13.4 Phase 3 entry contract. Pre-M8 had TWO refreshes (Phase 4 + Phase 5 entries) — M8 collapses к one; Phase 3 inherits the Phase 2 refresh (no code-writing в Phase 3).
+On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style + user-preferences — M10b pipeline tier, 4 files)` call. Phase 3 inherits the Phase 2 refresh (no code-writing в Phase 3).
 
 ### 2.2 Per-step execution (orchestrator-inline)
 
@@ -480,7 +480,7 @@ Output the markdown block directly в chat. No persistence к а T2 handoff file
 
 ### 3.5 L2 auto-emit (M2 §5.3 — discovery + pitfall)
 
-Replaces deleted `/learnings` skill (master plan §69). At Phase 3 exit:
+At Phase 3 exit:
 
 - **`emit-learning` (M2 §5.2)** — called by /refactor для two emit types per M2 §5.3 canonical contract:
   - **`discovery`** — emit когда а pattern was extracted к а shared utility/component (typical /refactor outcome). Required `ext.{area, insight}` per M2 §5.2 typed-extension table. Default trust `verified` per M2 §5.3.
@@ -520,11 +520,11 @@ Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 After Phase 3 completes:
 
 - **All tiers:** Remove `<PRIMARY_ROOT>/.geniro/state/refactor/<slug>/state.md` для the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. Useful content already saved (transformations, discoveries) via §3.5 L2 emit + §3.4 chat summary. Do NOT delete sibling slugs от concurrent refactor sessions on other branches.
-- **Clear three legacy generations** (best-effort; any may not exist):
+- **Clear old state files** (best-effort; any may not exist):
   ```bash
-  rm -f ".geniro/refactor/state.md"                    2>/dev/null  # Gen 1: original (pre-state-dir, non-scoped)
-  rm -f ".geniro/refactor/state-${slug}.md"            2>/dev/null  # Gen 2: intermediate (pre-state-dir, slug-scoped)
-  rm -f ".geniro/state/refactor/state-${slug}.md"      2>/dev/null  # Gen 3: pre-M8 (flat, under state-dir)
+  rm -f ".geniro/refactor/state.md"                    2>/dev/null
+  rm -f ".geniro/refactor/state-${slug}.md"            2>/dev/null
+  rm -f ".geniro/state/refactor/state-${slug}.md"      2>/dev/null
   ```
 - **No T2 handoff к delete или persist** (M8 §9 D11-fix decision: diff IS the deliverable; working tree is the channel).
 - Kill any background processes started during the run (test watchers, profilers).
@@ -608,7 +608,7 @@ Body sections:
 | Phase 1 entry | `load-semantic` | read L3 | `refresh` |
 | Phase 1 entry | `query-learnings` | read L2 | n/a (M2 §5.3 trigger) |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
-| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire — drops pre-M8 double-refresh) |
+| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
 | Phase 3 exit (§3.5) | `emit-learning` | write L2 | n/a (emit types: `discovery` с `ext.{area, insight}` OR `pitfall` с `ext.{trap, mitigation}`) |
 
 `update-semantic` writes к `_CODEBASE_MAP.md` для move/rename refactors (bounded auto-incremental per M2 §6.1). Not applicable когда refactor adds modules (would be а behavioral change → escalate per §1.3.2).
@@ -709,7 +709,7 @@ Use `TodoWrite` к expose per-phase progress. At skill start, create phase-level
 - [ ] Completion summary presented в chat (§3.4)
 - [ ] L2 emit fired (§3.5) с `discovery` или `pitfall` type + required `ext.*` fields; L4 promotion suggestion surfaced
 - [ ] Improvements suggested per M2 §5.4 routes (§3.6)
-- [ ] Cleanup completed (§3.7 — state.md removed для current branch's slug only; 3 legacy generations cleared best-effort; temp files cleaned)
+- [ ] Cleanup completed (§3.7 — state.md removed для current branch's slug only; old state files cleared best-effort; temp files cleaned)
 - [ ] No `git commit` / `git push` / `gh pr create` — diff stays uncommitted (user или /geniro:implement ships)
 
 ---

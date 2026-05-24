@@ -40,13 +40,12 @@ The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Pha
 - **`[UNKNOWN]`** → orchestrator requires the reviewer / /plan-authoring к escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the upstream classifier itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause.
 - **`[SYMPTOM-ACK]`** → already user-acknowledged; orchestrator proceeds AND appends the entry to the Ship summary's `## Acknowledged tech debt` section (the gate's Result handling already wrote it; this is the read-back for ship-time rendering).
 
-(Pre-M4 lane-bypass exceptions for `/geniro:implement` Fast Lane и `/geniro:follow-up` Trivial are removed — M4 has no Lane modes per architecture/M4-implement-redesign.md §3.1, и `/follow-up` was deleted per master plan §66.)
 
 ## Persistence schema
 
 Tags persist in two artifact families, mirroring the existing `[CONFIRMED-BY-TEST]` persistence pattern (per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema):
 
-**1. Reviewer findings — `<task-dir>/review-feedback.md` (`/implement` Phase 3 self-review intermediate) и `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 — M1 §T2 canonical — `/review` writer; consumed by `/implement` Phase 1 step 8 «Persist T2 handoffs»). Legacy path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` is read once on resume для backward-compat per SKILL.md §5.2 only.**
+**1. Reviewer findings — `<task-dir>/review-feedback.md` (`/implement` Phase 3 self-review intermediate) и `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M1 §T2 canonical — `/review` writer; consumed by `/implement` Phase 1 step 8 «Persist T2 handoffs»). Path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` is read once on resume for compatibility per SKILL.md §5.2 only.**
 
 The per-finding line gains a `cause:` field (lowercase to match existing field convention — `decision:`, `recommendation:`, `confidence:`). The field is appended after `confidence:` for both severity-section rows (CRITICAL/HIGH/MEDIUM) and Intent-section rows. Exact line format:
 
@@ -75,13 +74,13 @@ Suspected root cause: <one-line>          # required when classification is SYMP
 
 The same gate-rendering rule applies: ROOT-CAUSE units skip the symptom/cause sub-fields; SYMPTOM-PATCH / MIXED units include them.
 
-Older state files written before tagging was introduced will lack the `cause:` field entirely. Consumers MUST treat a missing `cause:` field as `cause: UNKNOWN` (the safe default — fires the upstream-debug escalation rather than auto-proceeding) and log a single-line caveat under `## Caveats` in the rendered report: `legacy state file — cause classification missing, treating as UNKNOWN`.
+State files that lack the `cause:` field entirely MUST be treated as `cause: UNKNOWN` (the safe default — fires the upstream-debug escalation rather than auto-proceeding). Log a single-line caveat under `## Caveats` in the rendered report: `state file missing cause classification, treating as UNKNOWN`.
 
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll skip the `Cause:` tag for trivial findings — the gate won't fire anyway" | Every finding requires a tag; `[UNKNOWN]` is the explicit escape hatch, NOT omission. A missing tag is parsed as a legacy / corrupt entry and forces the consumer to treat it as `[UNKNOWN]` with a caveat — same outcome as tagging it `[UNKNOWN]` directly, but with worse audit trail. Just emit the tag. |
+| "I'll skip the `Cause:` tag for trivial findings — the gate won't fire anyway" | Every finding requires a tag; `[UNKNOWN]` is the explicit escape hatch, NOT omission. A missing tag forces the consumer to treat it as `[UNKNOWN]` with a caveat — same outcome as tagging it `[UNKNOWN]` directly, but with worse audit trail. Just emit the tag. |
 | "I'll auto-classify ambiguous findings as `[ROOT-CAUSE]` for speed — the user can correct it" | Defaults to `[UNKNOWN]`. `[ROOT-CAUSE]` skips the gate entirely (orchestrator proceeds in the normal flow), so an auto-classified mistake silently ships a symptom patch with no user prompt. `[UNKNOWN]` triggers the conservative escalation path (require `/geniro:debug` to confirm) — the cost is one user-visible escalation, the benefit is no silent symptom-ship. The asymmetry favors `[UNKNOWN]` every time confidence is below 60%. |
 | "The reviewer-agent's confidence is 75% — that's high enough for `[ROOT-CAUSE]`" | The 60% threshold is for the FINDING itself (does this issue exist?), not for the cause-vs-symptom classification (does this fix the cause or the symptom?). Those are independent dimensions. A 95%-confidence finding can have a 40%-confidence cause classification — emit the finding with `[UNKNOWN]` and let the gate route. |
 | "I'll merge `[SYMPTOM]` and `[UNKNOWN]` into one tag — they both fire escalation" | They route differently. `[SYMPTOM]` fires the gate (3 user options including "Confirmed root cause" if the user already knows the cause); `[UNKNOWN]` requires `/geniro:debug` to run BEFORE the gate fires (the user shouldn't be asked to classify what the agent itself couldn't classify). Collapsing the tags collapses the routing. |

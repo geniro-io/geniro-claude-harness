@@ -1,6 +1,6 @@
 # Phase 7 Validator — 13 checks
 
-Canonical definitions of the mechanical validator checks fired в `/geniro:plan` Phase 7. Replaces pre-M5 Phase 7 free-form Opus self-prompt — these are deterministic, script-checkable rules executed orchestrator-side, near-zero token usage.
+Canonical definitions of the mechanical validator checks fired в `/geniro:plan` Phase 7. These are deterministic, script-checkable rules executed orchestrator-side, near-zero token usage.
 
 **Spec source:** `architecture/M5-plan-redesign.md` §14.2.
 
@@ -91,7 +91,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ---
 
-## Legacy checks (4, retained от pre-M5)
+## Additional checks (4)
 
 ### 10. `placeholder_scan`
 

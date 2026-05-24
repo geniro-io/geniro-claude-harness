@@ -199,7 +199,7 @@ This default keeps `.geniro/actions/` committed (team-shareable). Users who want
 
 ### Step 3 — Interview (Q1–Q5)
 
-Use `AskUserQuestion` for each question. Q1–Q4 preserved from the legacy skill; **Q5 is new (P-M10-1 closure)**.
+Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, output, и test cases; **Q5 captures risk class (P-M10-1 closure)**.
 
 **Q1 — Purpose:** "What should this action do?"
 - `Slack/messaging workflow`, `Pull-request workflow`, `Release/deployment workflow`, `Custom workflow`
@@ -390,7 +390,7 @@ emit_learning <<'EOF'
 EOF
 ```
 
-Else: no emit (most action runs are not novel-discovery events). This auto-replaces the dropped `/learnings` skill pattern for action runs.
+Else: no emit (most action runs are not novel-discovery events).
 
 ## Phase 6: Command `edit`
 
@@ -500,7 +500,7 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 | Layer | Read | Write | Notes |
 |---|---|---|---|
 | L1 CLAUDE.md | not read | not written | `/actions` does not touch CLAUDE.md |
-| L2 learnings.jsonl | not read in CRUD modes | written в run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run; auto-replaces dropped `/learnings` |
+| L2 learnings.jsonl | not read in CRUD modes | written в run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run |
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | not read by `/actions` itself | not written | `/instructions` owns this surface |
 | Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD per M1; NOT part of M2 memory model |

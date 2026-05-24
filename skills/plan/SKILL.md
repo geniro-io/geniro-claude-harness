@@ -1,6 +1,6 @@
 ---
 name: geniro:plan
-description: "Use to turn а vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Absorbs legacy /brainstorm + /decompose. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
+description: "Use to turn а vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
 allowed-tools: [Read, Write, Bash, Glob, Grep, Task, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: opus
 argument-hint: <topic-string-or-design-doc-path>
@@ -8,13 +8,13 @@ argument-hint: <topic-string-or-design-doc-path>
 
 # /geniro:plan — Spec-first planning (M5)
 
-Turn а vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is а thin wrapper around the canonical 9-phase loop в `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md`. It applies the loop verbatim and replaces pre-M5 `/geniro:brainstorm` + `/geniro:decompose` (master plan §65 — /decompose is absorbed via Phase 5 §5.3 milestone-mode).
+Turn а vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is а thin wrapper around the canonical 9-phase loop в `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md`. It applies the loop verbatim.
 
 **Spec source:** `architecture/M5-plan-redesign.md`. Read this skill в context of the architecture spec — every decision и trade-off is documented there.
 
 **Output:**
 - spec.md at `.geniro/planning/<task-slug>/spec.md` с the fixed 10-section P-M5-1 schema (§17), goal-state frontmatter (§18), и all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
-- For Big tasks: sibling `milestone-N.md` files (§12.3 milestone-mode replaces deleted /decompose).
+- For Big tasks: sibling `milestone-N.md` files (§12.3 milestone-mode).
 - state.md at the same task-dir tracking phase progress + AUQ answers (P-M1-1 schema).
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6 (D1 defect fix).
 - Phase 9 hand-off — 2-option menu (`/implement directly` / `Stop`).
@@ -28,7 +28,7 @@ The HARD-GATE в `plan-loop.md` prevents any implementation invocation until Pha
 - User has an idea but no spec yet.
 - $ARGUMENTS contains а topic string OR а path to an existing design doc.
 - Topic spans new functionality (vs а bug fix, which routes к `/geniro:debug`).
-- Pre-implementation refinement (vs in-implementation tweaks, which route к `/geniro:implement` with the original spec + adjustment description as new $ARGUMENTS — М4 absorbs the legacy /follow-up).
+- Pre-implementation refinement (vs in-implementation tweaks, which route к `/geniro:implement` with the original spec + adjustment description as new $ARGUMENTS).
 
 ## When NOT to use
 
@@ -227,8 +227,8 @@ Per master plan P-MP-1 anti-patterns guardrail — М5 must NOT reintroduce thes
 |---|---|
 | "Phase 2 visual companion should stay — it's nice when planning UI." | UI intent that matters belongs в spec.md section 6 (Steps) и section 9 (Validation). The companion's textual sketch dies в chat — it's not cited by Phase 6 spec.md write. Phase 5 sections absorb the intent at the right granularity. |
 | "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections от prose — structurally-lossy. М5 D3 fix: «Start fresh с doc as context» is honest и produces а schema-clean spec.md. |
-| "Phase 7 mechanical validator misses cases а smart LLM would catch." | 13 checks (P-M5-4 9 + 4 legacy linter) cover the mechanical surface. Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
-| "Auto-commit at Phase 6 is convenient — drop а commit if Phase 8 rejects." | D1 fix. Rejection-induced commit-drop = forced `git reset` / `git revert`. Pre-M5 pattern polluted git history (every revision round left а commit). Phase 8 post-approve commit is а single commit per approved spec. |
+| "Phase 7 mechanical validator misses cases а smart LLM would catch." | 13 checks cover the mechanical surface. Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
+| "Auto-commit at Phase 6 is convenient — drop а commit if Phase 8 rejects." | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave а commit). Phase 8 post-approve commit is а single commit per approved spec. |
 | "Plan-mode mutation guard is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, или instructed via а compromised CLAUDE.md. The frontmatter `allowed-tools` field + PreToolUse Bash guard are the only mechanical layers between а bad-intent prompt и а modified source tree. Belt + suspenders. |
 | "Goal-state в spec.md frontmatter conflates planning + execution — split к goal.md." | One canonical source per H-2. М4 /implement already reads spec.md frontmatter at Phase 1 — adding goal-state к the same place is zero-overhead. Splitting creates а two-file consistency problem. |
 | "5 clarifying questions is too few для complex tasks." | Phase 3 ≤5 is а quality-first signal. >5 means Phase 1 underspecified OR the task is too vague. Force consolidation — better questions, не more questions. |

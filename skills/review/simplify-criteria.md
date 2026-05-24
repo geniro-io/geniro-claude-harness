@@ -1,12 +1,12 @@
 # Simplify Analysis Criteria
 
-Reference file for the `/geniro:review --simplify` flag (M6 §13 — absorbs the deleted `/geniro:deep-simplify` skill). When `--simplify` is present в `$ARGUMENTS`, /review's Phase 2 prepends these criteria onto 5 dimension reviewer prompts: **architecture** (Reuse), **conventions** (aggressive modal-pattern threshold), **guidelines** (Quality), **bugs** (Quality bug-class extensions), **optimizations** (Efficiency).
+Reference file for the `/geniro:review --simplify` flag. When `--simplify` is present в `$ARGUMENTS`, /review's Phase 2 prepends these criteria onto 5 dimension reviewer prompts: **architecture** (Reuse), **conventions** (aggressive modal-pattern threshold), **guidelines** (Quality), **bugs** (Quality bug-class extensions), **optimizations** (Efficiency).
 
-Severity reconciliation per M6 §13.3: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `--tdd` or risk-tier:high).
+Severity reconciliation: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `--tdd` or risk-tier:high).
 
-NOT а new dimension — folds into existing dims per M6 §13.6 anti-pattern. The pre-M6 standalone `/deep-simplify` carried а Fix agent + Verify agent that auto-applied edits + auto-reverted; M6 does NOT carry those (Reporter contract H-2). Users wanting auto-applied fixes pipe `/review --simplify` output к `/implement`.
+NOT а new dimension — folds into existing dims. `/review` is а Reporter (contract H-2) and does NOT auto-apply fixes. Users wanting auto-applied fixes pipe `/review --simplify` output к `/implement`.
 
-Also referenced (legacy — к be cleaned up в the consuming skill's milestone) by `/geniro:implement` Phase 5 / Ship sub-step. (M8 /refactor does NOT reference this file — its smell-detection routes через existing-abstraction-audit.md + orchestrator-inline deepening lens per M8 §1.4 + `_shared/refactor-patterns.md`.)
+Also referenced by `/geniro:implement` Phase 5 / Ship sub-step. (`/geniro:refactor` does NOT reference this file — its smell-detection routes through `existing-abstraction-audit.md` + orchestrator-inline deepening lens + `_shared/refactor-patterns.md`.)
 
 ---
 

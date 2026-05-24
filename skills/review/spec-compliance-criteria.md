@@ -22,7 +22,7 @@ When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schem
 
 Findings MUST cite the specific section (or frontmatter field) violated/missing — e.g., `Evidence: section 2 (Scope.Included) names "src/api/auth/*" but diff touches no auth file`. The 11 checks below name the canonical section anchors.
 
-**Backward-compat fallback (M6 §16.3):** when frontmatter is absent (legacy/unstructured PLAN CONTEXT), run checks 1-9 (the original 9). Skip checks #10 (Done Condition) и #11 (Tools Required) — there's no section anchor к cite. Surface а one-line note в `## Open Questions`: «PLAN CONTEXT lacks M5 schema — falling back к prose checks; Done Condition + Tools Required не verified».
+**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9. Skip checks #10 (Done Condition) и #11 (Tools Required) — there's no section anchor к cite. Surface а one-line note в `## Open Questions`: «PLAN CONTEXT lacks M5 schema — falling back к prose checks; Done Condition + Tools Required не verified».
 
 ## LINEAR CONTEXT supplement (workflow integration)
 
@@ -164,7 +164,7 @@ The plan names an operational concern that requires observability — a rollout 
 
 The spec's section 11 (Done Condition) names an observable signal that defines completion (e.g., «all 5 acceptance tests green», «PR approved by stakeholder X», «feature ships behind flag AND telemetry shows ≥1 successful use»). The diff must achieve, or visibly progress towards, that signal — not just touch the named files.
 
-**Skip when not in M5-schema mode** (no section 11 anchor). Per backward-compat fallback (top of file), this check fires only когда `geniro_kind: design-doc` frontmatter is present.
+**Skip when not in M5-schema mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only когда `geniro_kind: design-doc` frontmatter is present.
 
 **M5 schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check c P-M5-4 check #9 (`stopping_condition`) — the spec validator that ensured section 11 has а concrete observable signal.
 

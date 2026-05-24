@@ -60,16 +60,14 @@ ANY-OF semantics: at least one marker survives any single user action that strip
 
 | Consumer | `DESIGN_DOC` | `IDEA` | `CODE_REFERENCE` |
 |---|---|---|---|
-| `/geniro:plan <topic>` (M5) | AUQ "Existing design doc at `<path>`. Start fresh с this as context / Cancel". On "Start fresh" → load doc into Phase 1 explore context (NOT as section template — D3 fix); run full 8-phase loop from Phase 1; emit а new spec.md at а fresh task-dir. On "Cancel" → exit without writing state.md. The pre-M5 "Refine" option was removed (lossy — see M5 §3.1 + §7.2 D3 fix). | Run full `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` from Phase 1. | Unsupported — error: "code reference passed к /plan; pass а topic or design-doc path. Did you mean /geniro:implement <path>?". |
+| `/geniro:plan <topic>` (M5) | AUQ "Existing design doc at `<path>`. Start fresh с this as context / Cancel". On "Start fresh" → load doc into Phase 1 explore context (NOT as section template); run full 8-phase loop from Phase 1; emit а new spec.md at а fresh task-dir. On "Cancel" → exit without writing state.md. | Run full `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` from Phase 1. | Unsupported — error: "code reference passed к /plan; pass а topic or design-doc path. Did you mean /geniro:implement <path>?". |
 | `/geniro:implement <arg>` (M4) | Phase 1 analyze treats the design doc as а spec source — walks the spec-discovery list per M4 §5.2 и loads it as the authoritative spec.md OR plan.md alias. | Inline-task mode per M4 §5.3 — treat as а raw spec description, write а brief `## Inline Plan` к state.md, proceed к Phase 2. | Existing behavior — treat as а code reference (Phase 1 reads it as context but не as the spec source). |
-
-(Pre-M5 rows for `/geniro:decompose` и `/geniro:features add` removed — both skills deleted per master plan §65, §68. Milestone-mode is absorbed into `/plan` Phase 5 §12.3; backlog tracking is handled by а spec.md saved on disk, which IS the backlog entry.)
 
 AUQ shape conventions for any of the per-consumer prompts above follow the canonical pattern in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` (single-select unless explicitly multi-select; never auto-default on empty answer; fall back to plain text on empty-answer bug).
 
 ## Marker writers
 
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<task-slug>/spec.md` per M1 canonical + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer. (Pre-M5 path convention `<branch>/<YYYY-MM-DD>-<topic-slug>-design.md` is replaced by M1's slug-based task-dir; legacy paths under that pattern remain readable but `/plan` no longer writes them.)
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<task-slug>/spec.md` per M1 canonical + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer.
 
 Other writers (manually authored design docs, docs imported from external sources, docs written by other Geniro skills that produce design content) **should write at least the YAML frontmatter** to maximize portability — frontmatter is the marker that survives copy-out-of-`.geniro/planning/` and HTML-stripping editors. Path and HTML markers are nice-to-have but not sufficient on their own across all user workflows.
 

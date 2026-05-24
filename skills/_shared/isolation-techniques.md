@@ -2,8 +2,6 @@
 
 **Status:** Authoritative isolation techniques for narrowing the bug source after a hypothesis is confirmed.
 
-Pre-M7 lived inline в `skills/debug/SKILL.md`; extracted to keep the SKILL.md orchestration shell focused on the 3-phase loop.
-
 ## When this applies
 
 `/geniro:debug` Phase 1 §6.7 Isolate — once а hypothesis is confirmed per Evidence Standard, narrow down to exact code location and trace data/control flow.

@@ -1,6 +1,6 @@
 # Plan Context Reference (M6)
 
-How `/geniro:review` ingests и threads plan/spec intent through reviewers, the relevance filter, и the spec-compliance dimension. М6 rewrite (D2 fix) replaces the pre-M6 «opaque-prose с 3000-char cap» model с а schema-aware loader that parses М5's 10-section `spec.md` format when present, falling back к prose detection only когда no M5 frontmatter is found.
+How `/geniro:review` ingests и threads plan/spec intent through reviewers, the relevance filter, и the spec-compliance dimension. Schema-aware loader that parses М5's 10-section `spec.md` format when present, falling back к prose detection when no M5 frontmatter is found.
 
 ---
 
@@ -11,15 +11,15 @@ The orchestrator collects PLAN CONTEXT from up to four sources, в this **priori
 1. **`--plan <path>` flag** (`$ARGUMENTS`) — explicit path к а spec.md / plan.md / design-doc file. Highest priority. Example: `review HEAD~5..HEAD --plan .geniro/planning/feat-auth/spec.md`.
 2. **PR body M5-reference** — когда in PR mode, scan the PR body для а `geniro-plan: <path>` line (а convention emitted by `/plan` Phase 9 hand-off message). If found, treat as а pointer к the on-disk spec.md.
 3. **Auto-discovered M5 spec.md** — walk `.geniro/planning/*/spec.md`. First match wins (most-recently-modified preferred).
-4. **Legacy auto-discovered project files** — `docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`. Skipped silently if absent.
+4. **Auto-discovered project files** — `docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`. Skipped silently if absent.
 5. **PR body as opaque prose** — когда PR mode but no `geniro-plan:` reference found, fall back к `gh pr view <ref> --json body` content treated as prose.
 6. **None** — no PR body, no `--plan`, no project files. PLAN CONTEXT renders as the literal string `none` в every reviewer prompt.
 
-**Concatenation rule (M6 refinement):** when ≥1 source resolves к а structured M5 spec.md (frontmatter detected — see §2), that source's structured-section blob is the canonical PLAN CONTEXT. Other sources (if any) are dropped — section-tagged structured blob и prose blob do not mix cleanly. When NO source has M5 frontmatter, the legacy concat behavior runs: non-empty sources concatenated с source-delimiter, capped at ~3000 chars total.
+**Concatenation rule (M6 refinement):** when ≥1 source resolves к а structured M5 spec.md (frontmatter detected — see §2), that source's structured-section blob is the canonical PLAN CONTEXT. Other sources (if any) are dropped — section-tagged structured blob и prose blob do not mix cleanly. When NO source has M5 frontmatter, the prose concat behavior runs: non-empty sources concatenated с source-delimiter, capped at ~3000 chars total.
 
 ---
 
-## 2. Detection — М5 schema vs legacy prose
+## 2. Detection — М5 schema vs prose
 
 Read the first 20 lines of the candidate file. If frontmatter contains:
 
@@ -30,7 +30,7 @@ geniro_schema_version: m5-v1
 
 → switch к **structured-section parser** (§3).
 
-If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing → fall back к **legacy prose mode** (§4).
+If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing → fall back к **prose mode** (§4).
 
 ---
 
@@ -88,7 +88,7 @@ lifecycle: approved
 <body>
 ```
 
-**Cap:** structured mode honors а ~6000-char total cap (2× legacy mode's 3000 char cap, since the section-tagged format adds delimiter overhead и the reviewer benefits от section anchors). Truncation policy: if total exceeds cap, drop bodies of sections 4 (Assumptions) и 5 (Risks) first (less critical для diff-completeness checks); keep section 1, 2, 3, 6, 9, 11 always.
+**Cap:** structured mode honors а ~6000-char total cap (2× the prose mode's 3000 char cap, since the section-tagged format adds delimiter overhead и the reviewer benefits от section anchors). Truncation policy: if total exceeds cap, drop bodies of sections 4 (Assumptions) и 5 (Risks) first (less critical для diff-completeness checks); keep section 1, 2, 3, 6, 9, 11 always.
 
 ### Why structured wins
 
@@ -96,9 +96,9 @@ Spec-compliance reviewer can cite specific sections («section 2 names `src/api/
 
 ---
 
-## 4. Legacy prose mode (fallback)
+## 4. Prose mode (fallback)
 
-When no М5 frontmatter is detected, treat PLAN CONTEXT as opaque prose. Pre-M6 behavior preserved verbatim:
+When no М5 frontmatter is detected, treat PLAN CONTEXT as opaque prose:
 
 ```
 PLAN CONTEXT:
@@ -114,13 +114,13 @@ When no sources resolve, the entire field collapses to:
 PLAN CONTEXT: none
 ```
 
-In legacy mode, spec-compliance reviewer runs checks 1-9 only (skips М5-mandated checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` backward-compat fallback). Surface а one-line note в `## Open Questions`: «PLAN CONTEXT lacks M5 schema — falling back к prose checks; Done Condition + Tools Required не verified».
+In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` prose fallback). Surface а one-line note в `## Open Questions`: «PLAN CONTEXT lacks M5 schema — falling back к prose checks; Done Condition + Tools Required не verified».
 
 ---
 
-## 5. Decision-Marker Convention (preserved verbatim от pre-M6)
+## 5. Decision-Marker Convention
 
-Project plans commonly label decisions с markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning с such а marker as an authoritative intent statement. This applies в both М5 mode (markers may appear в any section body) и legacy mode.
+Project plans commonly label decisions с markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning с such а marker as an authoritative intent statement. This applies в both М5 mode (markers may appear в any section body) и prose mode.
 
 **Example marker line в а plan:**
 
@@ -148,7 +148,7 @@ When а reviewer encounters а finding that contradicts а marker (e.g., the pla
 - Section anchors enable focused reviewer reasoning (less prose-scan needed).
 - Larger M5 specs lose signal под U-shaped attention (still applies).
 
-Legacy-mode 3000-char cap preserved (pre-M6 rationale: each reviewer prompt already carries criteria + changed files + diff + project context).
+Prose-mode 3000-char cap preserved (each reviewer prompt already carries criteria + changed files + diff + project context).
 
 **If your М5 spec exceeds the 6000-char cap:** drop frontmatter `## Considered Alternatives` (optional М5 section) AND/OR shrink section 4 (Assumptions) / section 5 (Risks) bodies. The orchestrator does NOT auto-summarize — it just truncates с `[…truncated…]`.
 

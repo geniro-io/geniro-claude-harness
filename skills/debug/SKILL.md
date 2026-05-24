@@ -9,7 +9,7 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 
 # Debug: Scientific-Method Investigation (M7)
 
-Use this skill к systematically debug complex issues. Replaces guessing with evidence gathering и hypothesis testing. Pre-M7 9-step workflow collapsed к 3 phases mirroring `/geniro:implement` per master plan §119.
+Use this skill к systematically debug complex issues. Replaces guessing with evidence gathering и hypothesis testing. 3 phases mirroring `/geniro:implement`.
 
 **Architecture spec:** `architecture/M7-debug-redesign.md`. Detailed contracts:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/infrastructure-investigation.md` — infrastructure-cause guidance (M7 §6.5)
@@ -84,7 +84,7 @@ state.md `phase:` enum transitions:
 |---|---|---|---|
 | Inconclusive hypothesis tests | 5 across all hypotheses | §6.8 stall gate | AUQ — P-M7-2 diagnose-by-missing-component (8 options) → user supplies missing or picks alternative |
 | Fix attempts failed verification | 2 | §7.5 fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
-| Adversarial mode authored tests | 10 hard cap | §9.4 (delegated к agent contract) | Stop authoring; surface findings (preserves pre-M7 agent-level rule) |
+| Adversarial mode authored tests | 10 hard cap | §9.4 (delegated к agent contract) | Stop authoring; surface findings |
 | Adversarial mode consecutive discards | 5 | §9.4 (delegated к agent contract) | Stop hypothesis generation; surface partial |
 
 **Architecture constraints (design intent, not budget):**
@@ -400,13 +400,13 @@ The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/state/handof
 Only after the summary above is visible AND persisted, `AskUserQuestion` с header "Escalate" и these options:
 
 - **Trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`** — ≤2 files, obvious target, no architecture или auth/permissions change.
-- **Non-trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`** — touches multiple modules, changes interfaces, needs architecture review, или introduces а new pattern. (Both Trivial и Non-trivial route к the same target — `/geniro:implement` per master plan §66 absorbed `/follow-up`. The Trivial/Non-trivial designation surfaces в the spec context the receiving skill loads.)
+- **Non-trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`** — touches multiple modules, changes interfaces, needs architecture review, или introduces а new pattern. (Both Trivial и Non-trivial route к the same target — `/geniro:implement`. The Trivial/Non-trivial designation surfaces в the spec context the receiving skill loads.)
 - **Cannot verify — request specific data from user** — pick this когда one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger а follow-up `AskUserQuestion` с concrete options для the missing data. Когда data arrives, return к §1.5, do NOT escalate yet.
 - **Leave it to me** — user will apply the patch manually using the state file as reference. state.md transitions к `phase: ship-summary-only` (terminal).
 
 Do NOT auto-invoke the next skill — surface the suggestion only. State file IS the handoff channel. You do NOT apply the patch yourself.
 
-### 3.3 L2 auto-emit + L4 promotion suggestion (P-M4-5 mirror — replaces deleted /learnings)
+### 3.3 L2 auto-emit + L4 promotion suggestion
 
 At Phase 3 exit:
 
@@ -449,13 +449,13 @@ Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 After Phase 3 completes (escalated, accepted, или user-handles):
 
 - **Scientific-method mode only:** Remove `<PRIMARY_ROOT>/.geniro/state/debug/<slug>/state.md` для the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — its useful content has already been saved (root cause, repro, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + persisted handoff. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
-- **Clear five legacy generations** (best-effort; any may not exist):
+- **Clear old state files** (best-effort; any may not exist):
   ```bash
-  rm -f ".geniro/debug/HYPOTHESES.md" 2>/dev/null                      # Gen 1: original (pre-state-dir, non-scoped)
-  rm -f ".geniro/debug/HYPOTHESES-${slug}.md" 2>/dev/null               # Gen 2: intermediate (pre-state-dir, slug-scoped)
-  rm -f ".geniro/state/debug/HYPOTHESES-${slug}.md" 2>/dev/null         # Gen 3: pre-M7 (under state-dir, slug-scoped)
-  rm -f ".geniro/state/debug/findings-state.md" 2>/dev/null             # Gen 4: pre-M7 T2 handoff
-  rm -f ".geniro/state/debug/adversarial-tests.md" 2>/dev/null          # Gen 5: pre-M7 adversarial T2 handoff
+  rm -f ".geniro/debug/HYPOTHESES.md" 2>/dev/null
+  rm -f ".geniro/debug/HYPOTHESES-${slug}.md" 2>/dev/null
+  rm -f ".geniro/state/debug/HYPOTHESES-${slug}.md" 2>/dev/null
+  rm -f ".geniro/state/debug/findings-state.md" 2>/dev/null
+  rm -f ".geniro/state/debug/adversarial-tests.md" 2>/dev/null
   ```
 - **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the §1.3 feedback-loop scratch signal, и ad-hoc curl/query files created during investigation. The §2.4 reproduction test (authored at project's normal test path) STAYS on disk — it ships с the fix as the regression guard.
 - **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` MUST remain on disk as the escalation handoff channel — do NOT delete. Stays until next debug run overwrites it (single file per branch).
@@ -711,7 +711,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`.
 | Phase 1 entry | `load-semantic` | read L3 | `refresh` |
 | Phase 1 entry | `query-learnings` | read L2 | n/a (M2 §5.3 «debug session start» trigger) |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
-| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire — drops pre-M7 double-refresh per §2.1) |
+| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
 | Phase 3 exit (§3.3) | `emit-learning` | write L2 | n/a (sole emit type: `diagnosis`; required `ext.{symptom, root_cause, fix}` per M2 §5.2) |
 
 `update-semantic` is NOT called by M7. Debug investigates existing code; it does not add modules, move files, или rename — those are /implement и /refactor concerns.
@@ -796,7 +796,7 @@ For each debug session, confirm the checklist для the mode that ran.
 - [ ] Escalation decision made via §3.2 AskUserQuestion с options referencing the state file by path
 - [ ] All experimental edits к non-test source reverted before handoff
 - [ ] L2 emit fired (§3.3) с `diagnosis` type + `ext.{symptom, root_cause, fix}`; L4 promotion suggestion surfaced когда recurrence detected
-- [ ] Cleanup completed (§3.5 — state.md removed для current branch's slug only, 5 legacy generations cleared best-effort, temp files cleaned)
+- [ ] Cleanup completed (§3.5 — state.md removed для current branch's slug only, old state files cleared best-effort, temp files cleaned)
 
 ### Adversarial Mode
 

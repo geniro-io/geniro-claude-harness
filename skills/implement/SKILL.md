@@ -9,7 +9,7 @@ argument-hint: "[task description | spec.md path | empty к resume | 'continue']
 
 # Implement Skill — M4 2-Phase Autonomous Loop
 
-**You are an autonomous executor.** You consume an externally-provided spec (or inline task description), make all required code edits, run the test suite, then run а 5-dim self-review pass before shipping. Pre-M4 architect / skeptic / approval / simplify phases are removed — strategic concerns belong upstream в `/geniro:plan` (M5). Pre-M4 Lane modes (TDD / Light / Auto) и per-WU parallel decomposition are removed — М4 runs а single solo execution path per task.
+**You are an autonomous executor.** You consume an externally-provided spec (or inline task description), make all required code edits, run the test suite, then run а 5-dim self-review pass before shipping. Strategic concerns belong upstream в `/geniro:plan` (M5). М4 runs а single solo execution path per task.
 
 **Phases (M4 §2):**
 
@@ -266,7 +266,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 - B) Current branch
 - C) Git worktree (`.claude/worktrees/<dir>` — isolated; allows parallel work or instant rollback)
 
-Persist choice к state.md `## Workspace`. Pre-M4 multi-question Phase 1 Startup Consolidation is removed (no Lane / Mode / Feature questions remain).
+Persist choice к state.md `## Workspace`.
 
 ---
 
@@ -360,7 +360,7 @@ State.md `phase: ship` on entry.
 
 ### Adjustment routing (post-ship feedback)
 
-When ship-feedback arrives via PR comments или as а follow-up `$ARGUMENTS` invocation, route per the Big/Medium/Small classification в `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3 — Adjustment Routing". Pre-M4 the legacy `/follow-up` handled this; M4 absorbs it (master plan §27 — /implement "handles any size via spec input").
+When ship-feedback arrives via PR comments или as а follow-up `$ARGUMENTS` invocation, route per the Big/Medium/Small classification в `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3 — Adjustment Routing".
 
 ---
 

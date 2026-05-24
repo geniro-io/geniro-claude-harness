@@ -440,7 +440,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | `onboard` | M9 §2.1: `discover \| map \| map-truncated \| discover-escalated \| done \| aborted \| routed` | `After discover`, `Before map` |
 | `investigate` | M9 §2.1: `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | `After classify`, `After investigate`, `Before present` |
 
-Free-form subsections raise `LOW` warning. Subsections referencing dropped legacy phase names (e.g., `After Phase 4 (Implement)`) raise `MEDIUM`.
+Free-form subsections raise `LOW` warning. Subsections referencing dropped phase names (e.g., `After Phase 4 (Implement)`) raise `MEDIUM`.
 
 ### Step 4 — Count caps (review-extra)
 

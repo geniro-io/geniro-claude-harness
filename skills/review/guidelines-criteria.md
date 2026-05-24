@@ -178,7 +178,7 @@ grep -n "Object\|Function" file.ts
 - Missing input validation in API routes
 - Type-unsafe casts or assertions
 
-> **Note (M6 §17):** "Consistency with Codebase / Convention Guard" was a §8 в this file pre-M6. Removed — repo-modal-pattern findings now route exclusively к the `conventions` dimension (statistical N-file modal inference, ≥80% siblings threshold). See conventions-criteria.md.
+> **Note:** "Consistency with Codebase / Convention Guard" findings route exclusively к the `conventions` dimension (statistical N-file modal inference, ≥80% siblings threshold). See conventions-criteria.md.
 
 ## Output Format
 

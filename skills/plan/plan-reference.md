@@ -4,11 +4,9 @@ Companion reference for less-common usage paths of `/geniro:plan`. The main flow
 
 ---
 
-## DESIGN_DOC mode — refine path is removed (D3 fix)
+## DESIGN_DOC mode — no refine path
 
-Pre-M5 `/brainstorm` shipped а "Refine" path that loaded an existing design doc и jumped к Phase 5 с the existing sections pre-populated. M5 §3.1 + §7.2 removes it per the D3 defect fix: prose docs have no machine-readable section boundaries; re-deriving sections от prose was structurally-lossy и downstream consumers couldn't reliably parse the result.
-
-M5 replacement: the Phase 0 DESIGN_DOC AUQ has 2 options (per `plan-loop.md` §0.2):
+The Phase 0 DESIGN_DOC AUQ has 2 options (per `plan-loop.md` §0.2):
 
 - **Start fresh с this as context** (Recommended) — the prior doc is inlined into Phase 1 Explore-agent prompts under а `## Prior Design Doc` section. Phase 5 uses the §17 10-section schema unconditionally — the prior doc is context, не template.
 - **Cancel** — exit без writing state.md.

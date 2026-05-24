@@ -10,9 +10,7 @@ Used by:
 - `/geniro:plan` (M5) — when the spec/plan authoring surfaces а proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/implement`.
 - `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup и Phase 4 judge (i.e., wasn't dropped earlier) and is about to enter the fix-loop pool
 
-(Legacy `/geniro:follow-up` consumer removed — skill deleted per master plan §65; ad-hoc post-ship tweaks now route through `/geniro:implement` directly.)
-
-Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step. (Pre-M4 Lane-bypass exceptions для `/implement` Fast Lane и `/follow-up` Trivial are removed — М4 has no Lane modes и `/follow-up` was deleted.)
+Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step.
 
 ## Always-WAIT contract
 

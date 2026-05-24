@@ -1,6 +1,6 @@
 ---
 name: geniro:review
-description: "Use when you want а comprehensive code review of pending changes. М6 6-phase loop (triage → mechanical pre-pass → 9-dim LLM reviewers → filter → stratify → persist → action-gate). Reporter behavior — emits а T2 hand-off at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/implement, manual) apply fixes. Optional --simplify flag absorbs the deleted /deep-simplify (folds Reuse/Quality/Efficiency into existing dims). Optional --tdd flag tightens Phase 4b validation + Phase 4c test-gate."
+description: "Use when you want а comprehensive code review of pending changes. М6 6-phase loop (triage → mechanical pre-pass → 9-dim LLM reviewers → filter → stratify → persist → action-gate). Reporter behavior — emits а T2 hand-off at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/implement, manual) apply fixes. Optional --simplify flag folds Reuse/Quality/Efficiency criteria into existing dims. Optional --tdd flag tightens Phase 4b validation + Phase 4c test-gate."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree]
@@ -9,7 +9,7 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]
 
 # Code Review Skill (M6)
 
-Comprehensive code review using parallel multi-agent analysis. Pre-M6 1025-line monolith trimmed к ~400 lines orchestration shell + reference files (M6 §18). Closes 10 audit defects + 6 of 8 P-M6 master-plan obligations.
+Comprehensive code review using parallel multi-agent analysis. ~400 lines orchestration shell + reference files.
 
 **Architecture spec:** `architecture/M6-review-redesign.md`. Detailed phase contracts:
 - `${CLAUDE_SKILL_DIR}/phase-1-triage-reference.md` — Phase 1 input mode / scope / risk-tier / memory load.
@@ -116,7 +116,7 @@ Summary of what Phase 1 does:
 6. **Worktree pre-flight** (PR-ref only) — 3-branch routing (already-in-target / different-worktree / outside) per the reference file.
 7. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style`+`user-preferences` — M10b pipeline tier, 4 files).
 8. **Step 0.5 — Round-N counter** — increments and fires Round-N AUQ когда round ≥3.
-9. **Step 0.6 — PLAN CONTEXT load (M5-aware).** Detection per `${CLAUDE_SKILL_DIR}/plan-context-reference.md` §2. Structured-section parser когда `geniro_kind: design-doc` frontmatter present; legacy prose fallback otherwise.
+9. **Step 0.6 — PLAN CONTEXT load (M5-aware).** Detection per `${CLAUDE_SKILL_DIR}/plan-context-reference.md` §2. Structured-section parser когда `geniro_kind: design-doc` frontmatter present; prose fallback otherwise.
 10. **Step 0.7 — Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / NEW: mechanical secret-scan strict mode).
 11. **Step 0.8 — Memory layer load (M2):** `load-custom-instructions` MODE:refresh + `load-semantic` MODE:refresh + `query-learnings` (top-K, K=5 default) + `resolve-conflicts`.
 12. **Mode AUQ** (Standard vs TDD) когда neither `--tdd` nor `--standard` в `$ARGUMENTS`. Persist к `approvals[]` с category `tdd_mode_choice`.
@@ -170,7 +170,7 @@ Mechanical findings tagged `origin: mechanical:<check_id>`. Routed two ways:
 
 If lint или schema check fails (process exit nonzero с no output OR command not found):
 - Write `## Errors` entry: `mechanical-prepass-{check_id}: command_unavailable_or_failed`.
-- Continue к Phase 2 без the failed check's findings (fail-open, consistent с pre-M6 `gh` fail-open).
+- Continue к Phase 2 без the failed check's findings (fail-open, consistent с `gh` fail-open).
 
 Secret scan is а pure-regex pass — cannot fail.
 
@@ -190,7 +190,7 @@ State.md `phase: llm-spawn`.
 | 4 | tests | always | — |
 | 5 | optimizations | always | — |
 | 6 | guidelines | always | — |
-| 7 | conventions | always | — (absorbs repo-modal-pattern findings exclusively per §17 H-3) |
+| 7 | conventions | always | — (owns repo-modal-pattern findings exclusively per §17 H-3) |
 | 8 | design | conditional | UI globs match changed files (see UI-file detection rule) |
 | 9 | pr-metadata | conditional | `pr-ref:` non-none |
 | 10 | spec-compliance | conditional | PLAN CONTEXT non-none AND (`pr-ref:` non-none OR risk-tier:high) |
@@ -236,7 +236,7 @@ When `$ARGUMENTS` contains `--simplify` (semantic parse — matches `simplify`, 
 - **bugs** reviewer — Quality bug-class extensions (defensive code that masks bugs, redundant null checks).
 - **optimizations** reviewer — Efficiency criteria (verbose loops, unnecessary allocations, sync I/O в async paths).
 
-Pre-pend body read от `${CLAUDE_SKILL_DIR}/simplify-criteria.md` (relocated от deleted /deep-simplify).
+Pre-pend body read от `${CLAUDE_SKILL_DIR}/simplify-criteria.md`.
 
 NO new dimensions added. NO fix-loop added (Reporter behavior per H-2). The flag biases existing reviewers' attention; it does not change output schema или hand-off contract.
 
@@ -413,21 +413,21 @@ EOF
 
 **T2 extensions для in-run state-tracking:** Canonical M1 §T2 is а one-shot producer→consumer handoff. M6 extends с `phase:`/`status:`/`round:`/`approvals[]` к enable mid-run compaction recovery (M3 SessionStart hook reads this file on resume). The file functions as а T2 handoff AT REST (after Phase 5 persist) и as а T1-like state file DURING THE RUN.
 
-**Per-finding line schema** preserves pre-M6 shape with M6 origin tag:
+**Per-finding line schema** with origin tag:
 
 ```
 - [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN% — origin: <llm:<dim>|mechanical:<check>>
 ```
 
-### 5.2 Legacy state-file fallback (backward-compat resume)
+### 5.2 Old state-file fallback
 
-If pre-M6 file exists at legacy path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`, M6 reads it once on Phase 5 entry (для backward-compat resume) но writes к the new path. Legacy file is NOT auto-deleted (user may have references); а post-M6 deprecation period of one release cycle precedes deletion.
+If а file exists at `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`, read it once on Phase 5 entry for resume compatibility, but always write к the canonical path. The old file is NOT auto-deleted (user may have references).
 
 ### 5.3 Phase 5b — L2 pitfall auto-emit (P-M6-learnings, replaces /learnings)
 
 **Trigger condition:** Phase 3 §3.1 orchestrator-side dedup produced а finding с `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
 
-When trigger fires, **auto-spawn (no AUQ — replaces deleted /learnings skill per master plan §69)**:
+When trigger fires, **auto-spawn (no AUQ)**:
 
 ```yaml
 emit-learning:
@@ -515,7 +515,7 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | Phase 6 | M1 `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |
 
 **L2 emit triggers** per M6 §19.2 patched contract:
-- `pitfall` — **YES** — Phase 5b auto-emit когда convergence ≥3. Replaces deleted /learnings skill.
+- `pitfall` — **YES** — Phase 5b auto-emit когда convergence ≥3.
 - `convention` — Not by M6. M4 /implement owns.
 - `decision` — Not by M6. M5 /plan owns.
 - `diagnosis` — Not by M6. M7 /debug owns.
@@ -543,7 +543,7 @@ Per master plan P-MP-1: every milestone closes с an explicit anti-pattern check
 | "Skip Phase 5 approvals[] persistence — Phase 6 hand-off captures everything." | Phase 6 AUQ fires once; compaction mid-Phase-3 (filter) would lose all prior gates без `approvals[]`. M3 §6 Block 5d depends on this persistence; non-negotiable. |
 | "Add а wall-time kill cap для long-running /review." | §2.3 quality-first — no Class-A hard caps. Round-N escalation is the Class-B gate; user decides. |
 | "Bypass git guardrail hooks when Phase 5 PR comment post fails." | Hooks fail для reason. Phase 5 fail-closed (§5.4) — failure surfaces an error, does NOT auto-retry с `--no-verify`. Investigate, fix, re-fire. |
-| "Phase 4c F→P test gate is over-engineered для standard tier — skip it." | F→P verification ensures test-first hygiene. Pre-M6 logic preserved verbatim. --tdd users specifically benefit; --standard users still get а sanity gate. |
+| "Phase 4c F→P test gate is over-engineered для standard tier — skip it." | F→P verification ensures test-first hygiene. --tdd users specifically benefit; --standard users still get а sanity gate. |
 | "I'll spawn the adversarial-tester-agent и ask the user к confirm later." | Inline gates rationalize away into "this counts as approval". Skill MUST `AskUserQuestion` BEFORE spawning. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
 | "The findings look obviously postable — I'll just batch-post к the PR и tell the user after." | Posting к а PR is an external write к а public surface. Inline gates rationalize away. Phase 6 Action gate's "Post" selection IS the consent. |
 | "TDD mode is on, user clearly wants tests authored — skip the Phase 4c AUQ." | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable in every mode. |

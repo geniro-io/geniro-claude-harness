@@ -565,13 +565,13 @@ If user picks "Done — answer is sufficient": chain а second `AskUserQuestion`
 - **Header:** "Next step"
 - **Options:**
   - label: "Fix а bug I found" — description: "Run `/geniro:debug <symptom>` к investigate и propose а fix (M7)"
-  - label: "Implement а change" — description: "Run `/geniro:implement` к design и build the change (M4 — consumes а spec.md от /plan OR inline-task mode)" — (D6-fix: replaces stale `/geniro:follow-up` reference, since /follow-up is absorbed per master plan §66)
-  - label: "Plan а bigger change" — description: "Run `/geniro:plan <feature>` к draft an approved spec first (M5)" — (D6-fix: adds /plan routing для multi-step features)
+  - label: "Implement а change" — description: "Run `/geniro:implement` к design и build the change (consumes а spec.md от /plan OR inline-task mode)"
+  - label: "Plan а bigger change" — description: "Run `/geniro:plan <feature>` к draft an approved spec first"
   - label: "Nothing — just wanted the answer" — description: "End here. Resume your prior work." — terminal `present-summary-only`
 
-### Step 5: L2 `discovery` emit с trust label (М9 §10.5 — replaces deleted /learnings)
+### Step 5: L2 `discovery` emit с trust label (М9 §10.5)
 
-Per master plan §69 (/learnings deleted) + P-M9-3 (master plan §345) minimal scope per design Q3:
+Per P-M9-3 minimal scope per design Q3:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
@@ -718,7 +718,7 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `
 
 ## Anti-rationalization (P-MP-1 closure — М9 §16.2)
 
-Per master plan P-MP-1 — every milestone closes с an explicit anti-pattern check. Preserves 11 rows verbatim от pre-M9 + М9 §16.2 cross-cutting rows.
+Per master plan P-MP-1 — every milestone closes с an explicit anti-pattern check.
 
 | Your reasoning | Why it's wrong |
 |---|---|
@@ -741,7 +741,7 @@ Per master plan P-MP-1 — every milestone closes с an explicit anti-pattern ch
 | "Internet Researcher returned а GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Step 5. Issue threads contain speculation, outdated info, и opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
 | "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | P-M2-3 mandates the field. Future readers (later /audit или P-X6 telemetry) rely on the trust label к filter. Missing label = silent loss of source-confidence info. Always set the label. |
 | "Glossary mismatch (Phase 1 Step 2.5) is а corner case; skip the check." | If CLAUDE.md has а Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on а term-mismatched question wastes 2-3 agent spawns на the wrong vocabulary. Always run the check когда Domain Context is present. |
-| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | P-M9-1 is а master-plan obligation. The 5-step cadence is what makes /investigate evidence-disciplined; dropping it returns the skill к pre-M9 informal-search state где claims drift от evidence. |
+| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | P-M9-1 is а master-plan obligation. The 5-step cadence is what makes /investigate evidence-disciplined; dropping it would let claims drift от evidence. |
 
 ## Anti-pattern check (P-MP-1)
 
