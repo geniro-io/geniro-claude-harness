@@ -97,7 +97,7 @@ Then add skill-specific context (where to save, when to skip).
 
 ## JSONL schema
 
-Single source of truth for the structure of `.geniro/knowledge/learnings.jsonl` entries (consumed by the auto-extraction step in every pipeline + discovery skill — /implement, /plan, /review, /debug, /refactor, /onboard, /investigate; auto-replaces the dropped `/learnings` skill per master plan §60).
+Single source of truth for the structure of `.geniro/knowledge/learnings.jsonl` entries.
 
 ### Base entry format
 
