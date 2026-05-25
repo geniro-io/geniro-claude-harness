@@ -185,8 +185,8 @@ Remaining 36 files all have 2+ real consumers or are API docs for lib/ scripts.
 ## Comment 22 — `skills/_shared/resolve-conflicts.sh:1`
 **Question:** "Нам вообще нужны эти инструкции, скрипт для ResolveConflict? Где он вообще применяется?"
 (Do we need this script for resolve-conflicts? Where is it used?)
-**Status:** ❌ NOT STARTED
-**Notes:** Note: resolve-conflicts.sh was moved to lib/ in Comment 8. Need to check if it's actually used.
+**Status:** ✅ DONE — kept as-is
+**Finding:** resolve-conflicts is a cross-layer conflict formatting helper (L4 vs L3 vs L2 disagreements). 14 references — every pipeline skill uses it at Phase 1 when loading memory layers. Core infrastructure, kept.
 
 ---
 
