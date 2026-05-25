@@ -113,7 +113,7 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 
 ### New safety hooks may block unfamiliar operations
 
-New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `plan-mode-write-guard.sh` (blocks writes outside `.geniro/planning/**` or `.geniro/state/**` when /plan is in-progress within 4h), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
+New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
 
 **Action required:** If a workflow legitimately needs to bypass a guard, add the pattern ID to `.geniro/safety.json` `allow_patterns` (full ID list in CLAUDE.md "Per-project allowlist for safety guardrails"). The hook output prints the exact ID to add.
 

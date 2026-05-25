@@ -17,7 +17,7 @@ Three modes:
 
 1. **`MODE: initial-load` — the physically-first action of every consumer skill that ingests instructions.** Runs once at skill start, BEFORE any phase work. Default label is `**Step 0 — Load custom instructions.**`. When the "Step 0" label is already used for a different purpose in the consumer (e.g. `implement`'s pre-existing "Step 0 — Complexity Gate (Lane Selection)"), use a distinct first-action label instead — e.g. `**Load custom instructions (first action — runs before any Phase 1 step).**`. The rule is "physically first action", not "labeled Step 0".
 2. **`MODE: refresh` — phase-boundary re-read.** Runs at each refresh site the consumer prescribes. Compaction between the initial load and the current phase may have silently dropped the rules; the explicit re-Read is the only durable mitigation.
-3. **NOT invoked by** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md` — that helper does surgical extraction of one specific rule (branch-naming), not load-and-apply. Different contract.
+3. **NOT invoked by** branch-naming helpers — surgical extraction of one specific rule is a different contract from load-and-apply.
 
 ## Caller contract
 

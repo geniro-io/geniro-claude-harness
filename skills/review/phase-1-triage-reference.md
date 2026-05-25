@@ -40,7 +40,7 @@ Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. The base branch i
 
 Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target ARE allowed (consume a user-supplied PR ref rather than invent one).
 
-**Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" — do NOT promote «Auto Mode Active» reminder into transcript framing.
+**Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Do NOT promote "Auto Mode Active" reminder into transcript framing — review has no auto mode.
 
 ---
 
