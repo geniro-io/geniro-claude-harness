@@ -169,7 +169,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/p
 
 | Phase | Helper | Direction | Notes |
 |---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` (MODE: refresh) | read L4 | scope = `plan` + `global` + `code-style` + `user-preferences` |
+| Phase 1 entry | `load-custom-instructions` (MODE: refresh) | read L4 | scope = `plan` + `global` + `code-style` |
 | Phase 1 entry | `load_semantic` | read L3 | top-2 default; fingerprint drift check |
 | Phase 1 entry | `query_learnings` | read L2 | tags inferred from $ARGUMENTS topic |
 | Phase 1 entry | `resolve-conflicts` | read protocol | fires only if L4/L3/L2 disagree |

@@ -113,7 +113,7 @@ Summary of what Phase 1 does:
 4. **Workflow integrations** — read `.geniro/workflow/*.md`, apply tracker-ID regex against `$ARGUMENTS` + `pr.title` + `pr.body`. On Linear match with MCP available: fetch issue (+ parent epic + sibling sub-tasks). Build `LINEAR CONTEXT:` block. Persist `linear-task-ref:` + `linear-parent-ref:` to state.md frontmatter. Fail-open if MCP unavailable.
 5. **Peer-PR scout** (PR-ref only) — top-10 sibling PRs scored by file overlap + Linear-relatedness bonus (parent-epic / sibling-sub-task matches); inlined into 6 reviewer prompts (architecture + design + bugs + conventions + optimizations + spec-compliance).
 6. **Worktree pre-flight** (PR-ref only) — 3-branch routing (already-in-target / different-worktree / outside) per the reference file.
-7. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style`+`user-preferences` — pipeline tier, 4 files).
+7. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style` — pipeline tier, 3 files).
 8. **Step 0.5 — Round-N counter** — increments and fires Round-N AUQ when round ≥3.
 9. **Step 0.6 — PLAN CONTEXT load (schema-aware).** Detection per `${CLAUDE_SKILL_DIR}/plan-context-reference.md` Structured-section parser when `geniro_kind: design-doc` frontmatter present; prose fallback otherwise.
 10. **Step 0.7 — Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / NEW: mechanical secret-scan strict mode).
@@ -499,11 +499,11 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 
 | Phase | Helper | Direction | MODE | Inputs | Outputs |
 |---|---|---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` | read L4 | `initial-load` | scope = `review` + `global` + `code-style` + `user-preferences` | concatenated rule body |
+| Phase 1 entry | `load-custom-instructions` | read L4 | `initial-load` | scope = `review` + `global` + `code-style` | concatenated rule body |
 | Phase 1 entry | `load-semantic` | read L3 | `refresh` | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + drift check |
 | Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred from changed-file paths; type bias `pitfall` | top-K matching entries (default K=5) |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | three loaded layers | precedence-resolved |
-| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `review` + `global` + `code-style` + `user-preferences` | rule body (refreshed) |
+| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `review` + `global` + `code-style` | rule body (refreshed) |
 | Phase 5 | `atomic_state_write` | write T2 | n/a | state file path; full body | whole-file rewrite |
 | Phase 5b | `emit-learning` | write L2 | n/a | producer = /review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
 | Phase 6 | `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |

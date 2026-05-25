@@ -6,6 +6,84 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ---
 
+## v2.4.0
+
+Cleanup of orphan files and directories that survived prior migrations. These paths are not read by any current skill — purely inert. Also removes the deprecated `user-preferences.md` instruction file.
+
+### Orphan root-level state files
+
+`.geniro/debug/` (root-level, distinct from `.geniro/state/debug/`), `.geniro/review-findings-state.md` (root-level, distinct from `.geniro/state/review-findings-state.md`), and `.geniro/.geniro-state.json` (legacy JSON marker replaced by `.geniro/state/setup/state.md`) are orphan paths from pre-v1.84 layouts. No current skill reads or writes them.
+
+**Action required:** Delete orphan files.
+
+**Auto-detect:** `ls -d .geniro/debug/ 2>/dev/null; ls .geniro/review-findings-state.md 2>/dev/null; ls .geniro/.geniro-state.json 2>/dev/null`
+
+**Auto-fix:**
+
+```bash
+rm -rf .geniro/debug/ 2>/dev/null
+rm -f .geniro/review-findings-state.md 2>/dev/null
+rm -f .geniro/.geniro-state.json 2>/dev/null
+```
+
+**Severity:** LOW — orphan files inert; cleanup purely cosmetic.
+
+---
+
+### Orphan knowledge subdirectories
+
+`.geniro/knowledge/gotchas/`, `.geniro/knowledge/patterns/`, `.geniro/knowledge/sessions/` are non-canonical subdirectories. The canonical L2 path is `.geniro/knowledge/learnings.jsonl` only. No skill reads from these subdirectories.
+
+**Action required:** Delete orphan subdirectories.
+
+**Auto-detect:** `ls -d .geniro/knowledge/{gotchas,patterns,sessions}/ 2>/dev/null`
+
+**Auto-fix:**
+
+```bash
+rm -rf .geniro/knowledge/{gotchas,patterns,sessions}/ 2>/dev/null
+```
+
+**Severity:** LOW — orphan directories inert; cleanup purely cosmetic.
+
+---
+
+### Orphan state files at `.geniro/state/` root
+
+State files placed directly at `.geniro/state/` root (not in a skill subdirectory) are non-canonical. Canonical T1 paths follow `.geniro/state/<skill>/<slug>/state.md`. Files like `integration-flakes-grind.md` and `pre-compact-snapshot.json` at state root are task artifacts from prior sessions that were never cleaned up.
+
+**Action required:** Delete orphan files at state root.
+
+**Auto-detect:** `find .geniro/state/ -maxdepth 1 -type f 2>/dev/null`
+
+**Auto-fix:**
+
+```bash
+find .geniro/state/ -maxdepth 1 -type f -exec rm -f {} + 2>/dev/null
+```
+
+**Severity:** LOW — orphan files inert; cleanup purely cosmetic.
+
+---
+
+### Removed `user-preferences.md` instruction file
+
+`user-preferences.md` was removed from the plugin in v2.2.0. The file is no longer loaded by any skill — the load-custom-instructions pipeline reads only 3 files: `global.md`, `<skill>.md`, `code-style.md`. Existing `.geniro/instructions/user-preferences.md` files are inert.
+
+**Action required:** Delete orphan file.
+
+**Auto-detect:** `ls .geniro/instructions/user-preferences.md 2>/dev/null`
+
+**Auto-fix:**
+
+```bash
+rm -f .geniro/instructions/user-preferences.md 2>/dev/null
+```
+
+**Severity:** LOW — file inert; no loader reads it.
+
+---
+
 ## v1.84.0 (released 2026-05-20)
 
 The consolidation reduced 18 skills to 11 and introduced the 3-tier state framework, 4-layer memory model, compaction-survival hook, per-skill canonical phase enums, and the `risk_class:` + `review-extra/` schemas in /actions + /instructions. The user-visible breaks below need attention from anyone whose `.geniro/` predates v1.84.
@@ -121,17 +199,15 @@ cd .geniro/planning && \
 
 ---
 
-### New L4 file `user-preferences.md`
+### ~~New L4 file `user-preferences.md`~~ (SUPERSEDED by v2.4.0)
 
-`user-preferences` was added as the 4th pipeline-tier loader file (alongside `global.md`, `<skill>.md`, `code-style.md`). Older installs lack it; pipeline skills emit one "No user-preferences.md found — skipping." line per Step 0 (harmless info).
+**Superseded:** `user-preferences.md` was removed in v2.2.0 and is no longer part of the plugin. See v2.4.0 entry "Removed `user-preferences.md` instruction file" for cleanup of existing files. This entry is retained for historical context only.
 
-**Action required:** Run `/geniro:setup` re-run mode — Interview phase captures `default_branch` / `default_reviewer_set` / `ship_mode_default` / `communication_style` answers and writes them to `.geniro/instructions/user-preferences.md`. Alternative: `/geniro:instructions create user-preferences` for manual authoring.
+**Auto-detect:** N/A — superseded.
 
-**Auto-detect:** `[ ! -f .geniro/instructions/user-preferences.md ] && echo affected`
+**Auto-fix:** N/A — superseded. See v2.4.0 entry.
 
-**Auto-fix:** manual-only — requires `/geniro:setup` re-run or `/geniro:instructions create user-preferences` to capture user preferences interactively.
-
-**Severity:** LOW — pipeline skills function without it (treated as "no preferences set"); creating it customizes default behavior.
+**Severity:** N/A — superseded.
 
 ---
 
@@ -152,7 +228,7 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 
 (Per-subdir `rm -rf .geniro/state/<x>/` and per-file `rm -f` allowed by `.geniro/`-deletion guard; bulk `rm -rf .geniro/state/` blocked.)
 
-**Severity:** LOW — orphan files inert; new skills read the current paths only. Cleanup purely cosmetic.
+**Severity:** LOW — orphan files inert; new skills read the current paths only. Cleanup purely cosmetic. See also v2.4.0 entries for additional orphan paths (root-level `.geniro/debug/`, `.geniro/review-findings-state.md`, `.geniro/.geniro-state.json`, non-canonical knowledge subdirs, state-root loose files).
 
 ---
 
@@ -204,6 +280,8 @@ rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent
 
 ## Notes on `/setup` re-run cleanup scope
 
-`/geniro:setup` re-run is **intentionally conservative**: it re-generates only `CLAUDE.md` (with conflict-resolution merge preserving user edits) and the 4 standard L4 instruction files (`global`, `code-style`, `user-preferences`, and the 7 per-skill files). User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/*` artifacts are **never** touched.
+`/geniro:setup` re-run runs a **migration sweep** (Phase 3.0) that reads this MIGRATION.md and silently applies all auto-fix commands for entries where the auto-detect indicates the install is affected. This covers orphan file cleanup, state-path renames, frontmatter additions, and other mechanical fixes.
 
-Orphan-file cleanup is therefore a **user decision surfaced by this MIGRATION.md** (or manual investigation) → user runs `/geniro:instructions delete <scope>` / `/geniro:actions delete <slug>` / shell `rm` per the per-entry guidance above. There is no "destructive sweep" mode in `/setup` by design — the cost of accidental deletion exceeds the value of automation.
+User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/_*.md` artifacts are **never** touched by the migration sweep — only entries with explicit `Auto-fix:` commands from this file are applied.
+
+`/geniro:update` Phase 4 walks the same entries interactively with per-entry AUQ ("Fix it for me" / "Show me how" / "Skip" / "Cancel").

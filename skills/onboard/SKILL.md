@@ -103,7 +103,7 @@ Pre-Phase-1 detect (transient — does not persist a state.md row):
 
 On Phase 1 entry:
 
-1. **L4 refresh** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md` + `user-preferences.md`.
+1. **L4 refresh** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.
 2. **L3 refresh** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
 3. **L2 prior-knowledge** — `query-learnings --tag onboard --tag architecture --tag codebase --scope task --limit 5` per «discovery start» trigger. To surface prior architectural decisions and gotchas relevant to the scan.
 4. **Cross-layer conflict resolution** — `resolve-conflicts` per (precedence L4 > L3 > L2 when layers disagree; halt with AUQ on hard conflict).

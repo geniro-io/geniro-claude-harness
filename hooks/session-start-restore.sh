@@ -456,8 +456,7 @@ spec/plan files remain direct Reads):"
 BLOCK2="- CLAUDE.md
 - .geniro/planning/_FEATURES.md
 - .geniro/instructions/global.md            (loader-routed, MODE: refresh)
-- .geniro/instructions/code-style.md        (loader-routed, MODE: refresh)
-- .geniro/instructions/user-preferences.md  (loader-routed, MODE: refresh)"
+- .geniro/instructions/code-style.md        (loader-routed, MODE: refresh)"
 
 if [ -n "$active_skill" ]; then
   BLOCK2="$BLOCK2
