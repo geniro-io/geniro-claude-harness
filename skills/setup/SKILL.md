@@ -271,7 +271,7 @@ Transition to Phase 3.
 
 If `mode == re-run`, run a migration sweep before generating content. This ensures the `.geniro/` directory structure is current before CLAUDE.md and instructions are regenerated.
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries under the latest `## v<X.Y.Z>` section.
+1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries across ALL `## v<X.Y.Z>` sections (a user re-running `/setup` could be coming from any prior version — sweep all entries, let auto-detect determine relevance).
 2. For each entry with an `Auto-detect:` field, run the shell command. Capture output.
 3. If output non-empty (user IS affected):
    - If entry has an `Auto-fix:` field (not `manual-only`): run the auto-fix commands silently. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
