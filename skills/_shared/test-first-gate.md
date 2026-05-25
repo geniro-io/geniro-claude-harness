@@ -15,7 +15,7 @@ Skipping the gate is the documented anti-pattern in the superpowers `test-driven
 - `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change constitution requires existing tests to lock the behavior; if none exists, the gate fires before Phase 2 per-step execution begins).
 
 The gate does NOT fire in:
-- `/geniro:implement` (M4) — Phase 2 runs а single whole-feature edit batch followed by Phase 3's 5-dim reviewer pipeline (`tests` dimension covers test-first behaviour); per-WU Test-First check would be redundant against M4's design (`architecture/M4-implement-redesign.md` §6 + §7.2).
+- `/geniro:implement` — Phase 2 runs a single whole-feature edit batch followed by Phase 3's 5-dim reviewer pipeline (`tests` dimension covers test-first behaviour); per-WU Test-First check would be redundant against design ( + ).
 - `/geniro:debug` — debug's evidence requirement is hypothesis confirmation per `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`, not a test-first gate. Debug's adversarial mode is the closest analogue and runs the cycle in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` directly.
 
 ## Required AUQ shape
@@ -23,9 +23,9 @@ The gate does NOT fire in:
 - **`header`**: `"Tests"`.
 - **`question`**: `"Before writing production code: is there an existing failing test that proves the behavior under change?"`
 - **`options[]`** (3 single-select):
-  - `label`: `"Test exists & failing (proceed RED→GREEN)"` — `description`: `"Skip RED authoring; agent jumps to GREEN per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md. Use when a regression test was added before this run (e.g., from a bug-report repro) and is currently red."`
-  - `label`: `"Author failing test first"` (Recommended) — `description`: `"Agent runs the full RED→GREEN cycle: author failing test, verify it fails with the right signature, then write minimal production code to pass it. Default for new behavior."`
-  - `label`: `"Skip TDD (justify)"` — `description`: `"Agent skips the cycle entirely. Orchestrator records the user's justification in the Ship summary. Use only when TDD is genuinely inapplicable (e.g., pure config edit, or rolling back a known-bad commit). Auto-defaulting to this option is forbidden — see Always-WAIT contract."`
+ - `label`: `"Test exists & failing (proceed RED→GREEN)"` — `description`: `"Skip RED authoring; agent jumps to GREEN per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md. Use when a regression test was added before this run (e.g., from a bug-report repro) and is currently red."`
+ - `label`: `"Author failing test first"` (Recommended) — `description`: `"Agent runs the full RED→GREEN cycle: author failing test, verify it fails with the right signature, then write minimal production code to pass it. Default for new behavior."`
+ - `label`: `"Skip TDD (justify)"` — `description`: `"Agent skips the cycle entirely. Orchestrator records the user's justification in the Ship summary. Use only when TDD is genuinely inapplicable (e.g., pure config edit, or rolling back a known-bad commit). Auto-defaulting to this option is forbidden — see Always-WAIT contract."`
 
 The "Author failing test first" option is highlighted Recommended in every mode and lane — it is the safe default. The other two options exist for the genuine cases where the default is wrong (regression test already in flight, or non-behavioral change).
 
@@ -35,7 +35,7 @@ This gate is **Always-WAIT** in every mode and lane that fires it (per § When t
 
 Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask. Never auto-default.
 
-Auto-defaulting to the SKIP option is forbidden in every case. `/geniro:refactor` is the sole remaining consumer (post-M4); it fires the gate per its own SKILL.md flow.
+Auto-defaulting to the SKIP option is forbidden in every case. `/geniro:refactor` is the sole remaining consumer; it fires the gate per its own SKILL.md flow.
 
 ## Result handling
 

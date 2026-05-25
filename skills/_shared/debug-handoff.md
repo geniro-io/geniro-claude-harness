@@ -2,11 +2,11 @@
 
 **Status:** Authoritative for consuming `/geniro:debug` T2 handoff files.
 
-When `/geniro:debug` ran earlier in the same project, it left T2 hand-off files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode, M7 §11.2 — M1 §T2 canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode, M7 §11.3 — M1 §T2 canonical) — and authored regression tests at the project's normal test paths. Consumer skills MUST detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations).
+When `/geniro:debug` ran earlier in the same project, it left T2 hand-off files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode, .2 — canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode, .3 — canonical) — and authored regression tests at the project's normal test paths. Consumer skills MUST detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations).
 
 ## Step 1: Scan
 
-Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the hand-off files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back к detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths and fallback paths; for each that exists, read fully.
+Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the hand-off files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths and fallback paths; for each that exists, read fully.
 
 **Canonical paths (read first):**
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`
@@ -20,13 +20,13 @@ If neither canonical nor fallback exists, this whole file is a no-op — skip to
 
 ## Step 2: Extract
 
-From `from-debug-<branch>.md` (M1 §T2 frontmatter + findings body — also covers `findings-state.md` whose body schema matches):
+From `from-debug-<branch>.md`:
 - frontmatter `branch:` field → record as `debug-source-branch`. Falls back to body `**Source branch:**` line for older files.
 - frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for older files.
 - body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim leading/trailing whitespace from the result. Treat as one entry in the `authored-test-paths` set; skip if value is `none` or starts with `escape hatch:`.
 
-From `from-debug-adversarial-<branch>.md` (M1 §T2 frontmatter + body — also covers `adversarial-tests.md`):
-- frontmatter `branch:` and `worktree:` fields (M1 §T2). Falls back к top-of-body `**Source branch:**` / `**Source worktree:**` lines for older files. Overwrite values from `from-debug-<branch>.md` only if it was absent (otherwise prefer the scientific-mode values for consistency).
+From `from-debug-adversarial-<branch>.md`:
+- frontmatter `branch:` and `worktree:` fields. Falls back to top-of-body `**Source branch:**` / `**Source worktree:**` lines for older files. Overwrite values from `from-debug-<branch>.md` only if it was absent (otherwise prefer the scientific-mode values for consistency).
 - For each `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace. Add to `authored-test-paths`.
 
 **When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on a single line. Consumers split on `,` and trim each token before re-resolving.
@@ -47,13 +47,13 @@ Three cases:
 ⚠ Debug authored <N> test file(s) on branch '<debug-source-branch>' (worktree '<debug-source-worktree>'); <K> are missing from your current working tree '<current-worktree>' (branch '<current-branch>').
 
 Missing files:
-  <each missing path on its own line>
+ <each missing path on its own line>
 
 To bring them along, run from your current working tree:
-  git checkout <debug-source-branch> -- <space-separated missing paths>
+ git checkout <debug-source-branch> -- <space-separated missing paths>
 
 Or copy directly if the source worktree is on disk:
-  cp <debug-source-worktree>/<path> <current-worktree>/<path>   # repeat per file
+ cp <debug-source-worktree>/<path> <current-worktree>/<path> # repeat per file
 
 Skip if you intend to re-author them in this branch instead.
 ```

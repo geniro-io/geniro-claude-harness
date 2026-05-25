@@ -1,6 +1,6 @@
 # Plan Criteria
 
-Guidelines for generating implementation plans. Pre-inlined into `/geniro:plan` (M5) orchestrator-side spec-authoring prompts когда the skill drafts а new spec. This is the canonical schema for plan files saved to `.geniro/planning/`. `/geniro:implement` (M4) consumes spec.md emitted by `/plan` directly — no separate planning agent involved.
+Guidelines for generating implementation plans. Pre-inlined into `/geniro:plan` orchestrator-side spec-authoring prompts when the skill drafts a new spec. This is the canonical schema for plan files saved to `.geniro/planning/`. `/geniro:implement` consumes spec.md emitted by `/plan` directly — no separate planning agent involved.
 
 ## Plan File Naming
 
@@ -16,9 +16,9 @@ Where `<task-dir>` is the branch-name subdirectory (e.g., `feat-eng-123-add-oaut
 - Derive from the task description: lowercase, hyphens, max 40 chars
 - Include a short timestamp prefix for uniqueness: `MMDD-<slug>`
 - Examples:
-  - "Add OAuth login" → `plan-0405-add-oauth-login.md`
-  - "ENG-123 fix pagination" → `plan-0405-eng-123-fix-pagination.md`
-  - "Refactor user service" → `plan-0405-refactor-user-service.md`
+ - "Add OAuth login" → `plan-0405-add-oauth-login.md`
+ - "ENG-123 fix pagination" → `plan-0405-eng-123-fix-pagination.md`
+ - "Refactor user service" → `plan-0405-refactor-user-service.md`
 
 Never overwrite an existing plan file. If the slug already exists, append `-v2`, `-v3`, etc.
 
@@ -45,8 +45,8 @@ Ordered by dependency. Each step is a discrete, independently verifiable unit of
 ### Step 1: <ACTION VERB> <short description>
 - **Action:** CREATE | EDIT | DELETE | RUN
 - **Files:**
-  - `path/to/file.ts` (create) — what this file contains and its role
-  - `path/to/other.ts` (edit) — what changes: which functions/sections, and why
+ - `path/to/file.ts` (create) — what this file contains and its role
+ - `path/to/other.ts` (edit) — what changes: which functions/sections, and why
 - **Details:** 1-3 sentences: what exactly to implement. Key logic, data flow, edge cases to handle. Reference specific functions/methods by name when editing existing files.
 - **Depends on:** none | Step N
 - **Verify:** concrete verification — e.g., "run `npm test -- auth.test.ts`", "`GET /api/settings` returns 200", "file exports `SettingsService` class"
@@ -147,7 +147,7 @@ Before the plan is presented to the user, verify:
 
 ## Validation Standard
 
-Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The /plan Phase 7 mechanical validator checks dimensions 1-8 for every plan. Dimensions 9-10 apply only when the plan has a `## Milestones` section (produced by `/geniro:plan` (M5) Big-tier milestone-output mode).
+Adapted from Codex's "decision-complete" and GSD's 8-dimension validation. The /plan Phase 7 mechanical validator checks dimensions 1-8 for every plan. Dimensions 9-10 apply only when the plan has a `## Milestones` section (produced by `/geniro:plan` Big-tier milestone-output mode).
 
 1. **Requirement coverage** — every user requirement appears as a step or is covered by a step
 2. **Task atomicity** — each step is independently verifiable and scoped to 1-5 files

@@ -2,7 +2,7 @@
 
 **Status:** Authoritative for L3 read-side access.
 
-**Spec source:** `architecture/M2-memory-layers.md` §6 (file layout, ownership table, drift detection, reader contract).
+
 
 ## API
 
@@ -16,7 +16,7 @@ content=$(load_semantic [--extras "name1 name2 ..."] [--quiet])
 update_fingerprint [<path1> <path2> ...]
 ```
 
-## MODE contract (M3 §7)
+## MODE contract
 
 The helper has a conceptual MODE — `initial-load` (Step 0 of every consumer)
 or `refresh` (post-compaction or phase-boundary re-load). The procedure is
@@ -31,19 +31,19 @@ mode is documentary, signaling to the caller why they're invoking.
 
 **Phase-boundary refresh sites:** unlike `load-custom-instructions`, this
 helper has NO mid-pipeline refresh sites — L3 facts are baseline awareness
-(model corroborates via direct Grep/Read of code, not L3 prose). Per M3
-§7.3: skills MAY invoke on-demand if a phase explicitly needs a fresh
+(model corroborates via direct Grep/Read of code, not L3 prose).
+: skills MAY invoke on-demand if a phase explicitly needs a fresh
 module map, but no skill is required to do so.
 
 ### `load_semantic`
 
 Concatenates the requested L3 markdown files to stdout. Each file is prefixed with a `=== file: <relative-path> ===` header so the model knows the source of each block.
 
-**Default load:** `_project.md` + `_CODEBASE_MAP.md` (per M2 §6.4 top-2). Typical baseline cost: ~5–15 KB.
+**Default load:** `_project.md` + `_CODEBASE_MAP.md` (per .4 top-2). Typical baseline cost: ~5–15 KB.
 
 **Extras:** space-separated names (with or without leading `_`). Common usage: `--extras "_architecture _FEATURES"`.
 
-**Drift detection:** automatically runs before content emission unless `--quiet` is set. Diverging files print `[L3 drift] …` to stderr; load itself never auto-overwrites L3 content. Reactive refresh is а deliberate user action — re-run `/geniro:onboard` (M9 §1.2 loads L3 and incrementally updates `_CODEBASE_MAP.md`; the helper itself rewrites the fingerprint via `update_fingerprint`).
+**Drift detection:** automatically runs before content emission unless `--quiet` is set. Diverging files print `[L3 drift] …` to stderr; load itself never auto-overwrites L3 content. Reactive refresh is a deliberate user action — re-run `/geniro:onboard`.
 
 **Missing files are skipped silently** — first-run repos that haven't created any `_*.md` yet emit empty stdout, not an error.
 
@@ -72,11 +72,11 @@ This is intentionally biased toward JS/TS (the plugin's primary target) with Pyt
 
 ```json
 {
-  "captured_at": "2026-05-19T15:30:00Z",
-  "files": {
-    "package.json": "sha256:e3ef61f583bd08f585b5a727764f2265b4ffae39ec37be29842ada7644ef27d7",
-    "tsconfig.json": "sha256:..."
-  }
+ "captured_at": "2026-05-19T15:30:00Z",
+ "files": {
+ "package.json": "sha256:e3ef61f583bd08f585b5a727764f2265b4ffae39ec37be29842ada7644ef27d7",
+ "tsconfig.json": "sha256:..."
+ }
 }
 ```
 
@@ -100,7 +100,7 @@ Always to stderr (so it doesn't pollute the loaded-content stream that callers c
 content=$(load_semantic)
 # stderr already surfaced any drift warning to the user.
 
-# /onboard rewrites the fingerprint after refresh (called from M9 Phase 2)
+# /onboard rewrites the fingerprint after refresh (called from Phase 2)
 update_fingerprint
 ```
 
@@ -119,7 +119,7 @@ content=$(load_semantic --quiet)
 - **Drift detection is hash-equality, not semantic.** A reformat that changes hash but not meaning will spuriously warn. Acceptable — false-positive warnings are recoverable (user runs the refresh); false-negatives would be silent staleness.
 - **No fingerprint pruning.** Files removed from the repo since the last `update_fingerprint` stay in `.fingerprint.json` (with their old hash) and silently never diverge. Refreshing via `update_fingerprint` rebuilds from scratch, so a periodic refresh is the canonical fix.
 - **Default candidate list is JS-biased.** Polyglot projects should call `update_fingerprint` with explicit paths.
-- **No locking on fingerprint writes.** Two concurrent `update_fingerprint` calls could race; the atomic-rename guarantees one wins cleanly but the other's data is lost. Acceptable per M2 §6.2 — fingerprint refreshes are user-initiated, not auto-triggered, so concurrent calls are rare.
+- **No locking on fingerprint writes.** Two concurrent `update_fingerprint` calls could race; the atomic-rename guarantees one wins cleanly but the other's data is lost. Acceptable — fingerprint refreshes are user-initiated, not auto-triggered, so concurrent calls are rare.
 
 ## Test coverage
 

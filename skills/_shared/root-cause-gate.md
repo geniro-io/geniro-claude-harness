@@ -7,8 +7,8 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 ## When this fires
 
 Used by:
-- `/geniro:plan` (M5) — when the spec/plan authoring surfaces а proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/implement`.
-- `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup и Phase 4 judge (i.e., wasn't dropped earlier) and is about to enter the fix-loop pool
+- `/geniro:plan` — when the spec/plan authoring surfaces a proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/implement`.
+- `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup and Phase 4 judge (i.e., wasn't dropped earlier) and is about to enter the fix-loop pool
 
 Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step.
 
@@ -28,34 +28,34 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
 - **`header`**: `"Root cause"`.
 - **`question`**: multi-line markdown — render the classification, the finding/design title, the location, the symptom, the suspected root cause, and one line of why-this-matters so the user can decide without drilling into the full report:
 
-  ```
-  Classification: [SYMPTOM] — proposed change patches a downstream effect, not the underlying cause.
+ ```
+ Classification: [SYMPTOM] — proposed change patches a downstream effect, not the underlying cause.
 
-  Finding/design: <title>
-  Where: <file:line or design-section>
-  Symptom: <one-line>
-  Suspected root cause: <one-line>
-  Why this matters: <one-line>
+ Finding/design: <title>
+ Where: <file:line or design-section>
+ Symptom: <one-line>
+ Suspected root cause: <one-line>
+ Why this matters: <one-line>
 
-  How do you want to handle this?
-  ```
+ How do you want to handle this?
+ ```
 
-  Pull the `<title>` / `<file:line or design-section>` / `<symptom>` / `<suspected root cause>` / `<why this matters>` values from the upstream artifact's persisted body fields:
-  - For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the new `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
-  - For `/geniro:plan` (M5): from /plan-emitted design unit fields в spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
+ Pull the `<title>` / `<file:line or design-section>` / `<symptom>` / `<suspected root cause>` / `<why this matters>` values from the upstream artifact's persisted body fields:
+ - For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the new `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
+ - For `/geniro:plan`: from /plan-emitted design unit fields in spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
 
-  When more than one `[SYMPTOM]` finding/design fires the gate in the same skill phase, fire the AUQ once per finding (sequentially) — the user's choice on one symptom does not transfer to another. The single-select shape stays the same per call; do NOT batch into a multi-select.
+ When more than one `[SYMPTOM]` finding/design fires the gate in the same skill phase, fire the AUQ once per finding (sequentially) — the user's choice on one symptom does not transfer to another. The single-select shape stays the same per call; do NOT batch into a multi-select.
 
 - **`options[]`** (3 single-select):
-  - `label`: `"Confirmed root cause (proceed)"` — `description`: `"I have already verified the underlying cause; this fix is the correct surface-level implementation. Proceed."`
-  - `label`: `"Symptom — escalate to /geniro:debug"` — `description`: `"Stop, run scientific-method debug to confirm the root cause before any fix."` (Recommended when classification is [SYMPTOM] and confidence is low — the orchestrator may surface a Recommended marker in the option text per `AskUserQuestion`'s convention.)
-  - `label`: `"Mixed — annotate and proceed"` — `description`: `"I acknowledge this is a symptom patch; ship it with a tracked tech-debt note. Use sparingly."`
+ - `label`: `"Confirmed root cause (proceed)"` — `description`: `"I have already verified the underlying cause; this fix is the correct surface-level implementation. Proceed."`
+ - `label`: `"Symptom — escalate to /geniro:debug"` — `description`: `"Stop, run scientific-method debug to confirm the root cause before any fix."` (Recommended when classification is [SYMPTOM] and confidence is low — the orchestrator may surface a Recommended marker in the option text per `AskUserQuestion`'s convention.)
+ - `label`: `"Mixed — annotate and proceed"` — `description`: `"I acknowledge this is a symptom patch; ship it with a tracked tech-debt note. Use sparingly."`
 
 ## Result handling
 
 After the gate resolves:
 - **"Confirmed root cause (proceed)"** → re-tag the finding/design as `[ROOT-CAUSE]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` (overwrite the `Cause:` field in `<task-dir>/review-feedback.md` and `.geniro/state/<skill>/state-<slug>.md`), then proceed in the upstream skill — the finding/design enters the normal fix-loop / implementation pool.
-- **"Symptom — escalate to /geniro:debug"** → halt the current skill at the gate. Surface a hand-off message: `Run /geniro:debug "<finding/design title>" to confirm the root cause via the scientific-method workflow, then re-invoke the original skill once the debug findings persist to <PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md (M7 §11.2 — M1-T2 canonical).` Do NOT auto-invoke `/geniro:debug` — surface the suggestion only; the user runs the slash command themselves (matches the escalation convention in `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` §3.2). The current skill exits cleanly; its state file remains so the user can resume after debug.
+- **"Symptom — escalate to /geniro:debug"** → halt the current skill at the gate. Surface a hand-off message: `Run /geniro:debug "<finding/design title>" to confirm the root cause via the scientific-method workflow, then re-invoke the original skill once the debug findings persist to <PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md.` Do NOT auto-invoke `/geniro:debug` — surface the suggestion only; the user runs the slash command themselves (matches the escalation convention in `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` ). The current skill exits cleanly; its state file remains so the user can resume after debug.
 - **"Mixed — annotate and proceed"** → re-tag the finding/design as `[SYMPTOM-ACK]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`, append a row to a `## Acknowledged tech debt` section in the skill's Ship summary capturing `<title>` + `<file:line>` + `<symptom>` + `<suspected root cause>` so the user has a documented backlog. Then proceed in the upstream skill.
 
 ## Why this exists

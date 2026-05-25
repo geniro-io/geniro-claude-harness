@@ -18,9 +18,9 @@ Skills running orchestrator-level Bash compute a single prefix before any persis
 TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"
 PRIMARY="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {print $2; exit}')"
 if [ -z "$TOPLEVEL" ] || [ -z "$PRIMARY" ] || [ "$TOPLEVEL" = "$PRIMARY" ]; then
-  PRIMARY_ROOT="."        # main worktree (or non-git project); cwd-relative is fine
+ PRIMARY_ROOT="." # main worktree (or non-git project); cwd-relative is fine
 else
-  PRIMARY_ROOT="$PRIMARY"  # linked worktree; route writes to main
+ PRIMARY_ROOT="$PRIMARY" # linked worktree; route writes to main
 fi
 ```
 
@@ -37,8 +37,8 @@ Some agents have read-only tool surfaces (e.g. `tools: [Read, Glob, Grep]`) and 
 ```
 KNOWLEDGE_ROOT: <PRIMARY_ROOT>/.geniro/knowledge
 DEBUG_ROOT: <PRIMARY_ROOT>/.geniro/debug
-PLANNING_ROOT: <PRIMARY_ROOT>/.geniro/planning   # cross-session subset only
-TASK_PLANNING_ROOT: <current-cwd>/.geniro/planning  # task-local; intentionally cwd-relative
+PLANNING_ROOT: <PRIMARY_ROOT>/.geniro/planning # cross-session subset only
+TASK_PLANNING_ROOT: <current-cwd>/.geniro/planning # task-local; intentionally cwd-relative
 ```
 
 The agent reads/globs against the inlined absolute path. It never substitutes its own cwd. If a Bash-less agent is given a cwd-relative `.geniro/...` path, it is a spawn-prompt bug — fix the orchestrator, not the agent.
@@ -49,20 +49,20 @@ These are intended to outlive any single task. The resolver applies to both read
 
 | Artifact | Producer(s) | Consumer(s) | Notes |
 |---|---|---|---|
-| `.geniro/knowledge/learnings.jsonl` | `/implement` (M4 §13.2 auto-emit), `/plan` (M5 `decision` emit), `/debug` (M7 §3.3 `diagnosis` emit), `/review` (M6 §5b `pitfall` emit), `/refactor` (M8 §3.5 `discovery` + `pitfall` emit), `/onboard` (M9 §7.3 `discovery` emit), `/investigate` (M9 §10.5 `discovery` emit) | every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
-| `.geniro/state/handoff/from-debug-<branch>.md` (M1-T2 canonical; `.geniro/state/debug/findings-state.md` read once for resume compatibility per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` Step 1) | `/debug` Phase 3 §8.1 | `/implement` Phase 1 Step 1 | carries M1 §T2 frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
-| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` (M1-T2 canonical; `.geniro/state/debug/adversarial-tests.md` read once for compatibility per debug-handoff.md Step 1) | `/debug` adversarial mode (M7 §9.6) | `/implement` Phase 1 Step 1 | same handoff |
-| `.geniro/state/handoff/from-review-<branch>.md` (M1-T2 canonical; `.geniro/state/review-findings-state.md` read once for resume compatibility per SKILL.md §5.2) | `/review` | `/implement` Phase 1 step 8 «Persist T2 handoffs» | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
-| `.geniro/planning/_FEATURES.md` (M1:508 underscore-prefixed registry per L3 convention; manual user CRUD или via `/plan` Phase 5 milestone-mode) | manual или `/plan` (M5 §5.3 milestone-mode) | `/implement` (binding), `/plan` (M5 Big-task milestone authoring) | persistent registry |
-| `.geniro/planning/_CODEBASE_MAP.md` (M1:508 underscore-prefixed registry per L3 convention; `.geniro/planning/CODEBASE_MAP.md` without underscore read once for compatibility) | `/onboard` (M9 §7.1) | every skill that consults the map (`/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` per M2 §6.1 |
-| `.geniro/planning/_focus-<area>.md` | `/onboard <area>` (manual scope-limiter via `--focus` flag persists а concentrated map alongside the full `_CODEBASE_MAP.md`); `/investigate --persist` | every skill that consults focused-area context | persistent orientation artifact for а subsystem |
+| `.geniro/knowledge/learnings.jsonl` | `/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/onboard`, `/investigate` | every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
+| `.geniro/state/handoff/from-debug-<branch>.md` | `/debug` Phase 3 | `/implement` Phase 1 Step 1 | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
+| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/debug` adversarial mode | `/implement` Phase 1 Step 1 | same handoff |
+| `.geniro/state/handoff/from-review-<branch>.md` | `/review` | `/implement` Phase 1 step 8 «Persist T2 handoffs» | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
+| `.geniro/planning/_FEATURES.md` | manual or `/plan` | `/implement` (binding), `/plan` | persistent registry |
+| `.geniro/planning/_CODEBASE_MAP.md` | `/onboard` | every skill that consults the map (`/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic`.1 |
+| `.geniro/planning/_focus-<area>.md` | `/onboard <area>` (manual scope-limiter via `--focus` flag persists a concentrated map alongside the full `_CODEBASE_MAP.md`); `/investigate --persist` | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
 
 ## Artifacts NOT in scope (task-local — keep cwd-relative)
 
 These are intentionally ephemeral with the current task. Promoting them to the resolver would introduce false durability where none is wanted.
 
 - `.geniro/planning/<task-dir>/*` — spec.md, plan-*.md, state.md, concerns.md, notes.md, milestone-*.md. Removed at `/implement` Phase 3 ship-cleanup.
-- `.geniro/state/refactor/<slug>/state.md` (M8 §9.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound), `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md` (M9 §T1 session-bound) — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
+- `.geniro/state/refactor/<slug>/state.md`, `.geniro/state/debug/<slug>/state.md`, `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md` — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
 
 If a within-skill state file is later promoted to cross-session use, add it to the cross-session table above.
 

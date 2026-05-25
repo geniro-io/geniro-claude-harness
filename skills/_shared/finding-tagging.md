@@ -24,12 +24,12 @@ The `[ROOT-CAUSE] ⇄ [SYMPTOM-ACK]` transition is also possible at gate result-
 
 When the reviewer cites cross-dimension evidence (e.g., the bugs reviewer notices the architecture reviewer would have more context), it still emits its best-effort tag — the orchestrator's Phase 3 dedup pass (`/geniro:review` Filter & Aggregate, orchestrator-inline) reconciles cross-dimension overlap.
 
-**`/geniro:plan` (M5) orchestrator-side spec-authoring emits the same 4-tag set** per design unit in spec.md. Same classification rubric as the reviewer:
+**`/geniro:plan` orchestrator-side spec-authoring emits the same 4-tag set** per design unit in spec.md. Same classification rubric as the reviewer:
 - Design unit changes the originating layer → `[ROOT-CAUSE]`.
 - Design unit changes only the surface where the defect manifests → `[SYMPTOM]`.
 - Cause/symptom axis is not meaningfully applicable (pure refactor, doc-only, structural) OR confidence is below 60% → `[UNKNOWN]`.
 
-Both the reviewer-agent и /plan's orchestrator-side spec-authoring tag every finding/design unit. Omission is never acceptable — see § Anti-rationalization.
+Both the reviewer-agent and /plan's orchestrator-side spec-authoring tag every finding/design unit. Omission is never acceptable — see § Anti-rationalization.
 
 ## How orchestrators route by tag
 
@@ -37,7 +37,7 @@ The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Pha
 
 - **`[ROOT-CAUSE]`** → proceeds in the upstream skill's normal flow. The finding/design enters the fix-loop pool / implementation pool unchanged.
 - **`[SYMPTOM]`** that survives the upstream filter step (Phase 3 dedup for `/geniro:review`; Phase 3 self-review filter for `/geniro:implement`; Phase 3 verify for `/geniro:refactor`; /plan spec-authoring per design unit) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding/design unit. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
-- **`[UNKNOWN]`** → orchestrator requires the reviewer / /plan-authoring к escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the upstream classifier itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause.
+- **`[UNKNOWN]`** → orchestrator requires the reviewer / /plan-authoring to escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the upstream classifier itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause.
 - **`[SYMPTOM-ACK]`** → already user-acknowledged; orchestrator proceeds AND appends the entry to the Ship summary's `## Acknowledged tech debt` section (the gate's Result handling already wrote it; this is the read-back for ship-time rendering).
 
 
@@ -45,7 +45,7 @@ The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Pha
 
 Tags persist in two artifact families, mirroring the existing `[CONFIRMED-BY-TEST]` persistence pattern (per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema):
 
-**1. Reviewer findings — `<task-dir>/review-feedback.md` (`/implement` Phase 3 self-review intermediate) и `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M1 §T2 canonical — `/review` writer; consumed by `/implement` Phase 1 step 8 «Persist T2 handoffs»). Path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` is read once on resume for compatibility per SKILL.md §5.2 only.**
+**1. Reviewer findings — `<task-dir>/review-feedback.md` (`/implement` Phase 3 self-review intermediate) and `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. Path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` is read once on resume for compatibility per SKILL.md only.**
 
 The per-finding line gains a `cause:` field (lowercase to match existing field convention — `decision:`, `recommendation:`, `confidence:`). The field is appended after `confidence:` for both severity-section rows (CRITICAL/HIGH/MEDIUM) and Intent-section rows. Exact line format:
 
@@ -56,8 +56,8 @@ The per-finding line gains a `cause:` field (lowercase to match existing field c
 When `cause: SYMPTOM` (or `cause: UNKNOWN` requiring debug escalation), the line is followed by indented sub-fields capturing the gate-rendering payload — same indent shape as the `decision: PRODUCT-DECISION` sub-fields in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5:
 
 ```
-  symptom: <one-line description of the observed downstream effect>
-  suspected-root-cause: <one-line description of where causation likely originates>
+ symptom: <one-line description of the observed downstream effect>
+ suspected-root-cause: <one-line description of where causation likely originates>
 ```
 
 These sub-fields populate the gate's `<symptom>` and `<suspected root cause>` slots in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` § Required AUQ shape. Rows with `cause: ROOT-CAUSE` or `cause: SYMPTOM-ACK` do NOT need these sub-fields (gate does not fire / already resolved); rows with `cause: UNKNOWN` SHOULD include them as best-effort hypothesis seeds for the downstream `/geniro:debug` invocation.
@@ -68,8 +68,8 @@ Each design unit's "Root-cause classification" section uses block format. Archit
 
 ```
 Root-cause classification: <ROOT-CAUSE|SYMPTOM-PATCH|MIXED>
-Symptom: <one-line>                       # required when classification is SYMPTOM-PATCH or MIXED
-Suspected root cause: <one-line>          # required when classification is SYMPTOM-PATCH or MIXED
+Symptom: <one-line> # required when classification is SYMPTOM-PATCH or MIXED
+Suspected root cause: <one-line> # required when classification is SYMPTOM-PATCH or MIXED
 ```
 
 The same gate-rendering rule applies: ROOT-CAUSE units skip the symptom/cause sub-fields; SYMPTOM-PATCH / MIXED units include them.

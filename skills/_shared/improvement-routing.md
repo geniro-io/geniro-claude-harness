@@ -1,6 +1,6 @@
 # Improvement Routing (canonical)
 
-When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, classify it by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to а separate channel — submit а PR к the plugin repo OR edit your local plugin install directly (out of scope для skill-level "Suggest Improvements").
+When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, classify it by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
 
 ## Routing table
 
@@ -76,9 +76,9 @@ What do we accept by choosing this? What becomes harder? What becomes easier?
 ### Skills that route to ADR
 
 - `/geniro:investigate` Phase 5 — "Save key findings to memory" gains an ADR sub-option when the finding meets all 3 criteria.
-- `/geniro:debug` §3.4 (M7) — root causes traced к an undocumented architectural choice trigger an ADR proposal alongside the L2 emit (§3.3).
-- `/geniro:refactor` §8.3 (M8) — refactor candidates explicitly REJECTED by the user (PRODUCT-DECISION findings, escalated work) propose an ADR capturing "why we did NOT do X." 4th AUQ option fires only when ADR-eligibility criteria met (hard к reverse + surprising без context + genuine trade-offs).
-- `/geniro:implement` Phase 3 ship sub-step (М4 §7.5 auxiliary «Suggest Improvements») presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
+- `/geniro:debug` — root causes traced to an undocumented architectural choice trigger an ADR proposal alongside the L2 emit.
+- `/geniro:refactor` — refactor candidates explicitly REJECTED by the user (PRODUCT-DECISION findings, escalated work) propose an ADR capturing "why we did NOT do X." 4th AUQ option fires only when ADR-eligibility criteria met (hard to reverse + surprising without context + genuine trade-offs).
+- `/geniro:implement` Phase 3 ship sub-step presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
 
 ## Why code rules go to `.claude/rules/`, not CLAUDE.md
 

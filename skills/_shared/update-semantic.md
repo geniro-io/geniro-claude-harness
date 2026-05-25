@@ -2,7 +2,7 @@
 
 **Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/implement` (adds module entries), `/refactor` (move/rename), and `/plan` (manages `_FEATURES.md`).
 
-**Spec source:** `architecture/M2-memory-layers.md` §6.3 (bounded auto-incremental writes).
+
 
 ## API
 
@@ -23,14 +23,14 @@ Exit codes:
 - `70` — append failed (filesystem / IO).
 - `71` — atomic write of replacement failed.
 
-## MODE contract (M3 §7.4)
+## MODE contract
 
 Write-side helper — **no MODE parameter, compaction-immune.** Each
-invocation is а one-shot file mutation; the helper holds no context-resident
-state across calls. Skill flow decides when to re-invoke after а SessionStart
+invocation is a one-shot file mutation; the helper holds no context-resident
+state across calls. Skill flow decides when to re-invoke after a SessionStart
 event.
 
-## Constraints (from M2 §6.3)
+## Constraints (from .3)
 
 - **Applies only to `_CODEBASE_MAP.md` and `_FEATURES.md`.** Other L3 files (`_project.md`, `_architecture.md`, `_focus-*.md`) are manual-only.
 - **Append-only or single-line replacement.** Never rewrites the whole file. Human edits anywhere in the file survive untouched.
@@ -48,22 +48,22 @@ event.
 - **Match by line-prefix.** The first line in the target file whose content starts (`index($0, p) == 1`) with the given prefix string is replaced wholesale with the new line. Subsequent matches are not touched.
 - **No-match is a no-op.** Helper returns 0 and emits a stderr notice. This is deliberate — replace is "tell me about this entry if it exists" semantics; failing on absence would force callers to pre-check.
 - **Missing file is also a no-op.** Same reasoning.
-- **The atomic rename uses `atomic_state_write`** (M1). On a partial-write / power-loss the original file survives.
+- **The atomic rename uses `atomic_state_write`**. On a partial-write / power-loss the original file survives.
 
 ## Examples
 
 ```bash
 # /implement records a new module
 update_semantic --file codebase-map \
-  --append "- src/components/Toggle.tsx — controlled toggle widget, used by SettingsPage"
+ --append "- src/components/Toggle.tsx — controlled toggle widget, used by SettingsPage"
 
 # /refactor moves a file
 update_semantic --file codebase-map \
-  --replace "- src/old/legacy.ts" "- src/new/legacy.ts — moved during 2026-Q2 cleanup, used by App.tsx"
+ --replace "- src/old/legacy.ts" "- src/new/legacy.ts — moved during 2026-Q2 cleanup, used by App.tsx"
 
 # /plan records a new feature
 update_semantic --file features \
-  --append "- [feat-12] Dark mode toggle, scope: ui, status: pending"
+ --append "- [feat-12] Dark mode toggle, scope: ui, status: pending"
 ```
 
 ## Caller patterns: handling rc=11
@@ -73,16 +73,16 @@ The expected pattern is **defer-and-retry-at-skill-end**:
 ```bash
 deferred_writes=()
 attempt_update() {
-  update_semantic "$@"
-  if [ $? -eq 11 ]; then
-    deferred_writes+=("$*")
-  fi
+ update_semantic "$@"
+ if [ $? -eq 11 ]; then
+ deferred_writes+=("$*")
+ fi
 }
 
 # At skill completion, drain the queue
 for w in "${deferred_writes[@]}"; do
-  # eval ok here because args are skill-controlled
-  eval "update_semantic $w"
+ # eval ok here because args are skill-controlled
+ eval "update_semantic $w"
 done
 ```
 

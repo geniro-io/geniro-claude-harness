@@ -1,6 +1,6 @@
 # Load custom instructions (canonical, shared)
 
-**Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, `.geniro/instructions/code-style.md`, and `.geniro/instructions/user-preferences.md` (M10a).
+**Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, `.geniro/instructions/code-style.md`, and `.geniro/instructions/user-preferences.md`.
 
 ## Why this exists
 
@@ -25,8 +25,8 @@ Callers provide three parameters in the call site:
 
 - **`SKILL_SLUG`** — kebab-case name of the invoking skill (e.g. `implement`, `debug`, `actions`). Used to compute the per-skill file path `.geniro/instructions/<SKILL_SLUG>.md`.
 - **`LOAD_TIER`** — one of:
-  - `pipeline` → loads `global.md` + `<SKILL_SLUG>.md` + `code-style.md` + `user-preferences.md`. Applies to: `implement` (M4), `plan` (M5), `review` (M6), `debug` (M7), `refactor` (M8), `onboard` (M9), `investigate` (M9). M9 D12-fix promotes `onboard` и `investigate` from `rules-only` к `pipeline` — discovery skills emit к L2/L3 (M2 §5.3 `discovery` rows) и need code-style rules respected when their save-routing focused agents write к the user's tree (CLAUDE.md, ADR, etc.). M10b adds `user-preferences.md` к the pipeline tier — created by `/setup` Phase Generate (§3.6); loaded by every pipeline + discovery skill at Step 0 + phase-boundary refresh.
-  - `rules-only` → loads `global.md` only. Applies to: `setup` (M10a), `instructions` (M10b), `actions` (M10c), `update` (M10d). These are operational/CRUD-on-meta skills — they manage rules rather than produce code или learnings, so the per-skill + code-style + user-preferences layers don't apply.
+ - `pipeline` → loads `global.md` + `<SKILL_SLUG>.md` + `code-style.md` + `user-preferences.md`. Applies to: `implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`. `onboard` and `investigate` are promoted from `rules-only` to `pipeline` — discovery skills emit to L2/L3 and need code-style rules respected when their save-routing focused agents write to the user's tree (CLAUDE.md, ADR, etc.). `user-preferences.md` is included in the pipeline tier — created by `/setup` Phase Generate; loaded by every pipeline + discovery skill at Step 0 + phase-boundary refresh.
+ - `rules-only` → loads `global.md` only. Applies to: `setup`, `instructions`, `actions`, `update`. These are operational/CRUD-on-meta skills — they manage rules rather than produce code or learnings, so the per-skill + code-style + user-preferences layers don't apply.
 - **`MODE`** — `initial-load` (Step 0) or `refresh` (phase boundary).
 
 Callers receive (on completion):
@@ -38,7 +38,7 @@ Callers receive (on completion):
 
 Compute the load set from `LOAD_TIER`:
 
-- `pipeline` → `[global.md, <SKILL_SLUG>.md, code-style.md, user-preferences.md]` (four files, in that order — M10b adds `user-preferences.md` to the pipeline tier)
+- `pipeline` → `[global.md, <SKILL_SLUG>.md, code-style.md, user-preferences.md]` (four files, in that order — includes `user-preferences.md`)
 - `rules-only` → `[global.md]` (one file)
 
 **Resolve `PRIMARY_ROOT` once, before the load loop.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash to compute the fallback location. When cwd is the main worktree (or the project isn't a git repo), `PRIMARY_ROOT="."` and the fallback is a no-op. When cwd is a linked worktree, `PRIMARY_ROOT` is the main worktree's absolute path. This handles two real failure modes: (a) `$ARGUMENTS` runs in `.claude/worktrees/<dir>/` where the branch checkout doesn't have instructions committed; (b) the current branch was created before `.geniro/instructions/*` was added on trunk, so the cwd checkout is stale relative to the user's latest authored rules.
@@ -52,9 +52,9 @@ For each file in the load set, in order:
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
 4. After the Read attempt(s) (success OR file-not-found), print exactly one echo line per the §Echo contract — non-negotiable.
 5. Apply the loaded content:
-   - `## Rules` → standing rules active in every phase of the consumer skill
-   - `## Constraints` → hard gates evaluated at the phase boundary named in each subsection (or globally if not phase-scoped)
-   - `## Additional Steps` → extra steps inserted at the named phase boundary (if the skill has that phase; otherwise apply where they fit and skip the rest)
+ - `## Rules` → standing rules active in every phase of the consumer skill
+ - `## Constraints` → hard gates evaluated at the phase boundary named in each subsection (or globally if not phase-scoped)
+ - `## Additional Steps` → extra steps inserted at the named phase boundary (if the skill has that phase; otherwise apply where they fit and skip the rest)
 
 ## Echo contract
 

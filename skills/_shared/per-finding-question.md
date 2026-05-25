@@ -13,47 +13,47 @@ Any AUQ call that asks the user to act on one or more findings. Both the per-fin
 Used by:
 - `/geniro:review` Phase action-gate (PRODUCT-DECISION resolution; PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
 - `/geniro:implement` Phase 3 self-review fix-loop pre-step (PRODUCT-DECISION resolution)
-- `/geniro:refactor` §8.3 escalation (M8 — PRODUCT-DECISION → escalate; 4 options when ADR-eligible, 3 otherwise)
+- `/geniro:refactor` escalation
 
 ### Required AUQ shape
 
 - **`header`**: short chip label set by the calling skill (e.g. `"Open decision"`, `"Escalate"`).
 - **`question`**: multi-line markdown — render every field below verbatim from the finding's structured fields (see `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format):
 
-  ```
-  **<SEVERITY>** `path:lines` — <short title> — decision: <type>
+ ```
+ **<SEVERITY>** `path:lines` — <short title> — decision: <type>
 
-  **Why this matters:** <1-sentence impact>
+ **Why this matters:** <1-sentence impact>
 
-  How do you want to resolve this?
-  ```
+ How do you want to resolve this?
+ ```
 
-- **`options[]`** — one per enumerated path (from the finding's `Options:` field для PRODUCT-DECISION resolution gates; from the calling skill's escalation menu для refactor-style escalation gates — see /refactor M8 §8.3 для the 4-fixed-option menu):
-  - **`label`**: 1-5 words — the action name (e.g. `"Move to utils"`, `"Keep as-is"`, `"Run /geniro:implement"`).
-  - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` с а fixed menu (e.g. `/refactor` §8.3 escalation per M8), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
-  - **`preview`**: full finding body, formatted as:
+- **`options[]`** — one per enumerated path (from the finding's `Options:` field for PRODUCT-DECISION resolution gates; from the calling skill's escalation menu for refactor-style escalation gates — see /refactor .3 for the 4-fixed-option menu):
+ - **`label`**: 1-5 words — the action name (e.g. `"Move to utils"`, `"Keep as-is"`, `"Run /geniro:implement"`).
+ - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/refactor` escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
+ - **`preview`**: full finding body, formatted as:
 
-    ````
-    ## Evidence
+ ````
+ ## Evidence
 
-    ```<lang>
-    <2-5 lines from the finding's Evidence: field>
-    ```
+ ```<lang>
+ <2-5 lines from the finding's Evidence: field>
+ ```
 
-    ## Suggested fix
+ ## Suggested fix
 
-    <synthesis text from the finding's Suggested fix: field>
+ <synthesis text from the finding's Suggested fix: field>
 
-    ## Confidence
+ ## Confidence
 
-    NN%
+ NN%
 
-    ## Origin
+ ## Origin
 
-    [NEW] | [PRE-EXISTING]
-    ````
+ [NEW] | [PRE-EXISTING]
+ ````
 
-  Render the same `preview` body on every option for the same finding — the body is per-finding, not per-option, but AUQ scopes preview to options so the user can re-read the body from any focused option without losing the option-pick context. When the calling skill's options are an escalation menu (not the finding's own `Options:`), the preview body is still the finding's body — the escalation labels merely tell the user what action will be taken on it.
+ Render the same `preview` body on every option for the same finding — the body is per-finding, not per-option, but AUQ scopes preview to options so the user can re-read the body from any focused option without losing the option-pick context. When the calling skill's options are an escalation menu (not the finding's own `Options:`), the preview body is still the finding's body — the escalation labels merely tell the user what action will be taken on it.
 
 ### Source-field map
 
@@ -86,78 +86,78 @@ Used by:
 - **`multiSelect: true`**.
 - **`question`**: a single sentence stating the picking task — set by the calling skill (e.g. `"Pick findings to author tests for"`, `"Pick findings to post as PR comments"`).
 - **`options[]`** — one per eligible finding:
-  - **`label`**: as currently specified by each call site (e.g. `path:line — short title — decision: <type>` for the Test-gate Pick — decision-type is what matters when picking findings to AUTHOR TESTS FOR; severity drives sort order at the call site, not label content) — call sites set their own label format; do NOT change existing label conventions.
-  - **`description`**: 1-line per current call-site spec — call sites set their own.
-  - **`preview`**: full finding body, formatted identically to the Single-finding gate's preview block above (Evidence / Suggested fix / Confidence / Origin).
+ - **`label`**: as currently specified by each call site (e.g. `path:line — short title — decision: <type>` for the Test-gate Pick — decision-type is what matters when picking findings to AUTHOR TESTS FOR; severity drives sort order at the call site, not label content) — call sites set their own label format; do NOT change existing label conventions.
+ - **`description`**: 1-line per current call-site spec — call sites set their own.
+ - **`preview`**: full finding body, formatted identically to the Single-finding gate's preview block above (Evidence / Suggested fix / Confidence / Origin).
 - **Cap-extension:** when more than 4 eligible findings exist, batch across multiple chained AUQ calls (≤4 per call); preview body is per-finding (each option carries its own finding's body).
 
 ## Investigation-driven fix gate (debug-flavored)
 
 Used by:
-- `/geniro:debug` Phase 2 §7.2 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
-- `/geniro:debug` Phase 2 §7.4 escape hatch (Repro infeasible — alternative regression-guard picker when the bug is non-deterministic)
+- `/geniro:debug` Phase 2 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
+- `/geniro:debug` Phase 2 escape hatch (Repro infeasible — alternative regression-guard picker when the bug is non-deterministic)
 
-Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/<slug>/state.md` (M7 §11.1 — subdir-per-slug layout, M1 §T1 session-bound; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules) instead of the reviewer-agent output.
+Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/<slug>/state.md` instead of the reviewer-agent output.
 
 ### Required AUQ shape
 
-- **`header`**: short chip label set by the calling skill (`"Fix path"` for §7.2, `"Repro infeasible"` for §7.4).
+- **`header`**: short chip label set by the calling skill (`"Fix path"` for , `"Repro infeasible"` for ).
 - **`question`**: multi-line markdown:
 
-  ```
-  **Confirmed root cause:** `path:lines` — <hypothesis title>
+ ```
+ **Confirmed root cause:** `path:lines` — <hypothesis title>
 
-  **Observed failure:** <one-line summary of the failing-test signature or captured pre-fix output>
+ **Observed failure:** <one-line summary of the failing-test signature or captured pre-fix output>
 
-  How do you want to <resolve | regression-guard> this?
-  ```
+ How do you want to <resolve | regression-guard> this?
+ ```
 
-  Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` file:line + title + `## Hypotheses` Result field pre-fix output per M7 §11.1.B).
-- **`options[]`** — one per fix path (§7.2) or per alternative regression guard (§7.4):
-  - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
-  - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
-  - **`preview`**: investigation context, formatted as:
+ Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` file:line + title + `## Hypotheses` Result field pre-fix output).
+- **`options[]`** — one per fix path or per alternative regression guard:
+ - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
+ - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
+ - **`preview`**: investigation context, formatted as:
 
-    ````
-    ## Root cause
+ ````
+ ## Root cause
 
-    `path:lines` — <hypothesis title>
+ `path:lines` — <hypothesis title>
 
-    ## Evidence
+ ## Evidence
 
-    ```<lang>
-    <2-5 lines from the failing-test output OR captured pre-fix snippet from state.md `## Hypotheses` Result field>
-    ```
+ ```<lang>
+ <2-5 lines from the failing-test output OR captured pre-fix snippet from state.md `## Hypotheses` Result field>
+ ```
 
-    ## Reproduction status
+ ## Reproduction status
 
-    <"Hypothesis confirmed at Phase 1 §6.7 Isolate; reproduction test pending Phase 2 §7.4" for §7.2; "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" for §7.4 escape hatch>
+ <"Hypothesis confirmed at Phase 1 Isolate; reproduction test pending Phase 2 " for ; "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" for escape hatch>
 
-    ## Hypothesis
+ ## Hypothesis
 
-    Hypothesis <number> from `.geniro/state/debug/<slug>/state.md` § Hypotheses
-    ````
+ Hypothesis <number> from `.geniro/state/debug/<slug>/state.md` § Hypotheses
+ ````
 
-  Render the same `preview` body on every option for the same investigation — the body is per-investigation, not per-option.
+ Render the same `preview` body on every option for the same investigation — the body is per-investigation, not per-option.
 
 ### Source-field map
 
-| AUQ field | `.geniro/state/debug/<slug>/state.md` field (M7 §11.1.B) |
+| AUQ field | `.geniro/state/debug/<slug>/state.md` field |
 |-----------|--------------------------------------|
 | `path:lines` in `question` | confirmed hypothesis's `## Root Cause` section (file:line of root cause) |
 | `<hypothesis title>` in `question` | confirmed hypothesis's title |
 | `<observed failure>` in `question` | first line of confirmed hypothesis's `## Hypotheses` Result field → captured pre-fix output |
 | `preview` Evidence codeblock | full captured pre-fix output (2-5 lines) from `## Hypotheses` Result field |
-| `preview` Reproduction status | "Hypothesis confirmed at Phase 1 §6.7 Isolate; reproduction test pending Phase 2 §7.4" (§7.2 multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" (§7.4 escape hatch) |
+| `preview` Reproduction status | "Hypothesis confirmed at Phase 1 Isolate; reproduction test pending Phase 2 " ( multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" ( escape hatch) |
 | `preview` Hypothesis number | hypothesis ID from state.md `## Hypotheses` |
 
 ## Where the body fields come from
 
 For skills running findings end-to-end in one invocation (`/geniro:review`), the orchestrator has the full reviewer-agent output in-memory and pulls Evidence / Why-matters / Suggested-fix / Confidence / Origin directly.
 
-For cross-skill consumers (`/geniro:implement` Phase 1 step 8 «Persist T2 handoffs» per M4 §13.2), findings arrive via the `<task-dir>/review-feedback.md` artifact (Phase 3 self-review intermediate) или `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 M1-T2 canonical path written by `/review` Phase 5). Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema for the persisted shape.
+For cross-skill consumers (`/geniro:implement` Phase 1 step 8 «Persist T2 handoffs»), findings arrive via the `<task-dir>/review-feedback.md` artifact (Phase 3 self-review intermediate) or `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema for the persisted shape.
 
-For `/geniro:debug` Phase 2 §7.2 / §7.4 gates, body fields come from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` + `## Hypotheses` Result + `## Reproduction Test` Reproduction Decision sections per M7 §11.1.B) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
+For `/geniro:debug` Phase 2 / gates, body fields come from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` + `## Hypotheses` Result + `## Reproduction Test` Reproduction Decision sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
 
 ## Recommended-label policy
 
@@ -171,9 +171,9 @@ The `(Recommended)` suffix on an AskUserQuestion option is load-bearing — user
 
 ### When `(Recommended)` MUST NOT be applied
 
-- **Override-of-prior-finding rule.** When the orchestrator's AUQ option contradicts, downgrades, or proposes-to-ignore a prior `/review` CRITICAL or HIGH finding — read from `<task-dir>/planning/*/review-feedback.md` или `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` (M6 §15.1 M1-T2 canonical) — that option MUST NOT carry `(Recommended)`. The conservative path (verify the orchestrator's interpretation first; spawn skeptic to mirror-check; escalate to `/geniro:debug`) is the Recommended default instead. The orchestrator's interpretation of "this CRITICAL is stale / no-op / unused" is, by definition, an unverified claim until the skeptic mirror-check or an empirical re-run confirms it.
+- **Override-of-prior-finding rule.** When the orchestrator's AUQ option contradicts, downgrades, or proposes-to-ignore a prior `/review` CRITICAL or HIGH finding — read from `<task-dir>/planning/*/review-feedback.md` or `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` — that option MUST NOT carry `(Recommended)`. The conservative path (verify the orchestrator's interpretation first; spawn skeptic to mirror-check; escalate to `/geniro:debug`) is the Recommended default instead. The orchestrator's interpretation of "this CRITICAL is stale / no-op / unused" is, by definition, an unverified claim until the skeptic mirror-check or an empirical re-run confirms it.
 - **Orchestrator-authored-hypothesis rule.** When the orchestrator wrote BOTH the hypothesis AND the option set (i.e. the user did not propose the change in `$ARGUMENTS`; the orchestrator decided mid-pipeline that the change-shape should shift — e.g. "I'll downgrade this CRITICAL to a comment-only cleanup"), the orchestrator's preferred option MUST NOT carry `(Recommended)`. The Recommended default is whichever option keeps the original change shape intact, or "Stop and let me describe the change" if no original shape applies.
-- **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option MUST NOT carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:debug` adversarial mode — M7 §9.6 adversarial-tester-agent authors an attempted-removal RED test verifying the guard's necessity) OR "Keep the guard for now".
+- **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option MUST NOT carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:debug` adversarial mode — .6 adversarial-tester-agent authors an attempted-removal RED test verifying the guard's necessity) OR "Keep the guard for now".
 
 ### Pre-selection is the lever
 

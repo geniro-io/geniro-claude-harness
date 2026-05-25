@@ -1,6 +1,6 @@
 # Scope Anchor
 
-Canonical rule for what a skill operates on when the user does not explicitly name a target. Referenced from `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement`, `/geniro:onboard`, и `/geniro:investigate`. Define the rule here once; do not paste it into the calling skills.
+Canonical rule for what a skill operates on when the user does not explicitly name a target. Referenced from `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement`, `/geniro:onboard`, and `/geniro:investigate`. Define the rule here once; do not paste it into the calling skills.
 
 ## The rule
 
@@ -11,12 +11,12 @@ Concretely, when no target is supplied in `$ARGUMENTS`:
 1. Use `git rev-parse --show-toplevel` to anchor to the current worktree's root.
 2. Use `git branch --show-current` to anchor to the currently checked-out branch. Returns empty in detached-HEAD state — fall through to `git rev-parse HEAD` (commit SHA) as the equality anchor when this happens. Spawn-anchor slots and verify-instructions follow the same fallback.
 3. Targetable artifacts in priority order:
-   - **Working tree (highest priority):** unstaged + staged changes (`git status --short`, `git diff`, `git diff --cached`).
-   - **Branch diff (only if working tree is clean):** diff of the current branch against its **base branch** — `git diff <base>...HEAD`. The base branch is resolved as follows, in order:
-     - (a) if the invocation supplies an explicit PR ref, the base is `gh pr view <ref> --json baseRefName`'s `baseRefName` (the actual base of that PR, which is NOT necessarily `main`);
-     - (b) otherwise, the base is the remote's default branch via `git symbolic-ref --short refs/remotes/origin/HEAD` (typically `origin/main` or `origin/master` — whichever the remote actually points HEAD at);
-     - (c) if no remote or `origin/HEAD` is unset, fall back to whichever of local `main` / `master` exists.
-   - **No-op (if the branch is even with the base):** there is nothing to review — report "no changes to review against <base>" and stop. Do NOT widen the search to other branches or PRs to invent something to operate on.
+ - **Working tree (highest priority):** unstaged + staged changes (`git status --short`, `git diff`, `git diff --cached`).
+ - **Branch diff (only if working tree is clean):** diff of the current branch against its **base branch** — `git diff <base>...HEAD`. The base branch is resolved as follows, in order:
+ - (a) if the invocation supplies an explicit PR ref, the base is `gh pr view <ref> --json baseRefName`'s `baseRefName` (the actual base of that PR, which is NOT necessarily `main`);
+ - (b) otherwise, the base is the remote's default branch via `git symbolic-ref --short refs/remotes/origin/HEAD` (typically `origin/main` or `origin/master` — whichever the remote actually points HEAD at);
+ - (c) if no remote or `origin/HEAD` is unset, fall back to whichever of local `main` / `master` exists.
+ - **No-op (if the branch is even with the base):** there is nothing to review — report "no changes to review against <base>" and stop. Do NOT widen the search to other branches or PRs to invent something to operate on.
 4. The user's `pwd` at skill invocation is authoritative — even if a sibling worktree exists, do NOT switch to it.
 
 ## Subagent spawn anchor
