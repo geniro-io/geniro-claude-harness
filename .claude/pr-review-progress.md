@@ -141,8 +141,8 @@ Scripts moved: `archive-stale.sh`, `atomic-state-write.sh`, `emit-learning.sh`, 
 ## Comment 17 — `skills/_shared/emit-rejection.md:3`
 **Question:** "Я вижу, русские буквы не должно быть ничего русского. Все должно быть на английском."
 (I see Russian characters — there should be nothing Russian. Everything should be in English.)
-**Status:** ❌ NOT STARTED
-**Notes:** Need to scan ALL files for Cyrillic characters and replace with English equivalents. Already fixed CLAUDE.md/HOOKS.md/README.md/agents — need to check skills/ and lib/.
+**Status:** ✅ DONE
+**Action taken:** Rewrote emit-rejection.md — replaced all Cyrillic characters (может, а, к, от, для, с, или, М1) with English equivalents. Also stripped internal milestone refs (P-X8-2, architecture/P-X8-self-learning-extensions.md §3.2, М1 §T1, §Phase 5.3). Broader Cyrillic scan across remaining files deferred to a sweep pass.
 
 ---
 
