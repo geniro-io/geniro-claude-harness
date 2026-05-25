@@ -6,6 +6,28 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ---
 
+## v2.6.0
+
+Strip Geniro plugin doctrine from project `CLAUDE.md`. Project CLAUDE.md is meant to hold only project-specific content (stack / commands / conventions / domain). Plugin doctrine (skill tables, hook summaries, memory-layer descriptions, path rules, MCP-dependency tables) is loaded automatically by the plugin and should never live in a project's CLAUDE.md.
+
+### `CLAUDE.md` should not contain plugin doctrine
+
+Pre-v2.4 setup runs sometimes emitted plugin content into project CLAUDE.md; users also copy-paste sections from the plugin's own CLAUDE.md by accident. The strip helper at `lib/strip-geniro-tags.sh` removes any H2 section whose heading matches the plugin-doctrine list OR whose body contains high-precision plugin markers (`${CLAUDE_PLUGIN_ROOT}`, `geniro-claude-plugin`, `geniro-claude-harness`), plus the `# Geniro Plugin` H1 if present. User-authored prose that mentions `/geniro:*` slash commands in passing is preserved — strip is heading-/marker-anchored, not free-text matching.
+
+**Action required:** None — auto-runs on `/geniro:setup` re-run migration sweep. Manual dry-run preview: `bash "${CLAUDE_PLUGIN_ROOT}/lib/strip-geniro-tags.sh" --dry-run`.
+
+**Auto-detect:** `grep -qE '^# Geniro Plugin$|^## (Available Skills|Memory Layers|Memory Layers \(M2\)|Custom Agent Invocation|Safety Hooks|Safety Hooks \(Active\)|Optional MCP Dependencies|State Files|Path Rules)$|\$\{CLAUDE_PLUGIN_ROOT\}|geniro-claude-plugin|geniro-claude-harness' CLAUDE.md 2>/dev/null && echo affected`
+
+**Auto-fix:**
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/strip-geniro-tags.sh" 2>/dev/null || true
+```
+
+**Severity:** MEDIUM — plugin doctrine in project CLAUDE.md is duplicate (loaded from plugin anyway), confuses readers about what's project-specific, and drifts out of sync with the plugin on every plugin update. Stripping leaves CLAUDE.md as a thin project map per the v2.4 DoD.
+
+---
+
 ## v2.5.0
 
 L2 schema auto-migration for legacy `learnings.jsonl` entries that predate the M2 canonical schema (or were hand-rolled with non-standard fields).
