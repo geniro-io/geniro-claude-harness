@@ -1,6 +1,6 @@
 ---
 name: geniro:setup
-description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, interviews you about preferences, generates a thin-map CLAUDE.md +.geniro/instructions/user-preferences.md, and validates the result. Singleton bootstrap — one canonical state file."
+description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, interviews you about preferences, generates a thin-map CLAUDE.md + .geniro/instructions/user-preferences.md, and validates the result. Re-run mode also runs a migration sweep — auto-fixes breaking changes from MIGRATION.md (renames L3 files, adds missing frontmatter, cleans orphan state). Singleton bootstrap — one canonical state file."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
@@ -288,6 +288,21 @@ Transition to Phase 3.
 
 ## Phase 3: Generate
 
+### 3.0 Migration sweep (re-run only)
+
+If `mode == re-run`, run a migration sweep before generating content. This ensures the `.geniro/` directory structure is current before CLAUDE.md and instructions are regenerated.
+
+1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries under the latest `## v<X.Y.Z>` section.
+2. For each entry with an `Auto-detect:` field, run the shell command. Capture output.
+3. If output non-empty (user IS affected):
+   - If entry has an `Auto-fix:` field (not `manual-only`): run the auto-fix commands silently. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
+   - If entry is `manual-only`: log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
+4. After sweep, re-run all `Auto-detect:` commands to verify. Any still-affected entries are logged to `## Open Questions`.
+
+**No AUQ during migration sweep.** Setup re-run is already user-initiated — the user expects the plugin to bring their project up to date. Auto-fix commands are maintainer-written and tested (same commands `/update` surfaces with "Fix it for me"). Manual-only entries are either handled by Phase 3 regeneration (CLAUDE.md refresh) or surfaced in the final report.
+
+**Init mode skips this step entirely** — fresh installs write the current schema directly.
+
 ### 3.1 Pre-write existing-content audit (re-run only)
 
 If `mode == re-run`:
@@ -515,7 +530,7 @@ Next:
 • Or browse skills: /geniro:investigate "what does /geniro:debug do?"
 ```
 
-(re-run mode adds a section "Changed since last setup: …" with the section-level diff summary.)
+(re-run mode prepends a "Migration sweep" section listing applied auto-fixes and any manual-only items requiring user action, then a "Changed since last setup" section with the section-level diff summary.)
 
 ### 5.2 State file cleanup
 
@@ -665,7 +680,7 @@ validate_rounds: 1
 - [ ] Phase 0: Template source located (plugin root or explicit path)
 - [ ] Phase 1: Mode detected (init/re-run); codebase analyzed; project documentation scanned; skill inventory captured (11 skills, no dropped refs); L2 prior queries surfaced
 - [ ] Phase 2: User interviewed via approvals[]-aware AUQ batches; preferences captured
-- [ ] Phase 3: CLAUDE.md generated (thin map); user-preferences.md written;.geniro/docs/*.md spun out per AUQ;.gitignore updated; statusline installed
+- [ ] Phase 3: Migration sweep (re-run only) applied auto-fixes for breaking changes; CLAUDE.md generated (thin map); user-preferences.md written;.geniro/docs/*.md spun out per AUQ;.gitignore updated; statusline installed
 - [ ] Phase 4: Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4); L2 `discovery` emit fired
 - [ ] Phase 5: Final report printed; state file deleted on success path (kept on `accept-with-warnings` or `failed`)
 - [ ] Generated CLAUDE.md skill table lists exactly 11 skills; no references to /brainstorm /decompose /follow-up /deep-simplify /features /learnings /cleanup /vendor
