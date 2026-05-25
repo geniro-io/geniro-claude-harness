@@ -4,7 +4,7 @@ Canonical complexity rubric for routing tasks to the correct pipeline depth.
 
 Match planning depth to task complexity. **File count is a smell detector, not a complexity detector.** A 2-file migration + API contract change is Big. A 10-file rename propagation is Small.
 
-Tiers: **Trivial / Small / Medium / Big**. Big-tier classification at /plan time triggers milestone-mode output (M5 emits per-milestone spec files); /implement (M4) consumes each milestone spec exactly like а single-spec input.
+Tiers: **Trivial / Small / Medium / Big**. Big-tier classification at /plan time triggers milestone-mode output (emits per-milestone spec files); /implement consumes each milestone spec exactly like a single-spec input.
 
 ## Step 1: Check for Hard Escalation Signals
 
@@ -46,7 +46,7 @@ If no hard signals, score these dimensions:
 
 | Size | Planning Depth |
 |------|----------------|
-| **Trivial** | `/plan` (M5) emits а minimal Goal + Approach + Steps spec; `/implement` (M4) consumes it as ordinary spec input. `/refactor` (M8 §6.3 Step 3): skip smell detection + smell evidence + independent reviewer + custom reviewers — orchestrator authors plan directly от scope-files. No Lane-mode branching exists в M4 — the runtime is constant. |
-| **Small** | Lightweight spec: Goal + Approach + Steps (no wave grouping, no test scenarios table). `/plan` may skip skeptic-validation at this tier. `/refactor` (M8 §6.3 Step 3): full smell-detection in Phase 1 BUT skip smell evidence + independent reviewer + custom reviewers. |
-| **Medium** | Standard spec: full structure from `plan-criteria.md`. `/plan` runs architect + skeptic. `/refactor` (M8 §6.3 Step 3): full pipeline — orchestrator-inline smell detection (§1.4) + orchestrator-inline smell evidence (§1.5) + reviewer-agent + custom reviewers. |
-| **Big** | Full architect + skeptic spec at /plan time. If score 9+ or >15 steps → /plan switches into milestone-output mode (emits per-milestone spec files); `/implement` consumes each milestone spec individually. `/refactor` (M8 §6.3 Step 3): recommend running `/geniro:plan` first к split the refactor into independently shippable milestones; refactor then runs one milestone at а time against an approved spec.md. If user proceeds без а plan, Big runs the Medium pipeline (с accepted risk). |
+| **Trivial** | `/plan` emits a minimal Goal + Approach + Steps spec; `/implement` consumes it as ordinary spec input. `/refactor`: skip smell detection + smell evidence + independent reviewer + custom reviewers — orchestrator authors plan directly from scope-files. |
+| **Small** | Lightweight spec: Goal + Approach + Steps (no wave grouping, no test scenarios table). `/plan` may skip skeptic-validation at this tier. `/refactor`: full smell-detection in Phase 1 BUT skip smell evidence + independent reviewer + custom reviewers. |
+| **Medium** | Standard spec: full structure from `plan-criteria.md`. `/plan` runs architect + skeptic. `/refactor`: full pipeline — orchestrator-inline smell detection + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
+| **Big** | Full architect + skeptic spec at /plan time. If score 9+ or >15 steps → /plan switches into milestone-output mode (emits per-milestone spec files); `/implement` consumes each milestone spec individually. `/refactor`: recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user proceeds without a plan, Big runs the Medium pipeline (with accepted risk). |

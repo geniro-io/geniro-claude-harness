@@ -133,8 +133,8 @@ Scripts moved: `archive-stale.sh`, `atomic-state-write.sh`, `emit-learning.sh`, 
 ## Comment 16 — `skills/_shared/effort-scaling.md:3`
 **Question:** "У нас разве всё ещё остался рефактор skill? Посмотреть"
 (Do we still have the refactor skill? Check.)
-**Status:** ❌ NOT STARTED
-**Notes:** Yes, /refactor still exists as one of the 11 skills. Need to read the file and verify it's correctly referencing current skills.
+**Status:** ✅ DONE
+**Action taken:** /refactor confirmed as active (1 of 11 skills). File was in active use (14 references). Stripped internal milestone refs (M4, M5, M8, §6.3, §1.4, §1.5) and Cyrillic characters (а, от, к, с, без) — same cleanup as Comment 15 but this file was missed.
 
 ---
 
