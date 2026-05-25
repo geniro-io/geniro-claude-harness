@@ -192,8 +192,8 @@ Remaining 36 files all have 2+ real consumers or are API docs for lib/ scripts.
 
 ## Comment 23 — `skills/_shared/spawn-agent.md:1`
 **Question:** "We already have some shared instructions related to agent spawning. Check."
-**Status:** ❌ NOT STARTED
-**Notes:** Check for duplicate agent-spawn-related files in _shared/.
+**Status:** ✅ DONE — kept as-is
+**Finding:** 4 agent-spawn-related files, each covers a distinct concern: spawn-agent.md (registration fallback, 14 refs), context-isolation-checklist.md (6-field prompt template, 9 refs), model-tiering.md (opus/sonnet/haiku selection, 8 refs), load-custom-reviewers.md (user-defined review dims, 6 refs). No duplicates, all well-referenced.
 
 ---
 
