@@ -6,6 +6,30 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ---
 
+## v2.5.0
+
+L2 schema auto-migration for legacy `learnings.jsonl` entries that predate the M2 canonical schema (or were hand-rolled with non-standard fields).
+
+### `learnings.jsonl` legacy-entry schema migration
+
+Pre-M2 / hand-rolled L2 entries missing any of `producer` / `scope` / `summary` / `tags` are filter-invisible to every L2 reader (`query-learnings`, `archive-stale`, SessionStart auto-archive). The migration helper at `skills/_shared/migrate-learnings.sh` rewrites them in-place to the canonical schema via atomic tmp+rename. Legacy fields (`id`, `category`, `title`, original `type`) are preserved on the entry per M2 §5.1 open-schema. `summary` synthesized from legacy `.title` is sanitized through `redact_secrets` so secrets don't promote from the previously-invisible `.title` to the now-visible canonical field. Idempotent: re-runs are a cheap no-op once all entries are canonical.
+
+**Action required:** None — auto-runs on `/geniro:setup` re-run migration sweep. Opt-out via `.geniro/safety.json` `memory.auto_migrate_learnings: false`. Manual dry-run preview: `bash "${CLAUDE_PLUGIN_ROOT}/lib/migrate-learnings.sh" --dry-run`.
+
+**Auto-detect:** `jq -Rc 'fromjson? | select(.producer == null or .scope == null or .summary == null or (.tags | type) != "array")' .geniro/knowledge/learnings.jsonl 2>/dev/null | head -1`
+
+**Auto-fix:**
+
+```bash
+if [ ! -f .geniro/safety.json ] || ! jq -e '.memory.auto_migrate_learnings == false' .geniro/safety.json >/dev/null 2>&1; then
+  bash "${CLAUDE_PLUGIN_ROOT}/lib/migrate-learnings.sh" 2>/dev/null || true
+fi
+```
+
+**Severity:** MEDIUM — affected entries are filter-invisible (not file-invisible) to L2 readers; user knowledge captured pre-M2 is silently dropped from queries until migrated. Lossless migration restores their visibility.
+
+---
+
 ## v2.4.0
 
 Cleanup of orphan files and directories that survived prior migrations. These paths are not read by any current skill — purely inert. Also removes the deprecated `user-preferences.md` instruction file.

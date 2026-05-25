@@ -104,6 +104,10 @@ jq -nc \
  }' | emit_learning
 ```
 
+## Migrating legacy entries
+
+`learnings.jsonl` files predating M2 (or hand-rolled with non-canonical fields like `{id, category, title, type}`) lack the required `{producer, scope, summary, tags}` tuple and are filter-invisible to `query-learnings`. `/geniro:setup` re-run auto-migrates them via the MIGRATION.md sweep, which invokes `lib/migrate-learnings.sh` (in-place, atomic, lossless — legacy fields preserved per M2 §5.1 open-schema). See `migrate-learnings.md` for synthesis rules and API contract.
+
 ## Known limitations
 
 - **Dedup window is 200 lines.** Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/debug` session, a few per `/implement` run) the 200-line window covers weeks; if it becomes too short, callers can pre-query `learnings.jsonl` via `query-learnings` (next helper) and pass `supersedes` explicitly.
