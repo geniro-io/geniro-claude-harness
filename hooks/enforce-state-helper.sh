@@ -17,7 +17,7 @@
 #
 # Pattern ID: enforce-state-helper
 #
-# Design rationale: architecture/M1-state-files.md §PreToolUse hook
+# Design rationale: ARCHITECTURE.md §State Files
 
 set -euo pipefail
 

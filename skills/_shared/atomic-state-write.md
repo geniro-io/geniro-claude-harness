@@ -4,7 +4,7 @@
 
 - **Library:** `lib/atomic-state-write.sh`
 - **Schema reference:** `skills/_shared/state-tier-spec.md`
-- **Design rationale:** `architecture/M1-state-files.md` §Atomic write helper
+- **Design rationale:** `ARCHITECTURE.md` §State Files
 - **Validator:** `skills/_shared/validate-state-file.md`
 
 ---

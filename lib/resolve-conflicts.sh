@@ -2,7 +2,7 @@
 # Cross-layer conflict formatting helper.
 #
 # Spec: skills/_shared/resolve-conflicts.md
-# Protocol: architecture/M2-memory-layers.md §10
+# Protocol: ARCHITECTURE.md §Memory Layers
 #
 # This helper does NOT detect conflicts — detection is semantic and lives in
 # the consuming skill (which can use LLM judgment over the loaded L4/L3/L2

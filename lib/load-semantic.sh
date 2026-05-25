@@ -2,7 +2,7 @@
 # L3 semantic-memory read helper + fingerprint drift detection.
 #
 # Spec: skills/_shared/load-semantic.md
-# L3 layout & cadence: architecture/M2-memory-layers.md §6
+# L3 layout & cadence: ARCHITECTURE.md §Memory Layers
 #
 # API:
 #   load_semantic [--extras "name1 name2 ..."] [--quiet]

@@ -2,8 +2,8 @@
 # L2 episodic-memory write helper.
 #
 # Spec: skills/_shared/emit-learning.md
-# Schema: architecture/M2-memory-layers.md §5.1
-# Lifecycle: architecture/M2-memory-layers.md §5.2
+# Schema: ARCHITECTURE.md §Memory Layers
+# Lifecycle: ARCHITECTURE.md §Memory Layers
 #
 # API:
 #   echo '<json-object>' | emit_learning

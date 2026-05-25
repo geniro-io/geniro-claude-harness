@@ -4,7 +4,7 @@
 
 - **Library:** `lib/validate-state-file.sh`
 - **Schema reference:** `skills/_shared/state-tier-spec.md`
-- **Design rationale:** `architecture/M1-state-files.md` §Validation helper
+- **Design rationale:** `ARCHITECTURE.md` §State Files
 - **Write helper:** `skills/_shared/atomic-state-write.md`
 
 ---

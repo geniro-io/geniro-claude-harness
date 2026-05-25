@@ -1,6 +1,6 @@
 ---
 name: improve-template
-description: "Use when modifying the geniro-claude-plugin itself — fix a Geniro skill, agent, hook, or report.md. Researches via parallel agents (codebase + report.md + internet), presents evidence, implements after approval. Skip for general codebase Q&A (/geniro:investigate) or app-code bugs (/geniro:debug)."
+description: "Use when modifying the geniro-claude-plugin itself — fix a Geniro skill, agent, hook, or ARCHITECTURE.md. Researches via parallel agents (codebase + ARCHITECTURE.md + internet), presents evidence, implements after approval. Skip for general codebase Q&A (/geniro:investigate) or app-code bugs (/geniro:debug)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, WebFetch]
@@ -12,7 +12,7 @@ argument-hint: "<issue description or area to improve>"
 You are the orchestrator for investigating and fixing issues in the geniro-claude-plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You NEVER implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
 **Template path:** (repo root — skills/, agents/, hooks/)
-**Report path:** `report.md` (354KB best-practices guide based on 14 production frameworks)
+**Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
 
 ## Subagent Model Tiering
 
@@ -22,7 +22,7 @@ Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering
 
 | Spawn | Tier | Why |
 |---|---|---|
-| Phase 1 research agents (codebase / report.md / internet) | `opus` (passed explicitly) | Reasoning-grade research, but general-purpose — not a carve-out subagent |
+| Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | `opus` (passed explicitly) | Reasoning-grade research, but general-purpose — not a carve-out subagent |
 | Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits orchestrator's main context cleanly per subagent rationalization |
 | Phase 4 implementation agents | `opus` (passed explicitly) | General-purpose — not a carve-out subagent |
 | Phase 5 review agent | `opus` (passed explicitly) | General-purpose fresh reviewer — not a carve-out subagent |
@@ -66,14 +66,14 @@ Classify the request — this picks both the pipeline depth AND which research s
 | Request type | Signals | Pipeline | Default research sources |
 |---|---|---|---|
 | **Obvious bug fix** | Screenshot/error shown; broken file & fix obvious (regex false positive, wrong path, typo, broken cross-reference) | **Phase 1-fast** | Codebase only — or 0 agents if fix is 1-2 lines and unambiguous |
-| **Targeted improvement** | Specific skill/agent/hook named; clear scope; user cites the file or behavior | Full pipeline | Codebase always; Report.md / Internet conditional on triggers below |
-| **Open-ended investigation** | "Make X better"; broad area; vague target; no specifics | Full pipeline | All three (codebase + report.md + internet) |
+| **Targeted improvement** | Specific skill/agent/hook named; clear scope; user cites the file or behavior | Full pipeline | Codebase always; ARCHITECTURE.md / Internet conditional on triggers below |
+| **Open-ended investigation** | "Make X better"; broad area; vague target; no specifics | Full pipeline | All three (codebase + ARCHITECTURE.md + internet) |
 
 ### Research Selection Matrix
 
 **Codebase research** — always runs in the full pipeline. Reading current template state is mandatory.
 
-**Report.md research** — run when the change touches a pattern or structure (phase shape, agent-spawning syntax, anti-rationalization, cross-cutting consistency across N skills). Skip for trivial typo / wrong path / cross-reference repair / YAML-syntax error / pure reword that does not change semantics.
+**ARCHITECTURE.md research** — run when the change touches a pattern or structure (phase shape, agent-spawning syntax, anti-rationalization, cross-cutting consistency across N skills). Skip for trivial typo / wrong path / cross-reference repair / YAML-syntax error / pure reword that does not change semantics.
 
 **Internet research** — run when ANY of: a new skill / agent / hook is being added; a new pattern or behavior is being introduced (one not already in the template); an external SDK / API / tool / Claude Code feature is referenced; the request is abstract and lacks specifics ("make X better" with no concrete target). Skip when the request is internal-only logic of our skills, a reword/clarify/rename/reorder of existing instructions, or a bug fix the user has already located.
 
@@ -94,7 +94,7 @@ For obvious bug fixes. The user already showed what's broken.
 
 ## PHASE 1: INVESTIGATE (parallel research)
 
-**Purpose:** Gather evidence from the research sources the Matrix selected — up to three independent sources (codebase / report.md / internet).
+**Purpose:** Gather evidence from the research sources the Matrix selected — up to three independent sources (codebase / ARCHITECTURE.md / internet).
 
 **Input:** User describes an issue, shows a screenshot, or names an area to improve.
 
@@ -131,8 +131,8 @@ Return findings as a structured table. Do NOT suggest implementation — researc
 """, description="Research: internet patterns")
 
 Agent(model="opus", prompt="""
-## Task: Report.md Research
-Read `report.md` and search for sections relevant to:
+## Task: ARCHITECTURE.md Research
+Read `ARCHITECTURE.md` and search for sections relevant to:
 {{issue description from Step 1}}
 
 This is a 354KB best-practices guide covering 14 production frameworks.
@@ -143,13 +143,13 @@ Search strategy:
 4. Extract specific recommendations, patterns, and anti-patterns
 
 For each finding, provide:
-- Section name and line range in report.md
+- Section name and line range in ARCHITECTURE.md
 - The specific recommendation or pattern
 - How it applies to our issue
 - Whether our template already follows it or not
 
 Return findings as a structured table. Do NOT suggest implementation — research only.
-""", description="Research: report.md patterns")
+""", description="Research: ARCHITECTURE.md patterns")
 
 Agent(model="opus", prompt="""
 ## Task: Codebase Exploration
@@ -200,7 +200,7 @@ For each finding, assess yourself:
 
 **Evidence quality:**
 - **Strong:** documented in official Claude Code docs, proven in production framework, or demonstrated by screenshot/error
-- **Moderate:** pattern used by 2+ frameworks in report.md, or logical extension of documented behavior
+- **Moderate:** pattern used by 2+ frameworks in ARCHITECTURE.md, or logical extension of documented behavior
 - **Weak:** single blog post, theoretical benefit, "should work" reasoning
 - **Rejected:** no evidence, contradicts known limitations, or speculative
 

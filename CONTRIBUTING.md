@@ -34,7 +34,7 @@ We especially welcome:
 - **Keep it universal** — agents, skills, and hooks should work across languages and frameworks. Project-specific content belongs in the generated output, not the template
 - **Test with real projects** — install the template, run `/setup`, and verify the generated output makes sense
 - **Follow existing patterns** — look at how existing agents/skills are structured before creating new ones
-- **Update report.md** — if your change is based on research or framework analysis, document the rationale
+- **Update ARCHITECTURE.md** — if your change affects design decisions, update the consolidated architecture reference
 
 ### Code Style
 

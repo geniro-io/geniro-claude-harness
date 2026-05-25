@@ -1,6 +1,6 @@
 # MEDIUM Inclusion Gate
 
-Canonical AskUserQuestion gate that fires at the top of any code-review fix loop when MEDIUM-severity findings exist. Replaces the older "Drop Medium" / "Skip MEDIUM" policy — auto-dropping MEDIUMs treats real bugs as advisory (the Metaswarm anti-pattern catalogued in `report.md` line 737) and contradicts the recommended pipeline pattern at `report.md` line 1041 ("APPROVED WITH MINOR → fix MEDIUM+ findings only, then proceed").
+Canonical AskUserQuestion gate that fires at the top of any code-review fix loop when MEDIUM-severity findings exist. Replaces the older "Drop Medium" / "Skip MEDIUM" policy — auto-dropping MEDIUMs treats real bugs as advisory. See `ARCHITECTURE.md` §Operational Rules.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the gate logic.
 

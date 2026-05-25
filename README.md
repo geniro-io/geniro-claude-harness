@@ -51,6 +51,10 @@ Add to your repo's `.claude/settings.json` so teammates get prompted to install:
 
 From there, pick the right skill for each task: `/geniro:debug` to investigate bugs (authors a fix proposal + reproduction test, escalates to `/geniro:implement` to ship), `/geniro:refactor` for zero-behavior-change restructuring, `/geniro:investigate` for codebase Q&A.
 
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for all design decisions — state tiers, memory layers, per-skill rulings, and operational rules.
+
 ## How it works
 
 The plugin itself ships globally — agents, skills, and hooks live inside the installed plugin and never pollute your repo. The only thing written into your project is a single `.geniro/` directory that acts as the working memory across sessions:
@@ -279,7 +283,7 @@ geniro-claude-plugin/
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer
 │   └── *.sh                     # Safety hook scripts
-├── architecture/                # internal design specs
+├── ARCHITECTURE.md              # Consolidated design decisions (state/memory/skills)
 ├── CLAUDE.md                    # Plugin instructions (auto-loaded)
 └── MIGRATION.md                 # Per-release breaking-change notes (consumed by /update)
 ```

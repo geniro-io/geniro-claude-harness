@@ -3,7 +3,7 @@
 #
 # Spec: skills/_shared/validate-state-file.md
 # Tier schema: skills/_shared/state-tier-spec.md
-# Design rationale: architecture/M1-state-files.md §Validation helper
+# Design rationale: ARCHITECTURE.md §State Files
 #
 # API: validate_state_file <target-path>
 #   Returns 0 on success.
