@@ -486,7 +486,20 @@ Next:
 
 (re-run mode prepends a "Migration sweep" section listing applied auto-fixes and any manual-only items requiring user action, then a "Changed since last setup" section with the section-level diff summary.)
 
-### 5.2 State file cleanup
+### 5.2 Onboard AUQ
+
+After printing the final report, ask the user if they want to map the codebase:
+
+Use `AskUserQuestion` (header: `"Onboard"`):
+
+- **Label:** `"Map codebase now (Recommended)"` / **Description:** `"Run /geniro:onboard to scan the codebase and produce _CODEBASE_MAP.md — gives all skills structural awareness of your project."`
+- **Label:** `"Skip — I'll do it later"` / **Description:** `"You can run /geniro:onboard any time."`
+
+On "Map codebase now" → print `Running /geniro:onboard...` and invoke the onboard skill inline (same session, no restart needed). On "Skip" → proceed to state file cleanup.
+
+**Skip this AUQ in re-run mode** — the user already has a codebase map from a prior `/onboard` run (or chose to skip it). Re-run is for refreshing CLAUDE.md and running migrations, not re-onboarding.
+
+### 5.3 State file cleanup
 
 Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`:
 
