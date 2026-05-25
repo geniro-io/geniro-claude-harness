@@ -160,7 +160,7 @@ Exits to Phase 2 only when: (a) baseline validation green, (b) tier classified, 
 
 On Phase 1 entry, in order:
 
-1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style + user-preferences — pipeline tier, 4 files)` per Echo contract.
+1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.
 2. **L3 refresh** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.
 3. **L2 prior-knowledge query** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per To find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per
@@ -294,7 +294,7 @@ state.md `phase: apply`. Refactor-agent executes the approved plan, one step at 
 
 ### 2.1 L4 refresh entry
 
-On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style + user-preferences — pipeline tier, 4 files)` call. Phase 3 inherits the Phase 2 refresh (no code-writing in Phase 3).
+On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` call. Phase 3 inherits the Phase 2 refresh (no code-writing in Phase 3).
 
 ### 2.2 Per-step execution (orchestrator-inline)
 

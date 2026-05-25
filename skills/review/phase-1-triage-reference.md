@@ -166,7 +166,7 @@ Do NOT use `EnterWorktree(name:...)` — that path auto-creates with `worktree-`
 
 ## 6. Step 0 — Load custom instructions (L4)
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `review.md`, `code-style.md`, and `user-preferences.md` (4 files, pipeline tier); its §Echo contract requires one observable line per file. Both are mandatory.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `review.md`, and `code-style.md` (3 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
 
 ---
 
@@ -215,7 +215,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 | Helper | Inputs | Outputs |
 |---|---|---|
-| `load-custom-instructions` MODE: refresh | scope = `review` + `global` + `code-style` + `user-preferences` | concatenated rule body |
+| `load-custom-instructions` MODE: refresh | scope = `review` + `global` + `code-style` (3 files) | concatenated rule body |
 | `load-semantic` MODE: refresh | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + fingerprint drift check |
 | `query-learnings` | tags inferred from changed-file paths | top-K matching L2 entries (default K=5; filter superseded/deprecated) |
 | `resolve-conflicts` | transitive | hard conflict → AUQ |

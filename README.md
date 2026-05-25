@@ -28,7 +28,7 @@ Add to your repo's `.claude/settings.json` so teammates get prompted to install:
 ## Quick Start
 
 1. **Install** the plugin (see above) and open Claude Code in your project.
-2. **Run setup** — analyzes your stack and generates a tailored thin-map `CLAUDE.md` + `.geniro/instructions/user-preferences.md`:
+2. **Run setup** — analyzes your stack and generates a tailored thin-map `CLAUDE.md`:
    ```
    /geniro:setup
    ```
@@ -64,7 +64,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 │   ├── setup/state.md      # /setup singleton
 │   └── handoff/            # inter-skill: from-<producer>-<branch>.md
 ├── knowledge/              # learnings.jsonl (L2 episodic) + session summaries
-├── instructions/           # L4 procedural: global.md, code-style.md, user-preferences.md,
+├── instructions/           # L4 procedural: global.md, code-style.md,
 │                           # per-skill.md, review-extra/<slug>.md
 ├── actions/                # T3 user-authored workflow helpers (Slack/PR/release)
 ├── docs/                   # spin-out targets (hooks.md, mcp.md, agent-runtime.md)
@@ -93,14 +93,14 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 - **Plan → implement** — `/geniro:plan` writes an approved `spec.md` to `.geniro/planning/<task-dir>/`; `/geniro:implement` consumes it (or accepts inline-task input as a fallback). For Big tasks, `/geniro:plan` Phase 5 milestone-mode emits sibling `milestone-N.md` files.
 - **Knowledge accumulates + auto-prunes** — every pipeline + discovery skill auto-emits L2 entries to `knowledge/learnings.jsonl`. Types: `discovery` / `pitfall` / `diagnosis` / `convention` / `decision`, plus `discarded_hypothesis` (/debug Phase 1 ELIMINATED hypotheses), `retry_failure_sequence` (/implement, /debug, /refactor when retry_count >= 2), `user_rejected_suggestion` (any skill, AUQ rejection signal). Future runs query before investigating; `query-learnings --score-min N` ranks by recency x trust x access. **Auto-archive on SessionStart** (default ON, opt-out via `safety.json memory.auto_archive_stale: false`): flips `deprecated: true` on entries matching `age > 180d AND score < 0.1 AND access_count == 0` — never deletes (audit trail). Hash-gated to skip unchanged runs; mkdir-locked for multi-tab safety.
-- **Rules persist** — `/geniro:instructions` manages `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + per-skill file + `code-style.md` + `user-preferences.md`, with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
+- **Rules persist** — `/geniro:instructions` manages `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + per-skill file + `code-style.md`, with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
 - **State survives compaction** — long pipelines checkpoint to T1 state files (`<task-dir>/state.md` or `state/<skill>/<slug>/state.md`); the SessionStart hook re-injects them after every `compact|resume|startup` event. Within-skill state files are slug-scoped per `skills/_shared/within-skill-state-handoff.md` so parallel sessions on different branches don't clobber each other.
 
 ## Skills (11 total)
 
 ### `/geniro:setup` — AI-driven project setup
 
-4-phase singleton bootstrap (Detect → Interview → Generate → Validate → Done). Scans codebase via lockfile/config presence; interviews you for preferences that can't be auto-detected; generates a **thin-map** CLAUDE.md + `.geniro/instructions/user-preferences.md` (L4). Phase 3 split methodology: sections >40 LOC default to spin out to `.geniro/docs/<topic>.md`. Phase 4 verification subagent + 3-retry escalation loop. L2 `discovery` emit on done.
+4-phase singleton bootstrap (Detect → Interview → Generate → Validate → Done). Scans codebase via lockfile/config presence; interviews you for preferences that can't be auto-detected; generates a **thin-map** CLAUDE.md. Phase 3 split methodology: sections >40 LOC default to spin out to `.geniro/docs/<topic>.md`. Phase 4 verification subagent + 3-retry escalation loop. L2 `discovery` emit on done.
 
 ```
 /geniro:setup
@@ -177,13 +177,12 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:instructions` — Custom instruction management
 
-3-phase stateless CRUD (parse → execute → done) over `.geniro/instructions/`. 5 operations: list / create / edit / validate / delete. 11-scope set: `global`, `code-style`, `user-preferences`, `review-extra/<slug>`, and per-skill (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`). `validate` mode: structural + reference + per-scope lint with CRITICAL/HIGH/MEDIUM/LOW severities; catches refs to dropped skills and outdated phase names.
+3-phase stateless CRUD (parse → execute → done) over `.geniro/instructions/`. 5 operations: list / create / edit / validate / delete. 10-scope set: `global`, `code-style`, `review-extra/<slug>`, and per-skill (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`). `validate` mode: structural + reference + per-scope lint with CRITICAL/HIGH/MEDIUM/LOW severities; catches refs to dropped skills and outdated phase names.
 
 ```
 /geniro:instructions list
 /geniro:instructions create implement
 /geniro:instructions create review-extra sql-bindings    # add a custom code-review dimension
-/geniro:instructions edit user-preferences
 /geniro:instructions validate
 /geniro:instructions delete debug
 ```

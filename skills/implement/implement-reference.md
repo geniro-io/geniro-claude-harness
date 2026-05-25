@@ -181,9 +181,9 @@ When both conditions hold, prompt the user via a STANDALONE `AskUserQuestion` wi
 
 Use `AskUserQuestion` (header: `"Ship mode"`):
 
-- **Label:** `"Just push (no PR)"` / **Description:** `"git push origin <branch>. No PR created. Done."`
+- **Label:** `"Open draft PR (Recommended)"` / **Description:** `"git push then gh pr create --draft. Safest default — lets you review before marking ready."`
 - **Label:** `"Open PR"` / **Description:** `"git push then gh pr create (ready-for-review). Appends task ID to PR title."`
-- **Label:** `"Open draft PR"` / **Description:** `"git push then gh pr create --draft. Cannot combine with --web — if browser-view requested, run gh pr view --web afterward."`
+- **Label:** `"Just push (no PR)"` / **Description:** `"git push origin <branch>. No PR created. Done."`
 
 The user can always type a custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back to ship-mode AUQ.

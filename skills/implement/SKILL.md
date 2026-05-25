@@ -162,7 +162,7 @@ Phase 2 makes no new helper calls. Phase 3 entry re-fires `load-custom-instructi
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh` (used at both Phase 1 entry and Phase 3 entry ). The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
 
 **Phase boundaries:**
-- Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style` + `user-preferences`. makes `refresh` the universal "re-Read and announce" pattern; procedure identical to initial-load (every Read fires) but the mode name signals compaction-survival intent.
+- Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style` (3 files). makes `refresh` the universal "re-Read and announce" pattern; procedure identical to initial-load (every Read fires) but the mode name signals compaction-survival intent.
 - Phase 3 entry — `MODE: refresh` ALWAYS — survives Phase 2 compaction without requiring an marker contract. Cost: 1 extra helper read.
 
 The Echo contract survives compaction via the SessionStart re-injection.
@@ -243,7 +243,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 ## PHASE 1: ANALYZE
 
-**Load L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, `code-style.md`, and `user-preferences.md` (4 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
+**Load L4 instructions (first action).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
 
 **Refresh L3 semantic snapshot.** `load_semantic` with default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification to user.
 

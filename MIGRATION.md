@@ -39,7 +39,7 @@ Adds `risk_class: low` to the frontmatter of each affected action. Users should 
 
 **Action required:** For each non-canonical instruction file acting as a custom reviewer, recreate via `/geniro:instructions create review-extra/<slug>` (interview copies the body + adds `slug` / `description` / `model` / `paths` / `severity-default` frontmatter), then `/geniro:instructions delete <old-scope>`.
 
-**Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|user-preferences|implement|plan|review|debug|refactor|onboard|investigate)\.md$'`
+**Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|implement|plan|review|debug|refactor|onboard|investigate)\.md$'`
 
 **Auto-fix:** manual-only — custom reviewer migration requires user judgment to set frontmatter fields (`description`, `model`, `paths`, `severity-default`). Run `/geniro:instructions create review-extra/<slug>` per file.
 
@@ -121,20 +121,6 @@ cd .geniro/planning && \
 
 ---
 
-### New L4 file `user-preferences.md`
-
-`user-preferences` was added as the 4th pipeline-tier loader file (alongside `global.md`, `<skill>.md`, `code-style.md`). Older installs lack it; pipeline skills emit one "No user-preferences.md found — skipping." line per Step 0 (harmless info).
-
-**Action required:** Run `/geniro:setup` re-run mode — Interview phase captures `default_branch` / `default_reviewer_set` / `ship_mode_default` / `communication_style` answers and writes them to `.geniro/instructions/user-preferences.md`. Alternative: `/geniro:instructions create user-preferences` for manual authoring.
-
-**Auto-detect:** `[ ! -f .geniro/instructions/user-preferences.md ] && echo affected`
-
-**Auto-fix:** manual-only — requires `/geniro:setup` re-run or `/geniro:instructions create user-preferences` to capture user preferences interactively.
-
-**Severity:** LOW — pipeline skills function without it (treated as "no preferences set"); creating it customizes default behavior.
-
----
-
 ### Legacy state-file paths superseded by T1/T2/T3
 
 `.geniro/state/` was reorganized per the 3-tier framework: T1 ephemeral session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry for backward-compat resume but writes to the T2 path.
@@ -204,6 +190,6 @@ rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent
 
 ## Notes on `/setup` re-run cleanup scope
 
-`/geniro:setup` re-run is **intentionally conservative**: it re-generates only `CLAUDE.md` (with conflict-resolution merge preserving user edits) and the 4 standard L4 instruction files (`global`, `code-style`, `user-preferences`, and the 7 per-skill files). User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/*` artifacts are **never** touched.
+`/geniro:setup` re-run is **intentionally conservative**: it re-generates only `CLAUDE.md` (with conflict-resolution merge preserving user edits) and the 3 standard L4 instruction files (`global`, `code-style`, and the 7 per-skill files). User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/*` artifacts are **never** touched.
 
 Orphan-file cleanup is therefore a **user decision surfaced by this MIGRATION.md** (or manual investigation) → user runs `/geniro:instructions delete <scope>` / `/geniro:actions delete <slug>` / shell `rm` per the per-entry guidance above. There is no "destructive sweep" mode in `/setup` by design — the cost of accidental deletion exceeds the value of automation.
