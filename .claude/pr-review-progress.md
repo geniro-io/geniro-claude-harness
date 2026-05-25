@@ -177,8 +177,8 @@ Remaining 36 files all have 2+ real consumers or are API docs for lib/ scripts.
 
 ## Comment 21 — `skills/_shared/plan-loop.md:1`
 **Question:** "We already have a plan-related MD file. Maybe we can merge some shared constructs?"
-**Status:** ❌ NOT STARTED
-**Notes:** Check for duplicate/overlapping plan-related files in _shared/.
+**Status:** ✅ DONE
+**Action taken:** Moved `plan-loop.md` (545 lines) from `skills/_shared/` to `skills/plan/` — 3 of its 4 consumers were already in plan/. Updated 1 external reference in design-doc-detect.md and all internal references to use `${CLAUDE_SKILL_DIR}/plan-loop.md`.
 
 ---
 

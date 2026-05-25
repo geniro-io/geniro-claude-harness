@@ -60,14 +60,14 @@ ANY-OF semantics: at least one marker survives any single user action that strip
 
 | Consumer | `DESIGN_DOC` | `IDEA` | `CODE_REFERENCE` |
 |---|---|---|---|
-| `/geniro:plan <topic>` | AUQ "Existing design doc at `<path>`. Start fresh with this as context / Cancel". On "Start fresh" → load doc into Phase 1 explore context (NOT as section template); run full 8-phase loop from Phase 1; emit a new spec.md at a fresh task-dir. On "Cancel" → exit without writing state.md. | Run full `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` from Phase 1. | Unsupported — error: "code reference passed to /plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?". |
+| `/geniro:plan <topic>` | AUQ "Existing design doc at `<path>`. Start fresh with this as context / Cancel". On "Start fresh" → load doc into Phase 1 explore context (NOT as section template); run full 8-phase loop from Phase 1; emit a new spec.md at a fresh task-dir. On "Cancel" → exit without writing state.md. | Run full `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` from Phase 1. | Unsupported — error: "code reference passed to /plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?". |
 | `/geniro:implement <arg>` | Phase 1 analyze treats the design doc as a spec source — walks the spec-discovery list and loads it as the authoritative spec.md OR plan.md alias. | Inline-task mode — treat as a raw spec description, write a brief `## Inline Plan` to state.md, proceed to Phase 2. | Existing behavior — treat as a code reference (Phase 1 reads it as context but not as the spec source). |
 
 AUQ shape conventions for any of the per-consumer prompts above follow the canonical pattern in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` (single-select unless explicitly multi-select; never auto-default on empty answer; fall back to plain text on empty-answer bug).
 
 ## Marker writers
 
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<task-slug>/spec.md` canonical + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer.
+`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<task-slug>/spec.md` canonical + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer.
 
 Other writers (manually authored design docs, docs imported from external sources, docs written by other Geniro skills that produce design content) **should write at least the YAML frontmatter** to maximize portability — frontmatter is the marker that survives copy-out-of-`.geniro/planning/` and HTML-stripping editors. Path and HTML markers are nice-to-have but not sufficient on their own across all user workflows.
 

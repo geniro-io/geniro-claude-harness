@@ -8,7 +8,7 @@ argument-hint: <topic-string-or-design-doc-path>
 
 # /geniro:plan — Spec-first planning
 
-Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 9-phase loop in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md`. It applies the loop verbatim.
+Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 9-phase loop in `${CLAUDE_SKILL_DIR}/plan-loop.md`. It applies the loop verbatim.
 
 **Spec source:** *(internal)*. Read this skill in context of the architecture spec — every decision and trade-off is documented there.
 
@@ -53,7 +53,7 @@ phase-8-escalated ──┬── user-approve (Approve as-is)
 
 **Terminal states:** `done`, `aborted`. the SessionStart treats both as «planning complete or cancelled — no resume needed».
 
-**Phase contracts** are defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md`:
+**Phase contracts** are defined in `${CLAUDE_SKILL_DIR}/plan-loop.md`:
 
 | Phase | Purpose | Plan-loop section |
 |---|---|---|
@@ -165,7 +165,7 @@ fi
 
 ## Memory I/O
 
-Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` for full call signatures.
+Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/plan-loop.md` for full call signatures.
 
 | Phase | Helper | Direction | Notes |
 |---|---|---|---|
@@ -214,7 +214,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Section approve / Phase 6 Write / Phase 7 Validate / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes.
 
-3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md` end-to-end.
+3. **Begin Phase 0.** Execute `${CLAUDE_SKILL_DIR}/plan-loop.md` end-to-end.
 
 ---
 
@@ -244,7 +244,7 @@ Per master plan anti-patterns guardrail — must NOT reintroduce these:
 
 ## REFERENCE
 
-- Phase contracts (canonical): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-loop.md`
+- Phase contracts (canonical): `${CLAUDE_SKILL_DIR}/plan-loop.md`
 - 10-section spec.md template: `${CLAUDE_SKILL_DIR}/spec-template.md`
 - 13 validator checks: `${CLAUDE_SKILL_DIR}/validator-checks.md`
 - Design-doc detection: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`
