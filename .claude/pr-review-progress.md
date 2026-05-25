@@ -149,8 +149,8 @@ Scripts moved: `archive-stale.sh`, `atomic-state-write.sh`, `emit-learning.sh`, 
 ## Comment 18 — `skills/_shared/emit-rejection.md:117`
 **Question:** "Зачем вообще нам эти инструкции нужны? Они реально нам нужны? Для чего?"
 (Why do we need these instructions at all? Are they really needed? For what?)
-**Status:** ❌ NOT STARTED
-**Notes:** Need to analyze emit-rejection.md — what it does, who uses it, whether it's justified.
+**Status:** ✅ DONE — kept as-is
+**Finding:** emit-rejection.md is the API doc for lib/emit-rejection.sh — records when user rejects a recommended AUQ option, creating L2 entries for future-session pattern matching. 5 active references (CLAUDE.md, actions/SKILL.md, implement-reference.md, plan-loop.md, lib/emit-rejection.sh). Useful self-learning feature, user decided to keep.
 
 ---
 
