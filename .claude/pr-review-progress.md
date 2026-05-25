@@ -208,8 +208,8 @@ Remaining 36 files all have 2+ real consumers or are API docs for lib/ scripts.
 ## Comment 25 — `skills/_shared/validate-state-file.sh:1`
 **Question:** "Нам точно нужен этот скрипт и эти инструкции? Это просто не добавляет дополнительную сложность?"
 (Do we really need this script? Doesn't it just add complexity and extra tokens?)
-**Status:** ❌ NOT STARTED
-**Notes:** Need to analyze validate-state-file.sh — who uses it, is it justified.
+**Status:** ✅ DONE — kept as-is
+**Finding:** validate-state-file.sh (214 lines) validates state.md structural integrity before resume (YAML parsing, required fields, enum values, worktree check). 15 references — session-start-restore.sh runs it on every compact/resume/startup, 6 skills use it. Guards against silent resume failures from corrupted state. Defensive infrastructure, kept.
 
 ---
 
