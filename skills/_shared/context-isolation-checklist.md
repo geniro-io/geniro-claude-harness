@@ -16,17 +16,17 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 ## When this applies
 
-Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden.
+Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden. **Exception:** the built-in `Explore` agent (Claude Code v2.1+, Haiku 4.5, Read/Glob/Grep + read-only Bash only) has its own narrow contract — natural-language lookup queries with a `thoroughness: quick|medium|very thorough` keyword (e.g., `"Explore authentication (thoroughness: quick). Find the login handler."`). It refuses heavyweight 6-field prompts and returns `0 tool uses · 0 tokens · 1s` when misused. Use `Explore` only for narrow "where is X defined?" / "find files matching Y" lookups; for any other research, use general-purpose (`Agent(model="sonnet", description=..., disallowedTools=..., prompt=...)` — no `subagent_type`) and apply this checklist.
 
 ## Required pre-inlined context
 
-Every Agent() prompt MUST include all six fields. Missing any one is a defect.
+Every Agent() prompt — other than `Explore` invocations per the exception above — MUST include all six fields. Missing any one is a defect.
 
 **(1) Task scope.** Exactly what the agent must produce — single deliverable, no expansion. Phrase as "Produce <X>" not "Investigate <Y>". Scope-creep prevention: if the orchestrator would accept two different deliverables from the same prompt, the scope is under-specified. Cross-reference `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for in-agent scope guards.
 
 **(2) Acceptance criteria.** Explicit pass/fail signal in 1-3 bullets. The agent uses these to self-check before reporting completion; the orchestrator uses them to validate the agent's output. Examples: "Output table has exactly 3 columns: file, line, severity" / "Every finding has an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`".
 
-**(3) Relevant file paths with content.** Orchestrator reads files in advance and pastes the content into the prompt. Agents do NOT discover via Glob unless explicitly dispatched as Explore-type — discovery duplicates work the orchestrator already did. Paste the verbatim content under a `## Pre-Inlined Files` section with path headers; do not summarize.
+**(3) Relevant file paths with content.** Orchestrator reads files in advance and pastes the content into the prompt. Agents do NOT discover via Glob — discovery duplicates work the orchestrator already did. Paste the verbatim content under a `## Pre-Inlined Files` section with path headers; do not summarize.
 
 **(4) Prohibited tools list.** When the agent must NOT touch certain surfaces, declare it explicitly via `disallowedTools: [<list>]` AND restate the constraint inside the prompt body (belt-and-suspenders, since degraded `general-purpose` calls per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` lose the tool allowlist enforcement). Common patterns:
 - reviewer-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` — read-only by contract.

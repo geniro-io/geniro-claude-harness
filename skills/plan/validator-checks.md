@@ -38,7 +38,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** parse `## Tool log` YAML entries, count Agent + status:ok; for section 6, regex match `<path>:<line>` or `<path>:<line>-<line>` pattern.
 
-**Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn Explore agents with sharper sub-queries, OR if scope-bound, add explicit «scope-bound, no exploration needed» entry to ## Tool log."
+**Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit «scope-bound, no exploration needed» entry to ## Tool log."
 
 ### 4. `allowed_tools`
 

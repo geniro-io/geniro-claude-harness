@@ -8,7 +8,7 @@ argument-hint: <topic-string-or-design-doc-path>
 
 # /geniro:plan — Spec-first planning
 
-Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 9-phase loop in `${CLAUDE_SKILL_DIR}/plan-loop.md`. It applies the loop verbatim.
+Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 10-phase loop (Phases 0–9, Phase 2 dropped) in `${CLAUDE_SKILL_DIR}/plan-loop.md`. It applies the loop verbatim.
 
 **Spec source:** *(internal)*. Read this skill in context of the architecture spec — every decision and trade-off is documented there.
 
@@ -79,10 +79,10 @@ These 7 invariants apply throughout all phases. Identical to conceptually; phase
 1. **One result per tool call.** Every AskUserQuestion / Write / Bash / Agent spawn produces exactly one structured result. Failed AUQ (empty-answer bug) → fall back to plain-text re-ask; never auto-default.
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Path-based detection (design-doc-detect.md) validates file existence before treating $ARGUMENTS as a path.
 3. **Permission before side-effect.** Phase 6 `Write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — enforced by the plan-mode mutation guard (frontmatter `allowed-tools` minus `Edit`; PreToolUse Bash guard allows `Write` only under `.geniro/planning/**` or `.geniro/state/**`).
-4. **Bounded and structured tool results.** Phase 1 Explore-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
+4. **Bounded and structured tool results.** Phase 1 research-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 5. **Escalation gates, not silent abort.** Phase 7 validator 3-round → AUQ. Phase 8 user-revision 3-round → AUQ. Phase 3 ≤5 questions → consolidation forced. NO Class-A hard kill caps.
 6. **Final answer grounded in observations.** Phase 5 section content MUST cite Phase 1 explore findings (`file:line` references) — not generic prose. Phase 7 validator includes a «citations present» check.
-7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 Explore-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
+7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
 
 `## Tool log` schema (selective logging, ):
 
@@ -90,7 +90,7 @@ These 7 invariants apply throughout all phases. Identical to conceptually; phase
 ## Tool log
 - ts: 2026-05-17T10:42:13Z
 tool: Agent
-detail: "Explore: existing auth flow"
+detail: "Research: existing auth flow"
 status: ok
 summary: "found 3 relevant files, 1 convention pattern"
 - ts: 2026-05-17T11:08:00Z
@@ -115,10 +115,10 @@ This skill has **NO hard kill caps**. All limits are **escalation gates that sur
 | Phase 3 clarifying-question count | ≤5 one-at-a-time AUQs | plan-loop.md | Force consolidation OR proceed with stated assumptions. |
 | Phase 7 → Phase 6 auto-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
-| Phase 1 Explore-agent output size | ~4K chars per agent | invariant #4 | Truncation with marker, not abort. |
+| Phase 1 research-agent output size | ~4K chars per agent | invariant #4 | Truncation with marker, not abort. |
 
 **Architecture constraints (design intent, not budget):**
-- Parallel Explore spawns per Phase 1: 1-4 (effort-tier-scaled per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`).
+- Parallel research spawns per Phase 1: 1-4 (effort-tier-scaled per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`).
 - spec.md section count: exactly 10.
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
@@ -189,7 +189,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/p
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) | All mutations |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (Explore spawn) | Edit / Write outside state.md |
+| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn, model=sonnet) | Edit / Write outside state.md |
 | Phase 2 | DROPPED | — |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / Write (state.md only via atomic_state_write) | Edit / mutating Bash |
 | Phase 6 (Write spec) | Write (scoped to `.geniro/planning/**` by guard) / atomic_state_write (state.md) | Edit / mutating Bash |

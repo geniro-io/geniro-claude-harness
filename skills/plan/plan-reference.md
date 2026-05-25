@@ -8,7 +8,7 @@ Companion reference for less-common usage paths of `/geniro:plan`. The main flow
 
 The Phase 0 DESIGN_DOC AUQ has 2 options (per `plan-loop.md`):
 
-- **Start fresh with this as context** (Recommended) — the prior doc is inlined into Phase 1 Explore-agent prompts under a `## Prior Design Doc` section. Phase 5 uses the 10-section schema unconditionally — the prior doc is context, not template.
+- **Start fresh with this as context** (Recommended) — the prior doc is inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. Phase 5 uses the 10-section schema unconditionally — the prior doc is context, not template.
 - **Cancel** — exit without writing state.md.
 
 If the user really wants to surgically edit an existing design doc bypassing Phase 1-4, the correct path is to open the doc directly in an editor + manually update sections + re-run `/geniro:plan` only when ready to re-emit. /plan does NOT have an in-loop «edit existing sections» mode.
@@ -39,7 +39,7 @@ If the user really wants to surgically edit an existing design doc bypassing Pha
 
 Shared rules consumed by this skill:
 
-- `${CLAUDE_SKILL_DIR}/plan-loop.md` — canonical 9-phase loop (Phases 0-9 of this skill).
+- `${CLAUDE_SKILL_DIR}/plan-loop.md` — canonical 10-phase loop (Phases 0–9 of this skill, Phase 2 dropped).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` — `AskUserQuestion` schema for the Phase 0 AUQ, the empty-argument fallback, and the Phase 9 hand-off menu.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — multi-select picker schema for Phase 5 milestone-name approval.

@@ -40,10 +40,10 @@ Fire `AskUserQuestion` with:
 - `header`: "Existing design doc"
 - `question`: "Design doc already exists at `<path>`. What now?"
 - `options[]` (single-select, 2 options):
- - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run full 9-phase loop (Phases 0-9, Phase 2 DROPPED per §"Phase 2 — DROPPED"); emit a new spec.md at a fresh task-dir.
+ - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run full 10-phase loop (Phases 0–9, Phase 2 dropped per §"Phase 2 — DROPPED"); emit a new spec.md at a fresh task-dir.
  - **Cancel** — exit without writing state.md.
 
-**On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 Explore-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template (D3 fix); Phase 5 uses the 10-section schema unconditionally.
+**On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template (D3 fix); Phase 5 uses the 10-section schema unconditionally.
 
 **On "Cancel"** → exit immediately. Surface terminal message: "Cancelled before planning started".
 
@@ -104,9 +104,9 @@ At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 - **L2:** `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic to infer tags.
 - **Cross-layer resolution:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
 
-Loading all three layers ensures Explore agents have full context — prior decisions (L2), codebase map (L3), and user rules (L4) — preventing repeated rediscovery.
+Loading all three layers ensures research agents have full context — prior decisions (L2), codebase map (L3), and user rules (L4) — preventing repeated rediscovery.
 
-### 1.2 Effort-tier-scaled Explore spawns
+### 1.2 Effort-tier-scaled research spawns
 
 Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`:
 
@@ -116,19 +116,19 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 | Medium (feature addition touching 2-5 files) | 2 agents (existing-impl + integration-surface) |
 | Big (subsystem-level change ≥10 files) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
 
-Use the built-in `Agent(subagent_type="Explore", ...)` agent — NOT a plugin-defined agent (per system-prompt registered agents list). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (6 required fields).
+Spawn general-purpose research agents — `Agent(model="sonnet", description="Research: <facet>", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""...""")` — and OMIT `subagent_type` (omission defaults to general-purpose, matching the /investigate Phase 2 idiom at `skills/investigate/SKILL.md:199`). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (6 required fields). Do NOT use the built-in `Explore` subagent: its narrow lookup contract (Haiku 4.5, `thoroughness: quick|medium|very thorough` queries) refuses heavyweight 6-field prompts and is unsuited for the structured `[{file, lines, observation}]` output schema this phase requires.
 
 All spawns in a single assistant response per the parallel-spawn rule. Per-spawn output schema: `[{file, lines, observation}]`; cap ~4000 chars (truncate with marker).
 
 ### 1.3 Echo contract (D4 fix — replaces unverifiable ≥2-citation rule)
 
-Each Phase 1 Explore spawn writes a structured entry to state.md `## Tool log` via `atomic_state_write`:
+Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` via `atomic_state_write`:
 
 ```yaml
 ## Tool log
 - ts: 2026-05-17T10:42:13Z
  tool: Agent
- detail: "Explore: existing auth flow integration points"
+ detail: "Research: existing auth flow integration points"
  status: ok
  summary: "found 3 files, 1 convention pattern"
  citations:
@@ -143,7 +143,7 @@ Phase 7 validator ( check #3) requires ≥1 Agent entry with `status: ok` per ef
 
 Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 3 question generation and Phase 5 section authoring. State.md `phase: clarify` written before Phase 3 entry.
 
-**Skip to Phase 4 if Trivial:** when effort tier is Trivial AND Explore returned 0-1 findings AND topic is a narrow text-edit, Phase 3 is skipped. Write a one-line note to state.md `## Open Questions`: "Phase 3 skipped — trivial task, no ambiguity surfaced".
+**Skip to Phase 4 if Trivial:** when effort tier is Trivial AND research returned 0-1 findings AND topic is a narrow text-edit, Phase 3 is skipped. Write a one-line note to state.md `## Open Questions`: "Phase 3 skipped — trivial task, no ambiguity surfaced".
 
 ---
 
@@ -160,7 +160,7 @@ State.md `phase: clarify` during this phase.
 ### 3.1 Question generation
 
 Model identifies up to 5 highest-leverage ambiguities from:
-- Phase 1 Explore findings ("found 3 auth flows — which one is the integration surface?")
+- Phase 1 research findings ("found 3 auth flows — which one is the integration surface?")
 - L2 query-learnings ("prior decision favored Approach X — does it apply here?")
 - L4 code-style rules
 
