@@ -216,8 +216,8 @@ Remaining 36 files all have 2+ real consumers or are API docs for lib/ scripts.
 ## Comment 26 — `skills/plan/validator-checks.md:1`
 **Question:** "Опять какой-то валидатор чекс. Нужно ли нам это? Выглядит, что у нас всё over-complicated."
 (Another validator checks file. Do we need this? Looks over-complicated.)
-**Status:** ❌ NOT STARTED
-**Notes:** Need to analyze validator-checks.md — is it used, is it necessary.
+**Status:** ✅ DONE — kept as-is
+**Finding:** validator-checks.md (133 lines) defines 13 mechanical checks for /plan Phase 7 — spec.md content quality validation (single objective, no placeholders, no scope contradictions, schema completeness). Different from validate-state-file.sh (which validates state.md structure). 3 refs, all within plan/. Catches real spec issues before they propagate to /implement. Kept.
 
 ---
 
