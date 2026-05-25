@@ -30,7 +30,7 @@ grep -nE "\b(p|m|gap|space|inset|top|right|bottom|left)[trblxy]?-\[" file.tsx
 ### 3. Typography Conformance
 - New font family imports when the project already loads fonts
 - Font sizes/weights outside the project's type scale
-- Inline `style={{ fontSize: ... }}` or arbitrary `text-[15px]` / `font-[Inter]` classes
+- Inline `style={{ fontSize:... }}` or arbitrary `text-[15px]` / `font-[Inter]` classes
 
 **How to detect:**
 ```bash
@@ -120,18 +120,18 @@ diff /tmp/exemplar.txt /tmp/new.txt
 
 ```json
 {
-  "type": "design",
-  "severity": "critical|high|medium",
-  "title": "Visual or interaction quality issue",
-  "file": "path/to/Component.tsx",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "Description of the design violation",
-  "category": "tokens|spacing|typography|variants|states|responsive|contrast|a11y|exemplar-drift|hierarchy",
-  "current": "Current markup/class/style",
-  "expected": "Expected pattern per design system",
-  "recommendation": "How to fix it",
-  "confidence": 88
+"type": "design",
+"severity": "critical|high|medium",
+"title": "Visual or interaction quality issue",
+"file": "path/to/Component.tsx",
+"line_start": 42,
+"line_end": 48,
+"description": "Description of the design violation",
+"category": "tokens|spacing|typography|variants|states|responsive|contrast|a11y|exemplar-drift|hierarchy",
+"current": "Current markup/class/style",
+"expected": "Expected pattern per design system",
+"recommendation": "How to fix it",
+"confidence": 88
 }
 ```
 

@@ -11,7 +11,7 @@ This section is the canonical doctrine for what makes a test "good" in this code
 A test should read like a specification of what the system does for a user — not a description of how the code is structured internally. The test name + assertions should make the capability obvious to a reader who has never seen the implementation.
 
 - **Good (behavior)**: `test_user_can_checkout_with_valid_cart` / `expect(orderTotal).toBe(42.50)` / `assert response.status_code == 401 when token expired`
-- **Bad (implementation)**: `test_internal_helper_returns_array` / `expect(spy).toHaveBeenCalledWith(...)` / `assert mockDB.query.mock_calls[0].args[0] == "SELECT ..."`
+- **Bad (implementation)**: `test_internal_helper_returns_array` / `expect(spy).toHaveBeenCalledWith(...)` / `assert mockDB.query.mock_calls[0].args[0] == "SELECT..."`
 
 The test that verifies implementation breaks every time you refactor the implementation. The test that verifies behavior survives refactors and catches behavior regressions.
 
@@ -71,8 +71,7 @@ Every newly-authored test must demonstrate red-then-green at least once before b
 
 A test that passes the first time you run it (without any production change) is testing something that already works — either it's redundant with existing coverage OR it's not actually exercising the new behavior. Investigate before committing. This rule applies to:
 - New tests authored during `/geniro:implement` Phase 2
-- Reproduction tests authored during `/geniro:debug` Phase 2 §2.4
-- F→P tests authored during `/geniro:debug` Adversarial Mode and `/geniro:review` Phase 4c TDD mode
+- Reproduction tests authored during `/geniro:debug` Phase 2- F→P tests authored during `/geniro:debug` Adversarial Mode and `/geniro:review` Phase 4c TDD mode
 
 `/geniro:debug` Adversarial Mode and `/geniro:review` Phase 4c TDD mode both enforce F→P with 3-run determinism checks; the `adversarial-tester-agent` deletes tests that pass on current code.
 
@@ -167,14 +166,14 @@ grep -n "jest.mock\|sinon.stub\|mock\|spy" test_file.js
 # Find async tests without await
 grep -n "async.*=>\|function.*async" test_file.js
 grep -A5 "async.*=>" test_file.js | grep -v "await\|done\|return"
-# Promise tests without .catch
+# Promise tests without.catch
 grep -n "\.then\|\.catch" test_file.js | grep -v ".catch"
 # Tests with setTimeout
 grep -n "setTimeout\|setInterval" test_file.js | grep -v "jest.useFakeTimers\|sinon.useFakeTimers"
 # Find untested event emitters / streams
 grep -n "on('data\|on('error\|on('end\|pipe(" src/*.js | while read line; do
-  fname=$(echo "$line" | cut -d: -f1 | xargs basename)
-  grep -q "$fname" tests/*.js || echo "No async stream test: $line"
+fname=$(echo "$line" | cut -d: -f1 | xargs basename)
+grep -q "$fname" tests/*.js || echo "No async stream test: $line"
 done
 # Find callback-style async without promise wrappers
 grep -n "callback\|cb(" test_file.js | grep -v "promisify\|async\|await"
@@ -182,12 +181,12 @@ grep -n "callback\|cb(" test_file.js | grep -v "promisify\|async\|await"
 
 **Red flags:**
 - Async test functions without `await`
-- `.then()` without `.catch()` handling
+- `.then` without `.catch` handling
 - No timeout handling in async tests
 - Tests that pass sometimes but fail others
 - Missing error case tests for promises
 - Event emitter / stream code with no corresponding test
-- Callback-based async tested without done() or promisification
+- Callback-based async tested without done or promisification
 
 ### 12. Integration Testing
 - No integration tests for critical paths
@@ -282,54 +281,54 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 
 ```json
 {
-  "type": "test",
-  "severity": "critical|high|medium",
-  "title": "Test coverage or quality issue",
-  "file": "path/to/file.js",
-  "test_file": "path/to/test.js",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "Detailed description of test gap",
-  "category": "coverage|edge_cases|quality|async|integration|organization|mocking|critical_path",
-  "missing_tests": ["null input", "empty array", "timeout scenario"],
-  "current_coverage": "What's currently tested",
-  "recommendation": "What tests to add",
-  "impact": "Risk if this isn't tested",
-  "confidence": 88
+"type": "test",
+"severity": "critical|high|medium",
+"title": "Test coverage or quality issue",
+"file": "path/to/file.js",
+"test_file": "path/to/test.js",
+"line_start": 42,
+"line_end": 48,
+"description": "Detailed description of test gap",
+"category": "coverage|edge_cases|quality|async|integration|organization|mocking|critical_path",
+"missing_tests": ["null input", "empty array", "timeout scenario"],
+"current_coverage": "What's currently tested",
+"recommendation": "What tests to add",
+"impact": "Risk if this isn't tested",
+"confidence": 88
 }
 ```
 
 ## Common False Positives
 
 1. **Intentional coverage gaps** — Some code doesn't need comprehensive testing
-   - Glue code without logic might not need tests
-   - UI display code often undertested (acceptable)
-   - Check if code has significant logic
+- Glue code without logic might not need tests
+- UI display code often undertested (acceptable)
+- Check if code has significant logic
 
 2. **Mocking is correct** — Using mocks isn't always a sign of bad design
-   - External services should be mocked in unit tests
-   - Real integration tests can use real services
-   - Check if mix of unit and integration tests exists
+- External services should be mocked in unit tests
+- Real integration tests can use real services
+- Check if mix of unit and integration tests exists
 
 3. **Pragmatic testing** — Perfect test coverage is diminishing returns
-   - 80% coverage is often sufficient
-   - Testing all branches can be overkill
-   - Check what coverage threshold is for project
+- 80% coverage is often sufficient
+- Testing all branches can be overkill
+- Check what coverage threshold is for project
 
 4. **Framework defaults** — Some frameworks handle testing automatically
-   - Rails/Django provide built-in test runners
-   - Some frameworks auto-test certain paths
-   - Check framework conventions
+- Rails/Django provide built-in test runners
+- Some frameworks auto-test certain paths
+- Check framework conventions
 
 5. **Documented limitations** — Some edge cases might be known and accepted
-   - Documentation or issues might address known gaps
-   - Some edge cases might be "out of scope"
-   - Check comments and issue tracker
+- Documentation or issues might address known gaps
+- Some edge cases might be "out of scope"
+- Check comments and issue tracker
 
 6. **Test parameterization** — Multiple test cases might use compact syntax
-   - Parameterized tests cover many cases concisely
-   - One "test" function might test many inputs
-   - Count test cases, not test functions
+- Parameterized tests cover many cases concisely
+- One "test" function might test many inputs
+- Count test cases, not test functions
 
 ## Stack-Agnostic Patterns
 
@@ -351,26 +350,26 @@ If the answer is yes, the test is worthless — it's testing mocks, trivial wiri
 1. For each test touching changed code, mentally (or actually) remove the implementation
 2. Would the test fail? If not, the test needs strengthening
 3. Common causes of false-passing tests:
-   - Test only asserts that a mock was called (not that the result is correct)
-   - Test asserts on default/initial values that don't change
-   - Test has no assertions at all (just runs without error)
-   - Test imports the module but doesn't exercise the changed code path
+- Test only asserts that a mock was called (not that the result is correct)
+- Test asserts on default/initial values that don't change
+- Test has no assertions at all (just runs without error)
+- Test imports the module but doesn't exercise the changed code path
 
 **Red flags:**
 - Tests with 0 assertions
 - Tests that only verify mock call counts
-- Tests where removing `expect()` lines doesn't cause failure
+- Tests where removing `expect` lines doesn't cause failure
 - "Smoke tests" that import a module and assert `!== undefined`
 
 ## Test Deletions in the Diff (Inverse Deletion Test)
 
 The existing Litmus Test (above) evaluates a TEST'S strength by mentally deleting the PRODUCTION code. Apply the inverse direction when the diff DELETES one or more tests: evaluate the test's intent by checking what scenario it pinned.
 
-For every test removed by the diff (whole file deleted, OR an `it()` / `test()` / `describe()` block removed from an existing file), ask:
+For every test removed by the diff (whole file deleted, OR an `it` / `test` / `describe` block removed from an existing file), ask:
 
 **"What scenario was this test pinning that no surviving test covers?"**
 
-The comparison is by **cause path**, NOT by **outcome**. Two tests that share the same assertion shape (e.g. `expect(result).toBeNull()`) can pin radically different cause paths — outcome-match is a false-equivalence signal.
+The comparison is by **cause path**, NOT by **outcome**. Two tests that share the same assertion shape (e.g. `expect(result).toBeNull`) can pin radically different cause paths — outcome-match is a false-equivalence signal.
 
 The pattern generalizes to any guard + race-condition combination where the same observable outcome can be reached through multiple causal paths — defensive-branch + happy-path that share a return value, retry/fallback that converges on the same final state as the primary path, two error handlers that produce the same error object via different internal sequences. The concrete example below is from one production incident; treat it as a shape, not a recipe.
 
@@ -378,27 +377,27 @@ The pattern generalizes to any guard + race-condition combination where the same
 
 | Test name | Outcome | Cause path being pinned |
 |---|---|---|
-| "should return null when beneficiary has 2+ open cases (multi-case fail-closed)" | `expect(result).toBeNull()` | The helper's `openCaseIds.length !== 1` guard fires; SCD2 is never consulted |
-| "should return null when excludeCaseId equals the only open case (single-case unassign defense-in-depth)" | `expect(result).toBeNull()` | The helper's `caseId === excludeCaseId` carve-out fires; SCD2 is never consulted; protects against DLQ replay / stale event.occurredAt |
+| "should return null when beneficiary has 2+ open cases (multi-case fail-closed)" | `expect(result).toBeNull` | The helper's `openCaseIds.length !== 1` guard fires; SCD2 is never consulted |
+| "should return null when excludeCaseId equals the only open case (single-case unassign defense-in-depth)" | `expect(result).toBeNull` | The helper's `caseId === excludeCaseId` carve-out fires; SCD2 is never consulted; protects against DLQ replay / stale event.occurredAt |
 
 Same outcome (`null`). Two different cause paths. Deleting either test as "duplicate of the other" silently loses coverage on the corresponding race condition.
 
 ### How to apply
 
-1. **List every removed test** — from `git diff` output, identify each `-` line that opens an `it()` / `test()` / `describe()` block OR every deleted test file.
+1. **List every removed test** — from `git diff` output, identify each `-` line that opens an `it` / `test` / `describe` block OR every deleted test file.
 2. **Read each removed test's body verbatim** — the deleted code is still in `git diff` output even after the diff applies; pull the test's setup (Arrange), invocation (Act), and assertions (Assert) into your review.
 3. **Identify the cause path** — what specific code branch / guard / parameter value / state combination did the deleted test exercise? The cause path is rarely the assertion line; it's the Arrange phase + which guard/branch the Act phase activated.
 4. **Search surviving tests for the same cause path** — grep the test directory for tests whose Arrange phase matches (same setup shape: same number of open cases, same SCD2 state, same parameter set). If you find an outcome-matching test, verify it's also cause-path-matching by reading its Arrange phase.
 5. **Flag as a finding if any deleted test's cause path is not pinned by a surviving test**:
-   - **HIGH** when the cause path protects a critical-path behavior (auth, payments, data writes, defense-in-depth guards against operational anomalies like DLQ replay / stale timestamps / partial-commit retries).
-   - **MEDIUM** when the cause path covers a non-critical-path branch the surviving tests miss.
-   - **LOW** when the deleted test was genuinely redundant (cause-path AND outcome match a surviving test) — note as informational confirmation.
+- **HIGH** when the cause path protects a critical-path behavior (auth, payments, data writes, defense-in-depth guards against operational anomalies like DLQ replay / stale timestamps / partial-commit retries).
+- **MEDIUM** when the cause path covers a non-critical-path branch the surviving tests miss.
+- **LOW** when the deleted test was genuinely redundant (cause-path AND outcome match a surviving test) — note as informational confirmation.
 
 ### Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "Both tests assert `null` — they're duplicates" | Outcome-match is necessary but not sufficient. Two `expect(x).toBeNull()` tests can pin different cause paths. Check the Arrange phase. |
+| "Both tests assert `null` — they're duplicates" | Outcome-match is necessary but not sufficient. Two `expect(x).toBeNull` tests can pin different cause paths. Check the Arrange phase. |
 | "The implementer agent said it was a duplicate — they read the test" | Implementer agents have skin in the deletion (they wrote the diff). Reviewer's job is the independent check. Re-derive the cause-path comparison yourself. |
 | "There's no surviving test for that cause path, but the production code now also lacks that branch — so there's nothing to test" | When BOTH a defensive branch AND its pinning test get removed together, the "nothing to test" reasoning is circular. The right question is: would a test fail if the defensive branch were restored under the same Arrange conditions? If yes, the removed test was real coverage and the cause path is now unpinned. |
 | "The test name uses thread-local labels (Case 5, Bug A) so it's noise" | Test-name quality is orthogonal to cause-path coverage. A poorly-named test that pins a real cause path is still real coverage — rename it, don't delete it. |

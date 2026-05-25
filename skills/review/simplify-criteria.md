@@ -1,10 +1,10 @@
 # Simplify Analysis Criteria
 
-Reference file for the `/geniro:review --simplify` flag. When `--simplify` is present в `$ARGUMENTS`, /review's Phase 2 prepends these criteria onto 5 dimension reviewer prompts: **architecture** (Reuse), **conventions** (aggressive modal-pattern threshold), **guidelines** (Quality), **bugs** (Quality bug-class extensions), **optimizations** (Efficiency).
+Reference file for the `/geniro:review --simplify` flag. When `--simplify` is present in `$ARGUMENTS`, /review's Phase 2 prepends these criteria onto 5 dimension reviewer prompts: **architecture** (Reuse), **conventions** (aggressive modal-pattern threshold), **guidelines** (Quality), **bugs** (Quality bug-class extensions), **optimizations** (Efficiency).
 
 Severity reconciliation: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `--tdd` or risk-tier:high).
 
-NOT а new dimension — folds into existing dims. `/review` is а Reporter (contract H-2) and does NOT auto-apply fixes. Users wanting auto-applied fixes pipe `/review --simplify` output к `/implement`.
+NOT a new dimension — folds into existing dims. `/review` is a Reporter (contract ) and does NOT auto-apply fixes. Users wanting auto-applied fixes pipe `/review --simplify` output to `/implement`.
 
 Also referenced by `/geniro:implement` Phase 5 / Ship sub-step. (`/geniro:refactor` does NOT reference this file — its smell-detection routes through `existing-abstraction-audit.md` + orchestrator-inline deepening lens + `_shared/refactor-patterns.md`.)
 
@@ -56,7 +56,7 @@ Before flagging duplication or recommending extraction, run the canonical **Exis
 | **Type assertions** bypassing type safety | Replace with type guards or proper typing |
 | **Bare `return promise`** without `await` | Add `await` (preserves stack traces) |
 | **Missing braces** on `if`/`else`/`for`/`while` | Add braces |
-| **Inline `require()` calls** (JS/TS) | Move to top-level import |
+| **Inline `require` calls** (JS/TS) | Move to top-level import |
 
 ### AI-Generated Code Anti-Patterns
 
@@ -91,9 +91,9 @@ These are common when code was written by AI agents — actively look for them:
 | **N+1 query patterns** | Note as P3 — don't fix automatically (behavior change risk) |
 | **Circular dependency signals** (barrel re-exports, `forwardRef` usage) | Note as P3 — flag for user attention |
 | **Redundant `try/catch` that just rethrows** | Remove the try/catch |
-| **Manual loops** replaceable with `.map()/.filter()/.reduce()` | Replace (only when the replacement is equally or more readable) |
+| **Manual loops** replaceable with `.map/.filter/.reduce` | Replace (only when the replacement is equally or more readable) |
 | **Over-defensive coding** — checks for impossible states based on types | Remove the dead branch |
-| **Redundant spread** — `{ ...obj }` when `obj` could be used directly | Remove the spread if no mutation risk |
+| **Redundant spread** — `{...obj }` when `obj` could be used directly | Remove the spread if no mutation risk |
 
 ---
 
@@ -126,7 +126,7 @@ These are common when code was written by AI agents — actively look for them:
 
 ### Applied (N fixes)
 - [file:line] — [what changed] (P1/P2)
-- ...
+-...
 
 ### Skipped (N items)
 - [file:line] — [what was found] — skipped because [reason: CI failure / P3 note / behavior change risk]

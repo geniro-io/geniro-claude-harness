@@ -4,9 +4,9 @@ Completeness audit of the diff **against the plan / spec** — what the spec pro
 
 This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `skills/review/plan-context-reference.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
 
-## M5 schema-aware mode (M6 §16.1)
+## schema-aware mode
 
-When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schema_version: m5-v1` frontmatter, PLAN CONTEXT is delivered as а **section-tagged blob** with 10 named sections per the M5 §17 schema (plus the frontmatter goal-state block):
+When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schema_version: m5-v1` frontmatter, PLAN CONTEXT is delivered as a **section-tagged blob** with 10 named sections per the schema (plus the frontmatter goal-state block):
 
 - Section 1: Objective
 - Section 2: Scope — Included
@@ -22,17 +22,17 @@ When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schem
 
 Findings MUST cite the specific section (or frontmatter field) violated/missing — e.g., `Evidence: section 2 (Scope.Included) names "src/api/auth/*" but diff touches no auth file`. The 11 checks below name the canonical section anchors.
 
-**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9. Skip checks #10 (Done Condition) и #11 (Tools Required) — there's no section anchor к cite. Surface а one-line note в `## Open Questions`: «PLAN CONTEXT lacks M5 schema — falling back к prose checks; Done Condition + Tools Required не verified».
+**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. Surface a one-line note in `## Open Questions`: «PLAN CONTEXT lacks schema — falling back to prose checks; Done Condition + Tools Required not verified».
 
 ## LINEAR CONTEXT supplement (workflow integration)
 
-When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched а Linear issue per Phase 1 §3.5), the Linear issue's **Acceptance Criteria** field acts as an additional rubric ON TOP OF PLAN CONTEXT section 9. Two-source reconciliation:
+When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched a Linear issue per Phase 1), the Linear issue's **Acceptance Criteria** field acts as an additional rubric ON TOP OF PLAN CONTEXT section 9. Two-source reconciliation:
 
-- **Both present (PLAN CONTEXT section 9 AND Linear ACs):** ACs от both sources are merged into а single rubric. Tests must reference behaviors от each. Conflicts (PLAN-AC1 contradicts Linear-AC1) are surfaced as а dedicated finding с severity HIGH, citing both sources verbatim.
+- **Both present (PLAN CONTEXT section 9 AND Linear ACs):** ACs from both sources are merged into a single rubric. Tests must reference behaviors from each. Conflicts (PLAN-AC1 contradicts Linear-AC1) are surfaced as a dedicated finding with severity HIGH, citing both sources verbatim.
 - **Only Linear ACs present (no PLAN CONTEXT OR PLAN CONTEXT lacks section 9):** Linear ACs become the sole rubric. Apply check #4 (Tests for Stated Acceptance Criteria) against the Linear AC list.
-- **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged от §What to Check rubric. The fail-open caveat от Phase 1 §3.5.4 surfaces в `## Caveats`.
+- **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to Check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
 
-Findings от Linear-AC mismatches carry the prefix «Linear AC: » в the Cause field to distinguish от PLAN CONTEXT ACs (e.g., «Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path»). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
+Findings from Linear-AC mismatches carry the prefix «Linear AC: » in the Cause field to distinguish from PLAN CONTEXT ACs (e.g., «Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path»). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
 
 ## What to Check
 
@@ -40,10 +40,10 @@ Findings от Linear-AC mismatches carry the prefix «Linear AC: » в the Cause
 
 The spec enumerates files, modules, endpoints, entities, or surfaces that the change must touch; the diff omits one or more of them. This is the most common spec-compliance gap: the spec said "update A, B, and C"; the diff updates A and B.
 
-**M5 schema cite:** section 2 (Scope — Included). Each bullet там is а scoped item the diff must touch. Section 4 (Assumptions) often contains conditional scope ("assuming the auth middleware is in place, …") — cross-check.
+**schema cite:** section 2 (Scope — Included). Each bullet there is a scoped item the diff must touch. Section 4 (Assumptions) often contains conditional scope ("assuming the auth middleware is in place, …") — cross-check.
 
 **How to detect:**
-- Extract scoped items from PLAN CONTEXT: in M5-schema mode, parse section 2 bullets; in fallback mode, scan для explicit file paths, module names, table names, endpoint paths, "must include X", "add Y to Z", bulleted "the following will change:" lists.
+- Extract scoped items from PLAN CONTEXT: -schema mode, parse section 2 bullets; in fallback mode, scan for explicit file paths, module names, table names, endpoint paths, "must include X", "add Y to Z", bulleted "the following will change:" lists.
 - For each scoped item, check the changed-files list in `DIFF CONTEXT` for a corresponding entry (path match, basename match, or a file under the named module).
 - If a scoped item has no matching changed file, flag it.
 
@@ -53,25 +53,25 @@ The spec enumerates files, modules, endpoints, entities, or surfaces that the ch
 
 The spec mentions a schema change but the diff has no migration file. The reviewer should not have to infer this — when the plan commits to a schema change, the diff must carry the artifact.
 
-**M5 schema cite:** section 6 (Steps) — schema-change steps are enumerated here. Section 10 (Rollback-Recovery) — companion rollback step.
+**schema cite:** section 6 (Steps) — schema-change steps are enumerated here. Section 10 (Rollback-Recovery) — companion rollback step.
 
 **How to detect:**
-- Scan PLAN CONTEXT for: "migration", "schema change", "add column", "drop column", "rename column", "new table", "data backfill", "DDL", "alter table", or named schema-change patterns. In M5-schema mode, look в section 6 step bodies + section 10.
+- Scan PLAN CONTEXT for: "migration", "schema change", "add column", "drop column", "rename column", "new table", "data backfill", "DDL", "alter table", or named schema-change patterns. In schema mode, look in section 6 step bodies + section 10.
 - Check `DIFF CONTEXT` for files under `migrations/`, `db/migrations/`, `prisma/migrations/`, `alembic/versions/`, `liquibase/`, or the project's migration directory (look at where prior migrations live).
 - If the plan mentions a schema change AND no migration file is present in the diff, flag.
 
 **Red flag:** plan mentions a schema or data-shape change; the diff has no migration file.
 
-### 3. Rollback / down() When Migration Touches Data
+### 3. Rollback / down When Migration Touches Data
 
-A migration file in the diff performs data writes (INSERT / UPDATE / DELETE / data backfill / column population) but has no corresponding rollback path: no `down()` method (TypeORM / Prisma / Knex / Sequelize / SQLAlchemy), no reverse migration file, no documented manual-rollback procedure.
+A migration file in the diff performs data writes (INSERT / UPDATE / DELETE / data backfill / column population) but has no corresponding rollback path: no `down` method (TypeORM / Prisma / Knex / Sequelize / SQLAlchemy), no reverse migration file, no documented manual-rollback procedure.
 
-**M5 schema cite:** section 10 (Rollback-Recovery). When section 10 specifies а rollback procedure, verify the diff carries the corresponding artifact (down() method or reverse migration file).
+**schema cite:** section 10 (Rollback-Recovery). When section 10 specifies a rollback procedure, verify the diff carries the corresponding artifact (down method or reverse migration file).
 
 **How to detect:**
 - For each migration file in the diff, Read it.
 - Check whether the migration body contains data-mutating statements: `INSERT`, `UPDATE`, `DELETE`, calls to a repository / ORM model, scripted backfill loops.
-- For data-mutating migrations, check for: a `down()` / `revert()` / `downgrade()` method that meaningfully reverses the change; a paired reverse migration file in the same change set; or an explicit `// no rollback — see runbook` comment with a runbook reference.
+- For data-mutating migrations, check for: a `down` / `revert` / `downgrade` method that meaningfully reverses the change; a paired reverse migration file in the same change set; or an explicit `// no rollback — see runbook` comment with a runbook reference.
 - Flag when a data-mutating migration has none of those.
 
 **Red flag:** a data-mutating migration with no rollback path documented in code or the PR body.
@@ -80,7 +80,7 @@ A migration file in the diff performs data writes (INSERT / UPDATE / DELETE / da
 
 The PR body or plan lists numbered acceptance criteria ("AC1: …", "AC2: …", bulleted "must …" / "should …" / "the system will …"); the diff's test files contain no assertion that references each AC's behavior.
 
-**M5 schema cite:** section 9 (Validation). Acceptance criteria are owned by this section.
+**schema cite:** section 9 (Validation). Acceptance criteria are owned by this section.
 
 **How to detect:**
 - Extract AC text from PLAN CONTEXT: explicit "## Acceptance criteria" / "## ACs" sections, numbered "AC1/AC2/…" lists, bulleted "must …" / "should …" lines under a feature heading.
@@ -94,7 +94,7 @@ The PR body or plan lists numbered acceptance criteria ("AC1: …", "AC2: …", 
 
 The plan mentions a flag-gated rollout, but the diff has no flag-key references and no flag-evaluation calls. Shipping the change without the flag means the rollout strategy described in the spec is not actually achievable.
 
-**M5 schema cite:** section 6 (Steps) — flag-wiring step. Section 8 (Approval Points) — flag-flip approval gate.
+**schema cite:** section 6 (Steps) — flag-wiring step. Section 8 (Approval Points) — flag-flip approval gate.
 
 **How to detect:**
 - Scan PLAN CONTEXT for: "feature flag", "toggle", "flag rollout", "ramp", "gating", "killswitch", "gradual rollout", a named flag key (UPPER_SNAKE_CASE constants are common).
@@ -108,7 +108,7 @@ The plan mentions a flag-gated rollout, but the diff has no flag-key references 
 
 The plan describes a change that involves multiple writers — a live handler plus a reconcile job, a migration plus a backfill, an event projector plus a snapshot table, dual-write transitions — but the diff carries no documented deploy order (PR body deploy-steps list, runbook reference, JSDoc on the migration, or comments at the writer entry points).
 
-**M5 schema cite:** section 6 (Steps) — deploy-step ordering. Section 5 (Risks) — coordination risks typically reside here.
+**schema cite:** section 6 (Steps) — deploy-step ordering. Section 5 (Risks) — coordination risks typically reside here.
 
 **How to detect:**
 - Scan PLAN CONTEXT for multi-writer signals: "reconcile", "backfill", "dual-write", "shadow write", "projector", "snapshot", "live handler + …", "event-driven … plus migration", "rollout in stages", "phase 1 / phase 2".
@@ -122,7 +122,7 @@ The plan describes a change that involves multiple writers — a live handler pl
 
 The plan describes a value-semantic change — a column meaning shifts, a return-value contract changes, an enum value's behavior changes, a fail-open default becomes fail-closed — but the diff's PR body has no Before/After table or behavior matrix, and the test files do not assert the new semantic at the boundary where it takes effect.
 
-**M5 schema cite:** section 1 (Objective) — semantic shift typically named here. Section 9 (Validation) — boundary tests.
+**schema cite:** section 1 (Objective) — semantic shift typically named here. Section 9 (Validation) — boundary tests.
 
 **How to detect:**
 - Scan PLAN CONTEXT for semantic-shift markers: "from X to Y", "behavior changes to", "previously … now …", "fail-open → fail-closed", "default changes from", "now returns", "column meaning becomes".
@@ -136,7 +136,7 @@ The plan describes a value-semantic change — a column meaning shifts, a return
 
 The plan names a new configuration value, environment variable, or runtime setting that operators must provide; the diff has no corresponding entry in the project's config surface (env-example file, config schema, settings module) and no documentation of the new value in the PR body or runbook.
 
-**M5 schema cite:** section 7 (Tools Required) — config / env vars / settings live alongside tool listings here. (Frontmatter `tools_required` field may also enumerate them.)
+**schema cite:** section 7 (Tools Required) — config / env vars / settings live alongside tool listings here. (Frontmatter `tools_required` field may also enumerate them.)
 
 **How to detect:**
 - Scan PLAN CONTEXT for: "config", "configuration", "environment variable", "env var", "setting", "tunable", "threshold", a named UPPER_SNAKE_CASE token that looks like an env var, or a "configurable via …" phrase.
@@ -150,7 +150,7 @@ The plan names a new configuration value, environment variable, or runtime setti
 
 The plan names an operational concern that requires observability — a rollout to monitor, a failure mode to watch, an SLO to defend, an error budget to track — but the diff adds no metrics emission, no log statements at the relevant boundary, and no alert / dashboard reference. Operators cannot see whether the change is working in production.
 
-**M5 schema cite:** section 9 (Validation) — observability requirements often live here. Section 5 (Risks) — risk-mitigation observability.
+**schema cite:** section 9 (Validation) — observability requirements often live here. Section 5 (Risks) — risk-mitigation observability.
 
 **How to detect:**
 - Scan PLAN CONTEXT for observability triggers: "monitor", "alert", "SLO", "SLA", "error budget", "rollout watch", "metric", "dashboard", "we'll watch …", "track the rate of …", "log when …".
@@ -160,13 +160,13 @@ The plan names an operational concern that requires observability — a rollout 
 
 **Red flag:** plan names a monitoring or operational concern; diff has no observability emission at the named boundary.
 
-### 10. Done Condition Met (NEW — M6 §16.2)
+### 10. Done Condition Met (NEW )
 
 The spec's section 11 (Done Condition) names an observable signal that defines completion (e.g., «all 5 acceptance tests green», «PR approved by stakeholder X», «feature ships behind flag AND telemetry shows ≥1 successful use»). The diff must achieve, or visibly progress towards, that signal — not just touch the named files.
 
-**Skip when not in M5-schema mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only когда `geniro_kind: design-doc` frontmatter is present.
+**Skip when not -schema mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only when `geniro_kind: design-doc` frontmatter is present.
 
-**M5 schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check c P-M5-4 check #9 (`stopping_condition`) — the spec validator that ensured section 11 has а concrete observable signal.
+**schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check c check #9 (`stopping_condition`) — the spec validator that ensured section 11 has a concrete observable signal.
 
 **How to detect:**
 - Parse section 11 body. Extract the observable signal (regex match against ontology: `\b(tests? (pass|green))\b`, `\b(PR (approved|merged))\b`, `\b(telemetry|metric|log)\s+shows\b`, `\b(shipped|released)\s+to\b`, `\b(observable|verified|confirmed)\b`).
@@ -175,23 +175,23 @@ The spec's section 11 (Done Condition) names an observable signal that defines c
 - For approval-based signals: check the PR body / state for the named approver's review status.
 - Flag when section 11 names an observable signal AND the diff carries no artifact moving towards it.
 
-**Red flag:** section 11 specifies «<observable signal> AND <verification>» but the diff carries no artifact realizing the signal или its verification.
+**Red flag:** section 11 specifies «<observable signal> AND <verification>» but the diff carries no artifact realizing the signal or its verification.
 
-### 11. Tools Required Available (NEW — M6 §16.2)
+### 11. Tools Required Available (NEW )
 
-The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field enumerates tools the change needs (e.g., specific CLI binaries, infra services, MCP connectors). The diff or local environment must show all listed tools are actually available — а spec promising «requires `kubectl` + `helm`» but landing in а repo without either ships broken.
+The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field enumerates tools the change needs (e.g., specific CLI binaries, infra services, MCP connectors). The diff or local environment must show all listed tools are actually available — a spec promising «requires `kubectl` + `helm`» but landing in a repo without either ships broken.
 
-**Skip when not in M5-schema mode.** (No section 7 anchor.)
+**Skip when not -schema mode.** (No section 7 anchor.)
 
-**M5 schema cite:** section 7 (Tools Required) — tool listing. Frontmatter `tools_required: [list]` — may also enumerate.
+**schema cite:** section 7 (Tools Required) — tool listing. Frontmatter `tools_required: [list]` — may also enumerate.
 
 **How to detect:**
 - Parse section 7 body + frontmatter `tools_required`. Extract individual tool names (CLI binaries: `kubectl`, `helm`, `terraform`, `gh`; library packages; service endpoints; MCP connectors).
-- For each CLI binary, run `which <tool>` via Bash (read-only — no mutation). Note absence как finding.
-- For library packages, check package.json / pyproject.toml / Gemfile / Cargo.toml для the package name. Note absence.
+- For each CLI binary, run `which <tool>` via Bash (read-only — no mutation). Note absence as finding.
+- For library packages, check package.json / pyproject.toml / Gemfile / Cargo.toml for the package name. Note absence.
 - For MCP connectors, check the runtime tool list — note absence as informational (MCP availability is environment-specific).
-- For service endpoints — out of scope (cannot verify reachability от reviewer). Surface as informational note.
-- Flag when section 7 names а tool AND the environment shows the tool is not available.
+- For service endpoints — out of scope (cannot verify reachability from reviewer). Surface as informational note.
+- Flag when section 7 names a tool AND the environment shows the tool is not available.
 
 **Red flag:** section 7 names tool `X` (or frontmatter `tools_required` lists `X`); `which X` returns non-zero / package.json has no `X` entry. Severity HIGH — diff cannot work without the tool.
 
@@ -201,7 +201,7 @@ Skip or downgrade findings in these cases — they look like rubric violations b
 
 - **Draft PRs** (`gh pr view --json isDraft` returns `true`): incomplete scope is expected while the author iterates. Skip checks 4–9, 10–11; keep checks 1–3 (scope items, migration presence, rollback) because those are structural and easier to forget than to defer intentionally.
 - **Exploratory / brainstorm-style plans** (PLAN CONTEXT contains "TBD", "TODO", "follow-up", "out of scope", "future work", "tentative", "phase 2 will", or similar deferral markers near the scoped item): the plan itself did not commit to the scope. Downgrade the severity by one level (CRITICAL → HIGH, HIGH → MEDIUM, MEDIUM → informational) for findings that hit the deferred item.
-- **Bot-author PRs** (author user matches `dependabot[bot]`, `renovate[bot]`, `release-please[bot]`, `github-actions[bot]`, `changesets[bot]`, or a similar automation account — check `gh pr view --json author --jq .author.login`): the rubric does not apply. Skip every check; emit zero findings.
+- **Bot-author PRs** (author user matches `dependabot[bot]`, `renovate[bot]`, `release-please[bot]`, `github-actions[bot]`, `changesets[bot]`, or a similar automation account — check `gh pr view --json author --jq.author.login`): the rubric does not apply. Skip every check; emit zero findings.
 - **Trivial PRs** (<20 LOC AND a single file changed): scope-completeness expectations do not apply at this size. Skip checks 1, 2, 6, 7, 9, 10, 11. Keep checks 3 (rollback), 4 (AC tests), 5 (flag wiring), 8 (config) only if their preconditions visibly fire in the diff or PR body.
 - **Plan covers a multi-PR effort and this PR is one slice**: when PLAN CONTEXT explicitly enumerates a multi-PR plan (e.g., "PR 1: schema; PR 2: handler; PR 3: backfill") and the PR body cites which slice it is, restrict scope-completeness to the named slice. Items belonging to later slices are not omissions.
 - **Reverts and cherry-picks**: when the title begins with `Revert "` or `Cherry-pick` / `[backport]`, the spec the diff is held against is the parent change, not the original plan. Skip every check unless the revert/backport itself introduces new scope.
@@ -220,12 +220,12 @@ Apply the severity downgrades from the False Positives section before tagging. A
 
 ## Cross-PR Scope Split (peer-PR context)
 
-When the `PEER-PR CONTEXT:` slot is non-`none` AND the LINEAR CONTEXT block shows а parent epic с sibling sub-tasks (or PLAN CONTEXT enumerates а multi-PR plan per §Common False Positives «Plan covers а multi-PR effort»), the parent's scope is split across siblings. Apply scope-completeness checks **against the slice the current PR owns**, not the whole parent:
+When the `PEER-PR CONTEXT:` slot is non-`none` AND the LINEAR CONTEXT block shows a parent epic with sibling sub-tasks (or PLAN CONTEXT enumerates a multi-PR plan per §Common False Positives «Plan covers a multi-PR effort»), the parent's scope is split across siblings. Apply scope-completeness checks **against the slice the current PR owns**, not the whole parent:
 
-- If LINEAR CONTEXT shows `linear-parent-ref: ENG-100` AND PEER-PR CONTEXT lists а sibling PR carrying а sibling sub-task ID (e.g., `ENG-101` while current is `ENG-102`): the parent's scope is split. Each sub-task PR owns its own slice. Items belonging к the sibling sub-task are NOT omissions on the current PR.
-- A finding shape: «Parent epic ENG-100 has scope items A, B, C. Current PR ENG-102 covers B. Sibling PR #N (ENG-101) covers A. Item C unassigned — surface as `## Open Questions` for user awareness, not а HIGH finding». Severity MEDIUM (open-question signal, not а blocking gap).
+- If LINEAR CONTEXT shows `linear-parent-ref: ENG-100` AND PEER-PR CONTEXT lists a sibling PR carrying a sibling sub-task ID (e.g., `ENG-101` while current is `ENG-102`): the parent's scope is split. Each sub-task PR owns its own slice. Items belonging to the sibling sub-task are NOT omissions on the current PR.
+- A finding shape: «Parent epic ENG-100 has scope items A, B, C. Current PR ENG-102 covers B. Sibling PR #N (ENG-101) covers A. Item C unassigned — surface as `## Open Questions` for user awareness, not a HIGH finding». Severity MEDIUM (open-question signal, not a blocking gap).
 
-When ALL parent scope items appear covered across current + peer PRs combined, the multi-PR effort is complete — surface а one-line informational note в `## Open Questions`: «Parent epic ENG-100 fully covered by [current + peer-PR list]».
+When ALL parent scope items appear covered across current + peer PRs combined, the multi-PR effort is complete — surface a one-line informational note in `## Open Questions`: «Parent epic ENG-100 fully covered by [current + peer-PR list]».
 
 ## Output Anchor
 

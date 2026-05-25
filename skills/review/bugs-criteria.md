@@ -112,7 +112,7 @@ grep -n "open\|createReadStream\|createWriteStream" file.js | grep -v "close\|de
 # Event listeners without cleanup
 grep -n "\.on(\|\.addEventListener(" file.js
 grep -n "\.off(\|\.removeListener\|\.removeEventListener(" file.js
-# Compare counts — more on() than off() is suspicious
+# Compare counts — more on than off is suspicious
 # Timers without clear
 grep -n "setTimeout\|setInterval" file.js | grep -v "clearTimeout\|clearInterval"
 # Database connections
@@ -146,56 +146,56 @@ grep -n "mktemp\|tmpfile\|createTempFile\|tmp\." file.js | grep -v "unlink\|remo
 
 ```json
 {
-  "type": "bug",
-  "severity": "critical|high|medium",
-  "title": "Brief issue title",
-  "file": "path/to/file.js",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "Detailed description of the bug",
-  "code_snippet": "Relevant code lines",
-  "evidence": "Why this is a bug (execution path, condition)",
-  "impact": "What could go wrong",
-  "recommendation": "How to fix it",
-  "confidence": 95
+"type": "bug",
+"severity": "critical|high|medium",
+"title": "Brief issue title",
+"file": "path/to/file.js",
+"line_start": 42,
+"line_end": 48,
+"description": "Detailed description of the bug",
+"code_snippet": "Relevant code lines",
+"evidence": "Why this is a bug (execution path, condition)",
+"impact": "What could go wrong",
+"recommendation": "How to fix it",
+"confidence": 95
 }
 ```
 
 ## Common False Positives
 
 1. **Defensive coding** — Extra null checks aren't always wrong
-   - `if (obj && obj.field)` might be intentional for safety
-   - Check if same pattern is used consistently elsewhere
+- `if (obj && obj.field)` might be intentional for safety
+- Check if same pattern is used consistently elsewhere
 
 2. **Async complexity** — Async operations appear unsynchronized but may be intentional
-   - Check for explicit await statements
-   - Look for Promise.all/race patterns
+- Check for explicit await statements
+- Look for Promise.all/race patterns
 
 3. **Flexible equality** — `==` used for deliberate type coercion
-   - Check context: `if (value == null)` is common for both null/undefined
-   - Only flag if type coercion causes actual bugs
+- Check context: `if (value == null)` is common for both null/undefined
+- Only flag if type coercion causes actual bugs
 
 4. **Intentional mutations** — Some objects are designed to be mutable
-   - Check for explicit mutable state comments
-   - Verify no unintended side effects
+- Check for explicit mutable state comments
+- Verify no unintended side effects
 
 5. **Configuration-driven** — Behavior controlled by external config
-   - Check if variables come from config files
-   - Don't flag if properly validated at load time
+- Check if variables come from config files
+- Don't flag if properly validated at load time
 
 6. **Legacy patterns** — Old code may have reasons for unusual patterns
-   - Check comments or git history
-   - Only flag if causes demonstrated bugs
+- Check comments or git history
+- Only flag if causes demonstrated bugs
 
 ## Cross-PR API Conflicts (peer-PR context)
 
-When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for API-shape collisions с the current PR's changed files:
+When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for API-shape collisions with the current PR's changed files:
 
-- Same exported function / endpoint / type / migration touched by both PRs с incompatible signatures (e.g., PR A adds parameter `foo`; PR B renames the same function).
-- Same database column / table modified by both PRs (column added in A, removed in B; type changed in both с different types).
-- Same shared module imported and mutated by both PRs (concurrent edits к the same lookup table / config object).
+- Same exported function / endpoint / type / migration touched by both PRs with incompatible signatures (e.g., PR A adds parameter `foo`; PR B renames the same function).
+- Same database column / table modified by both PRs (column added in A, removed in B; type changed in both with different types).
+- Same shared module imported and mutated by both PRs (concurrent edits to the same lookup table / config object).
 
-A valid finding shape: «PR #N (peer) modifies `<symbol>` at `<file:line>`; current diff also modifies the same symbol с incompatible <shape | type | side-effect> — coordinate ordering / merge resolution before shipping both». Severity HIGH когда shipping both causes runtime breakage; MEDIUM когда it's а stale-state coordination concern.
+A valid finding shape: «PR #N (peer) modifies `<symbol>` at `<file:line>`; current diff also modifies the same symbol with incompatible <shape | type | side-effect> — coordinate ordering / merge resolution before shipping both». Severity HIGH when shipping both causes runtime breakage; MEDIUM when it's a stale-state coordination concern.
 
 ## Stack-Agnostic Patterns
 
