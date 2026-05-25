@@ -1,6 +1,6 @@
 # Load custom instructions (canonical, shared)
 
-**Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, `.geniro/instructions/code-style.md`, and `.geniro/instructions/user-preferences.md`.
+**Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, and `.geniro/instructions/code-style.md`.
 
 ## Why this exists
 
@@ -25,8 +25,8 @@ Callers provide three parameters in the call site:
 
 - **`SKILL_SLUG`** — kebab-case name of the invoking skill (e.g. `implement`, `debug`, `actions`). Used to compute the per-skill file path `.geniro/instructions/<SKILL_SLUG>.md`.
 - **`LOAD_TIER`** — one of:
- - `pipeline` → loads `global.md` + `<SKILL_SLUG>.md` + `code-style.md` + `user-preferences.md`. Applies to: `implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`. `onboard` and `investigate` are promoted from `rules-only` to `pipeline` — discovery skills emit to L2/L3 and need code-style rules respected when their save-routing focused agents write to the user's tree (CLAUDE.md, ADR, etc.). `user-preferences.md` is included in the pipeline tier — created by `/setup` Phase Generate; loaded by every pipeline + discovery skill at Step 0 + phase-boundary refresh.
- - `rules-only` → loads `global.md` only. Applies to: `setup`, `instructions`, `actions`, `update`. These are operational/CRUD-on-meta skills — they manage rules rather than produce code or learnings, so the per-skill + code-style + user-preferences layers don't apply.
+ - `pipeline` → loads `global.md` + `<SKILL_SLUG>.md` + `code-style.md`. Applies to: `implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`. `onboard` and `investigate` are promoted from `rules-only` to `pipeline` — discovery skills emit to L2/L3 and need code-style rules respected when their save-routing focused agents write to the user's tree (CLAUDE.md, ADR, etc.).
+ - `rules-only` → loads `global.md` only. Applies to: `setup`, `instructions`, `actions`, `update`. These are operational/CRUD-on-meta skills — they manage rules rather than produce code or learnings, so the per-skill + code-style layers don't apply.
 - **`MODE`** — `initial-load` (Step 0) or `refresh` (phase boundary).
 
 Callers receive (on completion):
@@ -38,7 +38,7 @@ Callers receive (on completion):
 
 Compute the load set from `LOAD_TIER`:
 
-- `pipeline` → `[global.md, <SKILL_SLUG>.md, code-style.md, user-preferences.md]` (four files, in that order — includes `user-preferences.md`)
+- `pipeline` → `[global.md, <SKILL_SLUG>.md, code-style.md]` (three files, in that order)
 - `rules-only` → `[global.md]` (one file)
 
 **Resolve `PRIMARY_ROOT` once, before the load loop.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash to compute the fallback location. When cwd is the main worktree (or the project isn't a git repo), `PRIMARY_ROOT="."` and the fallback is a no-op. When cwd is a linked worktree, `PRIMARY_ROOT` is the main worktree's absolute path. This handles two real failure modes: (a) `$ARGUMENTS` runs in `.claude/worktrees/<dir>/` where the branch checkout doesn't have instructions committed; (b) the current branch was created before `.geniro/instructions/*` was added on trunk, so the cwd checkout is stale relative to the user's latest authored rules.

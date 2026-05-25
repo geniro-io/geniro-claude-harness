@@ -65,7 +65,7 @@ Wired as `SessionStart` with `matcher: "compact|resume|startup"` (Anthropic-cano
 Emits an `additionalContext` block-set:
 
 - Per-source prefix (compact / resume / startup).
-- Suggested files (L4 instructions trio + `user-preferences.md` routed through `load-custom-instructions.md` MODE: refresh; CLAUDE.md, `_FEATURES.md`, state.md, spec.md, plan.md as direct Reads).
+- Suggested files (L4 instructions trio routed through `load-custom-instructions.md` MODE: refresh; CLAUDE.md, `_FEATURES.md`, state.md, spec.md, plan.md as direct Reads).
 - Validation-failure recovery directive (when `validate_state_file` reports a structural error).
 - Helper-missing notice (when the validator binary itself is absent).
 - Structured non-resumable-actions warning per state.md frontmatter (`git-push`, `pr-comment-posted`, `slack-notify-sent`, `release-tagged`, unknown-action fallback).

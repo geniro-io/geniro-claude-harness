@@ -1,10 +1,10 @@
 ---
 name: geniro:setup
-description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, interviews you about preferences, generates a thin-map CLAUDE.md + .geniro/instructions/user-preferences.md, and validates the result. Re-run mode also runs a migration sweep — auto-fixes breaking changes from MIGRATION.md (renames L3 files, adds missing frontmatter, cleans orphan state). Singleton bootstrap — one canonical state file."
+description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, interviews you about preferences, generates a thin-map CLAUDE.md, and validates the result. Re-run mode also runs a migration sweep — auto-fixes breaking changes from MIGRATION.md (renames L3 files, adds missing frontmatter, cleans orphan state). Singleton bootstrap — one canonical state file."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
-argument-hint: "[optional: path to template directory] [--reset-prefs]"
+argument-hint: "[optional: path to template directory]"
 ---
 
 # Setup: AI-Driven Plugin Setup
@@ -217,13 +217,7 @@ Categories registered for `/setup`:
 
 | Category | Asked at | Trigger to re-ask |
 |---|---|---|
-| `ship_mode_default` | 2.3 Step 2 | Re-run mode AND `--reset-prefs` flag passed |
-| `default_branch` | 2.3 Step 1 | Not git repo at first run, then `git init` happens, then re-run |
-| `default_reviewer_set` | 2.3 Step 3 | `--reset-prefs` flag |
-| `communication_style` | 2.3 Step 4 | `--reset-prefs` flag |
 | `claude_md_section_<id>` | Phase 3 Step 3 (per long section) | Section >40 LOC AND not previously decided |
-
-`--reset-prefs` flag clears ONLY the preference-category subset (`ship_mode_default`, `default_branch`, `default_reviewer_set`, `communication_style`); leaves `claude_md_section_*` alone.
 
 ### 2.2 Confirm detection
 
@@ -256,18 +250,7 @@ If `$PROJECT_KNOWLEDGE` is empty, omit the "From project documentation" section.
 
 AUQ options: `Looks correct` / `Adjust some things`. If adjust, ask specifically what to change.
 
-### 2.3 Question batches (max 2 batches)
-
-**Batch 1 — preferences** (always asked unless `approvals[]` cache hit):
-
-| Slot | Question | Options |
-|---|---|---|
-| `default_branch` | Default branch for PRs? | `main`, `master`, `develop`, `Other (free-text)` |
-| `ship_mode_default` | Default ship mode in `/implement`? | `commit-only`, `push (no PR)`, `open PR (draft)`, `open PR (ready)` |
-| `default_reviewer_set` | Which built-in reviewers default-on? | `full set (7 dimensions)`, `bugs+security+tests`, `custom` |
-| `communication_style` | Reply style for Geniro skills? | `concise (default)`, `verbose (more rationale)`, `minimal (results-only)` |
-
-**Batch 2 — codebase confirmations** (only if Detect was ambiguous):
+### 2.3 Codebase confirmations (only if Detect was ambiguous)
 
 E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package manager?" Skip Batch 2 entirely if no ambiguity.
 
@@ -360,10 +343,11 @@ After AUQ resolution:
 - `<PROJECT_ROOT>/.geniro/docs/hooks.md` (if spun out) — from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/docs-templates/hooks.md`.
 - `<PROJECT_ROOT>/.geniro/docs/mcp.md` (if spun out) — same pattern.
 - `<PROJECT_ROOT>/.geniro/docs/agent-runtime.md` (if spun out) — same pattern.
-- `<PROJECT_ROOT>/.geniro/instructions/user-preferences.md` — per (always created).
-- `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in- `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per- `<PROJECT_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`).
+- `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in.
+- `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
+- `<PROJECT_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`).
 
-All Writes AUQ-gated at **batch level** (one AUQ "Generate all of: CLAUDE.md (X lines),.geniro/instructions/user-preferences.md (Y lines),...? Options: yes / show preview first / edit which files").
+All Writes AUQ-gated at **batch level** (one AUQ "Generate all of: CLAUDE.md (X lines), .geniro/docs/*.md (Y lines), ...? Options: yes / show preview first / edit which files").
 
 ### 3.5 Conflict-resolution merge rules (re-run only)
 
@@ -376,34 +360,7 @@ Section merge runs **orchestrator-inline** — no subagent spawn. Each user-edit
 
 Section merge is a bounded read+reason+rewrite task — the orchestrator reads both versions, applies the rules, and writes merged output via `atomic_state_write` to CLAUDE.md. Each merged section is one entry in `## Tool log` as `merge_section inline` (no `Agent` call, just the orchestrator's own work).
 
-### 3.6 user-preferences.md generation
-
-ALL preferences captured in Batch 1 land in `<PROJECT_ROOT>/.geniro/instructions/user-preferences.md` (Q8 — L4 procedural). Format:
-
-```markdown
-# User Preferences
-
-## Rules
-
-- **Default branch:** `main`
-- **Default ship mode:** `open PR (draft)` — `/implement` Phase Ship pre-selects this option.
-- **Default reviewer set:** full (7 built-in dimensions).
-- **Communication style:** concise.
-
-## Loaded by
-
-Every Geniro pipeline + discovery skill at Step 0 (initial-load) and at each phase-boundary refresh via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`. Edit via `/geniro:instructions edit user-preferences`.
-```
-
-CLAUDE.md `## User Preferences` section becomes a 1-line reference:
-
-```markdown
-## User Preferences
-
-See `.geniro/instructions/user-preferences.md`. Loaded automatically by every Geniro pipeline skill.
-```
-
-### 3.7 Runtime directories + gitignore
+### 3.6 Runtime directories + gitignore
 
 ```bash
 mkdir -p.geniro/workflow.geniro/instructions.geniro/planning.geniro/knowledge
@@ -419,7 +376,7 @@ grep -q "^\!\.geniro/instructions/\*\*$".gitignore 2>/dev/null || echo "!.geniro
 fi
 ```
 
-### 3.8 Install StatusLine (preserved from current skill)
+### 3.7 Install StatusLine (preserved from current skill)
 
 Copy statusline script to stable location and configure user settings:
 
@@ -513,19 +470,16 @@ EOF
 
 Wrote:
 CLAUDE.md (67 lines — thin map)
-.geniro/instructions/user-preferences.md (12 lines)
 .geniro/docs/hooks.md (84 lines — spun out per AUQ)
 .geniro/docs/mcp.md (28 lines — spun out per AUQ)
 .geniro/.gitignore (no change — existing ignores cover.geniro/planning/,.geniro/state/,.geniro/knowledge/)
 
 Detected:
 Stack: node/npm + jest tests + ESLint
-Default branch: main
-Ship mode default: open PR (draft)
-Reviewer set: full (7 built-in dimensions)
+Default branch: main (auto-detected)
 
 Next:
-• Commit: git add CLAUDE.md.geniro/instructions/user-preferences.md.geniro/docs/
+• Commit: git add CLAUDE.md .geniro/docs/
 • Run a real task: /geniro:plan "your-task-here"
 • Or browse skills: /geniro:investigate "what does /geniro:debug do?"
 ```
@@ -573,8 +527,7 @@ timestamp: 2026-05-19T14:32:00Z # last-updated ISO-8601 UTC
 phase: detect # init|detect|interview|generate|validate|done|failed
 status: in-progress # in-progress|done|failed
 non-resumable-actions: [] # typically empty (/setup ships no external sends)
-approvals: # schema
-- {category: ship_mode_default, prompt: "Default ship mode?", options: [...], picked: "open-pr-draft", at: "2026-05-19T14:05:00Z", asked_in_phase: interview}
+approvals: # schema — only CLAUDE.md section layout decisions
 - {category: claude_md_section_hooks_details, prompt: "Include hooks details inline?", options: ["inline","spin out","drop"], picked: "spin out", at: "...", asked_in_phase: generate}
 geniro_kind: setup-state
 geniro_schema_version: m10a-v1
@@ -593,14 +546,8 @@ evidence:
 skill_inventory:
 - {slug: implement, purpose: "..."}
 #... 11 total
-preferences:
-default_branch: main
-ship_mode_default: open-pr-draft
-default_reviewer_set: full
-communication_style: concise
 write_targets:
 - {path: CLAUDE.md, op: write, loc: 67}
-- {path:.geniro/instructions/user-preferences.md, op: write, loc: 12}
 - {path:.geniro/docs/hooks.md, op: write, loc: 84}
 validate_rounds: 1
 ---
@@ -612,7 +559,7 @@ validate_rounds: 1
 ## Phase log
 [2026-05-19T14:00:00Z] init → detect (mode=init)
 [2026-05-19T14:02:00Z] detect complete — stack=node/npm, evidence_count=14
-[2026-05-19T14:05:00Z] interview Batch 1 → 4 preferences captured
+[2026-05-19T14:05:00Z] interview → detection confirmed, tracker: Linear
 [2026-05-19T14:10:00Z] generate Step 3.3 → 3 sections spun out (hooks, mcp, agent-runtime)
 [2026-05-19T14:30:00Z] validate round 1 → 0 DRIFT
 [2026-05-19T14:32:00Z] → done
@@ -628,7 +575,6 @@ validate_rounds: 1
 (empty)
 
 ## Persisted approvals # Block 5d (renders frontmatter approvals[])
-- ship_mode_default = "open-pr-draft" (asked at interview, 2026-05-19T14:05:00Z)
 - claude_md_section_hooks_details = "spin out" (asked at generate, 2026-05-19T14:10:00Z)
 
 ## Termination reason # only set on `failed`
@@ -641,7 +587,7 @@ validate_rounds: 1
 | L1 CLAUDE.md | Phase 1 (existing AI-tool config scan) | Phase 3 (thin-map CLAUDE.md) | Generated CLAUDE.md is the L1 target; preserves user customizations via orchestrator-inline merge |
 | L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/setup` and `/onboard` are different skills with non-overlapping write surfaces |
-| L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Phase 3 writes `user-preferences.md`; optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
+| L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 
 ## Anti-pattern check
 
@@ -669,18 +615,17 @@ validate_rounds: 1
 | "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
 | "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
 | "I already verified inx checks, skip the verification agent" | You generated the files — you're blind to your own mistakes. The independent agent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
-| "I'll write user preferences inline into CLAUDE.md instead of `.geniro/instructions/user-preferences.md`" | No — design fix. Preferences in CLAUDE.md make it self-modify on every preference change, violating "CLAUDE.md is a stable map". |
 | "I'll inline every section to make CLAUDE.md comprehensive" | No — split methodology. Sections >40 LOC default to spin-out. CLAUDE.md is a thin map. |
 | "I'll skip the section-by-section AUQ to save time" | No — Q3 decision. Concrete cut is runtime-AUQ-driven; defaulting to a fixed cut means losing user control over verbosity. |
-| "I'll re-ask preferences every run to keep them fresh" | No — approvals[] persists one-time decisions. Re-ask only on `--reset-prefs` flag. |
+| "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. Users override defaults at runtime or via `/geniro:instructions`. |
 | "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
 
 ## Definition of Done
 
 - [ ] Phase 0: Template source located (plugin root or explicit path)
 - [ ] Phase 1: Mode detected (init/re-run); codebase analyzed; project documentation scanned; skill inventory captured (11 skills, no dropped refs); L2 prior queries surfaced
-- [ ] Phase 2: User interviewed via approvals[]-aware AUQ batches; preferences captured
-- [ ] Phase 3: Migration sweep (re-run only) applied auto-fixes for breaking changes; CLAUDE.md generated (thin map); user-preferences.md written;.geniro/docs/*.md spun out per AUQ;.gitignore updated; statusline installed
+- [ ] Phase 2: Detection confirmed; codebase ambiguities resolved; optional integrations configured
+- [ ] Phase 3: Migration sweep (re-run only) applied auto-fixes for breaking changes; CLAUDE.md generated (thin map);.geniro/docs/*.md spun out per AUQ;.gitignore updated; statusline installed
 - [ ] Phase 4: Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4); L2 `discovery` emit fired
 - [ ] Phase 5: Final report printed; state file deleted on success path (kept on `accept-with-warnings` or `failed`)
 - [ ] Generated CLAUDE.md skill table lists exactly 11 skills; no references to /brainstorm /decompose /follow-up /deep-simplify /features /learnings /cleanup /vendor
@@ -692,7 +637,6 @@ validate_rounds: 1
 - — singleton state-file tier definition; `/setup` writes a T1 file
 - — L2 base schema with `trust:` field; emit conforms
 - — L2 emit trigger table; `discovery` row matches the bootstrap trigger
-- — deferred categories; user-preferences row closed here
 - — body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason)
 - Block 5d — approvals[] category list; adds setup-specific categories
 - — 7 loop invariants
