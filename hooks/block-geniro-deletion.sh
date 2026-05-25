@@ -95,7 +95,7 @@ has_rm_recursive() {
 if ! is_allowed "rm-geniro-tree"; then
   if has_rm_recursive; then
     if echo "$PADDED" | grep -qE '(/|[[:space:]"'"'"'])\.geniro/?[[:space:]"'"'"';|&]'; then
-      block "rm-geniro-tree" "rm -rf .geniro/ would wipe ALL plugin runtime + user-authored content (instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Use \`rm -f <single-file>\` for individual deletes, or run /geniro:cleanup for full uninstall."
+      block "rm-geniro-tree" "rm -rf .geniro/ would wipe ALL plugin runtime + user-authored content (instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Use \`rm -f <single-file>\` for individual deletes."
     fi
   fi
 fi

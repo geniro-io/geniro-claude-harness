@@ -25,7 +25,7 @@ The plugin ships 8 safety / lifecycle hooks, 1 sourced utility library, and 2 No
 | [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
 | [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write` | warn-mode (block in M1 PR-final) | Warns on direct Edit/Write к canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`; suggests `atomic_state_write` / `atomic_state_append` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
-| [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | M3 compaction-survival. Resolves the active T1 state.md across all three M1 layouts (planning task-dir / state-per-skill / state singleton); pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Read-only — never writes state.md. Replaced the pre-M3 `post-compact-notification.sh`. |
+| [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | M3 compaction-survival. Resolves the active T1 state.md across all three M1 layouts (planning task-dir / state-per-skill / state singleton); pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Read-only — never writes state.md. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
 | [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | ANSI-colored status line (model • task • dir • context%) |
 | [`backpressure.sh`](hooks/backpressure.sh) | **NOT registered** — utility library | — | Sourced by skills (e.g. /refactor, /review) to compress verbose test/build output |
@@ -72,7 +72,7 @@ Emits an `additionalContext` block-set per M3 §6:
 - Unresolved errors от state.md `## Errors`, pending `## Open Questions`, and persisted `approvals:` от state.md frontmatter (M3 §6 Blocks 5b / 5c / 5d).
 - Resume protocol.
 
-`systemMessage` one-liner emitted on every source except cold startup with no active task. Read-only — never writes state.md. Replaced the pre-M3 `post-compact-notification.sh` (deleted; matcher widened and Block 2-6 expanded к match the M3 spec).
+`systemMessage` one-liner emitted on every source except cold startup with no active task. Read-only — never writes state.md.
 
 ### enforce-state-helper.sh
 

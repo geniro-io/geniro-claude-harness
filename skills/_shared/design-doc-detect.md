@@ -8,7 +8,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 ### Step 1 — Extract token
 
-Take the **first non-flag token** of `$ARGUMENTS` after stripping the sub-command keyword (e.g. for `/geniro:features add F3` the token is `F3`; for `/geniro:implement --light path/to/file` the token is `path/to/file`). Flags are tokens starting with `-` (single or double dash); skip them and any value tokens they consume per the consuming skill's flag spec.
+Take the **first non-flag token** of `$ARGUMENTS` after stripping the sub-command keyword (e.g. for `/geniro:implement path/to/file` the token is `path/to/file`). Flags are tokens starting with `-` (single or double dash); skip them and any value tokens they consume per the consuming skill's flag spec.
 
 If `$ARGUMENTS` is empty after stripping, the consumer falls back to its own empty-argument AUQ — this algorithm returns nothing.
 

@@ -1,11 +1,11 @@
 ---
 name: refactor-patterns
-description: "Smell taxonomy, change-impact scoring, и atomic per-step execution protocol для /geniro:refactor. Orchestrator-inline reference (was former agents/refactor-agent.md before subagent rationalization)."
+description: "Smell taxonomy, change-impact scoring, and atomic per-step execution protocol for /geniro:refactor. Orchestrator-inline reference."
 ---
 
 # Refactor Patterns Reference
 
-Smell detection + change-impact scoring + per-step execution protocol for `/geniro:refactor` (M8). The orchestrator reads this file in Phase 1 §1.4 (smell detection) и Phase 2 §2.2 (per-step execution) и applies the patterns inline. Pre-2026-05 these were encoded в `agents/refactor-agent.md`; deletion was part of subagent rationalization (light reasoning that fits orchestrator's main context cleanly should not be spawned).
+Smell detection + change-impact scoring + per-step execution protocol for `/geniro:refactor`. The orchestrator reads this file in Phase 1 §1.4 (smell detection) and Phase 2 §2.2 (per-step execution) and applies the patterns inline.
 
 ## Core Principle
 

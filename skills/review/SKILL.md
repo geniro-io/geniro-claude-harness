@@ -273,8 +273,6 @@ The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent output
 - **Drop hallucinations:** findings without а real file:line correspondence (orchestrator verifies file exists и line is within bounds via Read; if not, drop with а `## Caveats` line citing the dropped finding).
 - **Convention context:** orchestrator reads convention files when present — CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs. These inform §3.3 KEEP/FILTER decisions.
 
-Folded from former relevance-filter-agent (deleted under subagent rationalization — Anthropic best practice: light reasoning that fits orchestrator's main context cleanly should not be spawned as а separate agent).
-
 ### 3.2 Mechanical+LLM dedup
 
 Mechanical findings (Phase 1.5) и LLM findings may overlap (e.g., lint says «unused import on line 42», bugs reviewer says «dead code on line 42»). Orchestrator-inline dedup identifies overlap by dedup key (§3.1), preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. Convergence_count для that finding gains +1 для the mechanical contribution.
