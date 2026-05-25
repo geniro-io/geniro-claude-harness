@@ -157,8 +157,8 @@ Scripts moved: `archive-stale.sh`, `atomic-state-write.sh`, `emit-learning.sh`, 
 ## Comment 19 — `skills/_shared/load-semantic.md:126`
 **Question:** "Объяснение предназначения этих инструкций, где мы их используем, зачем"
 (Explain the purpose of these instructions, where we use them, why)
-**Status:** ❌ NOT STARTED
-**Notes:** Need to explain load-semantic.md purpose and usage.
+**Status:** ✅ DONE — kept as-is
+**Finding:** load-semantic.md is the API doc for lib/load-semantic.sh — the L3 (semantic memory) reader. Loads project knowledge files (_project.md, _CODEBASE_MAP.md) + fingerprint drift detection. 17 active references — nearly every skill calls it at Step 0. Core infrastructure, kept.
 
 ---
 
