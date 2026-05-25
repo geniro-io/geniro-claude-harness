@@ -18,6 +18,17 @@ Actions are now gated by `risk_class: low | medium | high`. Older actions lack t
 
 **Auto-detect:** `find .geniro/actions -maxdepth 1 -name '*.md' -exec grep -L '^risk_class:' {} +`
 
+**Auto-fix:**
+
+```bash
+for f in $(find .geniro/actions -maxdepth 1 -name '*.md' -exec grep -L '^risk_class:' {} +); do
+  sed -i '/^---$/,/^---$/{/^---$/!{/^---$/!{0,/^---$/!s/^---$/risk_class: low\n---/}}}' "$f" 2>/dev/null || \
+  sed -i '2a risk_class: low' "$f"
+done
+```
+
+Adds `risk_class: low` to the frontmatter of each affected action. Users should review and adjust to `medium` or `high` where appropriate after the fix.
+
 **Severity:** HIGH — `/geniro:actions list` and `/geniro:actions run <slug>` validate frontmatter on every invocation; missing field surfaces as a CRITICAL lint and refuses the run.
 
 ---
@@ -29,6 +40,8 @@ Actions are now gated by `risk_class: low | medium | high`. Older actions lack t
 **Action required:** For each non-canonical instruction file acting as a custom reviewer, recreate via `/geniro:instructions create review-extra/<slug>` (interview copies the body + adds `slug` / `description` / `model` / `paths` / `severity-default` frontmatter), then `/geniro:instructions delete <old-scope>`.
 
 **Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|user-preferences|implement|plan|review|debug|refactor|onboard|investigate)\.md$'`
+
+**Auto-fix:** manual-only — custom reviewer migration requires user judgment to set frontmatter fields (`description`, `model`, `paths`, `severity-default`). Run `/geniro:instructions create review-extra/<slug>` per file.
 
 **Severity:** MEDIUM — `load-custom-reviewers.md` reads only `review-extra/*.md`; old files persist untouched but fire no reviewer-agent spawns.
 
@@ -42,6 +55,30 @@ Skills dropped in the consolidation: `/brainstorm`, `/decompose`, `/follow-up`, 
 
 **Auto-detect:** `ls .geniro/instructions/{brainstorm,decompose,follow-up,deep-simplify,features,learnings,cleanup,vendor}.md 2>/dev/null`
 
+**Auto-fix:**
+
+```bash
+# Move rules content from deleted-skill instruction files to their replacement skill files
+for pair in "follow-up:implement" "deep-simplify:review" "decompose:plan" "brainstorm:plan"; do
+  old="${pair%%:*}"; new="${pair##*:}"
+  src=".geniro/instructions/$old.md"; dst=".geniro/instructions/$new.md"
+  if [ -f "$src" ]; then
+    if [ -f "$dst" ]; then
+      echo "" >> "$dst"
+      echo "# Migrated from $old.md" >> "$dst"
+      cat "$src" >> "$dst"
+    else
+      mv "$src" "$dst"
+    fi
+    rm -f "$src"
+  fi
+done
+# Delete orphan files for skills with no direct replacement
+rm -f .geniro/instructions/{features,learnings,cleanup,vendor}.md 2>/dev/null
+```
+
+Review the merged content after migration — some rules may need rewording for the new skill context.
+
 **Severity:** MEDIUM — files inert (no loader reads them); rules they encoded are silently dropped until migrated to the replacement skill.
 
 ---
@@ -50,7 +87,11 @@ Skills dropped in the consolidation: `/brainstorm`, `/decompose`, `/follow-up`, 
 
 `.geniro/planning/` L3 registry files are now standardized under `_`-prefix to visually distinguish persistent-global from task-local: `_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`. `load-semantic.sh` reads only `_`-prefixed paths. `_CODEBASE_MAP.md` retains a one-shot backward-compat read of legacy `CODEBASE_MAP.md` per `_shared/primary-worktree.md`; the other names do NOT.
 
-**Action required:** Rename:
+**Action required:** Rename files to add `_` prefix.
+
+**Auto-detect:** `ls .geniro/planning/{FEATURES,CODEBASE_MAP,project,architecture}.md 2>/dev/null`
+
+**Auto-fix:**
 
 ```bash
 cd .geniro/planning && \
@@ -59,8 +100,6 @@ cd .geniro/planning && \
   [ -f project.md ]      && mv project.md      _project.md      ; \
   [ -f architecture.md ] && mv architecture.md _architecture.md
 ```
-
-**Auto-detect:** `ls .geniro/planning/{FEATURES,CODEBASE_MAP,project,architecture}.md 2>/dev/null`
 
 **Severity:** MEDIUM — `/plan`, `/implement`, `/onboard` report "no L3 registry found" until renamed; content is preserved, only the path needs adjusting.
 
@@ -76,6 +115,8 @@ cd .geniro/planning && \
 
 (Heading-gated + canonical-form-anchored. The first grep short-circuits when CLAUDE.md already carries the "Skills deleted" receipts heading — receipt mentions there are intentional. The second grep is anchored to the canonical `/geniro:<command>` form `/setup` writes; bare-text mentions like `learnings.jsonl` filenames don't match. If your CLAUDE.md uses non-canonical shorthand like bare `/brainstorm`, run `/geniro:setup` re-run regardless.)
 
+**Auto-fix:** manual-only — requires `/geniro:setup` re-run which is an interactive skill invocation. Run `/geniro:setup` after `/update` completes.
+
 **Severity:** MEDIUM — users invoking listed commands hit "not found"; other skills work normally.
 
 ---
@@ -88,6 +129,8 @@ cd .geniro/planning && \
 
 **Auto-detect:** `[ ! -f .geniro/instructions/user-preferences.md ] && echo affected`
 
+**Auto-fix:** manual-only — requires `/geniro:setup` re-run or `/geniro:instructions create user-preferences` to capture user preferences interactively.
+
 **Severity:** LOW — pipeline skills function without it (treated as "no preferences set"); creating it customizes default behavior.
 
 ---
@@ -96,7 +139,11 @@ cd .geniro/planning && \
 
 `.geniro/state/` was reorganized per the 3-tier framework: T1 ephemeral session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry for backward-compat resume but writes to the T2 path.
 
-**Action required:** Optional cosmetic cleanup (orphan files inert):
+**Action required:** Optional cosmetic cleanup (orphan files inert).
+
+**Auto-detect:** `ls -d .geniro/state/{follow-up,brainstorm,decompose,learnings,deep-simplify,cleanup,vendor,features}/ 2>/dev/null; ls .geniro/state/review-findings-state.md 2>/dev/null`
+
+**Auto-fix:**
 
 ```bash
 rm -rf .geniro/state/{follow-up,brainstorm,decompose,learnings,deep-simplify,cleanup,vendor,features}/ 2>/dev/null
@@ -104,8 +151,6 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 ```
 
 (Per-subdir `rm -rf .geniro/state/<x>/` and per-file `rm -f` allowed by `.geniro/`-deletion guard; bulk `rm -rf .geniro/state/` blocked.)
-
-**Auto-detect:** `ls -d .geniro/state/{follow-up,brainstorm,decompose,learnings,deep-simplify,cleanup,vendor,features}/ 2>/dev/null; ls .geniro/state/review-findings-state.md 2>/dev/null`
 
 **Severity:** LOW — orphan files inert; new skills read the current paths only. Cleanup purely cosmetic.
 
@@ -119,6 +164,8 @@ New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write
 
 **Auto-detect:** N/A — only reveals itself when a blocked operation occurs (fail-loud).
 
+**Auto-fix:** N/A — no migration needed. Hooks activate automatically.
+
 **Severity:** LOW — fail-loud with the bypass ID; no silent corruption possible.
 
 ---
@@ -131,6 +178,8 @@ New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write
 
 **Auto-detect:** N/A — informational.
 
+**Auto-fix:** N/A — no migration needed. Backward compatible.
+
 **Severity:** LOW — no migration needed.
 
 ---
@@ -139,15 +188,17 @@ New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write
 
 Older vendored installs may have `.claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md` copied at install time. These 4 agents were removed in a prior consolidation. The plugin update overwrites the agent directory, but vendored copies under `.claude/agents/` are user-owned and untouched.
 
-**Action required:** Optional cleanup for vendored installs only:
+**Action required:** Optional cleanup for vendored installs only.
+
+**Auto-detect:** `ls .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null`
+
+**Auto-fix:**
 
 ```bash
 rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null
 ```
 
-**Auto-detect:** `ls .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null`
-
-**Severity:** LOW — orphan files cause a warning when Claude Code lists agents but do not break spawns (5 current agents register independently).
+**Severity:** LOW — orphan files cause a warning when Claude Code lists agents but do not break spawns (2 current agents register independently).
 
 ---
 

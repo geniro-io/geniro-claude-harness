@@ -3,7 +3,7 @@ name: geniro:update
 description: "Use when the status line shows a plugin update is available, or to manually pull the latest geniro-claude-plugin version. Verifies plugin integrity, ensures user-authored.geniro/instructions/ and.geniro/actions/ survived intact, and walks any breaking changes in MIGRATION.md."
 context: main
 model: inherit
-allowed-tools: [Bash, AskUserQuestion, Read, Glob, Grep]
+allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep]
 argument-hint: "[--dry-run]"
 ---
 
@@ -36,7 +36,7 @@ argument-hint: "[--dry-run]"
 | `pre-check` | `Read`, `Bash` (`cat`, `grep`, `python3 -c "json.load"`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent`, all `mcp__*` |
 | `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update`, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
 | `post-check` | `Read`, `Bash` (`sha256sum`, `stat`, `cp` for statusline refresh), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
-| `migration` | `Read`, `AskUserQuestion`, `Bash` (`grep -r`, detect commands from MIGRATION.md), `Glob` | `Write`, `Edit` (migration suggestions surfaced as `/geniro:instructions edit` recommendations, NEVER auto-applied), `Agent`, `mcp__*` |
+| `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
 External sends: not in `/update` ACI ever.
@@ -258,15 +258,16 @@ For each entry, in chronological order:
 3. If output non-empty → AUQ:
 - **Question:** `Breaking change in v<X.Y.Z>: <change-name>. <Action required text>. Auto-detected N affected files: <first 10 lines truncated>`
 - **Options:**
-- `Show me how to fix this` — Print exact `/geniro:instructions edit <scope>` (or `/geniro:actions edit <slug>`) command + manual fix; exit migration walk early
-- `Skip for now` — Log skipped; continue to next entry
-- `Cancel migration walk` — Stop here; log remaining; transition to Phase 5
+- `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry. If the entry has no `Auto-fix:` field (manual-only migration), fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` to verify — if still affected, warn and continue.
+- `Show me how to fix manually` — Print the `Action required:` text with exact commands; continue to next entry.
+- `Skip for now` — Log skipped; continue to next entry.
+- `Cancel migration walk` — Stop here; log remaining; transition to Phase 5.
 
 After last entry: transition to Phase 5.
 
 If MIGRATION.md is present but malformed (cannot parse the heading structure), skip Phase 4 with one warning line: `[warn] MIGRATION.md present but malformed — proceeding without walk`.
 
-**`/update` NEVER auto-applies migration fixes.** It surfaces; user runs `/geniro:instructions edit <scope>` or `/geniro:actions edit <slug>` to actually apply.
+**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. Entries without `Auto-fix:` (marked `Auto-fix: manual-only`) require user action; the agent prints the manual steps instead.
 
 ## Phase 5 — Done
 
@@ -296,8 +297,8 @@ Restart warning is **always emitted** by `/update` (unlike `/setup` which is con
 | L1 CLAUDE.md | not read | not written | `/setup re-run` handles CLAUDE.md refresh; `/update` only emits a recommendation if user-project CLAUDE.md may be stale |
 | L2 learnings.jsonl | not read | not written | `/update` is operational, not knowledge-producing |
 | L3 semantic files | not read | not written | N/A |
-| L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | NEVER written | Migration walk emits suggestions, never auto-edits |
-| `.geniro/actions/*.md` (T3) | snapshot+integrity check | NEVER written | Same |
+| L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
+| `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
 
 ## Anti-pattern check
 
@@ -311,7 +312,7 @@ Restart warning is **always emitted** by `/update` (unlike `/setup` which is con
 | 6 | No durable plans or goals | ✅ N/A — operational maintenance |
 | 7 | No compaction strategy | ✅ N/A — `/update` is single-pass; survives natively via file-on-disk |
 | 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools without policy | ✅ §ACI surface per phase; no mutation of user content |
+| 9 | High-risk tools without policy | ✅ §ACI surface per phase; user content mutated ONLY via explicit "Fix it for me" AUQ pick per migration entry |
 | 10 | Subagents before single-agent MVP measured | ✅ Zero subagents |
 | 11 | Dynamic timestamps in plugin-distributed Markdown | ✅ This SKILL.md has no timestamps. Hash fingerprints are runtime, never persisted to plugin |
 | 12 | Non-deterministic agent registration order | ✅ N/A |
