@@ -41,35 +41,35 @@ On any validation failure, re-ask via `AskUserQuestion` with the error message i
 Count existing files in `.geniro/instructions/review-extra/`:
 
 ```bash
-ls .geniro/instructions/review-extra/*.md 2>/dev/null | wc -l
+ls.geniro/instructions/review-extra/*.md 2>/dev/null | wc -l
 ```
 
 - If creating the 7th file (existing count == 6), warn via `AskUserQuestion`:
-  - **Question:** "Custom reviewer count will be 7 — Pattern 1 sweet-spot is 4-6 dimensions, so you'd be exceeding it. Proceed?"
-  - **Options:**
-    - label: "Proceed anyway" — description: "Create the 7th reviewer despite exceeding the sweet spot"
-    - label: "Cancel" — description: "Don't create — consider consolidating overlapping reviewers first"
+- **Question:** "Custom reviewer count will be 7 — Pattern 1 sweet-spot is 4-6 dimensions, so you'd be exceeding it. Proceed?"
+- **Options:**
+- label: "Proceed anyway" — description: "Create the 7th reviewer despite exceeding the sweet spot"
+- label: "Cancel" — description: "Don't create — consider consolidating overlapping reviewers first"
 
-  On "Cancel", stop without writing.
+On "Cancel", stop without writing.
 
 - If creating the 11th file (existing count == 10), hard-refuse — print:
-  ```
-  Hard cap reached: 10 custom reviewers maximum.
+```
+Hard cap reached: 10 custom reviewers maximum.
 
-  Existing slugs in .geniro/instructions/review-extra/:
-  - {{slug-1}}
-  - {{slug-2}}
-  ...
-  - {{slug-10}}
+Existing slugs in.geniro/instructions/review-extra/:
+- {{slug-1}}
+- {{slug-2}}
+...
+- {{slug-10}}
 
-  Delete one with `/geniro:instructions delete review-extra <slug>` before adding another.
-  ```
-  Stop without writing.
+Delete one with `/geniro:instructions delete review-extra <slug>` before adding another.
+```
+Stop without writing.
 
 ### Step 4: Ensure directory exists
 
 ```bash
-mkdir -p .geniro/instructions/review-extra
+mkdir -p.geniro/instructions/review-extra
 ```
 
 ### Step 5: Gather the description
@@ -82,10 +82,10 @@ Use `AskUserQuestion` with no options (free-form via "Other"):
 Use `AskUserQuestion`:
 - **Question:** "Which model should run this reviewer? Sonnet handles most semantic checks well; Haiku is good for narrow pattern matchers; Opus is for deep architectural concerns."
 - **Options:**
-  - label: "sonnet (Recommended)" — description: "Default — best balance of cost and depth for semantic checks"
-  - label: "haiku" — description: "Cheap and fast — best for narrow regex-like pattern checks"
-  - label: "opus" — description: "Most thorough — use for deep architectural / cross-file concerns"
-  - label: "Skip — use default sonnet" — description: "Omit the model field; default to sonnet"
+- label: "sonnet (Recommended)" — description: "Default — best balance of cost and depth for semantic checks"
+- label: "haiku" — description: "Cheap and fast — best for narrow regex-like pattern checks"
+- label: "opus" — description: "Most thorough — use for deep architectural / cross-file concerns"
+- label: "Skip — use default sonnet" — description: "Omit the model field; default to sonnet"
 
 On "Skip", omit the `model:` field from frontmatter.
 
@@ -94,8 +94,8 @@ On "Skip", omit the `model:` field from frontmatter.
 Use `AskUserQuestion`:
 - **Question:** "Should this reviewer only fire for specific file patterns? Narrow scoping prevents the reviewer from burning budget on diffs where it can never find anything."
 - **Options:**
-  - label: "All files (always fires)" — description: "Reviewer runs on every diff. Good for project-wide concerns."
-  - label: "Only files matching these globs (Recommended for narrow checks)" — description: "Reviewer fires only when the diff touches matching files."
+- label: "All files (always fires)" — description: "Reviewer runs on every diff. Good for project-wide concerns."
+- label: "Only files matching these globs (Recommended for narrow checks)" — description: "Reviewer fires only when the diff touches matching files."
 
 On "Only files matching these globs", chain a free-form follow-up via `AskUserQuestion` (no options — "Other" path):
 - **Question:** "Enter comma-separated globs (e.g., `**/*.sql, **/dao/*.{ts,py}`)."
@@ -107,23 +107,23 @@ Parse the comma-separated input into a YAML list. Validate each entry is non-emp
 Use `AskUserQuestion`:
 - **Question:** "Default severity for findings from this reviewer? The reviewer-agent may override per-finding, but this is the starting point for scoring."
 - **Options:**
-  - label: "HIGH" — description: "Security-critical / data-integrity reviewers (e.g., SQL injection, secrets logging)"
-  - label: "MEDIUM (default)" — description: "Most quality / convention reviewers"
-  - label: "LOW" — description: "Style / nice-to-have reviewers"
-  - label: "Other" — description: "CRITICAL, or skip and use the default MEDIUM"
+- label: "HIGH" — description: "Security-critical / data-integrity reviewers (e.g., SQL injection, secrets logging)"
+- label: "MEDIUM (default)" — description: "Most quality / convention reviewers"
+- label: "LOW" — description: "Style / nice-to-have reviewers"
+- label: "Other" — description: "CRITICAL, or skip and use the default MEDIUM"
 
 On "Other", chain `AskUserQuestion`:
 - **Question:** "Pick the severity:"
 - **Options:**
-  - label: "CRITICAL" — description: "Reserve for must-fix-before-merge findings (data loss, auth bypass)"
-  - label: "Skip — use default MEDIUM" — description: "Omit the severity-default field"
+- label: "CRITICAL" — description: "Reserve for must-fix-before-merge findings (data loss, auth bypass)"
+- label: "Skip — use default MEDIUM" — description: "Omit the severity-default field"
 
 On any "Skip", omit the `severity-default:` field.
 
 ### Step 9: Gather the criteria body
 
 Explain the body shape before asking. Use `AskUserQuestion` with no options (free-form via "Other"):
-- **Question:** "Paste the criteria body. Mirror the `what to flag / what NOT to flag` shape from `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`. Keep it 30-80 lines, focused on concrete code patterns (not abstract principles). Example structure:\n\n```\n# Criteria\n\nWhat to flag:\n- String concatenation that builds a SQL string with a runtime variable\n- ORM .raw() calls passing concatenated strings instead of bind parameters\n\nWhat to NOT flag:\n- Static SQL with no variables\n- Schema-migration files that intentionally build CREATE statements\n```\n\nPaste your criteria below:"
+- **Question:** "Paste the criteria body. Mirror the `what to flag / what NOT to flag` shape from `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`. Keep it 30-80 lines, focused on concrete code patterns (not abstract principles). Example structure:\n\n```\n# Criteria\n\nWhat to flag:\n- String concatenation that builds a SQL string with a runtime variable\n- ORM.raw calls passing concatenated strings instead of bind parameters\n\nWhat to NOT flag:\n- Static SQL with no variables\n- Schema-migration files that intentionally build CREATE statements\n```\n\nPaste your criteria below:"
 
 ### Step 10: Write the file
 
@@ -137,18 +137,18 @@ slug: sql-bindings
 description: All SQL queries use parameterized bindings, never string concatenation
 model: sonnet
 paths:
-  - "**/*.sql"
-  - "**/dao/*.{ts,py}"
+- "**/*.sql"
+- "**/dao/*.{ts,py}"
 severity-default: HIGH
 ---
 
 # Criteria
 
 What to flag:
-- ...
+-...
 
 What to NOT flag:
-- ...
+-...
 ```
 
 ### Step 11: Confirm
@@ -159,7 +159,7 @@ Show the created file content and report:
 Created `.geniro/instructions/review-extra/{{slug}}.md`.
 
 This reviewer will run alongside the built-in 7-9 every time you invoke
-/geniro:review (or implement/follow-up/refactor's review phase).
+/geniro:review (or /geniro:implement Phase 3 self-review / /geniro:refactor Phase 3 verify).
 
 Test it: run `/geniro:review` against a PR you expect this reviewer to flag,
 and confirm findings appear and look right. Edit with

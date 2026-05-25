@@ -26,7 +26,7 @@ grep -n "query.*\+" file.js
 - String concatenation with user input in queries
 - Shell commands built with user data
 - Database operations without parameterized statements
-- Dynamic code evaluation (`eval`, `Function()`)
+- Dynamic code evaluation (`eval`, `Function`)
 - Template strings in SQL/command contexts
 
 ### 2. Authentication & Authorization
@@ -99,7 +99,7 @@ grep -n "Math.random\|random" file.js | grep -v "seed"
 **Red flags:**
 - MD5 or SHA1 for passwords/tokens
 - Encryption without HMAC or authentication
-- Using `Math.random()` for security tokens
+- Using `Math.random` for security tokens
 - No key management strategy visible
 - Deprecated crypto modules
 
@@ -190,53 +190,53 @@ grep -in "debug\|development\|process.env.NODE_ENV" file.js
 
 ```json
 {
-  "type": "security",
-  "severity": "critical|high|medium",
-  "title": "Brief vulnerability title",
-  "file": "path/to/file.js",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "Detailed description of security risk",
-  "code_snippet": "Vulnerable code",
-  "vulnerability_type": "injection|auth|secrets|crypto|validation|exposure|headers|dependencies",
-  "owasp_category": "A01|A02|A03|A04|A05|A06|A07|A08|A09|A10",
-  "impact": "What attacker can do with this vulnerability",
-  "recommendation": "How to fix it securely",
-  "confidence": 90
+"type": "security",
+"severity": "critical|high|medium",
+"title": "Brief vulnerability title",
+"file": "path/to/file.js",
+"line_start": 42,
+"line_end": 48,
+"description": "Detailed description of security risk",
+"code_snippet": "Vulnerable code",
+"vulnerability_type": "injection|auth|secrets|crypto|validation|exposure|headers|dependencies",
+"owasp_category": "A01|A02|A03|A04|A05|A06|A07|A08|A09|A10",
+"impact": "What attacker can do with this vulnerability",
+"recommendation": "How to fix it securely",
+"confidence": 90
 }
 ```
 
 ## Common False Positives
 
 1. **Legitimate concatenation** — String building isn't always injection
-   - Check if values are sanitized before use
-   - Parameterized queries with explicit binding aren't vulnerable
+- Check if values are sanitized before use
+- Parameterized queries with explicit binding aren't vulnerable
 
 2. **Test/demo code** — Security can be relaxed in test context
-   - Verify code is in test directory, not production
-   - Check for skip/only markers
+- Verify code is in test directory, not production
+- Check for skip/only markers
 
 3. **Configuration-driven** — Behavior controlled by deployment config
-   - CORS allowlist might be injected at runtime
-   - Check if values come from secure config sources
+- CORS allowlist might be injected at runtime
+- Check if values come from secure config sources
 
 4. **Intentional exposure** — Some data is meant to be public
-   - Public API endpoints intentionally expose certain data
-   - Check API documentation
+- Public API endpoints intentionally expose certain data
+- Check API documentation
 
 5. **Defense in depth** — Multiple checks aren't always redundant
-   - May have both input validation and output encoding
-   - Check if each layer serves a purpose
+- May have both input validation and output encoding
+- Check if each layer serves a purpose
 
 6. **Framework defaults** — Some frameworks provide security by default
-   - Check if using framework-provided security mechanisms
-   - Don't flag if using framework's recommended patterns
+- Check if using framework-provided security mechanisms
+- Don't flag if using framework's recommended patterns
 
 ## Stack-Agnostic Patterns
 
 Works across languages/frameworks:
 - JavaScript: parameterized queries (prepared statements)
-- Python: `execute()` with tuple parameters, not f-strings in SQL
+- Python: `execute` with tuple parameters, not f-strings in SQL
 - Go: `database/sql` with placeholders
 - Rust: ORM libraries with query builders
 - Java: PreparedStatement, not string concatenation

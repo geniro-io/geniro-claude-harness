@@ -1,6 +1,6 @@
 # Evidence Standard
 
-Authoritative for evidence-attached findings, completion claims, and reviewer-agent CRITICAL/HIGH dispositions. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` (hypothesis confirmation), `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` (every CRITICAL/HIGH finding), `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` and `${CLAUDE_PLUGIN_ROOT}/skills/follow-up/SKILL.md` (completion / Ship claims).
+Authoritative for evidence-attached findings, completion claims, and reviewer-agent CRITICAL/HIGH dispositions.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the schema or the forbidden-phrases list.
 

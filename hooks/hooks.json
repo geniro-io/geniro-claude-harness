@@ -28,6 +28,11 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-tdd-order.sh",
             "statusMessage": "Checking TDD-order constraint..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-state-helper.sh",
+            "statusMessage": "Checking state-helper usage (warn-mode)..."
           }
         ]
       }
@@ -54,12 +59,12 @@
         ]
       },
       {
-        "matcher": "compact",
+        "matcher": "compact|resume|startup",
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/post-compact-notification.sh",
-            "statusMessage": "Restoring context after compaction...",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-start-restore.sh",
+            "statusMessage": "Restoring Geniro context...",
             "timeout": 10
           }
         ]

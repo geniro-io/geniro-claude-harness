@@ -16,14 +16,14 @@ You are the orchestrator for investigating and fixing issues in the geniro-claud
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST be explicit about its tier — pass `model=` explicitly for mechanical/bounded agents, OMIT `model=` for the reasoning-grade carve-out (frontmatter-declared `model: inherit`) so the synthesis tier mirrors orchestrator. For plugin-defined subagents (`relevance-filter-agent`, `reviewer-agent`, `adversarial-tester-agent`, `architect-agent`, `skeptic-agent`, etc.), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined (frontmatter stripped).
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST be explicit about its tier — pass `model=` explicitly for mechanical/bounded agents, OMIT `model=` for the reasoning-grade carve-out (frontmatter-declared `model: inherit`) so the synthesis tier mirrors orchestrator. For plugin-defined subagents (`reviewer-agent`, `adversarial-tester-agent` — 2 agents post-rationalization), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined (frontmatter stripped).
 
 **Skill-specific mapping:**
 
 | Spawn | Tier | Why |
 |---|---|---|
 | Phase 1 research agents (codebase / report.md / internet) | `opus` (passed explicitly) | Reasoning-grade research, but general-purpose — not a carve-out subagent |
-| Phase 2b `relevance-filter-agent` | `inherit` (omit `model=` at spawn site) | Synthesis-of-findings carve-out per `model-tiering.md:7` |
+| Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits orchestrator's main context cleanly per subagent rationalization |
 | Phase 4 implementation agents | `opus` (passed explicitly) | General-purpose — not a carve-out subagent |
 | Phase 5 review agent | `opus` (passed explicitly) | General-purpose fresh reviewer — not a carve-out subagent |
 
@@ -215,25 +215,17 @@ Write checkpoint with approved finding count.
 
 ---
 
-## PHASE 2b: REDUNDANCY & RELEVANCE VALIDATION (subagent)
+## PHASE 2b: REDUNDANCY & RELEVANCE VALIDATION (orchestrator-inline)
 
-**Purpose:** Adversarial gate BEFORE the user sees findings — catches items that duplicate existing instructions or propose theoretical/over-engineered changes. The orchestrator cannot self-review its own Phase 2 filtering without bias.
+**Purpose:** Adversarial gate BEFORE the user sees findings — catches items that duplicate existing instructions or propose theoretical/over-engineered changes.
 
-Spawn `relevance-filter-agent` with every Phase 2-approved finding. The agent greps the target files for existing instructions (redundancy) and checks whether each change is needed for current scope or is YAGNI / defensive polish (relevance). It returns an evidence dossier per finding — NOT a KEEP/FILTER tag.
+Orchestrator-inline validation per finding (no subagent — folded under subagent rationalization; same Anthropic rationale as /review Phase 3 dedup). For each Phase 2-approved finding, the orchestrator:
 
-This spawn follows the runtime-degradation rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — attempt the bare name first; on `Agent type 'relevance-filter-agent' not found` (harness / SDK / cloud runners where the plugin's `agents/` directory is not registered), re-attempt as `Agent(subagent_type="general-purpose", prompt=<<body of agents/relevance-filter-agent.md, frontmatter stripped>> + "\n\n---\n\n" + <original prompt>)`. Other errors do NOT trigger fallback. Cache the "not found" inference for the rest of the session — do not re-attempt the bare name. The spawn OMITS `model=` per the canonical model-tiering carve-out (`relevance-filter-agent` declares `model: inherit` in its frontmatter; passing `model="opus"` at the call site contradicts the carve-out and leaks tier mismatch).
+1. **Redundancy check (ALIGNS / CONTRADICTS / NEUTRAL):** Grep target files for instructions covering the same ground. CONTRADICTS = duplicate; ALIGNS = compatible with existing; NEUTRAL = novel-but-non-conflicting.
+2. **Relevance check (APPROPRIATE / OVER-ENGINEERED):** weigh against current scope — APPROPRIATE if needed for stated purpose; OVER-ENGINEERED if YAGNI or defensive polish.
+3. **One-line rationale** captures the why.
 
-```
-Agent(subagent_type="relevance-filter-agent", prompt="""
-FINDINGS: [all Phase 2-approved findings, numbered, with file paths and proposed changes]
-CHANGED FILES: [list of file paths that would be modified — the agent reads them itself]
-PROJECT CONTEXT: [relevant CLAUDE.md excerpts, CONTRIBUTING.md if present]
-
-For each finding, return: ALIGNS|CONTRADICTS|NEUTRAL for redundancy (cite line if redundant); APPROPRIATE|OVER-ENGINEERED for necessity; one-line rationale. Do NOT tag KEEP or FILTER — evidence only; the orchestrator decides.
-""", description="Validate: redundancy & relevance")
-```
-
-Read the dossier yourself: tag FILTER if CONTRADICTS (redundant) or OVER-ENGINEERED (not needed); otherwise KEEP. Do NOT delegate this tagging. Write checkpoint with KEEP count. Filtered findings appear in Phase 3's "Filtered" section for transparency but are not proposed for implementation.
+Then tag: FILTER if CONTRADICTS (redundant) or OVER-ENGINEERED (not needed); otherwise KEEP. Write checkpoint with KEEP count. Filtered findings appear in Phase 3's "Filtered" section for transparency but are not proposed for implementation.
 
 ---
 
@@ -512,7 +504,7 @@ your existing validation infrastructure (validation gate + relevance-filter
    - (Optional, if applicable) **Subagents**: "Does this skill spawn subagents? Which existing agent definitions, or new ones?"
    - (Optional, if applicable) **Workflow file integration**: "Should this skill read from `.geniro/workflow/*.md` (Linear, GitHub Issues, etc.)?"
 
-4. **Pre-existing-instruction check.** Spawn a generic Agent (no `subagent_type` — `relevance-filter-agent`'s input contract assumes review findings, not skill descriptions, so it's the wrong tool here) with `model="sonnet"` and a focused prompt: pre-inline (a) the proposed skill's purpose + trigger + outputs, (b) the existing skills inventory (`Glob skills/**/SKILL.md` summary as a list of `name | description-first-line` pairs), (c) the project-local skills inventory (`Glob .claude/skills/**/SKILL.md`). The agent's task: read each existing skill's full description (and the first 30 lines of any with significant trigger overlap), then return a structured table with columns `name | overlap-level (none|partial|significant) | overlap-rationale | recommendation (proceed | extend-existing | reject)`. The orchestrator decides KEEP (proceed to Phase B) or REJECT (route the user to the existing skill instead). Without this check, the codebase accumulates near-duplicate skills.
+4. **Pre-existing-instruction check.** Spawn a generic Agent (`subagent_type="general-purpose"`) with `model="sonnet"` and a focused prompt: pre-inline (a) the proposed skill's purpose + trigger + outputs, (b) the existing skills inventory (`Glob skills/**/SKILL.md` summary as a list of `name | description-first-line` pairs), (c) the project-local skills inventory (`Glob .claude/skills/**/SKILL.md`). The agent's task: read each existing skill's full description (and the first 30 lines of any with significant trigger overlap), then return a structured table with columns `name | overlap-level (none|partial|significant) | overlap-rationale | recommendation (proceed | extend-existing | reject)`. The orchestrator decides KEEP (proceed to Phase B) or REJECT (route the user to the existing skill instead). Without this check, the codebase accumulates near-duplicate skills.
 
 ### Phase B: Draft (one author-agent spawn, then validate)
 
@@ -591,7 +583,7 @@ If the user interjects mid-phase: corrections/context fold into the current phas
 - [ ] Complexity gate applied (fast path or full pipeline)
 - [ ] Phase 1: Research sources selected per Matrix; only those agents spawned (logged in state checkpoint)
 - [ ] Phase 2: Findings cross-referenced and filtered to evidence-backed only
-- [ ] Phase 2b: Redundancy & relevance validated via relevance-filter-agent subagent
+- [ ] Phase 2b: Redundancy & relevance validated orchestrator-inline
 - [ ] Phase 3: Evidence table presented, user approved specific changes
 - [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
 - [ ] Phase 4 Step 3 validation gate: 7 standard checks (line counts / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync) PLUS 6 description-format sub-checks (length / third person / Use-when clause / Skip-for clause / no placeholders / valid YAML) for any changed SKILL.md

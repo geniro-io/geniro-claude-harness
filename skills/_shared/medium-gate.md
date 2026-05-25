@@ -6,11 +6,9 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 ## When this fires
 
-Used by:
-- `/geniro:implement` Phase 6 Fix Loop pre-step (after the PRODUCT-DECISION pre-step, before fixer spawn)
-- `/geniro:follow-up` Phase 5 Step 2 disposition (after the PRODUCT-DECISION gate, before fix-loop entry)
+Fires at the top of any code-review fix loop when MEDIUM-severity findings exist.
 
-Skip silently when zero MEDIUM findings exist after deduplication (or when no reviewer-agents ran — Trivial / Fast Lane paths that bypass Phase 5 / Stage C entirely; Light Mode runs Stage C and the gate DOES fire there).
+Skip silently when zero MEDIUM findings exist after deduplication, or when no reviewer-agents ran.
 
 ## Always-WAIT contract
 
@@ -56,7 +54,7 @@ Promoted MEDIUMs lose their MEDIUM tag in the fix-loop pool — the fixer agent 
 
 ## Persisted-fields requirement
 
-For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/implement`, `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` for `/follow-up`) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
+For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/review` Phase 5 — M6 §15.1 M1-T2 canonical path) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
 
 ## Why this exists
 

@@ -1,6 +1,6 @@
 ---
 name: geniro:instructions
-description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing and review step. Create, list, edit, validate, delete. Skip for per-file-pattern rules — use .claude/rules/."
+description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing and review step. Five operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — use.claude/rules/."
 context: main
 model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
@@ -9,114 +9,122 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 # Instructions: Custom Instruction Management
 
-Manage `.geniro/instructions/` files — the home for **skill-behavior rules**: extra workflow steps, quality gates, and hard constraints applied at skill phase boundaries (e.g. "always run codegen after editing DTOs", "max PR size 500 lines"). These files load **when the matching skill runs**, not on every file edit.
+3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Five operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file. Architecture spec: *(internal)*.
 
 Code rules split three ways depending on **when** they should fire:
 
-- **`.geniro/instructions/code-style.md`** — cross-cutting code-style rules that apply to **all code writing AND all code review** done by Geniro pipeline skills (loaded at code-writing/review phases regardless of file pattern). Use this for naming conventions, code structure preferences, and idioms that should hold project-wide.
-- **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads when Claude reads or writes a file matching the glob — fires even outside Geniro pipelines). Use this when the rule only applies to specific file types or directories.
+- **`.geniro/instructions/code-style.md`** — cross-cutting code-style rules that apply to **all code writing AND all code review** done by Geniro pipeline skills (loaded at code-writing/review phases regardless of file pattern).
+- **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads on matching glob — fires even outside Geniro pipelines).
 - **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
 
-These are complementary: `code-style.md` fires "when a Geniro skill writes or reviews code"; `.claude/rules/` fires "when any tool touches a matching file". A project can use both.
+## Loop invariants
 
-## Supported Skills
+1. One result per subagent call — `/instructions` never spawns subagents (CRUD too small for parallelism).
+2. Args validated before exec — every Write preceded by scope validation (regex match) AND file-existence check.
+3. Permission before side-effect — Write/Delete are AUQ-gated.
+4. Bounded structured results — `list` mode truncates per-file body display at ~2000 chars.
+5. Hard escalation gates — 3-retry on scope ambiguity → final AUQ abort.
+6. Observations not assumed success — every Read/Write checks return status.
+7. Errors as structured observations — surfaced inline in the final user message (no state file).
 
-`global.md` loads in **every** Geniro skill that does real user work — its **Rules** and **Constraints** apply project-wide (lifecycle skills like `setup`, `instructions`, `cleanup`, `update`, `vendor` are excluded). Per-skill instruction files (`<skill>.md`) load only in the seven phase-bearing pipeline skills below, where "Additional Steps" entries map to named phases. `code-style.md` is a **cross-cutting** scope: it loads in every code-writing AND code-review skill (not paired with one skill), capturing style/naming/convention rules that should apply at every code-writing and review step. All loads are performed by the canonical helper at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — each skill calls it at Step 0 (initial load) and at each phase-boundary refresh site, with `LOAD_TIER: pipeline` for the seven pipeline skills above and `LOAD_TIER: rules-only` for the six others (`investigate`, `onboard`, `learnings`, `features`, `actions`, `brainstorm`).
+## Budgets — quality-first
 
-| Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
-|-------|---|---------------|-----------------------------------|
-| **implement** | ✓ | `implement.md` | After PHASE 1 (Discover), After PHASE 4 (Implement), After PHASE 6 (Review & Validate), Before PHASE 7 (Ship & Finalize) |
-| **decompose** | ✓ | `decompose.md` | After Phase 1 (Discover Context), After Phase 2 (Generate Master Plan + Milestone List), After Phase 4 (Validate) |
-| **review** | ✓ | `review.md` | After Phase 1 (Collect Context), After Phase 4 (Judge Pass), After Phase 5 (Learn) |
-| **debug** | ✓ | `debug.md` | After step 1 (Observe), After step 5 (Fix), After step 6 (Verify) |
-| **follow-up** | ✓ | `follow-up.md` | After Phase 2 (Implement), After Phase 5 (Review), Before Phase 6 (Ship) |
-| **refactor** | ✓ | `refactor.md` | After Phase 2 (Analyze & Plan), After Phase 4 (Execute), After Phase 5 (Review Results) |
-| **deep-simplify** | ✓ | `deep-simplify.md` | After Phase 3 (Aggregate), After Phase 4 (Fix), Before Phase 5 (Verify) |
-| **investigate** | ✓ | — | Rules/Constraints only (no per-skill file; phase-boundary "Additional Steps" not supported) |
-| **onboard** | ✓ | — | Rules/Constraints only |
-| **learnings** | ✓ | — | Rules/Constraints only |
-| **features** | ✓ | — | Rules/Constraints only |
-| **actions** | ✓ | — | Rules/Constraints only |
-| **brainstorm** | ✓ | — | Rules/Constraints only |
+`/instructions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry scope ambiguity → final AUQ abort, list-mode body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
 
-**Cross-cutting (loaded by multiple skills):**
+## ACI surface per phase
 
-| Skill | Loads `global.md` | Per-skill file | Key phases for "Additional Steps" |
-|-------|---|---------------|-----------------------------------|
-| **code-style** | — | `code-style.md` | Loaded by all 7 pipeline skills (`implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`) at Step 0 and at every phase-boundary refresh, via the canonical helper at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`. Also pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions. |
-| **review-extra** | — | `review-extra/<slug>.md` (directory-style — one file per custom reviewer) | Loaded by `/geniro:review` Phase 2, `/geniro:implement` Phase 6 Stage C, `/geniro:follow-up` Phase 5, and `/geniro:refactor` Phase 5 via the shared helper at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`. Each file becomes an additional reviewer-agent dimension that runs alongside the built-in 7-9 reviewers. |
+| Phase | Allowed tools | Forbidden tools |
+|---|---|---|
+| `parse` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, all `mcp__*`, network |
+| `execute` | `Read`, `Write`, `Edit`, `Bash` (`mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Agent` (no subagents), `mcp__github__*`, network egress |
+| `done` | (terminal report) | (none) |
 
-*`code-style` and `review-extra` are the cross-skill scopes. `code-style` captures style/naming/convention rules that apply at every code-writing and review step. `review-extra` is the only **directory-style** scope (the other 10 scopes are single files at `.geniro/instructions/<scope>.md`); each file under `.geniro/instructions/review-extra/` declares one custom code-review dimension with its own slug, description, optional model/paths/severity-default, and a "what to flag / what NOT to flag" criteria body.*
+External sends: not in `/instructions` ACI ever.
 
-## File Structure
+## Termination case → state mapping
 
-Every instruction file uses this format:
+No state file, but failure paths report a structured reason in the final user message.
+
+| Cause | Format |
+|---|---|
+| User cancelled at any AUQ | `aborted: user cancelled at <step>` |
+| Scope resolution failed after 3 AUQ retries | `aborted: scope unresolved after 3 AUQ rounds` |
+| Validation found N issues, user picked "Abort" | `aborted: validate surfaced N issues; user picked abort` |
+| Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>; see.geniro/safety.json` |
+| Delete blocked by `.geniro/` deletion guard | `aborted:.geniro/ deletion guard blocked rm of <path>; see.geniro/safety.json` |
+
+## Valid scope set
+
+The post-11-scope set:
+
+| Scope | File path | Layer | Loaded by | Notes |
+|---|---|---|---|---|
+| `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only |
+| `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase Review, `refactor` Phase Verify); pre-inlined into reviewer-agent prompts for guidelines/conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
+| `user-preferences` | `.geniro/instructions/user-preferences.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Created by `/setup` Phase Generate; `/instructions edit user-preferences` is the manual-edit path. Rules and Constraints only |
+| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/review` Phase llm-spawn, `/implement` Phase self-review, `/refactor` Phase verify via `_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default` |
+| `implement` | `.geniro/instructions/implement.md` | L4 | `/implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `plan` | `.geniro/instructions/plan.md` | L4 | `/plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `review` | `.geniro/instructions/review.md` | L4 | `/review` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `debug` | `.geniro/instructions/debug.md` | L4 | `/debug` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `refactor` | `.geniro/instructions/refactor.md` | L4 | `/refactor` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `onboard` | `.geniro/instructions/onboard.md` | L4 | `/onboard` at Step 0 + phase-boundary refresh | Rules and Constraints only |
+| `investigate` | `.geniro/instructions/investigate.md` | L4 | `/investigate` at Step 0 + phase-boundary refresh | Same as `onboard` |
+
+**Operational skills (`/setup`, `/instructions`, `/actions`, `/update`) do NOT load instruction files** beyond `global.md`.
+
+## File Structure (singleton scopes)
 
 ```markdown
 # Custom Instructions
 
 ## Rules
-- Clear, single-line constraints (e.g., "Always update docs when modifying public APIs")
+- Clear, single-line constraints
 
 ## Additional Steps
-### After implementation
-<!-- Steps to run after code changes -->
-
-### Before shipping
-<!-- Steps to run before committing -->
+### After <phase-enum-value>
+<!-- Steps to run at the named phase -->
 
 ## Constraints
-- Hard limits (e.g., "Maximum PR size: 500 lines changed")
+- Hard limits
 ```
 
 ## File Structure: review-extra
 
-The `review-extra` scope is **directory-style** — instead of a single `.geniro/instructions/review-extra.md`, there is a directory `.geniro/instructions/review-extra/` containing one file per custom reviewer at `.geniro/instructions/review-extra/<slug>.md`. Each file becomes its own code-review dimension that runs alongside the built-in reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, plus design/pr-metadata when applicable).
-
-Each file uses the following frontmatter + body shape (the body section mirrors the built-in criteria files at `${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md` — same "what to flag / what NOT to flag" convention):
+The `review-extra` scope is **directory-style** — one file per custom reviewer at `.geniro/instructions/review-extra/<slug>.md`:
 
 ```yaml
 ---
-slug: sql-bindings              # REQUIRED; matches filename (without `.md`); must NOT collide with built-in dimensions
+slug: sql-bindings # REQUIRED; matches filename; must NOT collide with built-in dimensions
 description: All SQL queries use parameterized bindings, never string concatenation
-model: sonnet                   # OPTIONAL; one of haiku|sonnet|opus; default sonnet
-paths:                          # OPTIONAL; list of globs; reviewer fires only if at least one changed file matches; absent = always fires
-  - "**/*.sql"
-  - "**/dao/*.{ts,py}"
-severity-default: HIGH          # OPTIONAL; default MEDIUM; per-finding severity ultimately set by the reviewer-agent itself
+model: sonnet # OPTIONAL; haiku|sonnet|opus; default sonnet
+paths: # OPTIONAL; list of globs; absent = always fires
+- "**/*.sql"
+- "**/dao/*.{ts,py}"
+severity-default: HIGH # OPTIONAL; default MEDIUM
 ---
 
 # Criteria
 
 What to flag:
-- String concatenation that builds a SQL string with a runtime variable (e.g., `` `SELECT * FROM users WHERE id = ${userId}` ``)
-- Template literals containing SQL keywords (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `WHERE`) where any `${...}` interpolation is a non-constant identifier
-- ORM `.raw()` / `.query()` calls passing concatenated strings instead of bind parameters
-- `f"..."` / `format()` building SQL in Python DAO code
+-...
 
 What to NOT flag:
-- Static SQL with no variables at all (e.g., `db.query("SELECT * FROM migrations")`)
-- Concatenation of pure constants (e.g., a table-name constant defined at module scope)
-- Test fixtures that build SQL strings for assertion comparison (not for execution)
-- Schema-migration files that intentionally build CREATE/ALTER statements from a column list
+-...
 ```
 
 **Frontmatter field reference:**
-- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this value. Must NOT match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`.
-- `description` (required) — one-line summary of what this reviewer checks; surfaced in the review report and used by the reviewer-agent prompt.
-- `model` (optional) — `haiku` / `sonnet` / `opus`; default `sonnet`. Use `haiku` for narrow pattern matchers, `opus` for deep architectural concerns.
-- `paths` (optional) — list of globs. Reviewer fires only when at least one changed file in the diff matches. Absent = always fires.
-- `severity-default` (optional) — `CRITICAL` / `HIGH` / `MEDIUM` / `LOW`; default `MEDIUM`. The reviewer-agent may override per-finding; this is the starting point for scoring.
+- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. MUST NOT match a built-in dimension (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`).
+- `description` (required) — one-line summary, ≤250 chars.
+- `model` (optional) — `haiku`/`sonnet`/`opus`; default `sonnet`.
+- `paths` (optional) — list of globs.
+- `severity-default` (optional) — `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`; default `MEDIUM`.
 
-The body MUST be a `# Criteria` section with "What to flag:" and "What to NOT flag:" lists. Keep it focused — 30-80 lines is the sweet spot (see "Custom Reviewer Authoring (review-extra)" under "Writing Effective Instructions" below).
+## Phase 1: Parse intent
 
-## Intent Detection
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Echo contract requires one observable line.
 
-Parse `$ARGUMENTS` to determine the user's intent. NEVER output questions as plain text — always use the `AskUserQuestion` tool.
-
-### Action Detection
-
-Detect the action from natural language using these aliases:
+### Action detection
 
 | Intent | Aliases | Maps to |
 |--------|---------|---------|
@@ -126,105 +134,61 @@ Detect the action from natural language using these aliases:
 | Validate | check, verify, validate, lint | `validate` |
 | Delete | remove, delete, drop, clear | `delete` |
 
-If no arguments are provided, default to `list`.
+If no arguments: default to `list`.
 
-### Scope Detection
+### Scope detection
 
-Extract scope(s) from the arguments:
+- Explicit names: `global`, `code-style`, `user-preferences`, `review-extra`, or a pipeline skill (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`)
+- Contextual: "add a rule to review" → scope=review · "create debug instructions" → scope=debug · "code-style" / "style" / "naming conventions" → scope=code-style · "user preferences" / "preferences" → scope=user-preferences · "custom reviewer" / "review dimension" → scope=review-extra
+- Explicit slug form: `review-extra <slug>` (e.g., `review-extra sql-bindings`)
+- Multi-scope: "all", "every", "global and review" → collect into list
+- "all" / "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create)
 
-- Explicit scope names: "global", "review", "implement", "decompose", "debug", "follow-up", "refactor", "deep-simplify", "code-style", "review-extra"
-- Contextual references: "add a rule to review" → scope=review, action=edit; "create debug instructions" → scope=debug, action=create; "code-style", "style", "code style", "naming conventions", "coding style" → scope=code-style; "custom reviewer", "review dimension", "extra review", "custom review", "review layer" → scope=review-extra
-- Explicit slug form: `review-extra <slug>` (e.g., `review-extra sql-bindings`) → scope=review-extra, slug=`<slug>` (free-form token)
-- Multi-scope indicators: "all", "every", "global and review", "implement and decompose" → collect all mentioned scopes into a list
-- "all" or "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create); for `review-extra`, "all" expands to every file in `.geniro/instructions/review-extra/`
+### Ambiguity resolution (simplified vs current )
 
-Valid scopes: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`, `review-extra`.
+Current skill chains up to 3 AUQs across 10 scopes. With **11 stable scopes**, use a 2-level chain:
 
-### Ambiguity Resolution
+**Level 1 — category:**
 
-If the action is unclear, use the `AskUserQuestion` tool:
-- **Question:** "What would you like to do with your instruction files?"
+- **Question:** "Which instruction file scope?"
 - **Options:**
-  - label: "List" — description: "Show all instruction files and their contents"
-  - label: "Create" — description: "Create a new instruction file"
-  - label: "Edit" — description: "Modify an existing instruction file"
-  - label: "Validate" — description: "Check instruction files for issues"
-  - label: "Delete" — description: "Remove an instruction file"
+- `global` — Project-wide rules loaded by every Geniro skill
+- `code-style` — Cross-cutting style rules for code writing AND review
+- `user-preferences` — User communication style and pipeline defaults (also editable via /setup re-run)
+- `Specific skill or review-extra` — Pick from per-skill (7) or review-extra (custom reviewer)
 
-If the scope is unclear (and not multi-scope), use the `AskUserQuestion` tool. The full scope list (10 items) exceeds the 4-option AskUserQuestion cap, so chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options):
+If "Specific skill or review-extra", chain Level 2:
 
-**First question — pick a category:**
-- **Question:** "Which instruction file?"
+- **Question:** "Which specific scope?"
 - **Options:**
-  - label: "global" — description: "Rules that apply to all work skills"
-  - label: "code-style" — description: "Cross-cutting code-style rules (loaded at code-writing & review by all pipeline skills)"
-  - label: "review-extra (custom reviewers)" — description: "Directory-style scope — one file per custom code-review dimension (e.g., sql-bindings, accessibility-aria)"
-  - label: "A specific pipeline skill" — description: "Pick one of: implement, decompose, review, debug, follow-up, refactor, deep-simplify"
+- `review-extra (new custom reviewer)` — Add a custom reviewer dimension (asks for slug)
+- `implement / plan / review` — Pipeline skills (chain to L2b)
+- `debug / refactor` — Pipeline skills (chain to L2b)
+- `onboard / investigate` — Discovery skills (chain to L2b)
 
-If the user picks "A specific pipeline skill", chain a second `AskUserQuestion`:
+Level 2b asks for the exact skill (2-3 options, fits in AUQ). With 11 stable scopes the chain depth is fixed at 2-3 levels. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
 
-**Second question — pick the skill (chained):**
-- **Question:** "Which pipeline skill?"
-- **Options (batch 1):**
-  - label: "review" — description: "Customize code review behavior"
-  - label: "implement" — description: "Customize implementation workflow"
-  - label: "decompose" — description: "Customize decomposition workflow"
-  - label: "Other" — description: "debug / follow-up / refactor / deep-simplify"
+### Scope validation
 
-If the user picks "Other", chain a third `AskUserQuestion`:
+Before proceeding, verify resolved scope(s) are valid. If any resolved scope is NOT in the 11-scope set, AUQ to ask the user to pick from valid scopes. Do NOT create, edit, or delete files for invalid scopes.
 
-**Third question (chained):**
-- **Question:** "Which one?"
-- **Options:**
-  - label: "debug" — description: "Customize debugging workflow"
-  - label: "follow-up" — description: "Customize follow-up workflow"
-  - label: "refactor" — description: "Customize refactoring workflow"
-  - label: "deep-simplify" — description: "Customize parallel-review behavior"
+For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO require a `<slug>` argument. Resolve missing-slug cases:
 
-### Scope Validation
+- `create review-extra` no slug → ask via `AskUserQuestion` "Other" path (free-form text).
+- `edit review-extra` / `delete review-extra` no slug AND one file exists → default to that file.
+- `edit review-extra` / `delete review-extra` no slug AND multiple files exist → AUQ which slug. If >4 files, chain follow-ups per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` cap-extension rule.
+- `validate review-extra` ignores slug — always validates the whole directory. Print one-line notice if a slug was passed.
 
-Before proceeding, verify the resolved scope(s) are valid. If any resolved scope is NOT in the valid scopes list (`global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`, `review-extra`), use the `AskUserQuestion` tool to ask the user to pick from valid scopes instead. Do NOT create, edit, or delete files for invalid scopes.
+If multi-scope, proceed to **Batch Mode**. Otherwise proceed to the resolved command section.
 
-For `review-extra`, the slug-bearing variants of `create` / `edit` / `delete` ALSO require a `<slug>` argument. If the slug is missing, resolve it as follows:
-- `create review-extra` with no slug → ask the user for a slug via `AskUserQuestion` free-form (no options — the user enters text via the "Other" path, matching the existing slug-style flow in `/geniro:actions`).
-- `edit review-extra` / `delete review-extra` with no slug AND only one file exists in `.geniro/instructions/review-extra/` → default to that file.
-- `edit review-extra` / `delete review-extra` with no slug AND multiple files exist → ask via `AskUserQuestion` which slug they mean. If more than 4 files exist, chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options). The hard cap of 10 files (see "Count caps" under "Command: create — review-extra variant") guarantees the chain terminates in at most 3 questions.
-- `validate review-extra` ignores any slug — validate ALWAYS processes the whole `.geniro/instructions/review-extra/` directory (per-file validation has no use case beyond the directory pass; a missing-slug or extra-slug invocation produces the same output). Print a one-line notice `Validating the entire review-extra/ directory (slug arguments are ignored for validate).` when a slug was passed so the user understands the input was redundant.
+## Phase 2: Mode dispatch (single-scope)
 
-After resolving intent and scope(s), if multiple scopes were detected, proceed to **Batch Mode**. Otherwise, proceed to the resolved command section below.
-
+Branch: `list` → · `create` → · `edit` → · `validate` → · `delete` →
 ## Batch Mode
 
-When multiple scopes are detected (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow.
+For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow. With 11 stable scopes the multi-scope chain stays under 4 AUQ rounds.
 
-### Multi-Scope Confirmation
-
-If the user said "all" or the scope list is ambiguous, the 10-scope list exceeds the 4-option `AskUserQuestion` cap; chain follow-up questions per `feedback_askuserquestion_extension.md` (do NOT split or drop options).
-
-**Q1 — pick categories** (`AskUserQuestion` with `multiSelect: true`). Question: "Which categories of instruction files do you want to target?" Options:
-- label: "global" — description: "Rules for all work skills"
-- label: "code-style" — description: "Cross-cutting code-style rules — naming, structure, idioms"
-- label: "review-extra (custom reviewers)" — description: "Directory-style scope — every file under `.geniro/instructions/review-extra/`"
-- label: "Specific pipeline skills" — description: "Pick one or more of: implement, decompose, review, debug, follow-up, refactor, deep-simplify"
-
-If "Specific pipeline skills" is picked, chain **Q2** (`AskUserQuestion`, `multiSelect: true`; for edit/validate/delete, filter to pipeline skills that have existing files; for create, show all). Question: "Which pipeline skills?" Options (batch 1):
-- label: "implement" — description: "Implementation workflow"
-- label: "decompose" — description: "Decomposition workflow"
-- label: "review" — description: "Code review"
-- label: "follow-up" — description: "Follow-up workflow"
-
-If more pipeline skills are needed beyond batch 1, chain **Q3** (`AskUserQuestion`, `multiSelect: true`; same existing-files filter). Question: "Which other pipeline skills?" Options (batch 2):
-- label: "debug" — description: "Debugging workflow"
-- label: "refactor" — description: "Refactoring workflow"
-- label: "deep-simplify" — description: "Parallel-review workflow"
-
-### Execution
-
-For each scope in the list, run the resolved command's full flow (create, edit, validate, or delete). When the command involves user input (e.g., create interview, edit changes), use the `AskUserQuestion` tool for each scope separately so the user can provide scope-specific input.
-
-### Batch Summary
-
-After processing all scopes, show a summary:
+Print summary after all scopes complete:
 
 ```
 ## Batch Complete
@@ -233,422 +197,419 @@ After processing all scopes, show a summary:
 |-------|--------|--------|
 | global | edit | Updated — added 2 rules |
 | review | edit | Updated — added 1 constraint |
-| implement | edit | Skipped — no changes requested |
 ```
 
-## Command: list
+## — Mode: list
 
-### Step 1: Scan directory
+### Step 1 — Scan directory
 
 ```bash
-ls -la .geniro/instructions/ 2>/dev/null
-ls -la .geniro/instructions/review-extra/ 2>/dev/null
+ls -la.geniro/instructions/ 2>/dev/null
+ls -la.geniro/instructions/review-extra/ 2>/dev/null
 ```
 
-### Step 2: Present results
+### Step 2 — Present results
 
-If `.geniro/instructions/` does not exist or is empty:
+If empty:
 
 ```
 No instruction files found.
 
 Run `/geniro:instructions create global` to create your first instruction file,
-or `/geniro:instructions create review` for skill-specific instructions.
+or `/geniro:instructions create code-style` for project-wide style rules.
 ```
 
-If files exist, show a table:
+Else, table format:
 
 ```
-## Instruction Files
+Custom instructions in.geniro/instructions/ (project: my-project):
 
-| File | Scope | Affects Skills | Sections |
-|------|-------|----------------|----------|
-| global.md | All work skills | implement, decompose, review, debug, follow-up, refactor, deep-simplify, investigate, onboard, learnings, features, actions | Rules (3), Steps (1), Constraints (2) |
-| review.md | review only | review | Rules (5), Steps (0), Constraints (1) |
-| review-extra/ | review-extra directory | review skills (review, implement Stage C, follow-up, refactor) | N custom reviewers |
+global.md 348 B modified 3 days ago
+code-style.md 1.2 KB modified 2 hours ago
+user-preferences.md 412 B modified 5 days ago [generated by /setup]
+implement.md (none — create with /geniro:instructions create implement)
+plan.md (none)
+review.md 892 B modified 1 week ago
+debug.md (none)
+refactor.md (none)
+onboard.md (none)
+investigate.md (none)
+review-extra/ (directory — 2 files)
+├── sql-bindings.md 1.6 KB modified 4 days ago
+└── accessibility-aria.md 2.1 KB modified 1 day ago
+
+11 scopes total · 5 active · 6 not-yet-created
 ```
 
-Count the number of entries in each section (Rules = bullet points, Steps = non-empty `###` subsections, Constraints = bullet points). For the `review-extra/` summary row, `N` is the number of `.md` files in `.geniro/instructions/review-extra/`.
+Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars per file).
 
-### Step 3: List review-extra files (when applicable)
+## — Mode: create
 
-When the scope being listed is `review-extra` (explicit) OR the main table includes the `review-extra/` summary row AND files exist there, also print a separate table listing every file in `.geniro/instructions/review-extra/`:
+### Step 1 — Check for existing file
 
-```
-## Custom Reviewers (review-extra)
-
-| Slug | Description | Model | Paths | Severity-default |
-|------|-------------|-------|-------|------------------|
-| sql-bindings | All SQL queries use parameterized bindings, never string concatenation | sonnet | **/*.sql, **/dao/*.{ts,py} | HIGH |
-| accessibility-aria | All interactive elements have proper ARIA labels | sonnet | (always fires) | MEDIUM |
+```bash
+cat .geniro/instructions/<scope>.md 2>/dev/null
 ```
 
-Read each file's YAML frontmatter to populate columns. Use `(always fires)` when `paths:` is absent, `(default sonnet)` / `(default MEDIUM)` when fields are absent.
+If file exists: AUQ "File exists — overwrite, edit instead, or cancel?". Branch accordingly.
 
-When the scope is `review-extra` AND the directory does not exist OR is empty, print:
+### Step 2 — Ensure directory exists
+
+```bash
+mkdir -p.geniro/instructions
+mkdir -p.geniro/instructions/review-extra # if scope == review-extra
+```
+
+### Step 3 — Gather project context
+
+Read `CLAUDE.md` for tech stack/commands/conventions; check `package.json`/`Makefile` for scripts; check for ESLint/Prettier/tsconfig. This context informs scope-specific rule suggestions.
+
+### Step 4 — Scope-specific scaffold + interview
+
+Each scope gets a **scope-specific scaffold** with example Rules to make the empty-file moment less confusing. Examples:
+
+**`code-style.md` scaffold:**
+
+```markdown
+# Custom Instructions
+
+## Rules
+
+- Use lowercase-hyphen for component file names (e.g., `user-profile.tsx`, not `UserProfile.tsx`).
+- Prefer named exports over default exports for tree-shaking.
+
+## Constraints
+
+- No `any` type without an inline `// reason:...` comment.
+```
+
+**`user-preferences.md` scaffold** (rarely created manually — `/setup` does it; allowed for users who skipped `/setup`):
+
+```markdown
+# User Preferences
+
+## Rules
+
+- **Default branch:** main
+- **Default ship mode:** open PR (draft)
+- **Default reviewer set:** full
+- **Communication style:** concise
+
+## Loaded by
+
+Every Geniro pipeline + discovery skill at Step 0 and at each phase-boundary refresh.
+```
+
+**`implement.md` scaffold** (shows phase-boundary structure):
+
+```markdown
+# Custom Instructions
+
+## Rules
+
+- (none — add project-specific rules here)
+
+## Additional Steps
+
+### After implement
+- (example: "Run npm run codegen before declaring implementation complete")
+
+### Before ship
+- (example: "Ensure CHANGELOG.md has an entry for the change")
+
+## Constraints
+
+- Maximum PR size: 500 lines changed (warn user if exceeded; do not block)
+```
+
+Use `AskUserQuestion` after showing the scaffold:
+
+- **Question:** "Add what kind of rules?"
+- **Options (scope-tailored):** Documentation / Quality gates / Workflow steps / Free-form (Other path)
+
+Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into strong, specific rules (e.g. "make sure we test" → "Always include tests for new public functions. Run `npm test` to verify before shipping").
+
+### Step 5 — Generate the file
+
+Apply writing principles ("Writing Effective Instructions" below). Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, atomic write §Atomic write helper (`atomic_state_write` is for state tiers; instruction files use direct Write through the file-protection hook).
+
+### Step 6 — Confirm
+
+Print:
 
 ```
-No custom reviewers found.
+Created `.geniro/instructions/<scope>.md`
 
-Run `/geniro:instructions create review-extra <slug>` to add one
-(e.g., `/geniro:instructions create review-extra sql-bindings`).
+This file will be loaded by <affected skills list> at the start of each run.
+Edit via `/geniro:instructions edit <scope>`; lint via `/geniro:instructions validate`.
 ```
+
+For `review-extra`, follow the slug-bearing 11-step flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`.
+
+## — Mode: edit
+
+### Step 1 — Resolve scope (Phase 1) + Read existing file
+
+If missing, branch to `create`. Else display current body inline.
+
+### Step 2 — Three-way AUQ
+
+- **Question:** "How would you like to edit `<scope>`?"
+- **Options:**
+- `Open in editor (external)` — Print absolute path; instruct user to edit externally and re-run `/instructions validate <scope>` when done. Exit.
+- `Rewrite via dialogue` — Interview-style sequence of AUQs (Add a Rule / Add an Additional Step / Add a Constraint / Remove a Rule by number / Done). Apply edits to an in-memory copy; final write AUQ-gated.
+- `Cancel`
+
+The dialogue path is intentionally simpler than freeform edit — stays inside AUQ contracts and avoids prompt-injection through user-supplied text.
+
+### Step 3 — Re-validate (review-extra only)
+
+After editing a `review-extra` file, re-run the lint rule set against the edited file. If any rule fails, AUQ revert vs keep-and-fix-later.
+
+### Step 4 — Show updated file
+
+```
+Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run `/geniro:<scope>` (or any affected skill for global.md).
+```
+
+### Body section invariants (post-edit)
+
+- `## Rules` section present (may be empty list).
+- `## Additional Steps` section present (omitted only for rules-only scopes: `global`, `code-style`, `user-preferences`, `review-extra/<slug>`, `onboard`, `investigate`).
+- `## Constraints` section present (may be empty list).
+- Frontmatter (for `review-extra/<slug>.md`) parses YAML cleanly.
+
+Violations are not auto-fixed; `validate` surfaces them on next invocation.
+
+## — Mode: validate
+
+### Step 1 — Scan + scope
+
+`validate` accepts `<scope>` arg (validate one file) or no arg (validate all). Read-only; never mutates.
+
+**flag:** `--max-lines N` overrides the default 200-LOC threshold (Step 2). Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
+
+### Step 2 — Lint rule set
+
+**Structural checks (apply to all scopes):**
+
+| Check | Severity | Example violation |
+|---|---|---|
+| File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
+| `## Rules` heading present | HIGH | File has body but no `## Rules` header |
+| `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead) | HIGH | Missing `## Constraints` |
+| File ≤ 200 lines (; threshold env-overridable, see Step 1) | LOW | Anthropic Claude Code memory guidance: «longer files consume more context and reduce adherence». Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
+
+**Reference checks:**
+
+| Check | Severity |
+|---|---|
+| No references to dropped skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) | HIGH |
+| No references to dropped phase names (e.g., "Phase 4 (Implement)" predates the spec's enum redesign) | MEDIUM |
+| `Additional Steps` subsections match per-skill phase enum | MEDIUM |
+
+**Per-scope checks:**
+
+| Scope | Extra checks |
+|---|---|
+| `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` starts with "Use when" or describes intent (LOW preference); `model` in `{haiku, sonnet, opus}` if present; `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present |
+| `user-preferences.md` | All 4 canonical preference rules present (default branch, ship mode, reviewer set, communication style) — MEDIUM if any missing |
+| `code-style.md` | At least 1 rule under `## Rules` — LOW warning if empty (no-op file) |
+
+**description lint rules** (applied to `review-extra/<slug>.md` frontmatter `description:` field only):
+
+| Rule | Severity |
+|---|---|
+| lowercase-hyphens slug (`^[a-z][a-z0-9-]*$`) | HIGH (CRITICAL if slug fails validation entirely) |
+| description starts with "Use when" or describes intent vs implementation | LOW warning |
+| description mentions adjacent terms (e.g., for `sql-bindings`: mentions "SQL", "ORM", "DAO") | LOW warning |
+| description has explicit boundary clauses ("Skip for …", "Not for …") | LOW info |
+
+### Step 3 — Per-skill phase mapping
+
+`Additional Steps` subsections must match a real phase enum value from the corresponding skill doc. Lowercase-hyphenated; subsection prose may use any case (validate normalizes).
+
+| Scope | Real phase enum (M-doc) | Example subsection names |
+|---|---|---|
+| `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
+| `plan` | `mode-detect \| explore \| clarify \| approaches \| section-approve \| write-spec \| validate \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
+| `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
+| `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| debug-handoff \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
+| `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
+| `onboard` | `discover \| map \| map-truncated \| discover-escalated \| done \| aborted \| routed` | `After discover`, `Before map` |
+| `investigate` | `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | `After classify`, `After investigate`, `Before present` |
+
+Free-form subsections raise `LOW` warning. Subsections referencing dropped phase names (e.g., `After Phase 4 (Implement)`) raise `MEDIUM`.
+
+### Step 4 — Count caps (review-extra)
+
+- **Soft warning** if >6 files: `⚠ Count {N} exceeds the 4-6 sweet-spot — consider consolidating overlapping reviewers.`
+- **Hard error** if >10 files: `✗ Count {N} exceeds hard cap of 10 — the loader will refuse to load all reviewers.`
+
+### Step 5 — Output format
+
+```
+$ /geniro:instructions validate
+
+Validation results: 4 files checked, 3 issues found.
+
+✓ global.md no issues
+⚠ implement.md 1 MEDIUM
+└── Line 14: "### After Phase 4 (Implement)" → should be "### After implement"
+⚠ code-style.md 1 LOW
+└── File is 380 lines (>200). Anthropic guidance: longer files reduce adherence.
+Suggestions: split into code-style-database.md + code-style-api.md, or trim redundant rules.
+⚠ review-extra/sql-bindings.md 1 LOW
+└── Frontmatter description: missing "Skip for" boundary clause (LOW — informational)
+
+To fix: /geniro:instructions edit implement
+/geniro:instructions edit code-style
+/geniro:instructions edit review-extra sql-bindings
+```
+
+Exit status: 0 if no `CRITICAL`/`HIGH`; non-zero otherwise. `MEDIUM`/`LOW` are warnings.
+
+### No auto-fix
+
+Per sub-decision: `validate` reports; does not mutate. Auto-fix would silently change user-authored content — violates the user-content-sacred rule.
+
+## — Mode: delete
+
+### Step 1 — Resolve + read existing file
+
+If missing: print "nothing to delete" and exit. Else continue.
+
+### Step 2 — Confirm
+
+AUQ 2-option: `Confirm delete` / `Cancel`. Show file size + last-modified for context. For `review-extra/<slug>.md`, the slug must be specified (no bulk-delete).
+
+### Step 3 — Execute
+
+```bash
+rm -f.geniro/instructions/<scope>.md
+# OR for review-extra:
+rm -f.geniro/instructions/review-extra/<slug>.md
+```
+
+The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/instructions/<scope>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk `rm -rf.geniro/instructions/` is blocked.
+
+Clean up empty parent dirs silently:
+
+```bash
+rmdir.geniro/instructions/review-extra/ 2>/dev/null
+rmdir.geniro/instructions/ 2>/dev/null
+```
+
+For `review-extra` ALL: explicitly refused with "Use `/instructions delete review-extra <slug>` per-file; bulk delete protected by guard hook."
+
+## Memory I/O
+
+`/instructions` is the **CRUD frontend for L4 (procedural memory)**.
+
+| Layer | Read | Write | Notes |
+|---|---|---|---|
+| L1 CLAUDE.md | not read | not written | That's `/setup`'s domain |
+| L2 learnings.jsonl | not read | not written | `/instructions` is a CRUD frontend, not a knowledge-emit producer |
+| L3 semantic files | not read | not written | Out of scope |
+| L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/instructions`'s entire surface |
+
+**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` + `user-preferences.md` via `_shared/load-custom-instructions.md`. `/instructions`'s CRUD writes are immediately durable.
 
 ## Writing Effective Instructions
-
-When generating instruction content (in `create` or `edit`), follow these principles. These come
-from analysis of 14 production AI coding frameworks and real-world plugin usage.
 
 ### Rule Writing
 
 - **Use strong, unambiguous language** — "Always", "Never", "Must" not "Consider", "Try to", "Should"
 - **One rule = one constraint** — don't combine multiple ideas in a single bullet
 - **Be specific, not vague** — "Run `pnpm test` before committing" not "Make sure tests pass"
-- **Include the command or path** — rules referencing tools, scripts, or files should name them exactly
-- **Focus on what the AI can't infer** — don't repeat things obvious from the codebase (like "use TypeScript" in a TS project). Focus on conventions, team decisions, and non-obvious requirements
+- **Include the command or path** — name them exactly
+- **Focus on what the AI can't infer** — don't repeat things obvious from the codebase
 
 ### Additional Steps Writing
 
-- **Use exact phase names** from the Supported Skills table — the validate command checks these
-- **Keep steps actionable** — each step should describe a concrete action, not a vague reminder
-- **Limit to 2-3 steps per phase** — too many steps slow down the workflow and dilute attention
-- **Best insertion points:** "Before shipping" (quality gates), "After implementation" (post-checks), "After review" (follow-up actions)
+- **Use exact phase enum values** from the per-skill mapping — `validate` checks these
+- **Keep steps actionable** — each step describes a concrete action
+- **Limit to 2-3 steps per phase** — too many slow down workflow and dilute attention
+- **Best insertion points:** `Before ship` (quality gates), `After implement` (post-checks), `After verify` (refactor wrap-up)
 
 ### Constraint Writing
 
 - **Quantify where possible** — "Maximum 400 lines changed per PR" not "Keep PRs small"
 - **State the consequence** — "Database migrations must be backwards-compatible — breaking migrations block deploy"
-- **Constraints are hard limits** — skills treat these as non-negotiable. Use Rules for soft guidance
+- **Constraints are hard limits** — skills treat these as non-negotiable
 
 ### Custom Reviewer Authoring (review-extra)
 
-The directory-style `review-extra` scope has its own authoring guidance (criteria-body length, what-to-flag shape, paths/model/severity selection, count cap sweet-spot) in the companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`. Read it before creating or editing any `.geniro/instructions/review-extra/<slug>.md` file.
+Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`. Read before creating or editing any `.geniro/instructions/review-extra/<slug>.md`.
 
-### File-size guidance — consider splitting at 300 lines
+### File-size guidance
 
-Instruction files load fully into the consuming skill's context every run. As they grow, two failure modes emerge: (1) the consuming skill burns budget on rules it never fires, and (2) the file becomes unscannable so the user can't audit it. **Soft guidance: when an instruction file passes ~300 lines, consider splitting.**
-
-Two ways to split:
-- **By scope**: if `global.md` covers rules that only apply during certain skills, move them into the matching `<skill>.md` files. Example: a "always run codegen after editing DTOs" rule moves out of `global.md` into `implement.md` (and `follow-up.md` if relevant).
-- **By topic**: if a single skill's instruction file mixes concerns (e.g., review covers severity thresholds AND security-specific checks AND PR-comment formatting), keep one as the main file and link to companion files for the others. Cap the main file at ~150-200 lines so the rules a skill sees on every run stay focused.
-
-This is guidance, not enforcement. A 350-line file that's well-organized and all-load-bearing is fine. The trigger is "the file became hard to scan or has dead rules" — not the line count itself. Skills that author skills (e.g., `/improve-template create-skill`) should also follow this guidance.
+**Soft guidance: when an instruction file passes ~300 lines, consider splitting** (by scope or by topic). A 350-line file that's well-organized and all-load-bearing is fine.
 
 ### What goes here vs. `.claude/rules/` vs. CLAUDE.md
 
-Three homes, three triggers:
-
-- **`.geniro/instructions/<skill>.md`** — **skill-scoped** rules that fire when the matching pipeline skill (`implement` / `decompose` / `review` / `debug` / `follow-up` / `refactor` / `deep-simplify`) starts a run. Use it for: extra workflow steps, quality gates, hard constraints the user enforces manually at skill phase boundaries.
-- **`.geniro/instructions/code-style.md`** — **cross-cutting code-style** rules that fire whenever a Geniro pipeline skill writes OR reviews code (regardless of which skill or which file pattern). Use it for: naming conventions, code structure preferences, idioms (early-return vs nested-if, pure functions vs classes), import order. Loaded by `implement`, `follow-up`, `refactor`, `review`, `deep-simplify`, and pre-inlined into reviewer-agent prompts for the guidelines/conventions/design/architecture dimensions.
-- **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — **file-pattern-scoped** rules (Anthropic-native, auto-loads when Claude reads or writes a file matching the glob — fires even outside Geniro pipelines). Use it when the rule only applies to specific file types or directories.
-- **CLAUDE.md** — reserved for always-loaded essentials only: commands, project structure, compaction-surviving global gates. Piling rules into CLAUDE.md dilutes compliance for every existing rule.
-
-`code-style.md` and `.claude/rules/` are complementary: code-style fires "when a Geniro skill writes or reviews code"; `.claude/rules/` fires "when any tool touches a matching file". A project can use both.
+- **`.geniro/instructions/<skill>.md`** — skill-scoped rules at phase boundaries
+- **`.geniro/instructions/code-style.md`** — cross-cutting code-style rules at every Geniro code-writing/review step
+- **`.claude/rules/<scope>.md` with `paths:`** — file-pattern-scoped, Anthropic-native
+- **CLAUDE.md** — always-loaded essentials only
 
 **What NOT to put in `.geniro/instructions/<skill>.md` or `code-style.md`:**
 
-- **Per-file-pattern code rules** (e.g. "all `*.tsx` files must use named exports") — use `.claude/rules/<scope>.md` with `paths:` glob instead (file-scoped, fires per-file, not per-skill)
-- **Tech stack info** — detected automatically by setup, lives in CLAUDE.md
-- **Build / test / lint / dev commands** — every-turn essentials, belong in CLAUDE.md
-- **Project structure facts** — every-turn essentials, belong in CLAUDE.md
-- **Compaction-surviving global gates** (e.g. "never commit without approval") — must stay in CLAUDE.md
-- **Temporary rules** — use conversation context instead
-- **Rules for skills that don't load instructions** — onboard, investigate, features, etc.
-
-**What NOT to put specifically in `code-style.md`:**
-
-- **Per-file-pattern rules** (those belong in `.claude/rules/` so they fire per-file, not per-skill)
-- **One-skill-only workflow steps** (those belong in the matching `<skill>.md`, not in cross-cutting code-style)
-
-## Command: create
-
-### Step 1: Check for existing file
-
-```bash
-cat .geniro/instructions/{{scope}}.md 2>/dev/null
-```
-
-If the file already exists, report: "`.geniro/instructions/{{scope}}.md` already exists. Use `/geniro:instructions edit {{scope}}` to modify it." and stop.
-
-### Step 2: Ensure directory exists
-
-```bash
-mkdir -p .geniro/instructions
-```
-
-### Step 3: Gather context
-
-Before interviewing the user, scan the project for context that will inform better instructions:
-
-1. Read `CLAUDE.md` to understand the project's tech stack, commands, and conventions
-2. Check `package.json`, `Makefile`, or equivalent for available scripts/commands
-3. Check for existing linting/testing/CI configuration
-
-This context helps you suggest relevant, project-specific rules instead of generic ones.
-
-### Step 4: Interview the user
-
-NEVER output questions as plain text — always use the `AskUserQuestion` tool.
-
-Use the `AskUserQuestion` tool to present what you found and ask targeted questions:
-- **Question:** "What kind of rules do you want to add? Describe your project conventions, quality gates, or workflow requirements."
-- **Options:**
-  - label: "Documentation rules" — description: "Require docs updates, changelog entries"
-  - label: "Quality gates" — description: "Test coverage, PR size limits, linting"
-  - label: "Workflow steps" — description: "Extra checks before shipping, after review"
-  - label: "Let me describe my own rules" — description: "Free-form input for custom rules"
-
-Based on the response, ask 1-2 follow-up questions to gather specific rules. Keep it concise — don't over-interview.
-
-Use the `AskUserQuestion` tool for each follow-up, tailored to the scope:
-
-**global** — Question: "What rules should ALL skills follow?"
-- Options:
-  - label: "Commit conventions" — description: "Commit message format, branch naming"
-  - label: "Testing requirements" — description: "Required test coverage, test commands"
-  - label: "Documentation standards" — description: "When to update docs, required sections"
-  - label: "Custom" — description: "Describe your own rules"
-
-**review** — Question: "What should reviewers focus on?"
-- Options:
-  - label: "Severity thresholds" — description: "Minimum severity to report, blocking vs advisory"
-  - label: "File patterns" — description: "Files or patterns to always flag"
-  - label: "Security checks" — description: "Security-specific review requirements"
-  - label: "Custom" — description: "Describe your own rules"
-
-**implement** — Question: "What implementation checks do you need?"
-- Options:
-  - label: "Pre-implementation" — description: "Checks before writing code"
-  - label: "Architecture constraints" — description: "Module boundaries, dependency rules"
-  - label: "Post-implementation" — description: "Validation steps after code changes"
-  - label: "Custom" — description: "Describe your own rules"
-
-**decompose** — Question: "What must plans always include?"
-- Options:
-  - label: "Scope constraints" — description: "Maximum complexity, required breakdown"
-  - label: "Required sections" — description: "Risk analysis, rollback plan, dependencies"
-  - label: "Validation criteria" — description: "What makes a plan complete"
-  - label: "Custom" — description: "Describe your own rules"
-
-**debug** — Question: "What debugging conventions apply?"
-- Options:
-  - label: "Log requirements" — description: "Required log formats, debug output"
-  - label: "Priority systems" — description: "Systems to always check first"
-  - label: "Verification steps" — description: "How to confirm a fix works"
-  - label: "Custom" — description: "Describe your own rules"
-
-**follow-up** — Question: "What follow-up workflow rules apply?"
-- Options:
-  - label: "Scope limits" — description: "Maximum change size, escalation triggers"
-  - label: "Review requirements" — description: "Required checks before shipping"
-  - label: "Custom" — description: "Describe your own rules"
-
-**refactor** — Question: "What refactoring boundaries apply?"
-- Options:
-  - label: "Protected areas" — description: "Files or modules that must not change"
-  - label: "Test requirements" — description: "Required test coverage before/after"
-  - label: "Scope limits" — description: "Maximum files changed, complexity limits"
-  - label: "Custom" — description: "Describe your own rules"
-
-**deep-simplify** — Question: "What parallel-review rules apply?"
-- Options:
-  - label: "Severity gates" — description: "Which severity levels to fix vs report"
-  - label: "Scope limits" — description: "Maximum fixes per run, file exclusions"
-  - label: "Verification rules" — description: "Required validation before keeping fixes"
-  - label: "Custom" — description: "Describe your own rules"
-
-**code-style** — Question: "What code-style conventions apply to ALL code in this project?"
-- Options:
-  - label: "Naming conventions" — description: "Variable / function / file / class naming patterns"
-  - label: "Code structure" — description: "Module organization, file size limits, import order"
-  - label: "Common idioms" — description: "Preferred patterns (early-return vs nested-if, pure vs class, etc.)"
-  - label: "Custom" — description: "Describe your own rules"
-
-### Step 5: Generate the file
-
-Read the template from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/instructions-template.md` for structure reference.
-
-Write the instruction file to `.geniro/instructions/{{scope}}.md`. Apply the writing principles
-from "Writing Effective Instructions" above:
-- Convert vague user input into strong, specific rules (e.g., user says "make sure we test" → "Always include tests for new public functions. Run `npm test` to verify before shipping")
-- Place workflow steps under the correct phase headers from the Supported Skills table
-- Quantify constraints where the user gave qualitative input
-- Leave sections empty (with comment placeholders) if the user didn't specify content for them
-- Do NOT pad with generic rules — only include what the user actually wants
-
-### Step 6: Confirm
-
-Show the created file content and report:
-```
-Created `.geniro/instructions/{{scope}}.md`
-
-This file will be loaded by {{affected skills list}} at the start of each run.
-These rules take effect the next time you run `/geniro:{{scope}}` (or any affected skill for global.md).
-Edit with `/geniro:instructions edit {{scope}}`, or run `/geniro:instructions validate` to check for issues.
-```
-
-## Command: create — review-extra variant
-
-When the resolved scope is `review-extra`, follow the slug-bearing 11-step flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` instead of the singleton-file `create` flow above. The output is a single file at `.geniro/instructions/review-extra/<slug>.md` declaring one custom reviewer. The companion file covers: slug resolution, slug validation (regex, built-in collision, no-existing-file), count-cap warning (soft 5→6) and hard-refusal (10→11), directory creation, description/model/paths/severity-default interview prompts (all via `AskUserQuestion`), criteria-body collection, file write, and confirmation message.
-
-## Command: edit
-
-### Step 1: Read current file
-
-For singleton scopes (`global`, `code-style`, or any of the 7 pipeline skills):
-
-```bash
-cat .geniro/instructions/{{scope}}.md
-```
-
-For `review-extra`, require a slug argument; resolve missing-slug cases per "Scope Validation" above:
-
-```bash
-cat .geniro/instructions/review-extra/{{slug}}.md
-```
-
-If the file doesn't exist: "File not found. Use `/geniro:instructions create {{scope}}` first." (or `create review-extra {{slug}}` for the directory-style variant) and stop.
-
-### Step 2: Show current content and ask what to change
-
-Display the current file content. The change options differ by scope:
-
-**Singleton scopes** — use `AskUserQuestion`:
-- **Question:** "What would you like to change?"
-- **Options:**
-  - label: "Add new rules" — description: "Add rule entries to the Rules section"
-  - label: "Add workflow steps" — description: "Add steps under Additional Steps"
-  - label: "Add or modify constraints" — description: "Add or change hard limits"
-  - label: "Remove specific entries" — description: "Delete rules, steps, or constraints"
-
-**review-extra** — use `AskUserQuestion`:
-- **Question:** "Which part of the custom reviewer would you like to change?"
-- **Options:**
-  - label: "description" — description: "One-line summary in frontmatter"
-  - label: "model" — description: "Override haiku/sonnet/opus (or remove to default to sonnet)"
-  - label: "paths" — description: "Globs that scope when this reviewer fires (or remove to always fire)"
-  - label: "Other" — description: "severity-default, criteria body, or multiple fields"
-
-On "Other", chain `AskUserQuestion`:
-- **Question:** "Which other part?"
-- **Options:**
-  - label: "severity-default" — description: "CRITICAL/HIGH/MEDIUM/LOW (or remove to default MEDIUM)"
-  - label: "criteria body" — description: "The `# Criteria` section — what to flag / what NOT to flag"
-  - label: "multiple fields" — description: "Walk through each field interactively"
-
-### Step 3: Apply changes
-
-Based on user input, edit the file using the Edit tool. Preserve existing content — only add, modify, or remove what the user requested. For `review-extra`, never silently rewrite the `slug:` field (it must match the filename — changing it requires a delete-then-create).
-
-### Step 4: Re-validate (review-extra only)
-
-After editing a `review-extra` file, re-run the 7 validation rules from "Command: validate" Step 2 against the edited file. If any rule fails, report the issue and ask whether to revert via `AskUserQuestion`:
-- **Question:** "The edit produced an invalid `review-extra` file: {{issue}}. What now?"
-- **Options:**
-  - label: "Revert" — description: "Restore the previous file content"
-  - label: "Keep and fix later" — description: "Save anyway; re-run `/geniro:instructions validate` after manual fix"
-
-### Step 5: Show updated file
-
-Display the final content and print: "Updated `.geniro/instructions/{{scope}}.md`. The new rules take effect the next time you run `/geniro:{{scope}}` (or any affected skill for global.md)." For `review-extra`, the path is `.geniro/instructions/review-extra/{{slug}}.md` and the reviewer takes effect on the next `/geniro:review` (or implement/follow-up/refactor review phase) run.
-
-## Command: validate
-
-### Step 1: Scan all instruction files
-
-```bash
-ls .geniro/instructions/*.md 2>/dev/null
-ls .geniro/instructions/review-extra/*.md 2>/dev/null
-```
-
-If none found: "No instruction files to validate." and stop.
-
-### Step 2: Validate each file
-
-For each singleton file (everything under `.geniro/instructions/` except the `review-extra/` directory), check:
-
-1. **Structure** — file contains `## Rules`, `## Additional Steps`, and `## Constraints` sections
-2. **Phase names** — any `### <phase>` headers under "Additional Steps" match the valid phase names from the Supported Skills table above. **Special case for `code-style.md`:** since it's loaded by N skills (not one) at runtime, its `## Additional Steps` section accepts ONLY two phase headers: `### Before code writing` and `### On code review`. Any other phase header in `code-style.md` is a warning.
-3. **Non-empty content** — at least one section has actual content (not just comment placeholders)
-4. **Scope validity** — filename (without `.md`) matches a valid singleton scope: `global`, `implement`, `decompose`, `review`, `debug`, `follow-up`, `refactor`, `deep-simplify`, `code-style`
-
-**review-extra files** — extra checks (run against every file in `.geniro/instructions/review-extra/`):
-
-1. **Filename / slug agreement** — the filename (without `.md`) MUST equal the `slug:` frontmatter value. Mismatch is an error (the loader keys by slug; mismatch makes the reviewer silently undiscoverable).
-2. **No built-in collision** — `slug` MUST NOT match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`. Collision is an error (the loader would shadow or be shadowed by the built-in reviewer).
-3. **Slug regex** — `slug` MUST match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter). Mismatch is an error (other characters break the file-naming convention and downstream prompt assembly).
-4. **Model field** — if `model:` is present, it MUST be one of `{haiku, sonnet, opus}`. Other values are an error (only those three models are routed by the reviewer-agent infrastructure).
-5. **Severity-default field** — if `severity-default:` is present, it MUST be one of `{CRITICAL, HIGH, MEDIUM, LOW}`. Other values are an error (severity scoring keys against this enum).
-6. **Paths field** — if `paths:` is present, it MUST be a YAML list with no empty strings and every entry a string. Malformed entries are an error (the glob matcher rejects them at load time).
-7. **YAML frontmatter validity** — the frontmatter block must be well-formed YAML between two `---` fences. Malformed YAML is an error (loader-fatal).
-8. **Description present and non-empty** — the `description:` field MUST be present and non-empty. The loader drops files with a missing or empty description; surfacing this here keeps validate and load-time agreement (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 4 rule 5).
-9. **Body content** — the body section (everything after the closing `---` of the frontmatter) MUST contain at least 5 non-blank lines. Files with shorter bodies are dropped by the loader as a sentinel for "criteria not yet written" (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 4 rule 9).
-
-**review-extra count caps** — also check the directory-level count:
-
-- **Soft warning** — if more than 6 files exist in `.geniro/instructions/review-extra/`, emit a warning row: `⚠ Count {{N}} exceeds the 4-6 sweet-spot — consider consolidating overlapping reviewers.` (Matches the loader's `count > 6` trigger.)
-- **Hard error** — if more than 10 files exist, emit an error row: `✗ Count {{N}} exceeds hard cap of 10 — the loader will refuse to load all reviewers. Delete files with `/geniro:instructions delete review-extra <slug>`.`
-
-### Step 3: Report results
-
-```
-## Validation Results
-
-| File | Status | Issues |
-|------|--------|--------|
-| global.md | ✓ Valid | — |
-| review.md | ⚠ Warning | Unknown phase "After testing" — valid phases: After Phase 1, After Phase 4, After Phase 5 |
-| frontend.md | ✗ Invalid | Unknown scope "frontend" — not a supported skill name |
-| review-extra/sql-bindings.md | ✓ Valid | — |
-| review-extra/bugs.md | ✗ Invalid | slug "bugs" collides with built-in dimension — pick a different slug |
-| review-extra/SqlBindings.md | ✗ Invalid | filename "SqlBindings" does not equal slug "sql-bindings"; rename file or update slug |
-| review-extra/ (directory) | ⚠ Warning | Count 7 exceeds soft cap of 5 — Pattern 1 sweet-spot is 4-6 dimensions |
-```
-
-For warnings and errors, suggest the fix.
-
-## Command: delete
-
-For `review-extra`, require a slug argument; resolve missing-slug cases per "Scope Validation" above. The target path is `.geniro/instructions/review-extra/{{slug}}.md` rather than `.geniro/instructions/{{scope}}.md`.
-
-### Step 1: Confirm deletion
-
-Use the `AskUserQuestion` tool:
-- **Question:** "Are you sure you want to delete `.geniro/instructions/{{scope}}.md`? This cannot be undone (unless the file is committed to git)." (For `review-extra`, the path shown is `.geniro/instructions/review-extra/{{slug}}.md` and the question wording is "Are you sure you want to delete the custom reviewer `{{slug}}`?")
-- **Options:**
-  - label: "Delete the file" — description: "Permanently remove this instruction file"
-  - label: "Cancel" — description: "Keep the file unchanged"
-
-### Step 2: Execute
-
-If confirmed (singleton scopes):
-```bash
-rm -f .geniro/instructions/{{scope}}.md
-```
-
-If confirmed (review-extra):
-```bash
-rm -f .geniro/instructions/review-extra/{{slug}}.md
-```
-
-Report: "Deleted `.geniro/instructions/{{scope}}.md`. The {{affected skills}} will no longer load these instructions." (For `review-extra`: "Deleted `.geniro/instructions/review-extra/{{slug}}.md`. The `{{slug}}` reviewer will no longer run during code review.")
-
-If the `review-extra` directory is now empty:
-```bash
-rmdir .geniro/instructions/review-extra/ 2>/dev/null
-```
-
-If the top-level `.geniro/instructions/` directory is now empty:
-```bash
-rmdir .geniro/instructions/ 2>/dev/null
-```
+- Per-file-pattern code rules → `.claude/rules/<scope>.md`
+- Tech stack info → CLAUDE.md (detected by `/setup`)
+- Build/test/lint commands → CLAUDE.md
+- Project structure facts → CLAUDE.md
+- Compaction-surviving global gates → CLAUDE.md
+- Temporary rules → conversation context
+- Rules for skills that don't load instructions (operational skills)
+
+## Anti-pattern check
+
+| # | Anti-pattern | Status |
+|---|---|---|
+| 1 | One giant prompt | ✅ SKILL.md modular; no helper sprawl needed |
+| 2 | One giant tool | ✅ N/A — Edit/Write/Bash native |
+| 3 | Unbounded autonomous loop | ✅ 3-retry on scope ambiguity, then final abort AUQ |
+| 4 | Autonomous external sends | ✅ N/A — no external send surface |
+| 5 | No approval state | ✅ N/A — stateless; user re-confirms on each invocation. `approvals[]` is for stateful skills |
+| 6 | No durable plans or goals | ✅ N/A — CRUD is inherently single-transaction |
+| 7 | No compaction strategy | ✅ Output files (L4) survive compaction natively (file-on-disk Block 1) |
+| 8 | All connectors loaded up front | ✅ N/A |
+| 9 | High-risk tools without policy | ✅ §ACI table; Write/Delete AUQ-gated; hooks block bulk deletion |
+| 10 | Subagents before single-agent MVP measured | ✅ Zero subagents |
+| 11 | Dynamic timestamps in plugin-distributed Markdown | ⚠ Implementation note — `/instructions` SKILL.md must NOT embed runtime timestamps. Stateless skill — no state-file timestamp risk |
+| 12 | Non-deterministic agent registration order | ✅ N/A |
+
+## Anti-rationalization
+
+| Reasoning | Why it's wrong |
+|---|---|
+| "I'll auto-fix `validate` issues to save the user a step" | No — auto-fix would silently mutate user-authored content. `validate` reports; user fixes via `edit`. |
+| "I'll silently overwrite existing instruction file" | No — for `create` on existing, present overwrite/edit-instead/cancel via AUQ. |
+| "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name - |
+| "I'll spawn a subagent to do the freeform rule synthesis" | No — `/instructions` doesn't spawn subagents (per sub-decision). |
+| "I'll output the questions as plain text instead of `AskUserQuestion`" | No — every WAIT gate uses `AskUserQuestion`. |
+| "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the 11 valid scopes. |
+| "I'll skip showing the scope-specific scaffold to save tokens" | No — scaffolds make the empty-file moment less confusing; they're not optional. |
 
 ## Definition of Done
 
-- [ ] Intent detected from freeform arguments
-- [ ] Scope(s) resolved — single or batch
+- [ ] Intent detected from freeform arguments (or default to `list`)
+- [ ] Scope(s) resolved — single or batch — within 3 AUQ retry cap
 - [ ] File operations completed successfully
 - [ ] User confirmed before any destructive operation (delete)
-- [ ] Validation checked structure, phase names, and scope validity
-- [ ] All user interactions used `AskUserQuestion` tool — no plain-text questions
+- [ ] Validation checked structure, phase names, scope validity, dropped-skill refs, and description rules
+- [ ] All user interactions used `AskUserQuestion` — no plain-text questions
 - [ ] review-extra files validated against slug uniqueness, built-in collision, model/severity-default value sets, paths syntax, and count caps
+- [ ] Scope-specific scaffold shown on `create` (not skipped)
+
+## Cross-references
+
+- PERSISTENT (CRUD) — `.geniro/instructions/` tier and optimistic mtime check
+- L4 Procedural — `.geniro/instructions/*.md` is the canonical L4 home
+- Block 1 — file-on-disk compaction-survival channel
+- / other skills / phase enums — phase-name validation table cites them
+- / / — phase enums for `/onboard` and `/investigate`
+- — `/setup` writes `user-preferences.md`; This skill is the manual-edit interface
+- — `/actions validate` shares the rule set
+- *(internal)* — full design rationale

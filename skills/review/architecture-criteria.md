@@ -20,10 +20,10 @@ grep -c "^import\|^require\|^from" file.js
 grep -rn "import.*from\|require(" src/ | awk -F: '{print $1, $0}' > /tmp/deps.txt
 # Step 2: For each file, check if any of its imports also import it back
 for file in $(grep -rl "import\|require" src/); do
-  deps=$(grep "import\|require" "$file" | grep -oP "from ['\"]\./(.*?)['\"]" | sed "s/from ['\"]\.\\///;s/['\"]//g")
-  for dep in $deps; do
-    grep -q "$(basename "$file" .js)\|$(basename "$file" .ts)" "src/$dep"* 2>/dev/null && echo "CIRCULAR: $file <-> src/$dep"
-  done
+deps=$(grep "import\|require" "$file" | grep -oP "from ['\"]\./(.*?)['\"]" | sed "s/from ['\"]\.\\///;s/['\"]//g")
+for dep in $deps; do
+grep -q "$(basename "$file".js)\|$(basename "$file".ts)" "src/$dep"* 2>/dev/null && echo "CIRCULAR: $file <-> src/$dep"
+done
 done
 # Check dependency directions
 grep "import\|require" file.js | sort
@@ -50,13 +50,13 @@ A "semantic mutation" is a code change where a function / method / field / opera
 - Regex / parser tightening: `\d+` → `\d{4}`, lookahead added, anchor moved
 - Default-argument shift: default value of a parameter changed
 - Order-of-operations change: `sort by A, B` → `sort by A, B, C`
-- Time semantics flip: `now()` → `event_time` or vice versa
+- Time semantics flip: `now` → `event_time` or vice versa
 - SQL / ORM hydration mode flip: lazy → eager or vice versa (the OPTIMIZATION dimension may also catch this, but the BLAST radius reasoning is architecture's)
 
 **How to detect:**
 1. From `DIFF CONTEXT`, scan changed hunks for: operator changes (`>` ↔ `>=`, `===` ↔ `==`), return-value type or value changes, default-argument changes, regex changes, new conditional branches in shared helpers.
 2. For each candidate symbol whose semantic changed but whose signature / name is stable, count callers via the Grep tool (NOT bash grep): `Grep(pattern="SymbolName", output_mode="count", glob="<project-language-glob>")`. Adjust `glob` per the project's languages (e.g., `*.ts` for TypeScript, `*.py` for Python, `*.rb` for Ruby).
-3. Classify risk per the canonical Change Impact Scoring rubric at `${CLAUDE_PLUGIN_ROOT}/agents/refactor-agent.md` § "Step 2: Change Impact Scoring" (1-3 callers LOW / 4-9 MEDIUM / 10+ HIGH). Apply the same escalation override: any public API / module export / shared type change is HIGH regardless of count.
+3. Classify risk per the canonical Change Impact Scoring rubric at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § "Step 2: Change Impact Scoring" (1-3 callers LOW / 4-9 MEDIUM / 10+ HIGH). Apply the same escalation override: any public API / module export / shared type change is HIGH regardless of count.
 4. For each caller above LOW: open the call site, read the surrounding context (5-10 lines), and ask: does the new semantic break THIS caller's assumption? Did the PR description mention this caller? Are there tests asserting THIS caller's behavior under the new semantic?
 5. Surface findings as: "Symbol `<name>` at `<file:line>` had a semantic mutation (was `<old>`, now `<new>`) with N callers; caller at `<callsite-path:line>` reads the result and `<does-X>` — verify intent or add test."
 
@@ -147,7 +147,7 @@ wc -l file.js | awk '$1 > 500 {print $0}'
 - Look for recovery strategies
 
 **Red flags:**
-- Some functions use try-catch, others use .catch()
+- Some functions use try-catch, others use.catch
 - `catch (e) {}` (empty catch)
 - Errors logged without context
 - No error hierarchy
@@ -155,7 +155,7 @@ wc -l file.js | awk '$1 > 500 {print $0}'
 
 ### 6. Performance & Scalability
 
-> **Boundary with optimizations-criteria.md:** §6 below owns architecture-level perf concerns — N+1 query patterns, ORM eager-loading, missing caching/memoization, missing pagination on unbounded queries, sync I/O in async context, O(n²) algorithms. ORM hydration-skip mechanisms (`.lean()`, `disableIdentityMap`, `raw:true`, `getRawMany()`, `HYDRATE_ARRAY`, `.values()`, `.pluck()`), column/field projection on the wire, React re-render hygiene, frontend bundle/asset perf, async parallelization, and per-row → bulk INSERT/UPDATE rewrites are owned by the **optimizations** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md`. If a finding fits both, prefer optimizations when the fix is a query-shape change; prefer architecture when the fix is a module-level redesign (caching layer, pagination contract).
+> **Boundary with optimizations-criteria.md:** below owns architecture-level perf concerns — N+1 query patterns, ORM eager-loading, missing caching/memoization, missing pagination on unbounded queries, sync I/O in async context, O(n²) algorithms. ORM hydration-skip mechanisms (`.lean`, `disableIdentityMap`, `raw:true`, `getRawMany`, `HYDRATE_ARRAY`, `.values`, `.pluck`), column/field projection on the wire, React re-render hygiene, frontend bundle/asset perf, async parallelization, and per-row → bulk INSERT/UPDATE rewrites are owned by the **optimizations** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md`. If a finding fits both, prefer optimizations when the fix is a query-shape change; prefer architecture when the fix is a module-level redesign (caching layer, pagination contract).
 
 - N+1 query patterns (queries inside loops instead of batched/joined queries)
 - Inefficient algorithms (O(n²) where O(n) possible)
@@ -213,6 +213,7 @@ grep -n "workaround\|temporary\|quick fix" file.js
 - Inconsistent patterns (old style mixed with new)
 - Comments saying "this is hacky but it works"
 - Code that duplicates existing patterns elsewhere — "elsewhere" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces helper `<name>` at `<file:line>` — current change reimplements it inline, consider reusing or coordinating"
+- **Linear parent-epic awareness** — when the `LINEAR CONTEXT:` slot shows a non-`none` parent + sibling sub-tasks AND `PEER-PR CONTEXT:` lists a sibling PR carrying one of those sub-task IDs, flag architectural divergence between parallel sub-tasks of the same epic. Valid finding shape: «Parent epic <ENG-100> distributes work across <current PR sub-task X> and <sibling PR #N sub-task Y>; the two PRs adopt incompatible <data model | API contract | layer boundary> for the shared epic surface — coordinate before either lands». Severity HIGH when the divergence creates a runtime contract collision; MEDIUM otherwise.
 
 ### 8. Testing Architecture
 - Code designed to be difficult to test
@@ -239,53 +240,53 @@ grep -n "workaround\|temporary\|quick fix" file.js
 
 ```json
 {
-  "type": "architecture",
-  "severity": "critical|high|medium",
-  "title": "Brief architecture issue",
-  "file": "path/to/file.js",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "Detailed description of architectural concern",
-  "category": "coupling|abstraction|solid|organization|errorhandling|performance|debt|testing",
-  "pattern_location": ["file.js:42", "other.js:15"],
-  "current_design": "How it's currently structured",
-  "impact": "Why this matters (maintainability, scalability, etc.)",
-  "recommendation": "Proposed refactoring or improvement",
-  "confidence": 85
+"type": "architecture",
+"severity": "critical|high|medium",
+"title": "Brief architecture issue",
+"file": "path/to/file.js",
+"line_start": 42,
+"line_end": 48,
+"description": "Detailed description of architectural concern",
+"category": "coupling|abstraction|solid|organization|errorhandling|performance|debt|testing",
+"pattern_location": ["file.js:42", "other.js:15"],
+"current_design": "How it's currently structured",
+"impact": "Why this matters (maintainability, scalability, etc.)",
+"recommendation": "Proposed refactoring or improvement",
+"confidence": 85
 }
 ```
 
 ## Common False Positives
 
 1. **Pragmatic design** — Sometimes coupling is acceptable for simplicity
-   - Framework integration often requires tight coupling
-   - Small projects don't need full SOLID adherence
-   - Check project size and constraints
+- Framework integration often requires tight coupling
+- Small projects don't need full SOLID adherence
+- Check project size and constraints
 
 2. **Intentional repetition** — Code reuse isn't always beneficial
-   - Duplicating code for different contexts is sometimes correct
-   - Premature abstraction creates worse problems
-   - Only flag if obvious shared logic exists
+- Duplicating code for different contexts is sometimes correct
+- Premature abstraction creates worse problems
+- Only flag if obvious shared logic exists
 
 3. **Framework patterns** — Many frameworks violate SOLID on purpose
-   - Rails/Django models do multiple things by design
-   - Framework code patterns don't apply to app code
-   - Check if pattern is framework-recommended
+- Rails/Django models do multiple things by design
+- Framework code patterns don't apply to app code
+- Check if pattern is framework-recommended
 
 4. **Configuration-driven behavior** — Behavior controlled externally
-   - Configuration injection addresses tight coupling
-   - Check if values come from proper config sources
-   - Don't flag if using DI framework
+- Configuration injection addresses tight coupling
+- Check if values come from proper config sources
+- Don't flag if using DI framework
 
 5. **Learning code** — New developers might use older patterns
-   - Code reviews should mentor, not just criticize
-   - Consistency matters, but growth is important
-   - Consider context and codebase age
+- Code reviews should mentor, not just criticize
+- Consistency matters, but growth is important
+- Consider context and codebase age
 
 6. **Intentional simplification** — Simple code beats perfect design
-   - Don't flag over-engineering fears
-   - Some coupling is acceptable for simplicity
-   - Only flag if causing real problems
+- Don't flag over-engineering fears
+- Some coupling is acceptable for simplicity
+- Only flag if causing real problems
 
 ## Stack-Agnostic Patterns
 

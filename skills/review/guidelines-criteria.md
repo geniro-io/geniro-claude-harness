@@ -2,6 +2,8 @@
 
 Code style, naming conventions, documentation, consistency, and compliance with project standards.
 
+> **Scope:** repo-modal-pattern findings (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency, ADR contradictions) are owned exclusively by the `conventions` review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`. Do NOT emit such findings from `guidelines` — that produces user-facing «told twice». This file covers style / naming / documentation / formatting / type-safety / public-API surface / dead-code only.
+
 ## What to Check
 
 ### 1. Naming Conventions
@@ -46,7 +48,7 @@ grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
 ```
 
 **Red flags:**
-- Functions: `doSomething()`, `processData()`, `handleIt()`, `executeTask()`
+- Functions: `doSomething`, `processData`, `handleIt`, `executeTask`
 - Classes: `UtilityManager`, `DataService`, `GeneralHandler`
 - No clear verb (get, create, fetch, validate, check, transform)
 - Private methods unclear (\_process, \_handle)
@@ -86,7 +88,7 @@ grep -n "{\|}" file.js | head -10
 **How to detect:**
 ```bash
 # Find functions without comments
-grep -n "^function\|^async function\|^  [a-z].*() {" file.js
+grep -n "^function\|^async function\|^ [a-z].* {" file.js
 # Find obvious comments
 grep -n "//" file.js | grep -E "increment|add one|set variable"
 # Find TODO/FIXME
@@ -176,125 +178,57 @@ grep -n "Object\|Function" file.ts
 - Missing input validation in API routes
 - Type-unsafe casts or assertions
 
-### 8. Consistency with Codebase (Convention Guard)
-
-> **Boundary with conventions-criteria.md:** §8 below covers single-exemplar rubric comparison (find ONE closest existing file, diff the patterns). Statistical N-file modal inference (sample 5-10 siblings, compute the dominant pattern, flag divergences when modal frequency ≥ 80%) is owned by the **conventions** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`. If a finding fits both rubrics, prefer conventions — its sample-paths + modal-frequency evidence is more actionable.
-
-This is the most important guideline dimension — AI-generated code's #1 failure mode is introducing new patterns that differ from the repo's existing conventions ("convention drift").
-
-- Different patterns than rest of codebase
-- Inconsistent error handling approach
-- Different naming style than existing code
-- Import styles differ from convention
-- Inconsistent module structure
-- File placed in wrong directory for its type
-- ADR contradictions (violating recorded architectural decisions)
-
-**How to detect — Exemplar File Comparison:**
-
-The key technique: find the closest existing file to each changed file, then diff the patterns.
-
-```bash
-# Step 1: Find exemplar files — the closest existing files to the changed ones
-# For a new API route:
-ls src/routes/ | head -5                    # See existing route files
-# For a new component:
-ls src/components/ | head -5                # See existing component files
-# For a new service:
-ls src/services/ | head -5                  # See existing service files
-
-# Step 2: Compare patterns between new code and exemplar
-# Naming convention check
-grep -n "^export\|^function\|^class\|^const\|^interface" new_file.ts > /tmp/new_exports.txt
-grep -n "^export\|^function\|^class\|^const\|^interface" exemplar_file.ts > /tmp/old_exports.txt
-# Compare: are they using same naming style? (camelCase vs PascalCase vs snake_case)
-
-# Import style check
-head -20 new_file.ts | grep "import"        # New file imports
-head -20 exemplar_file.ts | grep "import"   # Exemplar imports
-# Compare: relative vs absolute paths? Named vs default? Order?
-
-# Error handling pattern check
-grep -n "try\|catch\|throw\|Error\|error" new_file.ts
-grep -n "try\|catch\|throw\|Error\|error" exemplar_file.ts
-# Compare: same error handling approach?
-
-# File structure check — does new file follow same section ordering?
-grep -n "^//\|^/\*\|^export\|^class\|^interface\|^type" new_file.ts | head -20
-grep -n "^//\|^/\*\|^export\|^class\|^interface\|^type" exemplar_file.ts | head -20
-
-# Step 3: Check for ADR violations (if ADRs exist)
-find . -path "*/adr/*.md" -o -path "*/decisions/*.md" 2>/dev/null | head -10
-# Read relevant ADRs and verify new code doesn't contradict them
-```
-
-**Convention drift signals (specific to AI-generated code):**
-- New code uses a pattern that exists NOWHERE else in the codebase
-- Error handling wraps in try/catch when codebase uses Result types (or vice versa)
-- File exports a default when codebase uses named exports (or vice versa)
-- New utility function duplicates an existing one under a different name
-- Code uses a library/package not in package.json when an existing dep does the same thing
-- Test file structure doesn't match existing test files (describe/it vs test(), file naming)
-- Pattern requires N-file statistical inference (5 of 7 siblings use approach A, this PR uses C) — defer to the conventions reviewer; do NOT emit such findings from guidelines.
-
-**Red flags:**
-- New code using different naming style
-- Different error handling than existing code
-- New patterns not used elsewhere in the codebase
-- Breaks existing architectural patterns
-- Differs from style guide or linter config
-- New dependency added when existing dependency covers the use case
-- File placed in unexpected location vs codebase convention
+> **Note:** "Consistency with Codebase / Convention Guard" findings route exclusively to the `conventions` dimension (statistical N-file modal inference, ≥80% siblings threshold). See conventions-criteria.md.
 
 ## Output Format
 
 ```json
 {
-  "type": "guidelines",
-  "severity": "critical|high|medium",
-  "title": "Style or guideline violation",
-  "file": "path/to/file.js",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "Description of the guideline violation",
-  "category": "naming|formatting|comments|duplication|imports|types|consistency",
-  "current": "Current code/pattern",
-  "expected": "Expected code/pattern per guidelines",
-  "recommendation": "How to fix it",
-  "confidence": 92
+"type": "guidelines",
+"severity": "critical|high|medium",
+"title": "Style or guideline violation",
+"file": "path/to/file.js",
+"line_start": 42,
+"line_end": 48,
+"description": "Description of the guideline violation",
+"category": "naming|formatting|comments|duplication|imports|types",
+"current": "Current code/pattern",
+"expected": "Expected code/pattern per guidelines",
+"recommendation": "How to fix it",
+"confidence": 92
 }
 ```
 
 ## Common False Positives
 
 1. **Single-letter vars in small scope** — OK for short lambdas/loops
-   - `array.map(x => x * 2)` is acceptable
-   - `for (let i = 0; i < n; i++)` is standard
-   - Check scope: if var used in 5+ lines, needs better name
+- `array.map(x => x * 2)` is acceptable
+- `for (let i = 0; i < n; i++)` is standard
+- Check scope: if var used in 5+ lines, needs better name
 
 2. **Generic names in tests** — Often acceptable for test setup
-   - `const user = createTestUser()`
-   - `const data = { id: 1, name: 'Test' }`
-   - Only flag if confusing within test
+- `const user = createTestUser`
+- `const data = { id: 1, name: 'Test' }`
+- Only flag if confusing within test
 
 3. **Pragmatic duplication** — Sometimes better than premature abstraction
-   - Two similar implementations might have different requirements
-   - Duplicating for different contexts is acceptable
-   - Only flag obvious shared logic
+- Two similar implementations might have different requirements
+- Duplicating for different contexts is acceptable
+- Only flag obvious shared logic
 
 4. **Type-safe "any"** — Exceptions exist for special cases
-   - `JSON.parse()` returns any (by design)
-   - Bridge code to untyped libraries uses any
-   - Check if there's legitimate reason
+- `JSON.parse` returns any (by design)
+- Bridge code to untyped libraries uses any
+- Check if there's legitimate reason
 
 5. **Comments explaining "why"** — These are good, not obvious
-   - Explaining business logic or tricky decisions is valuable
-   - Only flag comments that state the obvious code
+- Explaining business logic or tricky decisions is valuable
+- Only flag comments that state the obvious code
 
 6. **Linter conflicts** — If codebase uses specific config
-   - Project might enforce different style than standard
-   - Check `.eslintrc`, `prettier.config`, etc.
-   - Don't flag if matches project config
+- Project might enforce different style than standard
+- Check `.eslintrc`, `prettier.config`, etc.
+- Don't flag if matches project config
 
 ## Stack-Agnostic Patterns
 
@@ -304,7 +238,6 @@ Works across all languages/frameworks:
 - Documentation (all languages)
 - Code duplication (all languages)
 - Import/dependency patterns (all languages)
-- Consistency patterns (all languages)
 - Type safety (statically typed languages)
 
 ## Review Checklist
@@ -319,7 +252,6 @@ Works across all languages/frameworks:
 - [ ] Imports are necessary and used
 - [ ] Type annotations complete (if applicable)
 - [ ] Code follows project style guide
-- [ ] Naming consistent with codebase
 - [ ] No TODO without issue reference
 
 ## Severity Guidelines

@@ -12,12 +12,10 @@ Skipping the gate is the documented anti-pattern in the superpowers `test-driven
 
 ## When this fires
 
-- `/geniro:follow-up` Phase 2 (Small + Medium scope) — before the fixer-agent spawn.
-- `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change constitution requires existing tests to lock the behavior; if none exists, the gate fires before the refactor-agent spawn).
-- `/geniro:implement` Phase 4 in TDD Lane — formalized here. The Lane Selection AUQ at Phase 1 Step 0 is upstream of this gate; Test-First Gate confirms per-WU.
+- `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change constitution requires existing tests to lock the behavior; if none exists, the gate fires before Phase 2 per-step execution begins).
 
 The gate does NOT fire in:
-- `/geniro:implement` Lane: full or Lane: light — those Lanes use the architect's plan + Phase 6 reviewer pipeline as the test-coverage gate; the per-WU Test-First check would be redundant.
+- `/geniro:implement` — Phase 2 runs a single whole-feature edit batch followed by Phase 3's 5-dim reviewer pipeline (`tests` dimension covers test-first behaviour); per-WU Test-First check would be redundant against design ( + ).
 - `/geniro:debug` — debug's evidence requirement is hypothesis confirmation per `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`, not a test-first gate. Debug's adversarial mode is the closest analogue and runs the cycle in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` directly.
 
 ## Required AUQ shape
@@ -25,9 +23,9 @@ The gate does NOT fire in:
 - **`header`**: `"Tests"`.
 - **`question`**: `"Before writing production code: is there an existing failing test that proves the behavior under change?"`
 - **`options[]`** (3 single-select):
-  - `label`: `"Test exists & failing (proceed RED→GREEN)"` — `description`: `"Skip RED authoring; agent jumps to GREEN per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md. Use when a regression test was added before this run (e.g., from a bug-report repro) and is currently red."`
-  - `label`: `"Author failing test first"` (Recommended) — `description`: `"Agent runs the full RED→GREEN cycle: author failing test, verify it fails with the right signature, then write minimal production code to pass it. Default for new behavior."`
-  - `label`: `"Skip TDD (justify)"` — `description`: `"Agent skips the cycle entirely. Orchestrator records the user's justification in the Ship summary. Use only when TDD is genuinely inapplicable (e.g., pure config edit, or rolling back a known-bad commit). Auto-defaulting to this option is forbidden — see Always-WAIT contract."`
+ - `label`: `"Test exists & failing (proceed RED→GREEN)"` — `description`: `"Skip RED authoring; agent jumps to GREEN per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md. Use when a regression test was added before this run (e.g., from a bug-report repro) and is currently red."`
+ - `label`: `"Author failing test first"` (Recommended) — `description`: `"Agent runs the full RED→GREEN cycle: author failing test, verify it fails with the right signature, then write minimal production code to pass it. Default for new behavior."`
+ - `label`: `"Skip TDD (justify)"` — `description`: `"Agent skips the cycle entirely. Orchestrator records the user's justification in the Ship summary. Use only when TDD is genuinely inapplicable (e.g., pure config edit, or rolling back a known-bad commit). Auto-defaulting to this option is forbidden — see Always-WAIT contract."`
 
 The "Author failing test first" option is highlighted Recommended in every mode and lane — it is the safe default. The other two options exist for the genuine cases where the default is wrong (regression test already in flight, or non-behavioral change).
 
@@ -37,7 +35,7 @@ This gate is **Always-WAIT** in every mode and lane that fires it (per § When t
 
 Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask. Never auto-default.
 
-The single exception is `/geniro:follow-up` in Small scope when auto-mode is explicitly active per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` AND the change footprint is `<= 1 file AND <= 5 LOC` — the gate auto-selects "Author failing test first" (the recommended option) without prompting. Auto-defaulting to the SKIP option is forbidden in every case.
+Auto-defaulting to the SKIP option is forbidden in every case. `/geniro:refactor` is the sole remaining consumer; it fires the gate per its own SKILL.md flow.
 
 ## Result handling
 
@@ -59,7 +57,7 @@ When the user picks "Test exists & failing", the orchestrator MUST verify the na
 |---|---|
 | "This is a one-line bugfix, TDD is overkill." | If the bug recurred, it's because no test caught it. RED locks the bug into the regression suite — one line of test, one line of fix, permanent coverage. The "overkill" framing inverts the cost: the test is cheap, the recurrence is expensive. |
 | "I'll write the test after the production code, in the same commit." | The state file enforces order; the agent will hit exit 2 from `enforce-tdd-order.sh` on production-file Edit before a test exists per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § Hook enforcement. Same-commit grouping doesn't satisfy the discipline; same-message ordering does. |
-| "Auto-mode means the gate should auto-default to whatever's fastest." | Auto-mode picks recommended defaults for non-workspace gray areas (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md`); TDD-skip is not a gray area — it's an explicit user opt-out with a justification trail. Auto-defaulting to "Skip TDD" is forbidden. The Small-scope auto-default is "Author failing test first" — the recommended, safe path. |
+| "Auto-mode means the gate should auto-default to whatever's fastest." | TDD-skip is not a gray area — it's an explicit user opt-out with a justification trail. Auto-defaulting to "Skip TDD" is forbidden. The Small-scope auto-default is "Author failing test first" — the recommended, safe path. |
 | "The user said 'just fix it' — that means skip the gate." | "Just fix it" is a velocity hint, not a discipline waiver. The user is asking for less ceremony, not for less correctness. Default to "Author failing test first"; if the user reads the AUQ and picks "Skip TDD (justify)", THAT is the explicit opt-out. |
 | "I'll fire the gate but auto-pick the Recommended option silently." | That's auto-defaulting to a non-skip option, which is allowed in the Small-scope auto exception above — but only when scope qualifies AND auto-mode is active. In every other case, fire the AUQ; the user's pick is the contract, not the orchestrator's inference of it. |
 

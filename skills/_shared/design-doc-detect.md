@@ -8,7 +8,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 ### Step 1 — Extract token
 
-Take the **first non-flag token** of `$ARGUMENTS` after stripping the sub-command keyword (e.g. for `/geniro:features add F3` the token is `F3`; for `/geniro:implement --light path/to/file` the token is `path/to/file`). Flags are tokens starting with `-` (single or double dash); skip them and any value tokens they consume per the consuming skill's flag spec.
+Take the **first non-flag token** of `$ARGUMENTS` after stripping the sub-command keyword (e.g. for `/geniro:implement path/to/file` the token is `path/to/file`). Flags are tokens starting with `-` (single or double dash); skip them and any value tokens they consume per the consuming skill's flag spec.
 
 If `$ARGUMENTS` is empty after stripping, the consumer falls back to its own empty-argument AUQ — this algorithm returns nothing.
 
@@ -34,16 +34,16 @@ Treat the token as a candidate path. Resolve relative paths against the current 
 
 ```
 token = first_non_flag_token(strip_subcommand_keyword($ARGUMENTS))
-if token is empty: return None  # consumer handles empty-arg AUQ
+if token is empty: return None # consumer handles empty-arg AUQ
 
 path = resolve_to_cwd(token)
 if file_exists(path):
-    if path matches ".geniro/planning/**/*.md": return DESIGN_DOC(path)
-    if read_first_n_lines(path, 20) contains "<!-- geniro:design-doc -->": return DESIGN_DOC(path)
-    if has_yaml_frontmatter(path) and "geniro_kind: design-doc" in frontmatter(path): return DESIGN_DOC(path)
-    return CODE_REFERENCE(path)
+ if path matches ".geniro/planning/**/*.md": return DESIGN_DOC(path)
+ if read_first_n_lines(path, 20) contains "<!-- geniro:design-doc -->": return DESIGN_DOC(path)
+ if has_yaml_frontmatter(path) and "geniro_kind: design-doc" in frontmatter(path): return DESIGN_DOC(path)
+ return CODE_REFERENCE(path)
 else:
-    return IDEA(topic=remaining_arguments)
+ return IDEA(topic=remaining_arguments)
 ```
 
 ## Why defense in depth
@@ -60,16 +60,14 @@ ANY-OF semantics: at least one marker survives any single user action that strip
 
 | Consumer | `DESIGN_DOC` | `IDEA` | `CODE_REFERENCE` |
 |---|---|---|---|
-| `/geniro:brainstorm <topic>` | AUQ "Design exists at `<path>`. Refine / Start over / Cancel". On "Refine" → load doc, jump to `brainstorming-loop.md` Phase 5 with sections pre-populated. On "Start over" → discard, run loop from Phase 1 with original topic. On "Cancel" → exit. | Run full `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` from Phase 1. | Unsupported — error: "code reference passed to brainstorm; pass a topic or design-doc path". |
-| `/geniro:implement <arg>` | Skip Phase 1 Discover; jump to Phase 2 architect with the design doc inlined as authoritative spec. | Run existing Phase 0 brainstorm-suggestion AUQ when speculative markers are present (per the implement skill's existing logic). | Existing behavior — treat as code reference for the implement skill's Phase 1 Discover. |
-| `/geniro:decompose <arg>` | Use the design doc as the spec input for milestone decomposition. | Existing behavior — treat as task description. | Existing behavior — treat as code reference. |
-| `/geniro:features add <arg>` | Skip ideation; jump straight to F-id assignment with the design doc as the registered spec (Notes column links the doc). | Run `${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` then register the resulting design doc. | Existing behavior. |
+| `/geniro:plan <topic>` | AUQ "Existing design doc at `<path>`. Start fresh with this as context / Cancel". On "Start fresh" → load doc into Phase 1 explore context (NOT as section template); run full 8-phase loop from Phase 1; emit a new spec.md at a fresh task-dir. On "Cancel" → exit without writing state.md. | Run full `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` from Phase 1. | Unsupported — error: "code reference passed to /plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?". |
+| `/geniro:implement <arg>` | Phase 1 analyze treats the design doc as a spec source — walks the spec-discovery list and loads it as the authoritative spec.md OR plan.md alias. | Inline-task mode — treat as a raw spec description, write a brief `## Inline Plan` to state.md, proceed to Phase 2. | Existing behavior — treat as a code reference (Phase 1 reads it as context but not as the spec source). |
 
 AUQ shape conventions for any of the per-consumer prompts above follow the canonical pattern in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` (single-select unless explicitly multi-select; never auto-default on empty answer; fall back to plain text on empty-answer bug).
 
 ## Marker writers
 
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/brainstorming-loop.md` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<branch>/<YYYY-MM-DD>-<topic-slug>-design.md` + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer.
+`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<task-slug>/spec.md` canonical + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer.
 
 Other writers (manually authored design docs, docs imported from external sources, docs written by other Geniro skills that produce design content) **should write at least the YAML frontmatter** to maximize portability — frontmatter is the marker that survives copy-out-of-`.geniro/planning/` and HTML-stripping editors. Path and HTML markers are nice-to-have but not sufficient on their own across all user workflows.
 

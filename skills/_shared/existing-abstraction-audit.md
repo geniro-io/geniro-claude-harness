@@ -1,6 +1,6 @@
 # Existing Abstraction Audit
 
-Canonical procedure for "before creating new code, check what already exists." Consumed by `/geniro:refactor` Phase 2 (smell detection), `/geniro:deep-simplify` Pass A (Reuse & Duplication), and `/geniro:implement` Phase 5 (Simplify). Define ONCE here; reference from N consumers.
+Canonical procedure for "before creating new code, check what already exists." Define ONCE here; reference from N consumers.
 
 ## When to run
 

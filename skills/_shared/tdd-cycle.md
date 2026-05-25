@@ -1,6 +1,6 @@
 # TDD Cycle
 
-Canonical RED→GREEN→REFACTOR procedure. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` § Phase 4 in TDD Mode, `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md`, `${CLAUDE_PLUGIN_ROOT}/skills/follow-up/SKILL.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`, `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` adversarial mode. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
+Canonical RED→GREEN→REFACTOR procedure. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` § Phase 2 in TDD Mode, `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`, `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` adversarial mode. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
 

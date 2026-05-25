@@ -1,10 +1,10 @@
 # Effort Scaling
 
-Canonical complexity rubric for routing tasks to the correct pipeline depth. Used by `/geniro:implement` (Phase 1 routing), `/geniro:follow-up` (Step 2 complexity assessment), and `/geniro:decompose` (Big task gate, <3-milestone fallback). `/geniro:refactor` uses a deliberate override that reweights dimensions toward zero-behavior-change concerns — see `skills/refactor/SKILL.md` §"Complexity Gate".
+Canonical complexity rubric for routing tasks to the correct pipeline depth.
 
 Match planning depth to task complexity. **File count is a smell detector, not a complexity detector.** A 2-file migration + API contract change is Big. A 10-file rename propagation is Small.
 
-Tiers: **Trivial / Small / Medium / Big**. Big always escalates out of the calling skill (e.g. `/follow-up` routes Big to `/implement` or `/decompose`).
+Tiers: **Trivial / Small / Medium / Big**. Big-tier classification at /plan time triggers milestone-mode output (emits per-milestone spec files); /implement consumes each milestone spec exactly like a single-spec input.
 
 ## Step 1: Check for Hard Escalation Signals
 
@@ -46,7 +46,7 @@ If no hard signals, score these dimensions:
 
 | Size | Planning Depth |
 |------|----------------|
-| **Trivial** | Two flavors: (a) `/follow-up` Fast Lane — collapse simplify + reviewer phases; orchestrator-direct diff review; state.md tracking only. (b) `/implement` Light Mode — skip Phase 2 architect/skeptic + Phase 5 simplify + Phase 6 Stage B/D, but keep the full Stage C reviewer grid; orchestrator writes a Small-tier lightweight plan instead of architect. Choose `/follow-up` Fast Lane for trivial post-implementation tweaks (no review needed); choose `/implement` Light Mode when you want full multi-reviewer review on a small new change. Both ALWAYS ask the user before going light. |
-| **Small** | Lightweight plan: Goal + Approach + Steps (no wave grouping, no test scenarios table). Skip skeptic validation. Full plan print at approval is still mandatory. |
-| **Medium** | Standard plan: full structure from `plan-criteria.md`. Architect + skeptic validation. |
-| **Big** | Full architect + skeptic plan, single pass. If score 9+ or >15 steps → hand off to `/geniro:decompose` for milestone decomposition. |
+| **Trivial** | `/plan` emits a minimal Goal + Approach + Steps spec; `/implement` consumes it as ordinary spec input. `/refactor`: skip smell detection + smell evidence + independent reviewer + custom reviewers — orchestrator authors plan directly from scope-files. |
+| **Small** | Lightweight spec: Goal + Approach + Steps (no wave grouping, no test scenarios table). `/plan` may skip skeptic-validation at this tier. `/refactor`: full smell-detection in Phase 1 BUT skip smell evidence + independent reviewer + custom reviewers. |
+| **Medium** | Standard spec: full 10-section structure. `/plan` runs architect + skeptic. `/refactor`: full pipeline — orchestrator-inline smell detection + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
+| **Big** | Full architect + skeptic spec at /plan time. If score 9+ or >15 steps → /plan switches into milestone-output mode (emits per-milestone spec files); `/implement` consumes each milestone spec individually. `/refactor`: recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user proceeds without a plan, Big runs the Medium pipeline (with accepted risk). |

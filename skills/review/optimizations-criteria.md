@@ -2,50 +2,43 @@
 
 Concrete, measurable performance wins on the changed lines: skip ORM hydration on read-only paths, project columns, parallelize independent awaits, batch per-row writes, hygiene React re-renders, and ship the frontend bundle leanly.
 
-## Scope Boundary — Defers to `architecture-criteria.md` §6
+## Scope Boundary — Defers to `architecture-criteria.md`
+This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` (Performance & Scalability). Defer to that section; do not duplicate findings:
 
-This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` §6 (Performance & Scalability). Defer to that section; do not duplicate findings:
-
-1. **N+1 query patterns** — queries inside loops without batching → architecture §6
-2. **ORM eager-loading** — `include` / `prefetch_related` / `joinedload` design → architecture §6
-3. **Caching / memoization at the architecture level** — missing layers, not micro-memo → architecture §6
-4. **Missing pagination on unbounded queries** → architecture §6
-5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture §6
-6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture §6
-
+1. **N+1 query patterns** — queries inside loops without batching → architecture2. **ORM eager-loading** — `include` / `prefetch_related` / `joinedload` design → architecture3. **Caching / memoization at the architecture level** — missing layers, not micro-memo → architecture4. **Missing pagination on unbounded queries** → architecture5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
 If a finding fits one of those six, emit it under architecture's `category: "performance"` instead. Optimizations stays focused on the six categories below.
 
 ## What to Check
 
 ### 1. ORM Hydration Skip
 - Read-only paths (JSON-serialize-only endpoints, list views, exports) that hydrate full ORM Documents/Entities when plain objects suffice
-- Findings should target the *call site*, not the ORM — flag a missing skip-hydration call only when the result is never mutated, never `.save()`d, and never relies on getters/virtuals/methods
-- Mongoose: missing `.lean()` on read-only `find()`/`findOne()`
-- TypeORM: missing `getRawMany()`/`getRawOne()` on report-style queries
-- Sequelize: missing `{ raw: true }` on read-only `findAll()`
+- Findings should target the *call site*, not the ORM — flag a missing skip-hydration call only when the result is never mutated, never `.save`d, and never relies on getters/virtuals/methods
+- Mongoose: missing `.lean` on read-only `find`/`findOne`
+- TypeORM: missing `getRawMany`/`getRawOne` on report-style queries
+- Sequelize: missing `{ raw: true }` on read-only `findAll`
 - MikroORM: missing `disableIdentityMap: true` on detached-read paths
 - Doctrine: missing `HYDRATE_ARRAY` / `HYDRATE_SCALAR` on report queries
 - SQLAlchemy: missing drop-to-Core / `with_entities` on read-only aggregations
-- Django: missing `.values()` / `.values_list()` on hot list endpoints
+- Django: missing `.values` / `.values_list` on hot list endpoints
 - ActiveRecord: missing `.pluck(:col)` where loop only reads one column
 - Prisma / Drizzle: hydration not applicable — they return POJOs by default; don't invent a missing skip-hydration call
 
 **How to detect:**
 ```bash
-# Mongoose: read-only findX without .lean()
+# Mongoose: read-only findX without.lean
 grep -nE "\.find(One|ById)?\(|\.findOneAnd" file.ts | grep -v "\.lean(\|\.save(\|\.populate("
 # TypeORM repository reads
 grep -nE "\.find\(|\.findOne\(|createQueryBuilder" file.ts | grep -v "getRaw\|\.save("
 # Sequelize findAll without raw
 grep -nE "\.findAll\(|\.findOne\(" file.ts | grep -v "raw:\s*true\|\.save("
-# Django serializer paths missing .values()
+# Django serializer paths missing.values
 grep -nE "\.objects\.(all|filter)\(" file.py | grep -v "\.values\|\.only\|\.defer"
 # Detect mutate-then-save (negative signal — DO NOT flag)
 grep -nB3 "\.save(" file.ts | grep -E "\.lean\(|raw:\s*true"
 ```
 
 **Red flags:**
-- `findAll().then(rows => res.json(rows))` with no projection or `.lean()` — pure read, hydration is pure cost
+- `findAll.then(rows => res.json(rows))` with no projection or `.lean` — pure read, hydration is pure cost
 - Loop that reads one field per row from a hydrated entity collection
 - Aggregation/report endpoints returning JSON of full ORM entities
 
@@ -57,7 +50,7 @@ grep -nB3 "\.save(" file.ts | grep -E "\.lean\(|raw:\s*true"
 
 **How to detect:**
 ```bash
-# Mongoose without .select()
+# Mongoose without.select
 grep -nE "\.find\(|\.findOne\(" file.ts | grep -v "\.select("
 # TypeORM querybuilder without explicit select
 grep -nE "createQueryBuilder\(" file.ts | grep -v "\.select(\["
@@ -100,13 +93,13 @@ grep -nE "useEffect\(\(\)\s*=>\s*\{[^}]*set[A-Z]" file.tsx
 ```
 
 **Red flags:**
-- `<Child onClick={() => …}>` inside a frequently-re-rendering parent where `Child` is `memo`'d
+- `<Child onClick={ => …}>` inside a frequently-re-rendering parent where `Child` is `memo`'d
 - `<List items={data.map(d => …)} />` — the `.map` produces a fresh array every render
 - A 5000-row table rendered as a flat `.map(row => <Row …/>)` with no virtualization
-- `useEffect(() => setX(derive(props)), [props])` — derived state that should be `useMemo` or just inlined
+- `useEffect(=> setX(derive(props)), [props])` — derived state that should be `useMemo` or just inlined
 
 ### 4. Frontend Bundle / Asset Performance
-- Routes loaded eagerly that could be split via dynamic `import()` / `React.lazy` / `loadable`
+- Routes loaded eagerly that could be split via dynamic `import` / `React.lazy` / `loadable`
 - Heavy third-party libs (charts, editors, PDF) imported at module top-level instead of lazy
 - Images served as PNG/JPG without WebP/AVIF, no `srcset`, no width/height attrs (CLS)
 - Below-fold `<img>` / `<iframe>` without `loading="lazy"`
@@ -119,13 +112,13 @@ grep -nE "useEffect\(\(\)\s*=>\s*\{[^}]*set[A-Z]" file.tsx
 grep -nE "^import [A-Z][A-Za-z]+Page from" src/app/routes.tsx
 grep -nE "React\.lazy\(|lazy\(" src/app/routes.tsx
 # Heavy lib eager imports
-grep -rnE "^import .* from ['\"](recharts|chart\.js|monaco|pdfjs|@codemirror)" src/
+grep -rnE "^import.* from ['\"](recharts|chart\.js|monaco|pdfjs|@codemirror)" src/
 # Image elements missing modern attrs
 grep -nE "<img\s" file.tsx | grep -v "loading=\|srcset=\|width=\|height="
 # Lodash full import
 grep -rnE "from ['\"]lodash['\"]" src/
 # Missing dynamic import for charts/editors
-grep -nE "import .*Chart|import .*Editor" file.tsx | grep -v "lazy\|dynamic"
+grep -nE "import.*Chart|import.*Editor" file.tsx | grep -v "lazy\|dynamic"
 ```
 
 **Red flags:**
@@ -144,7 +137,7 @@ grep -nE "import .*Chart|import .*Editor" file.tsx | grep -v "lazy\|dynamic"
 # Adjacent awaits on independent calls
 grep -nE "^\s*const \w+ = await " file.ts | head
 # Fan-out await in loop
-grep -nB1 -A1 "for .* of " file.ts | grep "await"
+grep -nB1 -A1 "for.* of " file.ts | grep "await"
 # Python: serialized awaits
 grep -nE "^\s+\w+ = await " file.py
 # Sequential fetches that share no input
@@ -152,17 +145,17 @@ grep -nE "await fetch\(" file.ts | head
 ```
 
 **Red flags:**
-- `const a = await getA(); const b = await getB(); const c = await getC();` where `b` and `c` don't reference `a`
+- `const a = await getA; const b = await getB; const c = await getC;` where `b` and `c` don't reference `a`
 - `for (const id of ids) { results.push(await fetch(`/x/${id}`)); }` — classic fan-out, should be `Promise.all(ids.map(...))` (with concurrency cap if `ids` is unbounded)
 - Python `for x in xs: await client.get(x)` where calls are independent
 
 ### 6. Bulk Operations
 - Per-row `INSERT` / `UPDATE` / `DELETE` inside a loop where the ORM/driver supports a bulk variant
 - Mongoose: `for (...) await Doc.create(one)` instead of `Doc.insertMany(many)`
-- TypeORM: per-row `.save()` instead of `repo.save(arr)` or `insert().values(arr)`
-- Sequelize: `Model.create()` in loop instead of `Model.bulkCreate()`
-- Prisma: per-row `.create()` instead of `createMany()` (or transactional batch where `createMany` lacks features)
-- Django: per-row `.save()` instead of `bulk_create()` / `bulk_update()`
+- TypeORM: per-row `.save` instead of `repo.save(arr)` or `insert.values(arr)`
+- Sequelize: `Model.create` in loop instead of `Model.bulkCreate`
+- Prisma: per-row `.create` instead of `createMany` (or transactional batch where `createMany` lacks features)
+- Django: per-row `.save` instead of `bulk_create` / `bulk_update`
 - ActiveRecord: per-row `.save` instead of `insert_all` / `upsert_all`
 - Raw SQL: per-row `INSERT` instead of multi-row `VALUES (...), (...), (...)` or `COPY`
 - Cache writes: per-key `set` instead of `mset` / pipeline
@@ -174,7 +167,7 @@ grep -nB2 -A1 "for\s*(.*of\|in\s" file.ts | grep -E "\.(create|save|insertOne|up
 # Prisma per-row in loop
 grep -nB2 -A1 "for\s*(.*of\|in\s" file.ts | grep "prisma\."
 # Django per-row save in loop
-grep -nB2 -A1 "for .* in " file.py | grep "\.save("
+grep -nB2 -A1 "for.* in " file.py | grep "\.save("
 # Raw SQL: single-row INSERT in loop
 grep -nB2 -A1 "for\|while" file.{ts,py} | grep -iE "INSERT INTO"
 # Redis per-key writes
@@ -183,33 +176,33 @@ grep -nB2 -A1 "for\|while" file.ts | grep "\.set("
 
 **Red flags:**
 - 10k-row import loop calling `await Model.create(row)` per iteration — N round-trips, easily 100x slower than bulk
-- Migration script per-row `UPDATE` instead of one `UPDATE ... WHERE id IN (...)`
-- Cache warmup loop with per-key `client.set()` instead of `client.mset()` / pipeline
+- Migration script per-row `UPDATE` instead of one `UPDATE... WHERE id IN (...)`
+- Cache warmup loop with per-key `client.set` instead of `client.mset` / pipeline
 
 ## Output Format
 
 ```json
 {
-  "type": "optimization",
-  "severity": "high|medium|low",
-  "title": "Brief optimization opportunity",
-  "file": "path/to/file.ts",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "Detailed description of the opportunity",
-  "category": "hydration|projection|react-render|bundle|async-parallel|bulk-ops",
-  "code_snippet": "Relevant code lines",
-  "evidence": "Why this is slower than necessary (round-trips, hydration cost, render count)",
-  "impact": "Expected magnitude (e.g., N→1 round-trips, removes O(rows × columns) hydration)",
-  "recommendation": "Concrete change (e.g., add .lean(), batch via insertMany, wrap with React.memo)",
-  "confidence": 80
+"type": "optimization",
+"severity": "high|medium|low",
+"title": "Brief optimization opportunity",
+"file": "path/to/file.ts",
+"line_start": 42,
+"line_end": 48,
+"description": "Detailed description of the opportunity",
+"category": "hydration|projection|react-render|bundle|async-parallel|bulk-ops",
+"code_snippet": "Relevant code lines",
+"evidence": "Why this is slower than necessary (round-trips, hydration cost, render count)",
+"impact": "Expected magnitude (e.g., N→1 round-trips, removes O(rows × columns) hydration)",
+"recommendation": "Concrete change (e.g., add.lean, batch via insertMany, wrap with React.memo)",
+"confidence": 80
 }
 ```
 
 ## Common False Positives
 
-1. **Detached entity mutation** — `.lean()` / `raw:true` / `HYDRATE_ARRAY` / `disableIdentityMap` returns objects that cannot be saved through the ORM. Flag mutate-then-save paths only when the path is read-only; do not flag pure-read paths that already use these mechanisms, and never recommend skipping hydration on a path that calls `.save()` afterward.
-2. **defer/only/load_only N+1 footgun** — Django `.only()` and SQLAlchemy `load_only` trigger an extra `SELECT` when a deferred column is later accessed. Flag deferred-then-accessed patterns; do not flag use of these on truly write-once-read-rare columns where the deferred access path is cold.
+1. **Detached entity mutation** — `.lean` / `raw:true` / `HYDRATE_ARRAY` / `disableIdentityMap` returns objects that cannot be saved through the ORM. Flag mutate-then-save paths only when the path is read-only; do not flag pure-read paths that already use these mechanisms, and never recommend skipping hydration on a path that calls `.save` afterward.
+2. **defer/only/load_only N+1 footgun** — Django `.only` and SQLAlchemy `load_only` trigger an extra `SELECT` when a deferred column is later accessed. Flag deferred-then-accessed patterns; do not flag use of these on truly write-once-read-rare columns where the deferred access path is cold.
 3. **Perf claims without profile data** — "missing index" or "lean would speed this up" without execution-plan / profile evidence is speculative. Lower confidence when no measurement exists; prefer concrete mechanism citations (round-trip count, hydration cost) over hand-waved magnitudes.
 4. **Premature memoization** — `useMemo` / `useCallback` on cheap computations is overhead, not optimization. Only flag when the wrapped expression is non-trivial AND the consumer is in a render-frequent context (loop, parent re-renders >5x/sec, large memo'd subtree).
 5. **Prisma / Drizzle "missing lean"** — these ORMs return POJOs by default; only projection (`select`) applies. Don't flag a missing skip-hydration call where there's no hydration to skip — recommend `select` / `omit` instead, or stay silent.
@@ -218,18 +211,28 @@ grep -nB2 -A1 "for\|while" file.ts | grep "\.set("
 ## Stack-Agnostic Patterns
 
 The two axes apply across stacks:
-- **Skip wrapper-object construction** (axis 1): Mongoose `.lean()`, MikroORM `disableIdentityMap`, TypeORM `getRawMany()`, Sequelize `raw:true`, Doctrine `HYDRATE_ARRAY`, Django `.values()`, Rails `.pluck()`, SQLAlchemy `with_entities`
-- **Project columns/fields** (axis 2): Mongoose `.select()`, TypeORM `select`, Sequelize `attributes`, Prisma `select`, Drizzle column-shape, SQLAlchemy `load_only`, Django `.only()`, Rails `.select()`/`pluck`
+- **Skip wrapper-object construction** (axis 1): Mongoose `.lean`, MikroORM `disableIdentityMap`, TypeORM `getRawMany`, Sequelize `raw:true`, Doctrine `HYDRATE_ARRAY`, Django `.values`, Rails `.pluck`, SQLAlchemy `with_entities`
+- **Project columns/fields** (axis 2): Mongoose `.select`, TypeORM `select`, Sequelize `attributes`, Prisma `select`, Drizzle column-shape, SQLAlchemy `load_only`, Django `.only`, Rails `.select`/`pluck`
 
 Some ORMs only have axis 2 (Prisma, Drizzle) — they return POJOs by default; the reviewer should not invent a missing axis-1 mechanism for those.
 
 Async parallelization, bulk operations, and bundle/asset patterns are similarly cross-stack: substitute `Promise.all` ↔ `asyncio.gather` ↔ `errgroup.Wait` ↔ `tokio::join!`; substitute `insertMany` ↔ `bulk_create` ↔ `insert_all` ↔ multi-row `INSERT VALUES`. React re-render hygiene is React-specific but the underlying principle (don't recompute when input unchanged) maps to Vue `computed`, Svelte `$:`, SolidJS `createMemo`.
 
+## Cross-PR Hot-Path Work (peer-PR context)
+
+When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for parallel optimization work on the same hot path:
+
+- Same query / endpoint / render path independently optimized in both PRs — risk of compounded changes overshooting (e.g., both PRs add caching layers at different levels).
+- Sibling PR moves a hot-path resource (e.g., replaces ORM with raw SQL) while current PR also touches the same path — coordination needed on which optimization wins.
+- Sibling PR introduces a new bulk-operation helper that current PR's per-row loop should use — surfaces reuse opportunity before merge.
+
+A valid finding shape: «PR #N (peer) optimizes `<path>` at `<file:line>` via <mechanism>; current diff touches the same path with different / overlapping approach — coordinate optimization strategy before shipping both». Severity MEDIUM (optimization findings cap at HIGH per Severity Guidelines).
+
 ## Review Checklist
 
-- [ ] Read-only ORM paths use the stack's skip-hydration mechanism (`.lean()`, `raw:true`, `HYDRATE_ARRAY`, `.values()`, `.pluck()`)
+- [ ] Read-only ORM paths use the stack's skip-hydration mechanism (`.lean`, `raw:true`, `HYDRATE_ARRAY`, `.values`, `.pluck`)
 - [ ] Hot-path queries project columns explicitly; no `SELECT *` on wide tables
-- [ ] `.only()` / `load_only` not paired with later access of deferred columns
+- [ ] `.only` / `load_only` not paired with later access of deferred columns
 - [ ] React props don't pass new object/array/function literals to memo'd children every render
 - [ ] Long lists (>100 rows) use virtualization
 - [ ] Routes and heavy libs (charts, editors, PDF) loaded via dynamic import / `React.lazy`
@@ -240,7 +243,6 @@ Async parallelization, bulk operations, and bundle/asset patterns are similarly 
 
 ## Severity Guidelines
 
-- **CRITICAL**: not emitted. Optimization findings are improvements, not correctness bugs — bugs and security own CRITICAL. Any genuinely critical perf regression (unbounded query, sync I/O on hot path) belongs in architecture §6.
-- **HIGH**: per-row INSERT/UPDATE in a loop on a path that processes >100 items; long-list render >1000 rows without virtualization; eager-import of a heavy lib (>100KB minified) used only behind a tab/modal
-- **MEDIUM**: missing `.lean()` / `raw:true` / projection on hot-path read; sequential awaits on independent calls; missing route code-splitting; missing `React.memo` on demonstrably expensive child; long-list render 100–1000 rows without virtualization; image without modern format / `loading="lazy"` on hero
+- **CRITICAL**: not emitted. Optimization findings are improvements, not correctness bugs — bugs and security own CRITICAL. Any genuinely critical perf regression (unbounded query, sync I/O on hot path) belongs in architecture- **HIGH**: per-row INSERT/UPDATE in a loop on a path that processes >100 items; long-list render >1000 rows without virtualization; eager-import of a heavy lib (>100KB minified) used only behind a tab/modal
+- **MEDIUM**: missing `.lean` / `raw:true` / projection on hot-path read; sequential awaits on independent calls; missing route code-splitting; missing `React.memo` on demonstrably expensive child; long-list render 100–1000 rows without virtualization; image without modern format / `loading="lazy"` on hero
 - **LOW**: minor projection wins on cold paths; below-fold image without `loading="lazy"`; tree-shaking-hostile `import _ from 'lodash'` where only one helper is used

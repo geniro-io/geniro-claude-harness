@@ -1,6 +1,6 @@
 # Custom Instructions
 
-Project-specific rules and steps that apply to core geniro skills (implement, plan, review, refactor, debug, follow-up). Edit this file to customize how skills behave in your project. Skills read this file at the start of each run.
+Project-specific rules and steps that apply to Geniro pipeline + discovery skills (implement, plan, review, refactor, debug, onboard, investigate). Edit this file to customize how skills behave in your project. Skills read this file at the start of each run and at every phase-boundary refresh via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`.
 
 ## Rules
 
@@ -14,16 +14,16 @@ Examples (replace with your own):
 
 ## Additional Steps
 
-Add custom steps that skills should execute at specific points. Use the phase names from each skill (e.g., "After implementation", "Before shipping", "After review").
+Add custom steps that skills should execute at specific points. Use the **lowercase-hyphenated phase enum** from each skill (e.g., `After implement`, `Before ship`, `After self-review`). Validate via `/geniro:instructions validate` to catch typos.
 
-### After implementation
-<!-- Steps to run after code changes are applied (implement Phase 4, follow-up Phase 4) -->
+### After implement
+<!-- Steps to run after code changes are applied -->
 
-### Before shipping
-<!-- Steps to run before committing/pushing (implement Phase 7, follow-up Phase 6) -->
+### Before ship
+<!-- Steps to run before committing/pushing -->
 
-### After review
-<!-- Steps to run after code review completes (review Phase 4) -->
+### After self-review
+<!-- Steps to run after self-review completes -->
 
 ## Constraints
 

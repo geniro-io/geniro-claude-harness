@@ -79,7 +79,7 @@ See project README for full setup instructions and package.json (or requirements
 
 **Accessibility baseline**: {{e.g., WCAG AA contrast minimum, semantic HTML before ARIA, all interactive elements keyboard accessible, focus-visible rings on every focusable element}}
 
-**Aesthetic direction** (for greenfield work only — leave blank for matured projects): {{e.g., "minimal/editorial" or "warm/organic" — if set, frontend-agent uses this when there's no existing convention to anchor to. If blank, frontend-agent stays on the universal baseline.}}
+**Aesthetic direction** (for greenfield work only — leave blank for matured projects): {{e.g., "minimal/editorial" or "warm/organic" — if set, UI-touching `/geniro:implement` runs use this when there's no existing convention to anchor to. If blank, stay on the universal baseline.}}
 
 ## Testing
 

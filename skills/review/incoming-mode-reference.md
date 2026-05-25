@@ -32,7 +32,7 @@ For each fetched comment, classify into one of four buckets — the orchestrator
 
 | Tag | Meaning |
 |---|---|
-| `[ACTIONABLE]` | Reviewer points to a real defect; clear fix path. Routes to `/geniro:follow-up` in Step I-4. |
+| `[ACTIONABLE]` | Reviewer points to a real defect; clear fix path. Routes to `/geniro:implement` in Step I-4. |
 | `[QUESTION]` | Reviewer asks for clarification ("why this?"); no code change needed unless the answer reveals a defect. |
 | `[AMBIGUOUS]` | Reviewer's intent is unclear (vague feedback, multiple interpretations). Defaults to clarification request. |
 | `[WRONG]` | Reviewer's claim is factually incorrect against the actual code. Triggers Step I-3 F→P verification. |
@@ -56,15 +56,15 @@ Fire `AskUserQuestion` per comment per the canonical Single-finding-gate shape a
 
 **Header:** `"Comment N of M"`. **Single-select** options:
 
-- **`"Apply"`** — comment is actionable; dispatch to `/geniro:follow-up` with precise diff scope. Build the follow-up handoff: pre-load the comment body, file:line range, and any reviewer-cited expected behavior into a `<task-dir>/review-feedback.md` row (per the `/geniro:follow-up` Phase 1 input contract). Surface the slash-command suggestion `Run /geniro:follow-up "<comment short title>"` in the chat output — do NOT auto-invoke; the user runs the slash command themselves.
+- **`"Apply"`** — comment is actionable; dispatch to `/geniro:implement` with precise diff scope. Build the handoff: pre-load the comment body, file:line range, and any reviewer-cited expected behavior into the T2 hand-off `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per Surface the slash-command suggestion `Run /geniro:implement "<comment short title> [from review-feedback]"` in the chat output — do NOT auto-invoke; the user runs the slash command themselves.
 
 - **`"Push back"`** — draft a `mcp__github__add_reply_to_pull_request_comment` reply explaining why the reviewer's claim is incorrect. Reply MUST cite codebase evidence (file:line snippet, test result from Step I-3, or a captured command output). **Forbidden phrases (verbatim from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Forbidden phrases):**
-  - `"you're absolutely right"`
-  - `"good catch"`
-  - `"great point"`
-  - `"nice"`
+- `"you're absolutely right"`
+- `"good catch"`
+- `"great point"`
+- `"nice"`
 
-  These four MUST NOT appear in any push-back draft — they capitulate to the reviewer's framing instead of correcting the record. The orchestrator scans the drafted reply for these tokens; if any appear, regenerate. The reply MUST attach an Evidence Block per the standard's schema (Command / Exit code / Tail), citing the artifact that proves the reviewer wrong (most commonly the F→P verification test from Step I-3, or a verified file:line snippet).
+These four MUST NOT appear in any push-back draft — they capitulate to the reviewer's framing instead of correcting the record. The orchestrator scans the drafted reply for these tokens; if any appear, regenerate. The reply MUST attach an Evidence Block per the standard's schema (Command / Exit code / Tail), citing the artifact that proves the reviewer wrong (most commonly the F→P verification test from Step I-3, or a verified file:line snippet).
 
 - **`"Ask clarification"`** — draft a clarifying-question reply via `mcp__github__add_reply_to_pull_request_comment`. The reply asks the reviewer for the missing detail (which file, which case, expected behavior). Render the draft to the user via the AUQ `preview` field for review before posting; on user confirmation, post via the MCP tool.
 
@@ -74,7 +74,7 @@ After the user picks, persist the choice to the state file under the comment's `
 
 ### Step I-5 — Resolve threads
 
-After the user has shipped the fix (for `[ACTIONABLE]` comments routed to `/geniro:follow-up`), or posted the push-back / clarification reply (Push back / Ask clarification paths), call `mcp__github__resolve_review_thread` for each resolved thread. The state-file entry is updated to `resolved: true` so the next Incoming-mode invocation against the same PR skips already-handled comments (idempotency contract, mirrors SKILL.md Phase 6 `[POSTED-TO-PR]` markers).
+After the user has shipped the fix (for `[ACTIONABLE]` comments routed to `/geniro:implement`), or posted the push-back / clarification reply (Push back / Ask clarification paths), call `mcp__github__resolve_review_thread` for each resolved thread. The state-file entry is updated to `resolved: true` so the next Incoming-mode invocation against the same PR skips already-handled comments (idempotency contract, mirrors SKILL.md Phase 6 `[POSTED-TO-PR]` markers).
 
 For `Defer` decisions, do NOT resolve the thread — leave it unresolved on the PR so the reviewer sees it remains pending.
 

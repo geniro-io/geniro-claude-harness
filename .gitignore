@@ -10,8 +10,8 @@
 Thumbs.db
 
 # Geniro runtime data (generated per-project, git-ignored by default)
-# Includes transient skill state: .geniro/debug/, .geniro/review-findings-state.md,
-# .geniro/follow-up-state.md, .geniro/refactor/state.md, .geniro/improve-template-state.md
+# Includes transient skill state: .geniro/state/<skill>/<slug>/state.md,
+# .geniro/planning/<task-dir>/state.md, .geniro/knowledge/learnings.jsonl
 # `.geniro/*` (asterisk form) is required so the !-negations below take effect.
 .geniro/*
 !.geniro/

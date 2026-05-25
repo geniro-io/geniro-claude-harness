@@ -1,1025 +1,602 @@
 ---
 name: geniro:review
-description: "Use when you want a comprehensive code review of pending changes. Spawns 7–10 parallel reviewers (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT is non-none AND (PR ref OR risk-tier: high)) with confidence-scored findings automatically filtered. Stratifies on hard-escalation signals (migration / multi-write / auth / new entity) and inherits prior-round findings across re-runs."
+description: "Use when you want a comprehensive code review of pending changes. 6-phase loop (triage → mechanical pre-pass → 9-dim LLM reviewers → filter → stratify → persist → action-gate). Reporter behavior — emits a T2 hand-off at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/implement, manual) apply fixes. Optional --simplify flag folds Reuse/Quality/Efficiency criteria into existing dims. Optional --tdd flag tightens Phase 4b validation + Phase 4c test-gate."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree]
-argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--tdd]"
+argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--tdd] [--simplify]"
 ---
 
 # Code Review Skill
 
-Comprehensive code review using parallel multi-agent analysis. 7–9 specialized reviewers examine code changes simultaneously (design reviewer added when UI files are present; pr-metadata reviewer added when input was a PR ref), then a relevance filter validates findings against repo conventions and complexity level, and a judge pass confidence-scores and aggregates the results.
+Comprehensive code review using parallel multi-agent analysis. ~400 lines orchestration shell + reference files.
+
+**Architecture spec:** *(internal)*. Detailed phase contracts:
+- `${CLAUDE_SKILL_DIR}/phase-1-triage-reference.md` — Phase 1 input mode / scope / risk-tier / memory load.
+- `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md` — Phase 4c test-confirmation gate.
+- `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` — Phase 6 action-gate hand-off + Post drill.
+- `${CLAUDE_SKILL_DIR}/plan-context-reference.md` — schema-aware PLAN CONTEXT load (design fix).
+- `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` — INCOMING mode (PR review-feedback processing).
+- `${CLAUDE_SKILL_DIR}/tdd-mode-reference.md` — `--tdd` flag semantics.
+
+---
 
 ## Your Role — Orchestrate, Don't Review
 
 You are a **coordinator**. You delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself — you read files only to gather context and verify agent findings.
 
+`/geniro:review` is a **Reporter** — it does NOT apply fixes. Phase 6 hand-off message NEVER includes «I'll fix these now» language. Findings persist to a T2 hand-off; downstream consumers (`/implement`, manual user action) apply fixes. The `--simplify` flag does NOT change this.
+
+---
+
+## State Machine
+
+State.md `phase:` enum transitions:
+
+```
+[entry] → triage → mechanical-prepass → llm-spawn → filter → stratify → persist → action-gate → done
+│
+├── escalated ── (round-N user pick)
+└── aborted ── (round-limit / safety / tool-unavailable)
+```
+
+**Terminal states:** `done`, `aborted`. the SessionStart recovery treats both as «review complete / cancelled». `done` includes a Phase 6 hand-off line.
+
+**Non-terminal states:** `triage`, `mechanical-prepass`, `llm-spawn`, `filter`, `stratify`, `persist`, `action-gate`. the recovery rolls these back to phase-entry and re-runs from there (idempotent — `approvals[]` ensures Phase 6 AUQ skips already-answered).
+
+**Termination-case mapping** per — see Phase 6 reference for the full table. The `## Termination reason` body section is written on `aborted` / `escalated` terminals.
+
+---
+
+## Loop Invariants
+
+The 7 invariants apply unchanged:
+
+1. **One result per tool call.** Phase 2 parallel-spawn reviewer-agents — each must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
+2. **Args validated before execution.** `$ARGUMENTS` flag parsing (semantic, no CLI grammar); PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
+3. **Permission before side-effect.** Phase 6 «Post Draft PR» requires AUQ approval before `mcp__github__pull_request_review_write`. State.md writes via `atomic_state_write`.
+4. **Bounded and structured tool results.** Reviewer-agent output ≤4000 chars per dim; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
+5. **Escalation gates, not silent abort.** Round-N ≥3 → Phase 6 escalation gate.
+6. **Final answer grounded in observations.** Phase 6 hand-off message MUST cite the state.md path; finding bodies MUST include Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
+7. **Errors → structured observations.** Reviewer spawn failures → `## Errors` body section. `gh` fail-open NOT silent — log to `## Errors`.
+
+`## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5b emit-learning + 1 per PR-side-effect).
+
+---
+
+## Budgets — Quality-First
+
+This skill has **NO hard kill caps**. Same model as other skills.
+
+**Quality gates (escalate to user, do not abort):**
+
+| Gate | Cap | Where | Past threshold |
+|---|---|---|---|
+| Round-N reviewer re-spawn | 3 | Phase 6 Round-N gate | AUQ — debug-handoff / continue / abort. User picks. |
+| Reviewer output size | ~4K chars per dim | invariant #4 | Truncation marker, not abort. |
+| Phase 3 dedup pass | 1 per round | Phase 3 | Orchestrator-inline (no subagent — folded under subagent rationalization). Cannot «fail» — runs in orchestrator's main context. |
+
+**Architecture constraints (design intent, not budget):**
+
+| Constraint | Value | Source |
+|---|---|---|
+| LLM reviewer spawn count | 5-9 in parallel | dimension count (9 max after guidelines+conventions collapse) |
+| Mechanical pre-pass tools | 3 (lint / schema / secret scan) | Phase 1.5 |
+
+**Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
+---
+
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (reviewer, relevance-filter, adversarial-tester), also follow `skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined. Co-cite `skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent() prompt MUST satisfy the six pre-inlined fields (task scope / acceptance criteria / pre-inlined files / disallowed tools / output schema / model tier). spawn-agent.md handles agent-name resolution + runtime degradation; context-isolation-checklist.md handles prompt richness — together they prevent bare-prompt spawns and inherited-state leaks.
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (reviewer, relevance-filter, adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — registration ladder (`geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined). Cache the resolved rung for the rest of the session.
 
-**Skill-specific mapping** — reviewer dimension drives model choice:
+Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt MUST satisfy the six pre-inlined fields.
 
 | Spawn | Tier | Why |
 |---|---|---|
-| `reviewer-agent` (bugs, security, architecture, tests, optimizations, conventions, design, pr-metadata) | `sonnet` | Reasoning-heavy review (design covers visual/UX reasoning, token conformance, WCAG checks; pr-metadata weighs prose-quality + scope-alignment reasoning) |
+| `reviewer-agent` (bugs, security, architecture, tests, optimizations, conventions, design, pr-metadata, spec-compliance) | `sonnet` | Reasoning-heavy review |
 | `reviewer-agent` (guidelines) | `haiku` | Rubric-based — pattern matching against checklist |
-| `relevance-filter-agent` | `inherit` | Orchestrator-grade reasoning to weigh repo-convention evidence against reviewer findings (carve-out) |
-| `adversarial-tester-agent` (Phase 4c only) | `inherit` | Reasoning-grade test authoring — synthesis tier mirrors orchestrator (carve-out) |
-| Per-finding validation sub-agents (CRITICAL/HIGH) | `inherit` | Reasoning-grade verification — synthesis tier mirrors orchestrator (carve-out) |
+| `adversarial-tester-agent` (Phase 4c only) | `inherit` | Reasoning-grade test authoring |
+| Per-finding validation sub-agents (CRITICAL/HIGH) | `inherit` | Reasoning-grade verification |
 
-## Review Process
+---
 
-### Phase 1: Collect Context & Triage
+## Phase 1 — Triage & Context Collect
 
-**Pre-step — Mode detection.** Per `$ARGUMENTS`, route to one of two top-level modes BEFORE the worktree-creation logic below:
+State.md `phase: triage`. **Full contract:** `${CLAUDE_SKILL_DIR}/phase-1-triage-reference.md`.
 
-- **Empty / branch-name / file paths / diff range** → **OUTGOING** (review the current branch — the existing default behavior; continue to "Scope" below).
-- **PR ref alone (`#1234` or PR URL)**:
-  - **Fetch the PR's review-thread state.** First, resolve `<owner>/<repo>/<number>` from `$ARGUMENTS`: for a full PR URL (`https://github.com/<owner>/<repo>/pull/<N>`), parse the path segments directly; for a bare PR number (`#1234` / `1234`), resolve `<owner>/<repo>` from the current repo via `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`. Then fetch via two interchangeable mechanisms — **MCP-preferred:** call `mcp__github__pull_request_read` with the resolved owner/repo/number; consume `reviewThreads[]` from the returned payload directly (the MCP tool returns thread state as a structured field — no GraphQL body is passed to it). **Fallback when MCP is unavailable:** `gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -F cursor=null -f query='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{isResolved isOutdated path line}}}}}'`, paginating with `endCursor` until `hasNextPage == false` (loop the call, concatenate `nodes[]` across pages — for the typical PR this is one call; long-lived PRs with >100 threads complete in 2-3 calls and stay under the GitHub rate-limit budget). Compute `K = count(nodes where isResolved == false && isOutdated == false)`. Outdated threads (referenced code was rewritten — comment is stale) are excluded from K because they would misroute to Incoming even when no live discussion is pending. The same node list is reused at the "Parse input" step below to populate the Phase 5 state file's `resolved-threads-snapshot:` field for Phase 6 input-side dedup. If the fetch fails (no network, missing token scope, secondary rate limit, or pagination loop errored mid-stream), apply fail-open: set K to `unknown`, default routing to **OUTGOING**, and surface `PR review-thread fetch failed — defaulting to Outgoing without thread-state awareness` under `## Caveats` in the final report (mirrors the Phase 3 / 4b / 4c fail-open pattern documented at SKILL.md `## Caveats` sites elsewhere in this file).
-  - If `K > 0` → fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` (substitute the computed K into the question text — do NOT render the literal `K`) with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`. On **Incoming** → run `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` Phase I (Step I-1 onwards) INSTEAD of SKILL.md Phase 5/6. On **Outgoing** → continue to "Scope" below.
-  - If `K == 0` (no live unresolved threads) → **OUTGOING** (skip the AUQ).
-- **Anchored natural-language signals** (`process review on #N`, `respond to review #N`, `incoming review #N`) → **INCOMING** (skip the AUQ entirely; the signal IS the override). Bare keywords without a PR-ref anchor are NOT enough — phrases like "respond to feedback" without `#N` route to OUTGOING.
-- **`--tdd` / `--standard` flag** → existing behavior (TDD-mode for OUTGOING; see Mode AUQ block below).
+Summary of what Phase 1 does:
 
-There is **NO `--incoming` flag**. Explicit override into Incoming mode is via the natural-language signals above. The pattern mirrors `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` Adversarial-mode signal anchoring — see that file for the design rationale.
+1. **Input mode detect** — OUTGOING / INCOMING / pr-ref routing per `$ARGUMENTS`. Anchored NL signals («process review on #N») route to INCOMING; PR ref + K>0 unresolved threads fires Mode AUQ.
+2. **Scope resolution** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. NEVER invoke `gh pr list` to invent a target.
+3. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`.
+4. **Workflow integrations** — read `.geniro/workflow/*.md`, apply tracker-ID regex against `$ARGUMENTS` + `pr.title` + `pr.body`. On Linear match with MCP available: fetch issue (+ parent epic + sibling sub-tasks). Build `LINEAR CONTEXT:` block. Persist `linear-task-ref:` + `linear-parent-ref:` to state.md frontmatter. Fail-open if MCP unavailable.
+5. **Peer-PR scout** (PR-ref only) — top-10 sibling PRs scored by file overlap + Linear-relatedness bonus (parent-epic / sibling-sub-task matches); inlined into 6 reviewer prompts (architecture + design + bugs + conventions + optimizations + spec-compliance).
+6. **Worktree pre-flight** (PR-ref only) — 3-branch routing (already-in-target / different-worktree / outside) per the reference file.
+7. **Step 0 — Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope=`review`+`global`+`code-style`+`user-preferences` — pipeline tier, 4 files).
+8. **Step 0.5 — Round-N counter** — increments and fires Round-N AUQ when round ≥3.
+9. **Step 0.6 — PLAN CONTEXT load (schema-aware).** Detection per `${CLAUDE_SKILL_DIR}/plan-context-reference.md` Structured-section parser when `geniro_kind: design-doc` frontmatter present; prose fallback otherwise.
+10. **Step 0.7 — Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / NEW: mechanical secret-scan strict mode).
+11. **Step 0.8 — Memory layer load:** `load-custom-instructions` MODE:refresh + `load-semantic` MODE:refresh + `query-learnings` (top-K, K=5 default) + `resolve-conflicts`.
+12. **Mode AUQ** (Standard vs TDD) when neither `--tdd` nor `--standard` in `$ARGUMENTS`. Persist to `approvals[]` with category `tdd_mode_choice`.
+13. **Size triage** — classify files Trivial / Substantive when diff >8 files or >400 LOC. Controls Phase 2 Standard vs Batched mode.
 
-When `mode == INCOMING`, run Phase 1's worktree pre-flight and PR-fetch (below) as normal — Incoming mode still needs the worktree + PR metadata — then jump to `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` Step I-1 instead of Phase 2. Phases 2/3/4/4b/5/6 are skipped in Incoming mode (Phase 4c machinery is reused only by Step I-3).
+Exit criterion: state.md frontmatter populated with `mode`, `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, `simplify-mode`, all populated; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
-- **Scope:** follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for target resolution (working tree → branch-vs-base diff → no-op). The base branch is whatever scope-anchor resolves it to (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files") — do NOT preface it with harness "Auto Mode" framing. NEVER invoke `gh pr list` or any other PR-discovery command to **invent a target** — PR mode triggers ONLY on the explicit PR-ref forms enumerated below. Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target (the Phase 1 peer-PR scout step below; `pr-metadata-criteria.md`'s merged-PR-title sample) are NOT discovery — they consume the user-supplied PR ref rather than invent one. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § "Forbidden discovery moves" — the `gh pr list` bullet's **Carve-out** sentence.
-- **Harness Auto Mode handling:** `/geniro:review` has NO auto mode of its own. Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/auto-mode-signals.md` §"Not a per-skill trigger" — do NOT promote the harness "Auto Mode Active" reminder into transcript framing (e.g., never announce "Auto mode → proceeding without prompting"). Scope resolution and Phase 4c's user-approval gate are governed by their own rules regardless of harness Auto Mode state.
-- Parse input. Detect the form: file paths, git diff range (e.g. `HEAD~5..HEAD`), branch name, or **PR ref** — a bare PR number (`#1234` or `1234`, resolved against the current repo) or a full GitHub PR URL (cross-repo OK). For a PR ref, strip any leading `#` and resolve it with `gh pr diff <number-or-url>` to materialize the diff and `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels` for base/head context, head SHA pin, PR URL, PR body+title (the PR body feeds PLAN CONTEXT below), plus the draft state, author user, and label set (these three feed the pr-metadata reviewer's Common-False-Positives detection at `${CLAUDE_SKILL_DIR}/pr-metadata-criteria.md` — bot-author / draft / release-please-label PRs are excluded from rubric-strict checks). Capture the original PR ref (the `#N` / digits / URL form the user passed), the `headRefOid` value, and the canonical `url` — all three are persisted to the Phase 5 state file so Phase 6's Action gate can offer the "Post findings as Draft PR review" option without re-detection (the `headRefOid` is what Phase 6 pins as `commit_id` on the GitHub reviews API call to prevent line-anchor drift if the PR is updated mid-review). Then feed the diff into the rest of the pipeline exactly as if it were a local diff range. If `gh` is unavailable or the PR cannot be fetched, report the error to the user and stop — do not fall back silently to unstaged changes and do not run `gh pr list` to "find a related PR".
-- **Collect PEER-PR CONTEXT (PR-ref input only — skip for files / diff range / branch).** When the user supplies a PR ref, optionally gather context from other open PRs that touch overlapping files, so the architecture and design reviewers can flag reuse/consolidate/align opportunities. This is NOT target-discovery (the user already named the target via the PR ref) — see the carve-out language in the "Scope" step above. Mechanism:
-  - Run `gh pr list --state open --base <baseRefName-from-Phase-1-pr-view> --json number,title,headRefName,author,updatedAt,files --limit 30` (cap at 30 to bound API cost; 30 is a reasonable upper bound for "recent open peer PRs in the same target branch").
-  - Compute file-path intersection between the current PR's changed files and each sibling PR's `files[]` list. Run `gh pr diff <N> --name-only` here as a separate call — Phase 1's "Parse input" step above fetched the full diff text without `--name-only`, so the file-name list must be re-derived (either by an additional `--name-only` call or by parsing the already-captured diff text; both work). Drop siblings with zero overlap.
-  - Keep the top 3 by overlap count (ties broken by `updatedAt` descending). Three is the cap to keep the architecture/design reviewer's added context bounded — each sibling contributes up to 300 diff lines plus metadata, and 3 siblings × ~310 lines fits comfortably under the ~3000-char block cap below.
-  - For each kept sibling, fetch `gh pr view <peer-N> --json title,headRefName,url` and `gh pr diff <peer-N> | head -300` (bounded to 300 lines per sibling to cap per-sibling context).
-  - Build `PEER-PR CONTEXT:` as a block with one entry per kept sibling: `#<N> | <title> | head=<headRefName> | overlap-files=<comma-separated-paths> | url=<url> | first-300-lines-of-diff:\n<diff-text>`. Cap total chars at ~3000 (matches the PLAN CONTEXT cap at the step above) — if the combined siblings exceed the cap, drop the lowest-overlap sibling first, then truncate the per-sibling diff tail of the remaining lowest-overlap one until under cap.
-  - Pre-inline the resulting block into the architecture and design reviewer prompts at Phase 2 below — see the `PEER-PR CONTEXT:` slot added there. The slot is NOT threaded into bugs/security/tests/optimizations/guidelines/conventions/pr-metadata reviewers (deliberate scope: cross-reviewer convergence anti-pattern + conventions rubric mismatch).
-  - **Fail-open behavior** (mirrors the Phase 1 review-thread-fetch fail-open at the top of this Phase 1): if `gh pr list` fails (no network, rate limit, gh-token scope), if the `--base` filter resolves to zero PRs, or if no sibling has any file-path overlap, render the slot as `none — no overlapping open peer PRs` (or `none — gh unavailable (fail-open)` on error) and surface a one-line caveat under `## Caveats` ONLY when the failure was an error (not when the empty result was legitimate). The skill never blocks on peer-PR context — it is additive only.
-  - **Skip entirely** when input is files / diff range / branch (no PR ref). Render the slot as `none — not a PR-ref input` in the architecture and design reviewer prompts.
-  - This sub-step is read-only — it never writes files, never mutates git state, never enters a worktree. Latency budget: 2-8 `gh` API calls on the critical path before reviewer spawn (1 list + 1 name-only + up to 2 calls per kept sibling × up to 3 siblings) — typically ~1-3 seconds on a healthy network, longer if `gh pr diff` hits a large sibling. If this latency becomes a problem in practice, a future optimization can move the scout into a parallel `model="haiku"` agent spawned alongside the reviewers.
-- **Git workspace decision (PR-ref input only — skip for files / diff range / branch).** A PR review may author tests (Phase 4c) and commit them (Phase 6 Failing-tests gate); those writes belong on the PR's head branch, not on the user's current branch. Run a worktree pre-flight here, before "Load custom instructions" below, so all subsequent Phase 1 reads happen from the right cwd. Pre-flight (Bash): compute `TOPLEVEL=$(git rev-parse --show-toplevel)`, `PARENT=$(basename "$(dirname "$TOPLEVEL")")`, `TOP=$(basename "$TOPLEVEL")`, and `TARGET="pr-<N>-review"` (where `<N>` is the parsed PR number, no leading `#`). Then route to exactly one of these three branches — never run `git worktree add` or `EnterWorktree` without first walking this fork:
-  - **Already in `.claude/worktrees/<TARGET>`** (`PARENT == "worktrees"` AND `TOP == TARGET`): skip both create AND enter, but FIRST sanity-check that the worktree hasn't drifted off the PR head — compare `git rev-parse HEAD` against the snapshotted `pr-head-sha` (`headRefOid` from the Phase 1 `gh pr view --json` fetch at "Parse input" below). If they match, echo `Reusing worktree pr-<N>-review — already on PR head.` and continue to "Load custom instructions". If they differ (someone checked out a different branch in this worktree since it was created, or new commits landed on the PR head while the worktree stayed pinned), surface a one-line warning `Worktree pr-<N>-review HEAD (<short-sha>) differs from PR head (<short-pr-head-sha>) — review will analyze the worktree's current HEAD; re-create the worktree if you want the latest PR head.` and continue without erroring (the user may be intentionally reviewing an older PR state). Re-entering would resolve the relative path under the current cwd and produce a nested ENOENT (mirrors the `/implement` Step 10 carve-out).
-  - **In a different `.claude/worktrees/<other>`** (`PARENT == "worktrees"` AND `TOP != TARGET`): use `AskUserQuestion` (header `Worktree`) with options "Continue here in `<other>` (skip worktree create+enter)" / "Exit then create `pr-<N>-review` (call `ExitWorktree`, then re-run this step from repo root)" / "Abort". Do NOT silently create a nested worktree.
-  - **Outside any `.claude/worktrees/...`** (`PARENT != "worktrees"`):
-    - If `git worktree list --porcelain` already lists `.claude/worktrees/pr-<N>-review` (a prior session left it behind): skip create. Call `EnterWorktree(path: ".claude/worktrees/pr-<N>-review")`. Echo `Reusing existing worktree pr-<N>-review.` Continue.
-    - Otherwise, use `AskUserQuestion` (header `Worktree`) with options "Yes — create `.claude/worktrees/pr-<N>-review` checked out at PR head (Recommended)" / "No — review in current location". On **Yes**: run `git fetch origin pull/<N>/head:pr-<N>-review` (universal refspec — works for both fork and same-repo PRs; creates a local branch `pr-<N>-review` at the PR head SHA), then `git worktree add .claude/worktrees/pr-<N>-review pr-<N>-review`, then `EnterWorktree(path: ".claude/worktrees/pr-<N>-review")`. Echo `Worktree pr-<N>-review created on PR head.` On **No**: continue in current cwd; the Phase 6 Failing-tests Commit gate will land tests on whatever the current branch is (likely `main`), and the user accepts that consequence. If the `git fetch` fails (PR head deleted, no network, gh-token scope issue), surface the error verbatim and stop — do not silently continue in the current cwd, because the user just opted into worktree mode.
-  - After this step settles, every subsequent Phase 1 action — custom-instructions load, file reads, LOC count, Phase 2 reviewer spawns, Phase 4c writes, Phase 6 commits — runs from the new cwd. Cross-session writes (the Phase 5 state file, `[POSTED-TO-PR]` markers) auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown. Do NOT use `EnterWorktree(name: ...)` here — that path auto-creates its own branch with a `worktree-` prefix and would defeat the convention detection above.
-- **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
-- **Step 0.5 — Load prior-round context (if available).** Round-N awareness so reviewers can focus on what prior rounds missed instead of re-finding the same issues. Procedure:
-  1. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Compute the state-file path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` (the file already exists today at this location — see Phase 5 below).
-  2. Read the state file if present. If absent, set `prior-round-summary: none — first review` and `round: 1`, then skip the remainder of this step.
-  3. If present AND the state file's `pr-ref:` matches the current run's `pr-ref` (both literal "none" — i.e., non-PR input forms like branches, diff ranges, or file lists — counts as a match), increment: set `round: <prior round + 1>` (defaulting prior to `1` when the field is absent — see legacy-fallback rule at Phase 5 schema below). Capture the prior state file's `prior-round-summary:` value into an in-memory variable for threading into reviewer prompts as `PRIOR-ROUND FINDINGS:` — a compact summary of the prior round's CRITICAL + HIGH findings: one bullet per finding with `path:lines` + a one-line description, capped at ~3000 chars total (matches the `${CLAUDE_SKILL_DIR}/plan-context-reference.md` ~3000-char cap rationale to avoid U-shaped attention at the bottom of the reviewer prompt). Also capture the prior state file's `pr-body:` value into a second in-memory variable `prior-pr-body` for threading into the pr-metadata reviewer prompt as `PRIOR-ROUND PR BODY:` — used by `pr-metadata-criteria.md` §11 to detect description-vs-code drift on re-runs. If the prior file is absent OR its `pr-body:` is the literal `none`, set `prior-pr-body` to `none — first review`. When the state file's `pr-ref:` does NOT match (different PR, or PR vs non-PR mismatch), treat as a fresh review: `round: 1`, `prior-round-summary: none — first review`, and `prior-pr-body: none — first review`.
-  4. If `round: >= 3` after the increment, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Round-N gate"`, question `"This is round N of review on the same target (PR or branch). Continue or escalate?"` (substitute the computed N into the question text — do NOT render the literal `N`), and options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff (skip Phase 2-6, write current state as handoff doc)"`. On **Escalate**: write a `## Handoff` section to the state file summarizing the cumulative findings across rounds, persist `round:` and `prior-round-summary:` to the Summary section, and exit cleanly without spawning reviewers. On **Continue**: proceed to the next step.
-  5. Persist `round:` and `prior-round-summary:` to the Phase 5 state file's Summary section (the schema is extended below to carry both fields). They are consumed by every Phase 2 reviewer prompt as the `PRIOR-ROUND FINDINGS:` slot.
-- **Collect PLAN CONTEXT** (optional) from these sources in priority order: (a) PR body+title from `gh pr view`; (b) `--plan <path>` flag in `$ARGUMENTS`; (c) auto-discovered `docs/spec.md`/`docs/plan.md`/`PLAN.md`/`SPEC.md`. Concat non-empty sources, cap ~3000 chars. See `${CLAUDE_SKILL_DIR}/plan-context-reference.md` for schema, decision-marker convention, and example. If nothing resolves, PLAN CONTEXT renders as `none` in every prompt below.
-- **Detect mode**: scan `$ARGUMENTS` for `--tdd` (TDD mode — auto-author failing tests gates which findings get posted to PR) and `--standard` (explicit Standard mode). When neither flag is present, surface a startup `AskUserQuestion` after triage (see Phase 1 Step "Mode AUQ" below). Persist the resolved value to the Phase 5 state file's `mode:` line so Phase 4c and Phase 6 can read it without re-detection.
-- Read changed files and understand modifications
-- Build context map of what changed and why
-- Identify file types and affected modules
-- **Count changed files and lines of code (LOC)**
+---
 
-**Triage (for large diffs):** If diff has >8 files or >400 LOC, classify files before full review:
-- **Trivial**: Renames, formatting-only, import reordering, generated files, lock files → skip full review (mention in summary as "triaged out")
-- **Substantive**: Logic changes, new code, API changes, security-sensitive → full review
-- This can be done inline by the orchestrator (read each diff hunk, classify) — no subagent needed.
+## Phase 1.5 — Mechanical Pre-pass (NEW — closure)
 
-**Step 0.7 — Risk-tier stratification.** Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs (a single-file auth-permission change is high-risk; a 200-LOC rename is not). Stratify the diff by risk tier alongside size so downstream phases can adjust their thresholds for high-stakes changes. Procedure:
-1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for Hard Escalation Signals". That file is the single source of truth for the 9 canonical hard-escalation signals (new entity / new endpoint or route / auth or permissions changes / new module / 3+ modules coordinated / open-closed violation / new async or background work / new external integration or env vars / ambiguous intent). DO NOT inline the list here — reference by path + section title so the list never drifts between consumers.
-2. Scan the changed files + diff content for matches against those 9 signals.
-3. If ANY signal matches, set `risk-tier: high`. Otherwise set `risk-tier: standard`.
-4. Persist `risk-tier:` to the Phase 5 state file's Summary section (the schema is extended below to carry the field).
-5. The `risk-tier:` value adjusts three downstream knobs:
-   - **Phase 4 judge confidence threshold** drops to ≥70 (from ≥80 at `risk-tier: standard`) — the Phase 4 filter line below incorporates this branch.
-   - **Phase 4b validator budget** expands — when `risk-tier: high`, validate ALL HIGH findings (not just on ≥2 HIGH per the standard table), and validate all MEDIUM if any CRITICAL exists. The Phase 4b validation-rules table below incorporates this row.
-   - **Spec-compliance reviewer fires by default** at Phase 2 — when `risk-tier: high` AND PLAN CONTEXT is non-`none`, the conditional spec-compliance reviewer (defined at the "Spec-Compliance detection rule" section in Phase 2 below) spawns without a separate gate.
+State.md `phase: mechanical-prepass`.
 
-**Mode AUQ (fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`).** After triage, surface a single `AskUserQuestion` (do NOT print options as plain text) so the user can opt into TDD mode if they want comments gated on F→P-verified failing tests. When either flag is in `$ARGUMENTS`, the flag wins — the AUQ is skipped entirely. When the AUQ fires, capture the answer and persist it to the Phase 5 state file's `mode:` field.
+Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first; LLM-spawn second with pre-pass findings as prior-context. Sequential, not parallel — LLM agents seeing prior mechanical findings produce better-targeted output.
 
-- **Header:** "Review mode"
-- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings backed by an F→P-verified failing test)?"
-- **Options:**
-  - "Standard review (Recommended)" — current behavior; Phase 4c gate is opt-in per-run as today; Phase 6 posts all kept findings.
-  - "TDD review (auto-author failing tests for findings)" — Phase 4c gate's Recommended option flips to "Author tests for all eligible findings" (you still confirm with one keystroke — the gate is non-negotiable per Phase 4c Step 2). Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.
+### 1.5.1 Check 1 — Lint
 
-If the user declines to answer (empty answer), default to Standard. The user's `--tdd`/`--standard` flag, if present, always overrides this AUQ. See `${CLAUDE_SKILL_DIR}/tdd-mode-reference.md` for what TDD mode flips, edge cases (no eligible findings, all tests pass green, `--tdd` with `--plan` or with sub-phase invocation), the F→P contract scope, and rollback notes.
+Probe project for existing lint config: `eslint.config.{js,mjs,cjs,ts}`, `.eslintrc*`, `pyproject.toml [tool.ruff|black|pylint]`, `Cargo.toml [lints]`, `.rubocop.yml`, etc.
 
-### Phase 2: Spawn Sub-Reviewers (Parallel, Adaptive Batching)
+If detected, run the project's own lint command (`pnpm lint`, `npm run lint`, `cargo clippy`, `bundle exec rubocop`) with `--quiet` or equivalent. Capture failures as `{tool, file, line, rule, message}` tuples.
 
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
+### 1.5.2 Check 2 — Schema
 
-**Code-style pre-inline (orchestrator preamble):** Read `.geniro/instructions/code-style.md` once. If it exists, pre-inline its content into the `CODE-STYLE INSTRUCTIONS:` slot of the guidelines / conventions / design / architecture reviewer prompts below. Skip the slot for bugs / security / tests / optimizations — code-style is orthogonal to those dimensions. If the file is absent, render the slot value as `none — file not present`.
+Heuristic: if changed files include TypeScript (`*.ts`, `*.tsx`), run `pnpm tsc --noEmit`. JSON schema (`*.schema.json`, `*.openapi.{json,yaml}`) — probe for `ajv` if present. Protobuf — `buf lint` for `.proto` changes. Capture failures.
 
-**Load custom reviewers (~5 sec):** Apply the procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored custom review dimensions in `.geniro/instructions/review-extra/`. The helper returns 0-10 spawn-specs after applying its validation, paths-filter, and cap rules. If the helper aborts on the hard-cap error (>10 active reviewers), surface its error message to the user and stop — do not proceed to spawn. Carry the surviving spawn-specs into the Standard-mode or Batched-mode block below as additional Agent() calls in the same parallel batch (same assistant response, NOT one per turn).
+### 1.5.3 Check 3 — Secret scan
 
-**Determine review mode based on diff size:**
+Regex pass against changed-file content:
 
-**Small diff (≤8 substantive files, ≤400 LOC):** Standard mode — 7 reviewers (+1 design when UI files present, see detection rule below; +1 pr-metadata when input was a PR ref, see PR-ref detection rule below), each sees ALL files.
+- `AKIA[0-9A-Z]{16}` (AWS access keys)
+- `sk-[a-zA-Z0-9]{32,}` (OpenAI-style keys)
+- `-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----` (PEM markers)
+- `ghp_[a-zA-Z0-9]{36}` (GitHub personal tokens)
 
-**Large diff (>8 substantive files or >400 LOC):** Batched mode — split files into batches, spawn reviewers per batch.
+**Risk-tier:high strict mode (D6 NEW knob)** adds:
+- `(?:AWS|GCP|AZURE)_(?:SECRET|ACCESS)_KEY=`
+- GCP service-account JSON markers (`"type": "service_account"`)
+- Azure SAS tokens (`?si=.+&sig=`)
+- SSH OPENSSH key patterns
 
-#### Step 0: Load criteria files (both modes)
+Findings tagged `severity: CRITICAL` (secrets are always critical).
 
-Before spawning any reviewers, read these criteria files — their content is pre-inlined into each agent's prompt:
-- `${CLAUDE_SKILL_DIR}/bugs-criteria.md`
-- `${CLAUDE_SKILL_DIR}/security-criteria.md`
-- `${CLAUDE_SKILL_DIR}/architecture-criteria.md`
-- `${CLAUDE_SKILL_DIR}/tests-criteria.md`
-- `${CLAUDE_SKILL_DIR}/optimizations-criteria.md`
-- `${CLAUDE_SKILL_DIR}/guidelines-criteria.md`
-- `${CLAUDE_SKILL_DIR}/conventions-criteria.md`
-- `${CLAUDE_SKILL_DIR}/design-criteria.md` (conditional — only loaded when the UI-file detection rule below matches at least one changed file)
-- `${CLAUDE_SKILL_DIR}/pr-metadata-criteria.md` (conditional — only loaded when input was a PR ref, i.e. the Phase 5 state file's `pr-ref:` is non-`none`; mirrors the design-criteria conditional pattern)
-- `${CLAUDE_SKILL_DIR}/spec-compliance-criteria.md` (conditional — only loaded when PLAN CONTEXT is non-`none` AND either (a) input was a PR ref OR (b) the Phase 5 state file's `risk-tier: high`; mirrors the design-criteria + pr-metadata-criteria conditional pattern)
+### 1.5.4 Output handling
 
-Also read `CLAUDE.md` at the project root for tech stack context — use this to interpret criteria in the context of the project's language and framework.
+Mechanical findings tagged `origin: mechanical:<check_id>`. Routed two ways:
 
-#### Standard Mode (small diff)
+1. **To Phase 2 LLM reviewers as prior-context** — pasted into spawn prompts under a `## Mechanical Pre-pass Findings` section. LLM agents instructed to use those as starting points (avoid duplicating; extend with semantic understanding).
+2. **To Phase 5 persist** — included in the state.md finding list with the mechanical tag preserved.
 
-Spawn all seven always-on reviewer agents in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn. **Spawn the design reviewer (8th agent) ONLY when at least one changed file matches the UI-file detection rule defined below. Spawn the pr-metadata reviewer (9th agent) ONLY when input was a PR ref per the PR-ref detection rule defined below.** Every reviewer prompt carries a `PLAN CONTEXT:` field (Phase 1 collected; renders as `none` when empty) and this exact alignment-tag instruction appended at the end of the prompt body: `Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.`
+### 1.5.5 Fail-handling
 
-**Cause + Evidence sub-fields per finding (orchestrator-side adaptation).** Every reviewer-agent finding emitted by the prompts below is REQUIRED to carry both:
-- `Cause:` — one of `[ROOT-CAUSE]` / `[SYMPTOM]` / `[UNKNOWN]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. The agent emits the field; the orchestrator parses it; Phase 5 disposition consumes it (see Phase 5 root-cause-gate firing below).
-- `Evidence:` — Evidence Block (Command / Exit code / Tail) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Evidence Block schema. CRITICAL/HIGH findings WITHOUT an Evidence Block are dropped at Phase 3 relevance-filter; MEDIUM findings without one are demoted.
+If lint or schema check fails (process exit nonzero with no output OR command not found):
+- Write `## Errors` entry: `mechanical-prepass-{check_id}: command_unavailable_or_failed`.
+- Continue to Phase 2 without the failed check's findings (fail-open, consistent with `gh` fail-open).
 
-The reviewer-agent.md output template was updated in Wave 2A to emit these sub-fields. The orchestrator's parser (Phase 4 judge pass + Phase 5 persistence) reads them out of the per-finding output block. If a reviewer's output is missing `Cause:` for any finding, treat that finding as `Cause: [UNKNOWN]` per the legacy-fallback rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema and surface a one-line caveat under `## Caveats`.
+Secret scan is a pure-regex pass — cannot fail.
 
-```
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: bugs
-CRITERIA: [content of bugs-criteria.md]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary showing what changed — used to tag findings as [NEW] vs [PRE-EXISTING]]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-Review ONLY for bugs and correctness. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+---
 
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: security
-CRITERIA: [content of security-criteria.md]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-Review ONLY for security vulnerabilities. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+## Phase 2 — LLM Reviewer Spawns
 
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: architecture
-CRITERIA: [content of architecture-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
-Review ONLY for architecture and design patterns. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+State.md `phase: llm-spawn`.
 
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: tests
-CRITERIA: [content of tests-criteria.md]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-Review ONLY for test quality and coverage. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+### 2.1 Dimension grid (9 dimensions after collapse)
 
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: optimizations
-CRITERIA: [content of optimizations-criteria.md]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-Review ONLY for SQL/ORM hydration, projection, React re-render hygiene, frontend bundle/asset perf, async parallelization, and bulk-ops wins. Do not cross into other dimensions (N+1, eager-loading, caching, pagination, sync-I/O are owned by the architecture dimension).
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+| # | Dimension | Always? | Conditional trigger |
+|---|---|---|---|
+| 1 | bugs | always | — |
+| 2 | security | always | — |
+| 3 | architecture | always | — |
+| 4 | tests | always | — |
+| 5 | optimizations | always | — |
+| 6 | guidelines | always | — |
+| 7 | conventions | always | — (owns repo-modal-pattern findings exclusively per ) |
+| 8 | design | conditional | UI globs match changed files (see UI-file detection rule) |
+| 9 | pr-metadata | conditional | `pr-ref:` non-none |
+| 10 | spec-compliance | conditional | PLAN CONTEXT non-none AND (`pr-ref:` non-none OR risk-tier:high) |
+| +N | custom:* | conditional | per user-authored `review-extra/*.md` files |
 
-Agent(subagent_type="reviewer-agent", model="haiku", prompt="""
-DIMENSION: guidelines
-CRITERIA: [content of guidelines-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-Review ONLY for style, naming, and guideline compliance. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+«5-9 dimensions per spawn batch» depending on conditions.
 
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: conventions
-CRITERIA: [content of conventions-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-Review ONLY for codebase-pattern conformance via modal-pattern inference (sample siblings, flag deviations from ≥80% modal). Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+**Refresh L4 instructions** at Phase 2 entry — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with MODE: refresh. Compaction since the previous load may have silently dropped the rules.
 
-# Conditional — spawn ONLY if at least one changed file matches the UI-file detection rule below.
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: design
-CRITERIA: [content of design-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
-CHANGED FILES: [list of files with their full content]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
-Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+**Discover custom reviewers (Phase 2 entry — before the parallel spawn batch).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored review dimensions in `.geniro/instructions/review-extra/<slug>.md`. The helper returns spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing the ≤10 cap. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent",...)` to the SAME parallel batch as the 7-9 built-ins (one assistant turn, parallel execution — per helper §How consumers use the spawn-specs). If the helper aborts on hard-cap error, surface error + skip the custom additions; built-ins still fire.
 
-# Conditional — spawn ONLY when input was a PR ref (the Phase 5 state file's `pr-ref:` is non-`none`).
-# Reviews the PR's own title and body — NOT the diff. Other dimensions cover the diff.
-# Findings have no `path:lines` anchor; Phase 6 Step 4 routes them into the top-level review `body` field.
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: pr-metadata
-CRITERIA: [content of pr-metadata-criteria.md]
-PR METADATA: title=[pr.title from Phase 1 `gh pr view --json title`], body=[pr.body from Phase 1 `gh pr view --json body`], isDraft=[pr.isDraft from Phase 1], author=[pr.author.login from Phase 1], labels=[pr.labels[].name from Phase 1 — comma-separated]
-CHANGED FILES: [list of files with their full content — used by checks #5/#6/#7/#8 to correlate diff scope vs description claims]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary; same content reviewers receive — used to detect logic/test/UI/migration/API-change signals per criteria checks #5-8]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-PRIOR-ROUND PR BODY: [prior-pr-body from Phase 1 Step 0.5, or "none — first review"]
-Review ONLY the PR's own title and description for clarity, completeness, and convention conformance per the pr-metadata-criteria.md rubric. Do NOT review the code diff itself (other dimensions own that). Emit each finding with `File: PR-METADATA` (literal string, no path, no line number) — Phase 6 Step 4 detects this sentinel and routes the finding into the top-level review `body` field instead of the inline `comments[]` array.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+### 2.2 Spawn invocation
 
-# Conditional — spawn ONLY when PLAN CONTEXT is non-`none` AND (input was a PR ref OR the Phase 5 state file's `risk-tier: high` from Phase 1 Step 0.7). See "Spec-Compliance detection rule" below.
-# Reviews diff against the spec to surface what's MISSING (scope items, migration paths, rollback story, tests for acceptance criteria, feature-flag wiring).
-# Findings have no `path:lines` anchor; Phase 6 Step 4 routes them into the top-level review `body` field.
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: spec-compliance
-CRITERIA: [content of spec-compliance-criteria.md]
-CHANGED FILES: [list of files with their full content — used to detect what's present so the reviewer can surface what's missing]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary]
-PLAN CONTEXT: [content from Phase 1 — MUST be non-`none` for this reviewer to fire]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-Review ONLY for SPEC→DIFF completeness — does the diff implement everything the plan/spec promised? Surface what's MISSING (scope items, migration paths, rollback story, tests for acceptance criteria, feature-flag wiring). Do NOT review the code quality itself (other dimensions own that). Emit each finding with `File: SPEC-COMPLIANCE` (literal string, no path, no line number) — Phase 6 Step 4 detects this sentinel and routes the finding into the top-level review `body` field instead of the inline `comments[]` array.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
+Single message with N parallel `Agent` tool uses, one per dimension. Each spawn:
 
-# Custom reviewers — append ONE Agent() call per spawn-spec returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`, all in this SAME response (same parallel batch as the 7-9 built-ins above, NOT one per turn). Per the helper's spawn template:
-# Agent(subagent_type="reviewer-agent", model="<spec.model>", prompt="""
-# DIMENSION: custom:<spec.slug>
-# CRITERIA: <spec.criteria-content>
-# CHANGED FILES: [same as built-ins]
-# PROJECT CONTEXT: [same as built-ins]
-# WORKTREE / BRANCH / DIFF CONTEXT / PLAN CONTEXT: [same as built-ins]
-# SEVERITY DEFAULT: <spec.severity-default or "MEDIUM">
-# Review ONLY for the custom dimension 'custom:<spec.slug>' as defined by CRITERIA. Use SEVERITY DEFAULT as your initial severity score.
-# Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs.
-# """)
-```
+- `subagent_type: reviewer-agent` (plugin) — applies `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration ladder.
+- `model`: per Subagent Model Tiering table above.
+- Pre-inlined context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`:
+- Diff of changed files (full content for the batch's files in Batched Mode; all files in Standard Mode).
+- Project conventions from L4 (refreshed).
+- **Mechanical pre-pass findings (Phase 1.5) as prior-context** under `## Mechanical Pre-pass Findings` section.
+- PLAN CONTEXT — spec-compliance dim ONLY (other dims see `PLAN CONTEXT: <plan tag fields only>` per the schema-aware reference).
+- **LINEAR CONTEXT** — spec-compliance + pr-metadata + architecture dims ONLY (per Phase 1). Block omitted entirely for other dims. Slot value `none — workflow not configured` when was skipped.
+- PRIOR-ROUND FINDINGS (Step 0.5 prior-round-summary, or `none — first review`).
+- **PEER-PR CONTEXT** — architecture + design + bugs + conventions + optimizations + spec-compliance dims ONLY (per Phase 1, expanded from 2 dims to 6).
+- Dimension-specific criteria file body inlined.
+- Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 
-### UI-file detection rule
+**Criteria files** (read once at Phase 2 entry):
+- `${CLAUDE_SKILL_DIR}/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `optimizations-criteria.md` · `guidelines-criteria.md` · `conventions-criteria.md`
+- `${CLAUDE_SKILL_DIR}/design-criteria.md` (conditional)
+- `${CLAUDE_SKILL_DIR}/pr-metadata-criteria.md` (conditional)
+- `${CLAUDE_SKILL_DIR}/spec-compliance-criteria.md` (conditional)
+- Custom reviewers via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (≤10 per project)
 
-Used by the conditional design reviewer. A file is considered a UI file if its path matches any of these globs — `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**` — or its extension is one of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.sass`, `.less`, `.styled.ts`, `.styled.tsx`. The design dimension is skipped entirely when no changed file matches.
+### 2.3 `--simplify` flag weighting (,)
 
-### PR-ref detection rule
+When `$ARGUMENTS` contains `--simplify` (semantic parse — matches `simplify`, `--simplify`, `simplify mode`), Phase 2 prepends deep-simplify criteria onto 5 of the 9 dimensions:
 
-Used by the conditional pr-metadata reviewer. The dimension fires when and only when input is a PR ref (a bare PR number `#1234` / `1234` or a full GitHub PR URL) — equivalently, when the Phase 5 state file's `pr-ref:` will be non-`none`. Files / branches / diff ranges as input do NOT fire this dimension (no PR title or body to review). In Batched Mode, pr-metadata spawns ONCE per-PR (not per-batch) — the title and body are per-PR concerns, not per-file.
+- **architecture** reviewer — Reuse criteria (existing abstractions, duplicate logic, premature abstraction).
+- **conventions** reviewer — repo-modal-pattern aggressive mode (lower ≥80% siblings threshold to ≥60%).
+- **guidelines** reviewer — Quality criteria (naming clarity, docs noise, dead code).
+- **bugs** reviewer — Quality bug-class extensions (defensive code that masks bugs, redundant null checks).
+- **optimizations** reviewer — Efficiency criteria (verbose loops, unnecessary allocations, sync I/O in async paths).
 
-### Spec-Compliance detection rule
+Pre-pend body read from `${CLAUDE_SKILL_DIR}/simplify-criteria.md`.
 
-Used by the conditional spec-compliance reviewer. The dimension fires when ALL of these hold: (a) PLAN CONTEXT is non-`none` (a spec, plan, or PR body resolved); AND (b) either input was a PR ref (so a PR description acts as the spec) OR the Phase 5 state file's `risk-tier: high` (high-stakes diffs deserve spec coverage check regardless of input form). When neither (b) condition holds OR PLAN CONTEXT is `none`, the dimension is skipped. In Batched Mode, spec-compliance spawns ONCE per-run (not per-batch) — spec coverage is a whole-PR concern, mirrors pr-metadata's per-PR firing rule above.
+NO new dimensions added. NO fix-loop added (Reporter behavior per ). The flag biases existing reviewers' attention; it does not change output schema or hand-off contract.
 
-**Dimensions:**
-1. **Bugs Reviewer** — Logic errors, null checks, off-by-one, state issues
-2. **Security Reviewer** — Injection, auth/authz, secrets, crypto, validation
-3. **Architecture Reviewer** — Design patterns, modularity, coupling, tech debt
-4. **Tests Reviewer** — Coverage gaps, missing edge cases, test quality
-5. **Optimizations Reviewer** — SQL/ORM hydration skip (`.lean()` / `disableIdentityMap` / `raw:true` / projections), React re-render hygiene, frontend bundle/asset perf, async parallelization, bulk ops. Defers N+1 / eager-loading / caching / pagination / sync-I/O / O(n²) to architecture §6.
-6. **Guidelines Reviewer** — Style, naming, documentation, compliance
-7. **Conventions Reviewer** (always fires) — Codebase-pattern conformance: statistical inference of repo-modal patterns (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency). Flags deviations only when ≥80% of N≥3 siblings agree on a pattern; skips ambiguous splits to avoid bikeshedding. Self-suppresses (emits zero findings) when fewer than 3 sibling files exist for inference.
-8. **Design Reviewer (conditional)** — Visual/UX quality: token conformance, spacing/type scale, state completeness, WCAG AA contrast, responsive coverage, exemplar drift. Fires only when the diff contains UI files (see detection rule above).
-9. **PR-Metadata Reviewer (conditional)** — PR title and description quality: imperative-verb title opener, convention conformance (Conventional Commits / Linear / Jira prefix when the repo modally uses one), description presence and substance, "why" clause, test plan when logic changed, screenshots when UI changed, breaking-change note when API/migration changed, scope alignment, linked-issue presence, acceptance-criteria coverage. Fires only when input was a PR ref (see PR-ref detection rule above). Findings carry `File: PR-METADATA` and route to the top-level review `body` field at Phase 6 Step 4 (not inline comments).
-10. **Spec-Compliance Reviewer (conditional)** — Spec → diff completeness: missing scope items the plan promised, missing migration paths when plan mentions migration, missing rollback/down() when migration touches data, missing tests for stated acceptance criteria, missing feature-flag wiring when plan mentions one. Fires only when PLAN CONTEXT is non-`none` AND (input was a PR ref OR `risk-tier: high`). Findings carry `File: SPEC-COMPLIANCE` and route to top-level review `body` at Phase 6 Step 4 (not inline comments).
-11. **Custom Reviewers (0-10, user-authored)** — User-defined dimensions stored as `.geniro/instructions/review-extra/<slug>.md`. Each defines its own criteria + optional paths-filter + optional model + optional severity-default. Discovered, validated, and path-filtered by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`. Findings emit under `## custom:<slug> Review — N findings` headers and flow through the same Phase 4 judge pass + Phase 3 relevance-filter as built-in dimensions.
+### 2.4 UI-file detection rule (design dim trigger)
 
-**Model routing:** Guidelines uses `haiku` (sufficient for rubric checks, saves tokens). Bugs, security, architecture, tests, optimizations, conventions, design, pr-metadata, and spec-compliance use `sonnet` (accuracy-critical — conventions performs statistical pattern inference; design weighs visual/UX reasoning beyond pure rubric matching; pr-metadata weighs prose-quality + scope-alignment reasoning; spec-compliance weighs prose-vs-diff reasoning to detect what the diff is MISSING relative to the spec). In batched mode, apply the same model per dimension; pr-metadata spawns once per-PR regardless of batch count; spec-compliance spawns once per-run regardless of batch count. Custom reviewers default to `sonnet` per the helper, with per-reviewer override via the `model:` frontmatter field.
+A file is a UI file if path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`. Design dimension skipped when no changed file matches.
 
-#### Batched Mode (large diff)
+### 2.5 Spec-compliance detection rule
 
-**Why batch?** LLMs exhibit a U-shaped attention curve — 30%+ accuracy drop when relevant context is in the middle of large prompts ([Liu et al., "Lost in the Middle"](https://arxiv.org/abs/2307.03172)). A reviewer given 20 files misses issues in files 8-15. Batching keeps each reviewer's context focused.
+Fires when ALL hold: (a) PLAN CONTEXT is non-`none`; AND (b) either input was a PR ref OR risk-tier:high. Findings carry `File: SPEC-COMPLIANCE` sentinel — Phase 6 Post drill routes them to top-level review `body` under `## Spec Compliance` (not inline comments — no `path:lines` anchor).
 
-**Step 1: Group files into semantic batches of ~5 files each.**
-- Analyze files by **domain responsibility**, not just directory: auth concern, data layer, API surface, UI components, infrastructure/config, tests
-- Group files that share a domain concern into the same batch (e.g., auth controller + auth middleware + auth test = one batch)
-- Use signals to determine responsibility: file path patterns, import relationships (grep for cross-file imports), naming conventions
-- Fall back to directory grouping when fewer than 2 of the 3 signals (path pattern, import relationship, naming convention) agree on a domain for a file
-- Keep test files with their corresponding source files in the same batch
-- Example: 15 files → Batch A (auth: controller + middleware + test), Batch B (API: routes + validators + serializers), Batch C (infra: config + migrations + seeds)
+### 2.6 Build verification (parallel with reviewers)
 
-**Step 2: Determine which dimensions apply per batch.**
-Not every batch needs all 7–9 dimensions. Skip irrelevant ones to save tokens. Use the UI-file detection rule above to decide whether a batch gets the design dimension. The pr-metadata dimension is per-PR (not per-batch) — see the per-PR rule below the per-batch list.
-- Test-only batch → skip security, architecture, optimizations, design. Run: bugs, tests, guidelines, conventions
-- Config/infra batch → skip tests, design. Run: security, architecture, optimizations, guidelines, conventions
-- UI component batch → skip security (unless auth-related). Run: bugs, architecture, tests, optimizations, guidelines, conventions, design
-- API/auth batch → all 7 dimensions (design only if it also contains UI files — rare)
-
-**Per-PR (not per-batch):** when input was a PR ref, spawn the pr-metadata reviewer ONCE total across the entire batched run — it reviews `pr.title` and `pr.body`, not files, so per-batch spawning would N-multiply the same review. Skip entirely when input was files / branch / diff range.
-
-**Per-review-run (not per-batch) — spec-compliance:** When the spec-compliance dimension's firing conditions hold (PLAN CONTEXT non-`none` AND (input was a PR ref OR `risk-tier: high`)), spawn the spec-compliance reviewer ONCE total across the entire batched run — spec coverage is a whole-PR concern, mirrors the pr-metadata per-PR firing rule above. Skip entirely when conditions don't hold.
-
-**Per-review-run (not per-batch) — custom reviewers:** When custom reviewers exist (per the "Load custom reviewers" load at the top of Phase 2), spawn them ONCE per review run regardless of batch count — they review against the FULL changed-files list, not per batch. This mirrors the per-PR pr-metadata pattern: narrow path-filtered reviewers gain nothing from per-batch fan-out and the cost of multiplying would be N×batch-count. All custom-reviewer Agent() calls go in the SAME assistant response as the per-batch built-in spawns (same parallel batch, NOT one per turn). See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Batched-mode behavior.
-
-**Step 3: Spawn batch × dimension agents in ONE response — all Agent() calls in the same assistant turn, NOT one per turn.**
-
-Use the same `Agent(subagent_type="reviewer-agent", model=<sonnet|haiku>, prompt="""...""")` pattern as standard mode, but each agent gets only its batch's files. Per the Subagent Model Tiering block, pass `model="sonnet"` for bugs/security/architecture/tests/optimizations/conventions/design and `model="haiku"` for guidelines. Include `DIFF CONTEXT` for [NEW]/[PRE-EXISTING] tagging, the same `PLAN CONTEXT:` field collected in Phase 1, the same `PRIOR-ROUND FINDINGS:` field collected in Phase 1 Step 0.5 (threaded into EVERY per-batch reviewer prompt — same slot ordering as Standard Mode: immediately after `PLAN CONTEXT:` and before `PEER-PR CONTEXT:`), the same `PEER-PR CONTEXT:` field collected in Phase 1 (architecture and design dimensions ONLY — NOT bugs/security/tests/optimizations/guidelines/conventions/pr-metadata; see the slot-scope rationale at the Phase 1 peer-PR scout step), and the same alignment-tag instruction as standard mode.
-
-The per-batch architecture and design prompts mirror the standard-mode blocks above, with batch-scoped CHANGED FILES:
-
-```
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: architecture
-CRITERIA: [content of architecture-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
-CHANGED FILES: [batch's files only]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary for this batch]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
-Review ONLY for architecture and design patterns. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-
-# Conditional — spawn ONLY when this batch contains at least one UI file (per the UI-file detection rule above).
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
-DIMENSION: design
-CRITERIA: [content of design-criteria.md]
-CODE-STYLE INSTRUCTIONS: [content of `.geniro/instructions/code-style.md`, or "none — file not present"]
-CHANGED FILES: [batch's UI files only]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [git diff summary for this batch]
-PLAN CONTEXT: [content from Phase 1, or "none"]
-PRIOR-ROUND FINDINGS: [content from Phase 1 Step 0.5 prior-round-summary, or "none — first review"]
-PEER-PR CONTEXT: [content from Phase 1 peer-PR scout, or "none — not a PR-ref input" / "none — no overlapping open peer PRs" / "none — gh unavailable (fail-open)"]
-Review ONLY for visual/UX quality per the design rubric. Do not cross into other dimensions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
-
-Other per-batch dimensions (bugs, security, tests, optimizations, guidelines, conventions) follow the standard-mode prompt shape unchanged — no `PEER-PR CONTEXT:` slot is threaded into them.
-
-```
-Example for 15 files, 3 batches:
-  Batch A (auth module, 5 files):   bugs-A, security-A, architecture-A, tests-A, optimizations-A, guidelines-A, conventions-A       → 7 agents
-  Batch B (UI components, 5 files): bugs-B, architecture-B, tests-B, optimizations-B, guidelines-B, conventions-B, design-B         → 7 agents (no security; +design)
-  Batch C (test utilities, 5 files): bugs-C, tests-C, guidelines-C, conventions-C                                   → 4 agents (no security/arch/design)
-  Total: 18 agents (vs 7 in standard mode, but each has 1/3 the files = much higher accuracy)
-```
-
-**Constraints:**
-- Max **42 parallel agents** (5 batches × up to 8 per-batch dimensions when UI files present, + 1 per-PR pr-metadata spawn when input was a PR ref, + 1 per-run spec-compliance spawn when PLAN CONTEXT is non-`none` AND (input was a PR ref OR `risk-tier: high`)). Plus up to 10 custom reviewers per project (cap enforced by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`) — so the absolute ceiling when both batched mode is active AND the project has 10 custom reviewers is **52 parallel agents**.
-- Each agent gets: criteria file + its batch's file contents only + brief summary of other batches for cross-reference context
-- All agents spawned in ONE message for parallel execution
-
-#### Build Verification (parallel with reviewers, both modes)
-
-Run the project's validation suite **in parallel** with the reviewer agents. This catches build failures and test regressions that no reviewer can detect:
+Run the project's validation suite in parallel with reviewer agents:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Build Check" "<validation_cmd from CLAUDE.md>"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Build Check" "<validation_cmd>"
 ```
 
-If backpressure is unavailable, run directly: `<validation_cmd> 2>&1 | tail -80`
+Feed pass/fail into Phase 4 judge. Failing build is automatically a CRITICAL finding — tag `[NEW]` if the base branch build passes, `[PRE-EXISTING]` if already broken.
 
-Feed the pass/fail result into the Phase 4 judge pass. A failing build is automatically a CRITICAL finding — tag as [NEW] if the base branch build passes, or [PRE-EXISTING] if it was already broken.
+---
 
-### Phase 3: Relevance Evidence + Orchestrator Tagging
+## Phase 3 — Filter & Aggregate
 
-After reviewers complete, spawn a **relevance-filter-agent** to gather convention/over-engineering/pattern evidence per finding. **You (the orchestrator) then decide KEEP vs FILTER yourself** from the dossier — do NOT delegate the tagging decision.
+State.md `phase: filter`.
 
-**Why the split:** Reviewers apply general best practices, but not every best practice applies to every repo. A startup MVP doesn't need enterprise patterns. A repo that intentionally uses simple functions doesn't need dependency injection suggestions. Repo-reality evidence gathering is mechanical and belongs in a subagent; the KEEP/FILTER decision weighs convention evidence against severity and belongs at the orchestrator (Opus tier) where session context lives.
+### 3.1 Orchestrator-side dedup + convergence
 
-**Convention context gathering:** Before spawning the agent, read convention files that exist in the project — CONTRIBUTING.md, ADRs (docs/adr/), architecture docs. Pass their content alongside CLAUDE.md context.
+The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent outputs + Phase 1.5 mechanical findings) and performs dedup inline — no subagent spawn:
 
-Spawn the relevance-filter-agent for evidence gathering:
+- **Dedup key:** `path:line + finding-title` (case-insensitive title match).
+- **Convergence_count:** for each dedup'd finding, count how many reviewers + mechanical checks reported the same key. Persisted as a field on the finding (consumed by Phase 5b auto-emit threshold).
+- **Drop hallucinations:** findings without a real file:line correspondence (orchestrator verifies file exists and line is within bounds via Read; if not, drop with a `## Caveats` line citing the dropped finding).
+- **Convention context:** orchestrator reads convention files when present — CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs. These inform KEEP/FILTER decisions.
 
-```
-Agent(subagent_type="relevance-filter-agent", prompt="""
-FINDINGS: [all findings from all reviewers (7–9 per the dimension-firing rules at Phase 2), in their original format]
-CHANGED FILES: [list of changed file paths — the agent reads files itself via Read/Glob/Grep]
-PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-CONVENTION FILES: [content of CONTRIBUTING.md, ADRs, architecture docs if they exist]
-PLAN CONTEXT: [content from Phase 1, or "none"]
+### 3.2 Mechanical+LLM dedup
 
-Gather evidence for each finding against this repo's actual patterns:
-1. Convention alignment — does the suggestion match how this repo already works?
-2. Over-engineering — is this YAGNI for this repo's complexity level?
-3. Intentional pattern — does the flagged "problem" exist in 3+ other files intentionally?
+Mechanical findings (Phase 1.5) and LLM findings may overlap (e.g., lint says «unused import on line 42», bugs reviewer says «dead code on line 42»). Orchestrator-inline dedup identifies overlap by dedup key, preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. Convergence_count for that finding gains +1 for the mechanical contribution.
 
-Return an evidence dossier per finding (ALIGNS/CONTRADICTS/NEUTRAL, APPROPRIATE/OVER-ENGINEERED, ISOLATED/WIDESPREAD, safety_override for CRITICAL findings). Do NOT tag findings KEEP or FILTER — return evidence only; the orchestrator decides.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
+### 3.3 KEEP/FILTER judgment
 
-**Orchestrator tagging:** After the dossier returns, synthesize it yourself per finding: weigh convention-alignment, over-engineering, and pattern-frequency evidence against severity and judge the finding KEEP or FILTER. CRITICAL findings (safety_override=true) are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4 (Judge Pass). FILTERED findings appear in a collapsed section at the end of the review report for transparency. If the relevance-filter-agent fails to complete or returns malformed output, pass all findings through to Phase 4 as KEEP (fail-open); Phase 4 judge and Phase 4b validation still run normally on fail-open findings — only the convention-relevance layer is skipped. When fail-open triggers, surface "relevance-filter fail-open — convention check skipped for this run" under `## Caveats` in the final report. **User-facing language:** announce the fail-open in the live transcript using that same plain-English Caveats wording (e.g., "Convention-check filter timed out; passing all reviewer findings to the judge un-filtered. Final report will note the skipped step in Caveats."). Do NOT reference internal phase numbers (e.g., "Phase 4 Step −1"), skill-internal taxonomy ("TRUNCATED per skill rules", "fail-open per skill rules"), or other terms that require reading SKILL.md to parse.
+After dedup, the orchestrator synthesizes per finding: weighs convention-alignment, over-engineering, and pattern-frequency evidence against severity and judges KEEP / FILTER. CRITICAL findings with `safety_override=true` are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4. FILTERED appear in the report's `## Filtered` section with reason annotation.
 
-### Phase 4: Judge Pass
+No external agent to fail — dedup and judgment run in orchestrator's main context.
 
-**Input:** Only KEEP findings from Phase 3 (relevance-filtered). FILTERED findings are excluded from scoring but listed in the final report for transparency.
+---
 
-**If batched mode:** First deduplicate findings across batches — the same issue may be flagged by multiple batch reviewers if it spans modules. Merge duplicates, keeping the highest confidence score.
+## Phase 4 — Stratification & Test Gate
 
-- **Step −1: Truncation check.** For each reviewer output, scan for the required `## Dimension Summary` footer (defined in `reviewer-agent.md` output template). If absent, the reviewer ran out of turns mid-analysis: mark that dimension as TRUNCATED, surface in the final report under `## Caveats` (e.g., "bugs reviewer truncated mid-analysis — partial output, recommend re-run with higher maxTurns"), and recommend re-running the dimension with higher maxTurns. Do not silently accept partial output. **User-facing language:** when announcing truncation in the live transcript, use plain-English wording matching the Caveats line — do NOT reference internal phase numbers ("Phase 4 Step −1") or skill-internal taxonomy ("TRUNCATED per skill rules") in user-facing output.
-- **Step 0: Intent reconciliation.** For each finding tagged `[DIVERGES-FROM-PLAN]`, verify the divergence against PLAN CONTEXT. If the plan explicitly authorizes the divergence (e.g., D-09), demote to decision-type `[INTENT-CHECK]` and exclude from CRITICAL/HIGH severity. If the plan contradicts the finding (genuine divergence), keep as bug. Findings already tagged `[ALIGNS-WITH-PLAN]` exit the bug pipeline directly to `[INTENT-CHECK]`.
-- Read each finding's source context (file + line range)
-- Validate: does the issue actually exist? Check for mitigating context
-- Preserve [NEW]/[PRE-EXISTING] tags from reviewers — findings in changed lines are [NEW], findings in unchanged code are [PRE-EXISTING]. Prioritize [NEW] findings in the report.
-- **Build verification:** If build/test verification ran in parallel, incorporate its result — a failing build is automatically a CRITICAL finding (tag [NEW] or [PRE-EXISTING] based on base branch state).
-- Confidence scoring: start from the reviewer's reported confidence, then adjust:
-  - **Confirmed** (judge reproduces the issue from source): no change, or raise toward 100 if the reviewer under-scored
-  - **Ambiguous** (needs more context to decide): −20
-  - **Pattern elsewhere** (same code appears in 3+ other places unchanged): −40
-  - **False positive** (judge cannot reproduce the issue from source): set to 0, rejected
-- Filter: keep only findings with final confidence >= 80 (>= 70 when the Phase 5 state file's `risk-tier: high` — see Phase 1 Step 0.7; high-stakes diffs lower the bar to catch more potential issues)
-- Classify:
-  - **Critical**: MUST FIX (high-severity, high-confidence)
-  - **High**: SHOULD FIX (medium-severity OR repeating pattern)
-  - **Medium**: MINOR (low-severity, informational)
-- Aggregate by file and severity
-- Output final verdict with prioritized recommendations
+State.md `phase: stratify`.
 
-### Phase 4b: Per-Finding Validation (Critical & High only)
+### 4.1 Phase 4a — severity threshold
 
-For each CRITICAL or HIGH finding that passed the judge pass, spawn a **validation sub-agent** to independently confirm. Each validator gets the finding + full file context but NO knowledge of other findings (prevents anchoring).
+Apply risk-tier threshold:
+- standard: keep findings with severity ≥ MEDIUM AND confidence ≥ 80%.
+- high: keep findings with severity ≥ MEDIUM AND confidence ≥ 70%.
 
-**Why:** Anthropic's official code-review plugin uses this pattern — per-finding validation eliminates ~40% of false positives. The validator has fresh context and must independently reproduce the concern.
+Sub-threshold findings written to a «Deferred» list (surfaced in `## Open Questions` so user knows what was dropped).
 
-**Validation rules:**
+### 4.2 Phase 4b — HIGH validator
 
-| CRITICAL count | HIGH count | Validate |
-|---|---|---|
-| 0 | 0 | Skip entirely (proceed to Phase 5) |
-| 0 | 1 | Skip (single HIGH isn't worth the spawn cost) |
-| 0 | ≥2 | All HIGH |
-| ≥1 | any | All CRITICAL + all HIGH |
-| any | any | ALL HIGH AND all MEDIUM when state file's `risk-tier: high` AND at least one CRITICAL exists; ALL HIGH when `risk-tier: high` AND zero CRITICAL (overrides rows 2-3 above) |
+Sample HIGH-severity findings and validate via a secondary spawn (`reviewer-agent` clone with prompt emphasizing «confirm or refute, not expand»):
 
-Spawn all validators in **ONE response** — all Agent() calls in the same assistant turn, NOT one per turn:
+- standard tier: validate top-3 HIGH findings.
+- high tier: validate ALL HIGH findings.
+- `--tdd` flag: validate ALL HIGH findings regardless of tier.
 
-```
-Agent(subagent_type="general-purpose", prompt="""
-TASK: Validate a single review finding. You are an independent validator — confirm or reject this finding. You have Read, Glob, Grep, and Bash available for reproduction in step 4.
+Output: per-finding `validation: confirmed | refuted | partial` field added.
 
-FINDING: [severity, dimension, file:line, description, evidence]
-FILE CONTENT: [full content of the affected file]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF CONTEXT: [relevant diff hunk]
+### 4.3 Phase 4c — F→P test gate
 
-You must:
-1. Read the file and line range yourself
-2. Check if the issue genuinely exists
-3. Check for mitigating context the original reviewer may have missed
-4. If the finding claims runtime behavior (crash, thrown error, regex/parser match, failing test, incorrect output), attempt a read-only reproduction: run `grep`/`rg` to confirm a pattern, or run the single existing test file that covers the code path (e.g. `pytest path/to/test_file.py::test_name`, `npx jest path/to/file.test.ts`). Allowed: read-only inspection and targeted single-test execution. Forbidden: full build, full test suite, migrations, installs, any write or file-creation command, network calls, `git` mutations (checkout, reset, stash, commit, push), container/VM spawns (`docker`, `podman`, `vagrant`), or any command that mutates persistent state. If a command is rejected by a project safety hook, treat the reproduction as impractical — do NOT retry or work around the hook; skip step 4 and rely on reasoning. If reproduction is otherwise impractical or unsafe, also skip and rely on reasoning.
-5. Verdict: CONFIRMED (issue is real, with reproduction evidence if step 4 ran) or REJECTED (false positive, explain why)
+**Full contract:** `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md`.
 
-Do NOT review for other issues — validate this ONE finding only.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
+Summary:
+- Filter findings by decision-type per the runtime-behavior classification rule.
+- **Mandatory user-approval gate before any `adversarial-tester-agent` spawn.** Skill MUST NEVER spawn without approval — the gate IS the load-bearing safety property. Persist to `approvals[]` with category `test_gate_choice`.
+- `--tdd` flag flips the Recommended option to «Author tests for all eligible findings»; gate itself still fires.
+- Spawn ONE adversarial-tester-agent with eligible findings as hypothesis seeds. Orchestrator's independent re-run IS the gate; never trust the agent's red/green claim alone.
+- Demote-don't-delete: green tests demote findings to `## Filtered` with `[CHALLENGED-BY-TEST]` tag; original severity preserved for re-elevation.
+- Fail-open: agent failures surface "test-gate fail-open" under `## Caveats` + write `## Errors` entry.
 
-**Process results:**
-- CONFIRMED findings: keep in final report at original severity
-- REJECTED findings: demote to "Filtered by validation" section (visible but not actionable)
-- If a validator fails to complete: keep the finding (fail-open). Note "[dimension] validator failed for finding '<short title>' — kept fail-open" under `## Caveats` in the final report.
+### 4.4 `--simplify` flag interaction
 
-### Phase 4c: Test-Confirmation Gate (optional, user-gated)
+`--simplify` does NOT change Phase 4 thresholds or validator behavior. P1/P2/P3 simplify severities mapped to CRITICAL/HIGH/MEDIUM tag pool in Phase 3 — they pass through Phase 4 like native CRITICAL/HIGH/MEDIUM findings.
 
-**Purpose:** Reduce false positives by asking the user whether to spawn `adversarial-tester-agent` to author failing tests that confirm review findings. Tests that fail today on independent orchestrator re-run (F→P-confirmed) tag the corresponding finding `[CONFIRMED-BY-TEST]` and stay in the report. Tests that pass today (agent's `discarded-cannot-repro` signal) demote the finding to the `## Filtered` section with `[CHALLENGED-BY-TEST]` — finding stays visible to the user, deprioritized but not deleted. The skill MUST NEVER spawn the agent without explicit user approval — the gate is the load-bearing safety property, and inline gates degrade to "this counts as approval".
+---
 
-**Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline runs Phase 6 Stage D's adversarial test-author against the same diff; running it twice double-spawns the same agent against the same surface).
+## Phase 5 — Persist & Emit
 
-**Step 1: Filter findings by decision-type.**
+State.md `phase: persist`.
 
-Eligible findings: any finding whose `decision:` is `TESTABLE`, plus CRITICAL or HIGH findings whose `decision:` is `FIX-NOW` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type). Excluded: findings whose `decision:` is `PRODUCT-DECISION` (multiple valid resolutions — no single behavior to assert), `INTENT-CHECK` (plan conformance, not runtime), and `FIX-NOW` findings whose description names typos / cross-references / wrong import paths (no runtime behavior to test against — see "Runtime-behavior classification" rule below). Use the decision-type taxonomy as defined in `${CLAUDE_SKILL_DIR}/plan-context-reference.md`.
+### 5.1 T2 state file write (design fix)
 
-If the eligible-findings set is empty after filtering, skip the rest of Phase 4c entirely — do NOT show an `AskUserQuestion`. Proceed to Phase 5.
+Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per row. `<PRIMARY_ROOT>` resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 
-**Runtime-behavior classification (canonical rule, used by both Phase 4c Step 1 and Phase 6 Step 3.5).** A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query). A `FIX-NOW` finding's description is NON-runtime ("typo-class") if it cites: typo / spelling, cross-reference (link, anchor, ref number), wrong import path, dead code that compiles, comment-only edits, formatting, lint-style issues. Phase 4c Step 1 uses this rule to exclude non-runtime FIX-NOW from eligibility (no behavior to test against). Phase 6 Step 3.5 uses the same rule to retain non-runtime FIX-NOW findings in the TDD-mode post set (no test to gate on — they post directly). The rule is intentionally prose-based and decided at orchestrator-evaluation time; the per-finding line schema does NOT carry a persisted `runtime-class:` tag — both phases evaluate the rule fresh against the same finding description, so they cannot diverge.
-
-**Step 2: User-approval gate (mandatory before any agent spawn).**
-
-Use `AskUserQuestion` (do NOT print options as plain text — the tool provides a structured UI) with header "Test-gate". When the state-file `mode:` is `tdd`, render the first option's label as `"Author tests for all eligible findings (Recommended)"` (literal `(Recommended)` suffix on the label string itself, matching the canonical pattern at the Phase 1 Mode AUQ); in Standard mode, render the same option without the suffix. The gate itself is non-negotiable in every mode — the Phase 4c invariant ("this skill MUST NEVER spawn the agent without explicit user approval — the gate is the load-bearing safety property, and inline gates degrade to 'this counts as approval'") is the load-bearing safety property; mode flips only the highlighted default.
-
-- **Question:** "Author failing tests to confirm review findings? Tests that pass today demote the corresponding finding to ## Filtered (kept visible, not deleted). The skill never writes tests without your approval."
-- **Options:**
-  - "Author tests for all eligible findings" — first option's literal label gains a ` (Recommended)` suffix when `mode: tdd` per the preamble above
-  - "Let me pick which findings"
-  - "Skip — don't author tests"
-
-If user picks **"Skip"**, proceed to Phase 5 (no spawn, no state changes, no caveats).
-
-If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — decision: <type>`; each option's `preview` carries the finding's full body (Evidence / Suggested-fix / Confidence / Origin) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop — pull the body fields from in-memory reviewer-agent output (Phase 4c runs in the same invocation that produced findings; the artifact has not been written yet). AskUserQuestion has a 4-option cap; when more than 4 eligible findings exist, batch them across multiple chained questions (≤4 per call) — never drop or merge options to fit a single question. Aggregate selections across all calls into the eligible set. Filter to the user's union selection. If user deselects all, treat as "Skip" and proceed to Phase 5.
-
-**Step 3: Spawn the adversarial-tester-agent.**
-
-Spawn ONE `adversarial-tester-agent` (per the canonical model-tiering carve-out — frontmatter-declared `model: inherit`, omit `model=` at the spawn site to mirror orchestrator tier; reasoning-grade test authoring) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff — no agent changes required. **Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A (subagent without Bash) before sending the prompt: substitute the absolute path into `OUTPUT PATH:` below, and use the same resolved path on every subsequent read in Steps 4 and 5. The agent treats the path as a literal — passing the unresolved placeholder creates a literal `<PRIMARY_ROOT>` directory.**
-
-```
-Agent(subagent_type="adversarial-tester-agent", prompt="""
-CHANGED FILES: [list of changed file paths with full content — pre-inlined from Phase 1]
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-DIFF: [git diff summary]
-SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md (READ at runtime; do not expect it inlined)
-PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1-2 exemplar test files inlined]
-PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line — description — decision-type — severity]
-OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review-findings-adversarial.md
-
-Authoring scope: assert on observable business behavior — return values, thrown error shapes, mutated state, side effects at out-of-process boundaries (network/db/queue/file/email/third-party). Do NOT author interaction-style assertions on internal same-process collaborators (`toHaveBeenCalledWith` and equivalents) — those test implementation, not behavior, and your FORBIDDEN list rejects them. Seeded findings sometimes describe wiring or call-shape concerns: if the only test you can write for a seeded finding is interaction-style, mark the hypothesis `discarded-cannot-repro` so the orchestrator demotes it; do NOT relax this rule.
-
-For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in the orchestrator's downstream processing). You may also generate fresh hypotheses from the diff per your normal Step 2 workflow; treat seeded findings as priority-1 and fresh hypotheses as priority-2 within your hard cap of 10 authored tests.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
-
-**Step 4: Independent re-verification by the orchestrator.**
-
-For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (a single re-run; the agent already did 3× flake check). Cache invalidation rules — including which agent PASS reports may be honored vs re-run — are governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` (single source of truth). Sub-agent PASS reports are inputs, not evidence; the orchestrator's independent re-run IS the gate, and the cache-honor decision MUST check ALL invalidation rules (mutation-since-write, commit SHA, command triad, reporting-agent exit) before skipping the re-run. Use `backpressure.sh` to keep failing-test output from flooding context:
+**Write via `atomic_state_write`** — never direct Edit/Write on the canonical state path (the `enforce-state-helper` hook will warn-mode flag direct writes; PR-final will hard-block).
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Test-gate re-run" "<project test command from CLAUDE.md> <test path>"
-```
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
+atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
+---
+tier: T2
+producer: review
+schema-version: 1
+branch: <git-branch>
+timestamp: <ISO-8601 UTC>
+consumer: implement
+geniro_kind: state-handoff
+geniro_schema_version: m6-v1
+task_slug: review-<branch>
+phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
+status: <in-progress|done|failed>
+mode: <standard|tdd>
+round: <int>
+risk-tier: <standard|high>
+pr-ref: <owner/repo#num|null>
+pr-url: <https://...|null>
+pr-head-sha: <40-char SHA|null>
+pr-title: <verbatim title|null>
+pr-body: <verbatim body|null>
+plan-context-ref: <abs-path|null>
+linear-task-ref: <ENG-123|null>
+linear-parent-ref: <ENG-100|null>
+simplify-mode: <true|false>
+resolved-threads-snapshot: [<path:line entries|null>]
+approvals: []
+non-resumable-actions: []
+---
 
-If `backpressure.sh` is unavailable, run directly: `<project test command> <test path> 2>&1 | tail -80`.
-
-Capture exit code:
-- Non-zero (red) → test STILL fails on independent re-run → keep authored test on disk; tag the corresponding finding `[CONFIRMED-BY-TEST]`.
-- Zero (green) → test passes on independent re-run despite agent reporting it red → likely flake or framework issue. Note "[test path] flipped green on independent re-run" under `## Caveats`. Do NOT delete the test (the user reviews authored tests in Phase 6); do NOT tag the finding `[CONFIRMED-BY-TEST]`.
-
-Never trust the agent's red/green claim alone — the orchestrator's independent re-run IS the gate.
-
-**Step 5: Demote-don't-delete logic for findings whose tests cannot reproduce.**
-
-For each eligible finding, correlate to the agent's report by matching its `Targeted source` field against the finding's `path:lines` (proximity match — same file, overlapping line range). Then act per this table:
-
-| Agent's report block | Action on the matching review finding |
-|---|---|
-| `### Authored Failing Tests` (F→P-confirmed by orchestrator re-run in Step 4) | Tag finding `[CONFIRMED-BY-TEST]` in its severity section. Annotate per-finding line with `confirmed-by: <test path>`. Keep severity unchanged. |
-| `### Discarded Hypotheses` with reason "passed on current code" | DEMOTE: remove from current severity section; add to `## Filtered` with reason `test-gate-cannot-reproduce`. Tag `[CHALLENGED-BY-TEST]`. Preserve original severity in the line so the user can re-elevate if they disagree with the test. |
-| `### Inconclusive` (flaky / framework limitation) | Keep finding unchanged in its severity section. No tag. (The signal is "agent could not decide", not "finding is wrong".) |
-| No matching hypothesis at all | Keep finding unchanged. Agent did not attempt this finding (likely deprioritized below the hard cap of 10 authored tests). Orchestrator does NOT infer either way. |
-
-The demote-don't-delete rule is non-negotiable: a green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test fails for the wrong reason ([PoC-Gym, arXiv 2602.04165](https://arxiv.org/html/2602.04165v1)). Preserving the finding in `## Filtered` lets the user re-elevate it if they disagree with the test.
-
-**Step 6: Fail-open.**
-
-If the adversarial-tester-agent fails to complete, returns malformed output, its report cannot be parsed, or the orchestrator's Step 4 re-run command itself errors (test framework not installed, exec error), do NOT revoke any findings and do NOT add `[CONFIRMED-BY-TEST]` tags. Surface "test-gate fail-open — bug confirmation skipped for this run" under `## Caveats` in the final report. Mirrors Phase 4b validator and relevance-filter fail-open semantics.
-
-## Input Formats
-
-- **Files**: `review src/auth.js src/db.js`
-- **Git diff**: `review HEAD~5..HEAD`
-- **Branch**: `review feature/auth`
-- **PR ref**: `review #1234`, `review 1234`, or `review https://github.com/org/repo/pull/1234` — fetched via `gh pr diff <number-or-url>`; requires `gh` and a GitHub remote. For a PR in a different repo, use the full URL.
-- **Current changes**: `review` (no args = unstaged + staged changes)
-
-## Output Structure
-
-```
-## Review Summary
-- Files analyzed: N
-- Issues found: N (CRITICAL: X, HIGH: Y, MEDIUM: Z)
-- Overall confidence: XX%
-
-## Critical Issues (MUST FIX)
-### [CRITICAL] [NEW] Issue Title
-- File: path/to/file.js:42-48
-- Severity: [security|logic|performance]
-- Decision Type: one of [FIX-NOW] mechanical/low-risk, [TESTABLE] edge case worth a test, [PRODUCT-DECISION] multiple valid paths needing human triage, [INTENT-CHECK] verify against plan before treating as bug (auto-applied by Phase 4 Step 0). Defs+examples: see plan-context-reference.md.
-- Finding: [specific description]
-- Evidence: [code snippet or pattern]
-- Recommendation: [action to take]
-- Confidence: 95%
-
-## High Priority Issues
-[Same format]
-
-## Medium Priority Issues
-[Same format]
-
-## Intent Checks (verify against plan before treating as bugs)
-[Findings auto-demoted from `[DIVERGES-FROM-PLAN-*]` or `[ALIGNS-WITH-PLAN-*]` by Phase 4 Step 0. Each entry cites the plan decision (e.g., D-09) and the apparent divergence. Human triage decides whether the divergence is intentional (close), a doc gap (update plan), or a real bug (re-elevate to MEDIUM/HIGH). Omit section when empty.]
-
-## Filtered by Relevance (not applicable to this repo)
-[List of findings that were filtered with 1-line reasons — e.g., "over-engineering for this repo's complexity level", "contradicts established repo pattern"]
-
-## Caveats (TRUNCATED dimensions from Phase 4 Step −1; subagent failures, e.g., relevance-filter fail-open or per-finding validator fail-open — omit section when empty)
-
-## Review Confidence
-- Bugs analysis: 92%
-- Security analysis: 88%
-- Architecture analysis: 85%
-- Tests analysis: 90%
-- Optimizations analysis: 88%
-- Guidelines analysis: 94%
-- Conventions analysis: 87%
-- Design analysis: XX% (when UI files present)
-- PR-metadata analysis: XX% (when input was a PR ref)
-- Judge validation: 89%
-```
-
-## Confidence Scoring Rules
-
-These rules expand the Phase 4 judge scoring. Baseline is always the reviewer's reported confidence, not a fixed 100.
-
-1. **Adjustments to the reviewer's reported confidence:**
-   - Issue reproduces from source: no change (or raise toward 100 if the reviewer under-scored)
-   - Mitigating context/exception: −10 to −30
-   - Same code appears in 3+ other places unchanged (pattern elsewhere): −40
-   - Judge cannot reproduce the issue from source (false positive): set to 0, rejected
-
-2. **Filter Threshold**: 80 confidence minimum
-   - Above 80: include in report
-   - 70-79: mention in "minor" section only
-   - Below 70: discard (too noisy)
-
-3. **Classification**:
-   - CRITICAL: security vulnerability OR logic bug with high impact
-   - HIGH: architecture issue OR pattern in multiple places OR test gap
-   - MEDIUM: style/documentation OR low-impact suggestion
-
-## Parallel Execution Strategy
-
-All 7 always-on reviewers (+1 design when UI files present, +1 pr-metadata when input was a PR ref — up to 9) are spawned as independent `reviewer-agent` instances via the Agent tool:
-- Each agent receives ONE criteria file, the changed files, and the diff context
-- All reviewers (or more in batched mode) are spawned in ONE response — all Agent() calls in the same assistant turn, NOT one per turn
-- Each reviewer is a leaf agent — it cannot spawn sub-agents (by design)
-- Relevance filter checks findings against repo conventions, then judge pass confidence-scores the remaining findings
-
-## Common False Positives to Avoid
-
-- **Defensive coding confusion**: Extra null checks aren't always wrong (context matters)
-- **Async complexity**: Async/await or promises aren't inherently bad
-- **Temporary/debug code**: Check if code is intentionally disabled
-- **Third-party integration**: Don't flag patterns required by external APIs
-- **Legacy compatibility**: Old patterns may exist for backwards compatibility
-- **Configuration-driven behavior**: Don't flag behavior that's configurable elsewhere
-
-## Tips for Best Results
-
-1. Review focused changes (single feature/fix) yields better results than large refactors
-2. Provide context: mention what changed and why in your input
-3. Review diff ranges rather than whole files when possible
-4. Read critical findings' source code to understand context
-5. CRITICAL+HIGH findings are actionable; MEDIUM are suggestions
-6. Confidence scores guide priority, not absolute judgment
-7. For large PRs (20+ files): batched mode activates automatically, splitting files across reviewer agents for better accuracy
-8. If you see quality drop on large reviews, try splitting into smaller review runs (e.g., review backend files separately from frontend)
-
-## Integration with CI/CD
-
-Can be used in pull request checks:
-- Run on feature branch: `review feature/my-feature`
-- Compare to main: `review main..feature/my-feature`
-- Output can be formatted for GitHub comments, Slack, or email
-- Threshold-based gating: block merge if CRITICAL findings exist
-
-## Example Workflow
-
-See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for a worked end-to-end example.
-
-## Phase 5: Persist Findings to State
-
-Write judge-validated findings to a state artifact so the next skill (or a resumed session) can consume them without re-running review. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline owns its own remediation loop).
-
-**File:** `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` — single file per branch, overwritten on each run. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the file (and its `[POSTED-TO-PR]` idempotency markers) survives worktree teardown.
-
-**Schema (markdown with named sections):**
-
-````
-# Review Findings — <ISO 8601 timestamp>
+# Review: <topic / branch>
 
 ## Summary
-- branch: <current branch>
-- mode: <standard | tdd>                       # set by Phase 1 mode-flag detection or Mode AUQ; consumed by Phase 4c default-highlighting and Phase 6 PR-comment filter. Default `standard` when neither flag nor AUQ resolved.
-- round: <integer>                           # round counter, auto-incremented from prior state-file's `round:` value; defaults to 1 on first review of this PR
-- prior-round-summary: <verbatim summary or "none — first review">   # populated by Phase 1 Step 0.5 from the prior-round state file's CRITICAL+HIGH findings (path:lines + one-line description per finding, capped at ~3000 chars mirroring `${CLAUDE_SKILL_DIR}/plan-context-reference.md` cap rationale); consumed by Phase 2 reviewer prompts as the `PRIOR-ROUND FINDINGS:` slot so reviewers focus on what prior rounds missed. When reading state files that predate this field, treat the missing key as `prior-round-summary: none` and treat `round: 1` (first review).
-- risk-tier: <standard | high>               # set by Phase 1 Step 0.7 by checking changed files against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for Hard Escalation Signals" (9 canonical signals); when `high`, Phase 4 drops the confidence threshold to ≥70, Phase 4b validates all HIGH findings (not just ≥2 HIGH), and the spec-compliance reviewer fires by default when PLAN CONTEXT is non-`none`
-- input: <files | diff range | PR ref>
-- pr-ref: <#N | full PR URL | none>           # populated only when input was a PR ref; consumed by the Phase 6 Action gate as the predicate that decides whether the "Post findings as Draft PR review" option is rendered (none = option omitted). When reading state files written by `/geniro:review` invocations that predate the addition of `pr-ref:` tracking (grep `git log -- skills/review/SKILL.md` for the introducing commit when the anchor matters), treat the missing key as `pr-ref: none` and omit the Post option.
-- pr-url: <https://github.com/.../pull/N | none>  # canonical URL from `gh pr view --json url`; used in user-facing messages and as the audit-trail link for `posted-to-pr:` markers
-- pr-head-sha: <40-char SHA | none>           # `headRefOid` snapshotted at Phase 1; pinned as `commit_id` on the GitHub reviews API call to prevent line-anchor drift if the PR updates mid-review
-- pr-title: <verbatim PR title | none>        # captured at Phase 1 from `gh pr view --json title`; consumed by the pr-metadata reviewer at Phase 2 and any cross-skill consumer (e.g., `/follow-up` re-firing pr-metadata after a fix) so they do not need to re-call `gh pr view`. When reading state files written by `/geniro:review` invocations that predate this field, treat the missing key as `pr-title: none` and re-fetch via `gh pr view <pr-ref> --json title --jq .title` if needed.
-- pr-body: <verbatim PR body, escaped for YAML | none>   # captured at Phase 1 from `gh pr view --json body`; same consumers as `pr-title:`. Multi-line bodies render as a YAML block scalar (`|`) per the schema's YAML-compat convention. When reading state files that predate this field, treat the missing key as `pr-body: none` and re-fetch via `gh pr view <pr-ref> --json body --jq .body` if needed.
-- resolved-threads-snapshot: <list of "path:line" entries | none>   # captured at Phase 1 Step 0 from the same `reviewThreads(first: 100)` fetch that computes K; includes nodes where `isResolved == true && isOutdated == false`. Consumed by the Phase 6 Action == Post drill's input-side dedup step to filter findings whose `path:lines` overlaps a resolved-and-current thread — those findings receive an `[ALREADY-RESOLVED-ON-PR]` tag and are excluded from the post set (the PR author already decided this thread is closed; re-posting the same concern is noise). Empty list (no resolved threads) renders as `none`. When reading state files written by `/geniro:review` invocations that predate the addition of `resolved-threads-snapshot:` (grep `git log -- skills/review/SKILL.md` for the introducing commit when the anchor matters), treat the missing key as `resolved-threads-snapshot: none` and skip the input-side dedup step.
-- files analyzed: N
-- counts: CRITICAL=X, HIGH=Y, MEDIUM=Z
-- build: pass | fail | not-run
-- suggested next stage: /geniro:implement | /geniro:follow-up | none
+- Branch: <branch>
+- Mode: <standard|tdd>
+- Round: <N>
+- Risk-tier: <standard|high>
+- Dimensions spawned: [<list>]
+- Mechanical pre-pass: [lint:N, schema:M, secrets:K]
+- Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
 
-# Per-finding line schema (used by CRITICAL, HIGH, MEDIUM, and Intent sections — `decision:` applies to ALL severities, not just CRITICAL):
-#   - [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN%
-#   - When `decision: PRODUCT-DECISION`, the line is followed by indented sub-fields: `options:` sub-list (one bullet per option, copied verbatim from the reviewer-agent's `Options:` field — see `agents/reviewer-agent.md` §Output Format) AND the body fields `evidence:`, `why-matters:`, `suggested-fix:` (copied verbatim from the reviewer-agent's `Evidence:` / `Why this matters:` / `Suggested fix:` fields). Phase 6 Step 0 and downstream `/follow-up` Phase 5 Step 2 / `/implement` Phase 6 Fix-Loop pre-step consumers read these sub-fields to populate `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The user's chosen option text replaces the line's `recommendation:` field; the `options:` sub-list and the body sub-fields are preserved as audit trail and as the cross-skill handoff for `preview` rendering.
-#   - [CONFIRMED-BY-TEST] is appended by Phase 4c when the orchestrator's independent re-run confirms the agent-authored test fails today; line also gains `confirmed-by: <test path>`.
-#   - [CHALLENGED-BY-TEST] appears only in the `## Filtered` section (finding moved there by Phase 4c when the test passed on current code); the original severity is preserved in-line so the user can re-elevate.
-#   - [POSTED-TO-PR] is appended by the Phase 6 Action gate's Post path (Step 5) after a finding has been successfully posted to the PR; line also gains `posted-to-pr: <inline-comment-URL>`. The orchestrator MUST skip findings already carrying this tag on subsequent runs of `/geniro:review` against the same PR — this is the idempotency contract that prevents duplicate comments on re-runs (no API hash-diff needed; the marker IS the dedupe key).
-#   - [ALREADY-RESOLVED-ON-PR] is appended by the Phase 6 Action == Post drill's input-side dedup step (Step 1.5 below) when a finding's `path:lines` overlaps an entry in the Phase 5 state file's `resolved-threads-snapshot:`. Excluded from the post set — the PR author already resolved this thread, and re-surfacing the same concern is noise (mirrors Cloudflare's "respect user-resolved findings unless materially worsen" pattern). The finding remains visible in the local report's severity sections and in the `## Filtered` section with `reason: already-resolved-on-pr`; it is not deleted, so the user can manually re-elevate if they believe the resolution is wrong.
+## Findings
 
-## CRITICAL
-- [NEW] path/to/file.ext:42-48 — <description> — decision: FIX-NOW — recommendation: <action> — confidence: 95%
-- ...
+### CRITICAL
+<list>
 
-## HIGH
-- [NEW] path/to/file.ext:80-92 — <description> — decision: PRODUCT-DECISION — recommendation: <action> — confidence: 88%
-  options:
-    - <Label A> — <one-line trade-off>
-    - <Label B> — <one-line trade-off>
-  evidence: |
-    <2-5 line code snippet copied from the reviewer-agent's Evidence: field>
-  why-matters: <one-sentence impact, copied from the reviewer-agent's "Why this matters:" field>
-  suggested-fix: |
-    <synthesis text copied from the reviewer-agent's "Suggested fix:" field>
-- ...
+### HIGH
+<list>
 
-## MEDIUM
-- [NEW] path/to/file.ext:120-125 — <description> — decision: TESTABLE — recommendation: <action> — confidence: 82%
-- ...
+### MEDIUM
+<list>
 
-## Intent
-- [NEW] path/to/file.ext:200-210 — <description> — decision: INTENT-CHECK — plan-citation: D-09 "<one-line decision quote>" — recommendation: <verify or close> — confidence: 90%
-- ...
+## Deferred — sub-threshold
+<list, surfaced for user awareness>
 
-## Filtered
-- path:line — <description> — reason: relevance | validation | confidence-below-threshold | test-gate-cannot-reproduce
-- [CHALLENGED-BY-TEST] path:line — <description> — reason: test-gate-cannot-reproduce — original-severity: <CRITICAL|HIGH|MEDIUM> — challenged-by: <test path>
+## Tool log
+<per Block 2 — reviewer spawns + side-effects>
 
-## Authored Tests (Phase 4c — AI-authored, F→P-verified, ready for triage by user)
-- path/to/foo.edge.test.ts — confirms: <finding path:line> — confidence: NN%
-- path/to/bar.async.test.ts — confirms: <finding path:line> — confidence: NN%
-````
+## Errors
+<per Block 5b — failed spawns, gh fail-open, mechanical-prepass failures>
 
-Write the file even when zero actionable findings remain (empty severity sections, `suggested next stage: none`) — the artifact's existence signals "review ran, nothing to fix" to downstream skills and resumed sessions.
+## Open Questions
+<per Block 5c — escalation-required items, ambiguous findings>
 
-**Root-cause gate disposition (fires when any `[SYMPTOM]` finding survives Phase 4c).** After persisting findings, scan the kept set for any finding carrying `cause: SYMPTOM` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` persistence schema). For each such finding, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding (sequentially, never batched into a multi-select). The gate's result handling re-tags the finding as `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` (rewriting the `cause:` field in the state file) or halts the skill for `/geniro:debug` escalation. Skip silently when zero `[SYMPTOM]` findings survive. The gate fires BEFORE Phase 6's Action gate so that the user's per-symptom decisions are reflected in the routing options Phase 6 surfaces.
+## Termination reason
+<per — only on aborted | escalated state>
 
-## Phase 5b: Learn & Improve
-
-Extract knowledge and suggest project-scope improvements after delivering findings. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent pipeline handles learnings in Phase 7).
-
-See `${CLAUDE_SKILL_DIR}/learnings-reference.md` for the full procedure (extract recurring anti-patterns, false positives, and user corrections; route project-scope improvements to CLAUDE.md / knowledge / project rules / custom instructions; offer via `AskUserQuestion`).
-
-## Phase 6: Suggest Remediation
-
-After Phase 5b, surface the next skill to fix what was found. **Skip when `/geniro:review` is called as a sub-phase within `/geniro:implement`** (parent owns its own fix loop), or when there are no actionable findings (CRITICAL + HIGH + MEDIUM all zero after Phase 4b).
-
-**Gate chain — fire each gate as a separate `AskUserQuestion` call (NEVER fuse).** Phase 6 surfaces up to 3 sequential top-level gates. Each one decides a different thing and MUST be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates. The chain in firing order:
-
-1. **Step 0 — Open-decision (per finding):** fires once per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
-2. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. The user picks ONE next step: escalate locally via `/geniro:implement` or `/geniro:follow-up`, post findings as a Draft PR review, or skip. Posting is one option among the four; the user picks at most one path. When "Post findings as Draft PR review" is selected, a granularity sub-question (Send-all vs Pick) drills before any `gh api` call — that drill is part of the Action gate's Post path, NOT a separate top-level gate.
-3. **Failing tests:** fires once when the Phase 5 state file's `## Authored Tests` section is non-empty — picks the commit policy for the AI-authored tests. Skipped otherwise. Firing order relative to the Action gate is **conditional on the Action choice**:
-   - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (Steps 1.5-6). Reason: the GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree with `Validation Failed: path could not be resolved` (especially fragile for brand-new test files — [github/community#182495](https://github.com/orgs/community/discussions/182495)). Comments authored by Phase 4c reference test paths that exist only in the local worktree until the push lands. Push must precede `gh api` POST for those comments to validate. After the push, Step 4 re-fetches the head SHA per its head-SHA freshness rule.
-   - **Action != Post (Implement / Follow-up / Skip), OR `## Authored Tests` empty:** Failing-tests fires AFTER the Action gate's path completes (Action's path is a no-op for non-Post choices, so "after" is effectively immediate). No API-call ordering constraint applies.
-
-Sequential: do not fire gate N+1 until gate N's answer is collected. Verbatim: render each gate's question text and options exactly as defined in the corresponding sub-section below — do not condense to a single "what next?" prompt even when multiple Skip paths look identical.
-
-**Step 0: Open-decision gate (per-finding, Always-WAIT).** Before recommending which skill to run, surface every `decision: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; you NEVER pick on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
-
-For each kept finding with `decision: PRODUCT-DECISION` (read from `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`):
-
-1. Read the finding's `Options:` sub-list AND the body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) from the per-finding line in the state file (see Phase 5 per-finding line schema above for the persisted shape).
-2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. Set `header: "Open decision"`. Render the `question` text with the finding's severity / `path:lines` / short-title / decision-type / `why-matters` line per the spec's Source-field map; render each option's `label`+`description` from the finding's `options:` sub-list bullets; render each option's `preview` with the finding body (Evidence / Suggested-fix / Confidence / Origin). Do NOT collapse this rendering to label + 1-line description — the body in `preview` is what gives the user enough context to actually pick a resolution path.
-3. Update the finding line in `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`: replace the `recommendation:` field with the user's chosen option text. Preserve all other fields (including `options:`, `evidence:`, `why-matters:`, `suggested-fix:`). The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding.
-
-When more than 4 PRODUCT-DECISION findings exist, OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`, chain `AskUserQuestion` calls per the cap-extension pattern documented in the "Failing tests" `AskUserQuestion` block later in Phase 6 — chain questions; never split or drop options. The canonical body schema applies identically to every chained call.
-
-This gate is **Always-WAIT** in every mode (see `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `[PRODUCT-DECISION] finding encountered` row). If `AskUserQuestion` returns an empty answer, fall back to plain text and re-ask — never default to the reviewer's synthesis.
-
-Skip this Step 0 entirely when zero PRODUCT-DECISION findings remain after Phase 4 judge.
-
-**Action gate (Always-WAIT — replaces the legacy Remediate + PR-comments consent gates).** This is the consolidated top-level decision: the user picks ONE next step. Use `AskUserQuestion` (do NOT print options as plain text) with header "Action". Mark the severity-recommended escalation option with "(Recommended)" in its label.
-
-**Severity-driven recommendation (must match the Phase 5 state file):**
-- Any CRITICAL OR ≥2 HIGH findings → `/geniro:implement` is "(Recommended)"
-- 0 CRITICAL AND ≤1 HIGH findings → `/geniro:follow-up` is "(Recommended)"
-
-**Question:** "How should I proceed with the N findings?"
-
-**Options (≤4 per the AUQ cap):**
-- **Run /geniro:implement** — escalate locally; full multi-agent pipeline. Pre-load findings from `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`.
-- **Run /geniro:follow-up** — escalate locally; fast lane for trivial/small scope. Pre-load findings from the same file.
-- **Post findings as Draft PR review** — present ONLY when the Phase 5 state file's `pr-ref:` is non-`none` AND at least one finding remains unposted (no `[POSTED-TO-PR]` tag from a prior run). On selection, drill into the granularity sub-question (Step 2 below) before any `gh api` call. **Posting is an external write to a public surface — the skill never posts without explicit approval, and picking this option IS the approval.** This option's selection plus the granularity drill replace the old two-step Consent → Granularity chain; do not re-fire a separate "PR comments" consent AUQ.
-- **Skip — I'll handle it manually** — no further action; state file remains for reference.
-
-When `pr-ref: none` OR zero unposted findings remain, the "Post" option is omitted entirely (3 options: implement / follow-up / skip). When `/geniro:review` was invoked as a sub-phase of `/geniro:implement` (parent pipeline owns its own remediation+posting), this whole gate is skipped per the Phase 6 entry condition above. The Action gate is mutually exclusive — the user chooses ONE path; running both /implement and Post in the same review session requires re-running the skill.
-
-Do NOT auto-invoke /implement or /follow-up — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel. When the user picks "Post findings as Draft PR review": if `## Authored Tests` is non-empty, fire the **Failing-tests gate first** (per the gate-chain firing-order rule in the Phase 6 preamble — the push must land before the `gh api` POST so the comment paths resolve), then continue to Step 2 (granularity) and the posting steps below; if `## Authored Tests` is empty, continue directly to Step 2. When the user picks any other Action (Implement / Follow-up / Skip), the Action gate is complete and Phase 6 proceeds to "Failing tests" AFTER the Action gate (when authored tests exist).
-
-**When `## Authored Tests` is non-empty, fire a separate `AskUserQuestion` with header "Failing tests"** — chained per the firing-order rule in the gate-chain preamble at the top of this phase. Summary: when the user picked **Post** in the Action gate, Failing-tests fires BEFORE the Post drill (Steps 1.5-6) so that any test files the user opts to push land before `gh api` posts comments referencing those paths — without the push-first ordering the reviews API rejects the comments with `path could not be resolved`. For any other Action choice (Implement / Follow-up / Skip), Failing-tests fires AFTER the Action gate. The cap-extension pattern still applies — chain questions, do not split or drop existing options. **Skip when the `## Authored Tests` section is empty** (the sub-phase-of-`/geniro:implement` carve-out is inherited from the Phase 6 entry condition above and does not need to be restated per gate).
-
-- **Question:** "How should the N failing tests authored by Phase 4c be handled? They are AI-authored — review before merging. If you just chose to post findings as a Draft PR review, the comment bodies reference these test files by path — pushing them to the PR's branch is what makes those references resolve for PR reviewers."
-- **Header:** "Failing tests"
-- **Options:**
-  - "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. Keeps the failing tests on the same branch where review ran so the chosen remediation skill picks them up immediately. **Recommended in Standard mode and in TDD mode without a PR ref — except when the user just selected "Post findings as Draft PR review" in the Action gate, in which case the commit+push option is Recommended instead so the test paths cited in the posted comment bodies resolve on the PR.**
-  - "Commit + push to current branch's upstream" — same as commit-only, then `git push`. If the branch has no upstream, surface the exact `git push -u origin <branch>` command and ask the user to confirm before running it. **Recommended in TDD mode when a PR ref is present, and also Recommended in any mode when the user just selected "Post findings as Draft PR review" in the Action gate** — in the Post-selected case the recommendation is load-bearing, not cosmetic: the subsequent `gh api` POST at Step 4 references the test paths in inline comment bodies, and the reviews API rejects comments whose `path` is absent from `commit_id`'s tree. If the user picks any non-push option (Leave uncommitted / Commit only — no push) in the Post-selected path, Step 4 will detect the unpushed test paths and surface a one-line warning before the API call, then proceed with the post; the affected inline-comment references will not resolve on the PR UI until the user manually pushes.
-  - "Leave uncommitted" — tests stay on disk for the user to review and stage manually.
-
-Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
-
-**Action == Post drill (PR-ref input only).** When the user picked "Post findings as Draft PR review" in the Action gate above: fire the **Failing-tests gate first** when `## Authored Tests` is non-empty (per the gate-chain firing-order rule in the Phase 6 preamble — push lands before `gh api` POST so comment paths resolve against `commit_id`'s tree); then continue with Steps 1.5-6 below to render the granularity prompt, build the comment set, post via the GitHub reviews API, and persist `[POSTED-TO-PR]` markers. When `## Authored Tests` is empty, skip the Failing-tests-first step and go straight to Step 1.5. When the user picked any other Action path (or the "Post" option was omitted entirely because `pr-ref: none` / zero unposted findings / sub-phase invocation), skip Steps 1.5-6 entirely and proceed to "Failing tests" (when applicable) and then cleanup. The legacy two-step "PR-comments Consent (Q1) → Granularity (Q2)" chain has been collapsed: Action gate's "Post" selection IS the consent (no separate Q1 fires); Q2 (granularity) is preserved as Step 2 below.
-
-**Step 1.5 — Resolved-thread dedup (input-side filter).** Before showing eligible findings to the user, exclude findings whose `path:lines` overlaps an entry in the Phase 5 state file's `resolved-threads-snapshot:`. Overlap rule: a finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B` (or `P == Q` AND `A == L` for single-line findings). Path equality is required — a finding in `src/a.ts:42` MUST NOT match a snapshot entry in `src/b.ts:42`. For each finding that matches, append `[ALREADY-RESOLVED-ON-PR]` to its tag list in the state file and add a `reason: already-resolved-on-pr` annotation when moving it to `## Filtered`. The Step 2 granularity AUQ and Step 3 per-finding gate count only non-excluded findings — the user never sees a finding that we're about to silently drop. When `resolved-threads-snapshot:` is `none` (state-file field absent or empty), Step 1.5 is a no-op — pass all findings through unchanged. Rationale: re-flagging issues the PR author already resolved is noise; respect their resolution unless they manually re-elevate the filtered finding. The local report keeps the finding visible (severity-sections + Filtered section); only the PR-comment post set is filtered. When Step 1.5 empties the post set (every eligible finding is tagged `[ALREADY-RESOLVED-ON-PR]`), fall back to Skip semantics — do not call the `gh api` POST at Step 4; surface `All eligible findings overlap already-resolved threads — nothing drafted on PR` once in chat. Mirrors Step 3.5's empty-post-set fallback for TDD mode (both empty-set conditions land at the same Skip path; Step 4 is reached only when the post set is non-empty).
-
-**Step 2 — Granularity gate (fires only when the Action gate's "Post findings as Draft PR review" was selected):** Chain a follow-up `AskUserQuestion` with header "Post mode":
-
-- **Question:** "Send all kept findings in a single batched review, or pick which ones to post?"
-- **Options:**
-  - "Send all (Recommended)" — single batched review event minimizes per-finding `AskUserQuestion` calls (one decision instead of N) and dodges secondary rate limits with a single POST
-  - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include
-
-**Step 3 — Per-finding gate (fires only on "Pick one-by-one"):** Iterate over the eligible-findings list (already filtered by Steps 1.5 resolved-thread dedup, and Step 3.5 TDD post-set filter when applicable). For each finding, fire ONE `AskUserQuestion` per the canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The pattern is a **calling-skill-set fixed menu** — the finding's own `Options:` field (which only PRODUCT-DECISION findings carry) is ignored; the calling-skill menu is the three options below.
-
-- **`header`**: `"Post finding?"` (short chip label).
-- **`question`** (multi-line markdown, rendered per the helper's Source-field map — pull from in-memory reviewer-agent output since Phase 6 PR-comment runs in the same invocation that produced findings):
-  ```
-  **<SEVERITY>** `path:lines` — <short title> — decision: <type>
-
-  **Why this matters:** <1-sentence impact from the reviewer-agent's Why-this-matters: field>
-
-  Post this finding to the PR as an inline comment, or skip?
-  ```
-- **`options[]`** (three fixed options, identical for every finding in the loop):
-  - `"Post this finding"` — adds the finding to the post set; iteration continues to the next eligible finding.
-  - `"Skip this finding"` — omits the finding from the post set; iteration continues to the next eligible finding.
-  - `"Stop posting (skip remaining)"` — exit the loop entirely; all unseen findings are treated as Skip. Mitigates approval fatigue when the user has seen enough and trusts no further postings are warranted (or when an early finding flips their judgment on the whole batch).
-- **`preview`** (rendered identically on every option per the helper — the body is per-finding, not per-option): the finding's full body block (`## Evidence` codeblock from the reviewer-agent's `Evidence:` field / `## Suggested fix` synthesis from the reviewer-agent's `Suggested fix:` field / `## Confidence` NN% / `## Origin` `[NEW]` or `[PRE-EXISTING]`). The Evidence codeblock and Suggested-fix synthesis are what give the user enough context to actually decide post-vs-skip without re-reading the source file.
-
-After the loop completes (or the user picked "Stop posting"), the aggregated post set is the union of findings where the user picked "Post this finding". If the post set is empty (every finding was Skip / Stop posting was picked before any Post), treat as Skip and proceed without firing the `gh api` POST at Step 4 — surface `No findings selected for posting — nothing drafted on PR` once in chat, then continue to Failing-tests (when applicable) and cleanup. This per-finding gate replaces the prior multi-select Pick loop; the multi-select shape remains canonical for Phase 4c Step 2's "Let me pick" branch but is no longer the Phase 6 PR-comment Pick pattern.
-
-**Step 3.5 — TDD-mode post-set filter.** When the state-file `mode:` is `tdd`, filter the post set so that findings whose `decision:` is `TESTABLE` and which lack a `[CONFIRMED-BY-TEST]` tag are excluded (they remain visible in the local report's severity sections; they are not posted to the PR). Findings retained for posting in TDD mode: (a) any finding tagged `[CONFIRMED-BY-TEST]`, regardless of decision-type; (b) any finding whose `decision:` is `PRODUCT-DECISION` or `INTENT-CHECK` (no executable behavior to gate on); (c) findings whose `decision:` is `FIX-NOW` AND which match the "Runtime-behavior classification" rule's NON-runtime branch (no runtime behavior to test against — see Phase 4c Step 1's classification rule, the single source of truth). When the filter empties the post set, fall back to Skip semantics — do not post anything; surface "TDD mode: no F→P-confirmed findings — nothing drafted on PR" once in chat. In Standard mode (`mode: standard`), this step is a no-op — every kept finding stays in the post set as today.
-
-**Step 4 — Post via the GitHub reviews API.** Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url` (canonical form `https://github.com/<owner>/<repo>/pull/<N>` — extract with e.g. `awk -F/ '{print $4"/"$5}'` for `owner/repo` and `awk -F/ '{print $7}'` for `<number>`; the `pr-ref` field is preserved verbatim from user input and is NOT parsed in this step). Pass the snapshotted `pr-head-sha` as `commit_id` — but see the head-SHA freshness rule immediately below first. ONE `gh api` call posts the entire review (Send-all mode = N comments in one review event; Pick mode = the user-selected subset in one review event). Omit `event` entirely from the jq payload — the review is created in PENDING state (visible only to the reviewer on github.com's "Finish your review" panel; no notifications fire until the human explicitly submits it). Never set `event` to `APPROVE`, `REQUEST_CHANGES`, or `COMMENT` — pending preserves the skill's reviewer-not-authorizer contract and gives the human a chance to discard or amend the draft before publishing. `event: "PENDING"` is INVALID (the API only accepts APPROVE/REQUEST_CHANGES/COMMENT); omission is the correct mechanism.
-
-**Head-SHA freshness — re-fetch when authored tests were just pushed.** When the Phase 6 Failing-tests gate fired BEFORE this step (see Phase 6 preamble gate-chain firing order) and the user picked "Commit + push to current branch's upstream", the local push advanced the PR's head past the `pr-head-sha` snapshotted in Phase 1. Re-fetch the current head via `gh pr view <pr-ref> --json headRefOid --jq .headRefOid` and use the returned value as `commit_id` for the `gh api` POST below. Without this re-fetch, the API call carries a stale SHA that does not include the newly-pushed test files, and the reviews API rejects comments whose `path` is not present in `commit_id`'s tree with `Validation Failed: path could not be resolved` (documented at [github/community#182495](https://github.com/orgs/community/discussions/182495); this is especially fragile for brand-new files). Also overwrite the Phase 5 state file's `pr-head-sha:` field with the re-fetched value so subsequent runs read the post-push SHA. When Failing-tests fired AFTER this step (no authored tests, or user picked "Leave uncommitted" / "Commit only — no push") OR when input had no authored tests at all, the original Phase 1 `pr-head-sha` is still current — no re-fetch needed.
-
-**Split the post set into inline-anchored vs top-level findings.** Before composing JSON, partition the post set into three groups based on each finding's `File:` field:
-- Findings with `File: <path>` (concrete file path with `:lines` anchor) → inline `comments[]` array; one element per finding as documented below.
-- Findings with `File: PR-METADATA` (sentinel set by the pr-metadata reviewer) → top-level review `body` text under the `## PR Metadata` section. PR-metadata findings have no `path:lines` anchor and cannot be posted as inline comments — they describe the PR's own title or description, not source lines.
-- Findings with `File: SPEC-COMPLIANCE` (sentinel set by the spec-compliance reviewer) → top-level review `body` text under the `## Spec Compliance` section. Spec-compliance findings have no `path:lines` anchor and cannot be posted as inline comments — they describe what's missing from the diff relative to the spec, not source lines.
-
-The top-level `body` is constructed by concatenating: (1) the existing summary header (`"Code review — <N> findings (CRITICAL: X, HIGH: Y, MEDIUM: Z)"`), followed by (2) a `\n\n## PR Metadata\n\n` section with one block per PR-metadata finding rendered as `**<SEVERITY>** — <description>\n\n**Recommendation:** <recommendation>\n\n**Evidence:** <evidence excerpt from the finding's Evidence: field>`, followed by (3) a `\n\n## Spec Compliance\n\n` section with one block per spec-compliance finding rendered in the same shape as the PR-metadata blocks (`**<SEVERITY>** — <description>\n\n**Recommendation:** <recommendation>\n\n**Evidence:** <evidence excerpt from the finding's Evidence: field>`). Omit either `## PR Metadata` or `## Spec Compliance` section entirely when no findings of that type exist in the post set. The PR-comment body content rules (below) apply identically to both blocks — no plugin branding, no decision-type tags, no phase-name references.
-
-The full review body is composed as JSON via `jq` and piped to `gh api --input -` (the `gh` flags `-f` / `--raw-field` send STATIC SCALAR string parameters and CANNOT carry a nested array — a JSON body with `comments[]` MUST be passed via `--input`):
-
-```bash
-jq -nc \
-  --arg sha "<pr-head-sha-or-re-fetched-sha>" \
-  --arg body "<concatenated-body: summary header + optional '## PR Metadata' section per the partition rule above>" \
-  --argjson comments '<comments-json — inline-anchored findings only; PR-metadata findings live in $body>' \
-  '{commit_id: $sha, body: $body, comments: $comments}' \
-  | gh api --method POST "/repos/<owner>/<repo>/pulls/<number>/reviews" --input -
+## Persisted approvals
+<per Block 5d — rendered from approvals[] frontmatter for user-readability>
+EOF
 ```
 
-The `<comments-json>` array is built from the post set. Each element:
+**T2 extensions for in-run state-tracking:** Canonical is a one-shot producer→consumer handoff. extends with `phase:`/`status:`/`round:`/`approvals[]` to enable mid-run compaction recovery. The file functions as a T2 handoff AT REST (after Phase 5 persist) and as a T1-like state file DURING THE RUN.
 
-```json
-{
-  "path": "<file path relative to repo root>",
-  "line": <last line in finding's path:lines range — comment anchor>,
-  "side": "RIGHT",
-  "start_line": <first line in finding's path:lines range, ONLY when range spans multiple lines; OMIT for single-line findings>,
-  "start_side": "RIGHT",
-  "body": "**<SEVERITY>** — <description>\n\n**Recommendation:** <recommendation>"
-}
+**Per-finding line schema** with origin tag:
+
+```
+- [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN% — origin: <llm:<dim>|mechanical:<check>>
 ```
 
-Range anchoring: GitHub's reviews API requires `line` (end of range) and accepts optional `start_line` + `start_side` to highlight a multi-line span. For a single-line finding (`path:42`), include only `line: 42`. For a range (`path:42-48`), include `line: 48`, `start_line: 42`, `start_side: "RIGHT"` so the inline comment highlights the full range in the GitHub UI. Build the comment object accordingly per finding — do NOT emit `start_line` for single-line findings (GitHub rejects `start_line == line`).
+### 5.2 Old state-file fallback
 
-Pull the rendered `body` fields (description, recommendation, severity) from the in-memory finding records — Phase 6 PR-comment posting runs in the same invocation that produced findings, so the full reviewer-agent output (including Evidence and Why-this-matters) is available without needing the state file. **For findings tagged `[CONFIRMED-BY-TEST]`, append `\n\n**Failing test:** \`<test-path>\`` to the rendered `body` string, pulling `<test-path>` from the finding's `confirmed-by:` field in the state file. The appended path is the project's actual test file (e.g., `tests/foo.test.ts`) — never a `.geniro/...` path. This applies in both Standard and TDD modes — wherever a confirming test exists, surfacing the test path is signal for the PR reviewer.** PRODUCT-DECISION rows additionally persist `evidence:`, `why-matters:`, `suggested-fix:` to the state file for cross-skill consumers (`/follow-up`, `/implement`) per the Phase 5 per-finding line schema; non-PRODUCT-DECISION rows do not persist body fields because no cross-skill AUQ surface needs them. Severity-badge rendering: `**CRITICAL**` (red emphasis) / `**HIGH**` (bold) / `**MEDIUM**` (italic-bold). The decision-type taxonomy (`FIX-NOW` / `TESTABLE` / `PRODUCT-DECISION` / `INTENT-CHECK`) and the agent's `confidence:` value are internal-only — they MUST NOT appear in the rendered comment body (see "PR-comment body content rules" below); they remain in the state file for cross-skill consumption.
+If a file exists at `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`, read it once on Phase 5 entry for resume compatibility, but always write to the canonical path. The old file is NOT auto-deleted (user may have references).
 
-**PR-comment body content rules (hard).** GitHub PR comments are public, audience-expanding output — different content discipline than the local report or chat. The comment body the orchestrator composes for each finding MUST contain ONLY: the severity badge, the finding's plain-language description, the recommendation, and (for `[CONFIRMED-BY-TEST]` findings) the appended `**Failing test:** \`<test-path>\`` line. The orchestrator MUST NOT add any of the following to the comment body or to the top-level review body:
+### 5.3 Phase 5b — L2 pitfall auto-emit (, replaces /learnings)
 
-- Plugin branding — the literal name `Geniro`, the `/geniro:` slash-command prefix, "_Generated by …_"-style footers, or any other reference to the plugin or skill that produced the review.
-- The decision-type tag — `[FIX-NOW]`, `[TESTABLE]`, `[PRODUCT-DECISION]`, `[INTENT-CHECK]` are internal taxonomy used for routing inside the pipeline; they do not belong in user-facing PR comments.
-- Pipeline phase names or process references — "Phase 4c", "judge pass", "relevance filter", "test-confirmation gate", "adversarial tester", "Phase 5 state file", and any similar phrasing that describes how the finding was produced rather than what the finding is.
-- Confidence numerics — no `*Confidence: NN%*`, no "agent says", no probability scores. The ≥80 confidence threshold is already applied at Phase 4 judge; a finding that reaches a PR comment is, by construction, above the bar.
-- State-file paths or schema references — `<PRIMARY_ROOT>/.geniro/...`, `${CLAUDE_PLUGIN_ROOT}/...`, `<CLAUDE_SKILL_DIR>/...`, the state-file path itself, the adversarial-tester report path, and field labels like `pr-head-sha:`, `pr-ref:`, `pr-url:`, `confirmed-by:`, `posted-to-pr:`, `mode:`, `decision:`.
-- User-decision artifacts — phrasings like "user picked X", "approved by user", "user opted into TDD mode", or anything else that surfaces the inside-the-pipeline approval flow.
-- Other internal tags — `[CONFIRMED-BY-TEST]`, `[CHALLENGED-BY-TEST]`, `[POSTED-TO-PR]`, `[NEW]`, `[PRE-EXISTING]`, `[ALIGNS-WITH-PLAN]`, `TRUNCATED`. These live in the state file and the local report; they do not appear in PR comments.
+**Trigger condition:** Phase 3 orchestrator-side dedup produced a finding with `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
 
-The reviewer-agent's `description:` and `recommendation:` fields go into the body verbatim — if they describe the actual codebase being reviewed and that codebase legitimately mentions any of the strings above (e.g., reviewing this plugin's own code), the description stands as-is. The rule constrains the orchestrator's body-composition step (the JSON template and any wrapping prose), not the reviewer-agent's findings about the code under review.
+When trigger fires, **auto-spawn (no AUQ)**:
 
-**Step 5 — Persist `[POSTED-TO-PR]` markers.** Parse the POST response to extract the review's `id` field — GitHub's `POST /reviews` endpoint returns the Review object only (no inline `comments[]` array on it), so a second call is required to derive per-comment URLs: `gh api "/repos/<owner>/<repo>/pulls/<number>/reviews/<review-id>/comments"` returns the inline-comment array. Pending reviews are queryable via this endpoint by the authoring user before submit (the comments are private to the reviewer but visible to the reviewer's own authenticated `gh` session). Match each returned comment back to its source finding by `(path, line)` — for multi-line findings, GitHub stores the end line in `line` and the start line in `start_line`, both of which match the comment object built at Step 4. For each matched comment, append `[POSTED-TO-PR]` to the finding's tag list and add `posted-to-pr: <html_url>` to the line in `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`. This is the idempotency contract — the next `/geniro:review` run against the same PR reads these markers and excludes already-posted findings from the Action gate's "≥1 unposted finding" predicate (Phase 6 Action gate's Post option), preventing duplicates without a server-side hash check. If the GET fails (rate limit, transient error), persist `[POSTED-TO-PR]` markers without `posted-to-pr:` URLs — the dedupe contract holds (the marker IS the key) and the missing URLs degrade only the audit-trail link, not idempotency. After the markers are persisted, surface ONE chat-surface line: `Drafted N findings as a pending review on <pr-url>. Open the PR and click "Finish your review" → Submit (Comment / Approve / Request Changes) when ready — pending reviews are private to you and fire no notifications until submit.` Replace `<pr-url>` with the state-file `pr-url:` value and `N` with the count of posted comments. This is the only signal the user gets that the draft exists — pending reviews trigger zero GitHub notifications, zero webhooks, and zero Actions workflows on `pull_request_review` until the human submits, so without this line the user cannot tell whether the post succeeded.
+```yaml
+emit-learning:
+producer: /geniro:review
+scope: <changed-file-glob>
+summary: "<finding title with file:line>"
+tags: [<dimension>, <project-tech>]
+type: pitfall
+trust: verified
+note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
+```
 
-**Step 6 — Posting-failure semantics.** If the `gh api` call fails (non-zero exit, HTTP error, missing scopes, secondary rate limit with 403/429), surface the error verbatim to the user and stop — do not retry, do not fall back to a different endpoint, do not bypass with `--no-verify`-style flags, do not silently downgrade to top-level `gh pr comment` (which loses inline anchoring). No partial state is written: leave the per-finding `[POSTED-TO-PR]` tags off entirely so the user can re-run cleanly after fixing the underlying issue. Mirrors existing `gh` failure handling at SKILL.md Phase 1 (gh-unavailable surface-and-stop).
+Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per
+Threshold tuning (exact «≥3» semantics) — fixed per spec, not deferred. codifies this.
 
-**Empty-answer handling (universal).** If `AskUserQuestion` returns an empty answer at any of the three prompts, fall back to plain text and re-ask once — never promote empty to a default Yes. After one re-ask, if still empty, treat as Skip and proceed without posting.
+Also emit `convention` learnings — NOT for this skill. /implement owns convention emits per patched contract.
+
+### 5.4 PR comment posting (conditional — gated by Phase 6)
+
+If Phase 6 user picks «Post Draft PR» option, Phase 5 writes the finding list to the PR via `mcp__github__pull_request_review_write` with status `COMMENTED`. `non-resumable-actions[]` entry appended via `atomic_state_write`:
+
+```yaml
+non-resumable-actions:
+- action: pr-review-comment-batch
+completed-at: <ISO-8601>
+pr-ref: <owner>/<repo>#<num>
+finding-count: <N>
+comment-ids: [<id1>, <id2>,...]
+```
+
+PR post fails fail-closed — if `mcp__github__pull_request_review_write` errors, write `## Errors` entry + abort Phase 5 (don't proceed to hand-off with a half-posted state).
+
+Full Post drill (Steps 1.5-6) in `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md`
+### 5.5 Idempotent re-entry
+
+If Phase 5 re-enters after compaction:
+1. Read state.md `non-resumable-actions[]` — if PR post already completed, skip re-post.
+2. Re-read findings from Phase 3 dedup output (held in context OR re-runs Phase 3 if context lost).
+3. Re-write `from-review-<branch>.md` (overwrite — `atomic_state_write` handles atomicity).
+
+---
+
+## Phase 6 — Action Gate Hand-off
+
+State.md `phase: action-gate`. **Full contract:** `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md`.
+
+Summary:
+
+- **AUQ with 4 options** — `/implement findings` (Recommended when CRITICAL/HIGH count >0) / Post Draft PR review (conditional on `pr-ref:` non-none + ≥1 unposted) / Continue rounds (Round-N escalation gate when round ≥3) / Skip.
+- **Reporter behavior** — no fix loop inside /review. /implement self-review (5-dim parallel) is a separate skill with a separate contract.
+- **`--simplify`** does NOT change hand-off shape (still reporter).
+- **Persist user pick to `approvals[]`** with category `action_gate`.
+- **Round-N escalation gate** when round ≥3 + «Continue rounds» pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
+
+Open questions for Phase 6 deferred per spec (hard-ceiling at round 5 or 6) — see reference file
+---
+
+## ACI per-phase tool surface
+
+| Phase | Allowed tools | Restricted |
+|---|---|---|
+| Phase 1 / 1.5 | Read, Grep, Glob, Bash (read-only — `gh pr view`, `git diff`, `which <tool>`, lint commands, `tsc --noEmit`), **`mcp__linear__*` (read-only — `get_issue` / `list_issues` for workflow integration; degrade silently if unregistered)** | No Edit/Write apart state.md; no Linear `update_issue` / `create_comment` from /review (those remain in /implement Ship) |
+| Phase 2 / 3 / 4 | Agent (reviewer-agent, validation sub-agents, adversarial-tester-agent); Phase 3 dedup orchestrator-inline (no spawn) | No Edit/Write/Bash mutations |
+| Phase 5 | Write (scoped to `.geniro/state/handoff/**`), `mcp__github__pull_request_review_write` (conditional), `emit-learning` helper | Direct edits outside scope blocked by hooks |
+| Phase 6 | AskUserQuestion | Read-only |
+
+Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletion guard, state-helper enforcement, plan-mode write-guard.
+
+---
+
+## Memory I/O Schedule
+
+| Phase | Helper | Direction | MODE | Inputs | Outputs |
+|---|---|---|---|---|---|
+| Phase 1 entry | `load-custom-instructions` | read L4 | `initial-load` | scope = `review` + `global` + `code-style` + `user-preferences` | concatenated rule body |
+| Phase 1 entry | `load-semantic` | read L3 | `refresh` | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + drift check |
+| Phase 1 entry | `query-learnings` | read L2 | n/a | tags inferred from changed-file paths; type bias `pitfall` | top-K matching entries (default K=5) |
+| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | three loaded layers | precedence-resolved |
+| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `review` + `global` + `code-style` + `user-preferences` | rule body (refreshed) |
+| Phase 5 | `atomic_state_write` | write T2 | n/a | state file path; full body | whole-file rewrite |
+| Phase 5b | `emit-learning` | write L2 | n/a | producer = /review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
+| Phase 6 | `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |
+
+**L2 emit triggers** per patched contract:
+- `pitfall` — **YES** — Phase 5b auto-emit when convergence ≥3.
+- `convention` — Not. /implement owns.
+- `decision` — Not. /plan owns.
+- `diagnosis` — Not. /debug owns.
+
+---
+
+## Anti-rationalization
+
+Per master plan : every milestone closes with an explicit anti-pattern check.
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "/review should fix its own findings — This skill has a fix loop, parity is good." | /implement self-review is a post-implementation gate that ships clean code. /review is a standalone audit consumed by downstream skills. Different workflows, different output contracts. User-picked Reporter behavior  reflects this. parity is a false constraint. |
+| "Mechanical pre-pass is too slow — skip it, LLM reviewers cover the same ground." | LLM reviewers cover similar ground at 100x the cost + non-deterministic. Lint detects a missing import faster and more reliably than a security reviewer would. Run cheap-deterministic first; LLM-spawn second with pre-pass findings as prior-context. |
+| "Just keep guidelines — duplicate finding is a feature, not a bug." | User-facing «told twice» is concrete UX friction documented in audit. Two reviewers reporting same thing wastes user attention. Specialized dim (conventions, haiku-tier) wins on cost AND quality. |
+| "Absorbing /deep-simplify means losing Phase 4 Fix agent." | Phase 4 Fix agent applied automated code edits — fixer responsibility. /review is Reporter. Users wanting auto-applied fixes pipe `/review --simplify` output to `/implement`. |
+| "spec-compliance check #11 (Tools Required available) requires Bash mutation." | `which <tool>` is read-only Bash. No mutation. Standard ACI surface allows it. |
+| "Phase 5b auto-emit pitfall could spam learnings.jsonl with false positives." | Threshold = convergence_count ≥3. Three reviewers (or 2 + 1 mechanical) converging is a strong signal. Dedup + sanitization per prevents duplicates. False-positive risk low. |
+| "SKILL.md trim to 400 lines is a cosmetic concern." | 1025-line monolith hurts onboarding and debug. Reference-file pattern matches Cosmetic surface IS surface. |
+| "Risk-tier:high secret scan strict mode adds latency without ROI." | Secret leakage is a CRITICAL-severity event with irreversible consequences. 4 extra regex patterns adds <1s. ROI is asymmetric — small cost, large downside avoided. |
+| "Phase 1.5 mechanical pre-pass should run in parallel with Phase 2 LLM spawns." | LLM agents seeing prior mechanical findings produce better-targeted output. Sequential adds ~10-30s; parallel forces post-hoc dedup and dilutes LLM focus. |
+| "--simplify flag is a natural place to add `simplify` as a new dimension." | Re-creates /deep-simplify as a disguised skill. Fold-into-existing approach (5 weighted dims) is the only correct absorption. |
+| "Round-N hard ceiling at round 6 is paternalistic." | User picking «Continue» 5 times indicates either a bug in stratification or a workflow that should be /debug. Hard ceiling protects against accidental infinite-loop UX. User retains agency via «Escalate» pick. |
+| "Auto-drop MEDIUM findings to reduce user friction." | Metaswarm anti-pattern. routes MEDIUM through always-WAIT MEDIUM-gate (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`). Never auto-drop. |
+| "Skip Phase 5 approvals[] persistence — Phase 6 hand-off captures everything." | Phase 6 AUQ fires once; compaction mid-Phase-3 (filter) would lose all prior gates without `approvals[]`. Block 5d depends on this persistence; non-negotiable. |
+| "Add a wall-time kill cap for long-running /review." | quality-first — no Class-A hard caps. Round-N escalation is the Class-B gate; user decides. |
+| "Bypass git guardrail hooks when Phase 5 PR comment post fails." | Hooks fail for reason. Phase 5 fail-closed — failure surfaces an error, does NOT auto-retry with `--no-verify`. Investigate, fix, re-fire. |
+| "Phase 4c F→P test gate is over-engineered for standard tier — skip it." | F→P verification ensures test-first hygiene. --tdd users specifically benefit; --standard users still get a sanity gate. |
+| "I'll spawn the adversarial-tester-agent and ask the user to confirm later." | Inline gates rationalize away into "this counts as approval". Skill MUST `AskUserQuestion` BEFORE spawning. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
+| "The findings look obviously postable — I'll just batch-post to the PR and tell the user after." | Posting to a PR is an external write to a public surface. Inline gates rationalize away. Phase 6 Action gate's "Post" selection IS the consent. |
+| "TDD mode is on, user clearly wants tests authored — skip the Phase 4c AUQ." | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable in every mode. |
+| "I'll auto-update Linear status from /review when findings are critical — saves user a step." | /review is a Reporter. Linear `update_issue` / `create_comment` are external side-effect writes; only /implement Ship runs them per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` §Status Transitions, all gated by AUQ. /review's MCP surface is read-only (`get_issue` / `list_issues`) per ACI. |
+| "Inline LINEAR CONTEXT into ALL 9 reviewer dims — more context = better review." | Cross-reviewer convergence anti-pattern (mirror PEER-PR rationale § 4). LINEAR CONTEXT helps spec-compliance (rubric source), pr-metadata (title-divergence check), architecture (parent-epic linkage); other dims see it as noise that biases their per-file rubric. |
+| "Top-10 peer PRs is too noisy — drop to top-5 to keep prompts small." | Total cap is 5K chars (vs old 3K), not raw LOC count. Natural drop kicks in — typical run keeps 3-5 actual siblings in prompts. Top-10 is the candidate pool; ranking + cap selects which survive. Tightening to top-5 candidates risks losing parent-epic linked PRs that score 0 file overlap but +4 linear bonus. |
+| "Linear MCP unregistered — surface a HIGH finding so user installs it." | fail-open contract: degraded paths surface a one-line `## Caveats` note, not findings. The skill doesn't pressure user to install tooling — that's UX hostility. |
+
+---
 
 ## Definition of Done
 
 Code review is complete when:
-- [ ] Phase 1 Pre-step mode detection ran — Outgoing vs Incoming routed per `$ARGUMENTS` shape (PR ref + computed `K > 0` → AUQ; PR ref + `K == 0` or `K == unknown` (fetch fail-open) → direct Outgoing; anchored natural-language signals → direct Incoming; everything else → Outgoing). When mode == INCOMING, the rest of this Definition of Done is replaced by the Incoming-mode Definition at `${CLAUDE_SKILL_DIR}/incoming-mode-reference.md` § Definition of Done
-- [ ] Phase 1 context collected (files read, changes understood, PLAN CONTEXT resolved from PR body / `--plan` / project files / none)
-- [ ] Phase 1 Step 0.5 round-N gate evaluated — round counter incremented, prior-round-summary captured (or set to "none — first review" on round 1), Round-N AUQ fired when round >= 3
-- [ ] Phase 1 Step 0.5 captured prior `pr-body:` into `prior-pr-body` (set to "none — first review" on round 1 / missing state file / `pr-body: none`); pr-metadata reviewer prompt threads it as `PRIOR-ROUND PR BODY:` so the drift check at pr-metadata-criteria.md §11 has a non-`none` value to compare against
-- [ ] Phase 1 Step 0.7 risk-tier stratification ran — `risk-tier: <standard|high>` persisted to state file based on Hard Escalation Signals from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`; Phase 4 threshold and Phase 4b validator budget adjusted when high-tier
-- [ ] Phase 1 git-workspace decision ran when input was a PR ref (one of: skipped silently because already in `.claude/worktrees/pr-<N>-review`; `Worktree` AUQ fired with three-branch routing; existing-target worktree reused via `EnterWorktree`); skipped entirely for files / diff range / branch input
-- [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT + PRIOR-ROUND FINDINGS + alignment-tag instruction
-- [ ] Phase 2 spec-compliance reviewer spawned when PLAN CONTEXT is non-`none` AND (input was a PR ref OR state-file's `risk-tier: high`); skipped otherwise
-- [ ] All applicable reviewer dimensions completed (7 in standard mode, +1 design when UI files present, +1 pr-metadata when input was a PR ref, +1 spec-compliance when PLAN CONTEXT is non-`none` AND (input was a PR ref OR `risk-tier: high`); up to 42 parallel agents across batches in batched mode — 5 batches × up to 8 per-batch dimensions (when UI files present) + 1 per-PR pr-metadata + 1 per-run spec-compliance, matching the Phase 2 batched-mode constraint at the same count)
-- [ ] Phase 3 relevance filter applied (findings checked against repo conventions, complexity, and PLAN CONTEXT)
-- [ ] Phase 4 judge validation complete (findings verified) — Step −1 truncation check ran (truncated dimensions in `## Caveats`); Step 0 intent reconciliation ran (plan-authorized divergences demoted to `[INTENT-CHECK]`)
-- [ ] Phase 4b per-finding validation run for Critical/High findings (if applicable)
-- [ ] Phase 4c test-confirmation gate evaluated (skipped when no eligible findings, called as sub-phase of /geniro:implement, or user declines)
-- [ ] Phase 4c fail-open caveat surfaced under `## Caveats` if the adversarial-tester-agent failed or its report could not be parsed
-- [ ] TDD mode only: Phase 1 mode-flag detection ran (`--tdd` / `--standard` / Mode AUQ) and `mode:` persisted to the Phase 5 state file
-- [ ] TDD mode only: Phase 4c Step 2 AUQ rendered "Author tests for all eligible findings" with the `(Recommended)` suffix — gate itself fired exactly as in Standard mode (the Phase 4c invariant "this skill MUST NEVER spawn the agent without explicit user approval" was honored), N/A when no eligible findings exist or Phase 4c was skipped per Step 1
-- [ ] TDD mode only: Phase 6 Step 3.5 post-set filter applied — only `[CONFIRMED-BY-TEST]` findings + `[INTENT-CHECK]` + `[PRODUCT-DECISION]` + `[FIX-NOW]`-typo-class were eligible for posting
-- [ ] Confidence scoring applied (>=80 threshold)
+
+- [ ] Phase 1 mode detection ran — Outgoing vs Incoming routed per `$ARGUMENTS` shape
+- [ ] Phase 1 PLAN CONTEXT resolved
+- [ ] Phase 1 Workflow integrations ran when `.geniro/workflow/*.md` non-empty — tracker ID detected (if present in `$ARGUMENTS` / `pr.title` / `pr.body`); `linear-task-ref` + `linear-parent-ref` populated in frontmatter; `LINEAR CONTEXT:` block built (or fail-open caveat surfaced)
+- [ ] Phase 1 Peer-PR scout (PR-ref only) ran with extended scoring — `total_score = file_overlap + linear_bonus`; top-10 kept; per-sibling diff ≤200 lines; total cap 5K chars; PEER-PR CONTEXT fed to 6 dims
+- [ ] Phase 1 Step 0.5 Round-N gate evaluated — round counter incremented; Round-N AUQ fired when round ≥3
+- [ ] Phase 1 Step 0.7 risk-tier stratification ran — `risk-tier: <standard|high>` persisted; 4 downstream knobs adjusted
+- [ ] Phase 1 Step 0.8 memory layers loaded (L4 instructions + L3 semantic + L2 learnings)
+- [ ] Phase 1 git-workspace decision ran when input was a PR ref
+- [ ] Phase 1.5 mechanical pre-pass ran — 3 checks (lint / schema / secret scan) with strict-mode secret-scan when risk-tier:high
+- [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT (spec-compliance dim only) + LINEAR CONTEXT (spec-compliance + pr-metadata + architecture dims only) + PEER-PR CONTEXT (6 dims) + PRIOR-ROUND FINDINGS + Mechanical Pre-pass Findings + alignment-tag instruction
+- [ ] Phase 2 spec-compliance reviewer spawned when PLAN CONTEXT non-`none` AND (input was a PR ref OR risk-tier:high)
+- [ ] Phase 2 `--simplify` flag prepended deep-simplify criteria to 5 dimensions (architecture / conventions / guidelines / bugs / optimizations) when present
+- [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding
+- [ ] Phase 4 judge validation complete; Step 0 intent reconciliation applied (plan-authorized divergences demoted to `[INTENT-CHECK]`)
+- [ ] Phase 4b per-finding validation run for CRITICAL/HIGH findings
+- [ ] Phase 4c test-gate evaluated (skipped when no eligible findings or user declines); user approval persisted to `approvals[]`
+- [ ] TDD mode only: Phase 4c Step 2 AUQ rendered with `(Recommended)` suffix on «Author tests…»; gate itself fired exactly as in Standard mode
+- [ ] TDD mode only: Phase 6 Step 3.5 post-set filter applied
+- [ ] Confidence scoring applied (≥80 threshold standard; ≥70 high tier)
 - [ ] Issues classified by severity (Critical, High, Medium) and Decision Type ([FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK])
 - [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context
-- [ ] Review summary generated with all findings
-- [ ] Output delivered with actionable recommendations
-- [ ] Learnings extracted (standalone invocations only)
-- [ ] Improvement suggestions presented (standalone invocations only)
-- [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`
-- [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT) — user chose resolution path before the Action gate; standalone invocations only
-- [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision presented via `AskUserQuestion` with options `/geniro:implement` / `/geniro:follow-up` / Post findings as Draft PR review (only when `pr-ref:` non-`none` AND ≥1 unposted finding) / Skip; mutually exclusive — exactly one option chosen; standalone invocations only
-- [ ] Phase 6 Action == Post drill ran (Step 1.5 resolved-thread dedup → Step 2 granularity → Step 3 per-finding gate when applicable → Step 3.5 TDD filter → Step 4 `gh api` post → Step 5 `[POSTED-TO-PR]` markers persisted; if Step 1.5 or Step 3.5 empties the post set, OR Step 3's loop yields an empty post set, the chain short-circuits to Skip without firing Step 4) when and only when the user picked "Post findings as Draft PR review" in the Action gate; the legacy two-step PR-comment Consent → Granularity chain has been collapsed into the Action gate + this drill
-- [ ] Phase 6 authored-tests handoff offered when `## Authored Tests` is non-empty, with firing order conditional on the Action choice per the gate-chain preamble (fires BEFORE the Post drill when Action == Post AND `## Authored Tests` non-empty so the push lands before `gh api` POST; fires AFTER otherwise) (standalone invocations only)
-- [ ] Phase 6 Step 4 head-SHA freshness rule applied — re-fetched `headRefOid` via `gh pr view --json headRefOid` and used it as `commit_id` for the `gh api` POST when the Failing-tests gate fired BEFORE this step AND the user picked "Commit + push"; original Phase 1 `pr-head-sha` preserved otherwise. Phase 5 state file's `pr-head-sha:` field overwritten with the re-fetched value when a re-fetch occurred
-- [ ] Posted findings tagged `[POSTED-TO-PR]` with `posted-to-pr: <comment-url>` in `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` so re-runs are idempotent
+- [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`
+- [ ] Phase 5b L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
+- [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT)
+- [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision; user pick persisted to `approvals[]` (category `action_gate`)
+- [ ] Phase 6 Round-N escalation gate fired when round ≥3 + «Continue rounds» pick; terminal state mapped per- [ ] Phase 6 Action == Post drill ran (Steps 1.5-6) when user picked «Post»; `[POSTED-TO-PR]` markers persisted for idempotent re-run
+- [ ] Phase 6 Failing-tests gate fired when `## Authored Tests` non-empty; firing order conditional on Action choice per the gate-chain rule
+- [ ] Terminal state mapped to state.md `## Termination reason` per when `aborted` or `escalated`
 
 ---
 
-## Compliance — Do Not Skip Phases
+## Anti-pattern check
 
-| Your reasoning | Why it's wrong |
-|---|---|
-| "I can skip context gathering" | Without understanding what changed and why, you'll produce false positives and miss real issues. |
-| "I'll review all aspects myself instead of spawning the reviewer agents" | Serial review misses perspective. All 7–9 specialized reviewers (7 always-on + design when UI files present + pr-metadata when input was a PR ref) MUST execute in parallel. |
-| "The reviewers found good stuff, skip relevance filtering" | Reviewers apply general best practices — without checking against THIS repo's patterns, you'll report over-engineering suggestions and convention-contradicting findings that waste engineer time. |
-| "The reviewers found good stuff, skip judge validation" | Unfiltered findings create report fatigue. Only >=80 confidence findings provide signal. |
-| "I can tell this is a real issue without reading the source" | Always validate findings in context — check the actual file and lines before reporting. |
-| "While I'm here, let me suggest improvements beyond the diff" | Review against the scope of changes, not "what else could be improved." Stay focused. |
-| "The agent said it thoroughly reviewed everything" | Agents self-report optimistically. Verify by reading their actual outputs yourself. |
-| "I can merge confidently without addressing CRITICAL findings" | CRITICAL issues MUST be fixed before shipping. They are non-negotiable. |
-| "I can skip writing the state file — the user can copy from chat" | The state file is the only handoff channel that survives compaction or session end. Findings in chat alone cannot reach the next skill. |
-| "Findings are obvious — skip the AskUserQuestion and just tell them to run /implement" | Severity-driven recommendation is a structured choice (the user may want fast-lane follow-up for small scope, or to handle manually). Always offer the question; never assume. |
-| "No PR body / no plan file, so PLAN CONTEXT collection is pointless — skip it" | The Phase 1 step is cheap and renders `none` when nothing resolves. Skipping it means future PRs that do have a plan get silently ignored, and reviewers can't tag `[ALIGNS-WITH-PLAN]` even when a `--plan` flag was passed. Always run the resolution. |
-| "A reviewer's output is missing the `## Dimension Summary` footer but the findings look complete — accept it" | Truncation often clips the last (and most synthesized) finding. Phase 4 Step −1 exists precisely to flag this; mark the dimension TRUNCATED in `## Caveats` and recommend re-running with higher maxTurns. Do not silently accept partial output. |
-| "Findings are obvious — skip the Phase 4c test gate" | Phase 4c is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4b's read-only validation. Always offer the gate when eligible findings exist; the user can decline, but the offer is not yours to skip. |
-| "I'll spawn the adversarial-tester-agent and ask the user to confirm later" | Inline gates rationalize away into "this counts as approval". Skill MUST `AskUserQuestion` BEFORE spawning. The two-step gate (skill asks → on YES, spawn) is the only rationalization-resistant variant. Spawning first and asking second is exactly the failure mode the user-approval rule exists to prevent. |
-| "The test passes today, so the finding is fake — delete it" | Demote, do not delete. A green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test fails for the wrong reason ([PoC-Gym, arXiv 2602.04165](https://arxiv.org/html/2602.04165v1) documents this failure mode). Move the finding to `## Filtered` with `[CHALLENGED-BY-TEST]` and original severity preserved so the user can re-elevate it if they disagree with the test. |
-| "The reviewer's `recommendation:` field is obvious — I'll just route to the next skill without asking the user about each `[PRODUCT-DECISION]` finding" | `[PRODUCT-DECISION]` findings have multiple valid resolution paths by definition (see `agents/reviewer-agent.md` §Decision Type Guidance). The `recommendation:` field on a multi-path finding is a synthesis, not the chosen path. The orchestrator NEVER picks on the user's behalf — Phase 6 Step 0 (always-WAIT) presents enumerated `Options:` to the user via `AskUserQuestion` BEFORE any remediation routing. Skipping the per-finding gate ships a product decision the user did not authorize. |
-| "The findings look obviously postable — I'll just batch-post them to the PR and tell the user after" | Posting to a PR is an external write to a public surface — the same audience-expanding action class as `gh pr create` and `git push`. Inline gates rationalize away into "this counts as approval". The skill MUST `AskUserQuestion` BEFORE the `gh api` call. The Phase 6 Action gate's "Post findings as Draft PR review" option IS the consent — selection is the approval; the orchestrator MUST NOT call `gh api` until that pick is collected. The "ask first → on selection, post" contract is the only rationalization-resistant variant; posting first and asking second is exactly the failure mode the user-approval rule exists to prevent. |
-| "User picked Pick-one-by-one and findings are obviously postable — I'll just batch them all into one multi-select question to save clicks" | The whole point of Pick mode is that the user wants per-finding control with the code and suggested fix shown before they decide. Step 3 is now a per-finding gate (one `AskUserQuestion` per finding per the canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate) — NOT a multi-select picker. Collapsing N findings into one multi-select reverts the deliberate UX choice that each finding must be explained to the user with its Evidence + Suggested-fix in the `preview`. Render each finding's own AUQ with the three fixed options (Post / Skip / Stop posting); the "Stop posting" exit is the documented fatigue mitigation, NOT permission to batch. If the user picks "Stop posting", honor it and post only the findings they explicitly approved up to that point. |
-| "The user already ran `/geniro:review` against this PR yesterday and approved posting — I'll skip the gate this time" | Permissions don't carry across runs. The state file's `[POSTED-TO-PR]` markers are an idempotency contract (skip already-posted findings on re-run), NOT a blanket re-authorization for new findings. Every run that has at least one unposted finding re-fires the Action gate from scratch — the user must re-pick "Post findings as Draft PR review" to authorize the new run's post. |
-| "The PR author resolved that thread by mistake — this finding is still real, I'll post it anyway and skip Step 1.5" | Step 1.5 is an input-side filter against the PR author's explicit resolution decision, not a judgment call the orchestrator gets to override. The PR author owns thread-resolution semantics on their own PR; bypassing the snapshot ships a post that re-litigates a decision they already closed. If you believe a resolved thread closed a real issue prematurely, the finding stays visible in the local report's severity sections AND in `## Filtered` — the user can manually re-elevate it, but the post-time bypass is yours to NOT make. |
-| "TDD mode is on, the user clearly wants tests authored — I'll skip the Phase 4c AUQ this time" | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable: this skill MUST `AskUserQuestion` BEFORE spawning `adversarial-tester-agent` in EVERY mode (see Phase 4c Step 2 — "this skill MUST NEVER spawn the agent without explicit user approval — the gate is the load-bearing safety property, and inline gates degrade to 'this counts as approval'"). Mode is a default-selection signal, not consent. The two-step gate (skill asks → on YES, spawn) is the only rationalization-resistant variant — pre-answering "because mode=tdd" rationalizes the gate away exactly as the "I'll spawn the adversarial-tester-agent and ask the user to confirm later" Compliance row above warns. |
-| "The user is on `main` and the PR ref points at a small change — I'll skip the Phase 1 worktree pre-flight and just review in place" | The worktree decision protects the user from inadvertently committing AI-authored tests onto `main` (Phase 4c writes test files; Phase 6 Failing-tests gate offers a Commit option). The pre-flight is the moment the user gets to see and accept that consequence — even if they pick "No, review in current location", that's a deliberate choice. Silently skipping the AUQ removes the signal entirely. The pre-flight is mandatory whenever input is a PR ref; the only valid skips are the three structured branches (already in target worktree → silent reuse; in different worktree → AUQ; outside-worktree-but-target-exists → silent reuse via EnterWorktree). |
-| "I'll fuse Phase 6's gates into one summary question to save the user clicks" | Each Phase 6 gate decides a different thing: Step 0 picks a resolution path per `[PRODUCT-DECISION]` finding; Action picks the next top-level step (escalate to `/implement` / `/follow-up` / Post to PR / Skip — Posting is one of Action's options, not a separate top-level gate); Failing-tests picks a commit policy for AI-authored test files. A fused "what should we do?" question forces a single-path answer when the user may legitimately want different choices per gate (resolve a per-finding open-decision AND pick an Action AND choose a commit policy for authored tests — three distinct decisions). The chain order is documented in the Phase 6 preamble; fire each gate sequentially as its own `AskUserQuestion` call, render each question and option set verbatim, and collect the answer before moving to the next gate. The Action gate's "Post" option drills into a granularity sub-question (Send-all vs Pick) — that drill is part of Action's Post path, NOT a fourth top-level gate. |
+This skill verified against master-plan 12-item guardrail. Status:
+- One giant prompt: ✅ avoided (skill-scoped SKILL.md + reference files + criteria files)
+- One giant tool: ✅ N/A
+- Unbounded autonomous loop: ✅ Round-N 3-round bound + escalation gate
+- Autonomous external sends in first release: ✅ Phase 6 Post drill AUQ-gated
+- No approval state: ✅ `approvals[]` field with the categories (`tdd_mode_choice` / `test_gate_choice` / `action_gate` / `round_n_escalation` / `failing_tests_commit_policy`)
+- No durable plans / goals: ✅ T2 state file mandatory
+- No compaction strategy: ✅ the SessionStart hook re-injects via Block 5b/5c/5d
+- All connectors loaded up front: ✅ N/A (MCP plugin model)
+- High-risk tools without policy: ✅ existing hooks
+- Subagents before single-agent MVP measured: ⚠️ partial (deferred to a future release)
+- Dynamic timestamps in plugin Markdown: ✅ audited — none
+- Non-deterministic agent registration: ✅ alphabetic by slug
+
+This skill introduces no new anti-pattern regressions.

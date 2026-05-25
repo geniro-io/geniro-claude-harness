@@ -103,6 +103,12 @@ When the repo uses an issue tracker (Linear / Jira / GitHub Issues / Pivotal), m
 
 **Red flag:** repo's modal pattern includes issue IDs (≥3/5 sampled) and this PR's title+body together contain none.
 
+**LINEAR CONTEXT enhancement (workflow integration):** when the `LINEAR CONTEXT:` slot is non-`none`, the ticket ID was both detected by regex AND verified to exist via MCP fetch. Use this to distinguish two failure modes:
+
+- **ID in title/body but LINEAR CONTEXT = `none — MCP fetch failed (fail-open)`**: surface a MEDIUM informational note (`## Open Questions` rather than a finding) — «Linear ID `ENG-NNN` cited but not verifiable (MCP unavailable); cannot confirm issue exists or matches description».
+- **ID in title/body AND LINEAR CONTEXT populated**: cross-check pr.title against `LINEAR CONTEXT.Title`. If pr.title diverges materially from issue title (different action verb / different surface area), flag as a MEDIUM finding: «PR title `<pr-title>` materially diverges from Linear issue title `<linear-title>` — verify PR addresses the right scope». Pure prefix differences (`[ENG-123]` ahead of pr-title) are NOT divergence.
+- **Repo modal expects Linear AND LINEAR CONTEXT = `none — workflow not configured`**: surface a one-line informational note in `## Caveats` — «Repo uses Linear (per modal sampling) but `.geniro/workflow/linear.md` not configured — run `/geniro:setup` to enable issue context fetch».
+
 ### 10. Description — Acceptance Criteria When Issue Linked
 
 When the PR links an issue, the description should either restate the acceptance criteria or explicitly confirm them ("Closes #123 — all ACs from the issue are covered").
@@ -115,17 +121,17 @@ When the PR links an issue, the description should either restate the acceptance
 
 ### 11. Description ↔ Code Drift on Re-Review
 
-On a re-review (round 2+ of human review on the same PR), the PR body often describes the EARLIER diff before fixes pushed in response to round 1. The body claims a behavior that the code no longer has, OR omits a behavior the code now has. §8 above compares body vs CURRENT diff in a single pass; this check adds the cross-round dimension by comparing CURRENT body to the prior-run body persisted by the orchestrator.
+On a re-review (round 2+ of human review on the same PR), the PR body often describes the EARLIER diff before fixes pushed in response to round 1. The body claims a behavior that the code no longer has, OR omits a behavior the code now has. above compares body vs CURRENT diff in a single pass; this check adds the cross-round dimension by comparing CURRENT body to the prior-run body persisted by the orchestrator.
 
-The Phase 5 state file at `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` carries `pr-body: <verbatim PR body>` (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 state-schema). On re-review, the orchestrator's Phase 1 Step 0.5 reads it before overwriting; this reviewer compares against it.
+The Phase 5 state file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` carries `pr-body: <verbatim PR body>` in frontmatter (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 state-schema). On re-review, the orchestrator's Phase 1 Step 0.5 reads it before overwriting; this reviewer compares against it. SKILL.md also reads `.geniro/state/review-findings-state.md` once on Phase 5 entry if present for resume safety; write always lands at the path.
 
 **How to detect:**
 1. From the orchestrator-pre-inlined `PRIOR-ROUND PR BODY:` slot (added on round 2+; renders as `none — first review` on round 1 or when the prior-run state file has no `pr-body:`), check if a prior PR body is present.
 2. If `PRIOR-ROUND PR BODY: none — first review`, skip this check entirely (no drift possible without a prior round).
 3. Diff the current `pr.title` + `pr.body` (from the standard PR METADATA slot) against the prior `pr-body:` text. Identify clauses present in EITHER version but materially different:
-   - **Claim removed**: the prior body described a behavior X (e.g., "fast path skips when X != null"); the current body no longer mentions X. Check whether the diff still has the behavior — if yes, the current body silently omits a still-real behavior; if no, the body correctly reflects the fix and no drift exists.
-   - **Claim still present but no longer true**: the prior body said "behavior X is unchanged" AND the current body still says "behavior X is unchanged"; the diff between rounds shows X was actually changed in response to round 1.
-   - **New behavior in diff, no claim in body**: the diff adds behavior Y between rounds; neither the prior nor current body mentions Y.
+- **Claim removed**: the prior body described a behavior X (e.g., "fast path skips when X != null"); the current body no longer mentions X. Check whether the diff still has the behavior — if yes, the current body silently omits a still-real behavior; if no, the body correctly reflects the fix and no drift exists.
+- **Claim still present but no longer true**: the prior body said "behavior X is unchanged" AND the current body still says "behavior X is unchanged"; the diff between rounds shows X was actually changed in response to round 1.
+- **New behavior in diff, no claim in body**: the diff adds behavior Y between rounds; neither the prior nor current body mentions Y.
 4. For each material drift, surface as a finding describing the specific claim, the specific code state, and the asymmetry between them.
 
 **Red flag:** PR body claims `<behavior X>` is `<unchanged | fast-path | removed>`; the current diff (or the inter-round diff) shows `<behavior X>` was actually `<changed | reinstated | added>` in response to a prior round of review.
@@ -137,11 +143,11 @@ The Phase 5 state file at `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md
 Skip or downgrade findings in these cases — they look like rubric violations but are routine PR patterns the rubric is not designed to flag:
 
 - **Draft PRs** (`gh pr view --json isDraft` returns `true`): description and test plan are often incomplete by design while the author iterates. Skip checks #3 (substance), #4 (why clause), #5 (test plan), #6 (screenshots), #8 (scope alignment). Still flag #1 (imperative verb), #2 (convention prefix), and #7 (breaking-change note if API/migration changed) — these apply regardless of draft state.
-- **Dependabot / Renovate / similar bot PRs** (author user matches `dependabot[bot]` / `renovate[bot]` / `github-actions[bot]` / a known dependency-bumper bot — check `gh pr view --json author --jq .author.login`): titles and bodies are templated and the rubric's prose expectations do not apply. Skip every check; emit zero findings.
+- **Dependabot / Renovate / similar bot PRs** (author user matches `dependabot[bot]` / `renovate[bot]` / `github-actions[bot]` / a known dependency-bumper bot — check `gh pr view --json author --jq.author.login`): titles and bodies are templated and the rubric's prose expectations do not apply. Skip every check; emit zero findings.
 - **Revert PRs** (title begins with `Revert "` or body contains `This reverts commit <sha>`): the description is auto-generated by GitHub's revert button and typically lacks a custom "why" or test plan because the change is mechanical. Skip checks #4 (why), #5 (test plan), #6 (screenshots), #10 (acceptance criteria). Flag #7 (breaking-change note) only if the reverted change is a breaking-change reversal.
 - **Cherry-pick or backport PRs** (title begins with `[backport]` / `Cherry-pick` / `[cherry-pick]` or body cites a parent PR): description quality is delegated to the parent PR. Skip checks #4–#8 and #10 when a parent PR is cited; still flag #1, #2, #9.
 - **Force-pushed PRs** where the body was substantive on an earlier push (detect via `gh pr view --json reviews` — if there are review comments referencing earlier content, the description may have been condensed after the prior review): downgrade severity by one level (CRITICAL → HIGH, HIGH → MEDIUM) for checks #3, #4. The author already engaged the prior reviewer; rubric-strict re-flagging is noise.
-- **First-review runs** (no prior `pr-body:` in the state file because this is the first `/geniro:review` invocation against this PR): Skip §11 entirely; it has nothing to compare against. The check fires only on round 2+ re-reviews. This is the normal case; do not emit a "no drift to check" finding.
+- **First-review runs** (no prior `pr-body:` in the state file because this is the first `/geniro:review` invocation against this PR): Skip entirely; it has nothing to compare against. The check fires only on round 2+ re-reviews. This is the normal case; do not emit a "no drift to check" finding.
 - **Generated PRs** from automation (release-please, changesets, semantic-release, project-board automation): bodies are formulaic and the rubric does not apply. Detect via author user, title patterns (`chore: release X.Y.Z`, `Release v…`), or the presence of `release-please` / `changeset` labels. Skip every check.
 - **Very small diffs** (<5 LOC AND ≤2 files changed): the rubric's structural expectations (test plan, screenshots, breaking-change note) often do not apply. Skip checks #5 (test plan), #6 (screenshots), #7 (breaking-change) unless the diff visibly touches an API surface / migration / UI file. Still flag #1 (imperative verb) and #3 (substance) if the body is empty.
 

@@ -8,7 +8,7 @@ Per Allamanis et al. NATURALIZE and Microsoft IntelliCode: structural convention
 
 For every pattern category checked, follow this recipe before emitting any finding:
 
-1. **Read explicit conventions first.** Check `CLAUDE.md`, `.claude/rules/`, `AGENTS.md`, `CONTRIBUTING.md`, ADRs at `docs/adr/` or `docs/decisions/`. Explicit rules override modal inference; if a rule exists, defer to `guidelines-criteria.md` §8.
+1. **Read explicit conventions first.** Check `CLAUDE.md`, `.claude/rules/`, `AGENTS.md`, `CONTRIBUTING.md`, ADRs at `docs/adr/` or `docs/decisions/`. Explicit rules override modal inference — when an explicit rule exists for the pattern, emit a finding citing the rule; do not duplicate with a modal-inferred finding.
 2. **Identify the file kind.** Component file? Service? Test? Schema? Migration? Hook? The kind determines which siblings are relevant.
 3. **Glob siblings of the same kind.** Same directory first; then analogous directories if the immediate parent has fewer than 3 siblings (`src/components/Button.tsx` → also check `src/ui/`, `packages/*/components/`).
 4. **Compute the modal frequency.** For each pattern category, count each variant across siblings.
@@ -32,7 +32,7 @@ ls src/components/
 grep -l "from ['\"]\\./utils['\"]" src/components/*.tsx | wc -l
 # Triplet-shape modal
 for d in src/services/*/; do
-  ls "$d" | grep -cE "(service|controller|types)\\.ts$"
+ls "$d" | grep -cE "(service|controller|types)\\.ts$"
 done
 # If ≥80% of N≥3 siblings agree, flag the diff that diverges.
 ```
@@ -60,8 +60,8 @@ Imports → constants → types → public exports → helpers. Receiver methods
 ```bash
 # Section ordering across siblings — extract top-level kinds in order
 for f in src/services/*/service.ts; do
-  echo "=== $f ==="
-  grep -nE "^(import|const|export const|type|interface|export (function|class))" "$f" | head -10
+echo "=== $f ==="
+grep -nE "^(import|const|export const|type|interface|export (function|class))" "$f" | head -10
 done
 # If ≥80% of N≥3 siblings start with imports → constants → types → exports, flag the diff if it reorders.
 ```
@@ -74,9 +74,9 @@ NOT generic naming heuristics — that is `guidelines-criteria.md`'s job (vague 
 **How to detect:**
 ```bash
 # Filename casing modal
-ls src/components/ | grep -cE "^[A-Z]"          # PascalCase
-ls src/components/ | grep -cE "^[a-z]+-[a-z]"   # kebab-case
-ls src/components/ | grep -cE "^[a-z]+[A-Z]"    # camelCase
+ls src/components/ | grep -cE "^[A-Z]" # PascalCase
+ls src/components/ | grep -cE "^[a-z]+-[a-z]" # kebab-case
+ls src/components/ | grep -cE "^[a-z]+[A-Z]" # camelCase
 # Pick the variant ≥80% of N≥3 — flag the diff if it deviates.
 
 # Private-method affix modal
@@ -91,13 +91,13 @@ Grouping convention only — stdlib / third-party / first-party / relative. Whet
 **How to detect:**
 ```bash
 # Skip if formatter/linter already enforces ordering
-grep -lE "import/order|simple-import-sort" .eslintrc* package.json 2>/dev/null
+grep -lE "import/order|simple-import-sort".eslintrc* package.json 2>/dev/null
 grep -E "^profile.*black|isort" pyproject.toml 2>/dev/null
 
 # Are import groups separated by blank lines?
 for f in $(ls src/services/*.ts | head -5); do
-  echo "=== $f ==="
-  awk '/^import/ {print; next} /^[^[:space:]]/ {exit}' "$f"
+echo "=== $f ==="
+awk '/^import/ {print; next} /^[^[:space:]]/ {exit}' "$f"
 done
 # If ≥80% of N≥3 siblings separate first-party from relative with a blank line, flag the diff that inlines them.
 ```
@@ -115,7 +115,7 @@ grep -lE "try\s*{|catch\s*\(" src/services/*.ts | wc -l
 # Pick the modal — flag if the diff introduces the minority pattern.
 
 # Are errors typed?
-grep -nE "class .*Error|extends Error" src/lib/errors.ts 2>/dev/null
+grep -nE "class.*Error|extends Error" src/lib/errors.ts 2>/dev/null
 ```
 **Red flag:** 5 of 6 sibling services use Result types but the diff introduces try/catch. Cite the 5 sibling paths.
 
@@ -130,8 +130,8 @@ grep -lE "^export (function|const) create[A-Z]" src/services/*.ts | wc -l
 grep -lE "^export class [A-Z].*{" src/services/*.ts | wc -l
 # Class member ordering across siblings
 for f in $(grep -lE "^export class" src/services/*.ts | head -5); do
-  echo "=== $f ==="
-  grep -nE "constructor|public |private |static " "$f" | head -8
+echo "=== $f ==="
+grep -nE "constructor|public |private |static " "$f" | head -8
 done
 ```
 **Red flag:** ≥80% of N≥3 siblings export factory functions but the diff introduces a class with a constructor. Cite samples.
@@ -160,7 +160,7 @@ Mandatory before judging anything else. Glob the candidate siblings, count them,
 ```bash
 # Always run this first for each changed file
 DIR=$(dirname "$CHANGED_FILE")
-KIND_GLOB="*.tsx"  # match the changed file's extension/kind
+KIND_GLOB="*.tsx" # match the changed file's extension/kind
 ls "$DIR"/$KIND_GLOB 2>/dev/null | grep -v "$(basename "$CHANGED_FILE")" | head -10
 # If fewer than 3 results, broaden to analogous directories before giving up.
 ```
@@ -177,12 +177,10 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 
 **Other dimensions — defer:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → `guidelines-criteria.md`
-- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → `guidelines-criteria.md` §8
-- Module-scale organization, utils sprawl, circular imports, file-structure inconsistency at module scale → `architecture-criteria.md` §4
-- Findings that match repo patterns and should be silenced → handled by `relevance-filter-agent` post-filter
-- Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md` §9
-
-If a finding fits a rubric/checklist mold, it is `guidelines`'s job. If a finding requires sampling siblings and computing a mode, it is conventions's job.
+- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → owned here (emit with modal inference and/or explicit-rule citation per the recipe at §What to Check).
+- Module-scale organization, utils sprawl, circular imports, file-structure inconsistency at module scale → `architecture-criteria.md`- Findings that match repo patterns and should be silenced → handled by orchestrator-side Phase 3 dedup + KEEP/FILTER (SKILL.md-)
+- Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md`
+If a finding fits a style/naming/docs rubric mold, it is `guidelines`'s job. If a finding requires sampling siblings and computing a mode (repo-modal patterns / single-exemplar rubric drift / ADR contradictions / file placement / convention guard), it is conventions's job.
 
 ## How to Detect — Worked Example
 
@@ -195,8 +193,8 @@ ls src/components/*.tsx | grep -v UserCard.tsx
 # N=7 siblings — proceed.
 
 # Category: export style modal
-grep -lE "^export default" src/components/*.tsx | wc -l                     # → 1
-grep -lE "^export (function|const) [A-Z]" src/components/*.tsx | wc -l      # → 6
+grep -lE "^export default" src/components/*.tsx | wc -l # → 1
+grep -lE "^export (function|const) [A-Z]" src/components/*.tsx | wc -l # → 6
 # 6/7 = 86% use named exports. Modal threshold met.
 
 # Inspect the diff
@@ -214,21 +212,21 @@ Counter-example: 4 of 7 siblings use named exports, 3 use default. 57% — ambig
 
 ```json
 {
-  "type": "conventions",
-  "severity": "high|medium",
-  "title": "Convention drift in <file>",
-  "file": "path/to/file.tsx",
-  "line_start": 42,
-  "line_end": 48,
-  "description": "What the diff does and what the modal pattern is",
-  "category": "sibling-consistency|mixing-of-kinds|declaration-order|naming-style|import-grouping|error-handling|class-construction|module-boundary",
-  "current": "Current pattern in the diff",
-  "modal_pattern": "What ≥80% of N≥3 siblings do",
-  "evidence_paths": ["src/components/Avatar.tsx", "src/components/Badge.tsx", "src/components/Card.tsx"],
-  "modal_frequency": "6/7",
-  "tag": "[NEW]|[PRE-EXISTING]",
-  "recommendation": "Match the modal pattern: ...",
-  "confidence": 85
+"type": "conventions",
+"severity": "high|medium",
+"title": "Convention drift in <file>",
+"file": "path/to/file.tsx",
+"line_start": 42,
+"line_end": 48,
+"description": "What the diff does and what the modal pattern is",
+"category": "sibling-consistency|mixing-of-kinds|declaration-order|naming-style|import-grouping|error-handling|class-construction|module-boundary",
+"current": "Current pattern in the diff",
+"modal_pattern": "What ≥80% of N≥3 siblings do",
+"evidence_paths": ["src/components/Avatar.tsx", "src/components/Badge.tsx", "src/components/Card.tsx"],
+"modal_frequency": "6/7",
+"tag": "[NEW]|[PRE-EXISTING]",
+"recommendation": "Match the modal pattern:...",
+"confidence": 85
 }
 ```
 
@@ -268,9 +266,20 @@ A few categories are language-specific:
 
 When a category does not apply to the language, skip it — do not force-fit.
 
+## Cross-PR Convention Drift (peer-PR context)
+
+When the `PEER-PR CONTEXT:` slot is non-`none`, siblings in flight on same target branch ARE part of the modal denominator for recent / in-flight patterns. Inspect kept sibling diffs for convention conflicts:
+
+- Same code kind (helper-placement, naming style, import grouping) introduced with different conventions across parallel PRs — emerging-pattern split, neither has merged yet.
+- Sibling PR establishes a new convention (e.g., adopts a new error-handling library) while current PR uses the pre-existing convention — coordination needed on which becomes the modal once both merge.
+
+Apply the 80% modal threshold AT THE MERGE-STATE LEVEL — peer PRs in flight don't yet contribute to the merged modal. A valid finding shape: «PR #N (peer) introduces convention X for <code kind>; current diff uses convention Y. Neither has merged yet — modal not established. Coordinate on which becomes the convention before either ships». Severity HIGH when current PR's pattern is uniquely novel AND peer's pattern matches existing minority precedent; MEDIUM otherwise.
+
+Do NOT apply the modal threshold to peer PRs as if they were merged siblings — that would inflate the denominator with unmerged code. The signal is «two-way coordination needed», not «modal violation».
+
 ## Review Checklist
 
-- [ ] Read explicit convention sources (CLAUDE.md, .claude/rules/, AGENTS.md, ADRs) before sampling
+- [ ] Read explicit convention sources (CLAUDE.md,.claude/rules/, AGENTS.md, ADRs) before sampling
 - [ ] Step 0 sibling glob run for every changed file; N≥3 confirmed before judging
 - [ ] 80% modal threshold applied per category; ambiguous splits skipped
 - [ ] Sibling-file consistency: helpers placed where ≥80% of siblings put them
