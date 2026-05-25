@@ -282,13 +282,20 @@ Integrity check: <PASS | WARN>
 User content: <UNCHANGED | CHANGED — see /tmp/geniro-content-diff.log>
 Migration walked: <N changes — M applied, K skipped, L deferred>
 
-⚠ RESTART your Claude Code session before using any Geniro skill.
+⚠ RESTART your Claude Code session, then run /geniro:setup.
 
-Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once at session start.
-In-memory skill bodies still point at v<CURRENT_VERSION>. Restart and you're done.
+1. Restart — Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once at session start.
+   In-memory skill bodies still point at v<CURRENT_VERSION> until you restart.
+
+2. Run /geniro:setup after restart — re-run mode will:
+   • Auto-migrate your .geniro/ directory (rename files, add missing fields, clean orphans)
+   • Regenerate CLAUDE.md with the updated skill table and conventions
+   • Preserve your custom instructions, actions, and knowledge
+
+If you have multiple repos with .geniro/, run /geniro:setup in each one after restart.
 ```
 
-Restart warning is **always emitted** by `/update` (unlike `/setup` which is conditional — `/update` IS a version transition by definition).
+Restart + setup recommendation is **always emitted** by `/update` (unlike `/setup` which is conditional — `/update` IS a version transition by definition).
 
 ## Memory I/O
 
