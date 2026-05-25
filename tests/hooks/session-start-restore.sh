@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for hooks/session-start-restore.sh (M3 SessionStart hook).
+# Smoke test for hooks/session-start-restore.sh (SessionStart hook).
 #
 # Run: bash tests/hooks/session-start-restore.sh
 #
@@ -35,7 +35,7 @@ run_hook() {
     | CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK"
 }
 
-# Build a sandbox with а valid state.md под branch `feature/x`.
+# Build a sandbox with a valid state.md under branch `feature/x`.
 new_sandbox() {
   local d="$TMPDIR_BASE/$(date +%s%N)-$RANDOM"
   mkdir -p "$d"
@@ -132,7 +132,7 @@ echo "$ac" | grep -q "Active task detected at startup" \
 
 # ---------------------------------------------------------------------------
 # 5. startup source with NO active task → cold-startup phrasing,
-#    Block 6 suppressed, systemMessage suppressed (§3 lines 92, 95).
+#    Block 6 suppressed, systemMessage suppressed.
 # ---------------------------------------------------------------------------
 
 sandbox="$TMPDIR_BASE/cold-$$"
@@ -147,7 +147,7 @@ ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
 # Block 1 phrasing — must NOT claim a task was detected.
 if echo "$ac" | grep -q "Active task detected"; then
-  fail "cold startup: Block 1 says 'Active task detected' (spec §3 line 92 — must omit)"
+  fail "cold startup: Block 1 says 'Active task detected' (must omit)"
 else
   pass "cold startup: Block 1 omits 'Active task detected'"
 fi
@@ -156,8 +156,8 @@ echo "$ac" | grep -q "no in-flight task" \
   && pass "cold startup: Block 1 cold-startup phrasing fires" \
   || fail "cold startup: Block 1 cold-startup phrasing missing"
 
-# Block 6 — entire resume protocol must be suppressed (§3 line 95: «no
-# 'active task' block»). State.md / spec.md / plan.md references would
+# Block 6 — entire resume protocol must be suppressed (no active task,
+# so no "active task" block). State.md / spec.md / plan.md references would
 # be meaningless.
 if echo "$ac" | grep -q "Resume steps:"; then
   fail "cold startup: Block 6 should be suppressed (no active task)"
@@ -196,7 +196,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7. M1 helper missing → Block 4 fires (validation skipped)
+# 7. Helper missing → Block 4 fires (validation skipped)
 # ---------------------------------------------------------------------------
 
 sandbox=$(new_sandbox)
@@ -204,7 +204,7 @@ out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
   | CLAUDE_PLUGIN_ROOT=/tmp/no-such-dir-$$ bash "$HOOK")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "M1 helpers not installed" \
+echo "$ac" | grep -q "Helpers not installed" \
   && pass "helper missing: Block 4 fires" \
   || fail "helper missing: Block 4 missing"
 
@@ -283,7 +283,7 @@ echo "$ac" | grep -q "custom-unknown (completed:" \
   && pass "Block 5: unknown-action fallback" \
   || fail "Block 5: unknown-action fallback missing"
 
-# slack-notify-sent + release-tagged rendering (M3 §8 lines 378-385).
+# slack-notify-sent + release-tagged rendering.
 sandbox=$(new_sandbox)
 cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
 ---
@@ -463,10 +463,10 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 13b. Validation-fail suppresses Blocks 5/5b/5c/5d (§6 Block 3 "below")
+# 13b. Validation-fail suppresses Blocks 5/5b/5c/5d (Block 3 "below")
 # ---------------------------------------------------------------------------
 # Frontmatter is partially valid (non-resumable + approvals + body have
-# content), but schema-version is bumped к force validation failure.
+# content), but schema-version is bumped to force validation failure.
 sandbox=$(new_sandbox)
 cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
 ---

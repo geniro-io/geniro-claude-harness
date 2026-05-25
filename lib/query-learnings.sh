@@ -2,9 +2,6 @@
 # L2 episodic-memory read helper.
 #
 # Spec: skills/_shared/query-learnings.md
-# Read pipeline: architecture/M2-memory-layers.md §5.2 (read side)
-# Trust filter: architecture/M2-memory-layers.md §5.1 + §5.3
-# Scoring (P-X8-4): architecture/P-X8-self-learning-extensions.md §4
 #
 # API:
 #   query_learnings [--type T] [--tag T] [--scope S] [--min-trust LEVEL]
@@ -73,7 +70,7 @@ query_learnings() {
   if [ -n "$score_min" ]; then
     case "$score_min" in
       ''|*[!0-9.]*)
-        echo "query_learnings: --score-min must be а non-negative number (got '$score_min')" >&2
+        echo "query_learnings: --score-min must be a non-negative number (got '$score_min')" >&2
         return 64
         ;;
     esac
@@ -161,7 +158,7 @@ query_learnings() {
     return 0
   fi
 
-  # P-X8-4 scoring pass: when --score-min is set, compute per-entry score
+  # Scoring pass: when --score-min is set, compute per-entry score
   # = recency_decay × trust_weight × access_weight, filter by threshold,
   # AND sort DESC by score (most relevant first). When unset, behavior is
   # unchanged — append-order with --limit applied via tail (recent N).
@@ -222,9 +219,9 @@ query_learnings() {
   fi
 }
 
-# P-X8-4: increment access_count of entry matching dedup_key. Best-effort,
-# no lock. Concurrent misses acceptable — access_count is а ranking signal,
-# not а ledger. Returns 0 on success or no-op (no log, no match), 1 on
+# Increment access_count of entry matching dedup_key. Best-effort,
+# no lock. Concurrent misses acceptable — access_count is a ranking signal,
+# not a ledger. Returns 0 on success or no-op (no log, no match), 1 on
 # write error.
 record_access() {
   local key="$1"

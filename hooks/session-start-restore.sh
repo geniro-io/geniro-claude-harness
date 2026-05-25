@@ -1,20 +1,17 @@
 #!/usr/bin/env bash
 # session-start-restore.sh — SessionStart hook (matcher: "compact|resume|startup").
 #
-# Spec: architecture/M3-compaction-survival.md §5, §6, §8, §10.
-#
 # Responsibilities:
 #   1. Read $SOURCE from input (compact|resume|startup|clear); exit 0 on clear.
-#   2. Resolve the active T1 state file using the M1-canonical slug + frontmatter
-#      `branch:` fallback (see §5 step 4 and skills/_shared/state-tier-spec.md §Slug rule).
+#   2. Resolve the active T1 state file using the canonical slug + frontmatter
+#      `branch:` fallback (see skills/_shared/state-tier-spec.md Slug rule).
 #   3. Pre-flight validate via lib/validate-state-file.sh; if the helper
-#      itself is missing (M1 PR-0 not landed), degrade gracefully with Block 4 notice.
+#      itself is missing, degrade gracefully with Block 4 notice.
 #   4. Parse frontmatter — producer, spec-file, phase, non-resumable-actions[] count.
-#   5. Assemble `additionalContext` from the ordered Block 1..6 set. Sub-blocks
-#      5/5b/5c/5d land in later commits per the M3 split.
-#   6. Emit `systemMessage` per §10 (suppressed on cold startup with no active task).
+#   5. Assemble `additionalContext` from the ordered Block 1..6 set.
+#   6. Emit `systemMessage` (suppressed on cold startup with no active task).
 #
-# Read-only guarantee (§5): this hook NEVER writes state.md. State writes are the
+# Read-only guarantee: this hook NEVER writes state.md. State writes are the
 # consumer-skill's exclusive responsibility — keeps the hook idempotent across re-runs.
 
 set -uo pipefail
@@ -32,7 +29,7 @@ fi
 
 SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // "compact"' 2>/dev/null || echo "compact")
 
-# §3 — `clear` source: explicit user reset; no auto-reload.
+# `clear` source: explicit user reset; no auto-reload.
 if [ "$SOURCE" = "clear" ]; then
   exit 0
 fi
@@ -53,13 +50,13 @@ if [ "${#slug}" -gt 60 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Active T1 state-file resolution (§5 step 4)
+# Active T1 state-file resolution
 # ---------------------------------------------------------------------------
 #
-# Layouts (state-tier-spec §Path roots):
-#   A. .geniro/planning/<task-dir>/state.md       (multi-file task-bound — M4/M5)
-#   B. .geniro/state/<skill>/<slug>/state.md      (session-bound — M7/M8/M9)
-#   C. .geniro/state/<skill>/state.md             (singleton — M10a setup)
+# Layouts (state-tier-spec Path roots):
+#   A. .geniro/planning/<task-dir>/state.md       (multi-file task-bound)
+#   B. .geniro/state/<skill>/<slug>/state.md      (session-bound)
+#   C. .geniro/state/<skill>/state.md             (singleton — setup)
 #
 # Tier 1: direct slug-match within layouts A, B, plus singleton C.
 # Tier 2: glob all candidate state.md files and grep frontmatter `branch:` field
@@ -138,7 +135,7 @@ if [ -n "$state_file" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Pre-flight validation (§5 step 5, §12)
+# Pre-flight validation
 # ---------------------------------------------------------------------------
 
 validation_status="not-applicable"  # values: pass | fail | skipped | not-applicable
@@ -170,7 +167,7 @@ if [ -n "$state_file" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Frontmatter parse (§5 step 6) — producer, spec-file, phase, list counts
+# Frontmatter parse — producer, spec-file, phase, list counts
 # ---------------------------------------------------------------------------
 
 active_skill=""
@@ -288,7 +285,7 @@ _fm_block_list_to_jsonl() {
 }
 
 # Render a non-resumable-actions JSONL stream into Block 5 bullet lines.
-# Per §8: structured rendering for known action types, fallback for unknown.
+# Structured rendering for known action types, fallback for unknown.
 _render_non_resumable_block() {
   jq -r '
     .action as $a
@@ -400,10 +397,10 @@ _render_open_questions_block() {
 }
 
 # Render frontmatter `approvals[]` into Block 5d bullets.
-# No filter — producer controls which categories persist (M3 §6 Block 5d).
+# No filter — producer controls which categories persist.
 _render_approvals_block() {
   jq -r '
-    "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked в phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
+    "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked in phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
   ' 2>/dev/null
 }
 
@@ -429,12 +426,12 @@ case "$active_skill" in
 esac
 
 # ---------------------------------------------------------------------------
-# additionalContext assembly (§6)
+# additionalContext assembly
 # ---------------------------------------------------------------------------
 
-# Block 1 — source-phrased prefix. §3 line 92: the `startup` phrasing
+# Block 1 — source-phrased prefix. The `startup` phrasing
 # "Active task detected" applies **only if active task found**; cold-startup
-# (no state.md) gets а distinct phrasing per §3 line 95.
+# (no state.md) gets a distinct phrasing.
 case "$SOURCE" in
   compact) _prefix="Context was compressed by compaction (SessionStart source: compact)." ;;
   resume)  _prefix="Restoring from prior session (SessionStart source: resume)." ;;
@@ -455,7 +452,7 @@ canonical loader, NOT direct cwd Reads; CLAUDE.md, .geniro/planning/_FEATURES.md
 spec/plan files remain direct Reads):"
 
 # Block 2 — suggested files. State.md pointer is suppressed when validation
-# failed (§6 last paragraph of Block 3). Spec.md and plan.md remain pointers.
+# failed (Block 3). Spec.md and plan.md remain pointers.
 BLOCK2="- CLAUDE.md
 - .geniro/planning/_FEATURES.md
 - .geniro/instructions/global.md            (loader-routed, MODE: refresh)
@@ -491,25 +488,25 @@ if [ "$validation_status" = "fail" ]; then
   BLOCK3="⚠️ STATE FILE FAILED VALIDATION
 State file at $state_file failed validation: $validation_error.
 Do NOT resume from it.
-On next turn, fire AskUserQuestion with the M1 recovery options:
+On next turn, fire AskUserQuestion with the recovery options:
   1. Delete state file and restart skill from spec   (lose in-flight state)
   2. Open file in editor and fix manually            (skill pauses; retry validation)
   3. Skip validation and continue (emergency)        (risk: silent corruption)
-After user picks, follow the validation-helper recovery flow in M1 §Validation
-helper. Suppress all state.md Reads below — pointer was withheld for safety."
+After user picks, follow the validation-helper recovery flow.
+Suppress all state.md Reads below — pointer was withheld for safety."
 fi
 
-# Block 4 — M1 helper-missing notice.
+# Block 4 — helper-missing notice.
 BLOCK4=""
 if [ "$validation_status" = "skipped" ]; then
-  BLOCK4="⚠️ M1 helpers not installed — validation skipped.
-The state.md file was NOT validated by validate_state_file (M1 PR-0 has
+  BLOCK4="⚠️ Helpers not installed — validation skipped.
+The state.md file was NOT validated by validate_state_file (required helpers have
 not landed yet). Treat resumed state with caution — confirm 'phase:' and
 'status:' fields look sane before continuing."
 fi
 
-# Block 5 — non-resumable-actions warning. Renders structured entries per §8.
-# §6 Block 3: when validation fails, suppress all state.md-derived blocks
+# Block 5 — non-resumable-actions warning. Renders structured entries.
+# When validation fails, suppress all state.md-derived blocks
 # (5/5b/5c/5d). Their contents may be partially trusted; the recovery AUQ
 # must run first.
 BLOCK5=""
@@ -526,7 +523,7 @@ acknowledge in your next message before performing it."
 fi
 
 # Block 5b — Last-known errors from state.md `## Errors` body section.
-# Per P-M3-1: surface unresolved errors so the model doesn't repeat the
+# Surface unresolved errors so the model doesn't repeat the
 # same approach after compaction.
 BLOCK5B=""
 if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
@@ -535,13 +532,12 @@ if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
   if [ -n "$_errors_rendered" ]; then
     BLOCK5B="⚠️ ERRORS ENCOUNTERED IN PRIOR TURNS — do not repeat the same approach:
 $_errors_rendered
-Consider a fundamentally different approach or escalate per M4 §6.3 (Phase 2)
-or §7.4 (Phase 3)."
+Consider a fundamentally different approach or escalate."
   fi
 fi
 
 # Block 5c — Open questions from state.md `## Open Questions` body section.
-# Per P-M3-1: pending user-facing questions surface as AUQ-FIRST directive.
+# Pending user-facing questions surface as AUQ-FIRST directive.
 BLOCK5C=""
 if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
   _oq_rendered=$(_body_section_to_jsonl "$state_file" "Open Questions" \
@@ -555,7 +551,7 @@ this turn. Do not advance pipeline phase until resolved."
 fi
 
 # Block 5d — Persisted approvals from frontmatter `approvals[]`.
-# Per P-M3-2 (depends on P-M1-1): one-time user picks surface so the model
+# One-time user picks surface so the model
 # doesn't re-ask after compaction. Producer decides which categories persist;
 # the hook just renders what's there.
 BLOCK5D=""
@@ -574,7 +570,7 @@ the re-ask in your next message."
   fi
 fi
 
-# Block 5e — Auto-archive stale L2 entries (P-X8-4 auto mode).
+# Block 5e — Auto-archive stale L2 entries.
 #
 # Triggers archive-stale.sh on SessionStart when:
 #   - learnings.jsonl > GENIRO_AUTO_ARCHIVE_THRESHOLD lines (default 5000)
@@ -584,7 +580,7 @@ fi
 #
 # All checks are dirt-cheap (wc, sha256sum, mkdir). archive-stale itself
 # is ~50-200ms for 5000 entries — fits within SessionStart latency budget.
-# Skipped silently when nothing к do; surfaces summary block only когда
+# Skipped silently when nothing to do; surfaces summary block only when
 # entries were actually flipped.
 BLOCK5E=""
 ARCHIVED_COUNT=0
@@ -592,7 +588,7 @@ _learnings_log="./.geniro/knowledge/learnings.jsonl"
 _threshold="${GENIRO_AUTO_ARCHIVE_THRESHOLD:-5000}"
 
 if [ -f "$_learnings_log" ]; then
-  # Opt-out check (default ON; user sets false к disable).
+  # Opt-out check (default ON; user sets false to disable).
   _auto_enabled="true"
   if [ -f "./.geniro/safety.json" ]; then
     _opt=$(jq -r '.memory.auto_archive_stale // true' ./.geniro/safety.json 2>/dev/null)
@@ -640,7 +636,7 @@ if [ -f "$_learnings_log" ]; then
           BLOCK5E="ℹ️ Auto-archived $ARCHIVED_COUNT stale L2 entries (deprecated:true; audit trail preserved on-disk).
 Criteria: age>180d AND score<0.1 AND access_count==0.
 learnings.jsonl: $_line_count entries (size unchanged — entries kept, flagged only).
-Opt-out: set \`memory.auto_archive_stale: false\` в .geniro/safety.json."
+Opt-out: set \`memory.auto_archive_stale: false\` in .geniro/safety.json."
         fi
       fi
       # mkdir failed → another tab owns the lock; silent skip.
@@ -649,10 +645,10 @@ Opt-out: set \`memory.auto_archive_stale: false\` в .geniro/safety.json."
   fi
 fi
 
-# Block 6 — resume protocol. Per §3 line 95 the cold-startup branch
+# Block 6 — resume protocol. The cold-startup branch
 # (no active task) emits no "active task" block — i.e., the 7-step
 # resume protocol is suppressed entirely. Loader-refresh advice still
-# matters, so we emit а trimmed 1-step block in that case.
+# matters, so we emit a trimmed 1-step block in that case.
 BLOCK6=""
 if [ -n "$state_file" ]; then
   if [ -n "$active_skill" ]; then
@@ -710,7 +706,7 @@ _append_block "$BLOCK5E"
 _append_block "$BLOCK6"
 
 # ---------------------------------------------------------------------------
-# systemMessage (§10)
+# systemMessage
 # ---------------------------------------------------------------------------
 
 _active_label="none"

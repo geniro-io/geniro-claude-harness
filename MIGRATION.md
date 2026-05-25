@@ -1,56 +1,54 @@
 # Migration Notes
 
-Plugin-maintainer-authored breaking-change log consumed by `/geniro:update` Phase 4 (M10d §5). Each release version (`## vX.Y.Z`) lists changes user content must adapt к; auto-detect commands are safe (`grep` / `find` / `ls` only — never mutate) и report whether THIS install is affected.
+Plugin-maintainer-authored breaking-change log consumed by `/geniro:update` Phase 4. Each release version (`## vX.Y.Z`) lists changes user content must adapt to; auto-detect commands are safe (`grep` / `find` / `ls` only — never mutate) and report whether THIS install is affected.
 
 For users installing the plugin fresh (no pre-existing `.geniro/`), this file is purely informational — `/geniro:setup` writes the current schema directly.
 
-**Schema reference:** `architecture/M10d-update-redesign.md` §5.1.
-
 ---
 
-## v1.84.0 (released 2026-05-20 — post-M10 consolidation)
+## v1.84.0 (released 2026-05-20)
 
-M1–M10 consolidated 18 skills → 11 + introduced the 3-tier state framework (M1), 4-layer memory model (M2), compaction-survival hook (M3), per-skill canonical phase enums (M4–M10), и the `risk_class:` + `review-extra/` schemas в /actions + /instructions (M10b/c). The user-visible breaks below need attention from anyone whose `.geniro/` predates v1.84.
+The consolidation reduced 18 skills to 11 and introduced the 3-tier state framework, 4-layer memory model, compaction-survival hook, per-skill canonical phase enums, and the `risk_class:` + `review-extra/` schemas in /actions + /instructions. The user-visible breaks below need attention from anyone whose `.geniro/` predates v1.84.
 
 ### Actions require `risk_class:` frontmatter
 
-M10c gates execution by `risk_class: low | medium | high`. Pre-M10c actions lack the field и fail `/geniro:actions validate`.
+Actions are now gated by `risk_class: low | medium | high`. Older actions lack the field and fail `/geniro:actions validate`.
 
-**Action required:** Run `/geniro:actions validate`. For each action surfaced, run `/geniro:actions edit <slug>` и add `risk_class:` (low = automation only; medium = external API call; high = mutating shared infrastructure).
+**Action required:** Run `/geniro:actions validate`. For each action surfaced, run `/geniro:actions edit <slug>` and add `risk_class:` (low = automation only; medium = external API call; high = mutating shared infrastructure).
 
 **Auto-detect:** `find .geniro/actions -maxdepth 1 -name '*.md' -exec grep -L '^risk_class:' {} +`
 
-**Severity:** HIGH — `/geniro:actions list` и `/geniro:actions run <slug>` validate frontmatter on every invocation; missing field surfaces as а CRITICAL lint и refuses the run.
+**Severity:** HIGH — `/geniro:actions list` and `/geniro:actions run <slug>` validate frontmatter on every invocation; missing field surfaces as a CRITICAL lint and refuses the run.
 
 ---
 
 ### Custom-reviewer files moved to `review-extra/<slug>.md`
 
-M10b reserves `.geniro/instructions/review-extra/` for user-authored review dimensions. Pre-M10b custom reviewers stored at arbitrary paths (e.g., `.geniro/instructions/my-reviewer.md`) are no longer auto-discovered by `/review`, `/implement` Phase 3, или `/refactor` Phase 3.
+`.geniro/instructions/review-extra/` is now reserved for user-authored review dimensions. Older custom reviewers stored at arbitrary paths (e.g., `.geniro/instructions/my-reviewer.md`) are no longer auto-discovered by `/review`, `/implement` Phase 3, or `/refactor` Phase 3.
 
-**Action required:** For each non-canonical instruction file acting as а custom reviewer, recreate via `/geniro:instructions create review-extra/<slug>` (interview copies the body + adds `slug` / `description` / `model` / `paths` / `severity-default` frontmatter), then `/geniro:instructions delete <old-scope>`.
+**Action required:** For each non-canonical instruction file acting as a custom reviewer, recreate via `/geniro:instructions create review-extra/<slug>` (interview copies the body + adds `slug` / `description` / `model` / `paths` / `severity-default` frontmatter), then `/geniro:instructions delete <old-scope>`.
 
 **Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|user-preferences|implement|plan|review|debug|refactor|onboard|investigate)\.md$'`
 
-**Severity:** MEDIUM — `load-custom-reviewers.md` (M10b loader) reads only `review-extra/*.md`; old files persist untouched но fire no reviewer-agent spawns.
+**Severity:** MEDIUM — `load-custom-reviewers.md` reads only `review-extra/*.md`; old files persist untouched but fire no reviewer-agent spawns.
 
 ---
 
-### Orphan instruction files для 8 deleted skills
+### Orphan instruction files for 8 deleted skills
 
-Skills dropped в M4 redesign (master plan §60): `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`. Their `.geniro/instructions/<scope>.md` files are no longer loaded by any skill.
+Skills dropped in the consolidation: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`. Their `.geniro/instructions/<scope>.md` files are no longer loaded by any skill.
 
-**Action required:** Per-file decide: (a) migrate the rules content к the replacement skill's instruction file (mapping в CLAUDE.md «Skills deleted в M4 redesign»: `/follow-up` → `/implement`; `/learnings` → auto-step в `/implement` Phase 3; `/deep-simplify` → `/review --simplify`; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
+**Action required:** Per-file decide: (a) migrate the rules content to the replacement skill's instruction file (mapping in CLAUDE.md "Skills deleted" section: `/follow-up` → `/implement`; `/learnings` → auto-step in `/implement` Phase 3; `/deep-simplify` → `/review --simplify`; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
 
 **Auto-detect:** `ls .geniro/instructions/{brainstorm,decompose,follow-up,deep-simplify,features,learnings,cleanup,vendor}.md 2>/dev/null`
 
-**Severity:** MEDIUM — files inert (no loader reads them); rules they encoded are silently dropped until migrated к the replacement skill.
+**Severity:** MEDIUM — files inert (no loader reads them); rules they encoded are silently dropped until migrated to the replacement skill.
 
 ---
 
 ### L3 registry files renamed with `_` prefix
 
-M1 standardized `.geniro/planning/` L3 registry files под `_`-prefix to visually distinguish persistent-global от task-local: `_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`. `load-semantic.sh` (M2 helper) reads only `_`-prefixed paths. `_CODEBASE_MAP.md` retains а one-shot backward-compat read of legacy `CODEBASE_MAP.md` per `_shared/primary-worktree.md`; the other names do NOT.
+`.geniro/planning/` L3 registry files are now standardized under `_`-prefix to visually distinguish persistent-global from task-local: `_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`. `load-semantic.sh` reads only `_`-prefixed paths. `_CODEBASE_MAP.md` retains a one-shot backward-compat read of legacy `CODEBASE_MAP.md` per `_shared/primary-worktree.md`; the other names do NOT.
 
 **Action required:** Rename:
 
@@ -64,39 +62,39 @@ cd .geniro/planning && \
 
 **Auto-detect:** `ls .geniro/planning/{FEATURES,CODEBASE_MAP,project,architecture}.md 2>/dev/null`
 
-**Severity:** MEDIUM — `/plan`, `/implement`, `/onboard` report «no L3 registry found» until renamed; content is preserved, only the path needs adjusting.
+**Severity:** MEDIUM — `/plan`, `/implement`, `/onboard` report "no L3 registry found" until renamed; content is preserved, only the path needs adjusting.
 
 ---
 
 ### CLAUDE.md may reference deleted skills
 
-`/setup`-generated CLAUDE.md от pre-M10 installs lists 18 skills including the 8 deleted ones. Users following the table hit «command not found».
+`/setup`-generated CLAUDE.md from older installs lists 18 skills including the 8 deleted ones. Users following the table hit "command not found".
 
-**Action required:** Run `/geniro:setup` re-run mode. Phase Generate detects the `<!-- geniro-setup-version: -->` marker и runs orchestrator-inline section merge per §3.5 — preserves user-edited prose while applying the new 11-skill table. Phase Validate verifies zero refs к dropped skills.
+**Action required:** Run `/geniro:setup` re-run mode. Phase Generate detects the `<!-- geniro-setup-version: -->` marker and runs orchestrator-inline section merge — preserves user-edited prose while applying the new 11-skill table. Phase Validate verifies zero refs to dropped skills.
 
 **Auto-detect:** `grep -q '^\*\*Skills deleted' CLAUDE.md 2>/dev/null || grep -El '/geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)\b' CLAUDE.md 2>/dev/null`
 
-(Heading-gated + canonical-form-anchored. The first grep short-circuits when CLAUDE.md already carries the post-M10 «Skills deleted в M4 redesign» receipts heading — receipt mentions there are intentional. The second grep is anchored к the canonical `/geniro:<command>` form `/setup` writes; bare-text mentions like `learnings.jsonl` filenames don't match. If your CLAUDE.md uses non-canonical shorthand like bare `/brainstorm`, run `/geniro:setup` re-run regardless.)
+(Heading-gated + canonical-form-anchored. The first grep short-circuits when CLAUDE.md already carries the "Skills deleted" receipts heading — receipt mentions there are intentional. The second grep is anchored to the canonical `/geniro:<command>` form `/setup` writes; bare-text mentions like `learnings.jsonl` filenames don't match. If your CLAUDE.md uses non-canonical shorthand like bare `/brainstorm`, run `/geniro:setup` re-run regardless.)
 
-**Severity:** MEDIUM — users invoking listed commands hit «not found»; other skills work normally.
+**Severity:** MEDIUM — users invoking listed commands hit "not found"; other skills work normally.
 
 ---
 
-### New L4 file `user-preferences.md` (M10b pipeline-tier slot 4)
+### New L4 file `user-preferences.md`
 
-M10b added `user-preferences` as the 4th pipeline-tier loader file (alongside `global.md`, `<skill>.md`, `code-style.md`). Pre-M10b installs lack it; pipeline skills emit one «No user-preferences.md found — skipping.» line per Step 0 (harmless info).
+`user-preferences` was added as the 4th pipeline-tier loader file (alongside `global.md`, `<skill>.md`, `code-style.md`). Older installs lack it; pipeline skills emit one "No user-preferences.md found — skipping." line per Step 0 (harmless info).
 
-**Action required:** Run `/geniro:setup` re-run mode — Interview phase captures `default_branch` / `default_reviewer_set` / `ship_mode_default` / `communication_style` answers и writes them к `.geniro/instructions/user-preferences.md`. Alternative: `/geniro:instructions create user-preferences` для manual authoring.
+**Action required:** Run `/geniro:setup` re-run mode — Interview phase captures `default_branch` / `default_reviewer_set` / `ship_mode_default` / `communication_style` answers and writes them to `.geniro/instructions/user-preferences.md`. Alternative: `/geniro:instructions create user-preferences` for manual authoring.
 
 **Auto-detect:** `[ ! -f .geniro/instructions/user-preferences.md ] && echo affected`
 
-**Severity:** LOW — pipeline skills function без it (treated as «no preferences set»); creating it customizes default behavior.
+**Severity:** LOW — pipeline skills function without it (treated as "no preferences set"); creating it customizes default behavior.
 
 ---
 
-### Legacy state-file paths superseded by M1 T1/T2/T3
+### Legacy state-file paths superseded by T1/T2/T3
 
-M1 reorganized `.geniro/state/` per the 3-tier framework: T1 ephemeral session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Pre-M1 paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry для backward-compat resume but writes к the M1 §T2 path.
+`.geniro/state/` was reorganized per the 3-tier framework: T1 ephemeral session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry for backward-compat resume but writes to the T2 path.
 
 **Action required:** Optional cosmetic cleanup (orphan files inert):
 
@@ -105,29 +103,29 @@ rm -rf .geniro/state/{follow-up,brainstorm,decompose,learnings,deep-simplify,cle
 rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adversarial.md 2>/dev/null
 ```
 
-(Per-subdir `rm -rf .geniro/state/<x>/` и per-file `rm -f` allowed by `.geniro/`-deletion guard; bulk `rm -rf .geniro/state/` blocked.)
+(Per-subdir `rm -rf .geniro/state/<x>/` and per-file `rm -f` allowed by `.geniro/`-deletion guard; bulk `rm -rf .geniro/state/` blocked.)
 
 **Auto-detect:** `ls -d .geniro/state/{follow-up,brainstorm,decompose,learnings,deep-simplify,cleanup,vendor,features}/ 2>/dev/null; ls .geniro/state/review-findings-state.md 2>/dev/null`
 
-**Severity:** LOW — orphan files inert; new skills read M1 paths only. Cleanup purely cosmetic.
+**Severity:** LOW — orphan files inert; new skills read the current paths only. Cleanup purely cosmetic.
 
 ---
 
 ### New safety hooks may block unfamiliar operations
 
-M1/M3/M5 added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` к `.geniro/` state paths — suggests `atomic_state_write`), `plan-mode-write-guard.sh` (blocks writes outside `.geniro/planning/**` или `.geniro/state/**` when /plan is in-progress within 4h), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE «Discard All Changes» becomes one-click data-loss), `session-start-restore.sh` (M3 compaction-restore — read-only, never blocks).
+New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `plan-mode-write-guard.sh` (blocks writes outside `.geniro/planning/**` or `.geniro/state/**` when /plan is in-progress within 4h), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
 
-**Action required:** If а workflow legitimately needs к bypass а guard, add the pattern ID к `.geniro/safety.json` `allow_patterns` (full ID list в CLAUDE.md «Per-project allowlist for safety guardrails»). The hook output prints the exact ID к add.
+**Action required:** If a workflow legitimately needs to bypass a guard, add the pattern ID to `.geniro/safety.json` `allow_patterns` (full ID list in CLAUDE.md "Per-project allowlist for safety guardrails"). The hook output prints the exact ID to add.
 
-**Auto-detect:** N/A — only reveals itself when а blocked operation occurs (fail-loud).
+**Auto-detect:** N/A — only reveals itself when a blocked operation occurs (fail-loud).
 
-**Severity:** LOW — fail-loud с the bypass ID; no silent corruption possible.
+**Severity:** LOW — fail-loud with the bypass ID; no silent corruption possible.
 
 ---
 
 ### `learnings.jsonl` gained optional `trust:` field
 
-M2 §5.1 added `trust: verified | retrieved | inferred` к L2 entries (P-M2-3 accepted 2026-05-17). Entries без the field are treated as implicit `verified` for backward-compat.
+`trust: verified | retrieved | inferred` was added to L2 entries. Entries without the field are treated as implicit `verified` for backward-compat.
 
 **Action required:** None. Future writes carry `trust:`; old reads still work.
 
@@ -139,9 +137,9 @@ M2 §5.1 added `trust: verified | retrieved | inferred` к L2 entries (P-M2-3 ac
 
 ### 4 deleted agent files (informational)
 
-Pre-M10 vendored installs may have `.claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md` copied at install time. These 4 agents were removed в b51a730 (pre-M4 per-WU lanes / pre-/follow-up adversarial reviewer / pre-M9 retrieval). The plugin update overwrites the agent directory, но vendored copies under `.claude/agents/` are user-owned и untouched.
+Older vendored installs may have `.claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md` copied at install time. These 4 agents were removed in a prior consolidation. The plugin update overwrites the agent directory, but vendored copies under `.claude/agents/` are user-owned and untouched.
 
-**Action required:** Optional cleanup для vendored installs only:
+**Action required:** Optional cleanup for vendored installs only:
 
 ```bash
 rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null
@@ -149,12 +147,12 @@ rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent
 
 **Auto-detect:** `ls .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null`
 
-**Severity:** LOW — orphan files cause а warning when Claude Code lists agents но do not break spawns (5 current agents register independently).
+**Severity:** LOW — orphan files cause a warning when Claude Code lists agents but do not break spawns (5 current agents register independently).
 
 ---
 
-## Notes on `/setup` re-run cleanup scope (M10a §162)
+## Notes on `/setup` re-run cleanup scope
 
-`/geniro:setup` re-run is **intentionally conservative**: it re-generates only `CLAUDE.md` (with conflict-resolution merge preserving user edits) и the 4 standard L4 instruction files (`global`, `code-style`, `user-preferences`, и the 7 per-skill files). User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/*` artifacts are **never** touched.
+`/geniro:setup` re-run is **intentionally conservative**: it re-generates only `CLAUDE.md` (with conflict-resolution merge preserving user edits) and the 4 standard L4 instruction files (`global`, `code-style`, `user-preferences`, and the 7 per-skill files). User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/*` artifacts are **never** touched.
 
-Orphan-file cleanup is therefore а **user decision surfaced by this MIGRATION.md** (или manual investigation) → user runs `/geniro:instructions delete <scope>` / `/geniro:actions delete <slug>` / shell `rm` per the per-entry guidance above. There is no «destructive sweep» mode in `/setup` by design — the cost of accidental deletion exceeds the value of automation.
+Orphan-file cleanup is therefore a **user decision surfaced by this MIGRATION.md** (or manual investigation) → user runs `/geniro:instructions delete <scope>` / `/geniro:actions delete <slug>` / shell `rm` per the per-entry guidance above. There is no "destructive sweep" mode in `/setup` by design — the cost of accidental deletion exceeds the value of automation.

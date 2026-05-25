@@ -221,11 +221,11 @@ Write checkpoint with approved finding count.
 
 Orchestrator-inline validation per finding (no subagent — folded under subagent rationalization; same Anthropic rationale as /review Phase 3 dedup). For each Phase 2-approved finding, the orchestrator:
 
-1. **Redundancy check (ALIGNS / CONTRADICTS / NEUTRAL):** Grep target files for instructions covering the same ground. CONTRADICTS = duplicate; ALIGNS = compatible с existing; NEUTRAL = novel-but-non-conflicting.
-2. **Relevance check (APPROPRIATE / OVER-ENGINEERED):** weigh against current scope — APPROPRIATE if needed для stated purpose; OVER-ENGINEERED if YAGNI или defensive polish.
+1. **Redundancy check (ALIGNS / CONTRADICTS / NEUTRAL):** Grep target files for instructions covering the same ground. CONTRADICTS = duplicate; ALIGNS = compatible with existing; NEUTRAL = novel-but-non-conflicting.
+2. **Relevance check (APPROPRIATE / OVER-ENGINEERED):** weigh against current scope — APPROPRIATE if needed for stated purpose; OVER-ENGINEERED if YAGNI or defensive polish.
 3. **One-line rationale** captures the why.
 
-Then tag: FILTER if CONTRADICTS (redundant) или OVER-ENGINEERED (not needed); otherwise KEEP. Write checkpoint с KEEP count. Filtered findings appear in Phase 3's "Filtered" section для transparency но are not proposed для implementation.
+Then tag: FILTER if CONTRADICTS (redundant) or OVER-ENGINEERED (not needed); otherwise KEEP. Write checkpoint with KEEP count. Filtered findings appear in Phase 3's "Filtered" section for transparency but are not proposed for implementation.
 
 ---
 

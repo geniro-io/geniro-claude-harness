@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# AUQ-rejection L2 emit helper (P-X8-2).
+# AUQ-rejection L2 emit helper.
 #
 # Spec: skills/_shared/emit-rejection.md
-# Design rationale: architecture/P-X8-self-learning-extensions.md §3.2
 #
-# Called at AUQ-resolution sites to convert rejection-signal picks into а
-# cross-session L2 entry. Skills already persist the pick into М1 §T1
+# Called at AUQ-resolution sites to convert rejection-signal picks into a
+# cross-session L2 entry. Skills already persist the pick into T1
 # frontmatter `approvals[]` (task-scoped); this helper additionally emits
-# а `user_rejected_suggestion` entry к learnings.jsonl (cross-session).
+# a `user_rejected_suggestion` entry to learnings.jsonl (cross-session).
 #
 # API:
 #   emit_rejection_if_signal \
@@ -19,7 +18,7 @@
 #     * Else if $recommended supplied AND $picked != $recommended →
 #       picked_non_recommended
 #     * Else → no signal, no-op (rc=0)
-#   - On signal: emit L2 entry с type=user_rejected_suggestion,
+#   - On signal: emit L2 entry with type=user_rejected_suggestion,
 #     trust=verified, required ext.{suggestion, auq_category, rejection_signal}
 #
 # Exit codes:
@@ -76,8 +75,8 @@ emit_rejection_if_signal() {
   tags_json=$(jq -nc --arg cat "$auq_category" \
     '["auq-rejection", $cat]')
 
-  # Compose summary с picked option.
-  local summary="user picked '${picked}' over '${recommended:-<no recommendation>}' для '${suggestion}'"
+  # Compose summary with picked option.
+  local summary="user picked '${picked}' over '${recommended:-<no recommendation>}' for '${suggestion}'"
 
   # Compose payload.
   local payload

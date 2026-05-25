@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# L2 stale-entry archival helper (P-X8-4).
+# L2 stale-entry archival helper.
 #
 # Spec: skills/_shared/archive-stale.md
-# Design rationale: architecture/P-X8-self-learning-extensions.md §4.3
 #
 # Walks .geniro/knowledge/learnings.jsonl and flips `deprecated: true`
 # on entries matching all three criteria simultaneously:
@@ -12,7 +11,7 @@
 #
 # NEVER deletes — flips deprecated:true only, audit trail preserved.
 # NEVER auto-runs — invoked explicitly by user OR surfaced as notice
-# in M3 SessionStart Block 5e. Idempotent: already-deprecated entries
+# in SessionStart Block 5e. Idempotent: already-deprecated entries
 # skipped.
 #
 # API:
@@ -48,7 +47,7 @@ archive_stale_learnings() {
   log="$root/.geniro/knowledge/learnings.jsonl"
 
   if [ ! -f "$log" ] || [ ! -s "$log" ]; then
-    echo "archive-stale: no learnings.jsonl found (nothing к archive)" >&2
+    echo "archive-stale: no learnings.jsonl found (nothing to archive)" >&2
     return 1
   fi
 
@@ -58,7 +57,7 @@ archive_stale_learnings() {
 
   # Compute score per entry, identify stale candidates, optionally write.
   # Stale criterion AND-ed: score < 0.1 AND age > 180d AND access_count == 0
-  # AND not-already-deprecated. Reports per-type breakdown к stderr.
+  # AND not-already-deprecated. Reports per-type breakdown to stderr.
   local stale_filter='
     def recency_decay($age_days; $tau):
       if $age_days == null then 0.5
@@ -126,14 +125,14 @@ archive_stale_learnings() {
   local tmp="${log}.tmp.$$"
   printf '%s\n' "$processed" | jq -c 'del(._is_stale)' > "$tmp" 2>/dev/null || {
     rm -f "$tmp"
-    echo "archive-stale: failed к prepare new log content" >&2
+    echo "archive-stale: failed to prepare new log content" >&2
     return 2
   }
 
   # POSIX rename(2) — atomic on same filesystem.
   mv "$tmp" "$log" || {
     rm -f "$tmp"
-    echo "archive-stale: failed к rename tmp к $log" >&2
+    echo "archive-stale: failed to rename tmp to $log" >&2
     return 2
   }
 
