@@ -12,8 +12,8 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 Use this skill to systematically debug complex issues. Replaces guessing with evidence gathering and hypothesis testing. 3 phases mirroring `/geniro:implement`.
 
 **Architecture spec:** *(internal)*. Detailed contracts:
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/infrastructure-investigation.md` — infrastructure-cause guidance
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/isolation-techniques.md` — binary search / git bisect / profiling
+- Infrastructure-cause guidance — see § Infrastructure Investigation below
+- Isolation techniques (binary search / git bisect / profiling) — see § Isolation Techniques below
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading our T2 hand-offs
 
@@ -212,7 +212,7 @@ Persist to state.md `## Feedback Loop` body section: Command / Expected output /
 
 Based on Observation + Feedback Loop output, form **2-3 competing hypotheses**. Each must be testable AGAINST THE FEEDBACK LOOP —'s tests will toggle one variable, re-run the loop, observe whether the captured signature changes.
 
-**Consider infrastructure causes alongside code causes** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/infrastructure-investigation.md`. If symptoms include timeouts, intermittent failures, or environment-only manifestation, form at least one infrastructure hypothesis.
+**Consider infrastructure causes alongside code causes** per § Infrastructure Investigation below. If symptoms include timeouts, intermittent failures, or environment-only manifestation, form at least one infrastructure hypothesis.
 
 Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypothesis / Evidence For / Evidence Against / Status: pending → testing → confirmed | rejected | inconclusive / Test Plan / Result perB schema).
 
@@ -254,7 +254,7 @@ state.md `phase: investigate` throughout. `## Hypotheses` body section grows ite
 ### 1.6 Isolate root cause → [ROOT-CAUSE] finding
 
 Once a hypothesis is confirmed:
-- Identify exact code location. Trace data/control flow. Apply techniques per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/isolation-techniques.md` (binary search / git bisect / profiling).
+- Identify exact code location. Trace data/control flow. Apply techniques per § Isolation Techniques below (binary search / git bisect / profiling).
 - Understand why the bug happens (not just where).
 - **Tag emitted findings per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.** `/geniro:debug` is the root-cause flow by definition — a confirmed hypothesis isolates to a `[ROOT-CAUSE]` finding, NOT `[SYMPTOM]`. `[UNKNOWN]` from debug is a failure mode — if you find yourself emitting `[UNKNOWN]`, the hypothesis loop didn't close (escalate via stall gate). `[SYMPTOM]` from debug is also a failure mode — re-enter with a new hypothesis.
 
@@ -755,11 +755,59 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`.
 
 ---
 
+## Infrastructure Investigation
+
+When symptoms suggest the bug may not be in the code (timeouts, intermittent failures, environment-specific errors, deployment regressions), investigate infrastructure before or alongside code hypotheses.
+
+**Signals requiring at least one infrastructure hypothesis:**
+- Timeouts (request, query, container, deployment)
+- Intermittent failures (5xx spike with no code change, error rate >0 but <100%)
+- Environment-only manifestation (works locally, breaks in staging/prod)
+- Symptoms correlate with a deployment, config change, secret rotation, or scale event
+- Latency degradation without code change
+
+**What to investigate:**
+- **Logs & error tracking** — application logs for error spikes, upstream failures, correlation with deployments
+- **Service health** — database connectivity/query performance, external service dependencies, container/process health (OOM kills, restart loops, CPU throttling)
+- **Environment & config** — env var diffs between working/broken environments, recent config changes, secret rotations, certificate expirations, DNS/network/firewall
+- **Resource limits** — memory, CPU, disk space, file descriptors, connection pool size vs active connections, external API rate limits
+
+**Hypothesis quality bar:** "The database connection pool is exhausted under load" is testable — names the resource, condition, and observable signature. "Something is wrong with the server" is NOT a hypothesis — no variable to toggle, no falsifiable prediction.
+
+---
+
+## Isolation Techniques
+
+Once a hypothesis is confirmed, narrow down to exact code location.
+
+**Binary search:** Disable half the relevant code path, check if the bug reproduces. Narrow iteratively. O(log N) iterations. Use when the confirmed hypothesis points to a general region but exact line/branch is unclear.
+
+**Git bisect:** For regressions, identify the commit that introduced the bug.
+```bash
+git bisect start
+git bisect bad HEAD
+git bisect good <known-good-sha>
+# git checks out midpoint; run repro; mark good/bad; repeat
+git bisect reset
+```
+Use when the bug was absent at a prior commit. `git bisect run <repro-script>` automates the walk.
+
+**Profiling:** For performance bugs, use profiling tools for quantitative data (timing, memory, allocation count). Code inspection cannot distinguish "slow because of N+1 query" from "slow because of N^2 allocation."
+- Node: `node --prof`, `clinic.js`, `0x`, Chrome DevTools heap snapshots
+- Python: `cProfile`, `py-spy`, `memray`
+- Go: `pprof`
+- JVM: `async-profiler`, JFR
+- Browser: Performance panel, Memory panel, Lighthouse
+
+**Pick the cheapest technique:** binary search if the region is large; git bisect if the regression boundary is known; profiling if the symptom is quantitative. Don't run all three.
+
+---
+
 ## Anti-pattern check
 
-Per master plan, this implementation does NOT reintroduce:
+This implementation does NOT reintroduce:
 
-1. ✅ **One giant prompt** — modular SKILL.md + `_shared/*.md` references (infrastructure-investigation.md, isolation-techniques.md, per-finding-question.md, debug-handoff.md).
+1. ✅ **One giant prompt** — modular SKILL.md + `_shared/*.md` references (per-finding-question.md, debug-handoff.md) + inlined guidance sections.
 2. ✅ **One giant tool** — narrow Read/Edit/Write/Bash + ACI per-phase (§ ACI).
 3. ✅ **Unbounded autonomous loop** — 5-inconclusive + 2-attempt + adversarial 10-test hard cap, all escalating to user via AUQ.
 4. ✅ **Autonomous external sends in first release** — N/A for /debug (no `git push`, no `gh pr create`).
@@ -853,7 +901,7 @@ For each debug session, confirm the checklist for the mode that ran.
 /geniro:debug API endpoint times out randomly under load
 ```
 → Phase 1 Observe: Happens ~5% of requests during stress test
-→ Hypothesis 1 (code): Database query too slow; Hypothesis 2 (infra per `_shared/infrastructure-investigation.md`): External service timeout
+→ Hypothesis 1 (code): Database query too slow; Hypothesis 2 (infra): External service timeout
 → Test: Profile database queries, check service logs
 → Result: Hypothesis 2 confirmed (service is slow)
 → Phase 2 Propose: add timeout + fallback around the external service call

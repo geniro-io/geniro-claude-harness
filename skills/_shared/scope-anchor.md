@@ -38,7 +38,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 The two slots are pre-populated text; the verify line tells the subagent to confirm its inherited cwd matches the orchestrator's expectation before doing anything. A mismatch is a hard abort, not a warning — the subagent reports back and the orchestrator decides.
 
-**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="haiku"` agent converting a structured spec into prose) do not need the anchor — the inheritance cannot drift if nothing reads it. `skills/_shared/ui-preview-gate.md` is the canonical example. When in doubt, include the anchor — two lines of metadata is cheap.
+**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="haiku"` agent converting a structured spec into prose) do not need the anchor — the inheritance cannot drift if nothing reads it. When in doubt, include the anchor — two lines of metadata is cheap.
 
 ## Forbidden subagent-spawn moves
 

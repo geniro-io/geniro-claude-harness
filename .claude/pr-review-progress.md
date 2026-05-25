@@ -165,8 +165,13 @@ Scripts moved: `archive-stale.sh`, `atomic-state-write.sh`, `emit-learning.sh`, 
 ## Comment 20 — `skills/_shared/medium-gate.md:61`
 **Question:** "Что за shared-инструкции такие «medium-gate»? Зачем они? Вообще, проанализируй все инструкции и дополнительные фабки shared, и скажи, какие мы можем вообще удалить."
 (What is medium-gate? Analyze ALL shared instructions and say which we can delete.)
-**Status:** ❌ NOT STARTED
-**Notes:** This is a BIG task — full audit of all `_shared/*.md` files. Need to check each for: (a) is it referenced? (b) is it still relevant? (c) can it be merged with another file?
+**Status:** ✅ DONE
+**Action taken:** Full audit of all 40 `_shared/*.md` files by reference count. medium-gate.md kept (6 refs, active AUQ gate). Deleted 4 files (446 lines total):
+- `ui-preview-gate.md` (89 lines) — true orphan, zero real consumers
+- `infrastructure-investigation.md` (63 lines) — inlined into debug/SKILL.md
+- `isolation-techniques.md` (54 lines) — inlined into debug/SKILL.md
+- `learnings-extraction.md` (240 lines) — key content inlined into investigate/SKILL.md
+Remaining 36 files all have 2+ real consumers or are API docs for lib/ scripts.
 
 ---
 
