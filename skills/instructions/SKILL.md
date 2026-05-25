@@ -176,7 +176,7 @@ For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO requi
 
 - `create review-extra` no slug → ask via `AskUserQuestion` "Other" path (free-form text).
 - `edit review-extra` / `delete review-extra` no slug AND one file exists → default to that file.
-- `edit review-extra` / `delete review-extra` no slug AND multiple files exist → AUQ which slug. If >4 files, chain follow-ups per `feedback_askuserquestion_extension.md`.
+- `edit review-extra` / `delete review-extra` no slug AND multiple files exist → AUQ which slug. If >4 files, chain follow-ups per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` cap-extension rule.
 - `validate review-extra` ignores slug — always validates the whole directory. Print one-line notice if a slug was passed.
 
 If multi-scope, proceed to **Batch Mode**. Otherwise proceed to the resolved command section.

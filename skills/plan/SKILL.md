@@ -122,7 +122,7 @@ This skill has **NO hard kill caps**. All limits are **escalation gates that sur
 - spec.md section count: exactly 10.
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
-**Rationale.** Master plan phrasing «≤3 AUQ gates per-run, ≤5 helper reads, ≤5 spawns» applies to /implement, NOT /plan. /plan is a **clarification-heavy** skill — its job IS to ask questions (Phase 3 ≤5 + Phase 4 1 + Phase 5 up to 10 per-section + Phase 8 1 → ~17 AUQs typical, not 3). The pre-redesign /brainstorm shipped that pattern and user feedback was positive — preserves it.
+**Rationale.** The ≤3 AUQ gates guideline applies to /implement, NOT /plan. /plan is a **clarification-heavy** skill — its job IS to ask questions (Phase 3 ≤5 + Phase 4 1 + Phase 5 up to 10 per-section + Phase 8 1 → ~17 AUQs typical, not 3).
 
 ---
 

@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 5 agents, 11 skills, and 8 safety hooks + statusline + update check out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 2 specialist sub-agents, 11 skills, and 7 safety hooks + statusline + update check out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -118,7 +118,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:implement` — Autonomous implementation
 
-2-phase loop: Analyze → Implement → Self-review-and-Ship. Consumes `spec.md` from `/plan` (or inline-task fallback when `/plan` hasn't been run). Single solo execution path with 5-dim parallel self-review (bugs / security / architecture / tests / code-quality). Absorbs post-ship tweaks from the legacy `/follow-up`.
+2-phase loop: Analyze → Implement → Self-review-and-Ship. Consumes `spec.md` from `/plan` (or inline-task fallback when `/plan` hasn't been run). Single solo execution path with 5-dim parallel self-review (bugs / security / architecture / tests / code-quality).
 
 ```
 /geniro:implement                              # consume spec.md from /plan
@@ -127,7 +127,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:review` — Parallel multi-agent code review
 
-6-phase reporter loop (triage → mechanical pre-pass → 9-dim LLM reviewers → filter → stratify → persist → action-gate). Dimensions: bugs / security / architecture / tests / optimizations / guidelines / conventions (+design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT non-none). Phase 1.5 mechanical pre-pass (lint / schema / secret scan) feeds prior-context. Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria (absorbs deleted `/deep-simplify`). Optional `--tdd` flag tightens validation budget + F→P test-gate.
+6-phase reporter loop (triage → mechanical pre-pass → 9-dim LLM reviewers → filter → stratify → persist → action-gate). Dimensions: bugs / security / architecture / tests / optimizations / guidelines / conventions (+design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT non-none). Phase 1.5 mechanical pre-pass (lint / schema / secret scan) feeds prior-context. Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria. Optional `--tdd` flag tightens validation budget + F→P test-gate.
 
 ```
 /geniro:review                                # review uncommitted changes
@@ -242,7 +242,6 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | **Evidence-on-completion** | `Stop` hook (warn-only) — scans last assistant message for completion phrases that lack an Evidence Block |
 | **TDD-order enforcement** | PreToolUse `Edit\|Write` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files |
 | **State-helper enforcement** | PreToolUse warn-mode — surfaces when a direct `Edit`/`Write` targets a canonical state path; suggests `atomic_state_write` |
-| **Plan-mode write-guard** | PreToolUse hard-block — restricts Writes to `.geniro/planning/**` and `.geniro/state/**` while a `/plan` run is active |
 
 ## Updating
 
@@ -261,7 +260,7 @@ geniro-claude-plugin/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # 11-skill canonical inventory
-├── agents/                      # 9 specialized agent definitions
+├── agents/                      # 2 specialized agent definitions
 ├── skills/                      # 11 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning
@@ -276,7 +275,7 @@ geniro-claude-plugin/
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
 │                                # load-custom-instructions, query/emit-learnings, etc.)
-├── hooks/                       # 8 safety hooks + statusline + update check
+├── hooks/                       # 7 safety hooks + statusline + update check
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer

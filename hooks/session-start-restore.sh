@@ -417,7 +417,7 @@ fi
 # ---------------------------------------------------------------------------
 
 case "$active_skill" in
-  implement|plan|review|debug|refactor|decompose|follow-up|deep-simplify)
+  implement|plan|review|debug|refactor)
     load_tier="pipeline"
     ;;
   *)
