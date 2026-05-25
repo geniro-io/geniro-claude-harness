@@ -2,7 +2,7 @@
 
 **Status:** Authoritative for L2 episodic-memory write-side sanitization. Every entry that flows through `_shared/emit-learning.sh` is sanitized via this helper before append.
 
-**Spec source:** `architecture/M2-memory-layers.md` §5.4 (pattern set, audit log schema, `.geniro/safety.json` extension).
+**Spec source:** `ARCHITECTURE.md` §Memory Layers.
 
 ## Why this exists
 

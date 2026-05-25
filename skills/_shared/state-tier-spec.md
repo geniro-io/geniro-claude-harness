@@ -1,6 +1,6 @@
 # Canonical state-tier specification
 
-**Canonical reference for every state file in `.geniro/`.** Distilled from `architecture/M1-state-files.md` §Frontmatter contract (consolidated) + §The three tiers. This is the contract; the M-doc is the design rationale.
+**Canonical reference for every state file in `.geniro/`.** See `ARCHITECTURE.md` §State Files for the design decisions behind this spec.
 
 Helpers reference this spec:
 - `skills/_shared/atomic-state-write.md` — write helper for T1, T3 CRUD, and append-only.

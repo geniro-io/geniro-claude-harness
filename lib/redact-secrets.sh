@@ -2,7 +2,7 @@
 # Secrets sanitization helper.
 #
 # Spec: skills/_shared/redact-secrets.md
-# Pattern set: architecture/M2-memory-layers.md §5.4
+# Pattern set: ARCHITECTURE.md §Memory Layers
 #
 # API:
 #   printf '%s' "$raw" | redact_secrets <producer> <field> <dedup_key>

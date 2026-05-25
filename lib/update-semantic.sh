@@ -2,7 +2,7 @@
 # L3 semantic-memory write helper.
 #
 # Spec: skills/_shared/update-semantic.md
-# Bounded auto-incremental writes: architecture/M2-memory-layers.md §6.3
+# Bounded auto-incremental writes: ARCHITECTURE.md §Memory Layers
 #
 # API:
 #   update_semantic --file <codebase-map|features> --append "<line>"

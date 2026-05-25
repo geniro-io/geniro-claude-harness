@@ -3,7 +3,7 @@
 #
 # Spec: skills/_shared/atomic-state-write.md
 # Tier model: skills/_shared/state-tier-spec.md
-# Design rationale: architecture/M1-state-files.md §Atomic write helper
+# Design rationale: ARCHITECTURE.md §State Files
 #
 # Source this file from a skill's Bash invocation:
 #   source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"

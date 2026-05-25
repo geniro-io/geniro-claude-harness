@@ -2,7 +2,7 @@
 
 **Status:** Authoritative for how skills surface cross-layer disagreements (L4 vs L3 vs L2). Provides FORMATTING — detection lives in the calling skill.
 
-**Spec source:** `architecture/M2-memory-layers.md` §10 (cross-layer conflict resolution).
+**Spec source:** `ARCHITECTURE.md` §Memory Layers.
 
 **MODE contract (M3 §7.4):** formatting helper — **no MODE parameter, compaction-immune.** Behavior is derived from `load-*` outputs at call time; refreshes cascade from the load-side and need no signaling here.
 
