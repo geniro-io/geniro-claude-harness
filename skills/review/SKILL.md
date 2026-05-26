@@ -501,15 +501,19 @@ If Phase 5 re-enters after compaction:
 
 State.md `phase: action-gate`. **Full contract:** `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md`.
 
-Summary:
+Summary of the gate chain (each gate is its own AUQ — never collapsed):
 
-- **AUQ with 4 options** — `/implement findings` (Recommended when CRITICAL/HIGH count >0) / Post Draft PR review (conditional on `pr-ref:` non-none + ≥1 unposted) / Continue rounds (Round-N escalation gate when round ≥3) / Skip.
+1. **Pre-gate — Resolve Open Questions** fires first whenever frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension >4). Always-WAIT. Resolutions persist back via `atomic_state_write`. MUST complete before any other gate. Full procedure: `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §2.5. Skipped when zero unresolved entries.
+2. **Step 0 — Open-decision** per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero.
+3. **Action gate** — `AskUserQuestion` with 4 options: `/implement findings` (Recommended when CRITICAL/HIGH count >0) / Post Draft PR review (conditional on `pr-ref:` non-none + ≥1 unposted) / Continue rounds (Round-N escalation gate when round ≥3) / Skip. Persist user pick to `approvals[]` with category `action_gate`.
+4. **Failing-tests gate** when state.md `## Authored Tests` non-empty.
+
+Operational rules:
+
 - **Reporter behavior** — no fix loop inside /review. /implement self-review (5-dim parallel) is a separate skill with a separate contract.
 - **`--simplify`** does NOT change hand-off shape (still reporter).
-- **Persist user pick to `approvals[]`** with category `action_gate`.
-- **Round-N escalation gate** when round ≥3 + «Continue rounds» pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
-
-Open questions for Phase 6 deferred per spec (hard-ceiling at round 5 or 6) — see reference file
+- **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
+- **Pre-Post unresolved-questions guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[].status == unresolved` remain. Fail-closed second line of defense against producers writing new entries mid-phase.
 ---
 
 ## ACI per-phase tool surface

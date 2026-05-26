@@ -293,7 +293,8 @@ Decision tree (first match wins; evaluate top-down):
      • EXISTING_TASK_STATE == true
    ⇒ AUTO-CONTINUE in current worktree. NO workspace AUQ. Echo:
         "Continuing in worktree '<dir>' on '<branch>'.
-         Detected signal(s): <REVIEW_HANDOFF | DEBUG_HANDOFF | EXISTING_TASK_STATE | slug match>."
+         Detected signal(s): <REVIEW_HANDOFF | DEBUG_HANDOFF | EXISTING_TASK_STATE | slug match>.
+         <when REVIEW_HANDOFF == true:> Handoff carries N unresolved open question(s) — will gate Edit/Write at Step 12."
       Workflow Question 2 still asked if applicable (see 0c).
 
 3. IN_WORKTREE == false
@@ -416,7 +417,18 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 9. **Query L2 learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by KR output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
 11. **Detect frontend files in scope.** Use Codebase-Explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Phase 3 design-conventions injection and Pre-Ship Visual Verification.
-12. **Persist T2 handoffs.** If `.geniro/state/handoff/from-<producer>-<branch>.md` exists, read and persist under state.md `## Inputs from <producer>` body section.
+12. **Persist T2 handoffs AND gate on unresolved open questions.** For every `.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
+    1. Read the file via `atomic_state_write`-safe Bash `cat` (NOT direct `Edit`/`Write`).
+    2. Persist the body under state.md `## Inputs from <producer>` body section.
+    3. Parse frontmatter `open_questions[]` per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
+    4. Filter to entries with `status: unresolved`.
+    5. **If the filtered list is non-empty, fire an AUQ batch BEFORE transitioning to `phase: implement`.** Chain one AUQ per unresolved entry (cap-extension when >4). Use `header: "Open question"` and the entry's `question:` field verbatim. Options synthesized per the patterns in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5.
+    6. After each user pick, update the entry in the PRODUCER's handoff file via `atomic_state_write` (round-trip update): set `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-1-step-12`, `resolution.resolved_by: implement`. Preserve `id`, `source`, `question`, `related_findings`.
+    7. Persist a parallel approval to state.md `approvals[]` with `category: review_handoff_resolution`, `picked: <chosen option>`, `at: <ISO-8601 UTC>`, `source_handoff: <producer>`, `question_id: <id>` for compaction-resume idempotency.
+    8. After all entries are `resolved` or `wontfix`, proceed to step 13.
+
+   /implement is the consumer; the contract per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 forbids proceeding with Edit/Write while any `unresolved` entry remains. A consumer that ships anyway violates the contract — the producer surfaced the ambiguity precisely so it gets resolved BEFORE code changes.
+
 13. **State.md write.** `atomic_state_write` with `phase: analyze` body sections populated → upon completion, transition `phase: implement`.
 
 **Workflow plumbing.** Workflow integrations (`.geniro/workflow/*.md`) apply their argument-detection patterns BEFORE the semantic-parse table. Non-blocking — log warning if integration backend unavailable.

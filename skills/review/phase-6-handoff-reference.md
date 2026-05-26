@@ -19,17 +19,57 @@ This skill confirms: /review does NOT apply fixes. Phase 6 hand-off message NEVE
 
 ## 2. Gate chain — fire each as a separate AUQ
 
-Phase 6 surfaces up to 3 sequential top-level gates. Each one decides a different thing AND MUST be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
+Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a different thing AND MUST be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
 
 **Firing order:**
 
-1. **Step 0 — Open-decision (per finding):** fires once per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
-2. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /implement / Post Draft PR / Continue rounds / Skip.
-3. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
+1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — open questions gate downstream action by definition. Full procedure: §2.5 below.
+2. **Step 0 — Open-decision (per finding):** fires once per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
+3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /implement / Post Draft PR / Continue rounds / Skip.
+4. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
 - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
 - **Action != Post OR `## Authored Tests` empty:** Failing-tests fires AFTER Action gate's path completes.
 
 Sequential: do not fire gate N+1 until gate N's answer is collected.
+
+---
+
+## 2.5. Pre-gate — Resolve Open Questions
+
+This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gates — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`.
+
+**Why it runs first.** Open questions surface ambiguous-how-to-fix decisions (e.g., "API seeder additions in-scope or split into a separate PR?"). Resolving them changes what the Action gate is actually choosing between. Letting Action gate fire first means the user picks "/implement findings" without realizing 4 questions still gate the implementation.
+
+**Procedure:**
+
+1. Read frontmatter `open_questions[]`. Filter to entries with `status: unresolved`.
+
+2. For each unresolved entry, fire one `AskUserQuestion` call:
+   - `header`: `"Open question"` (literal — never paraphrase)
+   - `question`: the entry's `question:` field, verbatim
+   - `options`: synthesized from the entry's context. For ambiguity-resolution patterns, supply 3-4 concrete options derived from the question text. Examples:
+     - Scope question ("X in-scope or split?") → "In scope — keep in this PR" / "Split — revert X to a separate PR" / "Out of scope — drop entirely"
+     - Verification question ("Cannot confirm Y exists; verify?") → "Yes — Y exists and matches" / "No — Y is wrong; revise PR title/body" / "Unknown — skip verification"
+     - Acceptance question ("Accept Z pattern or refactor?") → "Accept Z as-is" / "Refactor Z to <suggested-alternative>" / "Defer — file follow-up"
+   - When the question doesn't fit a fixed-options pattern, supply 2-3 options + rely on user "Other" for free-form. Never auto-resolve.
+
+3. After the user picks (always-WAIT — empty answer = upstream bug, re-ask), update the entry in-place via `atomic_state_write`:
+   - `status: resolved`
+   - `resolution.picked`: chosen option text (verbatim)
+   - `resolution.at`: ISO-8601 UTC timestamp
+   - `resolution.asked_in_phase`: `phase-6-pre-gate`
+   - `resolution.resolved_by`: `review`
+   Preserve the `id`, `source`, `question`, and `related_findings` fields.
+
+4. Mirror the resolution into the body `## Resolved Questions` section per the schema example in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
+
+5. When >4 unresolved entries, chain into a second AUQ batch per the AskUserQuestion cap-extension pattern.
+
+6. After the last unresolved entry resolves, ALL `open_questions[].status` MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
+
+**Wontfix path.** If the user picks "Other" with explicit text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream gates — they're recorded but de-prioritized. Downstream consumers treat `wontfix` as "user acknowledged and chose to defer".
+
+**No skipping.** The pre-gate cannot be deferred to /implement or to the Post drill. Resolving here makes the Action gate's options meaningful (e.g., "/implement findings" now points to a known-scope target). Resolving downstream creates the failure mode this gate exists to prevent.
 
 ---
 
@@ -114,6 +154,25 @@ When user picked "Post" in the Action gate:
 2. Continue with Steps 1.5-6 below.
 
 When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to Failing-tests (when applicable) and cleanup.
+
+### 7.0 Step 0 — Unresolved-questions guard (fail-closed)
+
+Before any of the Post-drill steps below fire, re-read state.md frontmatter `open_questions[]`. If any entry has `status: unresolved`, abort the Post drill — never post to GitHub with unresolved questions baked in.
+
+The §2.5 Pre-gate runs first in Phase 6 and should leave `open_questions[]` with zero `unresolved` entries by the time Action gate fires. This §7.0 check is the fail-closed second line of defense: if a producer wrote a new entry mid-phase, or if `atomic_state_write` raced with a parallel resolver, the Pre-gate's invariant might not hold. Verify defensively.
+
+**Procedure:**
+
+1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`.
+2. Filter to entries with `status: unresolved`.
+3. If the filtered list is non-empty:
+   - Surface a one-line chat warning naming the question count and the first 1-2 question texts.
+   - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-questions`, and the unresolved question IDs.
+   - Re-fire the §2.5 Pre-gate to resolve the remaining entries.
+   - After resolution completes, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds the unresolved list empty.
+4. When step 3 finds the unresolved list empty, proceed to §7.1.
+
+This guard exists because posting a draft PR review with unresolved questions buried in the body would push ambiguity onto the PR author or downstream reviewer — exactly the failure mode `open_questions[]` is designed to prevent.
 
 ### 7.1 Step 1.5 — Resolved-thread dedup (input-side filter)
 
