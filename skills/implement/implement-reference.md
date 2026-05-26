@@ -37,36 +37,158 @@ If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task
 
 ---
 
+## Phase 1: Subagent spawn template
+
+Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, TWO `Agent(...)` tool calls. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` (both agents declare `model: inherit`).
+
+### Knowledge-Retrieval spawn
+
+The orchestrator pre-resolves these slots and inlines them in the prompt:
+
+| Slot | Source |
+|---|---|
+| `LIB_ROOT` | `${CLAUDE_PLUGIN_ROOT}/lib` — canonical plugin shell helpers |
+| `KNOWLEDGE_ROOT` | `<PRIMARY_ROOT>/.geniro/knowledge` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` |
+| `PLANNING_ROOT` | `<PRIMARY_ROOT>/.geniro/planning` — cross-session subset (`_FEATURES.md`, `_CODEBASE_MAP.md`, `_focus-*.md`) |
+| `TASK_PLANNING_ROOT` | `$(pwd)/.geniro/planning/<task-slug>` — task-local (`spec.md`, prior `plan-*.md`) |
+| `HANDOFF_DIR` | `<PRIMARY_ROOT>/.geniro/state/handoff/` |
+| `TASK_DESCRIPTION` | First ~200 chars of `$ARGUMENTS` or `spec.title` |
+| `INFERRED_TAGS` | Tag list inferred by the orchestrator from task description (e.g., `react,auth,bug`) |
+| `OUTPUT_PATH` | `<task-dir>/.kr-out.md` |
+
+```
+Agent(subagent_type="knowledge-retrieval-agent", description="Phase 1: Knowledge retrieval", prompt="""
+LIB_ROOT: [absolute path]
+KNOWLEDGE_ROOT: [absolute path]
+PLANNING_ROOT: [absolute path]
+TASK_PLANNING_ROOT: [absolute path]
+HANDOFF_DIR: [absolute path]
+TASK_DESCRIPTION: [pre-inlined]
+INFERRED_TAGS: [comma-separated list]
+OUTPUT_PATH: [absolute path under <task-dir>]
+
+Follow the procedure in your agent file §Search procedure. Write the structured
+report to OUTPUT_PATH per the §Output schema (cap ~3K chars). Do NOT mutate the
+codebase or git state — read-only retrieval only.
+""")
+```
+
+### Codebase-Explorer spawn
+
+The orchestrator pre-resolves these slots and inlines them in the prompt:
+
+| Slot | Source |
+|---|---|
+| `WORKTREE` | `git rev-parse --show-toplevel` |
+| `SPEC_CONTENT` | Pre-inlined `spec.md` body (or `## Inline Plan` from state.md for inline-task mode) |
+| `RULES_DIR` | `.claude/rules/` (absolute path under WORKTREE) |
+| `SEMANTIC_MAP` | Pre-inlined `_CODEBASE_MAP.md` body (~2K tokens) |
+| `OUTPUT_PATH` | `<task-dir>/.ce-out.md` |
+
+```
+Agent(subagent_type="codebase-explorer-agent", description="Phase 1: Codebase exploration", prompt="""
+WORKTREE: [absolute path]
+SPEC_CONTENT: [pre-inlined spec.md body]
+RULES_DIR: [absolute path to .claude/rules/]
+SEMANTIC_MAP: [pre-inlined _CODEBASE_MAP.md body]
+OUTPUT_PATH: [absolute path under <task-dir>]
+
+Follow the procedure in your agent file §Exploration procedure. Write the
+structured report to OUTPUT_PATH per the §Output schema (cap ~5K chars). Do NOT
+mutate the codebase or git state — read-only reconnaissance only.
+
+For `.claude/rules/` matching: parse YAML frontmatter `paths:` field per file;
+return the LIST of relevant rule paths only — do NOT inline rule bodies. The
+orchestrator JIT-loads rule bodies in Phase 2 when Edit targets match.
+""")
+```
+
+### Failure handling
+
+On missing/empty OUTPUT_PATH file OR `Agent` tool error: one silent retry. Second failure → inline-Read fallback (orchestrator Grep + Read top exemplar files and `_CODEBASE_MAP.md` rows) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo a one-line notice to user.
+
+### Escalation signals (orchestrator-side advisory)
+
+After reading the Codebase-Explorer report, the orchestrator scans `spec.md` for these signals and emits a one-line advisory if any match (NOT a tier override — user retains authority over `/model` selection):
+
+| Signal | Detection grep on spec.md |
+|---|---|
+| New entity / migration / schema change | `\b(migration\|schema\|ALTER\|CREATE TABLE)\b` |
+| Auth, permissions, or role boundary | `\b(auth\|RBAC\|permission\|role\|JWT\|OAuth\|middleware)\b` (case-insensitive) |
+| 3+ modules coordinated | spec.md `## Touchpoints` section lists ≥3 distinct top-level modules |
+| New external integration | `\b(API\|SDK\|MCP\|webhook\|integration)\b` AND filename like `.env\|secrets\|credentials` |
+| Async / queue / background job | `\b(async\|queue\|worker\|scheduler\|cron\|background)\b` |
+
+When ≥1 signal matches, emit: `"Spec touches <matched signals> — consider running on Opus tier if not already (current: <tier>)."` Log a `## Tool log` entry `escalation_signals: [...]`.
+
+---
+
+## Phase 2: test-runner-agent spawn template
+
+Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=`. Apply the registration-degradation ladder.
+
+The orchestrator pre-resolves these slots:
+
+| Slot | Source |
+|---|---|
+| `WORKTREE` | `git rev-parse --show-toplevel` |
+| `TEST_COMMAND` | Project's test command from CLAUDE.md "Essential Commands" (e.g., `pnpm --filter api test:unit`, `pytest tests/`, `go test ./...`) |
+| `CHANGED_FILES` | List of paths Edited in Phase 2 (newline-separated) |
+| `OUTPUT_PATH` | `<task-dir>/.tr-out.md` (overwritten per retry) |
+| `MAX_FAILURES_REPORTED` | `15` (default) |
+
+```
+Agent(subagent_type="test-runner-agent", description="Phase 2: Run tests", prompt="""
+WORKTREE: [absolute path]
+TEST_COMMAND: [exact command string]
+CHANGED_FILES: [newline-separated paths]
+OUTPUT_PATH: [absolute path under <task-dir>]
+MAX_FAILURES_REPORTED: 15
+
+Follow the procedure in your agent file §Workflow. Run TEST_COMMAND ONCE,
+save full stdout+stderr to a /tmp log via tee, parse the saved log (Grep), and
+write the structured report to OUTPUT_PATH per the §Output Schema. Verdict ∈
+{ALL_GREEN, HAS_FAILURES, INFRA_ERROR}. Do NOT edit source code, do NOT mutate
+git, do NOT re-run the suite.
+""")
+```
+
+---
+
 ## Phase 2: Implement — error-handling
 
-For test-suite failures, follow the in-phase mini fix loop :
+The Phase 2 fix loop uses the structured `test-runner-agent` output (NOT raw stdout):
 
 ```
 retry = 1
 while retry ≤ 3:
-inspect failing test output
-edit code (or test) to address the failure
-re-run test suite
-if all green → exit Phase 2 → Phase 3
-retry += 1
+  read <task-dir>/.tr-out.md
+  if Verdict == ALL_GREEN → exit Phase 2 → Phase 3
+  if Verdict == INFRA_ERROR → escalate AUQ immediately (don't retry blind)
+  inspect the structured Failures list
+  edit code (or test) to address top-priority failures
+  re-spawn test-runner-agent (overwrites .tr-out.md)
+  retry += 1
 else:
-escalate via AskUserQuestion (debug-handoff / accept-failure / abort, )
+  escalate via AskUserQuestion (debug-handoff / accept-failure / abort)
 ```
 
-**Evidence requirement.** Every PASS/FAIL claim from the test-suite run MUST attach an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (command, exit code, last 3 lines of output). Stop-hook scans for forbidden phrases (`"all tests pass"`, `"validation complete"`, `"ready to ship"`) without an attached Evidence Block.
+**Token cost.** Raw test stdout (~50K tokens per run) never enters the orchestrator's main context — only the structured report (~2-6K chars). A 3-retry loop saves up to ~140K tokens.
 
-**Tool log persistence.** The end-of-phase test-suite run and any subagent spawn outcomes are persisted to state.md `## Tool log` body section via `atomic_state_write` per the schema in Routine Read/Edit/Bash on local files do NOT need logging.
+**Evidence requirement.** The Verdict block from `.tr-out.md` (Command / Exit code / Summary) attaches as the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Stop-hook scans for forbidden phrases (`"all tests pass"`, `"validation complete"`, `"ready to ship"`) without an attached Evidence Block.
 
-**Termination-reason on escalate-abort.** If the user picks "abort" at, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing tests)`. Audit trail for this skill resume.
+**Tool log persistence.** Every `test-runner-agent` spawn outcome (Verdict + log-file path) is persisted to state.md `## Tool log` via `atomic_state_write`. Routine Read/Edit/Bash on local files do NOT need logging.
+
+**Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing tests)`.
 
 ---
 
 ## Phase 3: Self-review reviewer-agent template
 
-Spawn 5 reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type: "reviewer-agent"` (apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder at every spawn site).
+Spawn 5 reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type: "reviewer-agent"`. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder at every spawn site. OMIT `model=` (reviewer-agent declares `model: inherit`).
 
 ```
-Agent(subagent_type="reviewer-agent", model="sonnet", description="Self-review: <dim>", prompt="""
+Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="""
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIMENSION: bugs | security | architecture | tests | code-quality
@@ -109,36 +231,111 @@ If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero 
 
 ---
 
+## Phase 3: Adversarial-tester spawn template
+
+Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel batch as the 5 reviewers (6 total spawns when included). The adversarial-tester authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
+
+- Codebase-Explorer report `change_scope: trivial`, OR
+- `--no-adversarial` modifier present in `$ARGUMENTS`.
+
+Apply the registration-degradation ladder. OMIT `model=` (adversarial-tester-agent declares `model: inherit`).
+
+The orchestrator pre-resolves these slots:
+
+| Slot | Source |
+|---|---|
+| `WORKTREE` | `git rev-parse --show-toplevel` |
+| `BRANCH` | `git branch --show-current` |
+| `DIFF` | `git diff <base>...HEAD` where `<base>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3 |
+| `CHANGED_FILES` | Newline-separated list of paths in DIFF |
+| `TEST_DIR_HINT` | Project test directory pattern from CLAUDE.md "Essential Commands" (e.g., `tests/`, `__tests__/`, `*.test.ts` co-located) |
+| `TEST_FRAMEWORK` | Detected from package.json / pyproject.toml / Cargo.toml (e.g., `vitest`, `jest`, `pytest`, `go test`) |
+| `TESTS_CRITERIA` | Pre-inlined `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` body |
+| `PRIOR_REVIEW_FINDINGS` | Round 1: `none — first round`. Round 2+: CRITICAL/HIGH findings from Round N-1 reviewers (pre-inlined) |
+| `OUTPUT_PATH` | `<task-dir>/.adversarial-out.md` |
+
+```
+Agent(subagent_type="adversarial-tester-agent", description="Phase 3: Adversarial edge-case hunt", prompt="""
+WORKTREE: [absolute path]
+BRANCH: [current branch]
+DIFF: [full git diff body, pre-inlined]
+CHANGED_FILES: [newline-separated paths]
+TEST_DIR_HINT: [project test directory pattern]
+TEST_FRAMEWORK: [detected framework]
+TESTS_CRITERIA: [pre-inlined tests-criteria.md body]
+PRIOR_REVIEW_FINDINGS: [Round 1: 'none — first round'; Round 2+: CRITICAL/HIGH from prior round]
+OUTPUT_PATH: [absolute path under <task-dir>]
+
+Follow the procedure in your agent file. Generate edge-case hypotheses against
+the diff. Author F→P-verified failing tests (RED today) for confirmed bugs only
+— each test must reproduce the bug under the current code and would pass once
+the bug is fixed. Write the structured findings report to OUTPUT_PATH per the
+§Output Format. Authored test files land under TEST_DIR_HINT — they become
+part of the commit if Phase 3 ships clean.
+
+Critical constraints (enforced by agent frontmatter tools whitelist):
+- No production-source edits — test files only.
+- No git mutation.
+- No destructive Bash.
+- No sub-agent spawning (leaf agent).
+
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs.
+""")
+```
+
+### Round 2+ adversarial behavior
+
+- If Round 1 adversarial returned non-empty authored tests AND any test still fails after Round 1 fixes: re-spawn at Round 2 with PRIOR_REVIEW_FINDINGS updated.
+- If all adversarial tests now pass: drop adversarial from Round 2+ (mirrors the "round N+1 ≠ all 5" rule for reviewers).
+- If Round 1 adversarial returned zero authored tests (clean adversarial result): drop adversarial from Round 2+ unconditionally.
+
+### Why no user-approval AUQ before this spawn
+
+`/review` gates adversarial-tester spawns behind a user-approval AUQ because its contract is read-only reporter — spawning a test author is a scope expansion past contract. `/implement` is already authorized to mutate code (Phase 2 IS the mutation phase). Phase 3 adversarial test authoring is symmetric to Phase 2 code authoring, NOT a new authority surface. The spec.md approval upstream (when one exists) covers it. The scope-tier check (`change_scope: trivial` → skip) IS the mechanical gate. Use `--no-adversarial` modifier in `$ARGUMENTS` for explicit per-run opt-out.
+
+---
+
 ## Phase 3: Bounded fix loop
 
 ```
 round = 1
 while round ≤ 3:
-spawn reviewer-agents on failing dimensions only
-round 1: all 5 dims
-round N+1: only dims that flagged in round N
-collect findings
-if no findings across all dimensions:
-break # exit to Phase 3 Ship sub-step
-apply fixes inline (single Edit-driven sub-loop, no further agent spawns)
-re-run project test suite (must stay green)
-round += 1
+  spawn this round's agents IN PARALLEL (one assistant response):
+    round 1: 5 reviewer-agents + 1 adversarial-tester (unless skipped) + N custom reviewers
+    round N+1: only dims that flagged in round N + adversarial-tester if its
+               Round-N CRITICAL/HIGH remain unresolved OR any authored test still fails
+
+  collect findings (reviewer dim outputs + adversarial-tester findings +
+                    list of authored failing tests on disk)
+
+  if no findings AND no authored adversarial tests THAT STILL FAIL:
+    break  # exit to Phase 3 Ship sub-step
+
+  apply fixes inline (single Edit-driven sub-loop, NO further agent spawns)
+  re-spawn test-runner-agent; if Verdict != ALL_GREEN, rollback to Phase 2
+  round += 1
 else:
-# round 4 would start — DO NOT enter it
-escalate via AskUserQuestion
+  # round 4 would start — DO NOT enter
+  escalate via AskUserQuestion
 ```
 
-**Round N+1 only re-runs failing dimensions.** Dimensions that passed round N are NOT re-spawned — bounds cost and avoids re-litigating clean code.
+**Round N+1 only re-spawns failing dimensions and the adversarial-tester (conditionally).** Dimensions that passed round N are NOT re-spawned — bounds cost and avoids re-litigating clean code. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache.
+
+**Adversarial-tester treated as the 6th dimension for fix purposes:**
+- Each authored failing test counts as a HIGH finding.
+- After applying fixes, the next test-runner-agent invocation reports whether the adversarial tests now pass.
+- If they pass, the adversarial dim is "clean" for round N+1 (drop from re-spawn).
+- Authored test files STAY on disk through Ship — they become part of the commit.
 
 **Escalation at exhaust.** When the loop hits round 3 with unresolved findings:
 
 1. Do NOT silently push or claim completion.
 2. Surface via `AskUserQuestion` (header: `"Resolve findings"`) with:
-- Summary of unresolved findings per dimension (top 3 each).
-- Options:
-- **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). Caller resumes via `/geniro:debug` using state.md as a T2 handoff.
-- **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship` (proceeds to Ship sub-step). Architecture reviewer prompt in future runs sees the accepted-findings list and may flag scope concerns.
-- **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
+   - Summary of unresolved findings per dimension (top 3 each).
+   - Options:
+     - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). Caller resumes via `/geniro:debug` using state.md as a T2 handoff.
+     - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
+     - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
 3. State.md records `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
 
 The Always-WAIT contract applies: empty `AskUserQuestion` answer = upstream bug, fall back to plain text and re-ask. NEVER auto-default to any option.
@@ -273,15 +470,33 @@ Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvemen
 
 ### Cleanup
 
-Run cleanup directly (no agent needed):
+Run cleanup directly (no agent needed). The T1 / T1.5 split contract keeps durable artifacts on disk and deletes only transient subagent outputs.
 
-**Pipeline artifacts** — under T1 contract (`<task-dir>` is task-ephemeral, deleted at Phase Ship):
+**Transient outputs — DELETE at Ship** (T1 ephemeral):
 
 ```bash
-rm -rf <task-dir> # e.g.,.geniro/planning/feat-eng-123-add-oauth/
+rm -f "<task-dir>"/.kr-out.md \
+      "<task-dir>"/.ce-out.md \
+      "<task-dir>"/.tr-out.md \
+      "<task-dir>"/.adversarial-out.md \
+      "<task-dir>"/notes.md \
+      "<task-dir>"/playwright-verify.png
 ```
 
-This deletes `spec.md`, `state.md`, `notes.md`, and any other files created during the run. Commit message, PR description, and `learnings.jsonl` (L2) are the durable records. The `.geniro/` deletion guard hook DOES allow `rm -rf.geniro/planning/<task-dir>/` (deep path), but NOT `rm -rf.geniro/` (bulk). Per-task cleanup is a fully-allowed operation.
+These files were used once by the orchestrator or subagents during the run; they're dead weight after Ship.
+
+**Durable artifacts — PRESERVE** (T1.5 task-bound durable):
+
+```
+<task-dir>/spec.md         # /geniro:plan canonical output — needed for /review spec-compliance
+<task-dir>/state.md        # frontmatter + ## Tool log + ## Open Questions — needed for Adjustment Routing
+<task-dir>/plan-*.md       # versioned plans from /geniro:plan iterations
+<task-dir>/milestone-*.md  # /geniro:plan Big-mode milestone splits
+```
+
+Downstream consumers (`/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement` Adjustment Routing) depend on these surviving Ship. Do NOT `rm -rf <task-dir>` — that's the legacy whole-directory cleanup superseded by the split.
+
+The `.geniro/` deletion guard hook allows targeted `rm -f` under `<task-dir>` (per-file deletions). Bulk `rm -rf .geniro/planning/<task-dir>/` is also allowed (deep path), but unused under the new contract.
 
 **Temp files** — remove temporary screenshots, `.tmp`, `.bak`, `debug-*` files (not in `node_modules` or `.git`). Kill orphaned processes on agent ports (avoid touching standard dev ports). Remove stray `.log` files. Best-effort — silent failures OK.
 
