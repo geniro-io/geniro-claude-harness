@@ -2,7 +2,7 @@
 
 This file contains templates, examples, and detailed procedures referenced by SKILL.md. The orchestrator reads specific sections at the relevant phase — not the entire file upfront.
 
-**Scope:** `/geniro:implement` is a 2-phase autonomous loop (Analyze → Implement → Self-review-and-Ship).
+**Scope:** `/geniro:implement` is a 3-phase autonomous loop (Analyze → Implement → Self-review-and-Ship).
 
 ---
 

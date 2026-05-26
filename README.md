@@ -40,7 +40,7 @@ Add to your repo's `.claude/settings.json` so teammates get prompted to install:
    ```
    /geniro:plan add user authentication with JWT tokens
    ```
-5. **Implement** — consumes the spec.md (or inline-task if /plan wasn't run), 2-phase autonomous loop:
+5. **Implement** — consumes the spec.md (or inline-task if /plan wasn't run), 3-phase autonomous loop:
    ```
    /geniro:implement
    ```
@@ -85,7 +85,7 @@ Every plugin subagent inherits your orchestrator's model tier. If you're running
 
 ```
   /geniro:plan  →  /geniro:implement  →  /geniro:review
-  (spec-first      (2-phase autonomous     (multi-dim code review
+  (spec-first      (3-phase autonomous     (multi-dim code review
    planning)        execute + ship)         before merge)
 ```
 

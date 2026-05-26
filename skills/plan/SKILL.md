@@ -8,7 +8,7 @@ argument-hint: <topic-string-or-design-doc-path>
 
 # /geniro:plan — Spec-first planning
 
-Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 10-phase loop (Phases 0–9, Phase 2 dropped) in `${CLAUDE_SKILL_DIR}/plan-loop.md`. It applies the loop verbatim.
+Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 10-phase loop (Phases 0–9; Phase 2 Visual Companion is UI-conditional — fires only when the UI trigger matches) in `${CLAUDE_SKILL_DIR}/plan-loop.md`. It applies the loop verbatim.
 
 **Spec source:** *(internal)*. Read this skill in context of the architecture spec — every decision and trade-off is documented there.
 

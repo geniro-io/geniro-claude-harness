@@ -25,12 +25,12 @@ Read the first 20 lines of the candidate file. If frontmatter contains:
 
 ```yaml
 geniro_kind: design-doc
-geniro_schema_version: m5-v1
+geniro_schema_version: m5-v1   # or m5-v2 — both accepted
 ```
 
-→ switch to **structured-section parser**.
+→ switch to **structured-section parser**. Both `m5-v1` and `m5-v2` carry the same 10-section body schema; `m5-v2` additionally exposes `workflow_refs[]` in frontmatter (`/plan` Impl-10 onward writes m5-v2 by default when a tracker reference is fetched). Downstream readers MUST accept either version.
 
-If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing → fall back to **prose mode**.
+If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` → fall back to **prose mode**.
 
 ---
 
@@ -173,7 +173,13 @@ Loaded spec.md has frontmatter:
 
 ```yaml
 geniro_kind: design-doc
-geniro_schema_version: m5-v1
+geniro_schema_version: m5-v2
+workflow_refs:
+  - kind: linear
+    issue_id: CI-303
+    url: https://linear.app/.../CI-303/...
+    fetched_at: 2026-05-26T10:42:13Z
+    status: In Progress
 budget:
 max_files_to_edit: 5
 max_lines_changed: 300

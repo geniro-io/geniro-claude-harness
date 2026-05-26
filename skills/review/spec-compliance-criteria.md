@@ -6,7 +6,7 @@ This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either t
 
 ## schema-aware mode
 
-When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schema_version: m5-v1` frontmatter, PLAN CONTEXT is delivered as a **section-tagged blob** with 10 named sections per the schema (plus the frontmatter goal-state block):
+When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schema_version` of either `m5-v1` OR `m5-v2`, PLAN CONTEXT is delivered as a **section-tagged blob** with 10 named sections per the schema (plus the frontmatter goal-state block; `m5-v2` additionally surfaces `workflow_refs[]` if present):
 
 - Section 1: Objective
 - Section 2: Scope — Included

@@ -314,7 +314,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 Per `plan-context-reference.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
-1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version: m5-v1` frontmatter present → structured-section parser (10 sections + frontmatter goal-state).
+1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (10 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).
 2. Else fall back to prose detection with ~3000-char cap.
 
 PLAN CONTEXT body inlined in spec-compliance reviewer spawn prompt only (Phase 2). Other dimensions don't see it.
