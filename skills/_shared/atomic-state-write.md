@@ -13,12 +13,13 @@
 
 | Tier / situation | Helper |
 |---|---|
-| T1 task-bound state (`.geniro/planning/<task-dir>/*.md`) | `atomic_state_write` |
-| T1 session-bound state (`.geniro/state/<skill>/<slug>/state.md`) | `atomic_state_write` |
-| T1 singleton state (`.geniro/state/setup/state.md`) | `atomic_state_write` |
+| T1.5 task-bound durable artifacts (`.geniro/planning/<task-dir>/{state,spec}.md`, `plan-*.md`, `milestone-*.md`) | `atomic_state_write` |
+| T1.5 session-bound state (`.geniro/state/<skill>/<slug>/state.md`) | `atomic_state_write` |
+| T1.5 singleton state (`.geniro/state/setup/state.md`) | `atomic_state_write` |
 | T2 handoff (`.geniro/state/handoff/from-*.md`) | `atomic_state_write` |
 | T3 CRUD (`instructions/*.md`, `actions/*.md`, `workflow/*.yaml`, `planning/_*.md`) | `atomic_state_write` (with caller-side mtime check — see below) |
 | T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` |
+| T1 ephemeral transient outputs (`.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `notes.md`, `playwright-verify.png`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at Ship |
 | Reading state — no helper needed | use `Read` tool directly |
 
 **Do not** use the built-in `Write` or `Edit` tools on `.geniro/` state paths. The `enforce-state-helper.sh` PreToolUse hook warns on direct writes (and will hard-block once block-mode is enabled).
@@ -36,7 +37,7 @@ source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 
 atomic_state_write ".geniro/planning/dark-mode/state.md" <<'EOF'
 ---
-tier: T1
+tier: T1.5
 producer: implement
 schema-version: 1
 branch: feature/dark-mode

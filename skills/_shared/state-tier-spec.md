@@ -10,23 +10,39 @@ Helpers reference this spec:
 
 ## Tier model
 
-Every state file in `.geniro/` belongs to exactly one tier, determined by its path root.
+Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract.
 
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
-| **T1 — TASK** | Ephemeral state owned by one skill run | Created at Phase 0; deleted at Phase Ship | cwd-relative | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
+| **T1 — TASK ephemeral** | Transient subagent outputs / scratch (no frontmatter) | Created mid-run; deleted at Phase Ship | cwd-relative | path-scoped via `<task-dir>` |
+| **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/review` spec-compliance, `/implement` Adjustment Routing, `/debug`, `/refactor`) | Created at Phase 0; **survives Phase Ship** | cwd-relative | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
 | **T2 — HANDOFF** | Inter-skill data hand-off | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
+
+**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter (subagent reports — `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`; ad-hoc scratch `notes.md`; screenshots `playwright-verify.png`). They never pass through `validate_state_file`. T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships. The Phase-Ship cleanup contract `rm -f`s ONLY the T1 ephemeral list; T1.5 durable files persist for skill chains.
 
 ---
 
 ## Path roots
 
-### T1 — three valid layouts (producer-bound)
+### T1 — ephemeral transient outputs (no frontmatter; deleted at Ship)
+
+| Path | Producer |
+|---|---|
+| `.geniro/planning/<task-dir>/.kr-out.md` | knowledge-retrieval-agent (subagent report) |
+| `.geniro/planning/<task-dir>/.ce-out.md` | codebase-explorer-agent (subagent report) |
+| `.geniro/planning/<task-dir>/.tr-out.md` | test-runner-agent (subagent report) |
+| `.geniro/planning/<task-dir>/.adversarial-out.md` | adversarial-tester-agent (subagent report) |
+| `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
+| `.geniro/planning/<task-dir>/playwright-verify.png` | Pre-Ship Visual Verification screenshot |
+
+These files do NOT carry frontmatter and are NEVER validated via `validate_state_file`. They are cleaned mechanically at Phase Ship via targeted `rm -f`.
+
+### T1.5 — three valid layouts (producer-bound; survives Ship)
 
 | Path root | Layout | Producer category |
 |---|---|---|
-| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan.md` + `notes.md` + …) | **Task-bound skills** producing durable artifacts — M4 (`/implement`), M5 (`/plan`) |
+| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md`) | **Task-bound skills** producing durable artifacts — M4 (`/implement`), M5 (`/plan`) |
 | `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — M7 (`/debug`), M8 (`/refactor`), M9 (`/onboard`, `/investigate`) |
 | `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — M10a (`/setup`) |
 
@@ -51,17 +67,20 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 
 | Field | Type | Example |
 |---|---|---|
-| `tier` | enum `T1\|T2\|T3` | `T1` |
+| `tier` | enum `T1.5\|T2\|T3` (T1 = no frontmatter; not in enum) | `T1.5` |
 | `producer` | string | `implement` |
 | `schema-version` | integer | `1` |
 | `branch` | string | `feature/dark-mode` |
 | `timestamp` | ISO-8601 UTC | `2026-05-19T14:30:00Z` |
 
+**Legacy:** pre-v3 state.md files declared `tier: T1`. The validator continues to accept `T1` for backward compat (treated identically to `T1.5`). New emissions from v3 producers use `T1.5`.
+
 ### Tier-specific required
 
 | Tier | Additional required fields |
 |---|---|
-| T1 | `phase`, `status`, `non-resumable-actions` |
+| T1 (legacy) | `phase`, `status`, `non-resumable-actions` |
+| T1.5 | `phase`, `status`, `non-resumable-actions` (same as T1; differs only in lifecycle) |
 | T2 | `consumer` |
 | T3 | `concurrency` (enum `append-only\|crud`) |
 
@@ -111,11 +130,11 @@ Producers MAY add fields (e.g., M5 `task_slug`, `mode`, `effort_tier`; M6 `phase
 
 ## Concrete examples
 
-### T1 — task-bound (M4 `/implement`)
+### T1.5 — task-bound (M4 `/implement`)
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: implement
 schema-version: 1
 branch: feature/dark-mode
@@ -130,11 +149,11 @@ non-resumable-actions: []
 - implement started at 14:30:00Z
 ```
 
-### T1 — session-bound (M7 `/debug`)
+### T1.5 — session-bound (M7 `/debug`)
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: debug
 schema-version: 1
 branch: fix/null-pointer
@@ -146,11 +165,11 @@ geniro_kind: debug-state
 ---
 ```
 
-### T1 — singleton (M10a `/setup`)
+### T1.5 — singleton (M10a `/setup`)
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: setup
 schema-version: 1
 branch: main

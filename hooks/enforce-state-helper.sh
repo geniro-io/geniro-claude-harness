@@ -70,7 +70,12 @@ matches_state_path() {
   #                            file before mv), generic .tmp suffix
   #   *.swp       — vim swap files
   #   *~          — emacs backup files
-  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$'; then
+  #   T1 ephemeral subagent outputs (v3) — deterministically transient prose
+  #   reports / screenshots, no frontmatter, deleted at Phase Ship:
+  #     .kr-out.md, .ce-out.md, .tr-out.md, .adversarial-out.md
+  #     notes.md (ad-hoc scratch under <task-dir>/)
+  #     playwright-verify.png (pre-Ship visual verification screenshot)
+  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|/\.(kr|ce|tr|adversarial)-out\.md$|/notes\.md$|/playwright-verify\.png$'; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.

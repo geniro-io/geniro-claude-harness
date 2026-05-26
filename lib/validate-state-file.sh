@@ -143,18 +143,21 @@ validate_state_file() {
   local tier
   tier="$(_vsf_fm_get_value "$fm" tier)"
   case "$tier" in
-    T1)
+    T1|T1.5)
+      # T1 (legacy ephemeral state.md) and T1.5 (v3 durable task artifacts)
+      # share frontmatter shape — both require phase/status/non-resumable-actions.
+      # The distinction is lifecycle: T1 deleted at Phase Ship, T1.5 survives.
       # Scalar fields (phase, status) must be non-empty.
       # `non-resumable-actions` is a block-list — key-presence sufficient
       # (`non-resumable-actions: []` and multi-line block forms both pass).
       for field in phase status; do
         if ! _vsf_fm_has_nonempty_key "$fm" "$field"; then
-          echo "validate_state_file: $target — missing or empty required field '$field' (T1 schema)" >&2
+          echo "validate_state_file: $target — missing or empty required field '$field' ($tier schema)" >&2
           return "$_VSF_MISSING_TIER_FIELD"
         fi
       done
       if ! _vsf_fm_has_key "$fm" non-resumable-actions; then
-        echo "validate_state_file: $target — missing required field 'non-resumable-actions' (T1 schema)" >&2
+        echo "validate_state_file: $target — missing required field 'non-resumable-actions' ($tier schema)" >&2
         return "$_VSF_MISSING_TIER_FIELD"
       fi
       ;;
@@ -171,7 +174,7 @@ validate_state_file() {
       fi
       ;;
     *)
-      echo "validate_state_file: $target — invalid 'tier' value '$tier' (expected T1, T2, or T3)" >&2
+      echo "validate_state_file: $target — invalid 'tier' value '$tier' (expected T1, T1.5, T2, or T3)" >&2
       return "$_VSF_BAD_TIER_VALUE"
       ;;
   esac

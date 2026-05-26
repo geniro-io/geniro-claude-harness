@@ -47,7 +47,7 @@ fi
 | 6 | `schema-version` mismatch (file from older plugin version) | AUQ: migrate / delete-and-restart |
 | 7 | Body checksum mismatch | Manual-edit corruption — AUQ: revert / accept |
 | 8 | `worktree:` path not in `git worktree list` (P-M1-2) | AUQ: update worktree path / delete-and-restart |
-| 9 | `tier:` value not `T1` / `T2` / `T3` | AUQ: open-in-editor |
+| 9 | `tier:` value not `T1` / `T1.5` / `T2` / `T3` | AUQ: open-in-editor |
 | 64 | Caller error — no target path provided | Bug — fix caller |
 
 ---
@@ -60,8 +60,9 @@ The 7 steps validated, in order (per M1 §Validation helper):
 2. **Line 1 is `---`** — frontmatter must start at line 1, no leading content or BOM.
 3. **Frontmatter is closed** with a `---` on its own line.
 4. **Common-base required fields present:** `tier`, `producer`, `schema-version`, `branch`, `timestamp`. Just key-presence — values are not validated except `tier` and `schema-version`.
-5. **`tier:` value is T1, T2, or T3.** Tier-specific required fields are checked:
-   - T1 → `phase`, `status`, `non-resumable-actions`
+5. **`tier:` value is T1, T1.5, T2, or T3.** Tier-specific required fields are checked:
+   - T1 (legacy) → `phase`, `status`, `non-resumable-actions`
+   - T1.5 → `phase`, `status`, `non-resumable-actions` (same shape; differs only in lifecycle — survives Phase Ship)
    - T2 → `consumer`
    - T3 → `concurrency`
 6. **`schema-version: 1`** — current supported version. Mismatch returns code 6 (caller decides whether to attempt migration).
