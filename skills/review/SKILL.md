@@ -54,7 +54,7 @@ The 7 invariants apply unchanged:
 
 1. **One result per tool call.** Phase 2 parallel-spawn reviewer-agents — each must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` flag parsing (semantic, no CLI grammar); PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
-3. **Permission before side-effect.** Phase 6 "Post Draft PR" requires AUQ approval before `mcp__github__pull_request_review_write`. State.md writes via `atomic_state_write`.
+3. **Permission before side-effect.** Phase 6 "Post Draft PR" requires AUQ approval before posting to GitHub. The post is a single `gh api POST /repos/<owner>/<repo>/pulls/<number>/reviews` call per `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §7.5 — `event` field omitted so the review is created in GitHub's PENDING state (private to the reviewer, no notifications fire). State.md writes via `atomic_state_write`.
 4. **Bounded and structured tool results.** Reviewer-agent output ≤4000 chars per dim; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 5. **Escalation gates, not silent abort.** Round-N ≥3 → Phase 6 escalation gate.
 6. **Final answer grounded in observations.** Phase 6 hand-off message MUST cite the state.md path; finding bodies MUST include Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
@@ -540,7 +540,9 @@ Also emit `convention` learnings — NOT for this skill. /implement owns convent
 
 ### 5.4 PR comment posting (conditional — gated by Phase 6)
 
-If Phase 6 user picks "Post Draft PR" option, Phase 5 writes the finding list to the PR via `mcp__github__pull_request_review_write` with status `COMMENTED`. `non-resumable-actions[]` entry appended via `atomic_state_write`:
+If Phase 6 user picks "Post Draft PR" option, post the finding list as a PENDING review per the canonical procedure in `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §7.5: one `gh api POST /repos/<owner>/<repo>/pulls/<number>/reviews` call, `event` field omitted from the jq payload. GitHub creates the review in PENDING state — visible only to the reviewer on github.com's "Finish your review" panel, no notifications fire until the human clicks Submit. Never pass `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES` (those submit the review and defeat the "draft" semantics the user asked for); `event: "PENDING"` is INVALID — omission is the correct mechanism.
+
+`mcp__github__pull_request_review_write` is NOT used here — the MCP wrapper does not surface the per-comment `path` / `line` / `side` fields required for inline anchoring, so the canonical tool is `gh api` directly per the reference. State persistence per `atomic_state_write`:
 
 ```yaml
 non-resumable-actions:
@@ -549,11 +551,12 @@ completed-at: <ISO-8601>
 pr-ref: <owner>/<repo>#<num>
 finding-count: <N>
 comment-ids: [<id1>, <id2>,...]
+review-state: PENDING
 ```
 
-PR post fails fail-closed — if `mcp__github__pull_request_review_write` errors, write `## Errors` entry + abort Phase 5 (don't proceed to hand-off with a half-posted state).
+PR post fails fail-closed — on non-zero `gh api` exit (HTTP error, missing scopes, secondary rate limit), write `## Errors` entry + abort Phase 5; never silently downgrade to top-level `gh pr comment` or retry with `event: COMMENT`.
 
-Full Post drill (Steps 1.5-6) in `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md`
+Full Post drill (Steps 0-6) in `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md`.
 ### 5.5 Idempotent re-entry
 
 If Phase 5 re-enters after compaction:
@@ -588,7 +591,7 @@ Operational rules:
 |---|---|---|
 | Phase 1 / 1.5 | Read, Grep, Glob, Bash (read-only — `gh pr view`, `git diff`, `which <tool>`, lint commands, `tsc --noEmit`), **`mcp__linear__*` (read-only — `get_issue` / `list_issues` for workflow integration; degrade silently if unregistered)** | No Edit/Write apart state.md; no Linear `update_issue` / `create_comment` from /review (those remain in /implement Ship) |
 | Phase 2 / 3 / 4 | Agent (reviewer-agent, validation sub-agents, adversarial-tester-agent); Phase 3 dedup orchestrator-inline (no spawn) | No Edit/Write/Bash mutations |
-| Phase 5 | Write (scoped to `.geniro/state/handoff/**`), `mcp__github__pull_request_review_write` (conditional), `emit-learning` helper | Direct edits outside scope blocked by hooks |
+| Phase 5 | Write (scoped to `.geniro/state/handoff/**`), `Bash` (conditional — `gh api POST /pulls/N/reviews` with `event` omitted; see §5.4), `emit-learning` helper | Direct edits outside scope blocked by hooks; never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES` |
 | Phase 6 | AskUserQuestion | Read-only |
 
 Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletion guard, state-helper enforcement, plan-mode write-guard.
