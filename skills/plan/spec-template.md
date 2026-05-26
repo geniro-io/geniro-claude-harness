@@ -16,12 +16,24 @@ schema-version: 1 # required
 branch: <git-branch> # required
 timestamp: <ISO-8601 UTC> # required
 geniro_kind: design-doc # design-doc-detect.md contract — required marker
-geniro_schema_version: m5-v1 # schema version
+geniro_schema_version: m5-v2 # schema version (m5-v2 adds workflow_refs[])
 task_slug: <slug> # extension
 topic: <one-sentence-topic> # extension
 mode: <IDEA|DESIGN_DOC-fresh> # extension
 effort_tier: <trivial|medium|big> # extension
 lifecycle: draft # design-doc lifecycle (draft|approved|superseded)
+workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / Asana)
+- kind: linear # matches .geniro/workflow/<kind>.md filename
+  issue_id: CI-303
+  url: https://linear.app/manifestlabs/issue/CI-303/...
+  fetched_at: 2026-05-26T10:42:13Z # ISO-8601 UTC — staleness check by downstream
+  title: "Parallelize Case Radar backfill via per-user jobs"
+  suggested_branch: ci-303-parallelize-case-radar-backfill-via-per-user-jobs
+  status: Todo # tracker status at fetch time
+  parent_ref: # optional — Linear parent epic / Jira epic
+    kind: linear
+    issue_id: CI-300
+    url: https://linear.app/...
 budget: # goal-state block — start
 max_files_to_edit: <int|null>
 max_lines_changed: <int|null>
@@ -44,7 +56,21 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 **Field origins:**
 - Fields 1-5 (tier → timestamp): required base.
 - Fields 6-11 (geniro_kind → lifecycle): schema markers + extensions.
+- Field `workflow_refs`: optional tracker linkage (m5-v2). Omitted from frontmatter when no tracker was linked (pure inline-task /plan); downstream skills treat absence as "no tracker linkage".
 - Fields 12-17 (budget → tools_required): goal-state block embedded in frontmatter per.
+
+**`workflow_refs[]` per-entry shape:**
+
+| Field | Required? | Purpose |
+|---|---|---|
+| `kind` | yes | Workflow-file slug — `linear` / `jira` / `github-issues` / `asana`. Selects the matching `.geniro/workflow/<kind>.md` contract. |
+| `issue_id` | yes | Tracker-native identifier (e.g., `CI-303`, `PROJ-42`). |
+| `url` | yes | Full canonical URL. Downstream consumers may open without re-derivation. |
+| `fetched_at` | yes | ISO-8601 UTC. Staleness check — downstream skills re-fetch if > 1 hour old. |
+| `title`, `suggested_branch`, `status` | no | Cache of last-fetched payload. /implement Step 0 uses these to pre-fill AUQ defaults without re-fetching. |
+| `parent_ref` | no | Epic/parent linkage. /review Phase 1 peer-PR scout uses this for `linear_bonus` ranking. Same per-entry shape recursively. |
+
+**Schema-version compatibility:** `geniro_schema_version: m5-v1` (legacy, no `workflow_refs`) and `m5-v2` (this template) are both valid downstream. Readers accept both; strict validators (e.g., `validator-checks.md` check #14) verify the field shape only on `m5-v2`.
 
 **`status:` namespace note.** reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
 

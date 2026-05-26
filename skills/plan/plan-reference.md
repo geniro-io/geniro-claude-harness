@@ -2,6 +2,14 @@
 
 Companion reference for less-common usage paths of `/geniro:plan`. The main flow lives in `${CLAUDE_SKILL_DIR}/SKILL.md`; this file documents edge cases, the deprecation alias note, and the shared rules consumed.
 
+## Contents
+
+- DESIGN_DOC mode — no refine path
+- Concrete-example per section type (Phase 5 `preview` field substrate)
+- workflow_refs[] usage notes (m5-v2 schema)
+- Edge cases (empty $ARGUMENTS, milestone-mode, code-references, compaction, validator hard-fail, concurrent runs)
+- Cross-references (shared rules consumed)
+
 ---
 
 ## DESIGN_DOC mode — no refine path
@@ -12,6 +20,45 @@ The Phase 0 DESIGN_DOC AUQ has 2 options (per `plan-loop.md`):
 - **Cancel** — exit without writing state.md.
 
 If the user really wants to surgically edit an existing design doc bypassing Phase 1-4, the correct path is to open the doc directly in an editor + manually update sections + re-run `/geniro:plan` only when ready to re-emit. /plan does NOT have an in-loop «edit existing sections» mode.
+
+---
+
+## Concrete-example per section type
+
+Phase 5 per-section AUQ (`plan-loop.md` §5.2) requires every `Approve` option to carry the section content PLUS one concrete example in its `preview` field. The shape of "concrete example" depends on section type:
+
+| Section | Example shape (drop into the `preview` after the section body) |
+|---|---|
+| 1. Objective | One-line user-visible behavior statement: «User clicks X → sees Y within Z seconds» |
+| 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) |
+| 4. Assumptions | Concrete invariants: «`USER.tz` always populated» — cite `file:line` where the invariant is guaranteed |
+| 5. Risks | Specific failure scenario + observable symptom: «Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate» |
+| 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) OR ASCII data-flow |
+| 7. Tools Required | Concrete CLI / MCP list: «`mcp__linear__update_issue`, `pnpm test`, `gh pr view`» |
+| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /implement will ask the user mid-run |
+| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch |
+| 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
+| 11. Done Condition | Observable signal phrase: «all 5 acceptance tests green AND telemetry shows ≥1 successful event insert» |
+
+The example IS the section content rendered in `preview` — the orchestrator does NOT render the section to chat AND THEN open the AUQ. It opens the AUQ with the section content already in `preview`. The chat says one short line («Section: <name> — focus an option to inspect»). Removes the «I already see the plan» redundancy.
+
+---
+
+## workflow_refs[] usage notes (m5-v2)
+
+Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHub Issues / Asana) when `$ARGUMENTS` carries a URL/ID. Phase 6 copies the fetched payload from state.md `## Workflow Refs` into spec.md frontmatter `workflow_refs[]`. Downstream consumers (/implement Step 0, /review Phase 1, /debug Phase 1, /refactor Phase 1) read this field.
+
+**Schema-version compatibility:**
+- `m5-v1` — legacy schema, no `workflow_refs[]`. Still valid for inline-task /plan with no tracker linkage.
+- `m5-v2` — adds optional `workflow_refs[]`. Field absent ⇔ no tracker linkage; field present ⇔ Phase 7 check #14 validates structure.
+
+**Per-entry shape:** see `${CLAUDE_SKILL_DIR}/spec-template.md` §`workflow_refs[]` per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
+
+**Mutation responsibility:** only `/plan` (Phase 1 fetch + Phase 6 persist) and `/implement` (Step 0 status-transition mutation) MUTATE tracker state via MCP. `/review`, `/debug`, `/refactor` are read-only consumers — they parse `workflow_refs[]` for priming context but never POST tracker updates.
+
+**Staleness:** downstream readers re-fetch when `fetched_at` is > 1 hour old (configurable later via `.geniro/safety.json`). Cached `title` / `suggested_branch` / `status` fields let /implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
+
+**Graceful degrade:** when `.geniro/workflow/<kind>.md` is absent, Phase 7 check #14 returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
 
 ---
 
@@ -44,6 +91,7 @@ Shared rules consumed by this skill:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` — `AskUserQuestion` schema for the Phase 0 AUQ, the empty-argument fallback, and the Phase 9 hand-off menu.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — multi-select picker schema for Phase 5 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns a haiku description agent, runs the textual-preview revision loop (max 3 rounds), returns approved description to state.md `## UI Preview`.
 - `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — state.md write helper.
 - `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` — state.md validator for resume.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — L4 directive doc (Phase 1 entry refresh).

@@ -42,8 +42,8 @@ The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Pha
 
 ```
 [entry]
-└── mode-detect ──┬── explore ──┬── clarify ──┬── approaches ──┬── section-approve ──┬── write-spec ──┬── validate ──┬── user-approve ──┬── handoff ──┬── done
-│ │ │ │ │ │ │ │ │
+└── mode-detect ──┬── explore ──┬── visual-companion ──┬── clarify ──┬── approaches ──┬── section-approve ──┬── write-spec ──┬── validate ──┬── user-approve ──┬── handoff ──┬── done
+│ │ │ (skipped if no UI trigger) │ │ │ │ │ │ │
 └── aborted (terminal) └── (terminal)
 
 phase-8-escalated ──┬── user-approve (Approve as-is)
@@ -58,13 +58,13 @@ phase-8-escalated ──┬── user-approve (Approve as-is)
 | Phase | Purpose | Plan-loop section |
 |---|---|---|
 | 0 | Mode detect | §"Phase 0 — Mode detect" |
-| 1 | Explore (effort-tier-scaled spawns + L4+L3+L2 refresh) | §"Phase 1 — Explore" |
-| 2 | DROPPED (visual companion removed ) | §"Phase 2 — DROPPED" |
-| 3 | Clarifying questions (≤5 one-at-a-time) | §"Phase 3 — Clarifying questions" |
-| 4 | Approaches (2-3 with Recommended first) | §"Phase 4 — Approaches" |
-| 5 | Section approval (fixed 10-section schema, milestone-mode) | §"Phase 5 — Section approval" |
-| 6 | Write spec.md (NO auto-commit) | §"Phase 6 — Write spec.md" |
-| 7 | Mechanical validator (13 checks) | §"Phase 7 — Mechanical validator" |
+| 1 | Explore (effort-tier-scaled spawns + L4+L3+L2 refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
+| 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
+| 3 | Clarifying questions (≤5 one-at-a-time, each option carries `preview`) | §"Phase 3 — Clarifying questions" |
+| 4 | Approaches (2-3 with Recommended first, each option carries `preview`) | §"Phase 4 — Approaches" |
+| 5 | Section approval (incremental authoring, fixed 10-section schema, milestone-mode, each option carries `preview`) | §"Phase 5 — Section approval" |
+| 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
+| 7 | Mechanical validator (14 checks — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 8 | User approve (schema-rich AUQ + git commit) | §"Phase 8 — User approval" |
 | 9 | Hand-off (2 options: /implement / Stop) | §"Phase 9 — Hand-off" |
 
@@ -173,7 +173,11 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/p
 | Phase 1 entry | `load_semantic` | read L3 | top-2 default; fingerprint drift check |
 | Phase 1 entry | `query_learnings` | read L2 | tags inferred from $ARGUMENTS topic |
 | Phase 1 entry | `resolve-conflicts` | read protocol | fires only if L4/L3/L2 disagree |
+| Phase 1.4 (conditional) | matching tracker MCP (`mcp__linear__get_issue`, etc.) | read external | fires only when `$ARGUMENTS` carries a tracker URL/ID; payload → state.md `## Workflow Refs` |
+| Phase 1.4 (conditional) | `atomic_state_write` | write T1 | state.md `## Workflow Refs` body section |
+| Phase 2 (conditional) | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` | helper procedure | fires only when UI trigger matches; approved description → state.md `## UI Preview` |
 | Phase 6 | `atomic_state_write` | write T1 | state.md `## Tool log` after spec.md Write |
+| Phase 6 | `Write` | write T1 | spec.md frontmatter `workflow_refs[]` copied from state.md `## Workflow Refs` when present |
 | Phase 7 (hard-fail) | `atomic_state_write` | write T1 | state.md `## Open Questions` |
 | Phase 8.4 | `atomic_state_write` | write T1 | state.md `non-resumable-actions[]` after git commit |
 | Phase 8.5 (conditional) | `emit_learning` | write L2 | `decision` type when Phase 4 had ≥2 approaches with trade-off |
@@ -189,8 +193,8 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/p
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) | All mutations |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn, model=sonnet) | Edit / Write outside state.md |
-| Phase 2 | DROPPED | — |
+| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) | Edit / Write outside state.md |
+| Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn, model=haiku per `ui-preview-gate.md`) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / Write (state.md only via atomic_state_write) | Edit / mutating Bash |
 | Phase 6 (Write spec) | Write (scoped to `.geniro/planning/**` by guard) / atomic_state_write (state.md) | Edit / mutating Bash |
 | Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
@@ -212,7 +216,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/p
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Section approve / Phase 6 Write / Phase 7 Validate / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes.
+2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Section approve / Phase 6 Write / Phase 7 Validate / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
 
 3. **Begin Phase 0.** Execute `${CLAUDE_SKILL_DIR}/plan-loop.md` end-to-end.
 
@@ -224,17 +228,17 @@ Per master plan anti-patterns guardrail — must NOT reintroduce these:
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "Phase 2 visual companion should stay — it's nice when planning UI." | UI intent that matters belongs in spec.md section 6 (Steps) and section 9 (Validation). The companion's textual sketch dies in chat — it's not cited by Phase 6 spec.md write. Phase 5 sections absorb the intent at the right granularity. |
+| "I'll pre-fill all 10 sections upfront so the user sees the whole plan, then ask per-section approval." | Pre-fill makes per-section AUQ redundant — the user has already read the content; the AUQ has nothing new to inspect. Author section N → AUQ on section N → on approve, author section N+1. Incremental authoring catches cross-section issues at the section that triggered them, not after the user has read 10 sections. |
+| "Per-section AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the section." | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Use the AskUserQuestion `preview` field on every option to carry concrete content (UI ASCII, code snippet, behavior trace). The chat becomes a one-line "Section: X — focus an option to inspect" announcement; the AUQ IS the rendered content. |
+| "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /implement when the rendered UI doesn't match). |
 | "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections from prose — structurally-lossy. design fix: «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
-| "Phase 7 mechanical validator misses cases a smart LLM would catch." | 13 checks cover the mechanical surface. Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
+| "Phase 7 mechanical validator misses cases a smart LLM would catch." | 14 checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects." | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "Plan-mode mutation guard is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field + PreToolUse Bash guard are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
-| "Goal-state in spec.md frontmatter conflates planning + execution — split to goal.md." | One canonical source per. /implement already reads spec.md frontmatter at Phase 1 — adding goal-state to the same place is zero-overhead. Splitting creates a two-file consistency problem. |
 | "5 clarifying questions is too few for complex tasks." | Phase 3 ≤5 is a quality-first signal. >5 means Phase 1 underspecified OR the task is too vague. Force consolidation — better questions, not more questions. |
 | "10-section spec.md schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be «none with rationale» for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
 | "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | 3-round escalation cap. On round 3, AUQ surfaces to user with «accept as-is» option. User has agency at all times. |
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
-| "Hand-off menu should keep `/features add`." | /features deleted (master plan). A spec.md saved on disk IS the backlog entry. |
 | "Add a wall-time / token kill cap so runaway /plan sessions abort cleanly." | Class-A hard caps forbidden by Class-B gates only (Phase 3 ≤5, Phase 7 3-round, Phase 8 3-round) — all escalate to user, not abort. |
 | "Auto-default empty AUQ answer to the Recommended option." | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
 | "Skip persisting Phase 3 clarifying answers — they're trivial." | Metaswarm anti-pattern. Compaction mid-Phase-5 round 2 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |

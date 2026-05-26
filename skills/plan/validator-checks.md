@@ -1,9 +1,9 @@
-# Phase 7 Validator — 13 checks
+# Phase 7 Validator — 14 checks
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules executed orchestrator-side, near-zero token usage.
 
 **Spec source:** *(internal)*
-**Status:** Authoritative. The orchestrator runs all 13 checks in sequence; each returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
+**Status:** Authoritative. The orchestrator runs all 14 checks in sequence; each returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
 **Hard-fail handling:** see `plan-loop.md` — 3 auto-revision rounds, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
 
@@ -124,10 +124,22 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: «<canonical-header>». Got: «<actual>»."
 
+### 14. `workflow_refs_consistency`
+
+**Rule:** for each entry in frontmatter `workflow_refs[]` (m5-v2 only — skipped on legacy `m5-v1` specs), a matching `.geniro/workflow/<kind>.md` exists in the project. Per-entry required fields `kind`, `issue_id`, `url`, `fetched_at` are non-empty.
+
+**Heuristic:** YAML parse `workflow_refs[]`; for each entry, `test -f .geniro/workflow/<kind>.md` + field-presence check. Skip the check entirely when `geniro_schema_version: m5-v1` OR `workflow_refs:` is absent.
+
+**Status semantics:** this check returns `warn` (not `fail`) when a referenced workflow file is missing — the workflow file may legitimately appear later in the project lifecycle (early-stage repos often link to trackers before authoring workflow files). Downstream skills skip workflow on-task-start hooks for unresolved kinds and continue. Field-presence violations (missing `kind` / `issue_id` / `url` / `fetched_at`) return `fail` — the entry is structurally broken.
+
+**Fix hint on warn:** "spec.md `workflow_refs[]` references kind '<kind>' but `.geniro/workflow/<kind>.md` does not exist — downstream skills will skip workflow on-task-start hooks for this ref. Create the workflow file (see existing `linear.md` as template) OR remove the `workflow_refs` entry from spec.md frontmatter."
+
+**Fix hint on fail:** "Entry <N> in `workflow_refs[]` is missing required field `<field>`. Re-run /plan with the tracker URL/ID in $ARGUMENTS so Phase 1 can re-fetch, OR hand-edit the entry to add the field."
+
 ---
 
 ## Implementation note (— deferred)
 
-Whether these 13 checks live as a dedicated Python script OR as inline orchestrator-side logic is deferred to implementation. Tentative: inline initially (since the orchestrator already parses spec.md and state.md anyway); promote to a script if complexity grows beyond ~150 lines.
+Whether these 14 checks live as a dedicated Python script OR as inline orchestrator-side logic is deferred to implementation. Tentative: inline initially (since the orchestrator already parses spec.md and state.md anyway); promote to a script if complexity grows beyond ~150 lines.
 
 The check API contract (`(check_id, status, finding_text, fix_hint)`) is fixed regardless of implementation surface.

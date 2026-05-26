@@ -40,7 +40,7 @@ Fire `AskUserQuestion` with:
 - `header`: "Existing design doc"
 - `question`: "Design doc already exists at `<path>`. What now?"
 - `options[]` (single-select, 2 options):
- - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run full 10-phase loop (Phases 0–9, Phase 2 dropped per §"Phase 2 — DROPPED"); emit a new spec.md at a fresh task-dir.
+ - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run the full 10-phase loop (Phases 0–9; Phase 2 fires only when the UI trigger matches per §"Phase 2 — Visual Companion"); emit a new spec.md at a fresh task-dir.
  - **Cancel** — exit without writing state.md.
 
 **On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template (D3 fix); Phase 5 uses the 10-section schema unconditionally.
@@ -139,17 +139,75 @@ Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` 
 
 Phase 7 validator ( check #3) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
 
-### 1.4 Transition to Phase 3
+### 1.4 Workflow refs fetch (tracker linkage)
 
-Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 3 question generation and Phase 5 section authoring. State.md `phase: clarify` written before Phase 3 entry.
+If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub issue URL, Asana task URL), fetch via the matching MCP and persist to state.md `## Workflow Refs` body section. This block is the source-of-truth for Phase 6 frontmatter assembly.
 
-**Skip to Phase 4 if Trivial:** when effort tier is Trivial AND research returned 0-1 findings AND topic is a narrow text-edit, Phase 3 is skipped. Write a one-line note to state.md `## Open Questions`: "Phase 3 skipped — trivial task, no ambiguity surfaced".
+**Detection:** existing workflow-plumbing already detects tracker references at Phase 1 entry (file-scoped `.geniro/workflow/<kind>.md` defines per-tracker patterns). When a match resolves to `kind=<linear|jira|github-issues|asana>` and `issue_id=<id>`:
+
+1. Fetch via the matching MCP (`mcp__linear__get_issue` for Linear, etc.). If MCP unregistered, log a `## Errors` entry and continue without persistence — graceful degrade per existing pattern.
+2. Append to state.md `## Workflow Refs` via `atomic_state_write`:
+
+```yaml
+## Workflow Refs
+- kind: linear
+  issue_id: CI-303
+  url: https://linear.app/.../CI-303/...
+  fetched_at: 2026-05-26T10:42:13Z
+  title: "..."
+  suggested_branch: ci-303-...
+  status: Todo
+  parent_ref:
+    kind: linear
+    issue_id: CI-300
+    url: ...
+```
+
+3. The fetched payload feeds Phase 1 research-agent prompts (existing behavior) AND becomes the canonical source for Phase 6 frontmatter copy. Skipped when `$ARGUMENTS` carries no tracker reference — pure inline-task /plan emits a spec.md without `workflow_refs[]`.
+
+### 1.5 Transition to Phase 2
+
+Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring. State.md `phase: visual-companion` written before Phase 2 entry (`phase: clarify` if Phase 2 trigger doesn't fire).
+
+**Skip to Phase 4 if Trivial:** when effort tier is Trivial AND research returned 0-1 findings AND topic is a narrow text-edit, Phases 2 + 3 are skipped. Write a one-line note to state.md `## Open Questions`: "Phases 2-3 skipped — trivial task, no ambiguity surfaced".
 
 ---
 
-## Phase 2 — DROPPED
+## Phase 2 — Visual Companion (UI-conditional)
 
-Phase 2 is not used. UI intent belongs in Phase 3 clarifying questions ("should we add a new screen or extend an existing view?") and Phase 5 section content ( sections 6 & 9).
+State.md `phase: visual-companion` during this phase. Fires only when a UI trigger matches.
+
+### 2.1 Trigger detection
+
+Fire Phase 2 if **either** condition holds:
+
+- Phase 1 explore-agent surfaced any path matching the UI-file detection rule in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection (globs for `components/pages/app/views/ui` directories + JSX/TSX/Vue/Svelte/CSS/SCSS extensions), OR
+- $ARGUMENTS topic string contains a UI noun: `page`, `screen`, `modal`, `form`, `dashboard`, `button`, `view`, `panel`, `widget`.
+
+No trigger → skip Phase 2 entirely. Transition `phase: clarify` and proceed to Phase 3.
+
+### 2.2 UI preview procedure
+
+Trigger fires → run the procedure documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` end-to-end. That helper spawns the UI description agent, presents the textual preview, runs the revision loop (max 3 rounds), and returns the approved description.
+
+Caller contract (this skill's side):
+- Provide the predicted affected-files list (from Phase 1 echo entries with UI-file matches), $ARGUMENTS topic, 1-2 exemplar UI files (path-only — agent reads them itself).
+- Destination path: hold in-memory as Phase 5 substrate. Do NOT write a separate `ui-preview.md` artifact at the planning task-dir — the approved description feeds Phase 5 section 6 (Steps) + section 9 (Validation) directly.
+
+### 2.3 Persistence
+
+The approved description is appended to state.md `## UI Preview` body section via `atomic_state_write`:
+
+```markdown
+## UI Preview
+<approved description verbatim, ≤200 lines per ui-preview-gate.md output constraint>
+```
+
+Phase 5 section 6 / section 9 authoring cites this block as substrate. Phase 7 validator does not gate on `## UI Preview` presence (Phase 2 is conditional; absence is valid).
+
+### 2.4 Routing-out signal
+
+If the user picks "Adjust the plan instead" at any revision round of ui-preview-gate.md, return to Phase 1 with the user's feedback inlined into research-agent prompts. State.md transitions `phase: explore` (re-enter) — round-count not incremented since the user is correcting the plan substrate, not the UI preview itself.
 
 ---
 
@@ -171,8 +229,32 @@ Questions MUST be grounded in Phase 1 findings (D4 fix). Generic «what tech sta
 Fire questions sequentially, **never** as a multi-question form. Each AUQ:
 - `header`: ≤12 chars (e.g., "Auth method", "Integration", "Scope")
 - `question`: 1-2 sentences ending in a question mark
-- `options[]`: 2-4 explicit choices. Include a "Skip — proceed with stated assumption" option as the last choice when applicable
-- `multiSelect: false` unless explicitly multi-select
+- `options[]`: 2-4 explicit choices. Each option carries a **`preview` field** with the concrete consequence of picking it — code anchor / config diff / behavior trace, ≤6 lines per preview. The user inspects the preview before committing.
+- Include a "Skip — proceed with stated assumption" option as the last choice when applicable; its `preview` states what assumption gets recorded.
+- `multiSelect: false` unless explicitly multi-select.
+
+Example AUQ shape with previews:
+
+```yaml
+header: "Auth method"
+question: "Which auth flow should this endpoint use?"
+options:
+  - label: "JWT — existing middleware"
+    preview: |
+      Adds `@UseGuards(JwtAuthGuard)` to controller. Reads token
+      from Authorization header. Throws 401 on missing/invalid.
+      Test: `expect(401).toMatchObject({code: 'UNAUTHENTICATED'})`.
+  - label: "Session cookie — existing session middleware"
+    preview: |
+      Adds `@UseGuards(SessionGuard)`. Reads `session_id` cookie.
+      Test mirror of /auth/session.spec.ts. Same 401 shape.
+  - label: "Skip — proceed assuming JWT"
+    preview: |
+      Recorded assumption: "endpoint uses JWT middleware (default)".
+      Surfaced in spec.md section 4 Assumptions for /implement to verify.
+```
+
+The `preview` field is the missing capability the old skill lacked — empty `Approve / Revise / Skip` options waste user attention. Every Phase 3 option carries concrete consequence content.
 
 ### 3.3 Persistence ( closure)
 
@@ -214,10 +296,30 @@ Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/med
 
 - `header`: "Approach"
 - `question`: "Which approach do you want to pursue?"
-- `options[]`:
- - Approach 1 (Recommended) — label: "<Name> (Recommended)"; description: summary + trade-off
- - Approach 2 — label: "<Name>"; description: summary + trade-off
- - Approach 3 (if generated) — label: "<Name>"; description: summary + trade-off
+- `options[]`: each option carries an option `description` (summary + trade-off, ≤2 lines) AND a `preview` field. The `preview` contains:
+  - ASCII data-flow OR architecture sketch (5-10 lines), AND
+  - Key code identifier (the new class / function / file name), AND
+  - The dominant tradeoff phrased as a one-liner.
+
+Example shape:
+
+```yaml
+options:
+  - label: "Service-layer fan-out (Recommended)"
+    description: "Split per-user backfill into queued jobs; orchestrator dequeues N at a time."
+    preview: |
+      ┌─────────────┐    ┌──────────────────┐    ┌────────────┐
+      │ /backfill    │─→─│ BackfillQueue.add │─→─│ Worker pool│
+      └─────────────┘    └──────────────────┘    └────────────┘
+      New: src/jobs/BackfillQueue.ts + per-user job class
+      Trade-off: +1 infrastructure piece; bounded memory under load.
+  - label: "In-process Promise.all"
+    description: "Loop users, await Promise.all in chunks of 50."
+    preview: |
+      for (chunk of chunks(users, 50)) await Promise.all(chunk.map(backfill))
+      New: tweaks to src/backfill/runner.ts only
+      Trade-off: zero new infrastructure; memory spike on large datasets.
+```
 
 ### 4.3 Persistence
 
@@ -274,19 +376,23 @@ Every spec.md has exactly the same 10 sections — schema-stable downstream cons
 
 For Trivial tasks, sections 4 / 5 / 10 may have body content «none — task scope precludes» with brief rationale. Headers MUST exist; bodies MAY be «none with rationale».
 
-### 5.2 Per-section AUQ
+### 5.2 Per-section AUQ — incremental authoring
 
-One AUQ per section, sequentially:
+One AUQ per section, sequentially. **Do NOT pre-fill all 10 sections in a batch** — pre-fill makes per-section approval redundant (the user has already read the content). Section N+1 is authored only after section N approval.
 
-1. **Pre-fill all 10 sections** in a single batch BEFORE the first per-section AUQ — lets the user see flow and catch cross-section issues early.
-2. **Render the section to the user** (write content to chat as a markdown block).
-3. **Fire AUQ** with header "Section: <name>":
- - **Approve** (Recommended) — proceed to next section.
- - **Revise — I'll describe** — user provides revision text; model re-authors and re-fires AUQ (max 3 revisions per section).
- - **Skip — accept as-is with warning** — proceed without explicit approve (rare; sections like Rollback-Recovery on trivial tasks).
-4. **Persist** each pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`).
+1. **Author section N inline** (in orchestrator working memory) using Phase 1 research findings + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate. Do NOT render the section to chat at this step — the AUQ `preview` field IS the rendering surface.
 
-After 10 sections approved → transition to Phase 6.
+2. **Fire AUQ** with header `"Section: <name>"`. Chat-side companion is one short line: `"Section: <name> — focus an option to inspect"`. The AUQ options carry concrete content in their `preview` field:
+
+   - **Approve (Recommended)** — `preview`: the section content + ONE concrete example (per section type, see `${CLAUDE_SKILL_DIR}/plan-reference.md` §"Concrete-example per section type").
+   - **Revise — I'll describe** — `preview`: the section content + a placeholder line `"Type your revision text in Other"`. User types text → model re-authors → re-fires the AUQ (max 3 revisions per section).
+   - **Skip — accept as-is with warning** — `preview`: brief consequence statement, e.g., `"Section 9 Validation skipped — /implement Phase 3 reviewer-agent cannot verify section-9 acceptance criteria; manual checks required."`
+
+3. **Persist** each pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`).
+
+4. **Transition to section N+1** authoring (step 1). After all 10 sections approved → Phase 6.
+
+The `preview` field replaces the prior "render section to chat then ask for approval" pattern — the chat output was redundant with the section content the user was about to approve. Empty AUQ options (`Approve / Revise / Skip` text only) degrade trust ("the skill is just clicking through"); concrete preview content makes the AUQ load-bearing.
 
 ### 5.3 Milestone-mode
 
@@ -317,7 +423,11 @@ State.md `phase: write-spec` during this phase.
 
 Path: `.geniro/planning/<task-slug>/spec.md`.
 
-Content: schema (10 sections) + frontmatter with goal block + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from ).
+Content: schema (10 sections) + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from ).
+
+**Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_SKILL_DIR}/spec-template.md` §workflow_refs).
+
+Frontmatter MUST carry `geniro_schema_version: m5-v2` when `workflow_refs:` is present. For pure inline-task /plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
 
 Use the `Write` tool. The plan-mode mutation guard allows `Write` only under `.geniro/planning/**` AND `.geniro/state/**` — a write to anywhere else is blocked at PreToolUse.
 
@@ -510,13 +620,15 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 0 mode detection ran via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`; mode is IDEA or DESIGN_DOC-fresh-start; CODE_REFERENCE errored with corrective hint.
 - [ ] state.md created at `.geniro/planning/<slug>/state.md` via `atomic_state_write` with frontmatter.
 - [ ] Phase 1 loaded L4 + L3 + L2 (full tier); per-spawn Echo contract entries persisted to `## Tool log`.
-- [ ] Phase 3 used `AskUserQuestion` one-at-a-time, ≤5 questions, single dimension per question; each answer persisted to `approvals[]`.
-- [ ] Phase 4 presented 2-3 approaches with Recommended first; pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
-- [ ] Phase 5 used per-section AUQ for the fixed 10-section schema; each pick persisted to `approvals[]`.
+- [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs` (skipped when no tracker reference).
+- [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
+- [ ] Phase 3 used `AskUserQuestion` one-at-a-time, ≤5 questions, single dimension per question; each option carried a `preview` field; each answer persisted to `approvals[]`.
+- [ ] Phase 4 presented 2-3 approaches with Recommended first; each option carried a `preview` (ASCII sketch + code identifier + tradeoff); pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
+- [ ] Phase 5 used per-section AUQ for the fixed 10-section schema; incremental authoring (section N → AUQ → on approve author N+1); each option carried a `preview` field; each pick persisted to `approvals[]`.
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
-- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers.
+- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present.
 - [ ] Phase 6 did NOT auto-commit (D1 fix).
-- [ ] Phase 7 mechanical validator ran 13 checks; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
+- [ ] Phase 7 mechanical validator ran 14 checks; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 8 schema-rich AUQ fired with fields inline; user picked one of 3 options; max 3 user-revision rounds respected.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
 - [ ] Phase 9 hand-off AUQ fired with 2 options (D5 fix); pick persisted to `approvals[]`.
@@ -531,8 +643,8 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 |---|---|
 | "This task is too simple to need a design" | "Simple" projects are where unexamined assumptions cause the most wasted work. Design can be short (Phase 5 Trivial = sections 4 / 5 / 10 with body «none with rationale»); presenting and approving is mandatory. HARD-GATE applies to EVERY task. |
 | "I'll skip Phase 8 user re-review, my Phase 7 validator is enough" | Validator catches mechanical defects (placeholders / contradictions / scope creep); user catches intent defects (wrong abstraction / missing constraint). Different defect classes; both required. |
-| "I'll batch all sections into one Phase 5 AUQ to save round-trips" | Forbidden. Section-by-section AUQ enables surgical revisions; batched AUQ forces batched edits across every section if any one needs changes. The round-trip cost is real but cheap; the batched-edit cost on disagreement is much higher. |
-| "I'll keep the Phase 2 visual companion — nice when planning UI" | Dropped. Sketch did NOT persist into spec.md; UI intent belongs in Phase 3 questions + Phase 5 sections 6 (Steps) / 9 (Validation) at the right granularity. |
+| "I'll pre-fill all 10 sections upfront so the user sees the whole plan, then ask per-section approval" | Forbidden. Pre-fill makes per-section AUQ redundant — the user has already read the content; the AUQ then has nothing new to inspect. Author section N → AUQ on section N → on approve, author section N+1. Incremental authoring catches cross-section issues at the section that triggered them, not after the user has read 10 sections. |
+| "Per-section AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the section" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Use the AskUserQuestion `preview` field on every option to carry concrete content (UI ASCII, code snippet, behavior trace). The chat becomes a one-line "Section: X — focus an option to inspect" announcement; the AUQ IS the rendered content. |
 | "I'll write the design doc with only the YAML frontmatter — that's enough" | Defense in depth requires all three markers (path + HTML comment + frontmatter). See `design-doc-detect.md` § Why defense in depth — each marker survives a different user action. |
 | "Phase 4 — 4 or 5 approaches gives the user more choice" | More than 3 indicates Phase 3 didn't narrow scope; loop back to Phase 3 with a tighter scope-boundary question. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
