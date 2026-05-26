@@ -92,7 +92,7 @@ lifecycle: approved
 
 ### Why structured wins
 
-Spec-compliance reviewer can cite specific sections («section 2 names `src/api/auth/*` but diff touches no auth file») instead of grepping prose. Findings carry section anchors in evidence — auditable, not fuzzy.
+Spec-compliance reviewer can cite specific sections ("section 2 names `src/api/auth/*` but diff touches no auth file") instead of grepping prose. Findings carry section anchors in evidence — auditable, not fuzzy.
 
 ---
 
@@ -181,15 +181,15 @@ forbidden_actions: ["do NOT backfill existing timeline rows"]
 lifecycle: approved
 ```
 
-Section 1 (Objective): «Add a timeline-events table with insert path.»
-Section 2 (Scope — Included): «`migrations/2026-04-add-timeline.sql`, `src/timeline/events.ts`, `tests/timeline.test.ts`»
-Section 11 (Done Condition): «all 5 acceptance tests green AND telemetry shows ≥1 successful event insert»
+Section 1 (Objective): "Add a timeline-events table with insert path."
+Section 2 (Scope — Included): "`migrations/2026-04-add-timeline.sql`, `src/timeline/events.ts`, `tests/timeline.test.ts`"
+Section 11 (Done Condition): "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert"
 
 Three reviewer findings come back:
 
 1. **Bugs reviewer:** "Missing backfill for existing rows in `migrations/2026-04-add-timeline.sql`. Old data won't appear in the timeline UI."
 2. **Architecture reviewer:** "Timestamp column lacks `WITH TIME ZONE` in `schema/events.sql:14`. Recommend `TIMESTAMPTZ` for portability."
-3. **Spec-compliance reviewer (Check #10):** "Done Condition (section 11) names «telemetry shows ≥1 successful event insert» but diff carries no metric emission. Add `metrics.increment('timeline.event.insert')` at the writer."
+3. **Spec-compliance reviewer (Check #10):** "Done Condition (section 11) names "telemetry shows ≥1 successful event insert" but diff carries no metric emission. Add `metrics.increment('timeline.event.insert')` at the writer."
 
 **Reviewer self-tagging (Phase 2):**
 

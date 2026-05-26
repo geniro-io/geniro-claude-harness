@@ -32,7 +32,7 @@ When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched a Li
 - **Only Linear ACs present (no PLAN CONTEXT OR PLAN CONTEXT lacks section 9):** Linear ACs become the sole rubric. Apply check #4 (Tests for Stated Acceptance Criteria) against the Linear AC list.
 - **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to Check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
 
-Findings from Linear-AC mismatches carry the prefix «Linear AC: » in the Cause field to distinguish from PLAN CONTEXT ACs (e.g., «Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path»). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
+Findings from Linear-AC mismatches carry the prefix "Linear AC: " in the Cause field to distinguish from PLAN CONTEXT ACs (e.g., "Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path"). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
 
 ## What to Check
 
@@ -162,7 +162,7 @@ The plan names an operational concern that requires observability — a rollout 
 
 ### 10. Done Condition Met (NEW )
 
-The spec's section 11 (Done Condition) names an observable signal that defines completion (e.g., «all 5 acceptance tests green», «PR approved by stakeholder X», «feature ships behind flag AND telemetry shows ≥1 successful use»). The diff must achieve, or visibly progress towards, that signal — not just touch the named files.
+The spec's section 11 (Done Condition) names an observable signal that defines completion (e.g., "all 5 acceptance tests green", "PR approved by stakeholder X", "feature ships behind flag AND telemetry shows ≥1 successful use"). The diff must achieve, or visibly progress towards, that signal — not just touch the named files.
 
 **Skip when not -schema mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only when `geniro_kind: design-doc` frontmatter is present.
 
@@ -175,11 +175,11 @@ The spec's section 11 (Done Condition) names an observable signal that defines c
 - For approval-based signals: check the PR body / state for the named approver's review status.
 - Flag when section 11 names an observable signal AND the diff carries no artifact moving towards it.
 
-**Red flag:** section 11 specifies «<observable signal> AND <verification>» but the diff carries no artifact realizing the signal or its verification.
+**Red flag:** section 11 specifies "<observable signal> AND <verification>" but the diff carries no artifact realizing the signal or its verification.
 
 ### 11. Tools Required Available (NEW )
 
-The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field enumerates tools the change needs (e.g., specific CLI binaries, infra services, MCP connectors). The diff or local environment must show all listed tools are actually available — a spec promising «requires `kubectl` + `helm`» but landing in a repo without either ships broken.
+The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field enumerates tools the change needs (e.g., specific CLI binaries, infra services, MCP connectors). The diff or local environment must show all listed tools are actually available — a spec promising "requires `kubectl` + `helm`" but landing in a repo without either ships broken.
 
 **Skip when not -schema mode.** (No section 7 anchor.)
 
@@ -220,7 +220,7 @@ Apply the severity downgrades from the False Positives section before tagging. A
 
 ## Cross-PR Scope Split (peer-PR context)
 
-When the `PEER-PR CONTEXT:` slot is non-`none` AND the LINEAR CONTEXT block shows a parent epic with sibling sub-tasks (or PLAN CONTEXT enumerates a multi-PR plan per §Common False Positives «Plan covers a multi-PR effort»), the parent's scope is split across siblings. Apply scope-completeness checks **against the slice the current PR owns**, not the whole parent:
+When the `PEER-PR CONTEXT:` slot is non-`none` AND the LINEAR CONTEXT block shows a parent epic with sibling sub-tasks (or PLAN CONTEXT enumerates a multi-PR plan per §Common False Positives "Plan covers a multi-PR effort"), the parent's scope is split across siblings. Apply scope-completeness checks **against the slice the current PR owns**, not the whole parent:
 
 - If LINEAR CONTEXT shows `linear-parent-ref: ENG-100` AND PEER-PR CONTEXT lists a sibling PR carrying a sibling sub-task ID (e.g., `ENG-101` while current is `ENG-102`): the parent's scope is split. Each sub-task PR owns its own slice. Items belonging to the sibling sub-task are NOT omissions on the current PR.
 - Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "Parent epic ENG-100 has scope items A, B, C. Current PR ENG-102 covers B; sibling PR #N (ENG-101) covers A. Item C is unassigned — confirm whether C is in scope for this PR, deferred to another sub-task, or out of scope entirely."`. Not a HIGH finding — it gates a scope decision the user must make.

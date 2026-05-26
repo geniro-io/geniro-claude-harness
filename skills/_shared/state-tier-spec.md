@@ -144,6 +144,12 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 - MUST be documented in the producer's M-doc frontmatter example block.
 - The validator silently passes them through — only required-field presence and enum values are checked.
 
+**`/review` producer-specific fields:**
+
+- `spawn_dims_declared: [<dim-slug>, ...]` — declared parallel-spawn list, written at Phase 2 entry before the batch fires. Consumed by Phase 4 §4.0 verification gate (declared-vs-actual diff).
+- `spawn_dims_count: <int>` — denormalized length of `spawn_dims_declared`.
+- `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Consumed by Phase 2 to merge into the spawn batch.
+
 ---
 
 ## Format rules

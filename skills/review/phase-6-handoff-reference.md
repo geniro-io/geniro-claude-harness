@@ -8,7 +8,7 @@ State.md `phase: action-gate` during this phase.
 
 ## 1. Reporter behavior — no fix loop
 
-This skill confirms: /review does NOT apply fixes. Phase 6 hand-off message NEVER includes «I'll fix these now» language. The /implement option routes to /implement skill (manual or via Phase 6 hand-off line).
+This skill confirms: /review does NOT apply fixes. Phase 6 hand-off message NEVER includes "I'll fix these now" language. The /implement option routes to /implement skill (manual or via Phase 6 hand-off line).
 
 `--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention but the output is still a finding list for consumption by other skills.
 
@@ -118,9 +118,9 @@ Do NOT auto-invoke /implement — surface the suggestion only. The user runs the
 
 ## 5. Round-N escalation gate
 
-When round ≥3 AND user picks «Continue rounds», fire a secondary AUQ:
+When round ≥3 AND user picks "Continue rounds", fire a secondary AUQ:
 
-- **Continue (round 4)** — re-enter Phase 1 with round counter incremented; risk of infinite loop if user picks repeatedly (capped at round 5 hard ceiling — round 6 attempts auto-trigger «Escalate to user»).
+- **Continue (round 4)** — re-enter Phase 1 with round counter incremented; risk of infinite loop if user picks repeatedly (capped at round 5 hard ceiling — round 6 attempts auto-trigger "Escalate to user").
 - **Escalate to user — structured handoff** — terminal `escalated` state; emits one structured `open_questions[]` frontmatter entry per unresolved next-step (`source: round-N-escalation`, `status: unresolved`), AND writes a chat-surface summary. Downstream consumers gate on the entries per the `open_questions[]` contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`.
 - **Abort** — terminal `aborted` state; `## Termination reason: repeated-failure: round-limit-3`.
 
@@ -341,4 +341,4 @@ Per
 | Continue rounds → Round-N → Escalate | `escalated` | (omitted; surfaced in `## Open Questions`) |
 | Skip — keep findings on disk | `done` | `modifier-exit: skip-action` |
 
-the SessionStart hook surfaces `## Termination reason` on resume so model and user see context, not bare «aborted».
+the SessionStart hook surfaces `## Termination reason` on resume so model and user see context, not bare "aborted".

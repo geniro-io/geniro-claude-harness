@@ -157,7 +157,7 @@ The pre-step routes `$ARGUMENTS` to exactly one of OUTGOING / INCOMING / pr-ref-
 | Mode | Trigger | Routing |
 |---|---|---|
 | OUTGOING (default) | empty `$ARGUMENTS`, branch name, file paths, or diff range | Phase 1.5 mechanical pre-pass |
-| INCOMING | PR ref + computed `K > 0` unresolved threads (after AUQ pick) OR anchored NL signals («process review on #N», «respond to review #N», «incoming review #N») | `incoming-mode-reference.md` Phase I |
+| INCOMING | PR ref + computed `K > 0` unresolved threads (after AUQ pick) OR anchored NL signals ("process review on #N", "respond to review #N", "incoming review #N") | `incoming-mode-reference.md` Phase I |
 | PR ref + K=0 / K=unknown | `gh` fetch fail-open or no unresolved threads | OUTGOING (skips AUQ) |
 
 **PR-ref resolution.** Parse `<owner>/<repo>/<number>` from `$ARGUMENTS`. For a full PR URL, parse the path segments directly; for bare PR number (`#1234` or `1234`), resolve `<owner>/<repo>` from the current repo via `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`.
@@ -195,7 +195,7 @@ For a PR ref, strip leading `#` and resolve with:
 - `gh pr diff <number-or-url>` to materialize the diff
 - `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels` for base/head context, head SHA pin, PR URL, PR body+title (the PR body feeds PLAN CONTEXT below), plus the draft state, author user, and label set
 
-The draft/author/labels feed the pr-metadata reviewer's Common-False-Positives detection (bot-author / draft / release-please-label PRs excluded from rubric-strict checks). Capture the original PR ref, `headRefOid`, and canonical `url` — all three persisted to the state file for Phase 6 Action gate's «Post Draft PR review» option and for `commit_id` pinning (prevents line-anchor drift if PR updates mid-review).
+The draft/author/labels feed the pr-metadata reviewer's Common-False-Positives detection (bot-author / draft / release-please-label PRs excluded from rubric-strict checks). Capture the original PR ref, `headRefOid`, and canonical `url` — all three persisted to the state file for Phase 6 Action gate's "Post Draft PR review" option and for `commit_id` pinning (prevents line-anchor drift if PR updates mid-review).
 
 If `gh` is unavailable or the PR cannot be fetched, report the error and stop — do NOT fall back silently to unstaged changes; do NOT run `gh pr list` to "find a related PR".
 
