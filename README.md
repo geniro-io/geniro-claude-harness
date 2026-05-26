@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 2 specialist sub-agents, 11 skills, and 7 safety hooks + statusline + update check out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 5 specialist sub-agents, 11 skills, and 7 safety hooks + statusline + update check out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -77,6 +77,10 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 
 `.geniro/` is gitignored by default, except `workflow/`, `instructions/`, and `actions/` which are meant to be committed so the team shares the same rules and integrations.
 
+### Model tier symmetry
+
+Every plugin subagent inherits your orchestrator's model tier. If you're running Claude Code on Opus, your code reviewers run on Opus. If you're on Sonnet for cost control, all subagents run on Sonnet. You set the tier once at session start with `/model`; the plugin doesn't second-guess. The two carve-outs (`/geniro:setup` verification subagent on Sonnet under a NO-Write/Edit tool budget, and the haiku-tier UI-preview mechanical describer) are explicit safety/cost contracts documented in `skills/_shared/model-tiering.md`.
+
 ### Typical workflow
 
 ```
@@ -113,7 +117,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:plan` — Spec-first planning
 
-9-phase loop (mode-detect → explore → clarify ≤5 questions → 2-3 approaches → 10-section approval → write → mechanical validate → user approve → hand-off). Produces an approved `spec.md` in `.geniro/planning/<task-dir>/` with goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for). Milestone-mode for Big tasks emits sibling `milestone-N.md` files.
+10-phase loop (mode-detect → explore → visual-companion → clarify ≤5 questions → 2-3 approaches → 10-section approval → write → mechanical validate → user approve → hand-off). Produces an approved `spec.md` in `.geniro/planning/<task-dir>/` with goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for) and optional `workflow_refs[]` tracker linkage (m5-v2). Phase 2 Visual Companion for UI-shaped tasks emits a textual UI preview before any code is written; per-section AUQs use the AskUserQuestion `preview` field — every option renders concrete content (UI ASCII / code snippet / behavior trace) rather than prose-only Approve/Revise/Skip. Section authoring is incremental (section N → AUQ → on approve, author N+1) — no pre-fill batch. Milestone-mode for Big tasks emits sibling `milestone-N.md` files.
 
 ```
 /geniro:plan add user authentication with JWT tokens
@@ -122,7 +126,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:implement` — Autonomous implementation
 
-2-phase loop: Analyze → Implement → Self-review-and-Ship. Consumes `spec.md` from `/plan` (or inline-task fallback when `/plan` hasn't been run). Single solo execution path with 5-dim parallel self-review (bugs / security / architecture / tests / code-quality).
+3-phase loop: Analyze → Implement → Self-review-and-Ship. Consumes `spec.md` from `/plan` (or inline-task fallback when `/plan` hasn't been run). Phase 1 fires Step 0 workspace AUQ (passive-detect → auto-continue when prior-task signals present), spawns Knowledge-Retrieval + Codebase-Explorer subagents in parallel for research. Phase 2 uses TodoWrite for sequential decomposition (one-in-progress invariant) + `test-runner-agent` at phase end. Phase 3 spawns 5 reviewer-agents + 1 `adversarial-tester-agent` in parallel (adversarial skipped on trivial scope). Consumes T2 handoffs from `/review` and `/debug`, gating Edit/Write transitions on unresolved `open_questions[]`. Ship cleanup preserves durable T1.5 artifacts (spec.md / state.md / milestone-*.md). All subagents inherit orchestrator tier.
 
 ```
 /geniro:implement                              # consume spec.md from /plan
@@ -131,7 +135,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:review` — Parallel multi-agent code review
 
-6-phase reporter loop (triage → mechanical pre-pass → 9-dim LLM reviewers → filter → stratify → persist → action-gate). Dimensions: bugs / security / architecture / tests / optimizations / guidelines / conventions (+design when UI files present, +pr-metadata when input was a PR ref, +spec-compliance when PLAN CONTEXT non-none). Phase 1.5 mechanical pre-pass (lint / schema / secret scan) feeds prior-context. Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria. Optional `--tdd` flag tightens validation budget + F→P test-gate.
+6-phase reporter loop (triage → mechanical pre-pass → LLM reviewers → filter → stratify → persist → action-gate). **MANDATORY spawn list:** 7 always (bugs / security / architecture / tests / optimizations / guidelines / conventions) + up to 3 conditional (design when UI files present / pr-metadata when input was a PR ref / spec-compliance when PLAN CONTEXT non-none) + N custom from `.geniro/instructions/review-extra/`. Phase 2 declares `spawn_dims_declared[]` in state.md before the parallel batch; Phase 4 §4.0 verifies declared-vs-actual to catch silent skips. Phase 1 Step 0 smart workspace setup; /review is read-only — never mutates tracker status. Phase 1.5 mechanical pre-pass (lint / schema / secret scan + custom-reviewer discovery). Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Emits T2 hand-off with structured `open_questions[]` (3-gate chain prevents posting or implementing with unresolved questions). Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria. Optional `--tdd` flag tightens validation budget + F→P test-gate. All reviewer-agents inherit orchestrator tier.
 
 ```
 /geniro:review                                # review uncommitted changes
@@ -263,7 +267,7 @@ geniro-claude-plugin/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # 11-skill canonical inventory
-├── agents/                      # 2 specialized agent definitions
+├── agents/                      # 5 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / test-runner)
 ├── skills/                      # 11 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning
