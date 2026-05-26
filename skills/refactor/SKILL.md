@@ -109,14 +109,11 @@ state.md `phase: plan`. Light by cost vs Phase 2 — a scope-discovery batch (Re
 
 Exits to Phase 2 only when: (a) baseline validation green, (b) tier classified, (c) hard signals checked, (d) smells identified (Medium+) + relevance-filtered (Medium+), (e) plan built and approved (HIGH-risk steps gated).
 
-### 1.1 Memory layer load (L4 / L3 / L2)
+### 1.1 Memory layer load (instructions / snapshot / learnings)
 
 On Phase 1 entry, in order:
 
-1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.
-2. **L3 refresh** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.
-3. **L2 prior-knowledge query** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per To find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.
-4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per
+1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per To find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict.
 Echo lines per mandatory.
 5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). Read-only — /refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
@@ -246,7 +243,7 @@ state.md transitions: `plan` → `apply` once approval complete. `## Plan` body 
 
 state.md `phase: apply`. Refactor-agent executes the approved plan, one step at a time, with per-step validation. The zero-behavior-change constitutional rule is enforced via the per-step regression test pass.
 
-### 2.1 L4 refresh entry
+### 2.1 Refresh custom instructions on entry
 
 On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` call. Phase 3 inherits the Phase 2 refresh (no code-writing in Phase 3).
 
@@ -358,7 +355,7 @@ Orchestrator-inline addresses specific findings (Edit per finding); then re-spaw
 
 ### 3.4 Completion summary
 
-Output the markdown block directly in chat. No persistence to a T2 handoff file — diff IS the deliverable.
+Output the markdown block directly in chat. No persistence to a handoff file — diff IS the deliverable.
 
 ```markdown
 ## Refactor Complete
@@ -390,7 +387,7 @@ Output the markdown block directly in chat. No persistence to a T2 handoff file 
 [The diff is in your working tree. Commit it yourself, or run `/geniro:implement` to ship with a review gate.]
 ```
 
-### 3.5 L2 auto-emit
+### 3.5 Emit learnings
 
 At Phase 3 exit:
 
@@ -437,7 +434,7 @@ rm -f ".geniro/refactor/state.md" 2>/dev/null
 rm -f ".geniro/refactor/state-${slug}.md" 2>/dev/null
 rm -f ".geniro/state/refactor/state-${slug}.md" 2>/dev/null
 ```
-- **No T2 handoff to delete or persist**.
+- **No handoff file to delete or persist**.
 - Kill any background processes started during the run (test watchers, profilers).
 
 Cleanup is best-effort — failed commands silently OK.

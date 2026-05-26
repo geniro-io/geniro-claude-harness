@@ -117,7 +117,51 @@ open_questions:
   - id: q1                                          # short stable anchor (used by AUQ chaining and resolution writes)
     source: spec-compliance                         # the reviewer dim / producer step that surfaced it
     question: "API seeder additions in-scope or split into separate PR?"  # the actual question, verbatim
-    related_findings: [F1, F4]                      # optional — finding IDs this question gates
+    context: |                                      # OPTIONAL but RECOMMENDED — 2-6 line problem framing rendered with the question
+      The PR includes 3 new seeder files under db/seeders/ alongside the API
+      endpoint changes. spec.md §Forbidden Actions lists "seeder modifications
+      outside dedicated seeder PRs". Reviewer flagged scope mismatch; the right
+      resolution depends on whether the seeders are mandatory for the endpoint
+      to function (in-scope) or coincidental cleanup (split).
+    evidence:                                       # OPTIONAL but RECOMMENDED — code anchors with snippets, rendered in AUQ preview
+      - file: db/seeders/api_users.sql
+        lines: 1-12
+        snippet: |
+          -- Seed initial API users so the new /api/v2/users endpoint has data.
+          INSERT INTO api_users (id, email, role) VALUES ...
+      - file: spec.md
+        lines: 145-149
+        snippet: |
+          ## Forbidden Actions
+          - No seeder modifications outside dedicated seeder PRs.
+    options:                                        # OPTIONAL but RECOMMENDED — pre-authored options used directly by the AUQ renderer
+      - id: A
+        label: "In scope — keep seeders in this PR"
+        description: "Seeders are required for the endpoint smoke-test; splitting would block the endpoint reviewer from running tests."
+        preview: |
+          ## Effect
+          - 3 seeder files stay in this PR
+          - spec.md §Forbidden Actions gets a per-task exception line
+          - PR description annotated: "Seeders bundled — required for smoke-test"
+      - id: B
+        label: "Split — revert seeders to a separate PR"
+        description: "Honors spec.md forbidden-actions verbatim. Endpoint PR ships without seeders; reviewer must trust unit tests."
+        preview: |
+          ## Effect
+          - `git checkout HEAD~ -- db/seeders/` reverts seeder additions
+          - New branch `chore/api-seeders` for seeders alone
+          - Endpoint PR description updated: "Seeders split to #N+1"
+      - id: C
+        label: "Out of scope — drop entirely"
+        description: "Seeders weren't planned in spec.md; treat them as accidental scope creep. Lose the smoke-test data."
+        preview: |
+          ## Effect
+          - `git checkout HEAD~ -- db/seeders/` reverts seeder additions
+          - No follow-up PR — seeders deferred to backlog
+    recommendation:                                 # OPTIONAL — producer's recommended option + rationale
+      option_id: B
+      rationale: "Spec.md is explicit; honoring it preserves the project's PR-scope hygiene. The smoke-test data gap is recoverable via a follow-up seeder PR."
+    related_findings: [F1, F4]                      # optional — finding IDs this question gates (cross-reference into ## Findings body)
     status: unresolved                              # enum: unresolved | resolved | wontfix
     resolution:                                     # populated when status moves out of `unresolved`
       picked: "Split — revert api seeders to a separate PR"
@@ -128,7 +172,9 @@ open_questions:
 
 **Producer responsibilities:**
 - Initialize `open_questions: []` in the handoff frontmatter. NEVER use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
-- Each entry MUST have `id`, `source`, `question`, `status` set; `related_findings` and `resolution` optional.
+- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `resolution`) are optional.
+- **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich `AskUserQuestion` preview per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust. Producer-side context is cheaper to author once than to reconstruct downstream.
+- When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
 
 **Consumer responsibilities:**

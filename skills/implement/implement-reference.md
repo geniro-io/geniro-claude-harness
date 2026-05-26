@@ -444,9 +444,9 @@ Per master plan, the standalone `/learnings` skill is deleted; learning capture 
 → Consider /geniro:instructions edit <scope>.md to promote as rule.
 ```
 
-Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-style.md`; dim=`architecture` → suggest `global.md`; other → "appropriate scope". Suggestion fires ONLY for `convention` type — single-occurrence `decision` emits do NOT warrant L4 promotion. The line is informational (no AUQ, no auto-edit) — user remains source-of-truth for L4 rule curation.
+Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-style.md`; dim=`architecture` → suggest `global.md`; other → "appropriate scope". Suggestion fires ONLY for `convention` type — single-occurrence `decision` emits do NOT warrant promotion to a custom-instruction rule. The line is informational (no AUQ, no auto-edit) — user remains source-of-truth for custom-instruction curation.
 
-**L3 update site.** If Phase 2 added a new module / file, call `update-semantic --file codebase-map --append "..."` to append a bounded entry to `_CODEBASE_MAP.md`. Lock-guarded; rc=11 (lock held) is a recoverable "skip-and-defer" — caller may retry later or skip silently.
+**Project-snapshot update site.** If Phase 2 added a new module / file, call `update-semantic --file codebase-map --append "..."` to append a bounded entry to `_CODEBASE_MAP.md`. Lock-guarded; rc=11 (lock held) is a recoverable "skip-and-defer" — caller may retry later or skip silently.
 
 ---
 
@@ -462,7 +462,7 @@ Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvemen
 
 **Worktree:** if working in a worktree (from Phase 1 workspace decision), leave the session in it. Do NOT call `ExitWorktree` proactively — runtime already prompts on session exit to keep or remove the worktree.
 
-**Integrations:** if workflow files in `.geniro/workflow/` specify completion actions (status transitions, PR linking, comments), follow their instructions. Always ask the user before changing external state (issue status, comments). NEVER auto-update. If integration backend is unavailable, log warning and skip.
+**Integrations:** if workflow files in `.geniro/workflow/` specify completion actions (status transitions, PR linking, comments), re-fetch the tracker issue's current `status` via MCP at ship time (the status may have changed externally during implementation) BEFORE applying the workflow file's `### On task completion` block — the block gates its questions on the current status (e.g., the Linear template skips the "Move to In Review?" prompt when already In Review or terminal). Then apply the workflow file's `### On task completion` block, passing the resolved `status` and the ship action (Commit / Commit + push / Commit + PR / Leave uncommitted) as inputs. Always ask the user before changing external state (issue status, comments). NEVER auto-update. If integration backend is unavailable, log warning and skip both the re-fetch and the questions.
 
 **AI-disclosure prefix.** When the workflow file contains a `## AI-Disclosure Prefix` section, apply the documented prefix to any comment text the skill AUTHORS before posting via the tracker MCP. Status-only updates, assignee-only updates, commit messages, and PR descriptions are excluded per the section's exclusion list. If the AI-Disclosure section is still a TODO stub, skip authoring comments entirely — post only status-only updates.
 
@@ -539,6 +539,6 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures` per).
 - [ ] Phase 3 5-dim reviewer loop ran (round 1 — all 5 dims; round N+1 — failing dims only); exited clean OR escalated per- [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] `non-resumable-actions[]` frontmatter updated for every external side-effect (`git push`, `gh pr create`).
-- [ ] L2 emit fired when triggers were met (`convention` or `decision`); promotion suggestion surfaced for `convention` emits per.
-- [ ] L3 update fired if Phase 2 added new modules — `_CODEBASE_MAP.md` appended via `update-semantic`.
+- [ ] Learning emit fired when triggers were met (`convention` or `decision`); promotion suggestion surfaced for `convention` emits per.
+- [ ] Project-snapshot update fired if Phase 2 added new modules — `_CODEBASE_MAP.md` appended via `update-semantic`.
 - [ ] Stop-hook evidence scan satisfied — Ship report's PASS/FAIL claims attach Evidence Blocks.

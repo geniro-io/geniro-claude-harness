@@ -126,7 +126,7 @@ approvals:
 
 On compaction-resume or Round 2+ re-runs of /review on the same branch, Step 0 reads `approvals[]` and re-applies the prior answer without re-prompting.
 
-Workflow status transitions (e.g., "Move <issue_id> to In Review?") are NOT part of Step 0 — /review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture) per §3.5; they are not user-prompted in Step 0. Workflow status mutation belongs to `/geniro:plan` (kickoff) and `/geniro:implement` (start / ship transitions); `/geniro:review` only reads.
+Workflow status transitions (e.g., "Move <issue_id> to In Review?") are NOT part of Step 0 — /review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture) per §3.5; they are not user-prompted in Step 0. Workflow status mutation belongs to `/geniro:implement` only — Step 0c (kickoff) and Phase 3 Ship (completion); `/geniro:plan`, `/geniro:debug`, `/geniro:refactor`, and `/geniro:review` are all read-only tracker consumers.
 
 ### 0d — Execution after AUQ
 

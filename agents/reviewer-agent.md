@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / guidelines / conventions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and decision-type tags (FIX-NOW / TESTABLE / PRODUCT-DECISION / INTENT-CHECK)."
+description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / guidelines / conventions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check)."
 tools: [Read, Glob, Grep, Bash]
 model: inherit
 maxTurns: 100

@@ -85,7 +85,7 @@ Body sections:
 - `## Open Questions` (escalation AUQs + outcome)
 - `## Termination reason` (only on terminal `aborted` / `reverted` / `routed` states)
 
-**No T2 handoff**: diff IS the deliverable; working tree is the channel.
+**No handoff file**: diff IS the deliverable; working tree is the channel.
 
 ---
 

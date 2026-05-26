@@ -113,6 +113,118 @@ Don't inline deprecated procedures or obsoleted patterns in the main body. Per A
 
 The orchestrator can still find it via grep if needed, but it doesn't compete for attention with the current procedure.
 
+## User-facing output uses plain English
+
+### The fresh-user test
+
+The single test that governs every user-facing string: **a fresh user with the plugin installed but no architecture docs loaded — no `CLAUDE.md`, no `state-tier-spec.md`, no `MEMORY.md` — must be able to act on the string without first learning a Geniro-specific identifier.** If the user has to learn `T2` / `FIX-NOW` / `phase: triage` / `m5-v2` / `KR` to understand what the orchestrator is doing or what the question is asking, the string is wrong — restate the identifier's meaning inline OR drop the identifier and substitute the plain-English form.
+
+This test applies to **everything the orchestrator surfaces to the user**:
+
+- Chat narration (step echoes, progress updates, transition messages).
+- `TodoWrite` labels (subject + description).
+- `AskUserQuestion` `header` / `question` / `description` / option `label` / option `preview`.
+- Status echoes ("Loading X..." / "Spawning Y...").
+- Final report sections (Ship report, Review report, Investigate answer).
+- Error messages surfaced to chat (NOT the underlying state-file `## Errors` body section — that's a structured artifact for downstream consumers).
+
+Why this is a recurring failure mode: skill body prose is **author-facing** — it uses compact identifiers because skill authors read them hundreds of times. When the orchestrator narrates a step, it tends to echo the skill body verbatim. The fix is at the source — keep authoring shorthand out of strings the model is likely to echo.
+
+### Translation tables
+
+Cover the categories below. Extend when new internal vocabulary appears in skills.
+
+**Memory-system abbreviations.**
+
+| Internal term | Plain-English form for user-facing prose |
+|---|---|
+| `L1` / working memory / working state | "task state" / "session state" |
+| `L2` / episodic memory / learnings | "past learnings" / "prior knowledge" |
+| `L3` / semantic memory / snapshot | "project snapshot" / "codebase map" |
+| `L4` / procedural memory / instructions | "custom instructions" / "project rules" |
+
+**State-tier abbreviations.**
+
+| Internal term | Plain-English form for user-facing prose |
+|---|---|
+| `T1` / ephemeral state | "scratch files" / "transient working files" |
+| `T1.5` / durable task state | "task artifacts" |
+| `T2` / handoff | "handoff" (drop the `T2` prefix entirely — the word "handoff" carries the semantic) |
+| `T3` / persistent state | "persistent state" (drop `T3`) |
+
+**Subagent shorthand.**
+
+| Internal term | Plain-English form for user-facing prose |
+|---|---|
+| `KR` / `KR subagent` / `KR output` | "knowledge-retrieval agent" / "knowledge-retrieval output" |
+| `CE` / `CE subagent` / `CE output` | "codebase-explorer agent" / "codebase-explorer output" |
+| `TR` / `TR subagent` / `TR output` | "test-runner agent" / "test-runner output" |
+
+**Internal phase / step labels.** Phase / step numbering (`Phase 4c`, `Phase 5b`, `Step 12`, `Phase 6 Pre-gate`) is meaningful only to skill authors. The user knows what the orchestrator is DOING, not which numbered step it's on. When cross-referencing a step internally, anchor by the concept ("the open-question gate"), not the number ("Phase 6 Pre-gate").
+
+| Internal term | Plain-English form for user-facing prose |
+|---|---|
+| `Phase 4c` / `Phase 4c test-gate` | "test-confirmation gate" / "confirming tests before writing code" |
+| `Phase 5b` / `Phase 5b auto-emit` | "recording the pattern as a learning" |
+| `Step 0 workspace AUQ` | "workspace setup question" |
+| `Step 12 handoff resolution` | "resolving open questions from the prior review" |
+| `Phase 6 Pre-gate` | "the open-question gate" |
+| `Step 0a` / `Step 0b` / `Step 0c` | "detecting current context" / "deciding the action" / "asking for confirmation" |
+
+**Decision-type tags.** The `FIX-NOW` / `PRODUCT-DECISION` / `TESTABLE` / `INTENT-CHECK` taxonomy is reviewer-internal; `ROOT-CAUSE` / `SYMPTOM` / `UNKNOWN` is debug-internal. Both are jargon to a fresh user.
+
+| Internal term | Plain-English form for user-facing prose |
+|---|---|
+| `FIX-NOW` | "automatic fix" / "I can fix this directly" |
+| `TESTABLE` | "this can be verified with a test" |
+| `PRODUCT-DECISION` | "needs your decision" / "judgment call required" |
+| `INTENT-CHECK` | "needs you to confirm intent" |
+| `ROOT-CAUSE` | "root cause" |
+| `SYMPTOM` | "surface symptom" / "downstream effect" |
+| `UNKNOWN` (cause) | "cause not yet identified" |
+
+**Frontmatter field references.** YAML field names (`approvals[]`, `non-resumable-actions[]`, `workflow_refs[]`, `open_questions[]`) are storage identifiers. Users care what they MEAN, not how they're stored.
+
+| Internal term | Plain-English form for user-facing prose |
+|---|---|
+| `approvals[]` (frontmatter) | "decisions you've made in this run" / "saved choices" |
+| `non-resumable-actions[]` | "external actions that can't be undone (push, PR open)" |
+| `workflow_refs[]` | "linked tracker tickets" |
+| `open_questions[]` | "open questions from the prior review/debug" |
+| `related_findings[]` | "findings this question gates" |
+
+**Helper / function / hook names.** Implementation identifiers (`atomic_state_write`, `load_semantic`, `query_learnings`, `emit_learning`, `update_semantic`, `SessionStart`, `PostCompact`, `PreToolUse`) belong in author-facing prose, never narration. If the user needs to know a helper ran (e.g., to follow up on a failure), describe what it DID, not which function did it: "Couldn't refresh the project snapshot" beats "load_semantic returned rc=11".
+
+**Schema versions.** `m5-v1` / `m5-v2` / `m6-v1` are internal versioning markers. Don't surface unless the user must act on a version difference (e.g., re-author a spec after a breaking migration) — and even then, describe the action ("this spec uses the older format and needs re-authoring"), not the version number.
+
+**State-machine phase enum values.** `phase: analyze`, `phase: implement`, `phase: persist`, `phase: triage`, `phase: classify` are storage values. Describe what's HAPPENING, not which enum state the machine is in: "Analyzing the change scope" not "Now in `phase: analyze`".
+
+**Reviewer dimension slugs.** Some are already plain-English (`bugs`, `security`, `architecture`, `tests`). Slug forms with hyphens (`spec-compliance`, `pr-metadata`, `code-quality`) need light expansion in narration: "specification compliance" / "PR metadata check" / "code quality" — same words, drop the slug-style hyphenation.
+
+### What's exempt
+
+The rule applies to NARRATIVE prose surfaced to the user. It does NOT apply to:
+
+- **Filesystem paths** (`.kr-out.md`, `.geniro/state/handoff/from-review-<branch>.md`, `_CODEBASE_MAP.md`). Paths are identifiers that carry semantic weight through prefixes and extensions. Keep them.
+- **YAML / JSON keys inside code blocks** rendered to the user. Frontmatter examples and schema illustrations show literal keys.
+- **Architectural sections that document the layer / tier / subagent system itself** — `CLAUDE.md` §Memory Layers / §State Files, `skills/_shared/state-tier-spec.md`, anti-rationalization rows discussing layer precedence. Those address skill authors, not end users.
+- **Skill body declarative prose** that references system architecture for authors (e.g., a parenthetical "writes a handoff per state-tier-spec.md §T2"). The orchestrator reads these but doesn't typically echo them verbatim — it paraphrases.
+- **`## Errors` body sections** in state files. Structured artifacts for downstream consumers; the chat-surfaced version of the same error MUST follow the plain-English rule.
+
+### Step titles ARE user-facing
+
+When the model executes Step 5 in a phase, it typically echoes the step title in its narration. So `5. **Load custom instructions.**` is fine; `5. **Load L4 instructions.**` is not. This is the most common leak vector — fix step titles first when auditing a skill. Section headers (`### 2.1 ...`) are the same — the model paraphrases them into narration.
+
+### Anti-rationalization
+
+| Rationalization | What's actually wrong |
+|---|---|
+| "The user can grep the architecture docs if they don't understand `T2`." | The user is in a chat session waiting for the orchestrator's narration to be self-explanatory. Forcing them to context-switch into doc archaeology to understand a progress message is the failure mode the fresh-user test exists to prevent. |
+| "Spelling out `knowledge-retrieval agent` every time bloats the prose." | A 3-word phrase per occurrence is the cost of clarity. Skill body has the bandwidth; the user-facing surface is the load-bearing constraint. |
+| "The skill body uses `Phase 4c` everywhere — I'll just keep it for consistency in echoes." | Consistency with author-facing vocab IS the problem. The model echoes author-facing vocab verbatim because it sees no signal not to. Use plain English in step titles AND in any narration-template the model is likely to surface. |
+| "`PRODUCT-DECISION` is a precise term; the plain-English form 'needs your decision' loses precision." | Precision in vocabulary is for author-side coordination (mapping findings to gates). The user-facing AUQ doesn't need the taxonomy label — it needs the user to act on the decision. The label is overhead at the user surface. |
+| "`(Internal: L4 procedural memory layer)` parentheticals preserve the cross-reference without confusing the user." | They DO confuse the user — the model still echoes the parenthetical in narration. The rule is binary at the user surface: either it's plain English, or it's not. Cross-references for skill authors live in the architecture docs, not in step titles. |
+
 ## Examples — diverse and canonical
 
 Per Anthropic [Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents): *"A set of diverse, canonical examples that effectively portray the expected behavior rather than stuffing edge cases into prompts."*

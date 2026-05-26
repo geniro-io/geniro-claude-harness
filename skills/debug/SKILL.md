@@ -1,6 +1,6 @@
 ---
 name: geniro:debug
-description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a T2 hand-off at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
+description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
@@ -23,7 +23,7 @@ Use this skill to systematically debug complex issues. Replaces guessing with ev
 
 ## Your Role — Investigate, Don't Ship
 
-You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 hand-off is a text proposal + reproduction test on disk + a T2 hand-off file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
+You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 hand-off is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
 
 ---
 
@@ -131,14 +131,11 @@ When in doubt (ambiguous input), default to Scientific Mode — user can re-invo
 
 state.md `phase: investigate`. Mirrors Phase 1 (entry-gate + context load) plus Phase 2-style inner loop (hypothesis test iterations). Exits to Phase 2 only when a hypothesis is confirmed AND its Result: field cites an artifact per Evidence Standard.
 
-### 1.1 Memory layer load (L2 prior-knowledge query)
+### 1.1 Memory layer load (past-knowledge query)
 
 On Phase 1 entry, in order:
 
-1. **L4 refresh** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` per Echo contract.
-2. **L3 refresh** — `load-semantic(MODE: refresh, top-2 default)`. Fingerprint drift check fires if applicable.
-3. **L2 prior-knowledge query** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per "debug session start" trigger. Top-K=5 default, filter superseded + deprecated. Skipped if $ARGUMENTS too generic to infer tags. Result count IS the recurrence signal used by L4-promotion suggestion.
-
+1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` per Echo contract.2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)`. Fingerprint drift check fires if applicable.3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per "debug session start" trigger. Top-K=5 default, filter superseded + deprecated. Skipped if $ARGUMENTS too generic to infer tags. Result count IS the recurrence signal used by the promotion-to-rule suggestion.
 **surfacing convention:** when results include `discarded_hypothesis` entries, display them with a distinct label so the orchestrator can skip dead-ends faster:
 ```
 Past investigations in this scope ruled out:
@@ -270,7 +267,7 @@ When the user picks an option (A-G — concrete missing artifact), update the en
 
 state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduction test. **No production-source edits applied.** Exits to Phase 3 when fix proposal AND reproduction test are both verified.
 
-### 2.1 L4 refresh entry (single — no double-refresh)
+### 2.1 Refresh custom instructions on entry (single — no double-refresh)
 
 On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` call. Mirrors Phase 3 entry contract: always re-fires. Cost: 1 helper read.
 
@@ -372,7 +369,7 @@ Fires FIRST in Phase 3 — before the findings summary, before the escalation AU
 
 Skipped silently when `open_questions[]` has zero `unresolved` entries.
 
-### 3.1 Present findings (chat + persist T2 handoff)
+### 3.1 Present findings (chat + persist handoff)
 
 Before asking where to route the fix, present a human-readable findings summary to the user. Do NOT jump straight to the escalation AUQ — the user chooses the escalation target based on this summary.
 
@@ -426,7 +423,7 @@ Only after the summary above is visible AND persisted, `AskUserQuestion` with he
 
 Do NOT auto-invoke the next skill — surface the suggestion only. State file IS the handoff channel. You do NOT apply the patch yourself.
 
-### 3.3 L2 auto-emit + L4 promotion suggestion
+### 3.3 Emit learnings + promotion-to-rule suggestion
 
 At Phase 3 exit:
 

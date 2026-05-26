@@ -24,14 +24,21 @@ When a Linear reference is detected:
 **Never update Linear issue status automatically.** Always ask the user first using `AskUserQuestion`.
 
 ### On task start
-After fetching the issue, send the applicable prompts below in a single `AskUserQuestion` call. Always include the status question; include the assignment question only when the fetched `assignee` field is null (respect any existing assignment — never overwrite it).
+After fetching the issue, inspect the current `state.name` (Linear status) and `assignee` fields, then send the applicable prompts in a single `AskUserQuestion` call.
 
-1. Status prompt (always):
-- Header: "Linear Status"
-- Question: "Move [ISSUE-ID] to In Progress?"
-- Options: "Yes — move to In Progress" / "No — leave current status"
+The status prompt is conditional on `state.name` — asking "Move to In Progress?" when the issue is already In Progress wastes attention; asking it when the issue is Done is semantically wrong (the user is reopening, not transitioning forward). Branch:
 
-2. Assignment prompt (only if `assignee` is null):
+| Current `state.name` | Status prompt behavior |
+|---|---|
+| `In Progress` | **Skip prompt.** Echo "[ISSUE-ID] already In Progress — no transition needed." |
+| Any started, non-terminal state other than `In Progress` (e.g., `In Review`) | Fire — Header: "Linear Status", Question: "[ISSUE-ID] is currently [current-state]. Move back to In Progress?", Options: "Yes — move back to In Progress" / "No — leave as [current-state]" |
+| Any non-started, non-terminal state (e.g., `Todo`, `Backlog`, `Triage`) | Fire — Header: "Linear Status", Question: "Move [ISSUE-ID] to In Progress?", Options: "Yes — move to In Progress" / "No — leave as [current-state]" |
+| Any terminal state (e.g., `Done`, `Cancelled`, `Duplicate`) | Fire — Header: "Linear Status", Question: "[ISSUE-ID] is currently [current-state]. Reopen and move to In Progress?", Options: "Yes — reopen and move to In Progress" / "No — leave as [current-state]" |
+| Unknown / unresolved (Linear MCP unavailable AND no cached status) | Fire — Header: "Linear Status", Question: "Move [ISSUE-ID] to In Progress? (current status unknown — Linear MCP unavailable)", Options: "Yes — move to In Progress" / "No — leave as is" |
+
+`[current-state]` is substituted verbatim with `state.name` — Linear team configurations vary (custom labels like "Blocked", "Waiting on customer"), preserve the user's terminology.
+
+Assignment prompt (only if `assignee` is null):
 - Header: "Linear Assignee"
 - Question: "Assign [ISSUE-ID] to you?"
 - Options: "Yes — assign to me" / "No — leave unassigned"
@@ -39,13 +46,19 @@ After fetching the issue, send the applicable prompts below in a single `AskUser
 If the user accepts assignment, call `update_issue({ id: "[ISSUE-ID]", assigneeId: "me" })` — Linear MCP resolves `"me"` to the authenticated user, no separate user lookup needed.
 
 ### On task completion
-After the user approves shipping:
+After the user approves shipping, re-fetch `state.name` (the status may have changed externally during implementation) and branch on both the ship action and the current state:
 
-- **After Commit + PR:** Ask "Move [ISSUE-ID] to In Review and add PR link?" — Options: "Yes" / "No"
-- **After Commit or Commit + push:** Ask "Update [ISSUE-ID] with implementation comment?" — Options: "Yes" / "No"
-- **After Leave uncommitted:** Do not ask — status was already handled at start
+| Ship action | Current `state.name` | Behavior |
+|---|---|---|
+| **Commit + PR** | `In Review` | Skip move question — already In Review. Ask only "Update [ISSUE-ID] with PR link as comment?" — Options: "Yes" / "No" |
+| **Commit + PR** | Any terminal state (`Done` / `Cancelled` / `Duplicate`) | Skip move question — terminal state. Ask only "Update [ISSUE-ID] with PR link as comment?" — Options: "Yes" / "No" |
+| **Commit + PR** | Any other non-terminal | Ask "Move [ISSUE-ID] to In Review and add PR link?" — Options: "Yes" / "No" |
+| **Commit** OR **Commit + push** | Any terminal state | Skip — no follow-up update needed. |
+| **Commit** OR **Commit + push** | Any non-terminal | Ask "Update [ISSUE-ID] with implementation comment?" — Options: "Yes" / "No" |
+| **Leave uncommitted** | Any | Do not ask — status was already handled at start. |
+| Any | Unknown / unresolved (re-fetch failed AND no cached status) | Ask the action's default question without status preconditions; prefix with "(current status unknown)". |
 
-If Linear MCP is unavailable at this point, log a warning and skip (non-blocking).
+If Linear MCP is unavailable at this point, log a warning and skip the re-fetch + questions (non-blocking).
 
 ## AI-Disclosure Prefix on Authored Comments
 

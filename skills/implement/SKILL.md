@@ -13,9 +13,9 @@ You are an autonomous executor. You consume an externally-provided spec (or inli
 
 **Phases:**
 
-1. **Analyze (Phase 1)** — Step 0 workspace setup AUQ (with auto-continue for in-worktree fix-up runs); semantic-parse `$ARGUMENTS`; resolve spec source (spec.md / plan.md / DESIGN_DOC frontmatter OR inline-task fallback); refresh L4 + L3 memory; spawn Knowledge-Retrieval and Codebase-Explorer subagents in parallel; query L2 learnings; persist T2 handoffs to state.md.
+1. **Analyze (Phase 1)** — Step 0 workspace setup AUQ (with auto-continue for in-worktree fix-up runs); semantic-parse `$ARGUMENTS`; resolve spec source (spec.md / plan.md / DESIGN_DOC frontmatter OR inline-task fallback); refresh custom instructions + project snapshot; spawn knowledge-retrieval and codebase-explorer agents in parallel; query past learnings; persist review/debug handoffs to state.md.
 2. **Implement (Phase 2)** — TodoWrite sequential decomposition (3-15 todos, one in_progress at a time); per-todo Edit/Write batch; end-of-phase test-suite run via `test-runner-agent`; bounded 3-retry fix loop on test failure → escalate-AUQ on exhaust.
-3. **Self-review + Ship (Phase 3)** — 5 reviewer-agents in parallel (bugs / security / architecture / tests / code-quality) + 1 adversarial-tester-agent (skipped when Codebase-Explorer reports `change_scope: trivial` OR when `--no-adversarial` modifier is present in `$ARGUMENTS`) + any custom dimensions discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, ≤10 cap, path-filtered); bounded 3-round fix loop, round N+1 = failing dims only; on clean exit, ship sub-step (Pre-Ship Visual Verification if applicable, commit, ship-mode AUQ, L2/L3 writes, cleanup).
+3. **Self-review + Ship (Phase 3)** — 5 reviewer-agents in parallel (bugs / security / architecture / tests / code-quality) + 1 adversarial-tester-agent (skipped when codebase-explorer reports `change_scope: trivial` OR when `--no-adversarial` modifier is present in `$ARGUMENTS`) + any custom dimensions discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, ≤10 cap, path-filtered); bounded 3-round fix loop, round N+1 = failing dims only; on clean exit, ship sub-step (Pre-Ship Visual Verification if applicable, commit, ship-mode AUQ, learnings + snapshot writes, cleanup).
 
 **Reference material** (templates, $ARGUMENTS-parse table, subagent spawn templates, fix-loop, ship sub-step): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` AT each phase. Do NOT pre-load the entire file.
 
@@ -158,7 +158,7 @@ Phase 1 entry runs Step 0 first (workspace setup — see §PHASE 1 Step 0 below)
 2. `load-semantic` (L3) with `MODE: refresh` — see §L3 below.
 3. **Knowledge-Retrieval subagent spawn** — parallel with Codebase-Explorer; reads back from `<task-dir>/.kr-out.md`. See §Phase 1 subagent spawn.
 4. **Codebase-Explorer subagent spawn** — parallel with Knowledge-Retrieval; reads back from `<task-dir>/.ce-out.md`. See §Phase 1 subagent spawn.
-5. `query-learnings` (L2) — see §L2 below. Tags may be primed by KR output.
+5. `query-learnings` — see "past learnings" sub-section below. Tags may be primed by the knowledge-retrieval agent's output.
 6. `resolve-conflicts` (L4/L3/L2 protocol) — see §Cross-layer conflict surfacing. Fires only if disagreement detected after the reads.
 
 Phase 2 makes no new helper calls at entry; per-Edit `.claude/rules/*.md` JIT loads fire only when an Edit target matches a rule path returned by Codebase-Explorer (cache scope: Phase 2). Phase 3 entry re-fires `load-custom-instructions(MODE: refresh)` AND fires `load-custom-reviewers` once (round 1 only) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` — spawn-specs are appended to the parallel reviewer batch alongside the 5 built-ins and the adversarial-tester. Phase 3 fix-loop iterations may re-fire `query-learnings`. Phase 3 ship sub-step adds writes: `emit-learning` (L2), `update-semantic` (L3 bounded append), and `atomic_state_write` (state.md frontmatter `non-resumable-actions[]`).
@@ -362,9 +362,9 @@ for each ref in spec.md frontmatter workflow_refs[] → append to workflow_refs_
 deduplicate by (kind, issue_id) — $ARGUMENTS reference wins on conflict
 ```
 
-For each entry, find `.geniro/workflow/<ref.kind>.md`. If missing → log warning + skip (graceful degrade). Staleness check: if `fetched_at` is > 1 hour old OR absent → re-fetch via MCP (timeout 3s, fail-open). Apply the workflow file's `### On task start` block — usually appends one "Move <issue_id> to In Progress?" question to the AUQ batch.
+For each entry, find `.geniro/workflow/<ref.kind>.md`. If missing → log warning + skip (graceful degrade). Staleness check: if `fetched_at` is > 1 hour old OR absent → re-fetch via MCP (timeout 3s, fail-open) — the refresh ALSO updates the cached `status` field. Resolve the current `status` (re-fetched value, or cached when fresh) BEFORE applying the workflow block — the workflow file's `### On task start` section gates its question shape on that field (e.g., the Linear template skips the "Move to In Progress?" prompt when status is already "In Progress", rephrases to "Move back?" when in non-terminal non-In-Progress states, and reframes as "Reopen?" when terminal). Apply the workflow file's `### On task start` block — it may append 0-2 questions to the AUQ batch depending on resolved status and assignee fields. Echo any "skipped — already in target state" cases to the user inline (not as an AUQ).
 
-The workflow file IS the source of truth for question text and options — do NOT hardcode "Linear" / "Jira" labels.
+The workflow file IS the source of truth for question text, options, AND status-conditional branching — do NOT hardcode "Linear" / "Jira" labels, and do NOT bypass the status check by firing the prompt unconditionally.
 
 If `1 + N > 4` (rare — task linked to ≥4 trackers), chain into a second AUQ.
 
@@ -400,8 +400,8 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 | Workflow MCP unavailable when Question 2 fires | Question 2 still fires; "Yes" answer logs warning and proceeds without MCP call. Non-blocking. |
 | Workflow file present but `### On task start` section missing | Question 2 omitted silently. |
 | User picks "Other" with custom text on Question 1 | Treat as "Current branch" semantically; no git mutation; echo custom text into state.md `## Workspace decision` body block. |
-| Multiple T2 handoffs for current branch (review AND debug) | Both signals satisfy rule 2 of 0b. Echo both signal names; behavior otherwise identical. |
-| Stale T2 handoff (older than 30 days) | Still triggers rule 2. Emit soft notice: `"Note: review handoff is N days old. Re-run /geniro:review if you want fresh findings."` |
+| Multiple review/debug handoffs for current branch (review AND debug both produced findings) | Both signals satisfy rule 2 of 0b. Echo both signal names; behavior otherwise identical. |
+| Stale review/debug handoff (older than 30 days) | Still triggers rule 2. Emit soft notice: `"Note: review handoff is N days old. Re-run /geniro:review if you want fresh findings."` |
 | `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 5 fires (full AUQ); worktree-presence is incidental. |
 
 ### Steps (after Step 0 settles)
@@ -410,19 +410,16 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: Spec discovery walk-list"). If no spec.md / plan.md / DESIGN_DOC frontmatter found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` to state.md body).
 3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Persist outcome to state.md frontmatter `approvals[]` with `category: disambiguate_arguments`.
 4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`.
-5. **Load L4 instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); the §Echo contract requires one observable line per file. Both are mandatory.
-6. **Load L3 semantic snapshot.** `load_semantic` with default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification to user.
-7. **Spawn Knowledge-Retrieval + Codebase-Explorer subagents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: Subagent spawn template". Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — both agents declare `model: inherit`.
-8. **Read subagent outputs.** Read `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`. Codebase-Explorer's `change_scope` field gates Phase 3 adversarial-tester spawn (`trivial` → skip). KR/CE failure handling: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo notice to user.
-9. **Query L2 learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by KR output. Skip if task description is too generic.
-10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
-11. **Detect frontend files in scope.** Use Codebase-Explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Phase 3 design-conventions injection and Pre-Ship Visual Verification.
-12. **Persist T2 handoffs AND gate on unresolved open questions.** For every `.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
+5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); the §Echo contract requires one observable line per file. Both are mandatory.6. **Load project snapshot.** `load_semantic` with default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification to user.7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: Subagent spawn template". Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — both agents declare `model: inherit`.
+8. **Read subagent outputs.** Read `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`. The codebase-explorer's `change_scope` field gates Phase 3 adversarial-tester spawn (`trivial` → skip). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
+9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
+11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Phase 3 design-conventions injection and Pre-Ship Visual Verification.
+12. **Persist review/debug handoffs AND gate on unresolved open questions.** For every `.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
     1. Read the file via `atomic_state_write`-safe Bash `cat` (NOT direct `Edit`/`Write`).
     2. Persist the body under state.md `## Inputs from <producer>` body section.
     3. Parse frontmatter `open_questions[]` per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
     4. Filter to entries with `status: unresolved`.
-    5. **If the filtered list is non-empty, fire an AUQ batch BEFORE transitioning to `phase: implement`.** Chain one AUQ per unresolved entry (cap-extension when >4). Use `header: "Open question"` and the entry's `question:` field verbatim. Options synthesized per the patterns in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5.
+    5. **If the filtered list is non-empty, fire an AUQ batch BEFORE transitioning to `phase: implement`.** Chain one AUQ per unresolved entry (cap-extension when >4). Apply the 3-tier rendering procedure in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5 — Tier 1 uses producer-authored `context`/`evidence`/`options`/`recommendation` fields; Tier 2 cross-references `related_findings[]` into the handoff body's `## Findings` section; Tier 3 is the legacy bare-question synth fallback. Set `resolution.asked_in_phase: phase-1-step-12` and `resolution.resolved_by: implement` when persisting answers (vs §2.5's `phase-6-pre-gate` / `review`).
     6. After each user pick, update the entry in the PRODUCER's handoff file via `atomic_state_write` (round-trip update): set `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-1-step-12`, `resolution.resolved_by: implement`. Preserve `id`, `source`, `question`, `related_findings`.
     7. Persist a parallel approval to state.md `approvals[]` with `category: review_handoff_resolution`, `picked: <chosen option>`, `at: <ISO-8601 UTC>`, `source_handoff: <producer>`, `question_id: <id>` for compaction-resume idempotency.
     8. After all entries are `resolved` or `wontfix`, proceed to step 13.
@@ -452,7 +449,7 @@ Milestone-mode is the canonical answer for truly Big tasks (separate worktrees, 
 
 State.md `phase: implement` on entry.
 
-No L4 / L3 refresh at Phase 2 entry — code-style instructions from Phase 1 remain in context.
+No custom-instructions or project-snapshot refresh at Phase 2 entry — both remain in context from Phase 1.
 
 ### Steps
 
@@ -557,9 +554,7 @@ State.md `phase: ship` on entry.
 2. **Commit.** Stage relevant files, `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata.
 3. **Ship-mode AUQ.** Push is draft-grade (auto); AUQ gates only commit-grade PR creation. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Commit + Push + PR" for the canonical AUQ shape and approvals-persistence protocol. Inline modifiers from $ARGUMENTS (`"don't push"`, `"draft only"`, `"with PR"`, `"stop after review"`) override the AUQ deterministically.
 4. **Atomic `non-resumable-actions[]` update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
-5. **L2 auto-emit.** Emit `convention` to learnings.jsonl when ≥3-instance pattern detected; emit `decision` if spec.md recorded a non-trivial approach choice. Default trust = `verified`. Surface promotion suggestion only for `convention` type. Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Extract Learnings".
-6. **L3 update.** If Phase 2 added a new module, `update_semantic --file codebase-map --append "..."`. Lock-guarded; rc=11 = recoverable skip.
-7. **Update Docs / Suggest Improvements / Integration Updates / Cleanup.** Apply reference.md sub-sections in order. Cleanup deletes only transient subagent outputs per the T1 / T1.5 split contract — durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) survive Ship for downstream /review / /debug / /refactor / Adjustment Routing consumers:
+5. **Emit learnings.** Emit `convention` to learnings.jsonl when ≥3-instance pattern detected; emit `decision` if spec.md recorded a non-trivial approach choice. Default trust = `verified`. Surface promotion suggestion only for `convention` type. Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Extract Learnings".6. **Update project snapshot.** If Phase 2 added a new module, `update_semantic --file codebase-map --append "..."`. Lock-guarded; rc=11 = recoverable skip.7. **Update Docs / Suggest Improvements / Integration Updates / Cleanup.** Apply reference.md sub-sections in order. Cleanup deletes only transient subagent outputs — durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) survive Ship for downstream /review / /debug / /refactor / Adjustment Routing consumers:
 
 ```bash
 rm -f "<task-dir>"/.kr-out.md \

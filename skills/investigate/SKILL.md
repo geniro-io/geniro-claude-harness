@@ -77,16 +77,13 @@ $ARGUMENTS
 
 ## Phase 1: Classify+Scope
 
-State.md `phase: classify`. Light per cost — a semantic $ARGUMENTS classification + L4/L3/L2 load + glossary-mismatch check. Critical for correctness: bad classification → wrong agent set → wasted research budget.
+State.md `phase: classify`. Light per cost — a semantic $ARGUMENTS classification + memory-layer load (instructions + snapshot + past learnings) + glossary-mismatch check. Critical for correctness: bad classification → wrong agent set → wasted research budget.
 
-### Step 0: Load custom instructions + L2 prior-knowledge
+### Step 0: Load custom instructions + past learnings
 
 On Phase 1 entry:
 
-1. **L4 refresh** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory.
-2. **L3 refresh** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Note: `_CODEBASE_MAP.md` content (if exists) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
-3. **L2 prior-knowledge query** — `query-learnings --tags <inferred from $ARGUMENTS keywords> --scope task --limit 5` per «investigate session start» trigger. To find prior answers and avoid duplicate research.
-4. **Cross-layer conflict resolution** — `resolve-conflicts` per (precedence L4 > L3 > L2; halt with AUQ on hard conflict).
+1. **Refresh custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory.2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Note: `_CODEBASE_MAP.md` content (if exists) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.3. **Query past learnings** — `query-learnings --tags <inferred from $ARGUMENTS keywords> --scope task --limit 5` per «investigate session start» trigger. To find prior answers and avoid duplicate research.4. **Cross-layer conflict resolution** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
 
 Echo lines per mandatory.
 
@@ -340,7 +337,7 @@ State.md `phase: present` → `done`. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/
 rm -rf.geniro/state/investigate/<slug>/ 2>/dev/null || true
 ```
 
-No T2 handoff to delete. Chat answer is the deliverable. Persistent artifacts from save-routing (CLAUDE.md, ADRs, learnings.jsonl) STAY.
+No handoff file to delete. Chat answer is the deliverable. Persistent artifacts from save-routing (CLAUDE.md, ADRs, learnings.jsonl) STAY.
 
 ---
 

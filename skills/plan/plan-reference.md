@@ -54,7 +54,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 **Per-entry shape:** see `${CLAUDE_SKILL_DIR}/spec-template.md` §`workflow_refs[]` per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
 
-**Mutation responsibility:** only `/plan` (Phase 1 fetch + Phase 6 persist) and `/implement` (Step 0 status-transition mutation) MUTATE tracker state via MCP. `/review`, `/debug`, `/refactor` are read-only consumers — they parse `workflow_refs[]` for priming context but never POST tracker updates.
+**Mutation responsibility:** only `/implement` MUTATES tracker state via MCP — Step 0c (kickoff: status-conditional "Move to In Progress?" / "Reopen?" prompts per the workflow file's `### On task start` block) and Phase 3 Ship (completion: status-conditional "Move to In Review?" / comment posting per `### On task completion`). `/plan` is a tracker reader — Phase 1.4 fetches issue context to inform planning, Phase 6 copies the cached payload into spec.md frontmatter; both are local-write only, never POST to tracker. `/review`, `/debug`, `/refactor` are also read-only consumers — they parse `workflow_refs[]` for priming context but never POST tracker updates.
 
 **Staleness:** downstream readers re-fetch when `fetched_at` is > 1 hour old (configurable later via `.geniro/safety.json`). Cached `title` / `suggested_branch` / `status` fields let /implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
 

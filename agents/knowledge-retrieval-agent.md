@@ -1,6 +1,6 @@
 ---
 name: knowledge-retrieval-agent
-description: "Read-only memory-layer search. Use at Phase 1 of an implementation, debug, or refactor task to retrieve relevant L2 learnings, L3 semantic-map rows, T2 handoffs from /review or /debug, and prior plan-*.md files for the same task. Returns a condensed bullet report (≤3K chars) with file:line citations."
+description: "Read-only past-knowledge search. Use at Phase 1 of an implementation, debug, or refactor task to retrieve relevant past learnings, project-snapshot rows, prior review/debug handoffs, and prior plan-*.md files for the same task. Returns a condensed bullet report (≤3K chars) with file:line citations."
 tools: [Read, Glob, Grep, Bash]
 model: inherit
 maxTurns: 40

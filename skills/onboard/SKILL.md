@@ -99,14 +99,11 @@ Pre-Phase-1 detect (transient — does not persist a state.md row):
 | Combined | Both flags supported. |
 
 
-### 1.2 Step 0 — Load custom instructions + L2 prior-knowledge
+### 1.2 Step 0 — Load custom instructions + past learnings
 
 On Phase 1 entry:
 
-1. **L4 refresh** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.
-2. **L3 refresh** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
-3. **L2 prior-knowledge** — `query-learnings --tag onboard --tag architecture --tag codebase --scope task --limit 5` per «discovery start» trigger. To surface prior architectural decisions and gotchas relevant to the scan.
-4. **Cross-layer conflict resolution** — `resolve-conflicts` per (precedence L4 > L3 > L2 when layers disagree; halt with AUQ on hard conflict).
+1. **Refresh custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.3. **Query past learnings** — `query-learnings --tag onboard --tag architecture --tag codebase --scope task --limit 5` per «discovery start» trigger. To surface prior architectural decisions and gotchas relevant to the scan.4. **Cross-layer conflict resolution** — `resolve-conflicts` per (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
 
 Echo lines per mandatory.
 
@@ -157,11 +154,11 @@ Canonical path: `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` 508. Resolve 
 
 Use the 8-section template from §Outputs above. Apply `--focus` concentration per the rule in §Outputs (sections 3 / 4 / 6 / 7 concentrate on focus areas; 1 / 2 / 5 / 8 stay full-scope).
 
-### 2.2 L3 update via `update-semantic`
+### 2.2 Update project snapshot via `update-semantic`
 
 After `_CODEBASE_MAP.md` write, call `update-semantic --file codebase-map --replace "<previous-content>" "<new-content>"` per The helper handles bounded auto-incremental updates and lock-guarding via `.codebase-map.lock`. For a full regen (first onboard or major architectural shift), pass the full new content.
 
-### 2.3 L2 `discovery` emit
+### 2.3 Emit `discovery` learning
 
 After `_CODEBASE_MAP.md` write:
 

@@ -44,14 +44,33 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 1. Read frontmatter `open_questions[]`. Filter to entries with `status: unresolved`.
 
-2. For each unresolved entry, fire one `AskUserQuestion` call:
+2. For each unresolved entry, fire one `AskUserQuestion` call. The renderer picks one of three tiers in order — the **first tier whose required source data is available** wins:
+
+   **Tier 1 — Producer-authored rich entry (preferred).** When the entry carries `context` / `evidence` / `options` / `recommendation` fields per the extended schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 `open_questions`:
    - `header`: `"Open question"` (literal — never paraphrase)
+   - `question`: multi-line markdown rendered per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate, substituting fields:
+     - `<SEVERITY>` — omit (open_questions don't carry severity directly; if `related_findings[]` is non-empty, render the highest-severity related finding's severity here)
+     - `<path:lines>` — entry's `evidence[0].file:lines` if present, else omit
+     - `<short title>` — first sentence of `question`
+     - `<type>` — entry's `source` (e.g., `spec-compliance`, `bugs`)
+     - "Why this matters" line — first 1-2 lines of `context`
+     - body — full `context` rendered verbatim under a `## Context` block
+   - `options[]` — one per `options[]` entry in the question:
+     - `label` — option's `label`
+     - `description` — option's `description`
+     - `preview` — option's `preview` PLUS a trailing `## Evidence` block built from the entry's `evidence[]` array (same preview body on every option — the body is per-question, not per-option) PLUS a `## Recommendation` line when `recommendation.option_id == this.id` (italicized: *"Producer recommends this option — <rationale>"*)
+   - When `recommendation.option_id` is set, position THAT option first in the `options[]` array and suffix its `label` with ` (Recommended)`.
+
+   **Tier 2 — Cross-reference into `## Findings` body.** When the entry has `related_findings: [F1, F2, ...]` non-empty but lacks the Tier 1 rich fields, read those finding blocks from the same handoff file's `## Findings` body (per the multi-line "Per-finding body schema" defined later in this same reference file, after the Wontfix-path note below). Apply `per-finding-question.md` § Single-finding gate rendering directly against the first related finding's body — Evidence / Suggested-fix / Confidence / Origin all flow from the finding fields. When >1 related findings exist, prefer the highest-severity finding; mention the others as `"Also gates: F2, F3"` in the question body.
+
+   **Tier 3 — Legacy synth fallback.** When neither Tier 1 nor Tier 2 source data is available (bare `question:` only):
    - `question`: the entry's `question:` field, verbatim
-   - `options`: synthesized from the entry's context. For ambiguity-resolution patterns, supply 3-4 concrete options derived from the question text. Examples:
+   - `options`: synthesized from the question text. For ambiguity-resolution patterns, supply 3-4 concrete options derived from the question:
      - Scope question ("X in-scope or split?") → "In scope — keep in this PR" / "Split — revert X to a separate PR" / "Out of scope — drop entirely"
      - Verification question ("Cannot confirm Y exists; verify?") → "Yes — Y exists and matches" / "No — Y is wrong; revise PR title/body" / "Unknown — skip verification"
      - Acceptance question ("Accept Z pattern or refactor?") → "Accept Z as-is" / "Refactor Z to <suggested-alternative>" / "Defer — file follow-up"
-   - When the question doesn't fit a fixed-options pattern, supply 2-3 options + rely on user "Other" for free-form. Never auto-resolve.
+   - When the question doesn't fit a fixed pattern, supply 2-3 options + rely on user "Other" for free-form. Never auto-resolve.
+   - Tier 3 is the documented failure mode the schema exists to avoid — emit a `## Errors` notice: `open_questions[].id=<q-id> rendered via Tier 3 (terse) — producer should fill context/evidence/options fields next round`.
 
 3. After the user picks (always-WAIT — empty answer = upstream bug, re-ask), update the entry in-place via `atomic_state_write`:
    - `status: resolved`
@@ -66,6 +85,30 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 5. When >4 unresolved entries, chain into a second AUQ batch per the AskUserQuestion cap-extension pattern.
 
 6. After the last unresolved entry resolves, ALL `open_questions[].status` MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
+
+**Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding under the handoff's `## Findings` body renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff:
+
+```markdown
+### F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR] <short title>
+- **Severity:** CRITICAL | HIGH | MEDIUM | LOW
+- **File:** path/to/file.ts:42-48
+- **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
+- **Cause:** ROOT-CAUSE | SYMPTOM | UNKNOWN
+- **Confidence:** NN%
+- **Origin:** llm:<dim> | mechanical:<check>
+- **Why this matters:** <1-sentence impact, verbatim from reviewer-agent output>
+- **Suggested fix:** <concrete improvement text, verbatim — synthesis form for PRODUCT-DECISION>
+- **Evidence:**
+  ```<lang>
+  <2-5 lines from reviewer-agent Evidence: codeblock>
+  ```
+  OR (command-based form): `Command:` / `Exit code:` / `Tail (last 3 lines):`
+- **Options:** [PRODUCT-DECISION only — omit for other types]
+  - `<option-id>`: `<short label>` — `<one-line trade-off>`
+- **Recommendation:** <option-id> — <one-sentence rationale> [PRODUCT-DECISION only]
+```
+
+**Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape.
 
 **Wontfix path.** If the user picks "Other" with explicit text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream gates — they're recorded but de-prioritized. Downstream consumers treat `wontfix` as "user acknowledged and chose to defer".
 

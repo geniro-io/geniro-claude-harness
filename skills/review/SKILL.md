@@ -1,6 +1,6 @@
 ---
 name: geniro:review
-description: "Use when you want a comprehensive code review of pending changes. 6-phase loop (triage → mechanical pre-pass → 10-dim LLM reviewers + N custom → filter → stratify → persist → action-gate). MANDATORY spawn list per §2.1 (7 always-fire + 3 conditional + N custom). Reporter behavior — emits a T2 hand-off at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/implement, manual) apply fixes. Phase 6 Pre-gate resolves any unresolved open_questions[] from spec-compliance / pr-metadata / plan-context BEFORE the action-gate fires. Optional --simplify flag folds Reuse/Quality/Efficiency criteria into existing dims. Optional --tdd flag tightens Phase 4b validation + Phase 4c test-gate."
+description: "Use when you want a comprehensive code review of pending changes. 6-phase loop (triage → mechanical pre-pass → 10-dim LLM reviewers + N custom → filter → stratify → persist → action-gate). MANDATORY spawn list per §2.1 (7 always-fire + 3 conditional + N custom). Reporter behavior — emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/implement, manual) apply fixes. Phase 6 Pre-gate resolves any unresolved open_questions[] from spec-compliance / pr-metadata / plan-context BEFORE the action-gate fires. Optional --simplify flag folds Reuse/Quality/Efficiency criteria into existing dims. Optional --tdd flag tightens Phase 4b validation + Phase 4c test-gate."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree]
@@ -25,7 +25,7 @@ Comprehensive code review using parallel multi-agent analysis. ~400 lines orches
 
 You are a **coordinator**. You delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself — you read files only to gather context and verify agent findings.
 
-`/geniro:review` is a **Reporter** — it does NOT apply fixes. Phase 6 hand-off message NEVER includes "I'll fix these now" language. Findings persist to a T2 hand-off; downstream consumers (`/implement`, manual user action) apply fixes. The `--simplify` flag does NOT change this.
+`/geniro:review` is a **Reporter** — it does NOT apply fixes. Phase 6 hand-off message NEVER includes "I'll fix these now" language. Findings persist to a handoff file; downstream consumers (`/implement`, manual user action) apply fixes. The `--simplify` flag does NOT change this.
 
 ---
 
@@ -356,7 +356,7 @@ Always-WAIT — empty answer = upstream bug, fall back to plain text. NEVER auto
 
 When `missing` is empty, proceed directly to §4.1.
 
-### 4.1 Phase 4a — severity threshold
+### 4.1 Severity threshold filter
 
 Apply risk-tier threshold:
 - standard: keep findings with severity ≥ MEDIUM AND confidence ≥ 80%.
@@ -364,7 +364,7 @@ Apply risk-tier threshold:
 
 Sub-threshold findings written to a "Deferred" list (surfaced in body `## Deferred — sub-threshold` so user knows what was dropped). Deferred findings do NOT populate `open_questions[]` — that array is reserved for ambiguous-how-to-fix decisions that gate downstream action, not for awareness-only dropouts.
 
-### 4.2 Phase 4b — HIGH validator
+### 4.2 HIGH-severity validation pass
 
 Sample HIGH-severity findings and validate via a secondary spawn (`reviewer-agent` clone with prompt emphasizing "confirm or refute, not expand"):
 
@@ -374,7 +374,7 @@ Sample HIGH-severity findings and validate via a secondary spawn (`reviewer-agen
 
 Output: per-finding `validation: confirmed | refuted | partial` field added.
 
-### 4.3 Phase 4c — F→P test gate
+### 4.3 Failing-to-passing test-confirmation gate
 
 **Full contract:** `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md`.
 
@@ -396,11 +396,13 @@ Summary:
 
 State.md `phase: persist`.
 
-### 5.1 T2 state file write (design fix)
+### 5.1 Handoff file write
 
 Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per row. `<PRIMARY_ROOT>` resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 
 **Write via `atomic_state_write`** — never direct Edit/Write on the canonical state path (the `enforce-state-helper` hook will warn-mode flag direct writes; PR-final will hard-block).
+
+**`open_questions[]` rich-field authoring contract.** When composing `open_questions[]` entries from kept findings, fill the optional `context` / `evidence` / `options` / `recommendation` fields per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The reviewer-agent output already carries Evidence / Why-matters / Suggested-fix / Options per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format — copy them into the open_question entry, do NOT discard them at composition time. Bare `question:` entries trigger the §2.5 Tier 3 fallback (terse AUQ), which the user experiences as the failure mode the rich-field schema was added to prevent. For non-finding open_questions (e.g., process / scope / verification questions surfaced by spec-compliance or pr-metadata reviewers), author `context` + `options` + `recommendation` inline — the reviewer's `## Why this matters` and `## Suggested fix` synthesis fields are still the source material; the consumer has no other way to render the question richly.
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
@@ -508,17 +510,13 @@ EOF
 
 **T2 extensions for in-run state-tracking:** Canonical is a one-shot producer→consumer handoff. extends with `phase:`/`status:`/`round:`/`approvals[]` to enable mid-run compaction recovery. The file functions as a T2 handoff AT REST (after Phase 5 persist) and as a T1-like state file DURING THE RUN.
 
-**Per-finding line schema** with origin tag:
-
-```
-- [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN% — origin: <llm:<dim>|mechanical:<check>>
-```
+**Per-finding body schema** — multi-line block per finding under `## Findings` (NOT a one-liner). Full schema + backward-compat parsing contract: `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §"Per-finding body schema". Phase 4 judge MUST preserve every reviewer-agent field listed there when persisting findings; dropping fields to reach a one-liner is the failure mode the schema exists to prevent.
 
 ### 5.2 Old state-file fallback
 
 If a file exists at `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`, read it once on Phase 5 entry for resume compatibility, but always write to the canonical path. The old file is NOT auto-deleted (user may have references).
 
-### 5.3 Phase 5b — L2 pitfall auto-emit (, replaces /learnings)
+### 5.3 Auto-emit pitfall learnings on convergence
 
 **Trigger condition:** Phase 3 orchestrator-side dedup produced a finding with `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
 

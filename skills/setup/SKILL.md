@@ -104,9 +104,9 @@ mode = init
 
 Write `mode: init | re-run` to state frontmatter; persists across the run.
 
-### 1.2 L2 prior-knowledge query
+### 1.2 Query past learnings
 
-After load-custom-instructions, query L2 (`.geniro/knowledge/learnings.jsonl`) per for prior `discovery` entries tagged `setup`:
+After load-custom-instructions, query past learnings (`.geniro/knowledge/learnings.jsonl`) for prior `discovery` entries tagged `setup`:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"
@@ -406,9 +406,9 @@ Anchor: stay within current cwd; verify with `pwd && git branch --show-current` 
 
 `## Open Questions` accumulates DRIFT items across rounds — survives compaction.
 
-### 4.3 L2 emit on successful Validate (D9 closure)
+### 4.3 Emit learning on successful Validate (D9 closure)
 
-Per — emit one L2 `discovery` row on transition to DONE:
+On transition to DONE — emit one `discovery` learning row:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"

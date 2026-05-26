@@ -58,7 +58,7 @@ phase-8-escalated ──┬── user-approve (Approve as-is)
 | Phase | Purpose | Plan-loop section |
 |---|---|---|
 | 0 | Mode detect | §"Phase 0 — Mode detect" |
-| 1 | Explore (effort-tier-scaled spawns + L4+L3+L2 refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
+| 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
 | 3 | Clarifying questions (≤5 one-at-a-time, each option carries `preview`) | §"Phase 3 — Clarifying questions" |
 | 4 | Approaches (2-3 with Recommended first, each option carries `preview`) | §"Phase 4 — Approaches" |
