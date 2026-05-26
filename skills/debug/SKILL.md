@@ -48,7 +48,7 @@ state.md `phase:` enum transitions:
 └── adversarial-aborted (terminal — zero red tests)
 ```
 
-**Terminal states:** `done`, `ship-summary-only`, `debug-handoff`, `aborted`, `adversarial-aborted`. the SessionStart recovery treats all five as «task complete — no resume needed».
+**Terminal states:** `done`, `ship-summary-only`, `debug-handoff`, `aborted`, `adversarial-aborted`. the SessionStart recovery treats all five as "task complete — no resume needed".
 
 **Non-terminal states:** `mode-detect`, `investigate`, `propose`, `ship`, `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship`. the recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures gates skip already-answered).
 
@@ -134,7 +134,7 @@ $ARGUMENTS routing:
 
 | $ARGUMENTS shape | Mode | Transition |
 |---|---|---|
-| empty | AUQ with header "Mode" — 4 options: «Describe the symptoms» / «Paste error message» / «Point to a failing test» / «Verify last changes (adversarial)». First 3 → Scientific. Fourth → Adversarial. | `mode-detect` → `investigate` OR `adversarial-mode-detect` |
+| empty | AUQ with header "Mode" — 4 options: "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)". First 3 → Scientific. Fourth → Adversarial. | `mode-detect` → `investigate` OR `adversarial-mode-detect` |
 | matches anchored verify-keyword signals (table below) | Adversarial Mode | `adversarial-mode-detect` |
 | otherwise | Scientific Mode | `mode-detect` → `investigate` |
 
@@ -223,7 +223,7 @@ Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypo
 - Design a minimal test per hypothesis. The test must produce a captured artifact per Evidence Standard kind 2-5.
 - Add logging, breakpoints, or unit tests to gather evidence.
 - Do NOT implement a fix yet — you're gathering data.
-- **Missing-data gate:** if testing requires data the orchestrator's tools cannot reach (production logs, runtime state, third-party API responses, DB rows behind credentials, screenshots), do NOT mark the hypothesis inconclusive by default. `AskUserQuestion` with header "Missing data" — 2-4 concrete options for the specific artifact needed:
+- **Missing-data gate:** if testing requires data the orchestrator's tools cannot reach (production logs, runtime state, third-party API responses, DB rows behind credentials, screenshots), do NOT mark the hypothesis inconclusive by default. `AskUserQuestion` with header "Missing data" — 2-4 concrete options for the specific artifact needed. When the user picks "I don't have it" or "Skip this hypothesis", persist a structured `open_questions[]` entry to state.md frontmatter with `source: phase-1-missing-data-gate`, `question: <verbatim missing-data prompt>`, `related_hypotheses: [<H-ID>]`, `status: unresolved`. The Phase 3 §3.0 Pre-gate surfaces it again before the escalation AUQ — sometimes the user discovers the missing artifact after the investigation completes and wants to amend.
 - "Paste the failing log line at the time of the error" / "Paste the request body that triggered the error" / "I don't have it — mark inconclusive"
 - "Run this query against the production DB and paste the result: `<query>`" / "I can't run that query" / "Skip this hypothesis"
 - "Provide a screenshot of the broken state" / "I don't have it — skip"
@@ -272,7 +272,18 @@ When the hypothesis loop fails to converge — defined as **5 inconclusive hypot
 - User picks (H — "abandon — present partial findings") → `phase: ship-summary-only` (proceed to Phase 3 with a stall-flagged findings summary).
 - User can also pick "abort" → `phase: aborted` (terminal).
 
-state.md `## Open Questions` body section logs the stall question + categorized hypothesis. Block 5c renders on resume.
+**Persist the stall as a structured open_questions[] entry** in state.md frontmatter (and mirror to the body `## Open Questions` section for human readability). Schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2:
+
+```yaml
+open_questions:
+  - id: q<N>
+    source: phase-1-stall-gate
+    question: <verbatim stall question — the 4 categories that were surfaced>
+    related_hypotheses: [<inconclusive hypothesis IDs from ## Hypotheses>]
+    status: unresolved
+```
+
+When the user picks an option (A-G — concrete missing artifact), update the entry: `status: resolved`, `resolution.picked: <user pick>`, `resolution.resolved_by: debug`, `resolution.asked_in_phase: phase-1-stall-gate`. When the user picks H (abandon) or aborts, the entry remains `unresolved` — Phase 3 Pre-gate (§3.0) will surface it again before escalation.
 
 ---
 
@@ -350,6 +361,37 @@ When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-
 ## Phase 3 — Ship
 
 state.md `phase: ship`. Findings hand-off to downstream skill OR user-handles. **No `git push` / `gh pr create`** — debug never ships code, only proposals + tests authored locally.
+
+### 3.0 Pre-gate — Resolve Open Questions
+
+Fires FIRST in Phase 3 — before the findings summary, before the escalation AUQ — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`. Open questions surface ambiguity that downstream consumers (typically /geniro:implement) need resolved before applying a fix; resolving them here means the escalation AUQ chooses between a known-shape target rather than between paths that still gate on ambiguity.
+
+**Procedure:**
+
+1. Read state.md frontmatter `open_questions[]`. Filter to entries with `status: unresolved`.
+
+2. For each unresolved entry, fire one `AskUserQuestion`:
+   - `header`: `"Open question"`
+   - `question`: the entry's `question:` field, verbatim
+   - `options`: synthesized from the entry's context. Examples:
+     - Stall categories (Phase 1 stall gate) → re-render the original A-H options as resolution choices.
+     - Multi-path fix deferred → render the original path options.
+     - Cannot-verify deferred → render "Provide the missing data" / "Mark as accepted limitation" / "Escalate to /geniro:investigate".
+   - Always-WAIT — empty answer = upstream bug, re-ask.
+
+3. Update the entry in-place via `atomic_state_write`: `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-3-pre-gate`, `resolution.resolved_by: debug`. Preserve `id`, `source`, `question`, `related_hypotheses`.
+
+4. Mirror the resolution into the body `## Resolved Questions` section per the schema example in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
+
+5. When >4 unresolved entries, chain into a second AUQ batch per the AskUserQuestion cap-extension pattern.
+
+6. After the last unresolved entry resolves, verify all `open_questions[].status` are in `{resolved, wontfix}` before proceeding to §3.1. If any `unresolved` remains, loop back to step 2.
+
+**Wontfix path.** If the user picks "Other" with text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream consumers — they're recorded but de-prioritized.
+
+**No-skip rule.** This gate cannot be deferred to /implement or to the user's manual patch path. /debug is the producer that surfaced the ambiguity; resolving here makes the handoff actionable. Resolving downstream creates the failure mode this gate exists to prevent. The exception: when §3.2 fires and the user picks "Cannot verify — request specific data from user", that response itself IS a resolution path — emit a new `open_questions[]` entry with `source: phase-3-cannot-verify`, `status: unresolved`, then loop back to step 1 above when data arrives.
+
+Skipped silently when `open_questions[]` has zero `unresolved` entries.
 
 ### 3.1 Present findings (chat + persist T2 handoff)
 
@@ -589,7 +631,7 @@ When /debug stalls (5 inconclusive hypothesis tests, stall gate), classify the r
 
 **AUQ rendering:** stall gate fires `AskUserQuestion` with header "Stall diagnosis". Render 4 of the 8 categories at a time (AUQ maxItems=4) — model picks the most likely 4 based on stall context (inconclusive-test outputs, hypothesis types tried). User picks one or "Other". Each option's `preview` (where helpful) shows what Phase 1 will do next.
 
-state.md `## Open Questions` logs the stall AUQ + user's pick + delivered artifact (if applicable). Block 5c renders on resume.
+Persistence: same structured-entry pattern as the Scientific-mode stall gate (§Phase 1 Stall escalation gate). Write a structured `open_questions[]` entry with `source: phase-1-stall-gate`, `question: <verbatim category text>`, `related_hypotheses: [<inconclusive H-IDs>]`, `status: unresolved`. On user pick (A-G), update to `status: resolved` with `resolution.picked` and `resolution.resolved_by: debug`. On H or abort, the entry stays `unresolved` and Phase 3 §3.0 Pre-gate surfaces it before the escalation AUQ.
 
 ---
 
@@ -661,10 +703,23 @@ phase: ship
 status: done
 approvals: []
 non-resumable-actions: []
+open_questions:                       # MUST be present; MAY be empty []
+  - id: q1                            # short stable anchor (q1, q2, ...)
+    source: <phase-or-step>           # e.g., phase-1-stall-gate, phase-2-multi-path-fix, phase-3-cannot-verify
+    question: <verbatim ambiguity question>
+    related_hypotheses: [H2, H4]      # optional — Hypotheses IDs from `## Hypotheses` this question is tied to
+    status: unresolved                # enum: unresolved | resolved | wontfix
+    resolution:                       # populated only when status moves out of `unresolved`
+      picked: <chosen option>
+      at: <ISO-8601 UTC>
+      asked_in_phase: <phase name>
+      resolved_by: <skill — debug | implement | manual>
 ---
 ```
 
-Body: full content of findings template + body sections (`## Tool log` / `## Errors` / `## Open Questions` / `## Persisted approvals`).
+Body: full content of findings template + body sections (`## Tool log` / `## Errors` / `## Open Questions` (human-readable mirror of frontmatter) / `## Resolved Questions` / `## Persisted approvals`).
+
+The `open_questions[]` frontmatter array is the machine-readable source of truth per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /implement's Phase 1 Step 12 gate.
 
 ### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
 
@@ -750,7 +805,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`.
 | "Defer compaction-survival to downstream skills — This skill is mid-pipeline." | The contract IS this skill's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`, `## Termination reason`. Without them, compaction mid-investigation loses the entire hypothesis trail. |
 | "Bypass `git guardrail` hooks if a needed `git bisect` step blocks." | Hooks fail for a reason. `git bisect` is permitted (read-only investigation per § ACI per-phase). If a specific guardrail blocks legitimate debug work, the path is `.geniro/safety.json` allow_patterns, not `--no-verify`. |
 | "Stall gate is paternalistic — user can just retry with more hypotheses." | 5-inconclusive gate protects against accidental infinite-loop UX. User retains agency via 8-option AUQ. |
-| "Self-fix indefinitely until verify passes." | — bounded to 2 fix attempts. Past 2, escalate AUQ. «Kick it until it passes» is an anti-pattern. |
+| "Self-fix indefinitely until verify passes." | — bounded to 2 fix attempts. Past 2, escalate AUQ. "Kick it until it passes" is an anti-pattern. |
 | "Auto-handle MEDIUM-tier adversarial findings to reduce user friction." | The Metaswarm anti-pattern. the surfaces all CRITICAL/HIGH/MEDIUM findings in A6 Adversarial Findings template. Never auto-drop. |
 
 ---
