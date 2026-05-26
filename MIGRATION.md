@@ -6,6 +6,128 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ---
 
+## v3.0.0
+
+The v3 release lands the /implement 3-phase rewrite, MANDATORY /review spawn list with pre/post-spawn verification gates, /plan workflow_refs[] tracker linkage (m5-v2 schema), per-section AUQ `preview` field with restored Phase 2 Visual Companion, structured `open_questions[]` in T2 handoffs with a 3-gate safety chain, T1/T1.5 state tier split for Ship-cleanup preservation, and universal `model: inherit` for all plugin subagents. Seven changes need user attention; auto-fix is provided where mechanical, manual review is called out where judgment is needed.
+
+### Ship cleanup now preserves durable artifacts (T1 → T1.5 split)
+
+`/geniro:implement` Phase 3 Ship sub-step now preserves `spec.md`, `state.md`, `plan-*.md`, `milestone-*.md` (the new T1.5 durable layer). Only transient subagent outputs (`.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `notes.md`, `playwright-verify.png`) delete at Ship. Downstream `/geniro:review` spec-compliance and `/geniro:implement` adjustment routing now find their context reliably across runs.
+
+**Action required:** Delete any pre-v3 orphan transient files left behind inside completed task-dirs.
+
+**Auto-detect:** `find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' \) 2>/dev/null`
+
+**Auto-fix:**
+
+```bash
+find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' \) -exec rm -f {} + 2>/dev/null
+```
+
+**Severity:** LOW — orphan transient files are inert; v3 `/implement` creates and cleans them per-run.
+
+---
+
+### Universal `model: inherit` cost trade-off
+
+All plugin subagents (`reviewer-agent` / `knowledge-retrieval-agent` / `codebase-explorer-agent` / `test-runner-agent` / `adversarial-tester-agent`) now declare `model: inherit` in frontmatter, and spawn sites OMIT the `model=` argument. If your orchestrator session is on Opus, every reviewer-agent per `/review` and every Phase-3 spawn per `/implement` also runs on Opus — significantly higher cost than the prior hardcoded Sonnet floor. To restore the cheaper baseline, switch orchestrator tier via `/model sonnet` before running `/review` or `/implement`.
+
+Two carve-outs deliberately retain hardcoded tier per `skills/_shared/model-tiering.md`: `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference) and `ui-preview-gate.md` UI-description spawn (Haiku for mechanical transformation work).
+
+**Action required:** Informational. If cost-sensitive, set orchestrator tier explicitly per session via `/model sonnet`. User-authored custom reviewers (`.geniro/instructions/review-extra/*.md`) may declare an explicit `model:` field to opt OUT of inherit on a per-reviewer basis.
+
+**Auto-detect:** N/A — informational; the change is unconditional after update.
+
+**Auto-fix:** Manual-only — user picks their orchestrator tier per session; the plugin no longer overrides.
+
+**Severity:** HIGH — silent cost increase on the first `/review` or `/implement` run post-update is user-surprising; this warning surfaces the change before invocation.
+
+---
+
+### `reviewer-agent` maxTurns bumped 80 → 100
+
+`agents/reviewer-agent.md` frontmatter bumped to `maxTurns: 100` for worst-case PR review headroom (15+ changed files with cross-module dependency chains). Plugin-managed installs auto-update; vendored copies under `.claude/agents/geniro-*-reviewer-agent.md` retain the old value and may truncate mid-review.
+
+**Action required:** Bump vendored copies to match.
+
+**Auto-detect:** `grep -l 'maxTurns: 80' .claude/agents/geniro-*reviewer-agent.md 2>/dev/null`
+
+**Auto-fix:**
+
+```bash
+for f in .claude/agents/geniro-*reviewer-agent.md; do
+  [ -f "$f" ] && sed -i.bak 's/^maxTurns: 80$/maxTurns: 100/' "$f" && rm -f "$f.bak"
+done
+```
+
+**Severity:** LOW — only affects vendored installs; the plugin-managed path auto-refreshes.
+
+---
+
+### spec.md frontmatter gains optional `workflow_refs[]` (schema m5-v1 → m5-v2)
+
+`/geniro:plan` now persists Linear / Jira / GitHub-Issues / Asana tracker references into spec.md frontmatter. The new field is OPTIONAL — old spec.md files without it remain valid. `/geniro:implement` Step 0 treats absence as "no tracker linkage" and proceeds without workflow on-task-start hooks. `/geniro:debug` and `/geniro:refactor` Phase 1 entry read the cached `status` field as priming context (read-only — never mutates tracker state). The `geniro_schema_version` field bumps from `m5-v1` to `m5-v2`; downstream readers accept both.
+
+Per-entry shape: `{kind, issue_id, url, fetched_at, title?, suggested_branch?, status?, parent_ref?}`. Phase 7 validator gains check #14 `workflow_refs_consistency` — warns when `.geniro/workflow/<kind>.md` is missing; fails on structural field-presence violations; skipped on `m5-v1` specs.
+
+**Action required:** None — backward compatible. New `/plan` runs against tracker URLs gain the field organically.
+
+**Auto-detect:** N/A.
+
+**Auto-fix:** N/A.
+
+**Severity:** LOW — additive schema change with graceful absence handling.
+
+---
+
+### `/plan` per-section AUQ with `preview` field + Phase 2 Visual Companion restored
+
+`/geniro:plan` Phase 5 now opens one AUQ per section with rendered `preview` content (no more "pre-fill all 10 sections" batch). Phase 3 + Phase 4 options also carry `preview` (consequence-of-picking / ASCII data-flow + code identifier + tradeoff). Phase 2 Visual Companion is restored for UI-shaped topics — fires only on UI trigger (Phase 1 surfaced UI files OR topic carries a UI noun) and calls `skills/_shared/ui-preview-gate.md` to produce a textual UI preview before any code is written.
+
+Any user `.geniro/instructions/plan.md` rule referencing the dropped pre-fill batch step or describing Phase 2 as "DROPPED" becomes stale and may mislead the model.
+
+**Action required:** Re-read your `.geniro/instructions/plan.md` (if present) for references to the dropped batch step or to "Phase 2 dropped"; rewrite to match the new section-by-section incremental authoring pattern and the conditional Visual Companion.
+
+**Auto-detect:** `grep -El 'pre-fill (all|the) (sections|10 sections)|Phase 2 (is )?(DROPPED|dropped|not used)' .geniro/instructions/plan.md 2>/dev/null`
+
+**Auto-fix:** Manual-only — judgment-driven rule rewrite. `/geniro:instructions validate` surfaces drift on next run.
+
+**Severity:** MEDIUM — stale custom rules degrade `/plan` UX; visible only on next `/plan` invocation.
+
+---
+
+### `/review` MANDATORY spawn list + post-spawn verification gate
+
+`/geniro:review` Phase 2 step 2.2 now writes `spawn_dims_declared: [...]` + `spawn_dims_count: N` to state.md frontmatter at spawn-batch entry; Phase 4 §4.0 verifies actual spawns match the declaration (catches the silent-skip bug where reviewers reasoned themselves into dropping dimensions). The spawn list is MANDATORY: 7 always (bugs / security / architecture / tests / optimizations / guidelines / conventions) + up to 3 conditional (design / pr-metadata / spec-compliance) + N custom from `.geniro/instructions/review-extra/`. Custom-reviewer discovery moved from Phase 2 entry into Phase 1.5 mechanical pre-pass so Phase 2 has zero cognitive load for it.
+
+T2 handoff (`from-review-<branch>.md`) gains structured `open_questions[]` frontmatter (`{id, source, question, related_findings, status: unresolved | resolved | wontfix, resolution}`). A 3-gate safety chain prevents posting or implementing with unresolved questions: Phase 6 Pre-gate (producer-side, fires FIRST in Phase 6) + Pre-Post-PR guard (defensive, before `gh api` POST) + Consumer-side `/implement` Phase 1 Step 12 (refuses to leave Phase 1 with unresolved entries). `/geniro:debug` Phase 3 gains the same Pre-gate pattern at the same producer position.
+
+Old T2 hand-off files lack `spawn_dims_declared[]` / `spawn_dims_count` / `open_questions[]` fields; downstream readers (orchestrator inspection, `/update` walk) treat missing fields as "no declaration" or "no open questions" and proceed safely.
+
+**Action required:** None — backward compatible. New `/review` and `/debug` runs gain the fields organically. If you have manual workflows that parse T2 hand-off files, update them to read the new fields when present.
+
+**Auto-detect:** N/A — new fields populate on next `/review` or `/debug` run.
+
+**Auto-fix:** N/A.
+
+**Severity:** LOW — additive fields with graceful absence handling.
+
+---
+
+### `/implement` Phase 2 TodoWrite decomposition
+
+`/geniro:implement` Phase 2 now uses TodoWrite to decompose the edit batch into 3-15 sequential todos with a one-in-progress invariant. No user-content format change — todos live in Claude Code's Tasks API, not state.md. Resuming a pre-v3 in-progress Phase 2 state.md re-decomposes via TodoWrite on next Phase 2 entry.
+
+**Action required:** None — internal mechanic change.
+
+**Auto-detect:** N/A.
+
+**Auto-fix:** N/A.
+
+**Severity:** LOW — visible only as a progress-indicator improvement.
+
+---
+
 ## v2.4.0
 
 Cleanup of orphan files and directories that survived prior migrations. These paths are not read by any current skill — purely inert. Also removes the deprecated `user-preferences.md` instruction file.
