@@ -144,9 +144,9 @@ validate_state_file() {
   tier="$(_vsf_fm_get_value "$fm" tier)"
   case "$tier" in
     T1|T1.5)
-      # T1 (legacy ephemeral state.md) and T1.5 (v3 durable task artifacts)
-      # share frontmatter shape — both require phase/status/non-resumable-actions.
-      # The distinction is lifecycle: T1 deleted at Phase Ship, T1.5 survives.
+      # T1 and T1.5 share frontmatter shape — both require
+      # phase/status/non-resumable-actions. They differ in lifecycle:
+      # T1 is deleted at Phase Ship; T1.5 survives for downstream consumer skills.
       # Scalar fields (phase, status) must be non-empty.
       # `non-resumable-actions` is a block-list — key-presence sufficient
       # (`non-resumable-actions: []` and multi-line block forms both pass).

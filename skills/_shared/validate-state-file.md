@@ -14,7 +14,7 @@
 | Situation | Why |
 |---|---|
 | Skill resume after compaction (SessionStart hook re-enters task) | Verify state.md survived intact before continuing |
-| Task-dir handoff (M5 → M4: `/plan` writes `spec.md`, `/implement` reads it) | Catch malformed handoff early — fail fast at consumer entry |
+| Task-dir handoff (`/plan` writes `spec.md`, `/implement` reads it) | Catch malformed handoff early — fail fast at consumer entry |
 | Optional sanity check after `atomic_state_write` | Belt-and-suspenders; not required (write helper guarantees atomicity) |
 | Validator unit-test (`tests/state/validate-frontmatter.sh`) | Regression coverage |
 
@@ -61,8 +61,8 @@ The 7 steps validated, in order (per M1 §Validation helper):
 3. **Frontmatter is closed** with a `---` on its own line.
 4. **Common-base required fields present:** `tier`, `producer`, `schema-version`, `branch`, `timestamp`. Just key-presence — values are not validated except `tier` and `schema-version`.
 5. **`tier:` value is T1, T1.5, T2, or T3.** Tier-specific required fields are checked:
-   - T1 (legacy) → `phase`, `status`, `non-resumable-actions`
-   - T1.5 → `phase`, `status`, `non-resumable-actions` (same shape; differs only in lifecycle — survives Phase Ship)
+   - T1 → `phase`, `status`, `non-resumable-actions`
+   - T1.5 → `phase`, `status`, `non-resumable-actions` (same shape as T1; differs in lifecycle — T1.5 survives Phase Ship)
    - T2 → `consumer`
    - T3 → `concurrency`
 6. **`schema-version: 1`** — current supported version. Mismatch returns code 6 (caller decides whether to attempt migration).

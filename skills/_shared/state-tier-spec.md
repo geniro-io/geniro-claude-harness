@@ -42,9 +42,9 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 
 | Path root | Layout | Producer category |
 |---|---|---|
-| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md`) | **Task-bound skills** producing durable artifacts — M4 (`/implement`), M5 (`/plan`) |
-| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — M7 (`/debug`), M8 (`/refactor`), M9 (`/onboard`, `/investigate`) |
-| `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — M10a (`/setup`) |
+| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md`) | **Task-bound skills** producing durable artifacts — `/implement`, `/plan` |
+| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/debug`, `/refactor`, `/onboard`, `/investigate` |
+| `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — `/setup` |
 
 ### T2
 
@@ -57,7 +57,7 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 - `.geniro/actions/` — CRUD (workflow actions)
 - `.geniro/workflow/` — CRUD (integration config)
 - `.geniro/planning/_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`, `_focus-<area>.md` — CRUD global registries (`_` prefix = visual cue for persistent-global)
-- `.geniro/docs/` — CRUD (M10a §3.4 spin-out targets — `hooks.md`, `mcp.md`, `agent-runtime.md`)
+- `.geniro/docs/` — CRUD (`/setup` spin-out targets — `hooks.md`, `mcp.md`, `agent-runtime.md`)
 
 ---
 
@@ -67,20 +67,18 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 
 | Field | Type | Example |
 |---|---|---|
-| `tier` | enum `T1.5\|T2\|T3` (T1 = no frontmatter; not in enum) | `T1.5` |
+| `tier` | enum `T1\|T1.5\|T2\|T3` (T1 used for transient outputs that omit frontmatter; not enforced when present) | `T1.5` |
 | `producer` | string | `implement` |
 | `schema-version` | integer | `1` |
 | `branch` | string | `feature/dark-mode` |
 | `timestamp` | ISO-8601 UTC | `2026-05-19T14:30:00Z` |
 
-**Legacy:** pre-v3 state.md files declared `tier: T1`. The validator continues to accept `T1` for backward compat (treated identically to `T1.5`). New emissions from v3 producers use `T1.5`.
-
 ### Tier-specific required
 
 | Tier | Additional required fields |
 |---|---|
-| T1 (legacy) | `phase`, `status`, `non-resumable-actions` |
-| T1.5 | `phase`, `status`, `non-resumable-actions` (same as T1; differs only in lifecycle) |
+| T1 | `phase`, `status`, `non-resumable-actions` |
+| T1.5 | `phase`, `status`, `non-resumable-actions` (same shape as T1; differs in lifecycle) |
 | T2 | `consumer` |
 | T3 | `concurrency` (enum `append-only\|crud`) |
 
@@ -112,7 +110,7 @@ approvals:
 
 ### Producer-specific extensions
 
-Producers MAY add fields (e.g., M5 `task_slug`, `mode`, `effort_tier`; M6 `phase`, `round`, `risk-tier`). Constraints:
+Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `risk-tier`). Constraints:
 - MUST NOT shadow common-base or tier-specific field names with different semantics.
 - MUST be documented in the producer's M-doc frontmatter example block.
 - The validator silently passes them through — only required-field presence and enum values are checked.
@@ -130,7 +128,7 @@ Producers MAY add fields (e.g., M5 `task_slug`, `mode`, `effort_tier`; M6 `phase
 
 ## Concrete examples
 
-### T1.5 — task-bound (M4 `/implement`)
+### T1.5 — task-bound (`/implement`)
 
 ```yaml
 ---
@@ -149,7 +147,7 @@ non-resumable-actions: []
 - implement started at 14:30:00Z
 ```
 
-### T1.5 — session-bound (M7 `/debug`)
+### T1.5 — session-bound (`/debug`)
 
 ```yaml
 ---
@@ -165,7 +163,7 @@ geniro_kind: debug-state
 ---
 ```
 
-### T1.5 — singleton (M10a `/setup`)
+### T1.5 — singleton (`/setup`)
 
 ```yaml
 ---
