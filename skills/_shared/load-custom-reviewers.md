@@ -60,7 +60,7 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 3. The `slug:` value matches a built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`.
 4. The `slug:` value does not match the regex `^[a-z][a-z0-9-]*$`.
 5. The `description:` field is missing OR empty.
-6. The `model:` field is present and is not in `{haiku, sonnet, opus}`.
+6. The `model:` field is present and is not in `{haiku, sonnet, opus, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)
 7. The `severity-default:` field is present and is not in `{CRITICAL, HIGH, MEDIUM, LOW}`.
 8. The `paths:` field is present and is not a non-empty list of non-empty strings.
 9. The body section (after the frontmatter) is empty OR contains fewer than 5 non-blank lines.
