@@ -1,8 +1,180 @@
 # Phase 1 Triage Reference
 
-Detailed contract for `/geniro:review` Phase 1 (Triage & Context Collect). Extracted from SKILL.md (design fix) to keep the orchestration shell ≤400 lines. SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 1 (Triage & Context Collect). SKILL.md retains a 2-3 line summary + a pointer here.
 
 State.md `phase: triage` during this phase.
+
+---
+
+## 0. Step 0 — Workspace setup
+
+Step 0 fires BEFORE input-mode detect, scope resolution, PR-ref parsing, workflow-integration fetch, peer-PR scout, and L4 / L3 / L2 helper calls. Workspace decision determines the working tree the rest of Phase 1 inspects; running PR-diff parsing or peer-PR `gh pr list` against the wrong worktree pollutes state.md with cwd-bound results.
+
+Two sub-steps: **passive detection** (0a, no AUQ) → **decide action** (0b, auto-continue or AUQ).
+
+### 0a — Detect current context (passive)
+
+Collect these signals before deciding:
+
+| Signal | How detected |
+|---|---|
+| `CURRENT_BRANCH` | `git branch --show-current` |
+| `CURRENT_TOPLEVEL` | `git rev-parse --show-toplevel` |
+| `IN_WORKTREE` | `CURRENT_TOPLEVEL` is registered in `git worktree list --porcelain` AND is NOT the porcelain `bare` row or the main worktree row. Porcelain registry is the source of truth; the `.claude/worktrees/<slug>/` path convention is a sanity check, NOT the primary signal. |
+| `PROTECTED_BRANCH` | `CURRENT_BRANCH ∈ {main, master, develop, trunk}` (per-project override via `.geniro/safety.json`) |
+| `EXISTING_REVIEW_STATE` | Glob `.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` ⇒ "prior /review run on this branch" |
+| `REVIEW_HANDOFF` | Alias for `EXISTING_REVIEW_STATE` — re-running /review means the user is in fix-up or follow-up review mode |
+| `DEBUG_HANDOFF` | Path `.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "/debug just authored repro tests for this branch" |
+| `IMPLEMENT_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` ⇒ "active or completed /implement run on this branch" |
+| `TARGET_PR_NUMBER` | If `$ARGUMENTS` carries a PR ref: extract `<N>`. Else null. |
+| `TARGET_WORKTREE_NAME` | If `TARGET_PR_NUMBER` is set: `pr-<N>-review`. Else null (no target). |
+| `IN_TARGET_WORKTREE` | `IN_WORKTREE == true` AND `CURRENT_TOPLEVEL` basename matches `TARGET_WORKTREE_NAME`. Only meaningful when `TARGET_WORKTREE_NAME` is non-null. |
+| `INPUT_SHAPE` | One of `pr-ref` / `branch` / `diff-range` / `files` / `empty` — derived by quick `$ARGUMENTS` inspection (definitive routing happens in §1). |
+
+### 0b — Decide action
+
+Decision tree (first match wins; evaluate top-down):
+
+```
+1. IN_TARGET_WORKTREE == true (PR-ref input, already in the correct review worktree)
+   ⇒ AUTO-CONTINUE silently. Sanity-check `git rev-parse HEAD` vs PR headRefOid
+     (deferred to §3 parsing — mismatch surfaces as warning later, never blocks).
+
+2. IN_WORKTREE == true
+   AND CURRENT_BRANCH ∈ continuing-work set:
+     • REVIEW_HANDOFF == true, OR
+     • DEBUG_HANDOFF == true, OR
+     • IMPLEMENT_TASK_STATE == true, OR
+     • (TARGET_PR_NUMBER set AND CURRENT_BRANCH substring-matches the PR head ref)
+   ⇒ AUTO-CONTINUE in current worktree. NO workspace AUQ. Echo:
+        "Continuing in worktree '<dir>' on '<branch>'.
+         Detected signal(s): <REVIEW_HANDOFF | DEBUG_HANDOFF | IMPLEMENT_TASK_STATE | branch match>."
+      Workflow Question 2 still asked if applicable.
+
+3. IN_WORKTREE == false
+   AND PROTECTED_BRANCH == false
+   AND any of {REVIEW_HANDOFF, DEBUG_HANDOFF, IMPLEMENT_TASK_STATE} == true
+   ⇒ AUTO-CONTINUE on current branch. NO workspace AUQ. Echo:
+        "Continuing on '<branch>' (detected <signal>).
+         Reverse with: re-run with 'worktree' modifier in arguments."
+      Workflow Question 2 still asked if applicable.
+
+4. INPUT_SHAPE == pr-ref
+   AND IN_WORKTREE == true
+   AND IN_TARGET_WORKTREE == false
+   AND no continuing-work signals match
+   ⇒ User is in some other worktree but launched /review for an unrelated PR.
+      Fire 3-option AUQ (header: "Worktree mismatch"):
+        A) "Continue here in '<dir>'" — recommended if user explicitly cd'd here
+        B) "Exit to repo root and create new worktree '<TARGET_WORKTREE_NAME>'" —
+           call ExitWorktree, then standard new-worktree flow (5b below)
+        C) "Abort — I'm in the wrong place" — terminal, no-op
+      Workflow Question 2 omitted (mismatch hint suggests confusion; don't pile on).
+
+5. INPUT_SHAPE == pr-ref
+   AND IN_WORKTREE == false
+   AND no continuing-work signals match
+   ⇒
+   5a) If `git worktree list --porcelain` already lists `.claude/worktrees/<TARGET_WORKTREE_NAME>`:
+       skip create. `EnterWorktree(path: ".claude/worktrees/<TARGET_WORKTREE_NAME>")`.
+       NO AUQ.
+   5b) Otherwise: fire 2-option AUQ (header: "Git workspace"):
+        A) "Create review worktree (Recommended)" — runs:
+             git fetch origin pull/<N>/head:<TARGET_WORKTREE_NAME>
+             git worktree add .claude/worktrees/<TARGET_WORKTREE_NAME> <TARGET_WORKTREE_NAME>
+             EnterWorktree(path: ".claude/worktrees/<TARGET_WORKTREE_NAME>")
+        B) "Review in current location" — continue in current cwd.
+
+6. INPUT_SHAPE ∈ {branch, diff-range, files, empty}
+   AND IN_WORKTREE == false
+   AND PROTECTED_BRANCH == true
+   AND no continuing-work signals match
+   ⇒ Fire 2-option AUQ (header: "Git workspace"):
+        A) "Create review worktree (Recommended)" — runs:
+             git worktree add .claude/worktrees/review-<short-slug> <CURRENT_BRANCH>
+             EnterWorktree(...)
+           Slug source: spec.title (if resolvable) / `$ARGUMENTS` first token / branch name. Per
+           `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.
+        B) "Review on '<branch>'" — continue in current cwd. State.md notes the protected-branch decision.
+
+7. Default — INPUT_SHAPE ∈ {branch, diff-range, files, empty}
+   AND IN_WORKTREE == false
+   AND PROTECTED_BRANCH == false
+   AND no continuing-work signals match
+   ⇒ NO workspace AUQ. Auto-continue on current branch — files-mode and diff-range mode
+     operate on cwd-relative file paths; creating a worktree adds friction without value.
+     Workflow Question 2 still asked if applicable.
+```
+
+**Inline modifier overrides** (parsed from `$ARGUMENTS`; modifiers ALWAYS win over auto-detection):
+
+| Modifier in $ARGUMENTS | Effect |
+|---|---|
+| `worktree` / `new-worktree` | Force the worktree-creation path (rule 5b or 6a) regardless of `IN_WORKTREE` or input shape. |
+| `no-worktree` / `here` | Force in-place execution; skip worktree creation even when rule 5 or 6 would otherwise fire. |
+| `current-branch` / `current branch` | Force auto-continue on current branch regardless of signals (skips rules 4-6 entirely). |
+| `new-branch` / `new branch` | Force fresh-worktree creation path even if a "continuing" signal is detected. |
+
+Conflicting modifiers (e.g., `worktree` AND `no-worktree` both present): last-occurrence wins (right-to-left scan). Emit soft notice naming both detected variants.
+
+### 0c — Approvals-persistence
+
+Persist BOTH answers (when fired) to state.md `approvals[]`:
+
+```yaml
+approvals:
+  - category: review_workspace_setup
+    picked: "Create review worktree (Recommended)"
+    timestamp: <ISO-8601>
+  - category: review_workflow_status
+    picked: "Yes — move to In Review"
+    timestamp: <ISO-8601>
+    workflow_file: ".geniro/workflow/linear.md"
+    transition: "In Progress -> In Review"
+    issue_id: "CI-303"
+```
+
+On compaction-resume or Round 2+ re-runs of /review on the same branch, Step 0 reads `approvals[]` and re-applies prior answers without re-prompting.
+
+### 0d — Workflow Question 2 (conditional)
+
+When `.geniro/workflow/*.md` files exist with an `### On review start` section, append one question per matched tracker ID to the Step 0 AUQ batch. Merged source-list:
+
+```
+workflow_refs_to_process = []
+if $ARGUMENTS contains tracker URL/ID → append to workflow_refs_to_process
+if pr.title or pr.body contains tracker URL/ID → append to workflow_refs_to_process
+if spec.md (resolvable via task slug) frontmatter workflow_refs[] non-empty → append
+deduplicate by (kind, issue_id) — $ARGUMENTS wins on conflict
+```
+
+For each ref, find `.geniro/workflow/<ref.kind>.md`. If missing → log warning + skip. Staleness check: if `fetched_at` > 1 hour old OR absent → re-fetch via MCP (timeout 3s, fail-open). Apply the workflow file's `### On review start` block — usually appends a "Move <issue_id> to In Review?" question.
+
+When `1 + N > 4` (rare — task linked to ≥4 trackers), chain into a second AUQ.
+
+If no `### On review start` block exists in any matched workflow file, Question 2 is omitted silently.
+
+### 0e — Execution after AUQ
+
+After AUQ resolves and `approvals[]` is persisted:
+
+1. **Workspace action** — execute worktree create / EnterWorktree / no-op per `review_workspace_setup` pick.
+2. **Workflow status action** — for each persisted `review_workflow_status` approval, follow the workflow file's `### On review start` block. /review is read-only on code; only the workflow status transition is mutating, and the user pre-approved it via the AUQ.
+3. State.md frontmatter `branch:` and `worktree:` updated to reflect the new working tree before Phase 1 §1 (input mode detect) runs.
+
+Do NOT use `EnterWorktree(name: ...)` — that path auto-creates with `worktree-` prefix and defeats the `.claude/worktrees/<slug>/` convention. Use `EnterWorktree(path: ".claude/worktrees/<slug>")`.
+
+### 0f — Edge cases
+
+| Case | Behavior |
+|---|---|
+| Workflow MCP unavailable when Question 2 fires | Question 2 still fires; "Yes" answer logs a warning and proceeds without MCP call. Non-blocking. |
+| User picks "Other" with custom text on Question 1 | Treat as "Review in current location" semantically; no worktree mutation; echo custom text into state.md `## Workspace decision` body block. |
+| Multiple continuing signals match (review handoff AND debug handoff) | Both satisfy rule 2 or 3. Echo both signal names; behavior identical. |
+| Stale T2 handoff (older than 30 days) | Still triggers rule 2 / 3. Emit soft notice: `"Note: review handoff is N days old."` |
+| `IN_WORKTREE == true` AND `IN_TARGET_WORKTREE == true` but PR `headRefOid` mismatches current `HEAD` | Auto-continue per rule 1. Mismatch surfaces as warning in §3 PR-ref parsing, never blocks. User can re-run with `new-branch` modifier to force a fresh fetch. |
+
+After Step 0 settles, every subsequent Phase 1 step and downstream phases run from the new cwd. Cross-session writes (`.geniro/state/handoff/from-review-<branch>.md`, `learnings.jsonl`) auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown.
 
 ---
 
@@ -141,30 +313,13 @@ Read-only — never writes files, never mutates git state. Latency ~1-3s base + 
 
 ---
 
-## 5. Git workspace decision (PR-ref input only)
+## 5. Git workspace decision
 
-Skip for files / diff range / branch. Routes to exactly one of three branches per the cwd / target-worktree state:
-
-```bash
-TOPLEVEL=$(git rev-parse --show-toplevel)
-PARENT=$(basename "$(dirname "$TOPLEVEL")")
-TOP=$(basename "$TOPLEVEL")
-TARGET="pr-<N>-review"
-```
-
-- **Already in `.claude/worktrees/<TARGET>`** (`PARENT == "worktrees"` AND `TOP == TARGET`): skip create AND enter; sanity-check `git rev-parse HEAD` vs `headRefOid`. Match → reuse silently. Mismatch → surface a warning, continue without erroring.
-- **In a different `.claude/worktrees/<other>`** (`PARENT == "worktrees"` AND `TOP != TARGET`): AUQ (header `Worktree`) with options "Continue here in `<other>`" / "Exit then create `pr-<N>-review`" / "Abort". Do NOT silently create a nested worktree.
-- **Outside any `.claude/worktrees/...`** (`PARENT != "worktrees"`):
-- If `git worktree list --porcelain` already lists `.claude/worktrees/pr-<N>-review`: skip create. `EnterWorktree(path: ".claude/worktrees/pr-<N>-review")`.
-- Otherwise: AUQ (header `Worktree`) with "Yes — create (Recommended)" / "No — review in current location". On Yes: `git fetch origin pull/<N>/head:pr-<N>-review` (universal refspec — works for fork and same-repo), `git worktree add.claude/worktrees/pr-<N>-review pr-<N>-review`, `EnterWorktree`. On No: continue in current cwd; user accepts that Phase 6 commits land on the current branch.
-
-After settled, every subsequent Phase 1 action and downstream phases run from the new cwd. Cross-session writes auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown.
-
-Do NOT use `EnterWorktree(name:...)` — that path auto-creates with `worktree-` prefix and defeats the convention detection.
+Moved to §0 above (Step 0 — Workspace setup). §0 runs FIRST in Phase 1 — before input mode detect, scope resolution, PR-ref parsing, workflow integrations, and peer-PR scout — so the rest of Phase 1 operates on the correct working tree.
 
 ---
 
-## 6. Step 0 — Load custom instructions (L4)
+## 6. L4 instructions load
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `review.md`, and `code-style.md` (3 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
 
