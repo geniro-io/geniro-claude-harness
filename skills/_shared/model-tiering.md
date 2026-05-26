@@ -76,48 +76,6 @@ maxTurns = ceil(floor × 1.5) + optional safety bump
 
 Document the formula in each agent's `## maxTurns rationale` section. Pure mechanical agents (test-runner) get tight caps; reasoning agents (reviewer, adversarial-tester) get generous caps. Values above ~150 signal «I gave up bounding» — re-examine the agent's scope before going higher.
 
-## Known runtime caveats (read this before assuming inherit «just works»)
-
-The `model: inherit` directive is **officially documented** by Anthropic (see [Create custom subagents](https://code.claude.com/docs/en/sub-agents)): «You can use `inherit` to use the same model as the main conversation. If the field is omitted, it defaults to `inherit`.» The doctrine above is the canonical pattern.
-
-**However**, the implementation in current Claude Code has **multiple open / contested bugs** that may cause the runtime to diverge from documentation. The two principal failure modes:
-
-| Failure mode | Effect | Tracker |
-|---|---|---|
-| Frontmatter `model:` IGNORED | Subagent ignores its declared tier and ALWAYS inherits the orchestrator's. Hardcoded carve-outs (the doc-patcher haiku, setup verification sonnet) silently run on the orchestrator's tier instead. | [anthropics/claude-code#44385](https://github.com/anthropics/claude-code/issues/44385) (closed as dup; no fix shipped) |
-| Inherit BROKEN — defaults to Sonnet 4 | Subagent declares `model: inherit` and spawn site omits `model=`, but runtime spawns it on Sonnet 4 instead of inheriting the user's Opus orchestrator. Tier-symmetry contract violated. | [anthropics/claude-code#5456](https://github.com/anthropics/claude-code/issues/5456) (closed as dup; no fix shipped) |
-| Built-in `general-purpose` agent has hardcoded `model: sonnet` | When the spawn-agent ladder falls through to the `general-purpose` rung (3rd rung per `spawn-agent.md`), the subagent runs on Sonnet regardless of orchestrator tier. The body-inline fallback inherits Sonnet, not the user's chosen tier. | [anthropics/claude-code#8932](https://github.com/anthropics/claude-code/issues/8932) (open) |
-| `/agents` UI displays «sonnet» for subagents that inherit | Cosmetic; runtime behavior may differ from display. Don't rely on `/agents` panel for actual tier verification. | [anthropics/claude-code#20291](https://github.com/anthropics/claude-code/issues/20291) (open) |
-| Default-tier policy unresolved | Anthropic team is debating whether Sonnet should become the default vs continuing inherit. Future Claude Code versions may change default semantics. | [anthropics/claude-code#26179](https://github.com/anthropics/claude-code/issues/26179) (discussion) |
-
-### Mitigation — environment variable escape hatch
-
-Users experiencing tier-mismatch can force the inherit behavior via:
-
-```bash
-# Force every subagent that declares `model: inherit` (or omits the field) to
-# explicitly run on the same tier as the orchestrator's session model.
-export CLAUDE_CODE_SUBAGENT_MODEL=inherit
-
-# Or pin a specific tier across all subagents regardless of frontmatter:
-export CLAUDE_CODE_SUBAGENT_MODEL=opus
-export CLAUDE_CODE_SUBAGENT_MODEL=sonnet
-export CLAUDE_CODE_SUBAGENT_MODEL=haiku
-```
-
-The env var is per-user / per-session; the plugin cannot set it globally. Document this in your project README if your team relies on tier-symmetry.
-
-### Mitigation — emergency hardcode fallback
-
-If a critical reviewer-agent run produces output that's clearly tier-mismatched (e.g., user is on Opus but findings read like Sonnet-class — shallow, missing cross-file context), the workaround is to explicitly hardcode `model: opus` (or whatever the orchestrator tier is) in the agent's frontmatter and re-run. This sacrifices tier-symmetry across user-tiers but provides a hard guarantee in the current session. Revert when the upstream bug is fixed.
-
-### Why we keep the documented pattern despite the bugs
-
-1. The pattern IS officially documented; betting on documentation > betting on current-buggy-runtime.
-2. When Anthropic stabilizes the behavior, our doctrine works correctly without re-edit.
-3. Hardcoding `model: sonnet` everywhere (the pre-v3 pattern) is the documented anti-pattern: it locks all users into Sonnet regardless of their `/model` choice — explicit cost paternalism.
-4. The env-var escape hatch (above) covers the affected user without plugin-side override.
-
 ## How skills reference this
 
 Add this one-liner near the top of any delegating skill:
