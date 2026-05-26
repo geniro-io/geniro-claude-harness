@@ -469,20 +469,7 @@ No L4 / L3 refresh at Phase 2 entry — code-style instructions from Phase 1 rem
 
 4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, OUTPUT_PATH `<task-dir>/.tr-out.md`, and `MAX_FAILURES_REPORTED: 15`. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. OMIT `model=`. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
-5. **In-phase fix loop on test failure.** Up to 3 retries:
-   ```
-   retry = 1
-   while retry ≤ 3:
-     read <task-dir>/.tr-out.md
-     if Verdict == ALL_GREEN → exit Phase 2 to Phase 3
-     if Verdict == INFRA_ERROR → escalate AUQ immediately (don't retry blind)
-     inspect the structured Failures list (NOT raw stdout)
-     edit code (or test) to address the top-priority failures
-     re-spawn test-runner-agent (overwrites .tr-out.md)
-     retry += 1
-   else:
-     escalate via AskUserQuestion
-   ```
+5. **In-phase fix loop on test failure.** Up to 3 retries (full pseudo-code + token-cost analysis: `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, exit on `ALL_GREEN`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. Retry exhaust → escalate-AUQ.
 
 6. **Escalation on retry exhaust or INFRA_ERROR.** Fire AUQ (header: `"Test failure"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
@@ -541,29 +528,7 @@ PHASE 2 (sequential, single-context):
 
 2. **Collect findings.** Reviewer-agent output schema per `agents/reviewer-agent.md` §Output Format. Adversarial-tester output schema per `agents/adversarial-tester-agent.md` §Output Format AND authored test files on disk under the project's test directory. Cap per-dim output at ~4K chars (invariant #4); truncate with marker on overflow.
 
-3. **Bounded fix loop.** Up to 3 rounds:
-   ```
-   round = 1
-   while round ≤ 3:
-     collect findings from this round's spawns (5 reviewer + 1 adversarial + N custom)
-     if no findings AND no authored adversarial tests THAT STILL FAIL:
-       break  # exit to Ship sub-step
-     apply fixes inline (single Edit-driven sub-loop, NO further agent spawns)
-     re-spawn test-runner-agent; if not green, rollback to Phase 2
-     round += 1
-     spawn reviewer-agents ONLY on failing dimensions (round N+1 ≠ all 5)
-     re-spawn adversarial-tester ONLY if its Round-N CRITICAL/HIGH findings remain
-       unresolved OR if any authored adversarial test still fails
-   else:
-     # round 4 would start — DO NOT enter
-     escalate via AskUserQuestion
-   ```
-
-   **Adversarial-tester findings are treated as a 6th dimension:**
-   - Each authored failing test counts as a HIGH finding for fix-loop purposes.
-   - After applying fixes, the next test-runner-agent invocation reports whether the adversarial tests now pass.
-   - If they pass, the adversarial dim is "clean" for round N+1 (drop from re-spawn).
-   - Authored test files STAY on disk through Ship — they become part of the commit.
+3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns; if clean AND no authored adversarial tests still fail, exit to Ship; otherwise apply fixes inline (no further agent spawns), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the failing reviewer dims (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
 
 4. **Escalation on round-3 exhaust.** AUQ (header: `"Resolve findings"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
