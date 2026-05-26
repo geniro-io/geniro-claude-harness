@@ -246,14 +246,3 @@ Per master plan anti-patterns guardrail — must NOT reintroduce these:
 
 ---
 
-## REFERENCE
-
-- Phase contracts (canonical): `${CLAUDE_SKILL_DIR}/plan-loop.md`
-- 10-section spec.md template: `${CLAUDE_SKILL_DIR}/spec-template.md`
-- 13 validator checks: `${CLAUDE_SKILL_DIR}/validator-checks.md`
-- Design-doc detection: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`
-- Effort scaling: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`
-- State helpers: `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, `validate-state-file.sh`
-- Memory helpers: `load-custom-instructions.md` (L4 directive), `load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `resolve-conflicts.md`
-- Architecture spec: *(internal)*
-- Edge cases + alias note: `${CLAUDE_SKILL_DIR}/plan-reference.md`

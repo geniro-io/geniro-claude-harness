@@ -51,38 +51,9 @@ Fire `AskUserQuestion` with:
 
 After mode is resolved (IDEA or DESIGN_DOC-fresh-start):
 
-1. **Resolve task slug** rules. Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
+1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Initial frontmatter:
- ```yaml
- ---
- tier: T1
- producer: plan
- schema-version: 1
- branch: <git-branch>
- worktree: <git-rev-parse-show-toplevel> # optional, recommended for cross-worktree resume
- timestamp: <ISO-8601 UTC>
- phase: mode-detect
- status: in-progress
- non-resumable-actions: []
- approvals: []
- task_slug: <slug>
- mode: <IDEA|DESIGN_DOC>
- ---
-
- # State: <topic>
-
- ## Inputs
- - $ARGUMENTS: "<raw>"
- - mode: <IDEA|DESIGN_DOC>
- - design-doc-path (if DESIGN_DOC): <abs-path>
-
- ## Tool log
-
- ## Errors
-
- ## Open Questions
- ```
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §1.
 4. **Transition.** `phase: explore` via `atomic_state_write`.
 
 ### 0.4 Cancel handling
@@ -226,51 +197,13 @@ Questions MUST be grounded in Phase 1 findings (D4 fix). Generic «what tech sta
 
 ### 3.2 One-at-a-time AUQ shape
 
-Fire questions sequentially, **never** as a multi-question form. Each AUQ:
-- `header`: ≤12 chars (e.g., "Auth method", "Integration", "Scope")
-- `question`: 1-2 sentences ending in a question mark
-- `options[]`: 2-4 explicit choices. Each option carries a **`preview` field** with the concrete consequence of picking it — code anchor / config diff / behavior trace, ≤6 lines per preview. The user inspects the preview before committing.
-- Include a "Skip — proceed with stated assumption" option as the last choice when applicable; its `preview` states what assumption gets recorded.
-- `multiSelect: false` unless explicitly multi-select.
+Fire questions sequentially, **never** as a multi-question form. Each AUQ uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. **Every option carries a `preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview) — empty `Approve / Revise / Skip` options waste user attention. Full literal example with preview content in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §2.
 
-Example AUQ shape with previews:
+### 3.3 Persistence
 
-```yaml
-header: "Auth method"
-question: "Which auth flow should this endpoint use?"
-options:
-  - label: "JWT — existing middleware"
-    preview: |
-      Adds `@UseGuards(JwtAuthGuard)` to controller. Reads token
-      from Authorization header. Throws 401 on missing/invalid.
-      Test: `expect(401).toMatchObject({code: 'UNAUTHENTICATED'})`.
-  - label: "Session cookie — existing session middleware"
-    preview: |
-      Adds `@UseGuards(SessionGuard)`. Reads `session_id` cookie.
-      Test mirror of /auth/session.spec.ts. Same 401 shape.
-  - label: "Skip — proceed assuming JWT"
-    preview: |
-      Recorded assumption: "endpoint uses JWT middleware (default)".
-      Surfaced in spec.md section 4 Assumptions for /implement to verify.
-```
+Each answered AUQ → append entry to state.md frontmatter `approvals[]` via `atomic_state_write` BEFORE proceeding to the next question. Entry shape (category `clarify_<dim>` / prompt / options / picked / at / asked_in_phase) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §2.
 
-The `preview` field is the missing capability the old skill lacked — empty `Approve / Revise / Skip` options waste user attention. Every Phase 3 option carries concrete consequence content.
-
-### 3.3 Persistence ( closure)
-
-Each answered AUQ → append entry to state.md frontmatter `approvals[]` via `atomic_state_write` BEFORE proceeding to the next question:
-
-```yaml
-approvals:
- - category: clarify_<dim> # e.g., clarify_auth_method
- prompt: "Which existing auth flow should the new feature integrate with?"
- options: ["OAuth (src/auth/oauth.ts)", "JWT (src/auth/jwt.ts)", "Skip — proceed assuming OAuth"]
- picked: "OAuth (src/auth/oauth.ts)"
- at: 2026-05-17T10:50:00Z
- asked_in_phase: clarify
-```
-
-On compaction-resume, Block 5d renders this; model re-reads `approvals[]` and skips already-answered questions.
+On compaction-resume, the SessionStart re-injector renders `approvals[]` and the model re-reads it to skip already-answered questions.
 
 ### 3.4 Cap exhaustion
 
@@ -292,34 +225,7 @@ Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches
 
 ### 4.2 AUQ shape
 
-Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`.
-
-- `header`: "Approach"
-- `question`: "Which approach do you want to pursue?"
-- `options[]`: each option carries an option `description` (summary + trade-off, ≤2 lines) AND a `preview` field. The `preview` contains:
-  - ASCII data-flow OR architecture sketch (5-10 lines), AND
-  - Key code identifier (the new class / function / file name), AND
-  - The dominant tradeoff phrased as a one-liner.
-
-Example shape:
-
-```yaml
-options:
-  - label: "Service-layer fan-out (Recommended)"
-    description: "Split per-user backfill into queued jobs; orchestrator dequeues N at a time."
-    preview: |
-      ┌─────────────┐    ┌──────────────────┐    ┌────────────┐
-      │ /backfill    │─→─│ BackfillQueue.add │─→─│ Worker pool│
-      └─────────────┘    └──────────────────┘    └────────────┘
-      New: src/jobs/BackfillQueue.ts + per-user job class
-      Trade-off: +1 infrastructure piece; bounded memory under load.
-  - label: "In-process Promise.all"
-    description: "Loop users, await Promise.all in chunks of 50."
-    preview: |
-      for (chunk of chunks(users, 50)) await Promise.all(chunk.map(backfill))
-      New: tweaks to src/backfill/runner.ts only
-      Trade-off: zero new infrastructure; memory spike on large datasets.
-```
+Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Header "Approach"; each option carries an `description` (summary + trade-off, ≤2 lines) AND a `preview` field containing an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier (new class/function/file name) + dominant tradeoff one-liner. Full literal example with preview content (Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §3.
 
 ### 4.3 Persistence
 
@@ -378,40 +284,13 @@ For Trivial tasks, sections 4 / 5 / 10 may have body content «none — task sco
 
 ### 5.2 Per-section AUQ — incremental authoring
 
-One AUQ per section, sequentially. **Do NOT pre-fill all 10 sections in a batch** — pre-fill makes per-section approval redundant (the user has already read the content). Section N+1 is authored only after section N approval.
+One AUQ per section, sequentially. **Do NOT pre-fill all 10 sections in a batch** — pre-fill makes per-section approval redundant. Section N+1 is authored only after section N approval. Procedure: (1) author section N inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate; (2) fire AUQ with header `"Section: <name>"` and three options (Approve / Revise — I'll describe / Skip — accept as-is with warning) each carrying a `preview` field with concrete content; (3) persist pick to `approvals[]` with category `section_<id>`; (4) transition to section N+1.
 
-1. **Author section N inline** (in orchestrator working memory) using Phase 1 research findings + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate. Do NOT render the section to chat at this step — the AUQ `preview` field IS the rendering surface.
-
-2. **Fire AUQ** with header `"Section: <name>"`. Chat-side companion is one short line: `"Section: <name> — focus an option to inspect"`. The AUQ options carry concrete content in their `preview` field:
-
-   - **Approve (Recommended)** — `preview`: the section content + ONE concrete example (per section type, see `${CLAUDE_SKILL_DIR}/plan-reference.md` §"Concrete-example per section type").
-   - **Revise — I'll describe** — `preview`: the section content + a placeholder line `"Type your revision text in Other"`. User types text → model re-authors → re-fires the AUQ (max 3 revisions per section).
-   - **Skip — accept as-is with warning** — `preview`: brief consequence statement, e.g., `"Section 9 Validation skipped — /implement Phase 3 reviewer-agent cannot verify section-9 acceptance criteria; manual checks required."`
-
-3. **Persist** each pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`).
-
-4. **Transition to section N+1** authoring (step 1). After all 10 sections approved → Phase 6.
-
-The `preview` field replaces the prior "render section to chat then ask for approval" pattern — the chat output was redundant with the section content the user was about to approve. Empty AUQ options (`Approve / Revise / Skip` text only) degrade trust ("the skill is just clicking through"); concrete preview content makes the AUQ load-bearing.
+Max 3 revisions per section. Concrete-example content per section type lives in `${CLAUDE_SKILL_DIR}/plan-reference.md`. Full procedure + Option preview templates in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §4.1.
 
 ### 5.3 Milestone-mode
 
-If during section authoring the model detects a Big task (effort tier Big AND section 6 «Steps» has ≥10 discrete steps OR estimated wall-time ≥1 day), fire a new AUQ BEFORE Phase 6 entry:
-
-- `header`: "Milestone slicing"
-- `question`: "This task is large enough to slice into milestones. Slice it now or keep as a single spec?"
-- `options[]`:
- - **Slice into milestones** (Recommended for Big) — model proposes 3-7 milestone names; user approves; Phase 6 emits sibling `milestone-N.md` files alongside `spec.md`.
- - **Keep as a single spec** — Phase 6 emits only spec.md; /implement consumes the whole thing.
-
-If "Slice into milestones" picked:
-1. Fire a follow-up AUQ with the proposed milestone names (single-select for «approve all» or multi-select pick per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`).
-2. After approval, Phase 6 writes the top-level spec.md (with section 6 «Steps» listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 10-section schema scoped to the milestone.
-3. Persist to `approvals[]` with category `milestone_slice`.
-
-Hand-off (Phase 9) offers `/implement milestone 1` for sliced specs.
-
-Milestone-mode fires only when the task warrants it. For Medium/Trivial, the milestone-mode AUQ does not fire.
+Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/implement milestone 1`. Full AUQ shape + follow-up procedure in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §4.2. Milestone-mode does NOT fire for Medium/Trivial.
 
 ---
 
@@ -500,35 +379,7 @@ Phase 8 fires a **schema-rich AUQ** carrying fields inline in the question body.
 
 ### 8.2 AUQ shape
 
-- `header`: "Approve spec"
-- `question`: multi-line markdown rendering the schema digest:
-
- ```
- Spec ready at .geniro/planning/<slug>/spec.md.
-
- **Objective:** <section 1 body — single sentence>
-
- **Scope:** <bullet count from section 2 Included + section 3 Excluded summary>
-
- **Approval Points:** <bullet list from section 8 «Approval Points», max 5 shown with «… and N more» if >5>
-
- **Risk class:** <auto-computed: «low» / «medium» / «high» based on section 5 Risks bullet count + section 7 forbidden_actions field>
-
- **Rollback:** <section 10 body summary, 1-2 sentences>
-
- **Done Condition:** <section 11 body — observable signal>
-
- **Scope summary:** <touched-file glob count from section 2 Scope.Included>
-
- **Expiration:** Approval valid for the current planning session; re-approval needed if spec.md is edited after this point.
-
- How do you want to proceed?
- ```
-
-- `options[]`:
- - **Approve — proceed to hand-off** (Recommended) — Phase 9 fires next.
- - **Request changes — I'll describe** — fires a sub-AUQ for revision text; revisions re-run affected sections (max 3 user-revision rounds before escalation).
- - **Abort — discard spec** — terminal `aborted` + `## Termination reason: user-rejected-at-phase-8`; spec.md remains on disk but not committed.
+Header "Approve spec"; `question` body renders a multi-line schema digest (Objective from section 1 / Scope summary from sections 2-3 / Approval Points from section 8 / Risk class auto-computed from section 5 + section 7 / Rollback from section 10 / Done Condition from section 11 / touched-file glob count / approval-expiration notice). Options: "Approve — proceed to hand-off" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal question template in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §5.
 
 ### 8.3 Revision-round escalation
 

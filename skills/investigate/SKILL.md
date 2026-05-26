@@ -15,27 +15,9 @@ Section-reference convention: local refs like Phase X are within this SKILL.md.
 
 ## State machine
 
-```
-[entry]
-└── classify ──┬── investigate ──┬── present ──┬── done
-│ │ └── present-summary-only (terminal — "Nothing — just wanted the answer" pick)
-│ │
-│ └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
-│ ├── present (user picks "drop unverified claims" → continue with gaps)
-│ └── aborted (terminal)
-│
-└── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
-├── aborted (terminal)
-└── routed (terminal — question intent doesn't match /investigate scope; route to /onboard, /debug, etc.)
+state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only`, `aborted`, `routed` (the SessionStart recovery treats all as "task complete — no resume"). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up (max 2 rounds).
 
-present ──┬── (happy: flows to done)
-└── present-loop ──┬── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
-└── done (user picks "save findings" → save-routing AUQ executes → done)
-```
-
-Terminal states: `done`, `present-summary-only`, `aborted`, `routed`. the SessionStart recovery treats all as "task complete — no resume". Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to user as "task was paused — last AUQ options" so user re-picks without losing context.
-
-See / for full enum + termination-case mapping.
+Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §1.
 
 ## Loop invariants
 
@@ -185,134 +167,15 @@ Every spawn below pre-populates the 6 required fields from `${CLAUDE_PLUGIN_ROOT
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
-```
-Agent(description="Investigate: codebase analysis", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
-## Task: Codebase Investigation (READ-ONLY)
-Produce a structured findings report answering the question below by analyzing pre-inlined codebase content. This is a read-only research task — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
-
-**Question:** {{user's question}}
-**Target area:** {{files/modules/patterns to focus on}}
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-
-### Acceptance criteria (self-check before reporting completion)
-- Every Finding cites at least one file:line + verified snippet (Evidence Standard kind 1) or captured grep/command output (kind 2). Reasoning-only findings are rejected.
-- "Files examined" lists every file you Read with line counts.
-- "Gaps" section is present (may be empty) — never silently drop a sub-question.
-
-### Pre-Inlined Files
-{{paste verbatim contents of orchestrator-identified relevant files with absolute paths as headers; agents do NOT re-Glob}}
-
-### Investigation strategy
-1. Read the pre-inlined files fully — do not skim
-2. Use Grep / additional Read calls only when pre-inlined files reference symbols not yet in scope
-3. Trace execution paths, data flow, or dependency chains as needed
-4. Identify patterns, conventions, and edge cases
-5. Note any inconsistencies, dead code, or surprising behavior
-
-### Output schema (literal shape)
-**Files examined:** [list with line counts]
-
-**Findings:**
-For each relevant discovery, one block matching:
-- What: [specific finding with file:line references]
-- Evidence: [code snippet or grep output — verbatim]
-- Relevance: [how this answers the question]
-
-**Gaps:** [what you couldn't determine from code alone — bulleted]
-
-Do NOT speculate. If the code doesn't answer a sub-question, list it as a gap.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
+Read-only research agent with `disallowedTools=["Edit", "Write", "NotebookEdit"]`. Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 1 + Relevance) + `Gaps` report. Full spawn template (acceptance criteria, pre-inlined-files convention, investigation strategy, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent A).
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
-```
-Agent(description="Investigate: git history", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
-## Task: Git History Investigation (READ-ONLY)
-Produce a structured timeline + findings report on the git history relevant to the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit, and do NOT run mutating git operations (no `git add`, `git commit`, `git push`, `git checkout`, `git reset`). Read-only git verbs only: `log`, `blame`, `show`, `diff`.
-
-**Question:** {{user's question}}
-**Target area:** {{files/modules to focus on}}
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-
-### Acceptance criteria (self-check before reporting completion)
-- Every Finding cites a commit hash + commit-message excerpt or diff snippet (Evidence Standard kind 2 — captured command output). No paraphrased "the commit said".
-- Timeline is chronological with explicit dates from `git log --format`.
-- "Patterns" section is present (may be empty if no trend is supported by ≥3 commits).
-
-### Pre-Inlined Files
-{{paste any relevant file contents the orchestrator already read; the agent does NOT re-Read these to find file:lines}}
-
-### Investigation strategy
-1. `git log --oneline -30 -- {{target files}}` — recent changes
-2. `git log --all --oneline --grep="{{relevant keywords}}"` — commits mentioning the topic
-3. `git blame {{key files}}` — who wrote critical sections and when
-4. `git log --diff-filter=A -- {{target files}}` — when files were first added
-5. For "why" questions: read commit messages in detail for rationale
-
-### Output schema (literal shape)
-**Timeline:** [key events in chronological order, each with date + commit hash]
-
-**Findings:**
-For each relevant discovery, one block matching:
-- What: [commit hash, date, author, change summary]
-- Evidence: [commit message excerpt or diff summary — verbatim]
-- Relevance: [how this answers the question]
-
-**Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions; bulleted]
-
-Do NOT speculate about intent beyond what commit messages state.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
+Read-only research agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, plus a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`). Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 2 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent B).
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
-```
-Agent(description="Investigate: internet research", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
-## Task: Internet Research (READ-ONLY)
-Produce a structured external-sources report answering the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit; do NOT run any local-codebase Bash commands. Use WebSearch + WebFetch only.
-
-**Question:** {{user's question}}
-**Target area:** {{technologies, patterns, or concepts involved}}
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-
-### Acceptance criteria (self-check before reporting completion)
-- Every Finding has a Source URL (Evidence Standard kind: external documented fact). No "I recall…" without a URL.
-- Reliability label is one of: official docs / widely-accepted / single source / opinion.
-- Consensus + Disagreements sections present (may be empty if N=1 source).
-
-### Pre-Inlined Context
-{{paste any pre-existing notes from the orchestrator on what's already known about the external technology, so the agent doesn't re-establish background}}
-
-### Investigation strategy
-1. Use WebSearch for each query. Use WebFetch to read full page content when a search result looks highly relevant.
-2. Search for official documentation of relevant frameworks/libraries
-3. Search for best practices, known issues, or common patterns
-4. Search for comparisons or alternatives if the question involves choices
-5. Search for security advisories or deprecation notices if relevant
-
-### Output schema (literal shape)
-**Sources consulted:** [list with URLs]
-
-**Findings:**
-For each relevant discovery, one block matching:
-- What: [specific finding]
-- Source: [URL or reference]
-- Relevance: [how this answers the question]
-- Reliability: [official docs / widely-accepted / single source / opinion]
-
-**Consensus:** [what most sources agree on, if applicable]
-**Disagreements:** [where sources conflict, if applicable]
-
-Report facts with sources. Flag opinions as opinions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
+WebSearch+WebFetch agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, no local-codebase Bash. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard external-doc kind) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent C).
 
 ### Step 2: Verify — orchestrator re-checks each load-bearing claim
 
@@ -372,86 +235,7 @@ After Phase 2 Step 2/3 complete (every load-bearing claim verified or routed):
 
 #### Draft the answer
 
-Structure the answer based on question type:
-
-**For "How" questions:**
-```
-## How [X] Works
-
-### Overview
-[1-2 sentence summary]
-
-### Execution Flow
-1. [Step with file:line reference]
-2. [Step with file:line reference]
-...
-
-### Key Details
-- [Important behavior or edge case]
-
-### Diagram (if helpful)
-[ASCII flow diagram of the process]
-```
-
-**For "Why" questions:**
-```
-## Why [X] Was Chosen
-
-### The Decision
-[What was decided and when]
-
-### Evidence
-- [From git history: commit messages, timing]
-- [From code: patterns that reveal intent]
-- [From internet: industry context at the time]
-
-### Trade-offs
-| Chosen approach | Alternative | Why chosen won |
-|---|---|---|
-```
-
-**For "What-if" questions:**
-```
-## Impact of Changing [X]
-
-### Direct Impact
-- [Files that would need changes]
-
-### Ripple Effects
-- [Downstream dependencies affected]
-
-### Risks
-- [What could break]
-
-### Recommendation
-[Proceed / proceed with caution / avoid — with evidence]
-```
-
-**For "Compare" questions:**
-```
-## Comparison: [A] vs [B]
-
-| Dimension | A | B |
-|---|---|---|
-| [relevant dimension] | [evidence] | [evidence] |
-
-### Recommendation
-[Which fits this codebase better and why]
-```
-
-**For "Risk" questions:**
-```
-## Risks of [X]
-
-### Risk Assessment
-
-| Risk | Likelihood | Impact | Evidence |
-|---|---|---|---|
-| [risk] | High/Med/Low | High/Med/Low | [source] |
-
-### Mitigations
-- [For each high risk: what to do about it]
-```
+Structure the answer based on question type. Five literal markdown templates (How / Why / What-if / Compare / Risk) — each with the expected sections (Overview / Execution Flow / Key Details for How; Decision / Evidence / Trade-offs for Why; Direct Impact / Ripple Effects / Risks / Recommendation for What-if; per-dimension comparison table for Compare; Risk Assessment table + Mitigations for Risk) — in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §5. Copy the matching template and fill in evidence; do NOT freelance the shape.
 
 #### Confidence-driven action (no caveats-as-substitute)
 
@@ -464,49 +248,7 @@ For each major claim, check it has a verified artifact per the Evidence Standard
 
 ### Step 2: Fresh reviewer-agent
 
-Spawn a fresh review agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
-
-The verifier inherits the orchestrator's session tier (OMIT `model=`). The user's session-level `/model` choice propagates — they pick the cost/depth trade-off at session start, not per-spawn.
-
-```
-Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
-## Task: Verify Investigation Answer (READ-ONLY)
-Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
-
-**Original question:** {{user's question}}
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-
-### Acceptance criteria (self-check before reporting completion)
-- Every claimed issue cites a specific Location-in-answer (section name or line) and includes a Severity label.
-- Spot-check (item 1 below) covers 2-3 distinct load-bearing claims, not 1 claim re-checked thrice.
-- If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
-
-### Pre-Inlined Files
-{{paste verbatim contents of every file cited in the draft answer's file:line references; reviewer re-Reads from these — does NOT re-Glob}}
-
-### Draft answer
-{{full draft answer from Phase 3}}
-
-### Verification checklist
-1. **Spot-check Phase 2 Step 2 re-verify**: Phase 2 Step 2 already had the orchestrator re-verify cited claims. Pick 2-3 load-bearing claims at random; re-Read their cited file:lines and confirm the snippet still matches. If a sample fails, that's a Phase 2 Step 2 gap — flag it as a blocker, not a single-claim correction.
-2. **Completeness**: Does the answer fully address the question? Any obvious gaps?
-3. **Honesty**: Is every load-bearing claim backed by an artifact (Evidence Standard kinds 1-5)? Are unverified claims listed in "Open questions" rather than smuggled in with caveats?
-4. **Clarity**: Would someone unfamiliar with this code understand the answer?
-5. **Over-claims**: Does the answer claim certainty where evidence is actually weak?
-6. **Missing context**: Is there important context the answer should mention but doesn't?
-
-### Output schema (literal shape)
-For each issue found, one block matching:
-- Location: [section/line in the answer]
-- Issue: [description]
-- Severity: [blocker | warning | nit]
-- Suggested fix: [text]
-
-If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
-""")
-```
+Spawn a fresh review agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §4.
 
 #### Process review results:
 - **Blockers**: Fix the answer (orchestrator corrects directly — these are text edits, not code).
@@ -604,76 +346,7 @@ No T2 handoff to delete. Chat answer is the deliverable. Persistent artifacts fr
 
 ## State file schema
 
-Path: `<PRIMARY_ROOT>/.geniro/state/investigate/<slug>/state.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A; compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules — derived from question hash + first significant words).
-
-Write via `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`:
-
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write ".geniro/state/investigate/<slug>/state.md" <<EOF
----
-tier: T1
-producer: investigate
-schema-version: 1
-branch: <git-branch>
-timestamp: <ISO-8601 UTC>
-phase: <classify|investigate|present|*-escalated|done|present-summary-only|aborted|routed>
-status: <in-progress|done|failed>
-non-resumable-actions: []
-approvals: []
-geniro_kind: investigate-state
-geniro_schema_version: m9-v1
-task_slug: <slug>
-worktree: <abs-path>
-question_type: <one of 9 types from Phase 1 Step 1 classification>
-agents_spawned: []
-dive_deeper_rounds: 0
----
-
-## Scope
-<target area + skip criteria applied>
-
-## Classification
-<question type + agent set chosen>
-
-## JIT Cadence
-<§Step 2.6 5-step audit log>
-
-## Agent Findings
-<raw output from research agents>
-
-## Verified Claims
-<Phase 2 Step 2 re-verified evidence>
-
-## Draft Answer
-<pre-review version — preserved for compaction-resume>
-
-## Reviewer Findings
-<fresh-reviewer issue list>
-
-## Final Answer
-<post-review version>
-
-## Tool log
-<selective logging — subagent spawns, L2 emits, escalations>
-
-## Errors
-<Block 5b — WebFetch/WebSearch failures, permission errors>
-
-## Open Questions
-<Block 5c — missing-data gates, glossary mismatches>
-
-## Termination reason
-<— only on terminal aborted/routed states >
-
-## Persisted approvals
-<Block 5d — render of frontmatter approvals[] (category: glossary_resolve)>
-EOF
-```
-
-`approvals[]` populated per when Phase 1 Step 2.5 fires (category `glossary_resolve`).
-
-Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`.
+T1 state.md path `<PRIMARY_ROOT>/.geniro/state/investigate/<slug>/state.md` (resolve via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Write via `atomic_state_write`; validate on resume via `validate_state_file`. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Reviewer Findings / Final Answer / Tool log / Errors / Open Questions / Termination reason / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
 
 ---
 
@@ -715,40 +388,18 @@ Per master plan — every milestone closes with an explicit anti-pattern check.
 | "I already know the answer from reading the code" | You read one perspective. Parallel agents catch what you missed — git history reveals intent, internet reveals context. |
 | "I'll spawn all 3 to be safe" | Irrelevant agents are net-negative — they consume tokens and their off-target findings force the synthesizer to filter noise. Phase 1 Step 2 skip criteria drive the set, not safety defaults. |
 | "Self-review is overkill for a question" | Wrong answers waste more time than the review costs. File references go stale, claims drift from evidence. |
-| "The question mentions a library, but I'll skip Internet — I can answer from code" | The skip criteria require evidence, not guesses. If the question references an external dependency, framework, or standard, Internet is in the set. Use the Phase 1 Step 2 rules, not intuition. |
 | "The classification says 1 agent but I'll add Codebase for safety" | The Phase 1 Step 1 classification table is the LITERAL spawn set. Adding an agent the skip criteria excluded is the over-spawn anti-pattern. If the criteria look wrong for this question, revise classification — don't silently add. |
 | "I'll spawn agents one at a time to save tokens" | Parallel agents go in ONE response — multiple Agent calls in the same assistant turn. Sequential turns waste wall-clock time for no token savings. |
-| "The user seems to want a quick answer" | A wrong quick answer is worse than a correct 30-second-slower answer. Run the pipeline. |
 | "All three agents converge on the same claim — that's confirmed" | Convergent self-reports are still self-reports. Phase 2 Step 2 re-verify requires the orchestrator to independently re-read / re-run / re-grep before treating any agent claim as evidence. |
 | "The reasoning chain is tight, that's enough evidence" | Reasoning is hypothesis, not evidence. Only the artifact kinds (file:line snippet, captured output, log line, query result, user data) clear the Evidence Standard. |
 | "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence. Phase 3 Step 1 confidence-driven action requires verified / re-verify / ask-user / omit — there is no "ship with caveat" path. |
 | "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
-| "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
-| "Add a wall-time kill cap so long-running investigations abort cleanly." | Class-A hard caps abort legitimate complex investigation mid-stride. quality-first — no Class-A caps. Phase 3 dive-deeper rounds + fresh-reviewer re-review rounds escalate to user via AUQ. User has agency. |
+| "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
 | "Auto-promote /investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
-| "Defer compaction-survival to downstream skills — /investigate is mostly Q&A." | The contract IS /investigate's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-investigate loses verified-claims set. |
-| "Bypass `git guardrail` hooks if Git Historian needs a write." | Git Historian's tool surface explicitly read-only per §ACI — `git log`, `git blame`, `git show`, `git diff` only. Hook-block on git write is the correct denial; rewrite the agent spawn if it tries a write (it shouldn't). |
-| "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Step 5. Issue threads contain speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
-| "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | mandates the field. Future readers (later /audit or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
+| "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5. Issue threads contain speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
+| "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field. Future readers (later /audit or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
 | "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | If CLAUDE.md has a Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. Always run the check when Domain Context is present. |
-| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | is a master-plan obligation. The 5-step cadence is what makes /investigate evidence-disciplined; dropping it would let claims drift from evidence. |
-
-## Anti-pattern check
-
-| # | Anti-pattern | /investigate status |
-|---|---|---|
-| 1 | One giant prompt | ✅ Avoided — orchestration shell + per-agent spawn templates + delegated helpers |
-| 2 | One giant tool | ✅ N/A |
-| 3 | Unbounded autonomous loop | ✅ §quality-first-budgets table — escalation gates only |
-| 4 | Autonomous external sends in first release | ✅ N/A — /investigate ships no commits / no PRs / no posts |
-| 5 | No approval state | ✅ Step 2.5 `glossary_resolve` approvals[] + Block 5d render |
-| 6 | No durable plans or goals | ✅ State.md mandatory; schema |
-| 7 | No compaction strategy | ✅ body sections + SessionStart re-injects |
-| 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools without policy | ✅ §ACI per-phase + existing safety hooks |
-| 10 | Subagents before single-agent MVP measured | ✅ Path-classified spawn set per-(1-3 agents only when criteria match) |
-| 11 | Dynamic timestamps in plugin-distributed Markdown bodies | ✅ Verified — no runtime timestamps in this SKILL.md body |
-| 12 | Non-deterministic agent registration order | ✅ Alphabetic — Codebase Analyst / Git Historian / Internet Researcher |
+| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | The 5-step cadence is what makes /investigate evidence-disciplined; dropping it would let claims drift from evidence. Step 2.6 is the audit trail that makes JIT discipline reviewable. |
 
 ## Definition of Done
 
@@ -766,24 +417,6 @@ Per master plan — every milestone closes with an explicit anti-pattern check.
 
 ---
 
-## When to Use This Skill
-
-**Use `/geniro:investigate`:**
-- "How does X work in this codebase?"
-- "Why was this pattern/library/approach chosen?"
-- "What would break if we changed X?"
-- "Compare approach A vs B for our use case"
-- "What are the risks of doing X?"
-- Complex questions requiring multiple sources of evidence
-
-**Don't use:**
-- Bug with unclear root cause → use `/geniro:debug`
-- Need to implement something → use `/geniro:implement`
-- First time in the codebase → use `/geniro:onboard`
-- Simple factual question answerable by reading one file → just read the file
-
----
-
 ## Examples
 
 ### Example 1: Understanding a Feature
@@ -796,34 +429,4 @@ Per master plan — every milestone closes with an explicit anti-pattern check.
 → Self-review verifies all references are accurate
 → Present: flow diagram + key files + edge cases
 
-### Example 2: Design Rationale
-```
-/geniro:investigate why does the project use Redis for sessions instead of JWT?
-```
-→ Git agent searches for commits mentioning Redis, JWT, sessions
-→ Internet agent researches Redis vs JWT session trade-offs
-→ Codebase agent examines current session implementation
-→ Synthesize: timeline of decision + trade-offs + current state
-→ Present: decision history + evidence for/against
-
-### Example 3: Impact Analysis
-```
-/geniro:investigate what would break if we upgrade from Express 4 to Express 5?
-```
-→ Internet agent researches Express 5 breaking changes
-→ Codebase agent finds all Express 4 APIs used in the project
-→ Git agent checks how recently Express-dependent code was modified
-→ Synthesize: breaking changes that affect this codebase specifically
-→ Present: risk table + affected files + migration path
-
-### Example 4: Forward-looking integration
-```
-/geniro:investigate how can we connect the user_events table to our internal analytics dataset?
-```
-→ Codebase agent finds existing data-export points, schema definitions, and any prior connector code
-→ Git agent searches commits mentioning "analytics", "export", "etl" to surface prior approaches
-→ Internet agent researches the analytics dataset's documented ingestion API and constraints
-→ Phase 2 Step 2 verifies: re-Read the schema files cited; re-run the grep for prior connector code; confirm the analytics-API endpoint exists per docs
-→ If a credential / API key / sample dataset is needed and not present, route through Phase 2 Step 3 missing-data gate
-→ Synthesize: integration approach grounded in cited files + existing schema + verified external API
-→ Self-review verifies all references; present with explicit "open questions" if any sub-question lacked evidence
+Additional worked examples (Design Rationale, Impact Analysis, Forward-looking integration) live in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §6.

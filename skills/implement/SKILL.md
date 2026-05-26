@@ -620,8 +620,7 @@ These patterns must NOT be reintroduced:
 | Your reasoning | Why it's wrong |
 |---|---|
 | "/implement should ask user before each Edit — safety first." | Phase 2 Implement is the execution phase. Pre-approval lives upstream — /geniro:plan Phase 8 emits the spec.md; that spec.md IS the pre-approval. Per-Edit AUQs defeat the spec-driven autonomy this skill is designed for. |
-| "Add a wall-time kill cap so long-running tasks abort cleanly." | Quality-first framing: Class-A hard caps abort legitimate complex work mid-stride. No Class-A caps. Past three failed Phase 2 retries, escalation surfaces to user via AUQ. |
-| "Phase 2 should fan out backend/frontend agents for parallel edits — saves wall-time." | Documented anti-pattern: parallel agents editing tightly-interdependent code (frontend/backend sharing a contract, modules sharing types/imports) produce style drift, duplicated implementations, and contradictions that lint/compile cannot catch. Phase 2 uses sequential TodoWrite decomposition within a single orchestrator — same throughput on truly parallel work-units (rare in real implementation slices), much higher quality on tightly-coupled ones. Keep this row distinct from Loop invariant #9 (one in_progress) — they reinforce the same constraint at different levels. |
+| "Phase 2 should fan out backend/frontend agents for parallel edits — saves wall-time." | Documented anti-pattern: parallel agents editing tightly-interdependent code (frontend/backend sharing a contract, modules sharing types/imports) produce style drift, duplicated implementations, and contradictions that lint/compile cannot catch. Phase 2 uses sequential TodoWrite decomposition within a single orchestrator — same throughput on truly parallel work-units (rare in real implementation slices), much higher quality on tightly-coupled ones. |
 | "Mark all todos in_progress at start so the orchestrator can interleave work." | Forbidden by Loop invariant #9. Single-in-progress is Claude Code's enforced Tasks API design; scattered parallel attempts hurt quality. Mark the next todo `in_progress` only after the current todo completes. |
 | "Skip TodoWrite — it's overhead; the orchestrator knows the spec already." | TodoWrite gives the user granular progress visibility. Without it, Phase 2 is a black box until tests run. With it, the user sees real-time per-unit progress. Not optional. |
 | "Spawn one subagent per todo to keep context lean." | Hybrid TodoWrite-plus-per-todo-subagent only works if each todo has truly independent spec + tests + worktree. For typical implementation slices that share types, imports, and conventions, per-todo subagents reintroduce the context-sharing problem. Phase 2 todos share too much context — keep single-agent. |
@@ -629,8 +628,6 @@ These patterns must NOT be reintroduced:
 | "/implement should self-fix indefinitely until reviews clean." | Phase 3 fix loop is bounded to 3 rounds. Past 3 unresolved rounds, escalate via AUQ — never silently loop. "Kick it until it passes" is a catalogued anti-pattern; round 4 entry is forbidden. |
 | "Skip the ship-mode AUQ — user can `git reset` if they wanted a draft PR." | Push is draft-grade (auto), but PR creation is commit-grade (AUQ-gated). Inline modifiers (`don't push`, `draft only`, `with PR`, `stop after review`) provide deterministic overrides — they're the documented escape hatch, not silent skipping. |
 | "Auto-promote L2 conventions to L4 rules when ≥3-pattern detected." | Surface a one-line promotion suggestion; do NOT auto-promote. User remains source-of-truth for L4 rule curation. The suggestion line is informational, no AUQ, no auto-edit. |
-| "Defer compaction-survival to downstream skills — this skill is too complex to wire it up." | The compaction-survival contract IS this skill's contract — state.md frontmatter, `non-resumable-actions[]`, `## Tool log`. Without these, compaction mid-Phase-2 loses the entire run. Non-negotiable. |
-| "Run reviewers serially — easier to debug than parallel-spawn batch." | Phase 3 Round 1 spawns 6 agents in ONE assistant response (5 reviewers + 1 adversarial-tester). Serial spawn doubles wall-time and gives no debugging benefit — each spawn returns a structured report independently. Wrong trade-off. |
 | "Audit trail isn't needed for local /implement runs." | The state.md `## Tool log` IS the audit trail. The SessionStart hook re-injects on compaction. Without log, post-mortem on failed runs is impossible. |
 | "Bypass safety hooks with --no-verify when commit-hook fails — saves time." | Hooks fail for a reason. Investigate root cause, not bypass. --no-verify usage is a CLAUDE.md-level prohibition. |
 | "Spawn agents one at a time for cleaner orchestration." | All 6 Phase 3 Round 1 spawns happen in ONE assistant response (5 reviewers + 1 adversarial-tester) — multiple `Agent(...)` tool uses in the same message. Separate turns = no concurrency, full wall-clock latency per agent. Same rule for Phase 1 KR + CE: ONE response, TWO spawns. |
@@ -640,16 +637,3 @@ These patterns must NOT be reintroduced:
 
 ---
 
-## REFERENCE
-
-- Templates, $ARGUMENTS-parse table, subagent spawn templates (KR / CE / test-runner / reviewer / adversarial-tester), fix-loop, ship sub-step: `${CLAUDE_SKILL_DIR}/implement-reference.md`
-- Agent contracts: `${CLAUDE_PLUGIN_ROOT}/agents/knowledge-retrieval-agent.md`, `codebase-explorer-agent.md`, `test-runner-agent.md`, `reviewer-agent.md`, `adversarial-tester-agent.md`
-- Review criteria files: `${CLAUDE_PLUGIN_ROOT}/skills/review/` (bugs, security, architecture, tests, optimizations, guidelines, conventions, +design when UI files changed)
-- State helpers: `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh`
-- Memory helpers: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`, `${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh`, `query-learnings.sh`, `emit-learning.sh`, `update-semantic.sh`, `resolve-conflicts.sh` (+ companion `.md` API docs in `skills/_shared/`)
-- Custom reviewer discovery: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`
-- Agent spawn-degradation ladder: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`
-- Model tiering doctrine: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`
-- Branch naming: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`
-- UI-file detection rule: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule
-- Evidence standard: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`

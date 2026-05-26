@@ -20,7 +20,7 @@ Sources for every number below: Anthropic [Skill best-practices](https://platfor
 
 ## Reference graph
 
-- **Depth ≤ 1 hop** from SKILL.md. SKILL.md may link to `*-reference.md` or to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/*.md` helpers; those files may NOT link back into other skill bodies for runtime instructions. Claude does partial reads (`head -100`) on nested refs and loses information.
+- **Depth ≤ 1 hop from SKILL.md to reference / helper.** SKILL.md may link to `*-reference.md` or to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/*.md` helpers. Those targets may NOT link back into another skill body (`skills/<other>/SKILL.md` or its references) for runtime instructions — cross-skill coordination lives in `_shared/`, never in a foreign skill's reference file. **Inside `_shared/`, peers may cross-link freely** for topological context (e.g., `state-tier-spec.md` ↔ `atomic-state-write.md` ↔ `validate-state-file.md` reference each other because they describe one cohesive subsystem). The 1-hop ceiling constrains the SKILL → reference edge; `_shared/` is a flat namespace whose helpers navigate among themselves. Claude still does partial reads on transitively-discovered files, so chains longer than ~3 hops from SKILL.md to leaf degrade — avoid those.
 - **TOC required** for any file > 100 lines. Place a 5-15 line "Contents" or "Sections" block right after the H1 so partial-read previews still see the full scope.
 - **Single-source-of-truth.** Pseudo-code blocks, slot tables, schema definitions live in exactly ONE file. Cross-references point at the source; never inline a copy.
 
@@ -99,43 +99,25 @@ Before committing edits to `skills/**/*.md` or `agents/**/*.md`, walk this check
 6. **Anti-rationalization table ≤ 15 rows.** `sed -n '/^## Anti-rationalization/,/^## /p' <file> | grep -cE '^\|'` — subtract 2 (header + separator) and check.
 7. **Frontmatter description** is third-person, "Use when …" form, ≤1024 chars.
 
-## Migration audit — concrete current violations
+## Migration audit — remaining work
 
-The numbers below reflect the codebase at the time this rule was authored. They are starting points, not a freeze frame — re-run the greps in §Pre-commit verification when auditing.
+The numbers below reflect the codebase after the structural-refactor pass. Re-run the greps in §Pre-commit verification when auditing.
 
-**SKILL.md files exceeding the 500-line target:**
+**SKILL.md files exceeding the 500-line target** (all under the 700 hard ceiling):
 
-| File | Lines | Suggested action |
+| File | Lines | Note |
 |---|---|---|
-| `skills/debug/SKILL.md` | 920 | Severe — split state machine + recovery scenarios into `debug-state-reference.md` |
-| `skills/investigate/SKILL.md` | 839 | Severe — split 9-type taxonomy + agent-spawn templates into `investigate-taxonomy-reference.md` |
-| `skills/refactor/SKILL.md` | 716 | Move smell-detection patterns + per-step regression contracts into `refactor-patterns-reference.md` |
-| `skills/implement/SKILL.md` | 643 | Already partially split; consider moving Step 0 sub-sections into `implement-reference.md` §"Phase 1 Step 0" |
-| `skills/setup/SKILL.md` | 629 | Move 4-phase interview templates into `setup-interview-reference.md` |
-| `skills/review/SKILL.md` | 602 | Move Phase 4 sub-phase tables into existing `phase-4c-test-gate-reference.md` umbrella |
-| `skills/instructions/SKILL.md` | 593 | Move per-scope scaffolds into `instructions-scaffolds-reference.md` |
-| `skills/actions/SKILL.md` | 568 | Move risk-class AUQ ladder details into `actions-risk-reference.md` |
-| `skills/onboard/SKILL.md` | 507 | Marginal — re-examine before splitting |
+| `skills/review/SKILL.md` | 694 | Acceptable — under hard ceiling; spawn-list + 9-dim grid dominate length |
+| `skills/debug/SKILL.md` | 688 | Acceptable — under hard ceiling; Adversarial Mode A1-A6 procedure inline |
+| `skills/implement/SKILL.md` | 639 | Acceptable — 3-phase loop with KR/CE/TR/reviewer/adversarial spawn sites |
+| `skills/setup/SKILL.md` | 629 | Acceptable — 4-phase singleton bootstrap inline |
+| `skills/instructions/SKILL.md` | 593 | Acceptable — 10-scope CRUD inline |
+| `skills/actions/SKILL.md` | 568 | Acceptable — 6-op CRUD + 3-tier risk-class AUQ inline |
+| `skills/refactor/SKILL.md` | 550 | Acceptable — under hard ceiling |
+| `skills/onboard/SKILL.md` | 507 | Marginal — re-examine if it grows |
 
-**Anti-rationalization tables exceeding 15 rows:**
+**Anti-rationalization tables**: all ≤15 rows. Caps respected.
 
-| File | Rows | Suggested action |
-|---|---|---|
-| `skills/debug/SKILL.md` | 32 | Prune to top 15 by current relevance |
-| `skills/refactor/SKILL.md` | 24 | Prune to top 15 |
-| `skills/review/SKILL.md` | 23 | Prune to top 15 |
-| `skills/investigate/SKILL.md` | 20 | Prune to top 15 |
-| `skills/implement/SKILL.md` | 18 | Prune by 3 |
+**Reference files > 100 lines lacking a TOC**: re-audit when adding new reference files. Add a 5-15 line "Contents" block right after the H1 per §Reference graph rule.
 
-**Reference files > 100 lines lacking a TOC:**
-
-`plan-loop.md` (545), `implement-reference.md` (544), `phase-1-triage-reference.md` (377), `phase-6-handoff-reference.md` (285), `plan-context-reference.md` (206), `phase-4c-test-gate-reference.md` (138), `incoming-mode-reference.md` (121). Add a 5-15 line "Contents" block right after the H1.
-
-**Line-number cross-references to fix:**
-
-| Location | Reference | Replace with |
-|---|---|---|
-| `skills/plan/plan-loop.md:119` | `skills/investigate/SKILL.md:199` | content anchor: "/geniro:investigate Phase 2 spawn idiom" |
-| `skills/review/phase-1-triage-reference.md:206` | `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md:22` | content anchor: "the Phase 1 workflow-integration block" |
-
-This audit is one-time; the structural constraints above are forever. New edits enforce themselves via the Pre-commit verification checklist.
+This audit reflects the post-refactor state. New edits self-enforce via the §Pre-commit verification checklist.
