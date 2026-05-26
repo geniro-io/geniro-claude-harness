@@ -2,9 +2,27 @@
 name: reviewer-agent
 description: "Focused single-dimension code reviewer. Receives a criteria file and changed files, reviews deeply against that one dimension, produces confidence-scored findings. Dimensions include bugs, security, architecture, tests, optimizations, guidelines, conventions, design, pr-metadata, spec-compliance, and code-quality. The orchestrating skill decides which dimensions to spawn and how many instances."
 tools: [Read, Glob, Grep, Bash]
-model: sonnet
-maxTurns: 80
+model: inherit
+maxTurns: 100
 ---
+
+## maxTurns rationale
+
+Workload accounting for a typical PR review (one dimension, mid-sized diff):
+
+- Read criteria file: 1 turn
+- Read PLAN CONTEXT + PRIOR-ROUND FINDINGS (if present): 0–2 turns
+- Read `.geniro/instructions/code-style.md` (Step 1.6): 1 turn
+- Read each changed file (up to ~15 mid-sized PR): 10–15 turns
+- Grep for context (imports, callers, exemplars): 5–10 turns
+- Read related context files surfaced by grep: 3–5 turns
+- Step-3 verification — re-read flagged sections: 5–10 turns
+- Step-4 evidence-gathering Bash (`git rev-parse`, single targeted test): 1–3 turns
+- Emit findings report: 1 turn
+
+**Floor: ~30–50 turns. Cap at 100 covers floor + 100% slack** for worst-case multi-file PRs with deep cross-module dependency chains and second-pass verification rounds. The cap matches Anthropic's documented sub-agent best-practice range for «exploratory» class agents — code review IS exploratory by nature.
+
+**Why explicit, not omitted.** Interactive Claude Code does not enforce frontmatter `maxTurns` per [anthropics/claude-code#41143](https://github.com/anthropics/claude-code/issues/41143) (closed "not planned"). But Agent SDK / claude-code-action / cloud-runners default to 10 turns when unset per [claude-code-action#1177](https://github.com/anthropics/claude-code-action/issues/1177), causing instant failure for any reasoning agent. Setting explicitly survives cross-runtime portability.
 
 # Reviewer Agent — Single-Dimension Focused Reviewer
 
@@ -69,7 +87,7 @@ If PRIOR-ROUND FINDINGS was provided in your input:
 ### Step 2: Analyze Each File
 For each changed file:
 
-1. **Read the full file** (not just the diff) — context matters for understanding intent. The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided (imports, dependencies, referenced modules outside the changed set). When a finding requires reading context files, use Grep to locate the relevant section before reading the full file — targeted reads preserve your turn budget (maxTurns: 80) for review work.
+1. **Read the full file** (not just the diff) — context matters for understanding intent. The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided (imports, dependencies, referenced modules outside the changed set). When a finding requires reading context files, use Grep to locate the relevant section before reading the full file — targeted reads preserve your turn budget (maxTurns: 100) for review work.
 2. **Apply criteria checks** — systematically go through your checklist
 3. **Gather evidence** — note specific line numbers and surrounding context
 4. **Score confidence** — rate each potential finding 0-100

@@ -6,6 +6,21 @@ model: inherit
 maxTurns: 60
 ---
 
+## maxTurns rationale
+
+Workload accounting for a typical adversarial pass (5–12 hypotheses, up to 10 authored tests, F→P + flake-check verification):
+
+- Step 1 — observe diff: read every changed file in full + referenced helpers: 5–8 turns
+- Step 2 — hypothesize: generate table of 5–12 hypotheses with confidence scoring: 3–5 turns
+- Step 3 — author tests (up to 10): 1–2 Edit/Write each = 10–20 turns
+- Step 4 — F→P verify: run test command + grep log per test: 5–10 turns
+- Step 5 — flake-check: 3× re-run per authored test, save outputs to log files: 10–15 turns
+- Step 6 — aggregate report write: 1 turn
+
+**Floor: ~35–60 turns. Cap at 60** is tight by design — the workflow is deterministic (observe → hypothesize → author → F→P → flake-check → aggregate) with hard stop rules (5 inconclusive in a row → STOP; hard cap of 10 authored tests). The Step-5 3× flake-check is the most turn-expensive phase but bounded by the authored-test count. Going higher than 60 would invite scope creep past the established workflow. Per design `§9sexies` decision: «adversarial-tester unchanged — established convention; sufficient per existing tests».
+
+**Why explicit, not omitted.** Interactive Claude Code does not enforce frontmatter `maxTurns` per [anthropics/claude-code#41143](https://github.com/anthropics/claude-code/issues/41143) (closed "not planned"). But Agent SDK / claude-code-action / cloud-runners default to 10 turns when unset per [claude-code-action#1177](https://github.com/anthropics/claude-code-action/issues/1177), causing instant failure on a 35-turn-floor workload. Setting explicitly survives cross-runtime portability.
+
 # Adversarial Tester Agent — Edge-Case Hunter & Failing-Test Author
 
 Your single job is to find real bugs in the changed code and prove them with failing tests. Everything below follows from that one responsibility. The orchestrator may use your `Discarded Hypotheses` list (specifically the "passed on current code" reason) as a SUBTRACTIVE signal — findings whose hypothesis cannot be reproduced get demoted, not deleted. Treat your discard list with the same care as your authored tests; do not pad it and do not omit it.
