@@ -49,7 +49,6 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ AUTO-CONTINUE in current worktree. NO workspace AUQ. Echo:
         "Continuing in worktree '<dir>' on '<branch>'.
          Detected signal(s): <REVIEW_HANDOFF | DEBUG_HANDOFF | IMPLEMENT_TASK_STATE | branch match>."
-      Workflow Question 2 still asked if applicable.
 
 3. IN_WORKTREE == false
    AND PROTECTED_BRANCH == false
@@ -57,7 +56,6 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ AUTO-CONTINUE on current branch. NO workspace AUQ. Echo:
         "Continuing on '<branch>' (detected <signal>).
          Reverse with: re-run with 'worktree' modifier in arguments."
-      Workflow Question 2 still asked if applicable.
 
 4. INPUT_SHAPE == pr-ref
    AND IN_WORKTREE == true
@@ -69,7 +67,6 @@ Decision tree (first match wins; evaluate top-down):
         B) "Exit to repo root and create new worktree '<TARGET_WORKTREE_NAME>'" —
            call ExitWorktree, then standard new-worktree flow (5b below)
         C) "Abort — I'm in the wrong place" — terminal, no-op
-      Workflow Question 2 omitted (mismatch hint suggests confusion; don't pile on).
 
 5. INPUT_SHAPE == pr-ref
    AND IN_WORKTREE == false
@@ -103,7 +100,6 @@ Decision tree (first match wins; evaluate top-down):
    AND no continuing-work signals match
    ⇒ NO workspace AUQ. Auto-continue on current branch — files-mode and diff-range mode
      operate on cwd-relative file paths; creating a worktree adds friction without value.
-     Workflow Question 2 still asked if applicable.
 ```
 
 **Inline modifier overrides** (parsed from `$ARGUMENTS`; modifiers ALWAYS win over auto-detection):
@@ -119,57 +115,33 @@ Conflicting modifiers (e.g., `worktree` AND `no-worktree` both present): last-oc
 
 ### 0c — Approvals-persistence
 
-Persist BOTH answers (when fired) to state.md `approvals[]`:
+When the workspace AUQ fires, persist the answer to state.md `approvals[]`:
 
 ```yaml
 approvals:
   - category: review_workspace_setup
     picked: "Create review worktree (Recommended)"
     timestamp: <ISO-8601>
-  - category: review_workflow_status
-    picked: "Yes — move to In Review"
-    timestamp: <ISO-8601>
-    workflow_file: ".geniro/workflow/linear.md"
-    transition: "In Progress -> In Review"
-    issue_id: "CI-303"
 ```
 
-On compaction-resume or Round 2+ re-runs of /review on the same branch, Step 0 reads `approvals[]` and re-applies prior answers without re-prompting.
+On compaction-resume or Round 2+ re-runs of /review on the same branch, Step 0 reads `approvals[]` and re-applies the prior answer without re-prompting.
 
-### 0d — Workflow Question 2 (conditional)
+Workflow status transitions (e.g., "Move <issue_id> to In Review?") are NOT part of Step 0 — /review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture) per §3.5; they are not user-prompted in Step 0. Workflow status mutation belongs to `/geniro:plan` (kickoff) and `/geniro:implement` (start / ship transitions); `/geniro:review` only reads.
 
-When `.geniro/workflow/*.md` files exist with an `### On review start` section, append one question per matched tracker ID to the Step 0 AUQ batch. Merged source-list:
-
-```
-workflow_refs_to_process = []
-if $ARGUMENTS contains tracker URL/ID → append to workflow_refs_to_process
-if pr.title or pr.body contains tracker URL/ID → append to workflow_refs_to_process
-if spec.md (resolvable via task slug) frontmatter workflow_refs[] non-empty → append
-deduplicate by (kind, issue_id) — $ARGUMENTS wins on conflict
-```
-
-For each ref, find `.geniro/workflow/<ref.kind>.md`. If missing → log warning + skip. Staleness check: if `fetched_at` > 1 hour old OR absent → re-fetch via MCP (timeout 3s, fail-open). Apply the workflow file's `### On review start` block — usually appends a "Move <issue_id> to In Review?" question.
-
-When `1 + N > 4` (rare — task linked to ≥4 trackers), chain into a second AUQ.
-
-If no `### On review start` block exists in any matched workflow file, Question 2 is omitted silently.
-
-### 0e — Execution after AUQ
+### 0d — Execution after AUQ
 
 After AUQ resolves and `approvals[]` is persisted:
 
 1. **Workspace action** — execute worktree create / EnterWorktree / no-op per `review_workspace_setup` pick.
-2. **Workflow status action** — for each persisted `review_workflow_status` approval, follow the workflow file's `### On review start` block. /review is read-only on code; only the workflow status transition is mutating, and the user pre-approved it via the AUQ.
-3. State.md frontmatter `branch:` and `worktree:` updated to reflect the new working tree before Phase 1 §1 (input mode detect) runs.
+2. State.md frontmatter `branch:` and `worktree:` updated to reflect the new working tree before Phase 1 §1 (input mode detect) runs.
 
 Do NOT use `EnterWorktree(name: ...)` — that path auto-creates with `worktree-` prefix and defeats the `.claude/worktrees/<slug>/` convention. Use `EnterWorktree(path: ".claude/worktrees/<slug>")`.
 
-### 0f — Edge cases
+### 0e — Edge cases
 
 | Case | Behavior |
 |---|---|
-| Workflow MCP unavailable when Question 2 fires | Question 2 still fires; "Yes" answer logs a warning and proceeds without MCP call. Non-blocking. |
-| User picks "Other" with custom text on Question 1 | Treat as "Review in current location" semantically; no worktree mutation; echo custom text into state.md `## Workspace decision` body block. |
+| User picks "Other" with custom text on the workspace AUQ | Treat as "Review in current location" semantically; no worktree mutation; echo custom text into state.md `## Workspace decision` body block. |
 | Multiple continuing signals match (review handoff AND debug handoff) | Both satisfy rule 2 or 3. Echo both signal names; behavior identical. |
 | Stale T2 handoff (older than 30 days) | Still triggers rule 2 / 3. Emit soft notice: `"Note: review handoff is N days old."` |
 | `IN_WORKTREE == true` AND `IN_TARGET_WORKTREE == true` but PR `headRefOid` mismatches current `HEAD` | Auto-continue per rule 1. Mismatch surfaces as warning in §3 PR-ref parsing, never blocks. User can re-run with `new-branch` modifier to force a fresh fetch. |
