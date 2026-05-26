@@ -114,7 +114,7 @@ When no sources resolve, the entire field collapses to:
 PLAN CONTEXT: none
 ```
 
-In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` prose fallback). Surface a one-line note in `## Open Questions`: «PLAN CONTEXT lacks schema — falling back to prose checks; Done Condition + Tools Required not verified».
+In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` prose fallback). Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
 
 ---
 

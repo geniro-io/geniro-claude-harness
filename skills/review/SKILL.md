@@ -294,7 +294,7 @@ Apply risk-tier threshold:
 - standard: keep findings with severity ≥ MEDIUM AND confidence ≥ 80%.
 - high: keep findings with severity ≥ MEDIUM AND confidence ≥ 70%.
 
-Sub-threshold findings written to a «Deferred» list (surfaced in `## Open Questions` so user knows what was dropped).
+Sub-threshold findings written to a "Deferred" list (surfaced in body `## Deferred — sub-threshold` so user knows what was dropped). Deferred findings do NOT populate `open_questions[]` — that array is reserved for ambiguous-how-to-fix decisions that gate downstream action, not for awareness-only dropouts.
 
 ### 4.2 Phase 4b — HIGH validator
 
@@ -364,6 +364,17 @@ simplify-mode: <true|false>
 resolved-threads-snapshot: [<path:line entries|null>]
 approvals: []
 non-resumable-actions: []
+open_questions:                       # MUST be present; MAY be empty []
+  - id: q1                            # short stable anchor
+    source: <reviewer-dim or producer-step>
+    question: <verbatim question text>
+    related_findings: [F1, F4]        # optional — finding IDs this question gates
+    status: unresolved                # enum: unresolved | resolved | wontfix
+    resolution:                       # populated when status moves out of `unresolved`
+      picked: <chosen option>
+      at: <ISO-8601 UTC>
+      asked_in_phase: <phase name>
+      resolved_by: <skill that ran the resolution AUQ>
 ---
 
 # Review: <topic / branch>
@@ -398,7 +409,26 @@ non-resumable-actions: []
 <per Block 5b — failed spawns, gh fail-open, mechanical-prepass failures>
 
 ## Open Questions
-<per Block 5c — escalation-required items, ambiguous findings>
+<!-- Human-readable mirror of frontmatter `open_questions[]`. Frontmatter is source of truth. -->
+
+### q1 — <source>: <one-line summary>
+**Status:** unresolved
+**Question:** <verbatim question>
+**Related findings:** F1, F4
+**Why this gates downstream action:** <one sentence — e.g., "drives whether to revert api seeders or update spec.forbidden_actions">
+
+### q2 — ...
+
+<!-- If open_questions[] is empty, this section reads: "No open questions — handoff is unconditionally actionable." -->
+
+## Resolved Questions
+<!-- Populated when downstream consumer (or /review's Phase 6 Step -1 gate) resolves an entry; mirrors frontmatter `open_questions[].resolution`. -->
+
+### q1 — <source>: <one-line summary>
+**Picked:** <chosen option>
+**At:** <ISO-8601 UTC>
+**Resolved by:** <skill — review | implement | manual>
+**Phase:** <phase that ran the resolution AUQ>
 
 ## Termination reason
 <per — only on aborted | escalated state>

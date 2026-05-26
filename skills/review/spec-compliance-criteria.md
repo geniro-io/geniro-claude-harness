@@ -22,7 +22,7 @@ When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schem
 
 Findings MUST cite the specific section (or frontmatter field) violated/missing — e.g., `Evidence: section 2 (Scope.Included) names "src/api/auth/*" but diff touches no auth file`. The 11 checks below name the canonical section anchors.
 
-**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. Surface a one-line note in `## Open Questions`: «PLAN CONTEXT lacks schema — falling back to prose checks; Done Condition + Tools Required not verified».
+**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
 
 ## LINEAR CONTEXT supplement (workflow integration)
 
@@ -223,9 +223,9 @@ Apply the severity downgrades from the False Positives section before tagging. A
 When the `PEER-PR CONTEXT:` slot is non-`none` AND the LINEAR CONTEXT block shows a parent epic with sibling sub-tasks (or PLAN CONTEXT enumerates a multi-PR plan per §Common False Positives «Plan covers a multi-PR effort»), the parent's scope is split across siblings. Apply scope-completeness checks **against the slice the current PR owns**, not the whole parent:
 
 - If LINEAR CONTEXT shows `linear-parent-ref: ENG-100` AND PEER-PR CONTEXT lists a sibling PR carrying a sibling sub-task ID (e.g., `ENG-101` while current is `ENG-102`): the parent's scope is split. Each sub-task PR owns its own slice. Items belonging to the sibling sub-task are NOT omissions on the current PR.
-- A finding shape: «Parent epic ENG-100 has scope items A, B, C. Current PR ENG-102 covers B. Sibling PR #N (ENG-101) covers A. Item C unassigned — surface as `## Open Questions` for user awareness, not a HIGH finding». Severity MEDIUM (open-question signal, not a blocking gap).
+- Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "Parent epic ENG-100 has scope items A, B, C. Current PR ENG-102 covers B; sibling PR #N (ENG-101) covers A. Item C is unassigned — confirm whether C is in scope for this PR, deferred to another sub-task, or out of scope entirely."`. Not a HIGH finding — it gates a scope decision the user must make.
 
-When ALL parent scope items appear covered across current + peer PRs combined, the multi-PR effort is complete — surface a one-line informational note in `## Open Questions`: «Parent epic ENG-100 fully covered by [current + peer-PR list]».
+When ALL parent scope items appear covered across current + peer PRs combined, the multi-PR effort is complete — surface a one-line informational note in body `## Caveats`: "Parent epic ENG-100 fully covered by [current + peer-PR list]." No `open_questions[]` entry — there's nothing to resolve.
 
 ## Output Anchor
 

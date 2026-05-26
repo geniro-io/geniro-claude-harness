@@ -79,7 +79,7 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 |---|---|
 | T1 | `phase`, `status`, `non-resumable-actions` |
 | T1.5 | `phase`, `status`, `non-resumable-actions` (same shape as T1; differs in lifecycle) |
-| T2 | `consumer` |
+| T2 | `consumer`, `open_questions` (array; MAY be empty `[]` when producer surfaced none) |
 | T3 | `concurrency` (enum `append-only\|crud`) |
 
 ### Optional everywhere
@@ -107,6 +107,35 @@ approvals:
     at: <ISO-8601 UTC>
     asked_in_phase: <phase name>
 ```
+
+### T2 required `open_questions` array
+
+Producers that surface ambiguous-how-to-fix decisions or scope questions write them as structured entries. Consumers (downstream skills) MUST gate on `status: unresolved` before taking any mutating action — code edits, posting to external systems, status transitions, etc.
+
+```yaml
+open_questions:
+  - id: q1                                          # short stable anchor (used by AUQ chaining and resolution writes)
+    source: spec-compliance                         # the reviewer dim / producer step that surfaced it
+    question: "API seeder additions in-scope or split into separate PR?"  # the actual question, verbatim
+    related_findings: [F1, F4]                      # optional — finding IDs this question gates
+    status: unresolved                              # enum: unresolved | resolved | wontfix
+    resolution:                                     # populated when status moves out of `unresolved`
+      picked: "Split — revert api seeders to a separate PR"
+      at: 2026-05-26T13:45:00Z
+      asked_in_phase: phase-6-gate
+      resolved_by: review                           # which skill ran the resolution AUQ
+```
+
+**Producer responsibilities:**
+- Initialize `open_questions: []` in the handoff frontmatter. NEVER use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
+- Each entry MUST have `id`, `source`, `question`, `status` set; `related_findings` and `resolution` optional.
+- IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
+
+**Consumer responsibilities:**
+- Before any mutating action that depends on the handoff (Edit/Write in /implement; `gh api POST /reviews` in /review's draft-post path; status transitions in /implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, fire an AUQ batch chained across the unresolved entries (cap-extension when >4), persist each answer back to the producer's file via `atomic_state_write`, then proceed.
+- A consumer that finds `unresolved` entries and ships anyway is a contract violation.
+
+**Free-text body fallback:** the body section `## Open Questions` MAY mirror the frontmatter as a human-readable view (Markdown bullet list with `id` anchors), but the frontmatter is the source of truth. Validators check the frontmatter only; the body is informational.
 
 ### Producer-specific extensions
 
@@ -184,12 +213,23 @@ mode: init
 ```yaml
 ---
 tier: T2
-producer: debug
+producer: review
 schema-version: 1
-branch: fix/null-pointer
-timestamp: 2026-05-19T14:30:00Z
+branch: feat/ci-277
+timestamp: 2026-05-26T13:30:00Z
 consumer: implement
-severity-summary: "1 P0, 2 P2"
+severity-summary: "1 CRITICAL, 7 HIGH, 5 MEDIUM"
+open_questions:
+  - id: q1
+    source: spec-compliance
+    question: "API seeder additions in-scope or split into separate PR?"
+    related_findings: [F1]
+    status: unresolved
+  - id: q2
+    source: architecture
+    question: "Accept parallel CwCaseCardAdapter chrome or refactor to delegate?"
+    related_findings: [F3]
+    status: unresolved
 ---
 ```
 
