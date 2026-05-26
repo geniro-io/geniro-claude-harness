@@ -116,18 +116,15 @@ This skill has **NO hard kill caps**. Same model as other skills /
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (refactor, relevance-filter, reviewer), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (registration ladder: `geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with body inlined). Cache the resolved rung for the rest of the session.
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (reviewer-agent, custom reviewers), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (registration ladder: `geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with body inlined). Cache the resolved rung for the rest of the session.
 
 Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt MUST satisfy the six pre-inlined fields.
 
-**Skill-specific mapping** — refactor work is mostly mechanical pattern application; Sonnet handles ~90% of cases:
-
 | Spawn | Tier | When |
 |---|---|---|
-| Orchestrator-inline execution (LOW or MEDIUM risk) | Orchestrator's model | Smell detection + per-step execution run on orchestrator's main thread (typically Opus 4.7) |
-| Orchestrator-inline execution (HIGH risk) | Orchestrator's model | Same — orchestrator already on highest tier; HIGH-risk plan steps don't warrant a separate tier (no subagent to re-tier) |
-| Independent reviewer-agent + custom reviewers | `sonnet` | Phase 3 diff review (Medium+ tier only) |
-| Focused ADR-drafting agent | `sonnet` | ADR path (only fires if ADR-eligible PRODUCT-DECISION) |
+| Orchestrator-inline execution (any risk) | Orchestrator's model | Smell detection + per-step execution run on orchestrator's main thread (no subagent — no tiering decision) |
+| Independent reviewer-agent + custom reviewers | inherit (OMIT `model=`) | Phase 3 diff review (Medium+ tier only); inheritance lets the user's session-level `/model` choice propagate |
+| Focused ADR-drafting agent | inherit (OMIT `model=`) | ADR path (only fires if ADR-eligible PRODUCT-DECISION) |
 
 ## Agent Failure Handling
 
@@ -165,6 +162,7 @@ On Phase 1 entry, in order:
 3. **L2 prior-knowledge query** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per To find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per
 Echo lines per mandatory.
+5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). Read-only — /refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
 ### 1.2 Scope discovery + baseline + Test-first gate
 
@@ -376,7 +374,7 @@ For Medium and Big: spawn a fresh reviewer-agent. The agent reads its own criter
 Pre-inline content the loader echoed: `code-style.md` content under `## Code-style instructions`. Omit when loader echoed `No code-style.md found — skipping.`
 
 ```
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+Agent(subagent_type="reviewer-agent", prompt="""
 ## Review: Refactor Diff
 This is a refactor — behavior MUST be unchanged. CI already passed. Focus on invariants, not style.
 
@@ -600,6 +598,7 @@ Body sections:
 | Phase 1 entry | `load-semantic` | read L3 | `refresh` |
 | Phase 1 entry | `query-learnings` | read L2 | n/a |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
+| Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes scope decisions |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (emit types: `discovery` with `ext.{area, insight}` OR `pitfall` with `ext.{trap, mitigation}`) |
 
@@ -629,7 +628,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "The user said go fast — skip phases" | Phase skipping is tied to tier classification, not user impatience. Trivial/Small tiers already skip appropriately. |
 | "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. |
 | "This change is obviously safe" | "Obviously safe" is the #1 predictor of broken builds. Run validation. |
-| "I'll upgrade this sonnet spawn to opus just to be safe" | Model tier is task-nature-matched, not risk-appetite-matched. Re-classify via Subagent Model Tiering table; don't silently upsize. |
+| "I'll hardcode `model="sonnet"` at the reviewer-agent spawn site to cap cost — the user might not realize Opus is expensive" | Forbidden. Plugin subagents inherit the orchestrator tier per the canonical rule in `model-tiering.md`. The user chose Opus at session start with full knowledge of cost; overriding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that is the canonical knob. |
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 | "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Class-A hard caps abort legitimate complex refactors mid-stride. quality-first — no Class-A caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
 | "Auto-handle MEDIUM-tier findings to reduce user friction." | Auto-dropping MEDIUMs treats real bugs as advisory. Routes MEDIUM finds to "note in completion summary; proceed" — visible, not auto-dropped. Never auto-drop. |

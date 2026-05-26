@@ -16,7 +16,7 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 ## When this applies
 
-Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden. **Exception:** the built-in `Explore` agent (Claude Code v2.1+, Haiku 4.5, Read/Glob/Grep + read-only Bash only) has its own narrow contract — natural-language lookup queries with a `thoroughness: quick|medium|very thorough` keyword (e.g., `"Explore authentication (thoroughness: quick). Find the login handler."`). It refuses heavyweight 6-field prompts and returns `0 tool uses · 0 tokens · 1s` when misused. Use `Explore` only for narrow "where is X defined?" / "find files matching Y" lookups; for any other research, use general-purpose (`Agent(model="sonnet", description=..., disallowedTools=..., prompt=...)` — no `subagent_type`) and apply this checklist.
+Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden. **Exception:** the built-in `Explore` agent (Claude Code v2.1+, Haiku 4.5, Read/Glob/Grep + read-only Bash only) has its own narrow contract — natural-language lookup queries with a `thoroughness: quick|medium|very thorough` keyword (e.g., `"Explore authentication (thoroughness: quick). Find the login handler."`). It refuses heavyweight 6-field prompts and returns `0 tool uses · 0 tokens · 1s` when misused. Use `Explore` only for narrow "where is X defined?" / "find files matching Y" lookups; for any other research, use general-purpose (`Agent(description=..., disallowedTools=..., prompt=...)` — no `subagent_type`, OMIT `model=` so the orchestrator's session tier propagates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`) and apply this checklist.
 
 ## Required pre-inlined context
 

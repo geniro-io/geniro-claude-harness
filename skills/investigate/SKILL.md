@@ -65,21 +65,11 @@ Per — quality-first framing. /investigate has **NO Class-A hard kill caps**. A
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly.
+Follow the canonical rule in `skills/_shared/model-tiering.md`. OMIT `model=` at every spawn site — the orchestrator's session tier propagates (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). The user's session-level `/model` choice is the canonical cost/depth knob; per-spawn hardcoding to `sonnet` is paternalistic and produces tier-mismatch UX.
 
 ## Subagent Spawn Contract
 
 Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh reviewer-agent, and Phase 3 Step 4a save-routing agents — MUST satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier). The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state — bare prompts force re-discovery and silently drift from intended scope. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents (none in this skill today; the rule applies if a future research agent is promoted to a custom agent type).
-
-**Skill-specific mapping** — research scope drives model choice:
-
-| Spawn | Tier | When |
-|---|---|---|
-| Codebase exploration (file discovery, grep, structural mapping) | `sonnet` | Always — needs cross-file reasoning, but bounded scope |
-| Internet research (docs, GitHub issues, blog posts) | `sonnet` | Default — narrow focused queries |
-| Git history / blame analysis | `sonnet` | Reasoning over commit messages and diffs |
-| Final synthesis across multiple research streams | `opus` | When investigation question is ambiguous OR involves architectural reasoning across 3+ subsystems |
-| Final synthesis (simple lookup) | `sonnet` | Default — well-scoped questions with clear answer |
 
 ## Evidence Standard
 
@@ -196,7 +186,7 @@ Every spawn below pre-populates the 6 required fields from `${CLAUDE_PLUGIN_ROOT
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
 ```
-Agent(model="sonnet", description="Investigate: codebase analysis", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(description="Investigate: codebase analysis", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Codebase Investigation (READ-ONLY)
 Produce a structured findings report answering the question below by analyzing pre-inlined codebase content. This is a read-only research task — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
 
@@ -239,7 +229,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
 ```
-Agent(model="sonnet", description="Investigate: git history", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(description="Investigate: git history", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Git History Investigation (READ-ONLY)
 Produce a structured timeline + findings report on the git history relevant to the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit, and do NOT run mutating git operations (no `git add`, `git commit`, `git push`, `git checkout`, `git reset`). Read-only git verbs only: `log`, `blame`, `show`, `diff`.
 
@@ -282,7 +272,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
 ```
-Agent(model="sonnet", description="Investigate: internet research", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(description="Investigate: internet research", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Internet Research (READ-ONLY)
 Produce a structured external-sources report answering the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit; do NOT run any local-codebase Bash commands. Use WebSearch + WebFetch only.
 
@@ -476,10 +466,10 @@ For each major claim, check it has a verified artifact per the Evidence Standard
 
 Spawn a fresh review agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
 
-Default the verifier to `sonnet` (well-scoped: check references, flag over-claims). Only escalate to `opus` if the user explicitly opted in to deep synthesis for an ambiguous cross-subsystem question — otherwise keep `sonnet`.
+The verifier inherits the orchestrator's session tier (OMIT `model=`). The user's session-level `/model` choice propagates — they pick the cost/depth trade-off at session start, not per-spawn.
 
 ```
-Agent(model="sonnet", description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Verify Investigation Answer (READ-ONLY)
 Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
 
@@ -550,7 +540,7 @@ Every save-routing Agent spawn below MUST satisfy the 6-field pre-inlined-contex
 1. **Domain-vocabulary findings** — the investigation surfaced a new domain entity, role, or business-rule term that wasn't in CLAUDE.md's Domain Context. Examples: "the codebase calls X a `Tenant` but production calls it a `Workspace`" / "there's a hidden `BillingAccount` entity that wraps `Subscription`+`PaymentMethod`+`Invoice`."
 - Route: **CLAUDE.md** "Domain Context" section.
 - Method: present the proposed addition (1-3 lines per term) via `AskUserQuestion` with header "Domain term", options "Add to CLAUDE.md (Recommended)" / "Save as learning instead" / "Skip — not durable enough".
-- On approval: investigate's `allowed-tools` does NOT include Write/Edit (research-only by design). Spawn a focused Agent (`model="sonnet"`, no `subagent_type`) per the 6-field checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`) and runtime-degradation rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`) with the proposed term-block pre-inlined (field 3) and the instruction: "Read CLAUDE.md, locate the `## Domain Context` section (create one before the first `##`-level section if missing — confirm via the orchestrator's prior AskUserQuestion answer pre-inlined here), append the proposed term-block at the section's end, do not modify other sections. Report the resulting diff." Pin task scope (field 1), acceptance criteria (field 2: "Domain Context section contains the proposed term-block; no other sections modified"), allowed mutation surface (field 4: only CLAUDE.md), output schema (field 5: returned diff), and model tier (field 6: sonnet). This preserves investigate's research-only identity while enabling the auto-extract; the agent does the file write.
+- On approval: investigate's `allowed-tools` does NOT include Write/Edit (research-only by design). Spawn a focused Agent (OMIT `model=` so the orchestrator's session tier propagates; no `subagent_type`) per the 6-field checklist (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`) and runtime-degradation rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`) with the proposed term-block pre-inlined (field 3) and the instruction: "Read CLAUDE.md, locate the `## Domain Context` section (create one before the first `##`-level section if missing — confirm via the orchestrator's prior AskUserQuestion answer pre-inlined here), append the proposed term-block at the section's end, do not modify other sections. Report the resulting diff." Pin task scope (field 1), acceptance criteria (field 2: "Domain Context section contains the proposed term-block; no other sections modified"), allowed mutation surface (field 4: only CLAUDE.md), output schema (field 5: returned diff), and model tier (field 6: inherit). This preserves investigate's research-only identity while enabling the auto-extract; the agent does the file write.
 2. **Architectural decisions meeting all 3 ADR criteria** (hard to reverse + surprising + genuine trade-offs) — route to **ADR** per `_shared/improvement-routing.md` § ADR target. Draft the ADR using the template; ask user before creating `docs/adr/` if the directory doesn't exist. Same pattern as #1: investigate has no Write tool, so spawn a focused Agent under the same checklist + spawn-agent.md contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`) with the drafted ADR content + target path pre-inlined; agent writes to `docs/adr/NNNN-<slug>.md`.
 3. **Reusable technical insights** (gotchas, lightweight architectural decisions, surprising coupling) — route to **`<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl`** via `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` (resolve path prefix via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so writes land in the main worktree). Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it. Same pattern as #1/#2: spawn a focused Agent under the same checklist + spawn-agent.md contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`) to append the JSON entry to the file (or use the auto-memory path if the entry maps to project-memory shape).
 4. **User preferences about how to collaborate** — route to **auto-memory** (`feedback_*`). Auto-memory is created via Claude Code's native memory feature — no file write needed, so this path doesn't require the agent-spawn workaround.
@@ -706,7 +696,7 @@ Mirrors structure.
 
 **Phase 3 (Synthesize+Review+Present):**
 - Allowed: Read (for re-reading cited files during synthesis).
-- Allowed Agent spawns: fresh reviewer-agent (sonnet default; opus only when user explicitly opted in); save-routing focused agents (when user picks save action).
+- Allowed Agent spawns: fresh reviewer-agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
 - Reviewer-agent: Read / Grep (no Edit / Write).
 - Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` / `.geniro/knowledge/learnings.jsonl`). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks.
 

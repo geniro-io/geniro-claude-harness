@@ -100,13 +100,13 @@ This skill has **NO hard kill caps**. Same model as other skills.
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST pass `model=` explicitly. For plugin-defined subagents (adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — registration ladder (`geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined). Cache the resolved rung for the rest of the session.
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — registration ladder (`geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined). Cache the resolved rung for the rest of the session.
 
 Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt MUST satisfy the six pre-inlined fields.
 
 | Spawn | Tier | Why |
 |---|---|---|
-| `adversarial-tester-agent` | `inherit` | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
+| `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 ---
 
@@ -172,6 +172,8 @@ Past diagnoses:
 These get surfaced on hypothesis formation so that the orchestrator does NOT re-form a hypothesis equivalent to an already-ruled-out one without explicit re-justification.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per
 Echo lines per mandatory.
+
+5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. Read-only — /debug never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
 ### 1.2 Observe & repro
 
@@ -552,7 +554,7 @@ state.md `## Authored Tests` body section tracks each authored test path + statu
 ### A5. Spawn template
 
 ```
-Agent(subagent_type="adversarial-tester-agent", model=<inherit>, prompt="""
+Agent(subagent_type="adversarial-tester-agent", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Debug — Verify Changes)
 
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -764,6 +766,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`.
 | Phase 1 entry | `load-semantic` | read L3 | `refresh` |
 | Phase 1 entry | `query-learnings` | read L2 | n/a |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
+| Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes hypotheses |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (sole emit type: `diagnosis`; required `ext.{symptom, root_cause, fix}` ) |
 
