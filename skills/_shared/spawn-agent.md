@@ -4,7 +4,7 @@ Canonical rule for invoking the plugin's custom agents (`reviewer-agent`, `adver
 
 ## The problem
 
-The plugin defines 2 custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.md`. Whether they are registered as invokable `subagent_type` values — and under what name — depends on the runtime:
+The plugin defines several custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.md`. Whether they are registered as invokable `subagent_type` values — and under what name — depends on the runtime:
 
 | Runtime | Agents registered? | Resolvable as `<agent>`? | Resolvable as `geniro-claude-plugin:<agent>`? |
 |---|---|---|---|
@@ -22,21 +22,20 @@ The "Available agents" list in that error is the ground truth for what works —
 
 When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
-1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro-claude-plugin:<agent>", model="<requested-model>", description="...", prompt="...")`. This is the form registered by interactive Claude Code when the plugin is marketplace-installed and is the happy path on developer workstations.
+1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro-claude-plugin:<agent>", description="...", prompt="...")`. **OMIT the `model=` argument** — plugin agents declare `model: inherit` in frontmatter; omitting the runtime arg lets the Agent tool resolve the orchestrator's tier. Pass `model=` only if the caller has an explicit non-inherit override (rare — user-authored custom reviewers with declared tier; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). This step is the happy path on interactive Claude Code with the plugin marketplace-installed.
 
-2. **If — and only if — the call returns `Agent type 'geniro-claude-plugin:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)`. This is the form registered in `/geniro:vendor`-ed projects (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
+2. **If — and only if — the call returns `Agent type 'geniro-claude-plugin:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)` (same `model=` policy — OMIT by default). This is the form registered in `/geniro:vendor`-ed projects (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
 
 3. **If the bare-name attempt also returns "not found"**, re-attempt as:
 
    ```
    Agent(
      subagent_type="general-purpose",
-     model="<same-model-as-original>",
      prompt=<<contents of ${CLAUDE_PLUGIN_ROOT}/agents/<agent-name>.md, body only — strip YAML frontmatter>> + "\n\n---\n\n" + <original prompt>
    )
    ```
 
-   Read the agent file with the Read tool, drop the leading `---\n…\n---\n` frontmatter block, and prepend the remaining body to your task prompt with a `---` separator. If the file has no leading `---` line, treat the whole file as the body and prepend verbatim. Pass the same `model=` the original call requested. Pass the same `description=` you would have used.
+   Read the agent file with the Read tool, drop the leading `---\n…\n---\n` frontmatter block, and prepend the remaining body to your task prompt with a `---` separator. If the file has no leading `---` line, treat the whole file as the body and prepend verbatim. OMIT `model=` so the `general-purpose` fallback inherits the orchestrator's tier; pass an explicit `model=` only when the caller specified one for the original call. Pass the same `description=` you would have used.
 
 4. **Cache the resolution for the rest of the session.** Plugin registration is fixed at session init and does not change mid-session. Once you've established whether step 1 or step 2 worked (or both failed), every subsequent plugin-agent spawn in the same session uses that resolved form directly — do NOT re-walk the ladder. The cache does NOT carry across sessions; re-walk at the next session's first spawn.
 
@@ -54,7 +53,7 @@ Note: [claude-code issue #19276](https://github.com/anthropics/claude-code/issue
 
 Skill instruction (in `skills/review/SKILL.md` Phase 2):
 ```
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+Agent(subagent_type="reviewer-agent", prompt="""
 DIMENSION: bugs
 CRITERIA: [content of bugs-criteria.md]
 …
@@ -63,7 +62,7 @@ CRITERIA: [content of bugs-criteria.md]
 
 Step 1 — prefixed (interactive plugin-marketplace mode, happy path):
 ```
-Agent(subagent_type="geniro-claude-plugin:reviewer-agent", model="sonnet", prompt="""
+Agent(subagent_type="geniro-claude-plugin:reviewer-agent", prompt="""
 DIMENSION: bugs
 CRITERIA: [content of bugs-criteria.md]
 …
@@ -72,7 +71,7 @@ CRITERIA: [content of bugs-criteria.md]
 
 Step 2 — bare (vendored-project mode, after step 1 returns "not found"):
 ```
-Agent(subagent_type="reviewer-agent", model="sonnet", prompt="""
+Agent(subagent_type="reviewer-agent", prompt="""
 DIMENSION: bugs
 …
 """)
@@ -80,7 +79,7 @@ DIMENSION: bugs
 
 Step 3 — general-purpose with body inlined (SDK/harness, after step 2 also returns "not found"):
 ```
-Agent(subagent_type="general-purpose", model="sonnet", prompt="""
+Agent(subagent_type="general-purpose", prompt="""
 <<body of ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md, frontmatter stripped>>
 
 ---
@@ -90,6 +89,8 @@ CRITERIA: [content of bugs-criteria.md]
 …
 """)
 ```
+
+No `model=` is passed at any step — the Agent tool resolves the tier via the `model: inherit` directive in the plugin agent's frontmatter (or, at step 3, via `general-purpose`'s own inherit-from-parent default). User-authored custom reviewers that declare an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter are the one exception: pass `model={user-declared-value}` verbatim at every ladder rung.
 
 Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full tool surface — be explicit in the prompt about not editing files for read-only agents like reviewers and skeptics).
 
@@ -104,3 +105,4 @@ Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full to
 | "The agent body is long — I'll summarize it before inlining at step 3" | The agent's system prompt is the contract. Summarizing changes the contract. Inline the body verbatim (frontmatter stripped). |
 | "Read-only agents like reviewer-agent shouldn't run as general-purpose at step 3 because they could now Edit files" | Correct hazard, wrong mitigation. The mitigation is an explicit instruction inside the inlined prompt — most agent files already say "Do not Edit/Write/Bash apart from read-only commands." If yours doesn't, add it before falling back. |
 | "If steps 1 and 2 both fail, I'll just give up and run the work in my own context" | That defeats the parallelism/isolation purpose of the spawn. Always degrade to general-purpose at step 3. The exception is single-agent spawns where the orchestrator was going to wait synchronously anyway — in that case, inline is fine. |
+| "I'll pass `model='sonnet'` (or any other tier) explicitly at the spawn site to be safe" | Plugin agents declare `model: inherit` in frontmatter; OMITTING `model=` at the spawn site is the canonical inherit pattern per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Passing a hardcoded tier defeats the user's session-level `/model` choice. The only spawn sites that pass `model=` are user-authored custom reviewers whose own frontmatter declared an explicit tier — honor the user's declaration, not your own pessimism about runtime behavior. |

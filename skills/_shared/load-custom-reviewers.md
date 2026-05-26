@@ -21,7 +21,7 @@ A list of **spawn-specs** — one dict per surviving custom reviewer — with th
 
 - `slug` (string) — the reviewer's slug from frontmatter
 - `dimension-label` (string) — `custom:<slug>` — used as the DIMENSION value in the spawn prompt
-- `model` (string) — one of `haiku`, `sonnet`, `opus` (default `sonnet` when frontmatter omits it)
+- `model` (string) — one of `haiku`, `sonnet`, `opus`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; user-explicit values are honored as-is per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` user-authored carve-out)
 - `criteria-content` (string) — the body of the .md file (everything after the closing `---` of the frontmatter)
 - `severity-default` (string or null) — one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, or null when unset
 - `source-path` (string) — the .md file path; used in audit lines and error messages
@@ -89,10 +89,15 @@ Return the list to the consumer skill.
 
 ## How consumers use the spawn-specs
 
-For each spec the helper returns, the consumer skill appends one `Agent()` call to its parallel reviewer batch:
+For each spec the helper returns, the consumer skill appends one `Agent()` call to its parallel reviewer batch. The `model=` argument is **conditionally included**:
+
+- When `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument entirely. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit` directive.
+- When `spec.model ∈ {haiku, sonnet, opus}` (the user explicitly declared a tier in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. User-explicit override beats inherit.
+
+Inherit form (default — user did not declare `model:`):
 
 ```
-Agent(subagent_type="reviewer-agent", model="{spec.model}", prompt="""
+Agent(subagent_type="reviewer-agent", prompt="""
 DIMENSION: {spec.dimension-label}
 CRITERIA: {spec.criteria-content}
 CHANGED FILES: [list of files with their full content — same list the built-in reviewers receive]
@@ -107,6 +112,8 @@ Findings that align with explicit plan decisions (e.g., "D-09: existing X are NO
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
+
+User-explicit form (user declared `model: haiku|sonnet|opus` in custom-reviewer frontmatter): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=`.
 
 The DIMENSION value uses the literal form `custom:<slug>` so that the reviewer-agent's output naturally carries the source — the agent emits findings under `## custom:<slug> Review — N findings` and the orchestrator's Phase 4 judge pass picks the source up directly from that header. No new finding-output fields are required.
 
@@ -129,3 +136,4 @@ Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spaw
 | "I'll let the per-batch case spawn custom reviewers per batch for symmetry with built-ins" | Custom reviewers are narrow by design (path-filtered). Per-batch fan-out multiplies cost with no accuracy gain. Per-PR (or here, per-review-run) matches the pr-metadata pattern. |
 | "If `paths:` is set and matches nothing, I'll fire anyway just to be safe" | If the user scoped a reviewer to `**/*.sql` and the diff has no SQL files, firing it wastes a Sonnet call and produces zero findings. Silently drop — the `paths:` field IS the user's opt-out for unrelated diffs. |
 | "I'll cache the spawn-specs across consumer-skill invocations within the session" | Don't. The changed-files list differs per invocation, so the `paths:` filter result differs too. Re-run the helper on every consumer-skill invocation. The cost is one Glob + N small Reads — cheap relative to the parallel reviewer batch itself. |
+| "Custom reviewer's frontmatter omitted `model:` — I'll default to `sonnet` at the spawn site" | When `model:` is OMITTED in the custom-reviewer frontmatter, default to `inherit`, not `sonnet`. Custom reviewers follow the same default as built-ins per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user opts INTO a hardcoded tier only by explicitly writing `model: haiku` / `model: sonnet` / `model: opus` — honor that declaration when present, OMIT `model=` at the spawn site when absent. |
