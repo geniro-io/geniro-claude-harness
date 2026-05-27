@@ -4,6 +4,19 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Hand-off). Extracted
 
 State.md `phase: action-gate` during this phase.
 
+## Contents
+
+- §1 — Reporter behavior (no fix loop)
+- §2 — Gate chain (firing order)
+- §2.5 — Pre-gate: resolve open questions (Invariant A)
+- §3 — Step 0: open-decision per PRODUCT-DECISION finding (Invariant B initial flip)
+- §4 — Action gate (consolidated decision)
+- §5 — Round-N escalation
+- §6 — Failing-tests gate
+- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard → 7.8 posting-failure semantics)
+- §8 — Empty-answer handling (universal)
+- §9 — Terminal state mapping
+
 ---
 
 ## 1. Reporter behavior — no fix loop
@@ -24,7 +37,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 **Firing order:**
 
 1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — open questions gate downstream action by definition. Full procedure: §2.5 below.
-2. **Step 0 — Open-decision (per finding):** fires once per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
+2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /implement / Post Draft PR / Continue rounds / Skip.
 4. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
 - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
@@ -106,9 +119,12 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 - **Options:** [PRODUCT-DECISION only — omit for other types]
   - `<option-id>`: `<short label>` — `<one-line trade-off>`
 - **Recommendation:** <option-id> — <one-sentence rationale> [PRODUCT-DECISION only]
+- **step0_status:** `pending | resolved | wontfix` [PRODUCT-DECISION only — omit for other types]
 ```
 
-**Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape.
+The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 3 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
+
+**Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` (the safety improvement post-dates these handoffs) and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
 
 **Wontfix path.** If the user picks "Other" with explicit text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream gates — they're recorded but de-prioritized. Downstream consumers treat `wontfix` as "user acknowledged and chose to defer".
 
@@ -118,13 +134,13 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 ## 3. Step 0 — Open-decision gate (per-finding, Always-WAIT)
 
-Before recommending which skill to run, surface every `decision: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; orchestrator NEVER picks on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
+Before recommending which skill to run, surface every `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; orchestrator NEVER picks on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
 
-**For each kept finding with `decision: PRODUCT-DECISION` (read from state file):**
+**For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
 1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`).
 2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. Set `header: "Open decision"`. Render the `question` text with finding's severity / `path:lines` / short-title / decision-type / `why-matters` line per spec's Source-field map; render each option's `label`+`description` from finding's `options:` sub-list bullets; render each option's `preview` with finding body (Evidence / Suggested-fix / Confidence / Origin). Do NOT collapse rendering to label + 1-line description.
-3. Update finding line in the state file: replace `recommendation:` field with user's chosen option text. Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding.
+3. Update finding line in the state file: replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag.
 
 When more than 4 PRODUCT-DECISION findings exist OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`: chain `AskUserQuestion` calls per cap-extension pattern.
 
@@ -230,22 +246,27 @@ When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to 
 
 ### 7.0 Step 0 — Unresolved-questions guard (fail-closed)
 
-Before any of the Post-drill steps below fire, re-read state.md frontmatter `open_questions[]`. If any entry has `status: unresolved`, abort the Post drill — never post to GitHub with unresolved questions baked in.
+Before any of the Post-drill steps below fire, re-read state.md and verify TWO invariants. If either fails, abort the Post drill — never post to GitHub with unresolved ambiguity baked in.
 
-The §2.5 Pre-gate runs first in Phase 6 and should leave `open_questions[]` with zero `unresolved` entries by the time Action gate fires. This §7.0 check is the fail-closed second line of defense: if a producer wrote a new entry mid-phase, or if `atomic_state_write` raced with a parallel resolver, the Pre-gate's invariant might not hold. Verify defensively.
+**Invariant A — `open_questions[]` empty of `unresolved`.** The §2.5 Pre-gate runs first in Phase 6 and should leave `open_questions[]` with zero `unresolved` entries by the time Action gate fires.
+
+**Invariant B — every PRODUCT-DECISION finding has `step0_status: resolved` (or `wontfix`).** The §3 Step 0 per-finding gate runs after §2.5 and flips each PRODUCT-DECISION finding's `step0_status: pending` → `resolved` once the user's AUQ pick lands. A finding still at `pending` here means §3 never fired for it — and §7.5 would route it to `comments[]` by `File:` sentinel alone, with either AUQ chip label (`"Open question"` from §2.5 or `"Open decision"` from §3) potentially leaking into the comment body as if it were a tag.
+
+This §7.0 check is the fail-closed second line of defense for BOTH invariants: if a producer wrote a new `open_questions[]` entry mid-phase, if `atomic_state_write` raced with a parallel resolver, or if §3 was conflated with §2.5 / skipped under orchestrator drift, the upstream gates' invariants might not hold. Verify defensively.
 
 **Procedure:**
 
-1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`.
-2. Filter to entries with `status: unresolved`.
-3. If the filtered list is non-empty:
-   - Surface a one-line chat warning naming the question count and the first 1-2 question texts.
-   - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-questions`, and the unresolved question IDs.
-   - Re-fire the §2.5 Pre-gate to resolve the remaining entries.
-   - After resolution completes, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds the unresolved list empty.
-4. When step 3 finds the unresolved list empty, proceed to §7.1.
+1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`. Read the `## Findings` body section and parse each finding's `Decision Type:` and `step0_status:` fields.
+2. Filter to: (a) `open_questions[]` entries with `status: unresolved`; AND (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`.
+3. If either filtered list is non-empty:
+   - Surface a one-line chat warning naming the count of each (e.g., `"Post drill aborted: 2 open questions unresolved + 1 PRODUCT-DECISION finding without Step 0 resolution"`) and the first 1-2 affected items.
+   - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, AND the pending finding IDs.
+   - Re-fire the §2.5 Pre-gate for any unresolved `open_questions[]` entries (if list (a) non-empty).
+   - Re-fire the §3 Step 0 per-finding gate for any `step0_status: pending` PRODUCT-DECISION findings (if list (b) non-empty).
+   - After both resolution loops complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds BOTH filtered lists empty.
+4. When step 3 finds both filtered lists empty, proceed to §7.1.
 
-This guard exists because posting a draft PR review with unresolved questions buried in the body would push ambiguity onto the PR author or downstream reviewer — exactly the failure mode `open_questions[]` is designed to prevent.
+This guard exists because posting a draft PR review with unresolved ambiguity buried in the body would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array and `step0_status:` sentinel are designed to prevent. The two invariants are independent (different arrays, different gates) so the guard must check both; checking only one leaves the other path uncovered.
 
 ### 7.1 Step 1.5 — Resolved-thread dedup (input-side filter)
 
@@ -287,12 +308,12 @@ After loop completes (or user picked "Stop posting"), aggregated post set is the
 
 ### 7.4 Step 3.5 — TDD-mode post-set filter
 
-When state-file `mode:` is `tdd`, filter the post set so findings with `decision: TESTABLE` lacking a `[CONFIRMED-BY-TEST]` tag are excluded (remain visible in local report; not posted to PR).
+When state-file `mode:` is `tdd`, filter the post set so findings with `Decision Type: TESTABLE` lacking a `[CONFIRMED-BY-TEST]` tag are excluded (remain visible in local report; not posted to PR).
 
 **Retained for posting in TDD mode:**
 - (a) any finding tagged `[CONFIRMED-BY-TEST]`, regardless of decision-type.
-- (b) any finding with `decision: PRODUCT-DECISION` or `INTENT-CHECK` (no executable behavior to gate on).
-- (c) findings with `decision: FIX-NOW` AND which match the "Runtime-behavior classification" rule's NON-runtime branch (typo-class — no runtime behavior to test against — per Phase 4c).
+- (b) any finding with `Decision Type: PRODUCT-DECISION` or `INTENT-CHECK` (no executable behavior to gate on).
+- (c) findings with `Decision Type: FIX-NOW` AND which match the "Runtime-behavior classification" rule's NON-runtime branch (typo-class — no runtime behavior to test against — per Phase 4c).
 
 When the filter empties the post set, fall back to Skip semantics; surface "TDD mode: no F→P-confirmed findings — nothing drafted on PR" once in chat. In Standard mode, this step is a no-op.
 
@@ -355,6 +376,7 @@ GitHub PR comments are public, audience-expanding output. The comment body MUST 
 **MUST NOT** add to the body or top-level review body:
 - Plugin branding (`Geniro`, `/geniro:` prefix, "Generated by …" footers).
 - Decision-type tags (`[FIX-NOW]`, `[TESTABLE]`, `[PRODUCT-DECISION]`, `[INTENT-CHECK]`).
+- AUQ `header:` chip labels echoed as if they were tags (`[Open question]`, `[Open decision]`). These literals are reserved for the §2.5 Pre-gate and §3 Step 0 AUQs that gate downstream action; echoing them in a PR comment body re-projects unresolved ambiguity onto the PR author, which is the exact failure mode those gates exist to prevent. If a finding reads as an open question, it has not completed §3 — abort the post and re-fire the gate per §7.0, do not relabel it for the PR.
 - Pipeline phase names (`Phase 4c`, `judge pass`, `relevance filter`, `test-confirmation gate`).
 - Confidence numerics (no `*Confidence: NN%*`).
 - State-file paths or schema references.

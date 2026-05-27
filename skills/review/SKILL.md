@@ -50,7 +50,7 @@ State.md `phase:` enum transitions:
 
 ## Loop Invariants
 
-The 8 invariants apply unchanged:
+The 9 invariants apply unchanged:
 
 1. **One result per tool call.** Phase 2 parallel-spawn reviewer-agents — each must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` flag parsing (semantic, no CLI grammar); PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
@@ -60,6 +60,7 @@ The 8 invariants apply unchanged:
 6. **Final answer grounded in observations.** Phase 6 hand-off message MUST cite the state.md path; finding bodies MUST include Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 7. **Errors → structured observations.** Reviewer spawn failures → `## Errors` body section. `gh` fail-open NOT silent — log to `## Errors`.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+9. **Re-verify ambiguity gates at external-effect boundaries.** §2.5 Pre-gate and §3 Step 0 establish gate invariants on `open_questions[].status` and PRODUCT-DECISION `step0_status` respectively; §7.0 re-reads BOTH before any `gh api POST /reviews` because mid-phase producer writes, parallel resolvers, or orchestrator drift can re-create unresolved ambiguity between the upstream gate and the external write. Never trust an upstream gate's invariant at a public-surface boundary.
 
 `## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5b emit-learning + 1 per PR-side-effect).
 
@@ -409,6 +410,8 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per row. `<
 
 **`open_questions[]` rich-field authoring contract.** When composing `open_questions[]` entries from kept findings, fill the optional `context` / `evidence` / `options` / `recommendation` fields per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The reviewer-agent output already carries Evidence / Why-matters / Suggested-fix / Options per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format — copy them into the open_question entry, do NOT discard them at composition time. Bare `question:` entries trigger the §2.5 Tier 3 fallback (terse AUQ), which the user experiences as the failure mode the rich-field schema was added to prevent. For non-finding open_questions (e.g., process / scope / verification questions surfaced by spec-compliance or pr-metadata reviewers), author `context` + `options` + `recommendation` inline — the reviewer's `## Why this matters` and `## Suggested fix` synthesis fields are still the source material; the consumer has no other way to render the question richly.
 
+**`step0_status:` producer-side initialization contract.** When writing each PRODUCT-DECISION finding into `## Findings`, also write `step0_status: pending` as the last sub-field of its body block (schema at `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §"Per-finding body schema"). This is the runtime sentinel §3 flips to `resolved` (or `wontfix`) after the per-finding AUQ pick lands, and the §7.0 Pre-Post guard re-reads to fail-close before posting. Omit the field entirely for non-PRODUCT-DECISION findings — its presence is the marker that §3 owes them an AUQ.
+
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
@@ -497,7 +500,7 @@ open_questions:                       # MUST be present; MAY be empty []
 <!-- If open_questions[] is empty, this section reads: "No open questions — handoff is unconditionally actionable." -->
 
 ## Resolved Questions
-<!-- Populated when downstream consumer (or /review's Phase 6 Step -1 gate) resolves an entry; mirrors frontmatter `open_questions[].resolution`. -->
+<!-- Populated when downstream consumer (or /review's §2.5 Pre-gate) resolves an entry; mirrors frontmatter `open_questions[].resolution`. -->
 
 ### q1 — <source>: <one-line summary>
 **Picked:** <chosen option>
@@ -578,7 +581,7 @@ State.md `phase: action-gate`. **Full contract:** `${CLAUDE_SKILL_DIR}/phase-6-h
 Summary of the gate chain (each gate is its own AUQ — never collapsed):
 
 1. **Pre-gate — Resolve Open Questions** fires first whenever frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension >4). Always-WAIT. Resolutions persist back via `atomic_state_write`. MUST complete before any other gate. Full procedure: `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §2.5. Skipped when zero unresolved entries.
-2. **Step 0 — Open-decision** per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero.
+2. **Step 0 — Open-decision** per `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero.
 3. **Action gate** — fire `AskUserQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). Option labels (verbatim, do not paraphrase):
    - `"/implement findings"` — append ` (Recommended)` when CRITICAL≥1 OR HIGH≥2; exits /review and the model surfaces `/geniro:implement .geniro/state/handoff/from-review-<branch>.md` as the next command.
    - `"Post Draft PR review"` — OMIT entirely when `pr-ref: none` OR zero unposted findings remain.
@@ -593,7 +596,7 @@ Operational rules:
 - **Reporter behavior** — no fix loop inside /review. /implement self-review (5-dim parallel) is a separate skill with a separate contract.
 - **`--simplify`** does NOT change hand-off shape (still reporter).
 - **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
-- **Pre-Post unresolved-questions guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[].status == unresolved` remain. Fail-closed second line of defense against producers writing new entries mid-phase.
+- **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[].status == unresolved` OR any PRODUCT-DECISION finding has `step0_status: pending`. Fail-closed second line of defense against producers writing new entries mid-phase or §3 being skipped under drift.
 ---
 
 ## ACI per-phase tool surface
@@ -647,8 +650,8 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | "TDD mode is on, user clearly wants tests authored — skip the Phase 4c AUQ." | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable in every mode. Empty-answer fallback re-asks rather than auto-defaults. |
 | "I'll auto-update Linear status from /review when findings are critical — saves the user a step." | /review is a Reporter. Linear `update_issue` / `create_comment` are external side-effect writes; only /geniro:plan and /geniro:implement run them per their workflow contracts. /review's MCP surface is read-only (`get_issue` / `list_issues`) per ACI. The Open Questions schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 lets /review surface ambiguity without mutating tracker state. |
 | "Inline LINEAR CONTEXT into ALL 10 reviewer dims — more context = better review." | Cross-reviewer convergence anti-pattern: LINEAR CONTEXT helps spec-compliance (rubric source), pr-metadata (title-divergence check), and architecture (parent-epic linkage). Other dims see it as noise that biases their per-file rubric. The narrow 3-dim distribution is the documented pattern. |
-| "--simplify is a natural place to add `simplify` as a new dimension." | That re-creates the deleted /deep-simplify skill as a disguised dim. The fold-into-existing approach (5 weighted dims via simplify-criteria.md prefix) is the documented absorption pattern — no new dim, no new fix-loop. |
 | "Linear MCP unregistered — surface a HIGH finding so the user installs it." | Fail-open contract: degraded paths surface a one-line `## Caveats` note, not findings. The skill doesn't pressure users to install tooling — that's UX hostility. |
+| "§2.5 Pre-gate fired earlier in Phase 6, so §7.0 doesn't need to re-check before the Post drill." | Per ARCHITECTURE.md §`/review (M6)`, `open_questions[]` is gated by a 3-gate chain (§2.5 Pre-gate / §7.0 Pre-Post guard / consumer-side `/implement` Phase 1 Step 12); PRODUCT-DECISION findings via the `step0_status:` sentinel are gated by a 2-gate chain (§3 / §7.0 — Step 12 reads `open_questions[]` only, not `## Findings`). Each upstream gate is a single point of failure; mid-phase producer writes and parallel resolvers can re-create unresolved entries between §2.5/§3 and the `gh api POST /reviews` call. The real incident where an AUQ `header: "Open question"` literal leaked into a PR comment happened because §7.0 didn't re-check `## Findings`. Re-verify at every external-effect boundary; never trust the upstream gate. |
 
 ---
 
@@ -680,28 +683,9 @@ Code review is complete when:
 - [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`
 - [ ] Phase 5b L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
 - [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT)
+- [ ] Phase 6 Step 0 per-finding gate completed AND every PRODUCT-DECISION finding's `step0_status` flipped from `pending` to `resolved` (or `wontfix`) BEFORE the Action gate's Post drill fires; §7.0 Pre-Post guard re-reads both `open_questions[]` and `## Findings` and aborts the post on any remaining `unresolved` / `pending` per `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §7.0
 - [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision; user pick persisted to `approvals[]` (category `action_gate`)
 - [ ] Phase 6 Round-N escalation gate fired when round ≥3 + "Continue rounds" pick; terminal state mapped to state.md `## Termination reason`
 - [ ] Phase 6 Action == Post drill ran (Steps 1.5-6) when user picked "Post"; `[POSTED-TO-PR]` markers persisted for idempotent re-run
 - [ ] Phase 6 Failing-tests gate fired when `## Authored Tests` non-empty; firing order conditional on Action choice per the gate-chain rule
 - [ ] Terminal state mapped to state.md `## Termination reason` per when `aborted` or `escalated`
-
----
-
-## Anti-pattern check
-
-This skill verified against master-plan 12-item guardrail. Status:
-- One giant prompt: ✅ avoided (skill-scoped SKILL.md + reference files + criteria files)
-- One giant tool: ✅ N/A
-- Unbounded autonomous loop: ✅ Round-N 3-round bound + escalation gate
-- Autonomous external sends in first release: ✅ Phase 6 Post drill AUQ-gated
-- No approval state: ✅ `approvals[]` field with the categories (`tdd_mode_choice` / `test_gate_choice` / `action_gate` / `round_n_escalation` / `failing_tests_commit_policy`)
-- No durable plans / goals: ✅ T2 state file mandatory
-- No compaction strategy: ✅ the SessionStart hook re-injects via Block 5b/5c/5d
-- All connectors loaded up front: ✅ N/A (MCP plugin model)
-- High-risk tools without policy: ✅ existing hooks
-- Subagents before single-agent MVP measured: ⚠️ partial (deferred to a future release)
-- Dynamic timestamps in plugin Markdown: ✅ audited — none
-- Non-deterministic agent registration: ✅ alphabetic by slug
-
-This skill introduces no new anti-pattern regressions.
