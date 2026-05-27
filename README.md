@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 6 specialist sub-agents, 11 skills, and 7 safety hooks + statusline + update check out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides specialist sub-agents, skills, and safety hooks + statusline + update check out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -108,7 +108,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:setup` — AI-driven project setup
 
-4-phase singleton bootstrap (Detect → Interview → Generate → Validate → Done). Scans codebase via lockfile/config presence; interviews you for preferences that can't be auto-detected; generates a **thin-map** CLAUDE.md. Phase 3 split methodology: sections >40 LOC default to spin out to `.geniro/docs/<topic>.md`. Phase 4 verification subagent + 3-retry escalation loop. L2 `discovery` emit on done.
+4-phase singleton bootstrap (Detect → Interview → Generate → Validate). Scans codebase via lockfile/config presence; interviews you for preferences that can't be auto-detected; generates a **thin-map** CLAUDE.md. Phase 3 split methodology: sections >40 LOC default to spin out to `.geniro/docs/<topic>.md`. Phase 4 verification subagent + 3-retry escalation loop. L2 `discovery` emit on done.
 
 ```
 /geniro:setup
@@ -126,7 +126,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:implement` — Autonomous implementation
 
-3-phase loop: Analyze → Implement → Self-review-and-Ship. Consumes `spec.md` from `/plan` (or inline-task fallback when `/plan` hasn't been run). Phase 1 fires Step 0 workspace AUQ (passive-detect → auto-continue when prior-task signals present), spawns Knowledge-Retrieval + Codebase-Explorer subagents in parallel for research. Phase 2 uses TodoWrite for sequential decomposition (one-in-progress invariant) + `test-runner-agent` at phase end. Phase 3 spawns 5 reviewer-agents + 1 `adversarial-tester-agent` in parallel (adversarial skipped on trivial scope). Consumes T2 handoffs from `/review` and `/debug`, gating Edit/Write transitions on unresolved `open_questions[]`. Ship cleanup preserves durable T1.5 artifacts (spec.md / state.md / milestone-*.md). All subagents inherit orchestrator tier.
+3-phase loop: Analyze → Implement → Self-review-and-Ship. Consumes `spec.md` from `/plan` (or inline-task fallback when `/plan` hasn't been run). Phase 1 fires Step 0 workspace AUQ (passive-detect → auto-continue when prior-task signals present), spawns Knowledge-Retrieval + Codebase-Explorer subagents in parallel for research. Phase 2 uses TodoWrite for sequential decomposition (one-in-progress invariant) + `test-runner-agent` at phase end. Phase 3 spawns the reviewer-agent set + 1 `adversarial-tester-agent` in parallel (adversarial skipped on trivial scope). Consumes T2 handoffs from `/review` and `/debug`, gating Edit/Write transitions on unresolved `open_questions[]`. Ship cleanup preserves durable T1.5 artifacts (spec.md / state.md / milestone-*.md). All subagents inherit orchestrator tier.
 
 ```
 /geniro:implement                              # consume spec.md from /plan
@@ -135,7 +135,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:review` — Parallel multi-agent code review
 
-6-phase reporter loop (triage → mechanical pre-pass → LLM reviewers → filter → stratify → persist → action-gate). **MANDATORY spawn list:** 7 always (bugs / security / architecture / tests / optimizations / guidelines / conventions) + up to 3 conditional (design when UI files present / pr-metadata when input was a PR ref / spec-compliance when PLAN CONTEXT non-none) + N custom from `.geniro/instructions/review-extra/`. Phase 2 declares `spawn_dims_declared[]` in state.md before the parallel batch; Phase 4 §4.0 verifies declared-vs-actual to catch silent skips. Phase 1 Step 0 smart workspace setup; /review is read-only — never mutates tracker status. Phase 1.5 mechanical pre-pass (lint / schema / secret scan + custom-reviewer discovery). Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Emits T2 hand-off with structured `open_questions[]` (3-gate chain prevents posting or implementing with unresolved questions). Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria. Optional `--tdd` flag tightens validation budget + F→P test-gate. All reviewer-agents inherit orchestrator tier.
+6-phase reporter loop (triage → mechanical pre-pass → LLM reviewers → filter → stratify → persist → action-gate). **MANDATORY spawn list:** always-fire (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions) + conditional (design when UI files present / pr-metadata when input was a PR ref / spec-compliance when PLAN CONTEXT non-none) + N custom from `.geniro/instructions/review-extra/`. Phase 2 declares `spawn_dims_declared[]` in state.md before the parallel batch; Phase 4 §4.0 verifies declared-vs-actual to catch silent skips. Phase 1 Step 0 smart workspace setup; /review is read-only — never mutates tracker status. Phase 1.5 mechanical pre-pass (lint / schema / secret scan + custom-reviewer discovery). Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Emits T2 hand-off with structured `open_questions[]` (3-gate chain prevents posting or implementing with unresolved questions). Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria. Optional `--tdd` flag tightens validation budget + F→P test-gate. All reviewer-agents inherit orchestrator tier.
 
 ```
 /geniro:review                                # review uncommitted changes
@@ -214,7 +214,7 @@ When invoked from a linked git worktree, `run` falls back to the main worktree's
 
 ### `/geniro:update` — Update plugin
 
-5-phase stateless loop (Pre-check → Update → Post-check → Migration → Done). Pre-update version-confirm AUQ. User-content snapshot at Pre-check + survival diff at Post-check (catches silent corruption). 4-retry exponential backoff (2s/4s/8s/16s) on network errors. Hash-check sanity mode. **Phase 4 MIGRATION.md reader** — for each user-affected breaking change, surfaces "Show me how to fix" / "Skip for now" / "Cancel walk"; NEVER auto-applies fixes. Restart-session warning always emitted.
+4-phase stateless loop (Pre-check → Update → Post-check → Migration). Pre-update version-confirm AUQ. User-content snapshot at Pre-check + survival diff at Post-check (catches silent corruption). 4-retry exponential backoff (2s/4s/8s/16s) on network errors. Hash-check sanity mode. **Phase 4 MIGRATION.md reader** — for each user-affected breaking change, surfaces "Show me how to fix" / "Skip for now" / "Cancel walk"; NEVER auto-applies fixes. Restart-session warning always emitted.
 
 ```
 /geniro:update

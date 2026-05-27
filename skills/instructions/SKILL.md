@@ -1,6 +1,6 @@
 ---
 name: geniro:instructions
-description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing and review step. Five operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — use.claude/rules/."
+description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing and review step. Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — use.claude/rules/."
 context: main
 model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
@@ -9,7 +9,7 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 # Instructions: Custom Instruction Management
 
-3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Five operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file. Architecture spec: *(internal)*.
+3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file. Architecture spec: *(internal)*.
 
 Code rules split three ways depending on **when** they should fire:
 
@@ -55,7 +55,7 @@ No state file, but failure paths report a structured reason in the final user me
 
 ## Valid scope set
 
-The post-10-scope set:
+The stable scope set:
 
 | Scope | File path | Layer | Loaded by | Notes |
 |---|---|---|---|---|
@@ -145,7 +145,7 @@ If no arguments: default to `list`.
 
 ### Ambiguity resolution (simplified vs current )
 
-Current skill chains up to 3 AUQs across 10 scopes. With **10 stable scopes**, use a 2-level chain:
+Current skill chains up to 3 AUQs across the stable scope set. Use a 2-level chain:
 
 **Level 1 — category:**
 
@@ -164,11 +164,11 @@ If "Specific skill or review-extra", chain Level 2:
 - `debug / refactor` — Pipeline skills (chain to L2b)
 - `onboard / investigate` — Discovery skills (chain to L2b)
 
-Level 2b asks for the exact skill (2-3 options, fits in AUQ). With 11 stable scopes the chain depth is fixed at 2-3 levels. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
+Level 2b asks for the exact skill (2-3 options, fits in AUQ). Across the stable scope set the chain depth is fixed at 2-3 levels. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
 
 ### Scope validation
 
-Before proceeding, verify resolved scope(s) are valid. If any resolved scope is NOT in the 10-scope set, AUQ to ask the user to pick from valid scopes. Do NOT create, edit, or delete files for invalid scopes.
+Before proceeding, verify resolved scope(s) are valid. If any resolved scope is NOT in the stable scope set, AUQ to ask the user to pick from valid scopes. Do NOT create, edit, or delete files for invalid scopes.
 
 For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO require a `<slug>` argument. Resolve missing-slug cases:
 
@@ -184,7 +184,7 @@ If multi-scope, proceed to **Batch Mode**. Otherwise proceed to the resolved com
 Branch: `list` → · `create` → · `edit` → · `validate` → · `delete` →
 ## Batch Mode
 
-For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow. With 11 stable scopes the multi-scope chain stays under 4 AUQ rounds.
+For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow. Across the stable scope set the multi-scope chain stays under 4 AUQ rounds.
 
 Print summary after all scopes complete:
 
@@ -324,7 +324,7 @@ This file will be loaded by <affected skills list> at the start of each run.
 Edit via `/geniro:instructions edit <scope>`; lint via `/geniro:instructions validate`.
 ```
 
-For `review-extra`, follow the slug-bearing 11-step flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`.
+For `review-extra`, follow the slug-bearing flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`.
 
 ## — Mode: edit
 
@@ -568,7 +568,7 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 | "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name - |
 | "I'll spawn a subagent to do the freeform rule synthesis" | No — `/instructions` doesn't spawn subagents (per sub-decision). |
 | "I'll output the questions as plain text instead of `AskUserQuestion`" | No — every WAIT gate uses `AskUserQuestion`. |
-| "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the 11 valid scopes. |
+| "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the stable scope set. |
 | "I'll skip showing the scope-specific scaffold to save tokens" | No — scaffolds make the empty-file moment less confusing; they're not optional. |
 
 ## Definition of Done

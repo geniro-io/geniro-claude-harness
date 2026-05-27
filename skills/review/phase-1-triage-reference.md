@@ -244,7 +244,7 @@ Total cap ~2000 chars — trim Description first, then AC list (keep first 5 ACs
 
 ### 3.5.3 Inline routing
 
-`LINEAR CONTEXT:` block is pre-inlined into Phase 2 spawn prompts for **3 reviewers only**:
+`LINEAR CONTEXT:` block is pre-inlined into Phase 2 spawn prompts for the listed reviewers only:
 
 - **spec-compliance** — Acceptance Criteria become the rubric (in addition to PLAN CONTEXT section 9). Each AC must be reflected by a test reference or boundary assertion in the diff.
 - **pr-metadata** — Title/body alignment with issue title; issue ID prefix presence enhanced from regex-only to verified-existence check.
@@ -279,7 +279,7 @@ Skip for files / diff range / branch. Mechanism:
 - Keep **top-10** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When is skipped (no workflow), `linear_bonus` is always 0 and this reduces to pure file-overlap top-10.
 - For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (bounded to **200 lines** per sibling — tightened from 300 to compensate for higher count).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**5000 chars** — drop lowest-`total_score` sibling first if exceeded.
-- Pre-inline into **6 reviewer prompts**: architecture, design, **bugs, conventions, optimizations, spec-compliance** (expanded from architecture + design only). Skipped for tests + security + guidelines + pr-metadata (orthogonal or target-PR-specific).
+- Pre-inline into reviewer prompts: architecture, design, **bugs, conventions, optimizations, spec-compliance, regressions** (expanded from architecture + design only). Skipped for tests + security + guidelines + pr-metadata (orthogonal or target-PR-specific).
 
 Fail-open: if `gh pr list` fails or zero overlap-and-bonus surviving, render slot as `none — gh unavailable (fail-open)` (error case) or `none — no relevant open peer PRs` (legitimate empty result).
 

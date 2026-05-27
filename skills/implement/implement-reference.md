@@ -187,7 +187,7 @@ else:
 
 ## Phase 3: Self-review reviewer-agent template
 
-Spawn 5 reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type: "reviewer-agent"`. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder at every spawn site. OMIT `model=` (reviewer-agent declares `model: inherit`).
+Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type: "reviewer-agent"`. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder at every spawn site. OMIT `model=` (reviewer-agent declares `model: inherit`).
 
 ```
 Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="""
@@ -207,7 +207,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 """)
 ```
 
-### The 5 dimensions
+### The reviewer dimensions
 
 | Dimension | Criteria file | Focus |
 |-----------|---------------|-------|
@@ -235,7 +235,7 @@ If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero 
 
 ## Phase 3: Adversarial-tester spawn template
 
-Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel batch as the 5 reviewers (6 total spawns when included). The adversarial-tester authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
+Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel batch as the reviewers (adversarial-tester adds one more spawn when included). The adversarial-tester authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
 
 - Codebase-Explorer report `change_scope: trivial`, OR
 - `--no-adversarial` modifier present in `$ARGUMENTS`.
@@ -303,7 +303,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 round = 1
 while round ≤ 3:
   spawn this round's agents IN PARALLEL (one assistant response):
-    round 1: 5 reviewer-agents + 1 adversarial-tester (unless skipped) + N custom reviewers
+    round 1: reviewer-agents + 1 adversarial-tester (unless skipped) + N custom reviewers
     round N+1: only dims that flagged in round N + adversarial-tester if its
                Round-N CRITICAL/HIGH remain unresolved OR any authored test still fails
 
@@ -539,7 +539,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] State.md frontmatter `phase:` is a terminal state `done` / `ship-committed-only` / `self-review-only` / `debug-handoff` / `aborted`.
 - [ ] Spec source resolved — either a spec.md / plan.md / DESIGN_DOC frontmatter file was loaded, OR inline-task mode wrote a `## Inline Plan` to state.md.
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures` per).
-- [ ] Phase 3 5-dim reviewer loop ran (round 1 — all 5 dims; round N+1 — failing dims only); exited clean OR escalated per- [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
+- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated per- [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] `non-resumable-actions[]` frontmatter updated for every external side-effect (`git push`, `gh pr create`).
 - [ ] Learning emit fired when triggers were met (`convention` or `decision`); promotion suggestion surfaced for `convention` emits per.
 - [ ] Project-snapshot update fired if Phase 2 added new modules — `_CODEBASE_MAP.md` appended via `update-semantic`.

@@ -9,7 +9,7 @@ argument-hint: "[--dry-run]"
 
 # /geniro:update — Update Plugin
 
-5-phase loop: **Pre-check → Update → Post-check → Migration → Done**. Stateless. Architecture spec: *(internal)*.
+4-phase loop: **Pre-check → Update → Post-check → Migration**. Stateless. Architecture spec: *(internal)*.
 
 ## Path Constraints
 
