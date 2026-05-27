@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 5 specialist sub-agents, 11 skills, and 7 safety hooks + statusline + update check out of the box.
+A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides 6 specialist sub-agents, 11 skills, and 7 safety hooks + statusline + update check out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -267,7 +267,7 @@ geniro-claude-plugin/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # 11-skill canonical inventory
-├── agents/                      # 5 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / test-runner)
+├── agents/                      # 6 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / test-runner)
 ├── skills/                      # 11 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning

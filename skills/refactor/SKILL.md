@@ -165,7 +165,7 @@ These 4 refactor-specific signals are orthogonal to the canonical effort-scaling
 
 Skipped for Trivial and Small per Step 3.
 
-The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn (subagent rationalization; sequential refactoring is exactly the failure mode the Google/MIT 2025 study predicts for multi-agent variants, arXiv 2512.08296: −70% accuracy on sequential reasoning).
+The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn (subagent rationalization; sequential refactoring is exactly the failure mode the Google/MIT 2025 study predicts for multi-agent variants, arXiv 2512.08296: −70% accuracy on sequential reasoning). For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
 
 **Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 — full smell taxonomy + change-impact scoring + escalation rules. The orchestrator reads this file once at entry and applies the rubric inline.
 

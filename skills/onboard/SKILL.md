@@ -75,7 +75,7 @@ Per — quality-first framing. /onboard has **NO Class-A hard kill caps**. All l
 | Repo-size scan cap | 50 files (default) OR user-configured expansion | | AUQ — "Apply --focus" / "Expand scan (specify cap)" / "Truncate at top 50" / "Abort". **User picks; persists to `approvals[]` per.** |
 
 **Architecture constraints (design intent, not budget):**
-- No parallel agent spawns — /onboard is a solo orchestrator skill.
+- No parallel agent spawns — /onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Claude Code internals** (not under /onboard control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
 

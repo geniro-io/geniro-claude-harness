@@ -16,11 +16,19 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 ## When this applies
 
-Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden. **Exception:** the built-in `Explore` agent (Claude Code v2.1+, Haiku 4.5, Read/Glob/Grep + read-only Bash only) has its own narrow contract — natural-language lookup queries with a `thoroughness: quick|medium|very thorough` keyword (e.g., `"Explore authentication (thoroughness: quick). Find the login handler."`). It refuses heavyweight 6-field prompts and returns `0 tool uses · 0 tokens · 1s` when misused. Use `Explore` only for narrow "where is X defined?" / "find files matching Y" lookups; for any other research, use general-purpose (`Agent(description=..., disallowedTools=..., prompt=...)` — no `subagent_type`, OMIT `model=` so the orchestrator's session tier propagates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`) and apply this checklist.
+Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden.
+
+### Codebase research — use `codebase-research-agent`
+
+The plugin's `codebase-research-agent` (`agents/codebase-research-agent.md`) is the default for codebase research that would otherwise flood the orchestrator's context — mapping subsystems, tracing flows, locating definitions, summarising behaviour. It inherits the orchestrator's model tier (so on an Opus session the research runs Opus, where the built-in `Explore` subagent would have been pinned to Haiku 4.5) and as a plugin-defined custom agent it sidesteps [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) (MCP-overflow → `0 tool uses` on hosts with many MCP servers).
+
+Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body), pre-inline the slots from the agent's Input Contract (3 required: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `OUTPUT_PATH`; 3 optional: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS`), and OMIT `model=` so the orchestrator's session tier propagates. See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
+
+Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. `/implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
 
 ## Required pre-inlined context
 
-Every Agent() prompt — other than `Explore` invocations per the exception above — MUST include all six fields. Missing any one is a defect.
+Every Agent() prompt MUST include all six fields. Missing any one is a defect.
 
 **(1) Task scope.** Exactly what the agent must produce — single deliverable, no expansion. Phrase as "Produce <X>" not "Investigate <Y>". Scope-creep prevention: if the orchestrator would accept two different deliverables from the same prompt, the scope is under-specified. Cross-reference `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for in-agent scope guards.
 
@@ -56,6 +64,7 @@ Every Agent() prompt — other than `Explore` invocations per the exception abov
 | "I'll skip the disallowedTools field — the agent has good judgment." | The agent's good judgment is unaudited. The disallowedTools list is the only enforcement layer between the agent and the file system in interactive mode; in degraded mode (general-purpose fallback) you lose even that, and the in-prompt restatement is the only remaining guard. Belt + suspenders. |
 | "Pre-inlining files is for slow agents — fast agents can re-Glob." | Re-Globbing is non-deterministic (different agents see different snapshots) and re-discovers files the orchestrator already validated. Pre-inlining is the parallelism multiplier — the orchestrator does discovery once, every agent benefits. |
 | "Model tier defaults are fine — just inherit the orchestrator's." | The orchestrator's tier is for orchestration; the agent's tier is for the agent's work. A format-only fixer doesn't need opus; an architect doesn't run well on haiku. Tier-by-task, not tier-by-inheritance. |
+| "Built-in `Explore` is the standard codebase-search agent in Claude Code — I'll use it instead of spawning a plugin agent." | `Explore` is pinned to Haiku 4.5 regardless of the orchestrator's tier — on an Opus session, evidence gathering for the orchestrator's reasoning would run on a substantially weaker model. The plugin's `codebase-research-agent` declares `model: inherit` so research runs at the tier the user picked at session start. `Explore` is also exposed to the upstream MCP-overflow bug ([#38928](https://github.com/anthropics/claude-code/issues/38928)). `codebase-research-agent` is the default for every plugin skill's codebase research; do not spawn `Explore`. |
 
 ## Definition of Done
 

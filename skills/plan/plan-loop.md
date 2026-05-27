@@ -87,7 +87,7 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 | Medium (feature addition touching 2-5 files) | 2 agents (existing-impl + integration-surface) |
 | Big (subsystem-level change ≥10 files) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
 
-Spawn general-purpose research agents — `Agent(description="Research: <facet>", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""...""")` — and OMIT both `subagent_type` (omission defaults to general-purpose, matching the /investigate Phase 2 spawn idiom) AND `model=` (the orchestrator's session tier propagates). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (6 required fields). Do NOT use the built-in `Explore` subagent: its narrow lookup contract (Haiku 4.5, `thoroughness: quick|medium|very thorough` queries) refuses heavyweight 6-field prompts and is unsuited for the structured `[{file, lines, observation}]` output schema this phase requires.
+Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium` (default) or `very thorough` for Big-tier subsystem facets.
 
 All spawns in a single assistant response per the parallel-spawn rule. Per-spawn output schema: `[{file, lines, observation}]`; cap ~4000 chars (truncate with marker).
 

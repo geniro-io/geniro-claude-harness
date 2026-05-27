@@ -85,6 +85,8 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 |---|---|---|
 | `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
+Phase 1 codebase research that would otherwise require many inline Reads (mapping a subsystem, tracing a flow, locating a definition) spawns `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob).
+
 ---
 
 ## Evidence Standard

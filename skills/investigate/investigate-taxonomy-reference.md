@@ -118,46 +118,40 @@ Each spawn pre-populates the 6 required fields from `${CLAUDE_PLUGIN_ROOT}/skill
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
-```
-Agent(description="Investigate: codebase analysis", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
-## Task: Codebase Investigation (READ-ONLY)
-Produce a structured findings report answering the question below by analyzing pre-inlined codebase content. This is a read-only research task — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
+The Codebase Analyst spawn IS the plugin's `codebase-research-agent`. Register via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body); OMIT `model=` so the orchestrator's session tier propagates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
-**Question:** {{user's question}}
-**Target area:** {{files/modules/patterns to focus on}}
+```
+Agent(subagent_type="geniro-claude-plugin:codebase-research-agent",
+      description="Investigate: codebase analysis",
+      prompt="""
+RESEARCH_QUESTION: {{user's question — complete sentence}}
+
+DELIVERABLE_SHAPE: "Findings list where each finding is a block matching {What: <specific finding with file:line>; Evidence: <code snippet or captured grep output, verbatim>; Relevance: <how this answers the RESEARCH_QUESTION>} per Evidence Standard kind 1 or 2. Preceded by a `Files examined` list with line counts."
+
+SCOPE_HINT: {{path globs / module names / file lists derived from the user's target area; empty = whole repo}}
+
+PRE_INLINED_CONTEXT:
+{{paste verbatim contents of orchestrator-identified relevant files with absolute paths as section headers; the agent does NOT re-Glob}}
+
+OUTPUT_PATH: {{absolute path under <task-dir> — e.g., /Users/.../planning/<task-slug>/.research-codebase.md}}
+
+THOROUGHNESS: medium
+
+---
+
+# Anchor (per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md § Subagent spawn anchor)
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
+Verify with `pwd && git branch --show-current` on your first Bash call; abort if either differs.
 
-### Acceptance criteria (self-check before reporting completion)
-- Every Finding cites at least one file:line + verified snippet (Evidence Standard kind 1) or captured grep/command output (kind 2). Reasoning-only findings are rejected.
-- "Files examined" lists every file you Read with line counts.
+# Acceptance criteria (self-check before writing OUTPUT_PATH)
+- Every finding cites at least one file:line + verified snippet (Evidence Standard kind 1) OR captured grep/command output (kind 2). Reasoning-only findings are rejected.
+- "Files examined" list precedes the findings block, with line counts per file.
 - "Gaps" section is present (may be empty) — never silently drop a sub-question.
-
-### Pre-Inlined Files
-{{paste verbatim contents of orchestrator-identified relevant files with absolute paths as headers; agents do NOT re-Glob}}
-
-### Investigation strategy
-1. Read the pre-inlined files fully — do not skim
-2. Use Grep / additional Read calls only when pre-inlined files reference symbols not yet in scope
-3. Trace execution paths, data flow, or dependency chains as needed
-4. Identify patterns, conventions, and edge cases
-5. Note any inconsistencies, dead code, or surprising behavior
-
-### Output schema (literal shape)
-**Files examined:** [list with line counts]
-
-**Findings:**
-For each relevant discovery, one block matching:
-- What: [specific finding with file:line references]
-- Evidence: [code snippet or grep output — verbatim]
-- Relevance: [how this answers the question]
-
-**Gaps:** [what you couldn't determine from code alone — bulleted]
-
-Do NOT speculate. If the code doesn't answer a sub-question, list it as a gap.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
+
+The agent's own workflow (`agents/codebase-research-agent.md` § Workflow) handles parsing, evidence gathering, and synthesis; the slots above pin the deliverable shape to the Phase 2 Codebase Analyst schema that the orchestrator's re-verify pass (§4) consumes.
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 

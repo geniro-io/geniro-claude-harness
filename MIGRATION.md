@@ -64,6 +64,27 @@ done
 
 ---
 
+### New `codebase-research-agent` replaces built-in `Explore` for cross-skill codebase research
+
+`agents/codebase-research-agent.md` is a new plugin-defined specialist (6th agent in the agents/ directory). It replaces the built-in Claude Code `Explore` subagent for every plugin skill's codebase research (`/plan` Phase 1, `/debug` Phase 1, `/implement` Phase 2 ad-hoc, `/review` Phase 1 peer-PR scout, `/refactor` Phase 1 wide locator queries, `/onboard` Phase 1 narrow locators, `/investigate` Phase 2 Codebase Analyst). Two reasons: built-in `Explore` is pinned to Haiku 4.5 (breaking the orchestrator-tier-inherits rule for evidence-gathering subagents), and it is exposed to upstream bug [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) on MCP-heavy host sessions. The new agent declares `model: inherit` and is unaffected by the bug as a plugin-defined custom agent. Canonical invocation contract: `skills/_shared/context-isolation-checklist.md` § Codebase research. Plugin-managed installs pick up the new agent automatically; vendored installs need to copy the new file.
+
+**Action required:** Re-vendor the agent file for vendored installs.
+
+**Auto-detect:** `[ ! -f .claude/agents/geniro-codebase-research-agent.md ] && ls .claude/agents/geniro-*.md >/dev/null 2>&1 && echo "vendored install missing codebase-research-agent"`
+
+**Auto-fix:**
+
+```bash
+# Re-run the vendor copy step if the install is vendored
+if ls .claude/agents/geniro-*.md >/dev/null 2>&1; then
+  cp "${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md" .claude/agents/geniro-codebase-research-agent.md
+fi
+```
+
+**Severity:** LOW — additive feature. Skills that try to spawn `codebase-research-agent` on a vendored install missing the new file fall through to step 3 of the runtime-degradation ladder (`general-purpose` with body inlined) and still work, just with one wasted "not found" round-trip on first spawn.
+
+---
+
 ### spec.md frontmatter gains optional `workflow_refs[]` (schema m5-v1 → m5-v2)
 
 `/geniro:plan` now persists Linear / Jira / GitHub-Issues / Asana tracker references into spec.md frontmatter. The new field is OPTIONAL — old spec.md files without it remain valid. `/geniro:implement` Step 0 treats absence as "no tracker linkage" and proceeds without workflow on-task-start hooks. `/geniro:debug` and `/geniro:refactor` Phase 1 entry read the cached `status` field as priming context (read-only — never mutates tracker state). The `geniro_schema_version` field bumps from `m5-v1` to `m5-v2`; downstream readers accept both.

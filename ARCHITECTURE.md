@@ -137,8 +137,11 @@ Discovery surface; two skills.
 
 - `/onboard` ≤50-file scan cap by default; expansion requires explicit AUQ approval.
 - `/investigate` formalizes 5-step JIT retrieval cadence: classify → scope → select agents → run parallel → orchestrator re-verify.
+- Phase 2 Codebase Analyst spawn IS `codebase-research-agent` (general-purpose plugin agent for cross-skill codebase research; `model: inherit`); Git Historian and Internet Researcher remain `general-purpose` Agent() spawns because of their distinct tool surfaces (git read-verbs / WebSearch+WebFetch).
 - L2 trust label: `verified` for code-grounded, `retrieved` for WebFetch/WebSearch sourced.
 - Both use M1 session-bound T1 layout (`state/<skill>/<slug>/state.md`).
+
+`codebase-research-agent` is the cross-skill codebase-research substrate — used ad-hoc by `/plan`, `/debug`, `/implement` Phase 2, `/review` Phase 1, `/refactor` Phase 1, `/onboard` Phase 1 for any "map a subsystem / trace a flow / locate a definition" query that would otherwise flood the orchestrator's context with file contents. Replaces the built-in `Explore` subagent (Haiku-pinned, exposed to [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) MCP-overflow bug). Canonical guidance + invocation contract: `skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 ---
 
