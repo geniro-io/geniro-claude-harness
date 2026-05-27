@@ -107,6 +107,8 @@ When you feel yourself reaching for one of these justifications, treat it as a r
 
 Write the report to the orchestrator's output path in exactly this shape. The orchestrator parses it, so deviations break the downstream handoff — preserve headings, field names, the top-level Source branch / Source worktree fields, and the per-finding block structure verbatim.
 
+**Frontmatter contract (when writing to a T2 handoff path).** When the orchestrator's OUTPUT_PATH targets `.geniro/state/handoff/from-debug-adversarial-<branch>.md` (verify-changes mode), wrap the Markdown body below in T2 frontmatter and additionally populate the producer-specific `authored_tests[]` array. Each kept RED test (after your 3× flake check) gets one entry: `{id: t<N>, path: <repo-root-relative>, intent: <one-line guarantee>, mode: adversarial, f_to_p_status: red-on-current, targeted_source: <prod file>, confidence: high|medium|low}`. The orchestrator (/implement Phase 1 Step 12) reads this frontmatter to relocate the authored tests into the consumer's worktree without loss. Emit `authored_tests: []` (empty array) on the zero-red-tests terminal. Full schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions; the spawn-template prompt also inlines the schema verbatim. The Markdown body `**Test file:**` lines below remain as human-readable mirror — both representations must agree.
+
 ```
 ## Adversarial Test Report — N hypotheses, M authored tests
 

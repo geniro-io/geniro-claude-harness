@@ -20,16 +20,20 @@ If neither canonical nor fallback exists, this whole file is a no-op — skip to
 
 ## Step 2: Extract
 
-From `from-debug-<branch>.md`:
-- frontmatter `branch:` field → record as `debug-source-branch`. Falls back to body `**Source branch:**` line for older files.
-- frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for older files.
-- body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim leading/trailing whitespace from the result. Treat as one entry in the `authored-test-paths` set; skip if value is `none` or starts with `escape hatch:`.
+**Source-branch / source-worktree** (both handoff variants):
+- frontmatter `branch:` field → record as `debug-source-branch`. Falls back to body `**Source branch:**` line for legacy files.
+- frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for legacy files.
+- When both variants are present, prefer values from `from-debug-<branch>.md` (scientific) over the adversarial variant for consistency; only fall back to adversarial values when the scientific field is absent.
 
-From `from-debug-adversarial-<branch>.md`:
-- frontmatter `branch:` and `worktree:` fields. Falls back to top-of-body `**Source branch:**` / `**Source worktree:**` lines for older files. Overwrite values from `from-debug-<branch>.md` only if it was absent (otherwise prefer the scientific-mode values for consistency).
-- For each `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace. Add to `authored-test-paths`.
+**Authored test paths — prefer frontmatter (m7-v2+), fall back to body parse (legacy m7-v1):**
 
-**When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on a single line. Consumers split on `,` and trim each token before re-resolving.
+1. Check frontmatter `geniro_schema_version` field on each handoff file present.
+2. **If `m7-v2` or later** — parse the frontmatter `authored_tests: [...]` array (see schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions). For each entry, take `path` and add to `authored-test-paths`. Skip entries with `f_to_p_status: escape-hatch` (they have no on-disk test file). Capture each entry's `intent`, `mode`, `f_to_p_status`, `related_hypotheses`, `targeted_source`, `confidence` alongside the path so downstream consumers can surface them in context summaries without re-reading the file.
+3. **If frontmatter lacks `authored_tests[]` (legacy `m7-v1`)** — fall back to body string parse:
+   - `from-debug-<branch>.md`: body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim whitespace. Skip if value is `none` or starts with `escape hatch:`.
+   - `from-debug-adversarial-<branch>.md`: for each body `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace.
+
+**When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on a single line. Consumers split on `,` and trim each token before re-resolving. Optionally also persist `Authored-tests-intent:` as a parallel comma-separated list of intents (one per path, same order) when consumed from m7-v2+ frontmatter — preserves the producer's per-test annotation for downstream Phase 2 todo-decomposition.
 
 ## Step 3: Verify
 

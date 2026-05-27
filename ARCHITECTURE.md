@@ -22,6 +22,7 @@ Every state write uses `atomic_state_write` (tmp + fsync + rename + fsync-dir); 
 - Concurrency by convention: T1/T1.5 use slug-scoped paths, T2 uses branch-scoped paths, T3 CRUD uses optimistic mtime check. No filesystem locks.
 - `_`-prefixed files under `planning/` are persistent T3; validators enforce tier by frontmatter, not filename.
 - T2 handoffs carry a structured `open_questions[]` frontmatter array per `_shared/state-tier-spec.md` §T2 — each entry has `{id, source, question, related_findings/related_hypotheses, status: unresolved|resolved|wontfix, resolution}`. Consumer skills (e.g., `/implement` Phase 1 Step 12) gate Edit/Write transitions on the array being empty-of-unresolved; producer Pre-gates (`/review` Phase 6, `/debug` Phase 3) and Pre-Post-PR guards refuse to ship state with unresolved entries.
+- `/debug` handoffs (m7-v2+) additionally carry a producer-specific `authored_tests[]` array — each entry `{id, path, intent, mode, f_to_p_status, related_hypotheses, targeted_source, confidence}`. Consumed by `/implement` Phase 1 Step 12 via `_shared/debug-handoff.md` Scan/Extract/Verify/Decide protocol: prefer frontmatter, fall back to body parse for m7-v1 legacy; resolve paths against the consumer's worktree; surface suggest-only relocation block when MISSING. The array is informational (not a gate) so authored tests survive cross-worktree consumption without losing producer intent.
 
 ---
 
@@ -57,7 +58,7 @@ SessionStart hook re-establishes context across `compact|resume|startup`. `clear
 - When a spec.md is provided, `/implement` consumes the spec frontmatter (including `workflow_refs[]` when `geniro_schema_version: m5-v2`). Inline-task fallback exists when `/plan` has not been run.
 - Phase 2 uses TodoWrite for sequential decomposition (one-in-progress invariant); `test-runner-agent` runs at phase end. Phase 2 fix loop max 3 retries; on failure → AUQ with `debug-handoff / accept-failures / abort`.
 - Phase 3 spawns 5 reviewer-agents + 1 `adversarial-tester-agent` in parallel (6 total; adversarial skipped on trivial scope per Codebase-Explorer `change_scope`); max 3 review rounds, then escalation AUQ.
-- Phase 1 Step 12 (NEW) parses every T2 handoff (`from-review-<branch>.md`, `from-debug-<branch>.md`) for `open_questions[]`; refuses to leave Phase 1 while any entry has `status: unresolved` — gates Edit/Write transitions cold.
+- Phase 1 Step 12 parses every T2 handoff (`from-review-<branch>.md`, `from-debug-<branch>.md`) for `open_questions[]`; refuses to leave Phase 1 while any entry has `status: unresolved` — gates Edit/Write transitions cold. For debug handoffs additionally invokes `_shared/debug-handoff.md` Scan/Extract/Verify/Decide protocol: extracts `authored_tests[]` (m7-v2+) or falls back to body parse (m7-v1), verifies each path against the consumer's worktree, surfaces suggest-only relocation block when MISSING. Authored-tests are informational (not a gate); Phase 2 reads them to prime TodoWrite decomposition so every authored test surfaces as an acceptance gate in its relevant todo.
 - Ship cleanup preserves durable T1.5 artifacts (spec.md / state.md / plan-*.md / milestone-*.md); targeted `rm -f` removes only T1 scratch.
 - All subagents declare `model: inherit`; spawn sites OMIT `model=`. The orchestrator's session tier (Opus / Sonnet / Haiku) propagates to every spawn.
 - Every side-effect (commit, push, PR creation) writes to `non-resumable-actions[]` before executing.
@@ -115,7 +116,8 @@ Reporter-only (never applies fixes, never mutates tracker status — that is `/p
 - Phase 2 fix-loop gate: max 2 fix attempts; on third → AUQ.
 - Adversarial Mode (verify-changes) is a co-equal parallel workflow; delegates RED-phase test authoring to `adversarial-tester-agent`.
 - Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`; L4 promotion suggestion fires on recurrence.
-- NEVER ships code (no `git push` / `gh pr create`).
+- T2 handoff carries a structured `authored_tests[]` frontmatter array (m7-v2+) alongside `open_questions[]`. Each entry pins the path + intent + F→P status of every reproduction test the run produced, so `/implement` Phase 1 Step 12 can extract, verify, and surface relocation suggestions for tests that exist in the debug source worktree but not the consumer's worktree. The handoff body's `**Reproduction test:**` (scientific) / `**Test file:**` (adversarial) lines remain as human-readable mirrors. Schema-version `m7-v1` legacy handoffs fall back to body-string parsing via `_shared/debug-handoff.md`.
+- Reporter-only: NEVER ships code (no `git push` / `gh pr create`). The reproduction test is the only on-disk deliverable; the handoff file is the channel.
 
 ---
 
