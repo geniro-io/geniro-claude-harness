@@ -13,7 +13,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 **Architecture spec:** *(internal)*. Detailed contracts:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big) adopted per Q2
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — smell-detection sub-step per- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — PRODUCT-DECISION escalation per- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — ADR-path (4th AUQ option when ADR-eligible)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — smell-detection sub-step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — PRODUCT-DECISION escalation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — ADR-path (4th AUQ option when ADR-eligible)
 
 **Section-reference convention:** references in this SKILL.md point to local sub-sections (Phase 1, Phase 2, Phase 3 respectively).
 
@@ -115,7 +115,7 @@ Exits to Phase 2 only when: (a) baseline validation green, (b) tier classified, 
 On Phase 1 entry, in order:
 
 1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per To find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict.
-Echo lines per mandatory.
+Echo lines from the loader are mandatory per its §Echo contract.
 5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). Read-only — /refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
 ### 1.2 Scope discovery + baseline + Test-first gate
@@ -322,6 +322,8 @@ If final regression failed AND user picked "Revert all changes", state.md is alr
 ### 3.2 Independent reviewer-agent + custom reviewers (Medium+)
 
 Skipped for Trivial and Small per Step 3.
+
+**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash before invoking the custom-reviewer helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
 
 For Medium and Big: spawn a fresh reviewer-agent (focus areas — accidental public-API changes / test assertion mutations / invariant drift / new coupling / dead-code removal that had references) PLUS any custom reviewers discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (matched by `paths:` filter against changed files). All spawns go in ONE parallel batch — same assistant response. The reviewer-agent reads `bugs-criteria.md`, `architecture-criteria.md`, `tests-criteria.md` itself; do NOT pre-read into orchestrator context.
 

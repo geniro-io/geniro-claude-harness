@@ -553,6 +553,8 @@ PHASE 2 (sequential, single-context):
 
 **Idempotent green-light verification on entry.** Re-run test suite once. Should be green from Phase 2. If not, rollback to Phase 2 retry loop (treats as a retry round).
 
+**Resolve `PRIMARY_ROOT` before the parallel reviewer batch fires.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash. The custom-reviewer discovery in Step 1 calls `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`, which dual-globs `.geniro/instructions/review-extra/*.md` against cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md` — without the slot in scope, a linked-worktree session sees an empty `.geniro/instructions/` even when user-authored review-extra files exist on the main worktree.
+
 ### Steps
 
 1. **Round 1 parallel spawn — 5 reviewer-agents + 1 adversarial-tester-agent in the SAME assistant response.** Six `Agent(...)` tool uses in one message. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` at all six sites (every agent declares `model: inherit`).

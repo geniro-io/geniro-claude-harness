@@ -107,14 +107,14 @@ The numbers below reflect the codebase after the structural-refactor pass. Re-ru
 
 | File | Lines | Note |
 |---|---|---|
-| `skills/review/SKILL.md` | 694 | Acceptable — under hard ceiling; spawn-list + 9-dim grid dominate length |
-| `skills/debug/SKILL.md` | 688 | Acceptable — under hard ceiling; Adversarial Mode A1-A6 procedure inline |
-| `skills/implement/SKILL.md` | 639 | Acceptable — 3-phase loop with KR/CE/TR/reviewer/adversarial spawn sites |
+| `skills/review/SKILL.md` | 707 | Marginal — 7 over the 700 hard ceiling; revisit on next structural pass (spawn-list + 9-dim grid + Definition of Done dominate length) |
+| `skills/debug/SKILL.md` | 689 | Acceptable — under hard ceiling; Adversarial Mode A1-A6 procedure inline |
+| `skills/implement/SKILL.md` | 668 | Acceptable — under hard ceiling; 3-phase loop with KR/CE/TR/reviewer/adversarial spawn sites |
 | `skills/setup/SKILL.md` | 629 | Acceptable — 4-phase singleton bootstrap inline |
 | `skills/instructions/SKILL.md` | 593 | Acceptable — 10-scope CRUD inline |
 | `skills/actions/SKILL.md` | 568 | Acceptable — 6-op CRUD + 3-tier risk-class AUQ inline |
 | `skills/refactor/SKILL.md` | 550 | Acceptable — under hard ceiling |
-| `skills/onboard/SKILL.md` | 507 | Marginal — re-examine if it grows |
+| `skills/onboard/SKILL.md` | 505 | Marginal — re-examine if it grows |
 
 **Anti-rationalization tables**: all ≤15 rows. Caps respected.
 

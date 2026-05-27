@@ -165,6 +165,8 @@ Findings tagged `severity: CRITICAL` (secrets are always critical).
 
 ### 1.5.4 Custom-reviewer discovery
 
+**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash before invoking the helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
+
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to enumerate user-authored review dimensions in `.geniro/instructions/review-extra/<slug>.md`. The helper applies its `paths:` filter against the changed-files list, enforces the ≤10 cap, and returns spawn-specs: `{slug, dimension-label: custom:<slug>, model, criteria-content, severity-default, source-path}`.
 
 Persist the result to state.md frontmatter `custom_reviewers[]`:
@@ -679,7 +681,8 @@ Code review is complete when:
 - [ ] Phase 5b L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
 - [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT)
 - [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision; user pick persisted to `approvals[]` (category `action_gate`)
-- [ ] Phase 6 Round-N escalation gate fired when round ≥3 + "Continue rounds" pick; terminal state mapped per- [ ] Phase 6 Action == Post drill ran (Steps 1.5-6) when user picked "Post"; `[POSTED-TO-PR]` markers persisted for idempotent re-run
+- [ ] Phase 6 Round-N escalation gate fired when round ≥3 + "Continue rounds" pick; terminal state mapped to state.md `## Termination reason`
+- [ ] Phase 6 Action == Post drill ran (Steps 1.5-6) when user picked "Post"; `[POSTED-TO-PR]` markers persisted for idempotent re-run
 - [ ] Phase 6 Failing-tests gate fired when `## Authored Tests` non-empty; firing order conditional on Action choice per the gate-chain rule
 - [ ] Terminal state mapped to state.md `## Termination reason` per when `aborted` or `escalated`
 

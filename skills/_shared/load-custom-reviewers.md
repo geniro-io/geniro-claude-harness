@@ -11,7 +11,7 @@ Invoke this helper as the LAST step BEFORE the parallel reviewer batch — after
 The helper has no formal parameter list — it runs in the orchestrator's context and reads what's already there. The consumer skill MUST have these two slots in scope before invoking the helper:
 
 - **`CHANGED_FILES`** — a list of file paths the consumer skill pre-built for the parallel batch (the same list the built-in reviewers receive in their `CHANGED FILES:` slot). Used by Step 5's `paths:` filter.
-- **`PRIMARY_ROOT`** — the primary worktree root, computed once via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Used by Step 1's local + main-worktree glob.
+- **`PRIMARY_ROOT`** — the primary worktree root, computed at this helper-invocation site (never relied on from a prior phase) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the Mode A snippet sets a Bash shell variable, and Bash environments are reset across compaction and across phase boundaries that re-launch Bash. Used by Step 1's local + main-worktree glob.
 
 If either slot is missing, the helper aborts (treat as a contract bug in the consumer skill, not a user error).
 
