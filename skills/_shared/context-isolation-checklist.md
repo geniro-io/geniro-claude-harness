@@ -22,7 +22,28 @@ Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbid
 
 The plugin's `codebase-research-agent` (`agents/codebase-research-agent.md`) is the default for codebase research that would otherwise flood the orchestrator's context — mapping subsystems, tracing flows, locating definitions, summarising behaviour. It inherits the orchestrator's model tier (so on an Opus session the research runs Opus, where the built-in `Explore` subagent would have been pinned to Haiku 4.5) and as a plugin-defined custom agent it sidesteps [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) (MCP-overflow → `0 tool uses` on hosts with many MCP servers).
 
-Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body), pre-inline the slots from the agent's Input Contract (3 required: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `OUTPUT_PATH`; 3 optional: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS`), and OMIT `model=` so the orchestrator's session tier propagates. See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
+Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body) and OMIT `model=` so the orchestrator's session tier propagates. Pre-inline the slots from the agent's Input Contract (3 required: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `OUTPUT_PATH`; 3 optional: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS`). `OUTPUT_PATH` convention: `.geniro/planning/<task-slug>/.research-out.md` (default) OR `.geniro/planning/<task-slug>/.research-<facet>.md` (when running multiple facets in parallel — `/plan` Phase 1 pattern). See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
+
+Concrete call shape (step 1 of the spawn-agent ladder; substitute slot values):
+
+```
+Agent(subagent_type="geniro-claude-plugin:codebase-research-agent",
+      description="<5-10 word task summary>",
+      prompt="""
+RESEARCH_QUESTION: <complete-sentence question>
+
+DELIVERABLE_SHAPE: <pinned output shape — ordered call chain / definition+caller table / module map / etc.>
+
+SCOPE_HINT: <path globs or module names; omit when scanning whole repo>
+
+PRE_INLINED_CONTEXT:
+<file excerpts the orchestrator already read; omit if none>
+
+OUTPUT_PATH: <absolute path under .geniro/planning/<task-slug>/.research-out.md>
+
+THOROUGHNESS: <quick | medium | very thorough; default medium>
+""")
+```
 
 Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. `/implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
 

@@ -37,7 +37,7 @@ Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}
 
 ## Loop Invariants
 
-The 7 invariants apply unchanged:
+The 8 invariants apply unchanged:
 
 1. **One result per tool call.** Adversarial Mode parallel-spawn → each spawn must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` semantic parse; PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
@@ -46,6 +46,7 @@ The 7 invariants apply unchanged:
 5. **Escalation gates, not silent abort.** stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate to user via AUQ. Never silently fabricate a conclusion.
 6. **Final answer grounded in observations.** Evidence Standard for hypothesis confirmation — every Result: field in `## Hypotheses` MUST cite an artifact kind 1-5 per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Symptom matches" is correlation, not causation; not allowed.
 7. **Errors → structured observations.** Failed `git diff`, denied permission, `adversarial-tester-agent` "agent not found" ladder fallback all become structured `## Tool log` entries before being acted on.
+8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 `## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, escalation entries for /). Routine Read / Edit / Bash skipped.
 
@@ -68,7 +69,7 @@ This skill has **NO hard kill caps**. Same model as other skills.
 
 | Constraint | Value | Source |
 |---|---|---|
-| Subagent spawns | 1 (adversarial mode only — `adversarial-tester-agent`) | |
+| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `adversarial-tester-agent` (adversarial mode only) | |
 | Reproduction-test framework | Project's native (detected from CLAUDE.md Essential Commands) | |
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale as — complex multi-cause bugs may legitimately need hours of investigation; hypothesis testing against a large codebase may need many Read/Grep calls.
@@ -83,9 +84,8 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 | Spawn | Tier | Why |
 |---|---|---|
+| `codebase-research-agent` | inherit (OMIT `model=`) | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant #8). Inherits orchestrator tier so research runs at Opus on an Opus session. Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
 | `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
-
-Phase 1 codebase research that would otherwise require many inline Reads (mapping a subsystem, tracing a flow, locating a definition) spawns `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob).
 
 ---
 

@@ -59,10 +59,11 @@ See for the canonical phase enum + for termination-case mapping.
 
 ## Loop invariants
 
-The 7 loop invariants from *(internal)* apply throughout /onboard. Two skill-specific notes
+The 7 loop invariants from *(internal)* apply throughout /onboard. Three skill-specific notes
 
 1. **Invariant #4 (bounded structured tool results)** — repo-scan output (file list, directory tree) is bounded; long lists truncated with marker.
 2. **Invariant #7 (errors → structured observations)** — permission errors during scan, missing access become structured `## Errors` body section entries.
+3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **`## Tool log` section in state.md:** selective logging — log L3 writes (`_CODEBASE_MAP.md` write via `update-semantic`), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash skipped.
 

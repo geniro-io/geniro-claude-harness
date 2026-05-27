@@ -74,7 +74,7 @@ Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema 
 
 ## Loop invariants
 
-These 7 invariants apply throughout all phases. Identical to conceptually; phase numbers and tool surface differ.
+These 8 invariants apply throughout all phases. Identical to conceptually; phase numbers and tool surface differ.
 
 1. **One result per tool call.** Every AskUserQuestion / Write / Bash / Agent spawn produces exactly one structured result. Failed AUQ (empty-answer bug) → fall back to plain-text re-ask; never auto-default.
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Path-based detection (design-doc-detect.md) validates file existence before treating $ARGUMENTS as a path.
@@ -83,6 +83,7 @@ These 7 invariants apply throughout all phases. Identical to conceptually; phase
 5. **Escalation gates, not silent abort.** Phase 7 validator 3-round → AUQ. Phase 8 user-revision 3-round → AUQ. Phase 3 ≤5 questions → consolidation forced. NO Class-A hard kill caps.
 6. **Final answer grounded in observations.** Phase 5 section content MUST cite Phase 1 explore findings (`file:line` references) — not generic prose. Phase 7 validator includes a «citations present» check.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
+8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 `## Tool log` schema (selective logging, ):
 
