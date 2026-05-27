@@ -334,7 +334,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 **Downstream knobs (4 — one NEW ):**
 - Phase 4a severity threshold: standard ≥80; high ≥70.
-- Phase 4b validator coverage: standard top-3 sample; high ALL HIGH.
+- Phase 4.2 verifier coverage: ALL HIGH-severity survivors verified (no tier-scaling — same coverage at standard and high tier).
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - **NEW:** Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
 

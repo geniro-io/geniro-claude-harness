@@ -1,6 +1,6 @@
 # Plan Context Reference
 
-How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance dimension. Schema-aware loader that parses the spec's 10-section `spec.md` format when present, falling back to prose detection when no frontmatter is found.
+How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions dimensions. Schema-aware loader that parses the spec's 10-section `spec.md` format when present, falling back to prose detection when no frontmatter is found.
 
 ---
 

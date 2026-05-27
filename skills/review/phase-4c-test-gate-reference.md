@@ -120,7 +120,7 @@ The demote-don't-delete rule is non-negotiable: a green test can mean (a) the bu
 
 ## 7. Step 6 — Fail-open
 
-If the adversarial-tester-agent fails to complete, returns malformed output, its report cannot be parsed, or the orchestrator's Step 4 re-run command errors (test framework not installed, exec error): do NOT revoke any findings and do NOT add `[CONFIRMED-BY-TEST]` tags. Surface "test-gate fail-open — bug confirmation skipped for this run" under `## Caveats`. Mirrors Phase 4b validator and Phase 3 relevance-filter fail-open.
+If the adversarial-tester-agent fails to complete, returns malformed output, its report cannot be parsed, or the orchestrator's Step 4 re-run command errors (test framework not installed, exec error): do NOT revoke any findings and do NOT add `[CONFIRMED-BY-TEST]` tags. Surface "test-gate fail-open — bug confirmation skipped for this run" under `## Caveats`. Mirrors Phase 4.2 verifier and Phase 3 relevance-filter fail-open.
 
 Also log a structured entry to state.md `## Errors`:
 
@@ -135,4 +135,4 @@ consequence: bug-confirmation-skipped
 
 ## 8. Why Phase 4c exists
 
-Phase 4c is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4b's read-only validation. The gate is non-negotiable: the user can decline, but the offer is not orchestrator's to skip.
+Phase 4c is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4.2's read-only verifier. The gate is non-negotiable: the user can decline, but the offer is not orchestrator's to skip.

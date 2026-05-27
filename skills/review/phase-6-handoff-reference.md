@@ -4,6 +4,8 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Hand-off). Extracted
 
 State.md `phase: action-gate` during this phase.
 
+**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-HIGH verifier. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per SKILL.md §State file schema). Consumers accept BOTH `m6-v1` (legacy — verification fields absent on HIGH findings; see §2.5 back-compat below) AND `m6-v2` (rich — verification fields mandatory on HIGH findings).
+
 ## Contents
 
 - §1 — Reporter behavior (no fix loop)
@@ -13,7 +15,7 @@ State.md `phase: action-gate` during this phase.
 - §4 — Action gate (consolidated decision)
 - §5 — Round-N escalation
 - §6 — Failing-tests gate
-- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard → 7.8 posting-failure semantics)
+- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with three invariants → 7.8 posting-failure semantics)
 - §8 — Empty-answer handling (universal)
 - §9 — Terminal state mapping
 
@@ -26,7 +28,7 @@ This skill confirms: /review does NOT apply fixes. Phase 6 hand-off message NEVE
 `--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention but the output is still a finding list for consumption by other skills.
 
 **Skip Phase 6 entirely when:**
-- Zero actionable findings remain (CRITICAL + HIGH + MEDIUM all zero after Phase 4b).
+- Zero actionable findings remain (CRITICAL + HIGH + MEDIUM all zero after Phase 4.2).
 
 ---
 
@@ -116,6 +118,10 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
   <2-5 lines from reviewer-agent Evidence: codeblock>
   ```
   OR (command-based form): `Command:` / `Exit code:` / `Tail (last 3 lines):`
+- **Validation:** `confirmed | refuted | clarified` [HIGH-severity only — emitted by Phase 4.2 per-HIGH verifier; ABSENT on MEDIUM/LOW]
+- **Recommended-action:** `fix-now | testable | product-decision | intent-check | drop` [HIGH-severity only — verifier override; when `Validation: clarified`, this field supersedes the original `Decision Type:` for downstream routing]
+- **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [HIGH-severity only — Greptile-style 1-5 scale, distinct from the LLM `Confidence: NN%` field above]
+- **Verification-evidence:** `"<literal quote from cited file:line or caller chain>"` [HIGH-severity only — verifier's grounding citation, distinct from the reviewer's `Evidence:` codeblock above]
 - **Options:** [PRODUCT-DECISION only — omit for other types]
   - `<option-id>`: `<short label>` — `<one-line trade-off>`
 - **Recommendation:** <option-id> — <one-sentence rationale> [PRODUCT-DECISION only]
@@ -123,6 +129,10 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 ```
 
 The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 3 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
+
+**Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every HIGH-severity finding that lands in `## Findings`. Phase 4.2 spawns one fresh `reviewer-agent` per HIGH-severity candidate; verdicts of `validation: refuted` are filtered before reaching the handoff, so any HIGH finding present here carries `Validation: confirmed` or `Validation: clarified`. The fields are ABSENT on MEDIUM and LOW findings (no per-finding verifier was spawned at those tiers). When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions.
+
+**Verification fields — back-compat for legacy handoffs.** Handoffs produced by `m6-v1` (pre-Phase-4.2) writers contain HIGH-severity findings without the four verification fields. Consumers (§7.0 fail-closed guard, /implement Phase 1 Step 12) treat a missing `Validation:` on a HIGH finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so missing-field MUST NOT block the Post drill that worked before the field existed.
 
 **Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` (the safety improvement post-dates these handoffs) and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
 
@@ -138,7 +148,7 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 
 **For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
-1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`).
+1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). When the finding is HIGH-severity, confirm the Phase 4.2 verifier passed before firing the AUQ: the `Validation:` field MUST be `confirmed` or `clarified`. A `Validation: refuted` finding should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. A missing `Validation:` on a HIGH finding (legacy `m6-v1` handoff) is treated as `confirmed` per §2 back-compat — proceed with the AUQ but surface the one-line warning.
 2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. Set `header: "Open decision"`. Render the `question` text with finding's severity / `path:lines` / short-title / decision-type / `why-matters` line per spec's Source-field map; render each option's `label`+`description` from finding's `options:` sub-list bullets; render each option's `preview` with finding body (Evidence / Suggested-fix / Confidence / Origin). Do NOT collapse rendering to label + 1-line description.
 3. Update finding line in the state file: replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag.
 
@@ -244,29 +254,32 @@ When user picked "Post" in the Action gate:
 
 When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to Failing-tests (when applicable) and cleanup.
 
-### 7.0 Step 0 — Unresolved-questions guard (fail-closed)
+### 7.0 Step 0 — Unresolved-ambiguity guard (fail-closed)
 
-Before any of the Post-drill steps below fire, re-read state.md and verify TWO invariants. If either fails, abort the Post drill — never post to GitHub with unresolved ambiguity baked in.
+Before any of the Post-drill steps below fire, re-read state.md and verify THREE invariants. If any fails, abort the Post drill — never post to GitHub with unresolved ambiguity, missing user picks, or refuted findings baked in.
 
 **Invariant A — `open_questions[]` empty of `unresolved`.** The §2.5 Pre-gate runs first in Phase 6 and should leave `open_questions[]` with zero `unresolved` entries by the time Action gate fires.
 
 **Invariant B — every PRODUCT-DECISION finding has `step0_status: resolved` (or `wontfix`).** The §3 Step 0 per-finding gate runs after §2.5 and flips each PRODUCT-DECISION finding's `step0_status: pending` → `resolved` once the user's AUQ pick lands. A finding still at `pending` here means §3 never fired for it — and §7.5 would route it to `comments[]` by `File:` sentinel alone, with either AUQ chip label (`"Open question"` from §2.5 or `"Open decision"` from §3) potentially leaking into the comment body as if it were a tag.
 
-This §7.0 check is the fail-closed second line of defense for BOTH invariants: if a producer wrote a new `open_questions[]` entry mid-phase, if `atomic_state_write` raced with a parallel resolver, or if §3 was conflated with §2.5 / skipped under orchestrator drift, the upstream gates' invariants might not hold. Verify defensively.
+**Invariant C — every HIGH-severity finding has `Validation: confirmed` or `Validation: clarified`.** The Phase 4.2 per-HIGH verifier should filter `validation: refuted` findings before they reach the handoff. Any HIGH finding in `## Findings` carrying `Validation: refuted` indicates a producer-side filter failure; posting it to GitHub would surface a finding the verifier already judged incorrect. This guard re-checks at the external-effect boundary as defense-in-depth — refuted should never reach Post. Missing `Validation:` on a HIGH finding (legacy `m6-v1` handoff) is NOT a violation: per §2 back-compat, treat as `confirmed` and proceed with the one-line warning. The guard rejects `refuted` and field-mismatch (non-enum values), not absence.
+
+This §7.0 check is the fail-closed second line of defense for ALL THREE invariants: if a producer wrote a new `open_questions[]` entry mid-phase, if `atomic_state_write` raced with a parallel resolver, if §3 was conflated with §2.5 / skipped under orchestrator drift, or if Phase 4.2's filter pass dropped a `refuted` entry from the filter list but left it in `## Findings`, the upstream gates' invariants might not hold. Verify defensively.
 
 **Procedure:**
 
-1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`. Read the `## Findings` body section and parse each finding's `Decision Type:` and `step0_status:` fields.
-2. Filter to: (a) `open_questions[]` entries with `status: unresolved`; AND (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`.
-3. If either filtered list is non-empty:
-   - Surface a one-line chat warning naming the count of each (e.g., `"Post drill aborted: 2 open questions unresolved + 1 PRODUCT-DECISION finding without Step 0 resolution"`) and the first 1-2 affected items.
-   - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, AND the pending finding IDs.
+1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`. Read the `## Findings` body section and parse each finding's `Severity:`, `Decision Type:`, `step0_status:`, AND `Validation:` fields.
+2. Build three filter lists: (a) `open_questions[]` entries with `status: unresolved`; (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`; (c) findings with `Severity: HIGH` AND (`Validation: refuted` OR `Validation:` set to a non-enum value).
+3. If any of the three lists is non-empty:
+   - Surface a one-line chat warning naming the count of each non-empty list (e.g., `"Post drill aborted: 2 open questions unresolved + 1 PRODUCT-DECISION finding without Step 0 resolution + 1 HIGH finding refuted by verifier"`) and the first 1-2 affected items.
+   - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, the pending finding IDs, AND the refuted/invalid finding IDs.
    - Re-fire the §2.5 Pre-gate for any unresolved `open_questions[]` entries (if list (a) non-empty).
    - Re-fire the §3 Step 0 per-finding gate for any `step0_status: pending` PRODUCT-DECISION findings (if list (b) non-empty).
-   - After both resolution loops complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds BOTH filtered lists empty.
-4. When step 3 finds both filtered lists empty, proceed to §7.1.
+   - For list (c) refuted/invalid HIGH findings: do NOT auto-resolve. Refuted findings must be moved to `## Filtered` (with `reason: verifier-refuted`) by re-running Phase 4.2's filter pass — surface a chat instruction: `"Re-run /geniro:review to re-fire Phase 4.2 per-HIGH verification, OR manually move the refuted finding(s) to ## Filtered."` Then abort Phase 6 entirely (terminal state `aborted`, `## Termination reason: producer-schema-violation: refuted-finding-in-handoff`) — the user re-runs /review rather than racing a manual edit against a pending Post.
+   - After resolution loops for lists (a) + (b) complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds ALL THREE filtered lists empty.
+4. When step 3 finds all three filtered lists empty, proceed to §7.1.
 
-This guard exists because posting a draft PR review with unresolved ambiguity buried in the body would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array and `step0_status:` sentinel are designed to prevent. The two invariants are independent (different arrays, different gates) so the guard must check both; checking only one leaves the other path uncovered.
+This guard exists because posting a draft PR review with unresolved ambiguity, missing user picks, or verifier-refuted findings buried in the body would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array, `step0_status:` sentinel, and `Validation:` field are designed to prevent. The three invariants are independent (different arrays, different gates, different producer phases) so the guard must check all three; checking only one or two leaves the remaining path(s) uncovered.
 
 ### 7.1 Step 1.5 — Resolved-thread dedup (input-side filter)
 

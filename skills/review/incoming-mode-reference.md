@@ -87,7 +87,7 @@ Incoming mode SKIPS:
 - SKILL.md Phase 2 reviewer spawns (no new findings being authored)
 - SKILL.md Phase 3 relevance filter (no findings to filter)
 - SKILL.md Phase 4 judge pass (no findings to judge)
-- SKILL.md Phase 4b per-finding validation (no findings to validate)
+- SKILL.md Phase 4.2 per-HIGH verifier (no findings to verify)
 - SKILL.md Phase 5 state file (Incoming uses `.geniro/state/review-feedback/<slug>-incoming.md` instead)
 - SKILL.md Phase 6 (Action gate, Failing tests gate, PR-comment posting — all replaced by Step I-4 per-comment AUQ)
 

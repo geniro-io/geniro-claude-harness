@@ -85,6 +85,22 @@ fi
 
 ---
 
+### `/review` handoff per-finding body gains verification fields (schema m6-v1 → m6-v2)
+
+`/geniro:review` Phase 4.2 was rewritten to spawn one fresh `reviewer-agent` per HIGH-severity finding (no tier-scaling — ALL HIGHs verified). Each verifier emits `Validation: confirmed | refuted | clarified`, `Recommended-action`, `Verification-confidence` (0-100), and `Verification-evidence` (literal file:line quote). These 4 fields persist into the T2 handoff per-finding body schema. The `geniro_schema_version` field in `.geniro/state/handoff/from-review-<branch>.md` bumps from `m6-v1` to `m6-v2`; downstream consumers (Phase 6 §7.0 fail-closed guard, /implement Phase 1 Step 12) accept both. Legacy `m6-v1` handoffs read by an `m6-v2` consumer treat the 4 missing fields on HIGH findings as `Validation: confirmed + warn` (mirrors the `step0_status: pending` back-compat pattern).
+
+A new `regressions` reviewer dimension is added as the 8th always-fire dim (between `conventions` and the conditional dims). Catches unintended deletes + behavior changes outside stated intent. Spec.md / PR body / commit messages serve as intent source; when absent, behavior-mutating hunks emit INTENT-CHECK findings for the user to confirm at the §3 Step 0 gate.
+
+**Action required:** None — backward compatible. Existing `m6-v1` handoffs continue to work. New `/review` runs produce `m6-v2` handoffs with the verification fields populated.
+
+**Auto-detect:** N/A — schema version bump is producer-driven; legacy reads degrade gracefully.
+
+**Auto-fix:** N/A.
+
+**Severity:** LOW — additive schema change with graceful absence handling. Reviewers (custom or built-in) that hardcoded the 7-always-fire count in their authoring conventions should bump to 8.
+
+---
+
 ### spec.md frontmatter gains optional `workflow_refs[]` (schema m5-v1 → m5-v2)
 
 `/geniro:plan` now persists Linear / Jira / GitHub-Issues / Asana tracker references into spec.md frontmatter. The new field is OPTIONAL — old spec.md files without it remain valid. `/geniro:implement` Step 0 treats absence as "no tracker linkage" and proceeds without workflow on-task-start hooks. `/geniro:debug` and `/geniro:refactor` Phase 1 entry read the cached `status` field as priming context (read-only — never mutates tracker state). The `geniro_schema_version` field bumps from `m5-v1` to `m5-v2`; downstream readers accept both.
