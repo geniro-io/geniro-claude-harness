@@ -150,14 +150,18 @@ Skip or downgrade findings in these cases — they look like rubric violations b
 - **First-review runs** (no prior `pr-body:` in the state file because this is the first `/geniro:review` invocation against this PR): Skip entirely; it has nothing to compare against. The check fires only on round 2+ re-reviews. This is the normal case; do not emit a "no drift to check" finding.
 - **Generated PRs** from automation (release-please, changesets, semantic-release, project-board automation): bodies are formulaic and the rubric does not apply. Detect via author user, title patterns (`chore: release X.Y.Z`, `Release v…`), or the presence of `release-please` / `changeset` labels. Skip every check.
 - **Very small diffs** (<5 LOC AND ≤2 files changed): the rubric's structural expectations (test plan, screenshots, breaking-change note) often do not apply. Skip checks #5 (test plan), #6 (screenshots), #7 (breaking-change) unless the diff visibly touches an API surface / migration / UI file. Still flag #1 (imperative verb) and #3 (substance) if the body is empty.
+- **"PR description could be more verbose" → never MEDIUM** — Suggestions to add more context, link more tickets, or include checklists are LOW. MEDIUM requires the missing field to be documented as REQUIRED in the repo's PR template or CONTRIBUTING.md, AND the omission must materially mislead reviewers.
 
 The detection signals above come from `gh pr view --json isDraft,author,title,body,labels` — the same call already issued at SKILL.md Phase 1 "Parse input" — so no additional API roundtrip is needed.
 
 ## Severity Tagging
 
-- **CRITICAL** — empty description, raw template placeholder, or title that misrepresents the diff (e.g., "Fix typo" on a 500-LOC architectural change). These block informed review entirely.
-- **HIGH** — missing test plan when logic changed, missing screenshots when UI changed, missing breaking-change note when API/migration changed. Reviewers cannot verify the change without these.
-- **MEDIUM** — missing "why" clause, scope mismatch, convention drift on title format, missing linked issue when repo expects one. Reviewable without these but signal under-specification.
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
+
+- **CRITICAL** — PR title misrepresents the diff (title says "refactor", diff adds new feature); PR body empty when repo CONTRIBUTING.md requires non-empty; PR description claims behavior X is unchanged while diff demonstrably changes X.
+- **HIGH** — Missing test-plan section when test files are modified; missing screenshots when UI files changed; missing breaking-change note when an exported API signature changed.
+- **MEDIUM** — Missing REQUIRED field per repo's PR template (e.g., the template demands a `## Risk` section and the body omits it). The field must be in a documented template, not inferred. Scope mismatch where the diff covers a materially different feature than the title claims (e.g., title "fix bug" but diff adds 200 lines of new feature code).
+- **LOW** — PR description verbosity suggestions ("add the linked Linear ticket", "include a short rationale", "mention the sunset checklist"); commit-message-format suggestions; optional-field additions; title-format polish (capitalization, prefix conventions); convention drift on non-required fields.
 
 Do not emit findings for repos that demonstrably do not follow a given convention (modal-pattern detection rules in checks #2 and #9 must show the repo uses the convention before flagging deviations).
 

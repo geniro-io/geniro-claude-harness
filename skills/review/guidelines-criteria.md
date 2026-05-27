@@ -185,7 +185,7 @@ grep -n "Object\|Function" file.ts
 ```json
 {
 "type": "guidelines",
-"severity": "critical|high|medium",
+"severity": "medium|low",
 "title": "Style or guideline violation",
 "file": "path/to/file.js",
 "line_start": 42,
@@ -230,6 +230,8 @@ grep -n "Object\|Function" file.ts
 - Check `.eslintrc`, `prettier.config`, etc.
 - Don't flag if matches project config
 
+7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW — the Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5) will still surface correct findings via convergence or evidence-grounding.
+
 ## Stack-Agnostic Patterns
 
 Works across all languages/frameworks:
@@ -254,8 +256,11 @@ Works across all languages/frameworks:
 - [ ] Code follows project style guide
 - [ ] No TODO without issue reference
 
-## Severity Guidelines
+## Severity Tagging
 
-- **CRITICAL**: Breaks language/framework standards, dangerous patterns
-- **HIGH**: Violates team style guide, difficult to understand, significant duplication
-- **MEDIUM**: Minor style issues, inconsistency, documentation gaps, naming improvements
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
+
+- **CRITICAL** — never emitted by this dim (style/convention findings cannot be CRITICAL).
+- **HIGH** — never emitted by this dim.
+- **MEDIUM** — Convention drift on a tooling-load-bearing field (e.g., missing `risk_class:` in a `.geniro/actions/*.md` that the action runner requires; missing `name:` in a SKILL.md frontmatter that the loader rejects; missing `paths:` in a `review-extra/<slug>.md` that the dispatcher needs). The drift must demonstrably break or degrade a tool that consumes the field. Documentation gaps, comment wording, naming polish, formatting, and style suggestions are NOT MEDIUM — they are LOW.
+- **LOW** — Style / formatting / naming polish; documentation gaps; comment wording; convention drift on optional fields; mismatched-but-non-load-bearing rule violations.

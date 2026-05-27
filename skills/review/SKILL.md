@@ -363,13 +363,19 @@ Always-WAIT — empty answer = upstream bug, fall back to plain text. NEVER auto
 
 When `missing` is empty, proceed directly to §4.1.
 
-### 4.1 Severity threshold filter
+### 4.1 Multi-signal threshold filter
 
-Apply risk-tier threshold:
-- standard: keep findings with severity ≥ MEDIUM AND confidence ≥ 80%.
-- high: keep findings with severity ≥ MEDIUM AND confidence ≥ 70%.
+`severity ≥ MEDIUM` is necessary but NOT sufficient. A finding admitted to Phase 4 must clear one of FOUR independent signals — any one passes. Convergence + evidence-grounding are documented as more reliable than LLM self-confidence (citations: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §4).
 
-Sub-threshold findings written to a "Deferred" list (surfaced in body `## Deferred — sub-threshold` so user knows what was dropped). Deferred findings do NOT populate `open_questions[]` — that array is reserved for ambiguous-how-to-fix decisions that gate downstream action, not for awareness-only dropouts.
+KEEP rule (admit to Phase 4.2 verifier + Phase 5 stratify) — `severity >= MEDIUM` AND ONE OF:
+1. `convergence_count >= 2` — finding raised by 2+ independent reviewer dims (k-review pattern; cross-dim agreement beats any single dim's self-rating). `convergence_count` is set during §3.1 dedup.
+2. `Evidence-Block present AND properly formatted` AND `confidence >= 60` — cites a real file:line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Properly formatted" = Evidence-Block fence OR file:line pattern + ≥2 quoted lines (mechanical check at §4.1 entry on each finding's `Evidence:` field; false on missing; orchestrator does NOT re-read the cited file — Phase 4.2 verifier handles that for HIGHs).
+3. Pre-resolved override marker — tagged by a criteria file as pre-resolved priority (e.g., `simplify-criteria.md` P1/P2; `regressions-criteria.md` signal-table-flagged HIGH).
+4. `confidence >= 80` — advisory fallback for findings without convergence or evidence. High tier (`risk-tier: high`) relaxes this to `confidence >= 70` (matches the legacy threshold); other signals unchanged. `--tdd` does not affect §4.1 admission (only Phase 4.2 verifier scope).
+
+DEFER rule (write to `## Deferred — sub-threshold` for user awareness; do NOT post to PR; do NOT populate `open_questions[]`):
+- `severity < MEDIUM` — always deferred per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5.
+- `severity >= MEDIUM` that fails ALL FOUR signals above.
 
 ### 4.2 Per-HIGH-finding empirical-reproduction verification
 
@@ -648,7 +654,7 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | "I'll spawn only 4 dimensions — they cover the main risk surface for this diff." | All 8 always-dims are MANDATORY per §2.1. Conditional dims fire per their trigger rule. The cost of N parallel spawns is parallelized — wall-time is ~max(spawn-time), NOT sum. The cost of a missed CRITICAL finding is unbounded. Phase 4 §4.0 verification gate catches the trim; do not require the user to enforce it. |
 | "The custom reviewer in `.geniro/instructions/review-extra/<slug>.md` is narrow scope — skip its discovery to save turns." | Discovery is a mechanical Glob + frontmatter parse — cheap. Custom reviewers exist because the user explicitly authored them; silently skipping defeats the entire `instructions/review-extra/` feature. Per Phase 1.5 §1.5.4, discovery runs in the mechanical pre-pass so Phase 2 has zero cognitive load for it. |
 | "Just keep guidelines — duplicate finding is a feature, not a bug." | User-facing "told twice" is concrete UX friction. Two reviewers reporting the same thing wastes user attention. The specialized dim (conventions) wins on cost AND quality; let the dedicated reviewer own the finding category. |
-| "Round-N hard ceiling at round 6 is paternalistic." | User picking "Continue" 5 times indicates either a bug in stratification or a workflow that belongs to /geniro:debug. Hard ceiling protects against accidental infinite-loop UX. User retains agency via the "Escalate" pick. |
+| "I'll tag this LOW finding as MEDIUM so it surfaces past the threshold filter." | The Phase 4.1 multi-signal gate (§4.1) provides four independent signals for a correct finding to surface (convergence_count ≥2, Evidence-Block + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback) — the confidence threshold is one of four, not a load-bearing primary. Inflating severity to game the gate corrupts the severity taxonomy for downstream consumers (verifier, stratifier, /implement consumer) AND surfaces low-impact findings on the PR. Trust the multi-signal gate; let LOW be LOW. |
 | "Auto-drop MEDIUM findings to reduce user friction." | MEDIUM routes through the always-WAIT MEDIUM-gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Auto-dropping makes the skill less trustworthy — users notice when their MEDIUMs vanish silently. Never auto-drop. |
 | "I'll spawn the adversarial-tester-agent and ask the user to confirm later." | Inline-after-action gates rationalize into "this counts as approval". The Phase 4c invariant is `AskUserQuestion` BEFORE spawning, not after. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
 | "The findings look obviously postable — I'll just batch-post to the PR and tell the user after." | Posting to a PR is an external write to a public surface. Phase 6 Action gate's "Post" selection IS the consent — without it, ambiguity that should have been resolved gets pushed onto the PR author or downstream reviewer. |
@@ -669,9 +675,7 @@ Code review is complete when:
 - [ ] Phase 1 PLAN CONTEXT resolved
 - [ ] Phase 1 Workflow integrations ran when `.geniro/workflow/*.md` non-empty — tracker ID detected (if present in `$ARGUMENTS` / `pr.title` / `pr.body` / spec.md frontmatter `workflow_refs[]`; sources deduplicated by `(kind, issue_id)`; m5-v1 and m5-v2 specs both accepted); `linear-task-ref` + `linear-parent-ref` populated in frontmatter; `LINEAR CONTEXT:` block built (or fail-open caveat surfaced)
 - [ ] Phase 1 Peer-PR scout (PR-ref only) ran with extended scoring — `total_score = file_overlap + linear_bonus`; top-10 kept; per-sibling diff ≤200 lines; total cap 5K chars; PEER-PR CONTEXT fed to 7 dims (architecture + design + bugs + conventions + optimizations + spec-compliance + regressions)
-- [ ] Phase 1 Step 0.5 Round-N gate evaluated — round counter incremented; Round-N AUQ fired when round ≥3
-- [ ] Phase 1 Step 0.7 risk-tier stratification ran — `risk-tier: <standard|high>` persisted; 4 downstream knobs adjusted
-- [ ] Phase 1 Step 0.8 memory layers loaded (L4 instructions + L3 semantic + L2 learnings)
+- [ ] Phase 1 Round-N counter incremented + AUQ fired when round ≥3; risk-tier stratification ran (`risk-tier: <standard|high>` persisted; 4 downstream knobs adjusted); memory layers loaded (L4 instructions + L3 semantic + L2 learnings)
 - [ ] Phase 1 git-workspace decision ran when input was a PR ref
 - [ ] Phase 1.5 mechanical pre-pass ran — 3 checks (lint / schema / secret scan) with strict-mode secret-scan when risk-tier:high
 - [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT (spec-compliance + regressions dims only) + LINEAR CONTEXT (spec-compliance + pr-metadata + architecture + regressions dims only) + PEER-PR CONTEXT (7 dims) + PRIOR-ROUND FINDINGS + Mechanical Pre-pass Findings + alignment-tag instruction (PR metadata flows via the pr-metadata reviewer's existing context channel — no separate `PR CONTEXT:` slot)
@@ -681,13 +685,11 @@ Code review is complete when:
 - [ ] Phase 2 `--simplify` flag prepended deep-simplify criteria to 5 dimensions (architecture / conventions / guidelines / bugs / optimizations) when present
 - [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding
 - [ ] Phase 4 judge validation complete; Step 0 intent reconciliation applied (plan-authorized divergences demoted to `[INTENT-CHECK]`)
-- [ ] Phase 4.2 per-HIGH-finding verifier run for EVERY HIGH-severity survivor (no tier-scaling); refuted findings demoted to `## Filtered`
+- [ ] Phase 4.1 multi-signal threshold gate applied (convergence ≥2 OR Evidence-Block + confidence ≥60 OR criteria-pre-resolved marker OR confidence ≥80 fallback; high-tier relaxes signal 4 to ≥70)
 - [ ] Phase 4c test-gate evaluated (skipped when no eligible findings or user declines); user approval persisted to `approvals[]`
-- [ ] TDD mode only: Phase 4c Step 2 AUQ rendered with `(Recommended)` suffix on "Author tests…"; gate itself fired exactly as in Standard mode
-- [ ] TDD mode only: Phase 6 Step 3.5 post-set filter applied
-- [ ] Confidence scoring applied (≥80 threshold standard; ≥70 high tier)
-- [ ] Issues classified by severity (Critical, High, Medium) and Decision Type ([FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK])
-- [ ] Findings tagged as [NEW] or [PRE-EXISTING] based on diff context
+- [ ] TDD mode only: Phase 4c Step 2 AUQ rendered with `(Recommended)` suffix on "Author tests…" (gate itself fired exactly as in Standard mode); Phase 6 Step 3.5 post-set filter applied
+- [ ] Issues classified by severity (CRITICAL/HIGH/MEDIUM/LOW per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1) and Decision Type ([FIX-NOW] / [TESTABLE] / [PRODUCT-DECISION] / [INTENT-CHECK])
+- [ ] All findings tagged `[NEW]` (in changed lines) or `[PRE-EXISTING]` (in unchanged code) per `agents/reviewer-agent.md` Output Format; build-failure findings additionally tagged per §2.7
 - [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`
 - [ ] Phase 5b L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
 - [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT)
@@ -696,4 +698,3 @@ Code review is complete when:
 - [ ] Phase 6 Round-N escalation gate fired when round ≥3 + "Continue rounds" pick; terminal state mapped to state.md `## Termination reason`
 - [ ] Phase 6 Action == Post drill ran (Steps 1.5-6) when user picked "Post"; `[POSTED-TO-PR]` markers persisted for idempotent re-run
 - [ ] Phase 6 Failing-tests gate fired when `## Authored Tests` non-empty; firing order conditional on Action choice per the gate-chain rule
-- [ ] Terminal state mapped to state.md `## Termination reason` per when `aborted` or `escalated`

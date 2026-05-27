@@ -313,6 +313,9 @@ Works across languages/frameworks:
 
 ## Severity Guidelines
 
-- **CRITICAL**: Circular dependencies, architectural patterns preventing scalability
-- **HIGH**: High coupling, missing abstractions, SOLID violations, N+1 patterns
-- **MEDIUM**: Inconsistent patterns, minor organizational improvements, refactoring opportunities
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
+
+- **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is the rare CRITICAL path, and even then the finding is logged under the bugs or optimizations dimension that owns the runtime defect.
+- **HIGH** — Caller-blast >5 surviving callers when a public API's contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path.
+- **MEDIUM** — Caller-blast 2-5 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR-context PR per `peer-pr-context-reference.md`); module-boundary violation that requires a sibling module to know an implementation detail.
+- **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; documentation or PR-description nits about an architectural area.

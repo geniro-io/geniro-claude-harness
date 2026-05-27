@@ -85,7 +85,11 @@ For each finding with confidence ≥50:
 ### Step 4: Filter & Output
 Only output findings with confidence ≥60. When a finding's behavior is explicitly addressed by a plan decision absorbed in Step 1.5, prefix the finding title with `[ALIGNS-WITH-PLAN-<marker>]` (behavior matches the decision — usually means downgrade or drop) or `[DIVERGES-FROM-PLAN-<marker>]` (behavior contradicts the decision — verify against spec). Use the project's exact decision marker (e.g., `D-09`, `D09`, `[D09]`). Example: `[DIVERGES-FROM-PLAN-D-09] Backfill missing for existing timeline rows`.
 
-## Confidence Scoring
+## Confidence Scoring (advisory)
+
+The reviewer-agent emits `Confidence: XX%` (0-100). This is an **advisory hint** about your self-rated certainty — NOT the load-bearing filter. Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §4, LLM self-reported confidence is documented as poorly calibrated for Claude (arXiv 2405.02917) and "nearly random" in production (Greptile). The orchestrator's Phase 4.1 multi-signal gate uses convergence + evidence-grounding as primary signals, with the percentage as a fallback.
+
+Still rate your confidence — downstream consumers (orchestrator tie-breaking, the per-HIGH verifier, the user) read it. But do not inflate confidence to push a finding past a perceived threshold; if the finding is correct, the multi-signal gate will surface it via convergence or evidence-grounding even at 60-79%.
 
 | Score | Meaning | Example |
 |-------|---------|---------|
@@ -174,11 +178,16 @@ Field semantics:
 
 Re-read the cited code before answering. Confirmation without empirical re-read is rationalization theater; sycophancy is the documented multi-judge failure mode.
 
-Severity levels:
-- **CRITICAL**: Security vulnerability, data loss risk, crash, unrecoverable error
-- **HIGH**: Significant logic error, performance issue, maintainability problem
-- **MEDIUM**: Bug or deviation from standards impacting reliability/clarity
-- **LOW**: Style, documentation, minor improvement
+### Severity levels
+
+Full inclusion + exclusion lists for each tier live in `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1. Read that file before assigning severity if you are uncertain. Key rules:
+
+- **CRITICAL** — Security vulnerability with concrete exploit path; data-loss path; hard crash on documented input; compliance violation. Excludes hypothetical risks without documented trigger.
+- **HIGH** — Visible user-facing regression with cited reproduction; race condition with specific scenario; missing validation reaching a downstream consumer; deleted production code with cross-file callers; performance exceeding a measured threshold. Excludes theoretical defects without reproduction path; documentation gaps; naming/style.
+- **MEDIUM** — Verifiable defect impacting reliability or clarity that is unlikely or non-blocking; edge case bug with low likelihood; missing test coverage where the uncovered path has a documented failure mode. **EXCLUDES documentation polish, PR-description verbosity, naming polish, formatting, style suggestions, cosmetic refactors, and process recommendations** — those are LOW.
+- **LOW** — Style / naming / format suggestions; documentation polish; PR-description / commit-message verbosity; cosmetic refactors; convention drift on non-critical fields. The plugin has NO NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion".
+
+The most common miscalibration is inflating LOW → MEDIUM to surface a finding past the filter. The Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5) provides four independent signals for a correct finding to surface — do not inflate severity to game the filter.
 
 ### Decision Type Guidance
 

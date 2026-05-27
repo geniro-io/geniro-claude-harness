@@ -15,7 +15,7 @@ Every HIGH finding from the parallel reviewer batch gets ONE fresh `reviewer-age
 
 ## 1. When this fires
 
-After Phase 4.1 threshold filter (`severity >= MEDIUM AND confidence >= 80%` for standard tier; relaxed elsewhere — but the verifier itself drops tier-scaling). Fires BEFORE Phase 4.3 test-confirmation gate and Phase 5 stratification.
+After Phase 4.1 multi-signal threshold gate (`severity >= MEDIUM` AND any-of {convergence ≥2, Evidence-Block present + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback}; tier-relaxed at signal #4 to ≥70 for `risk-tier: high`). See `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5 for the full gate spec. Fires BEFORE Phase 4.3 test-confirmation gate and Phase 5 stratification.
 
 Skip condition: ONLY when the Phase 4.1 surviving HIGH-finding set is empty. Never skip based on tier — every HIGH gets a verifier.
 

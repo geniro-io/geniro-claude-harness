@@ -219,6 +219,9 @@ This criteria works across languages:
 
 ## Severity Guidelines
 
-- **CRITICAL**: Null pointer exception, infinite loop, logic inversion causing wrong behavior
-- **HIGH**: Race condition, off-by-one in critical path, unhandled error
-- **MEDIUM**: Potential panic in edge case, missing edge case handling, type confusion
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
+
+- **CRITICAL** — Unbounded recursion on user input; auth-bypass via missing role check; SQL injection in a dynamic query; deadlock with a documented trigger; data-corruption write with no compensating action; infinite loop reachable from a public entry point.
+- **HIGH** — Race condition with a specific reachable scenario (e.g., two concurrent writes to the same row without a transaction); off-by-one in pagination when item count equals page size; null-dereference on a non-edge-case path; unhandled error path that leaks state or aborts a request mid-write.
+- **MEDIUM** — Edge-case bug with low likelihood and a cited reachable scenario; incorrect-but-mitigated behavior where a downstream layer compensates; pre-existing bug surfaced by this PR's changes that does not make the bug worse.
+- **LOW** — Defensive-coding suggestions without a demonstrated defect ("add a null check here even though the caller always passes a value"); style suggestions on bug-adjacent code; documentation or PR-description nits about a bug area.
