@@ -138,6 +138,36 @@ Skip entirely when zero PRODUCT-DECISION findings remain after Phase 4 judge.
 
 The consolidated top-level decision. Use `AskUserQuestion` (do NOT print options as plain text) with header "Action". Mark the severity-recommended escalation option with " (Recommended)" in its label.
 
+**Literal AskUserQuestion shape** — copy and substitute the bracketed slots; do NOT paraphrase option labels, do NOT merge options across rows, do NOT drop options other than `Post Draft PR review` (the only conditional one):
+
+```
+AskUserQuestion(
+  header="Action",
+  question="How should I proceed with the <N> findings?",
+  multiSelect=False,
+  options=[
+    {
+      "label": "/implement findings",          # append " (Recommended)" when CRITICAL>=1 OR HIGH>=2
+      "description": "Exit /review. Run `/geniro:implement <handoff-path>` next — handoff pre-loads findings from the state file."
+    },
+    {
+      "label": "Post Draft PR review",         # OMIT this option entirely when pr-ref:none OR zero unposted findings remain
+      "description": "Post findings as a PENDING review on <pr-ref> (private to you, no notifications fire until you click Submit on github.com)."
+    },
+    {
+      "label": "Continue rounds (re-review)",
+      "description": "Loop back to Phase 1, round counter++. Round-N escalation gate fires when round >=3."
+    },
+    {
+      "label": "Skip — keep findings on disk", # append " (Recommended)" when CRITICAL=0 AND HIGH<=1
+      "description": "Terminal exit. Handoff file persists at .geniro/state/handoff/from-review-<branch>.md; resume later with /geniro:implement <path> or /geniro:review."
+    }
+  ]
+)
+```
+
+After the user picks, surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator NEVER auto-invokes /implement.
+
 **Severity-driven recommendation:**
 - Any CRITICAL OR ≥2 HIGH findings → `/geniro:implement` is "(Recommended)"
 - 0 CRITICAL AND ≤1 HIGH findings → "Skip — keep findings on disk" is "(Recommended)"

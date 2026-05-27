@@ -576,7 +576,13 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
 
 1. **Pre-gate — Resolve Open Questions** fires first whenever frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension >4). Always-WAIT. Resolutions persist back via `atomic_state_write`. MUST complete before any other gate. Full procedure: `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §2.5. Skipped when zero unresolved entries.
 2. **Step 0 — Open-decision** per `decision: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero.
-3. **Action gate** — `AskUserQuestion` with 4 options: `/implement findings` (Recommended when CRITICAL/HIGH count >0) / Post Draft PR review (conditional on `pr-ref:` non-none + ≥1 unposted) / Continue rounds (Round-N escalation gate when round ≥3) / Skip. Persist user pick to `approvals[]` with category `action_gate`.
+3. **Action gate** — fire `AskUserQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). Option labels (verbatim, do not paraphrase):
+   - `"/implement findings"` — append ` (Recommended)` when CRITICAL≥1 OR HIGH≥2; exits /review and the model surfaces `/geniro:implement .geniro/state/handoff/from-review-<branch>.md` as the next command.
+   - `"Post Draft PR review"` — OMIT entirely when `pr-ref: none` OR zero unposted findings remain.
+   - `"Continue rounds (re-review)"` — Round-N escalation gate fires when round ≥3.
+   - `"Skip — keep findings on disk"` — append ` (Recommended)` when CRITICAL=0 AND HIGH≤1.
+
+   Full AskUserQuestion shape (literal block), descriptions, and severity-driven recommendation rule: `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §4. Persist user pick to `approvals[]` with category `action_gate`.
 4. **Failing-tests gate** when state.md `## Authored Tests` non-empty.
 
 Operational rules:
