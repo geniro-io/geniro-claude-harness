@@ -27,6 +27,21 @@ if [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
   cd "$HOOK_CWD" || true
 fi
 
+# Source the canonical repo-root resolver. Cross-session reads/writes
+# (state.md restoration, learnings auto-archive) must land in the PRIMARY
+# worktree even when the orchestrator sits in a linked worktree; the helper
+# enforces that. If the helper is missing (vendored install without lib/),
+# fall back to a cwd-relative resolution to keep the hook running.
+_geniro_root_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/repo-root.sh"
+if [ -f "$_geniro_root_helper" ]; then
+  # shellcheck source=/dev/null
+  source "$_geniro_root_helper" 2>/dev/null || true
+fi
+if ! command -v _geniro_repo_root >/dev/null 2>&1; then
+  _geniro_repo_root() { echo "${PWD:-.}"; }
+fi
+GENIRO_ROOT="$(_geniro_repo_root)"
+
 SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // "compact"' 2>/dev/null || echo "compact")
 
 # `clear` source: explicit user reset; no auto-reload.
@@ -82,18 +97,27 @@ if [ -z "$state_file" ] && [ -n "$slug" ]; then
   done
 fi
 
-# Tier 1c — layout C (singleton — currently only setup)
-if [ -z "$state_file" ] && [ -f "./.geniro/state/setup/state.md" ]; then
-  state_file="./.geniro/state/setup/state.md"
+# Tier 1c — layout C (singleton — currently only setup). Resolved against the
+# primary worktree via the repo-root helper — /setup writes its singleton in
+# the project root and a linked-worktree session must restore from there.
+if [ -z "$state_file" ] && [ -f "$GENIRO_ROOT/.geniro/state/setup/state.md" ]; then
+  state_file="$GENIRO_ROOT/.geniro/state/setup/state.md"
 fi
 
 # Tier 2 — frontmatter `branch:` field grep across all candidate state.md files.
-# Iterates layouts A+B+C, with mtime tiebreak when multiple match.
+# Iterates layouts A+B+C, with mtime tiebreak when multiple match. Scans both
+# cwd-relative paths (covers task-local state.md per primary-worktree.md
+# §"Artifacts NOT in scope") AND $GENIRO_ROOT-rooted singleton/cross-session
+# state (covers /setup state.md plus any future singleton layouts). Dedup by
+# absolute path so the cwd-IS-primary case doesn't double-count.
 _state_candidates() {
   {
     find ./.geniro/planning -maxdepth 2 -name 'state.md' -type f 2>/dev/null
     find ./.geniro/state -maxdepth 3 -name 'state.md' -type f 2>/dev/null
-  } | while IFS= read -r p; do
+    if [ "$GENIRO_ROOT" != "." ] && [ "$GENIRO_ROOT" != "$PWD" ]; then
+      find "$GENIRO_ROOT/.geniro/state" -maxdepth 3 -name 'state.md' -type f 2>/dev/null
+    fi
+  } | awk '!seen[$0]++' | while IFS= read -r p; do
     _mtime=$(stat -c %Y "$p" 2>/dev/null || stat -f %m "$p" 2>/dev/null)
     [ -n "$_mtime" ] && printf '%s %s\n' "$_mtime" "$p"
   done | sort -rn | cut -d' ' -f2-
@@ -583,7 +607,12 @@ fi
 # entries were actually flipped.
 BLOCK5E=""
 ARCHIVED_COUNT=0
-_learnings_log="./.geniro/knowledge/learnings.jsonl"
+# Auto-archive paths anchor to the primary worktree so cross-session writes
+# (learnings.jsonl, the hash marker, the lock dir) survive linked-worktree
+# removal. safety.json keeps its walk-up resolution below — file-protection.sh
+# and block-dangerous-git.sh use the same walk-up and the patterns must stay
+# aligned across the three hooks.
+_learnings_log="$GENIRO_ROOT/.geniro/knowledge/learnings.jsonl"
 _threshold="${GENIRO_AUTO_ARCHIVE_THRESHOLD:-5000}"
 
 if [ -f "$_learnings_log" ]; then
@@ -599,8 +628,8 @@ if [ -f "$_learnings_log" ]; then
   _line_count=$(wc -l < "$_learnings_log" 2>/dev/null | tr -d ' ')
 
   if [ "$_auto_enabled" = "true" ] && [ -n "$_line_count" ] && [ "$_line_count" -gt "$_threshold" ]; then
-    _hash_marker="./.geniro/knowledge/.archive-stale.hash"
-    _lock_dir="./.geniro/knowledge/.archive-stale.lock"
+    _hash_marker="$GENIRO_ROOT/.geniro/knowledge/.archive-stale.hash"
+    _lock_dir="$GENIRO_ROOT/.geniro/knowledge/.archive-stale.lock"
 
     _current_hash=$(sha256sum "$_learnings_log" 2>/dev/null | cut -d' ' -f1)
     _last_hash=$(cat "$_hash_marker" 2>/dev/null)

@@ -129,9 +129,13 @@ Branch on resolved action: `list` → Phase 3 · `create` → Phase 4 · `run` �
 
 ### Step 1 — Scan directory
 
+Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/actions/*.md` (main) — when the same action slug appears in both, **local wins** (uncommitted local edits take precedence over the main-worktree copy). The list output tags each row with its source (`local` / `main-worktree`). Without this, list mode misses actions authored in the main worktree but absent from the current linked worktree.
+
 ```bash
-ls -la.geniro/actions/*.md 2>/dev/null
+ls -la ./.geniro/actions/*.md "$PRIMARY_ROOT"/.geniro/actions/*.md 2>/dev/null
 ```
+
+When cwd IS the main worktree, the two globs resolve to the same path — dedupe by absolute path before tagging.
 
 ### Step 2 — Present results
 
@@ -144,16 +148,16 @@ Run `/geniro:actions create <name>` to scaffold your first action,
 e.g. `/geniro:actions create slack-release-ping`.
 ```
 
-Otherwise, for each `.md` file, Read the frontmatter and extract `name`, `description`, `risk_class`, `created`. Present a markdown table:
+Otherwise, for each `.md` file, Read the frontmatter and extract `name`, `description`, `risk_class`, `created`. Tag each row with its `<source>` (`local` / `main-worktree`) from Step 1. Present a markdown table:
 
 ```
 ## Custom Actions
 
-| Name | Description | Risk | Created |
-|------|-------------|------|---------|
-| daily-recap | Use when wrapping the day's commits + tests | low | 2026-04-12 |
-| commit-and-pr-summary | Use when finalizing a PR before push | medium | 2026-04-18 |
-| slack-release-ping | Use when posting a release note to #releases | high | 2026-04-15 |
+| Name | Description | Risk | Created | Source |
+|------|-------------|------|---------|--------|
+| daily-recap | Use when wrapping the day's commits + tests | low | 2026-04-12 | local |
+| commit-and-pr-summary | Use when finalizing a PR before push | medium | 2026-04-18 | local |
+| slack-release-ping | Use when posting a release note to #releases | high | 2026-04-15 | main-worktree |
 ```
 
 Close with: "Run with `/geniro:actions run <name>`."
@@ -284,14 +288,9 @@ The resolver returns three named values: `<resolved-path>` (absolute or repo-rel
 
 #### Step 1 — Build the registry index
 
-Glob `./.geniro/actions/*.md` for the local registry. Detect worktree state:
+Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the snippet sets a shell variable used by the dual-glob below.
 
-```bash
-git rev-parse --show-toplevel
-git worktree list --porcelain
-```
-
-If cwd is a linked worktree, also Glob `<main-worktree-root>/.geniro/actions/*.md`. Tag each entry with `<source>` (`local` or `main-worktree`). When the same slug exists in both, **local wins** — drop the main-worktree entry.
+Glob `./.geniro/actions/*.md` for the local registry. If cwd is a linked worktree, also Glob `<PRIMARY_ROOT>/.geniro/actions/*.md`. Tag each entry with `<source>` (`local` or `main-worktree`). When the same slug exists in both, **local wins** — drop the main-worktree entry.
 
 #### Step 2 — Exact-slug fast path (literal or normalized)
 
@@ -299,7 +298,7 @@ Compute `<lookup>` from input: if already a valid kebab slug, `<lookup> = <input
 
 - **Source = local:** return `(<resolved-path>, <resolved-slug>, local)`. No AUQ.
 - **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree gate per step 1, D9 closure):
-- **Question:** "Action `<lookup>` exists in the main worktree at `<main-worktree-root>/.geniro/actions/<lookup>.md`. Use it?"
+- **Question:** "Action `<lookup>` exists in the main worktree at `<PRIMARY_ROOT>/.geniro/actions/<lookup>.md`. Use it?"
 - **Options:** `Use the main-worktree copy` / `Cancel`
 - **Source = main-worktree, sub-command = `delete` or `edit`:** skip the gate here; Step 4 handles the refuse-and-surface.
 
@@ -450,7 +449,9 @@ The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/actio
 
 ### Step 1 — Resolve scope
 
-If `<slug>` provided: validate only `.geniro/actions/<slug>.md`. Else validate all `.geniro/actions/*.md`. Read-only; never mutates.
+Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When validating all actions (no `<slug>` provided), dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/actions/*.md` (main) — when the same action slug appears in both, **local wins** (uncommitted local edits take precedence). Tag each entry with `<source>` (`local` / `main-worktree`). Without this, validate run from a linked worktree misses primary-worktree actions and produces a false-pass.
+
+If `<slug>` provided: resolve via Phase 5.0 (Steps 1-3) to get `<resolved-path>` and `<source>`, then validate only that single file. Else validate the deduped union from the dual-glob above. Read-only; never mutates.
 
 ### Step 2 — Lint rule set (shared with `/instructions validate review-extra`)
 
@@ -481,9 +482,10 @@ $ /geniro:actions validate
 
 Validation results: 3 actions checked, 1 issue found.
 
-✓ daily-recap.md no issues
-⚠ slack-release-ping.md 1 HIGH
-└── Line 4: risk_class missing — REQUIRED field per✓ pr-finalize.md no issues
+✓ daily-recap.md (local) no issues
+⚠ slack-release-ping.md (main-worktree) 1 HIGH
+└── Line 4: risk_class missing — REQUIRED field
+✓ pr-finalize.md (local) no issues
 
 To fix: /geniro:actions edit slack-release-ping
 ```

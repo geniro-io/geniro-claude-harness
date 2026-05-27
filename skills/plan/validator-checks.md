@@ -126,13 +126,13 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ### 14. `workflow_refs_consistency`
 
-**Rule:** for each entry in frontmatter `workflow_refs[]` (m5-v2 only — skipped on legacy `m5-v1` specs), a matching `.geniro/workflow/<kind>.md` exists in the project. Per-entry required fields `kind`, `issue_id`, `url`, `fetched_at` are non-empty.
+**Rule:** for each entry in frontmatter `workflow_refs[]` (m5-v2 only — skipped on legacy `m5-v1` specs), a matching workflow file exists at either `./.geniro/workflow/<kind>.md` (cwd-local) OR `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (primary fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Per-entry required fields `kind`, `issue_id`, `url`, `fetched_at` are non-empty.
 
-**Heuristic:** YAML parse `workflow_refs[]`; for each entry, `test -f .geniro/workflow/<kind>.md` + field-presence check. Skip the check entirely when `geniro_schema_version: m5-v1` OR `workflow_refs:` is absent.
+**Heuristic:** YAML parse `workflow_refs[]`; for each entry, `test -f ./.geniro/workflow/<kind>.md || test -f <PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (cwd-first, primary-fallback) + field-presence check. Skip the check entirely when `geniro_schema_version: m5-v1` OR `workflow_refs:` is absent.
 
-**Status semantics:** this check returns `warn` (not `fail`) when a referenced workflow file is missing — the workflow file may legitimately appear later in the project lifecycle (early-stage repos often link to trackers before authoring workflow files). Downstream skills skip workflow on-task-start hooks for unresolved kinds and continue. Field-presence violations (missing `kind` / `issue_id` / `url` / `fetched_at`) return `fail` — the entry is structurally broken.
+**Status semantics:** this check returns `warn` (not `fail`) when a referenced workflow file is missing from BOTH locations — the workflow file may legitimately appear later in the project lifecycle (early-stage repos often link to trackers before authoring workflow files). Downstream skills skip workflow on-task-start hooks for unresolved kinds and continue. Field-presence violations (missing `kind` / `issue_id` / `url` / `fetched_at`) return `fail` — the entry is structurally broken.
 
-**Fix hint on warn:** "spec.md `workflow_refs[]` references kind '<kind>' but `.geniro/workflow/<kind>.md` does not exist — downstream skills will skip workflow on-task-start hooks for this ref. Create the workflow file (see existing `linear.md` as template) OR remove the `workflow_refs` entry from spec.md frontmatter."
+**Fix hint on warn:** "spec.md `workflow_refs[]` references kind '<kind>' but `.geniro/workflow/<kind>.md` does not exist in cwd or primary worktree — downstream skills will skip workflow on-task-start hooks for this ref. Create the workflow file (see existing `linear.md` as template) OR remove the `workflow_refs` entry from spec.md frontmatter."
 
 **Fix hint on fail:** "Entry <N> in `workflow_refs[]` is missing required field `<field>`. Re-run /plan with the tracker URL/ID in $ARGUMENTS so Phase 1 can re-fetch, OR hand-edit the entry to add the field."
 

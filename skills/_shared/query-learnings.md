@@ -15,6 +15,8 @@ Emits matching JSONL entries to stdout, one per line. Exit code:
 - `0` — query ran (zero or more matches).
 - `64` — unknown flag or invalid `--min-trust` value.
 
+**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so the L2 read sources the canonical store (and not an empty linked-worktree log). See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+
 ## MODE contract
 
 Request/response helper — **no MODE parameter, compaction-immune.** Each

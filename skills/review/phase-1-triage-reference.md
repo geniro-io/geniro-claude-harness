@@ -209,8 +209,10 @@ Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not conf
 
 ### 3.5.1 Detection
 
-1. `ls.geniro/workflow/*.md 2>/dev/null` — if zero matches, skip entirely.
-2. For each workflow file, read it and extract the `## Argument Detection` regex patterns (Linear's: `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form, `\b[A-Z]{2,}-\d+\b` bare-ID form).
+Workflow files live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A). Glob both locations — cwd-local wins on collision:
+
+1. `ls ./.geniro/workflow/*.md <PRIMARY_ROOT>/.geniro/workflow/*.md 2>/dev/null` — merge the two listings, deduplicating by basename (cwd-local entry wins when a file exists in both locations; uncommitted local edits beat the primary copy). If zero matches across both, skip entirely.
+2. For each unique workflow file, read it and extract the `## Argument Detection` regex patterns (Linear's: `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form, `\b[A-Z]{2,}-\d+\b` bare-ID form).
 3. Apply patterns against (a) `$ARGUMENTS`, (b) `pr.title`, (c) `pr.body` — in that order. First match wins. Multiple matches in one source are deduplicated to the first.
 4. Persist the matched tracker ID to state.md frontmatter:
 - Linear: `linear-task-ref: <ENG-123|null>` (defaults to `null` when no match).

@@ -58,7 +58,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 **Staleness:** downstream readers re-fetch when `fetched_at` is > 1 hour old (configurable later via `.geniro/safety.json`). Cached `title` / `suggested_branch` / `status` fields let /implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
 
-**Graceful degrade:** when `.geniro/workflow/<kind>.md` is absent, Phase 7 check #14 returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
+**Graceful degrade:** workflow file lookup is cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When the file is absent from BOTH locations, Phase 7 check #14 returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
 
 ---
 

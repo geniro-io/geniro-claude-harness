@@ -114,7 +114,7 @@ Phase 7 validator ( check #3) requires ≥1 Agent entry with `status: ok` per ef
 
 If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub issue URL, Asana task URL), fetch via the matching MCP and persist to state.md `## Workflow Refs` body section. This block is the source-of-truth for Phase 6 frontmatter assembly.
 
-**Detection:** existing workflow-plumbing already detects tracker references at Phase 1 entry (file-scoped `.geniro/workflow/<kind>.md` defines per-tracker patterns). When a match resolves to `kind=<linear|jira|github-issues|asana>` and `issue_id=<id>`:
+**Detection:** existing workflow-plumbing already detects tracker references at Phase 1 entry. Workflow files (`.geniro/workflow/<kind>.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A) — try `./.geniro/workflow/<kind>.md` (cwd-local; uncommitted local edits win) first, on file-not-found retry against `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md`. Each file defines per-tracker patterns. When a match resolves to `kind=<linear|jira|github-issues|asana>` and `issue_id=<id>`:
 
 1. Fetch via the matching MCP (`mcp__linear__get_issue` for Linear, etc.). If MCP unregistered, log a `## Errors` entry and continue without persistence — graceful degrade per existing pattern.
 2. Append to state.md `## Workflow Refs` via `atomic_state_write`:

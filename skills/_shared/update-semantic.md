@@ -16,6 +16,8 @@ update_semantic --file <codebase-map|features> --append "<line>"
 update_semantic --file <codebase-map|features> --replace "<prefix>" "<new-line>"
 ```
 
+**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so `_CODEBASE_MAP.md` / `_FEATURES.md` mutations land in the canonical store. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+
 Exit codes:
 - `0` — wrote (or no-op, e.g. replace with no match — surfaced via stderr).
 - `11` — lock held by another writer; caller should defer or retry.

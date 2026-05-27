@@ -205,7 +205,7 @@ validate_state_file() {
     # Graceful skip if not inside a git repo.
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
       if ! git worktree list --porcelain 2>/dev/null \
-           | awk '/^worktree / {print $2}' \
+           | awk '/^worktree / {sub(/^worktree /, ""); print}' \
            | grep -qxF "$wt"; then
         echo "validate_state_file: $target — worktree path '$wt' not found in 'git worktree list' (worktree may have been removed)" >&2
         return "$_VSF_WORKTREE_NOT_FOUND"

@@ -16,6 +16,8 @@ content=$(load_semantic [--extras "name1 name2 ..."] [--quiet])
 update_fingerprint [<path1> <path2> ...]
 ```
 
+**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so the L3 snapshot and fingerprint land in the canonical store. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+
 ## MODE contract
 
 The helper has a conceptual MODE — `initial-load` (Step 0 of every consumer)

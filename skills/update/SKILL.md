@@ -71,14 +71,21 @@ exit 1
 fi
 ```
 
-### Step 2 — Resolve `$CLAUDE_USER_DIR` and snapshot user content
+### Step 2 — Resolve `$CLAUDE_USER_DIR`, `$PRIMARY_ROOT`, and snapshot user content
+
+Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A before the snapshot. The snapshot must capture user-authored content in the primary worktree — not whichever worktree the orchestrator currently sits in. `/update` is typically run from `main`, but the safe contract is to resolve explicitly so a session running in a linked worktree compares the right tree.
 
 ```bash
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
 
+# Resolve the primary worktree once; downstream snapshot/diff steps reuse it.
+PRIMARY_ROOT="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
+PRIMARY_ROOT="${PRIMARY_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+PRIMARY_ROOT="${PRIMARY_ROOT:-$PWD}"
+
 # Snapshot user-content sha256 + mtime for survival verification
-USER_SNAPSHOT=$(find.geniro/instructions.geniro/actions -type f -name "*.md" 2>/dev/null \
+USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
 | xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}") {}"' 2>/dev/null)
 # Save USER_SNAPSHOT (env var) for Phase 3 Step 2 comparison.
@@ -199,8 +206,18 @@ If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
 
 ### Step 2 — User-content survival check
 
+Re-resolve `$PRIMARY_ROOT` via the same Mode A snippet used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless; `$USER_SNAPSHOT` stashed by Phase 1 carries forward via the orchestrator's state, not the shell.
+
 ```bash
-CURRENT_SNAPSHOT=$(find.geniro/instructions.geniro/actions -type f -name "*.md" 2>/dev/null \
+TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"
+PRIMARY="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
+if [ -z "$TOPLEVEL" ] || [ -z "$PRIMARY" ] || [ "$TOPLEVEL" = "$PRIMARY" ]; then
+  PRIMARY_ROOT="."
+else
+  PRIMARY_ROOT="$PRIMARY"
+fi
+
+CURRENT_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
 | xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}") {}"' 2>/dev/null)
 

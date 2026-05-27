@@ -4,7 +4,10 @@ Canonical resolver for cross-session persistent state. Ensures writes/reads land
 
 ## Why this exists
 
-The default plugin `.gitignore` keeps `.geniro/*` out of git (only `workflow/`, `instructions/`, and `actions/` are negated). When `/geniro:implement` Phase 1 Step 10 picks Option C, `EnterWorktree` switches the session into `.claude/worktrees/<dir>/`. From that point, every cwd-relative `.geniro/<x>` write lands in the worktree's gitignored tree — and is destroyed when the user removes the worktree at session end. The main repo's `.geniro/<x>` never receives the write.
+The default plugin `.gitignore` keeps `.geniro/*` out of git (only `workflow/`, `instructions/`, and `actions/` are negated). Two consequences:
+
+- **(a) Writes lost on worktree removal.** When `/geniro:implement` Phase 1 Step 10 picks Option C, `EnterWorktree` switches the session into `.claude/worktrees/<dir>/` — every cwd-relative `.geniro/<x>` write lands in the worktree's gitignored tree and is destroyed when the user removes the worktree at session end.
+- **(b) Authored content invisible to fresh linked worktrees.** Even when the worktree is fresh and persistent, the primary worktree's authored content (`.geniro/instructions/<scope>.md`, `.geniro/workflow/<kind>.md`, `.geniro/actions/<slug>.md`) is NOT propagated by `git worktree add` because those paths are gitignored at the project level (negation is a default; project-side `.git/info/exclude` may override). The main repo's `.geniro/<x>` never receives the write, and the linked worktree never sees the read.
 
 This affects every artifact designed to outlive the current task. Task-local state (planning/<task-dir>/* — explicitly cleaned at Phase 7) is unaffected and stays cwd-relative.
 
@@ -16,7 +19,7 @@ Skills running orchestrator-level Bash compute a single prefix before any persis
 
 ```bash
 TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"
-PRIMARY="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {print $2; exit}')"
+PRIMARY="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
 if [ -z "$TOPLEVEL" ] || [ -z "$PRIMARY" ] || [ "$TOPLEVEL" = "$PRIMARY" ]; then
  PRIMARY_ROOT="." # main worktree (or non-git project); cwd-relative is fine
 else
@@ -56,6 +59,9 @@ These are intended to outlive any single task. The resolver applies to both read
 | `.geniro/planning/_FEATURES.md` | manual or `/plan` | `/implement` (binding), `/plan` | persistent registry |
 | `.geniro/planning/_CODEBASE_MAP.md` | `/onboard` | every skill that consults the map (`/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic`.1 |
 | `.geniro/planning/_focus-<area>.md` | `/onboard <area>` (manual scope-limiter via `--focus` flag persists a concentrated map alongside the full `_CODEBASE_MAP.md`); `/investigate --persist` | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
+| `.geniro/workflow/<kind>.md` | manual / `/setup` | `/plan`, `/implement`, `/review`, `/refactor` | Tracker integration configs (Linear/Jira/GitHub-Issues/Asana); read with cwd-first / primary-fallback per per-site preambles |
+| `.geniro/actions/<slug>.md` | manual / `/actions create` | `/actions` (list/run/validate/delete) | User-authored workflow-helper actions; dual-glob with local-wins-on-slug-collision per `skills/actions/SKILL.md` Phase 5.0 Step 1 |
+| `.geniro/instructions/<scope>.md` | manual / `/setup` / `/instructions create` | every pipeline skill's Phase 1 `load-custom-instructions` invocation | L4 procedural memory (global / code-style / per-skill / review-extra/<slug>); cwd-first / primary-fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md:44` |
 
 ## Artifacts NOT in scope (task-local — keep cwd-relative)
 

@@ -255,6 +255,8 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 State.md `phase: analyze` on entry.
 
+**Resolve `PRIMARY_ROOT` once at Phase 1 entry.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash. Phase 1 reads handoffs at `<PRIMARY_ROOT>/.geniro/state/handoff/from-*-<branch>.md`, targeted-reads `<PRIMARY_ROOT>/.geniro/instructions/global.md` for the branch-format rule at Step 0a, and spawns knowledge-retrieval + codebase-explorer agents whose spawn-prompt slots (`KNOWLEDGE_ROOT`, `PLANNING_ROOT`, `HANDOFF_DIR`) require this value substituted to absolute paths per Mode B. Without it, the handoff probes / global.md read / subagent spawns silently fall back to cwd-relative paths and miss content in the primary worktree when /implement runs from a linked worktree.
+
 ### Step 0 — Workspace setup
 
 Step 0 fires BEFORE any L4 / L3 / L2 helper call and BEFORE the Knowledge-Retrieval / Codebase-Explorer spawn. Workspace decision determines the worktree the rest of Phase 1 inspects; running L3 fingerprint drift checks against the wrong worktree is wasted work.
@@ -272,11 +274,11 @@ Collect these signals before deciding:
 | `IN_WORKTREE` | `CURRENT_TOPLEVEL` is registered in `git worktree list --porcelain` AND is NOT the porcelain `bare` row or the main worktree row. Porcelain registry is the source of truth; the `.claude/worktrees/<slug>/` path convention is a sanity check, NOT the primary signal. |
 | `PROTECTED_BRANCH` | `CURRENT_BRANCH ∈ {main, master, develop, trunk}` (per-project override via `.geniro/safety.json`) |
 | `EXISTING_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` AND `phase:` is terminal ⇒ "prior task on this branch" |
-| `REVIEW_HANDOFF` | Path `.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` exists ⇒ "review just produced findings for this branch" |
-| `DEBUG_HANDOFF` | Path `.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "debug just authored repro tests for this branch" |
+| `REVIEW_HANDOFF` | Path `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` exists ⇒ "review just produced findings for this branch" |
+| `DEBUG_HANDOFF` | Path `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "debug just authored repro tests for this branch" |
 | `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
 | `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `skills/plan/spec-template.md` §Frontmatter). Empty list when field absent. |
-| `BRANCH_FORMAT_RULE` | Read `.geniro/instructions/global.md` directly here at Step 0a. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 will re-Read the same file with full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. Without this signal, Step 0c authorizes branch names that violate project rules and the agent has to rename after the fact. |
+| `BRANCH_FORMAT_RULE` | Read `<PRIMARY_ROOT>/.geniro/instructions/global.md` directly here at Step 0a. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 will re-Read the same file with full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. Without this signal, Step 0c authorizes branch names that violate project rules and the agent has to rename after the fact. |
 | `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. Cross-checked against `BRANCH_FORMAT_RULE` at Step 0c to decide whether the no-ticket-ID sub-flow fires. |
 
 #### 0b — Decide action
@@ -382,7 +384,7 @@ for each ref in spec.md frontmatter workflow_refs[] → append to workflow_refs_
 deduplicate by (kind, issue_id) — $ARGUMENTS reference wins on conflict
 ```
 
-For each entry, find `.geniro/workflow/<ref.kind>.md`. If missing → log warning + skip (graceful degrade). Staleness check: if `fetched_at` is > 1 hour old OR absent → re-fetch via MCP (timeout 3s, fail-open) — the refresh ALSO updates the cached `status` field. Resolve the current `status` (re-fetched value, or cached when fresh) BEFORE applying the workflow block — the workflow file's `### On task start` section gates its question shape on that field (e.g., the Linear template skips the "Move to In Progress?" prompt when status is already "In Progress", rephrases to "Move back?" when in non-terminal non-In-Progress states, and reframes as "Reopen?" when terminal). Apply the workflow file's `### On task start` block — it may append 0-2 questions to the AUQ batch depending on resolved status and assignee fields. Echo any "skipped — already in target state" cases to the user inline (not as an AUQ).
+For each entry, find the workflow file with primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — try `./.geniro/workflow/<ref.kind>.md` (cwd-local; uncommitted local edits win) first; on file-not-found retry against `<PRIMARY_ROOT>/.geniro/workflow/<ref.kind>.md`. If both missing → log warning + skip (graceful degrade). Staleness check: if `fetched_at` is > 1 hour old OR absent → re-fetch via MCP (timeout 3s, fail-open) — the refresh ALSO updates the cached `status` field. Resolve the current `status` (re-fetched value, or cached when fresh) BEFORE applying the workflow block — the workflow file's `### On task start` section gates its question shape on that field (e.g., the Linear template skips the "Move to In Progress?" prompt when status is already "In Progress", rephrases to "Move back?" when in non-terminal non-In-Progress states, and reframes as "Reopen?" when terminal). Apply the workflow file's `### On task start` block — it may append 0-2 questions to the AUQ batch depending on resolved status and assignee fields. Echo any "skipped — already in target state" cases to the user inline (not as an AUQ).
 
 The workflow file IS the source of truth for question text, options, AND status-conditional branching — do NOT hardcode "Linear" / "Jira" labels, and do NOT bypass the status check by firing the prompt unconditionally.
 
@@ -437,7 +439,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
 11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Phase 3 design-conventions injection and Pre-Ship Visual Verification.
-12. **Persist review/debug handoffs AND gate on unresolved open questions.** For every `.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
+12. **Persist review/debug handoffs AND gate on unresolved open questions.** For every `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
     1. Read the file via `atomic_state_write`-safe Bash `cat` (NOT direct `Edit`/`Write`).
     2. Persist the body under state.md `## Inputs from <producer>` body section.
     3. Parse frontmatter `open_questions[]` per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
