@@ -1,6 +1,6 @@
-# /geniro:review Phase 4.2 — Per-HIGH-finding empirical-reproduction verifier
+# /geniro:review Phase 4.2 — Per-finding empirical-reproduction verifier
 
-Every HIGH finding from the parallel reviewer batch gets ONE fresh `reviewer-agent` spawn in verify-finding mode. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result. Isolated context per verifier (NOT the full reviewer bundle) prevents anchoring and sycophancy. ALL HIGH findings are verified — no tier-scaling.
+Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — gets ONE fresh `reviewer-agent` spawn in verify-finding mode. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result. Isolated context per verifier (NOT the full reviewer bundle) prevents anchoring and sycophancy. Every §4.1 survivor is verified — no tier-scaling, no severity-scaling. The §4.1 multi-signal gate already constrains the survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM; Loop Invariant #6 mandates Evidence at every kept severity), so every survivor has a concrete file:line for the verifier to re-read.
 
 ## Contents
 
@@ -17,7 +17,7 @@ Every HIGH finding from the parallel reviewer batch gets ONE fresh `reviewer-age
 
 After Phase 4.1 multi-signal threshold gate (`severity >= MEDIUM` AND any-of {convergence ≥2, Evidence-Block present + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback}; tier-relaxed at signal #4 to ≥70 for `risk-tier: high`). See `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5 for the full gate spec. Fires BEFORE Phase 4.3 test-confirmation gate and Phase 5 stratification.
 
-Skip condition: ONLY when the Phase 4.1 surviving HIGH-finding set is empty. Never skip based on tier — every HIGH gets a verifier.
+Skip condition: ONLY when the Phase 4.1 surviving set is empty. Never skip based on tier or severity — every CRITICAL / HIGH / MEDIUM survivor gets a verifier.
 
 ---
 
@@ -68,7 +68,7 @@ Field semantics:
 Orchestrator-side (in /review Phase 4.2):
 
 ```
-For each HIGH finding in Phase 4.1 survivors:
+For each §4.1 survivor (CRITICAL / HIGH / MEDIUM):
   1. Read the cited file at finding.file:finding.line ± 30 lines.
   2. Run `grep -rn "<key symbol from finding.evidence>" --include="*.<ext>"` (cap 50 lines).
   3. Run `grep -rn "<symbol>" test/ tests/ __tests__/ spec/` (cap 20 lines).
@@ -106,7 +106,9 @@ After all verifiers return, the orchestrator processes results:
 | "Skip the caller grep — the finding cites `file:line`, that's enough." | The cited `file:line` is the reviewer's claim. Without grepping callers, impact cannot be refuted or confirmed. Read the call sites before emitting. |
 | "Pass the full reviewer bundle to each verifier so they have full context." | Shared context anchors verifiers toward agreement (MARS, arXiv 2509.20502). Each verifier sees ONLY its finding plus cited slice plus caller grep. Independence is load-bearing. |
 | "Verifier confidence:1 — silently demote severity to MEDIUM instead of refuting." | `confidence: 1` with no contradicting evidence means the verifier is uncertain; emit `validation: clarified, confidence: 1` and let the orchestrator decide. Silently demoting severity hides the uncertainty from the consumer. |
-| "All HIGHs verified takes too many spawns — sample top-5 instead." | The verifier explicitly drops tier-scaling. If finding count is high, that's a signal to investigate the Phase 4.1 filter, not to under-verify. Sampling reintroduces the failure mode the empirical-reproduction pass exists to eliminate. |
+| "All §4.1 survivors verified takes too many spawns — sample top-N instead." | The verifier explicitly drops tier-scaling AND severity-scaling. Parallel-spawn invariant: wall-time is ~max(spawn-time) regardless of N. Token cost is bounded by the §4.1 multi-signal gate, which is already tight (MEDIUM requires Evidence-Block + ≥60 confidence). If finding count is high, that signals tightening Phase 4.1, not under-verifying. Sampling reintroduces the failure mode the empirical-reproduction pass exists to eliminate. |
+| "CRITICAL findings are reliable by definition — skip verification for CRITICALs." | CRITICALs can be admitted under §4.1 signals #1 (convergence) / #3 (criteria pre-resolved) / #4 (confidence ≥80) without an explicit Evidence-Block — a convergent CRITICAL with weak quoting is exactly the case empirical reproduction catches. Skipping verification for CRITICALs because they "look right" is sycophancy at maximum stake: a confirmed-without-evidence CRITICAL lands on the PR, gates `/implement` Phase 1, and surfaces to the user as load-bearing. Verify every survivor. |
+| "MEDIUM verification is overkill — these are paper cuts." | MEDIUMs that survive §4.1 carry an Evidence-Block per signal #2 (mandatory for MEDIUM) — they cite concrete code worth re-reading. The risk is the opposite of overkill: an unverified MEDIUM with `validation: refuted` (had the verifier run) propagates to `## Filtered` would-be entries on the PR. The verifier is the mechanism that distinguishes "the reviewer misread the code" from "the defect is real" at MEDIUM stake. Don't pre-judge which severities deserve grounding — let the verifier ground them. |
 | "The finding's `suggested-fix:` reads sensible — confirm without re-reading code." | The suggested-fix being sensible is independent of whether the defect exists. Verification reads the cited code AND the caller grep; the suggested-fix is not evidence of the defect. |
 
 ---

@@ -107,7 +107,7 @@ The numbers below reflect the codebase after the structural-refactor pass. Re-ru
 
 | File | Lines | Note |
 |---|---|---|
-| `skills/review/SKILL.md` | 707 | Marginal — 7 over the 700 hard ceiling; revisit on next structural pass (spawn-list + 9-dim grid + Definition of Done dominate length) |
+| `skills/review/SKILL.md` | 712 | Marginal — 12 over the 700 hard ceiling; revisit on next structural pass (spawn-list + 9-dim grid + Definition of Done + Phase 2 narration + Phase 4.1 MEDIUM-Evidence constraint dominate length) |
 | `skills/debug/SKILL.md` | 689 | Acceptable — under hard ceiling; Adversarial Mode A1-A6 procedure inline |
 | `skills/implement/SKILL.md` | 668 | Acceptable — under hard ceiling; 3-phase loop with KR/CE/TR/reviewer/adversarial spawn sites |
 | `skills/setup/SKILL.md` | 629 | Acceptable — 4-phase singleton bootstrap inline |
