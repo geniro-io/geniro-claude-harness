@@ -186,6 +186,34 @@ grep -in "debug\|development\|process.env.NODE_ENV" file.js
 # Look for version pinning on vulnerable packages
 ```
 
+### 9. Suppression Rule Audit
+
+Scan the diff for newly added suppression directives that silence a previously-active security check. These are dangerous because they un-audit a flagged risk without a paper trail:
+
+- Inline suppression comments adjacent to code (`# noqa`, `# nosec`, `# type: ignore`, `# pylint: disable=`, `# pragma: no cover`, `// eslint-disable-next-line`, `/* eslint-disable */`, `// @ts-ignore`, `// @ts-expect-error`, `// nosemgrep`, `@SuppressWarnings(...)`, `# rubocop:disable`).
+- Configuration-level disables (`.eslintrc` `rules: { 'rule-name': 'off' }`, tsconfig `ignoreDeprecations` / `exclude`, `.bandit` skips, `.semgrepignore`, `.gitleaksignore`, `.rubocop.yml` `Enabled: false`, scanner CLI flags `--skip` / `--ignore-paths`).
+- Aggregate suppression that hides unrelated active risk (a single `# noqa` on a line that violates multiple rules; a config block that disables a rule for an entire directory when one file needs the exception).
+
+**How to detect:**
+
+```bash
+# Inline directives added by the diff
+git diff --unified=0 | grep -E '^\+' | grep -E '(# *(noqa|nosec|pylint: *disable|type: *ignore|pragma)|// *(eslint-disable|@ts-ignore|@ts-expect-error|nosemgrep)|@SuppressWarnings|# *rubocop:disable)'
+
+# Config-level disables added by the diff
+git diff -- '*.eslintrc*' '.semgrepignore' '.gitleaksignore' '.bandit' '.rubocop.yml' 'tsconfig*.json' | grep -E '^\+.*(off|disabled|Enabled: false|exclude|skip)'
+```
+
+**Red flags:**
+
+- Suppression directive added WITHOUT an inline comment naming the specific risk it suppresses AND a linked issue / ADR / commit explaining why the rule does not apply here.
+- Broad suppression (file-level `/* eslint-disable */`, directory-level config disable) when only one line needs the exception — masks future regressions on the same rule.
+- Suppression that silences the SAME rule the diff is otherwise expanding (e.g., adds `# nosec` on a new `subprocess.run(..., shell=True)` while expanding shell-exec coverage elsewhere).
+- Removal of an existing `## Suppression Notice` block from active scanner output (the suppression-notice itself is being un-audited).
+- Aggregate-findings flag (e.g., `--quiet`, `--severity HIGH`) added to a scanner CLI that previously surfaced lower-severity findings.
+
+Emit HIGH severity by default. When the suppression carries a documented justification with a linked tracker issue AND the suppressed rule is narrow (single rule, single line), demote to MEDIUM.
+
 ## Output Format
 
 ```json
@@ -255,12 +283,13 @@ Works across languages/frameworks:
 - [ ] CORS properly restricted
 - [ ] Dependencies checked for vulnerabilities
 - [ ] No debug/development code in production
+- [ ] Suppression directives (`# noqa`, `# nosec`, eslint-disable, config-level rule off) carry inline justification and do not hide unrelated active risk
 
 ## Severity Guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
 
 - **CRITICAL** — SQL injection with user-controlled input reaching a raw query; XSS via unsanitized field reaching HTML output; secret or credential committed to the repo; broken authentication (e.g., role check missing entirely); broken authorization (e.g., user-A can access user-B's data); RCE via unsafe deserialization; insecure cryptography on a production code path.
-- **HIGH** — Missing input validation that REACHES a downstream consumer (trace the input to its sink — speculative "this might be exploited" is MEDIUM); IDOR or mass-assignment with a documented attack path; sensitive data in logs that's actively written; CSRF gap on a state-changing endpoint with no compensating defense.
+- **HIGH** — Missing input validation that REACHES a downstream consumer (trace the input to its sink — speculative "this might be exploited" is MEDIUM); IDOR or mass-assignment with a documented attack path; sensitive data in logs that's actively written; CSRF gap on a state-changing endpoint with no compensating defense; new suppression directive (`# noqa`, `eslint-disable`, `@SuppressWarnings`, config-level rule disable) added in the diff without an in-comment justification linking to a tracked issue or ADR (silently un-audits a previously-flagged risk).
 - **MEDIUM** — Defense-in-depth gap that an existing layer covers (e.g., output encoding missing but the framework auto-escapes); informational disclosure that requires authenticated access; rate-limit gap on a non-critical path; weak crypto on a non-production code path.
 - **LOW** — Hardening suggestions without an exploit path ("add CSP headers" when none exist but no known XSS sink); convention-style "use the safe wrapper here" without demonstrating the unsafe path is reachable; documentation or PR-description nits about a security area.

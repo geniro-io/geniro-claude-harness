@@ -167,6 +167,8 @@ KEEP IF:
 ELSE DEFER to ## Deferred — sub-threshold (state.md body, NOT PR comment)
 ```
 
+Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence-Block drops to `## Deferred — sub-threshold` regardless of convergence or confidence score.
+
 Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80). High tier (`risk-tier: high`) relaxes signal #4 to `confidence ≥ 70`. Other signals (convergence, Evidence-Block, pre-resolved) unchanged across tiers. `--tdd` flag does not affect §4.1 admission — it only affects §4.2 verifier scope.
 
 Rationale:
