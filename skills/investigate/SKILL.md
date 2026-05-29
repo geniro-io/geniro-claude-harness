@@ -21,7 +21,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 
 ## Loop invariants
 
-7 invariants from apply. Three skill-specific notes
+The canonical loop invariants apply, with three skill-specific notes:
 1. **Invariant #4 (bounded structured tool results)** — research-agent outputs (Codebase / Git / Internet) each capped at ~8K chars with truncation marker if exceeded.
 2. **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
 3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -103,6 +103,18 @@ Classify into one of. The "Agents needed" column is the literal spawn set — 1,
 | **What-if** | What happens if we change X? Impact in our code + external compatibility. | Codebase + Internet |
 | **Compare** | Compare approaches for X (ours vs alternatives). | Codebase + Internet |
 | **Risk** | What are the risks of X? Evidence needed from all three. | Codebase + Git + Internet |
+
+### Step 1.5: External-lookup routing (Internet-only → consider /deep-research)
+
+When the question classifies as **External docs lookup** (Internet only — no project code or git evidence needed), the native `/deep-research` workflow runs deeper multi-source web research than this skill's single Internet Researcher: it fans out searches across several angles, cross-checks the sources against each other, and votes on each claim before reporting. Offer it before spawning Phase 2.
+
+Fire `AskUserQuestion` (header "Research depth"):
+- **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
+- **Options**: "Run /deep-research instead" / "Continue with /investigate"
+
+On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate (`phase: routed`) — do NOT auto-invoke. On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no WebSearch tool), skip this step silently and continue.
+
+This routing fires ONLY for the Internet-only classification — any question that needs code or git evidence stays in /investigate, since `/deep-research` has no codebase or git access.
 
 ### Step 2: Identify scope
 
@@ -404,6 +416,7 @@ Per master plan — every milestone closes with an explicit anti-pattern check.
 ## Definition of Done
 
 - [ ] Question classified and scoped (Phase 1)
+- [ ] External-lookup routing offered when classification is Internet-only (Phase 1 Step 1.5); `/deep-research` suggested, never auto-invoked
 - [ ] Glossary-mismatch check executed against CLAUDE.md Domain Context (Phase 1 Step 2.5); resolved via AskUserQuestion with `approvals[]` persistence if mismatch found
 - [ ] 5-step JIT retrieval cadence applied (Phase 1 Step 2.6)
 - [ ] Parallel research agents completed (Phase 2 Step 1)

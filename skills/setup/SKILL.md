@@ -335,7 +335,7 @@ Section merge runs **orchestrator-inline** — no subagent spawn. Rules:
 3. If conflict (same statement contradicted), surface both versions via AUQ — let user pick.
 4. NEVER add geniro-specific content (skill tables, hook lists, path rules) during merge — those belong in the plugin, not CLAUDE.md.
 
-### 3.6 Runtime directories + gitignore
+### 3.5 Runtime directories + gitignore
 
 ```bash
 mkdir -p.geniro/workflow.geniro/instructions.geniro/planning.geniro/knowledge
@@ -351,7 +351,7 @@ grep -q "^\!\.geniro/instructions/\*\*$".gitignore 2>/dev/null || echo "!.geniro
 fi
 ```
 
-### 3.7 Install StatusLine (preserved from current skill)
+### 3.6 Install StatusLine (preserved from current skill)
 
 Copy statusline script to stable location and configure user settings:
 
@@ -483,7 +483,7 @@ This is the **only** Geniro state file deleted on success — `/setup` is a sing
 
 **Exception:** if `mode == re-run` AND user opted for `accept-with-warnings` at round 4, the state file is **kept** with `phase: done` and `## Open Questions` populated — surfaces for the next re-run.
 
-### 5.3 Restart-session warning (re-run only, plugin-version delta)
+### 5.4 Restart-session warning (re-run only, plugin-version delta)
 
 ```
 ⚠ Restart your Claude Code session before using any other Geniro skill.

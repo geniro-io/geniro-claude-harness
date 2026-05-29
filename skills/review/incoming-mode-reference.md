@@ -16,7 +16,7 @@ The natural-language signals are **anchored** — bare keywords are not enough. 
 
 ## Phase I — Incoming Mode Steps (runs INSTEAD of SKILL.md Phase 5/6 when mode=INCOMING)
 
-The first 4 phases (Phase 1 triage, Phase 2 reviewer spawns, Phase 3 relevance filter, Phase 4 judge pass) are SKIPPED in Incoming mode — the diff is already reviewed by another human, the deliverable is responses, not new findings. Phase 4c (adversarial F→P) machinery is reused only for Step I-3 below. Steps:
+The first 4 phases (Phase 1 triage, Phase 2 reviewer spawns, Phase 3 relevance filter, Phase 4 judge pass) are SKIPPED in Incoming mode — the diff is already reviewed by another human, the deliverable is responses, not new findings. Phase 4.3 (adversarial F→P) machinery is reused only for Step I-3 below. Steps:
 
 ### Step I-1 — Fetch reviewer feedback
 
@@ -43,12 +43,12 @@ Write each comment's classification + Evidence Block back to the state file unde
 
 ### Step I-3 — F→P verification for [WRONG] claims
 
-For every comment classified `[WRONG]`, reuse SKILL.md Phase 4c machinery to author a failing test that confirms the reviewer's claim is wrong (or, if the test fails, re-classifies the comment as `[ACTIONABLE]`).
+For every comment classified `[WRONG]`, reuse SKILL.md Phase 4.3 machinery to author a failing test that confirms the reviewer's claim is wrong (or, if the test fails, re-classifies the comment as `[ACTIONABLE]`).
 
 - Spawn `adversarial-tester-agent` per the canonical contract — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for resolution + runtime degradation, and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` for the six pre-inlined fields every spawn must satisfy.
 - Hypothesis seeds: each `[WRONG]` comment becomes a seeded finding (`path:line — comment body — decision-type: TESTABLE — severity: HIGH`).
-- The agent authors a failing test asserting the behavior the reviewer claims is broken. If the test passes on current code (`discarded-cannot-repro`), the reviewer's claim is verifiably wrong — keep `[WRONG]` classification. If the test fails (F→P verified by orchestrator independent re-run per SKILL.md Phase 4c Step 4), re-classify to `[ACTIONABLE]` and append `confirmed-by: <test path>` to the comment's state-file entry.
-- Reuse SKILL.md Phase 4c Step 4 independent re-run + Step 6 fail-open semantics verbatim. Verification cache rules apply per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`.
+- The agent authors a failing test asserting the behavior the reviewer claims is broken. If the test passes on current code (`discarded-cannot-repro`), the reviewer's claim is verifiably wrong — keep `[WRONG]` classification. If the test fails (F→P verified by orchestrator independent re-run per SKILL.md Phase 4.3 Step 4), re-classify to `[ACTIONABLE]` and append `confirmed-by: <test path>` to the comment's state-file entry.
+- Reuse SKILL.md Phase 4.3 Step 4 independent re-run + Step 6 fail-open semantics verbatim. Verification cache rules apply per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`.
 
 ### Step I-4 — Per-comment AUQ
 
@@ -91,7 +91,7 @@ Incoming mode SKIPS:
 - SKILL.md Phase 5 state file (Incoming uses `.geniro/state/review-feedback/<slug>-incoming.md` instead)
 - SKILL.md Phase 6 (Action gate, Failing tests gate, PR-comment posting — all replaced by Step I-4 per-comment AUQ)
 
-Phase 1 worktree pre-flight + custom-instructions load + PR fetch + Phase 4c machinery (reused only by Step I-3) are the only SKILL.md sections that survive the Incoming-mode branch.
+Phase 1 worktree pre-flight + custom-instructions load + PR fetch + Phase 4.3 machinery (reused only by Step I-3) are the only SKILL.md sections that survive the Incoming-mode branch.
 
 ## Edge cases
 
@@ -99,7 +99,7 @@ Phase 1 worktree pre-flight + custom-instructions load + PR fetch + Phase 4c mac
 - **PR has thousands of comments.** Apply the Step 1 filter (`isResolved == false` + inline-anchored). If > 50 unresolved comments survive, surface a warning to the user and require explicit `proceed` before fetching.
 - **Reviewer's comment references a file outside the diff.** Honor the comment — Incoming mode is about responding to feedback, not validating the reviewer's scope. Step I-2 classifies it normally; Step I-4 routes to the appropriate decision.
 - **`mcp__github__*` tools unavailable.** Fall back to `gh api` per Step I-1. If both fail, the Incoming mode cannot run; surface the error and stop.
-- **F→P verification fails to spawn the agent.** Apply Phase 4c Step 6 fail-open semantics: do NOT auto-classify `[WRONG]` comments as `[ACTIONABLE]`; surface the fail-open caveat and proceed with the user's manual classification override at Step I-4.
+- **F→P verification fails to spawn the agent.** Apply Phase 4.3 Step 6 fail-open semantics: do NOT auto-classify `[WRONG]` comments as `[ACTIONABLE]`; surface the fail-open caveat and proceed with the user's manual classification override at Step I-4.
 
 ## Anti-rationalization
 

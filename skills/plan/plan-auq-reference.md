@@ -91,7 +91,7 @@ approvals:
 
 ## 3. Phase 4 approach AUQ — shape with ASCII-sketch previews
 
-Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Each option's `preview` contains an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier + one-line dominant tradeoff:
+Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. The `Recommended` marker reflects the Phase 4 §4.2 stress-test ranking — an approach with a blocking feasibility risk is never Recommended. Each option's `preview` contains an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier + one-line dominant tradeoff + the `Stress-test:` verdict line from §4.2:
 
 ```yaml
 header: "Approach"
@@ -105,12 +105,14 @@ options:
       └─────────────┘    └──────────────────┘    └────────────┘
       New: src/jobs/BackfillQueue.ts + per-user job class
       Trade-off: +1 infrastructure piece; bounded memory under load.
+      Stress-test: no blockers; queue table migration needed (minor, src/db/schema.ts:40).
   - label: "In-process Promise.all"
     description: "Loop users, await Promise.all in chunks of 50."
     preview: |
       for (chunk of chunks(users, 50)) await Promise.all(chunk.map(backfill))
       New: tweaks to src/backfill/runner.ts only
       Trade-off: zero new infrastructure; memory spike on large datasets.
+      Stress-test: major — runner.ts:88 already holds full user set in memory; spike compounds.
 ```
 
 User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`. The unsignaled (non-recommended) picks fire L2 emit via `emit-rejection.sh` when the picked label diverges from the recommended label.

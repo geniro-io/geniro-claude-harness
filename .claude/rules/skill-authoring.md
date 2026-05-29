@@ -64,7 +64,7 @@ A `skills/foo/SKILL.md` covers ONLY what /foo does. Strip:
 
 ## User-facing strings — plain English only
 
-Any string the orchestrator surfaces to the user (chat narration, TodoWrite labels, AskUserQuestion `header` / `question` / `description` / option labels, status echoes, report sections) MUST pass the **fresh-user test**: a user with the plugin installed but no architecture docs loaded can act on the string without first learning a Geniro-specific identifier (`T2`, `L4`, `KR`, `FIX-NOW`, `Phase 4c`, `m5-v2`, `phase: triage`, etc.). Full translation tables + scope + exempt cases + anti-rationalization in `.claude/rules/skill-prose.md` §"User-facing output uses plain English". The most common leak vector is **step titles** — they get echoed in narration verbatim, so fix step titles first when auditing a skill.
+Any string the orchestrator surfaces to the user (chat narration, TodoWrite labels, AskUserQuestion `header` / `question` / `description` / option labels, status echoes, report sections) MUST pass the **fresh-user test**: a user with the plugin installed but no architecture docs loaded can act on the string without first learning a Geniro-specific identifier (`T2`, `L4`, `KR`, `FIX-NOW`, `Phase 4.3`, `m5-v2`, `phase: triage`, etc.). Full translation tables + scope + exempt cases + anti-rationalization in `.claude/rules/skill-prose.md` §"User-facing output uses plain English". The most common leak vector is **step titles** — they get echoed in narration verbatim, so fix step titles first when auditing a skill.
 
 ## Allowed and load-bearing
 

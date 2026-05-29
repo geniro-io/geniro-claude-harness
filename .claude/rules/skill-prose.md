@@ -160,12 +160,12 @@ Cover the categories below. Extend when new internal vocabulary appears in skill
 | `CE` / `CE subagent` / `CE output` | "codebase-explorer agent" / "codebase-explorer output" |
 | `TR` / `TR subagent` / `TR output` | "test-runner agent" / "test-runner output" |
 
-**Internal phase / step labels.** Phase / step numbering (`Phase 4c`, `Phase 5b`, `Step 12`, `Phase 6 Pre-gate`) is meaningful only to skill authors. The user knows what the orchestrator is DOING, not which numbered step it's on. When cross-referencing a step internally, anchor by the concept ("the open-question gate"), not the number ("Phase 6 Pre-gate").
+**Internal phase / step labels.** Phase / step numbering (`Phase 4.3`, `Phase 5.3`, `Step 12`, `Phase 6 Pre-gate`) is meaningful only to skill authors. The user knows what the orchestrator is DOING, not which numbered step it's on. When cross-referencing a step internally, anchor by the concept ("the open-question gate"), not the number ("Phase 6 Pre-gate").
 
 | Internal term | Plain-English form for user-facing prose |
 |---|---|
-| `Phase 4c` / `Phase 4c test-gate` | "test-confirmation gate" / "confirming tests before writing code" |
-| `Phase 5b` / `Phase 5b auto-emit` | "recording the pattern as a learning" |
+| `Phase 4.3` / `Phase 4.3 test-gate` | "test-confirmation gate" / "confirming tests before writing code" |
+| `Phase 5.3` / `Phase 5.3 auto-emit` | "recording the pattern as a learning" |
 | `Step 0 workspace AUQ` | "workspace setup question" |
 | `Step 12 handoff resolution` | "resolving open questions from the prior review" |
 | `Phase 6 Pre-gate` | "the open-question gate" |
@@ -221,7 +221,7 @@ When the model executes Step 5 in a phase, it typically echoes the step title in
 |---|---|
 | "The user can grep the architecture docs if they don't understand `T2`." | The user is in a chat session waiting for the orchestrator's narration to be self-explanatory. Forcing them to context-switch into doc archaeology to understand a progress message is the failure mode the fresh-user test exists to prevent. |
 | "Spelling out `knowledge-retrieval agent` every time bloats the prose." | A 3-word phrase per occurrence is the cost of clarity. Skill body has the bandwidth; the user-facing surface is the load-bearing constraint. |
-| "The skill body uses `Phase 4c` everywhere — I'll just keep it for consistency in echoes." | Consistency with author-facing vocab IS the problem. The model echoes author-facing vocab verbatim because it sees no signal not to. Use plain English in step titles AND in any narration-template the model is likely to surface. |
+| "The skill body uses `Phase 4.3` everywhere — I'll just keep it for consistency in echoes." | Consistency with author-facing vocab IS the problem. The model echoes author-facing vocab verbatim because it sees no signal not to. Use plain English in step titles AND in any narration-template the model is likely to surface. |
 | "`PRODUCT-DECISION` is a precise term; the plain-English form 'needs your decision' loses precision." | Precision in vocabulary is for author-side coordination (mapping findings to gates). The user-facing AUQ doesn't need the taxonomy label — it needs the user to act on the decision. The label is overhead at the user surface. |
 | "`(Internal: L4 procedural memory layer)` parentheticals preserve the cross-reference without confusing the user." | They DO confuse the user — the model still echoes the parenthetical in narration. The rule is binary at the user surface: either it's plain English, or it's not. Cross-references for skill authors live in the architecture docs, not in step titles. |
 
@@ -237,11 +237,11 @@ Per Anthropic [Effective context engineering](https://www.anthropic.com/engineer
 
 Run a manual prose review on each skill in this order:
 
-1. `skills/debug/SKILL.md` (920 lines, 32 anti-rationalization rows) — highest density; likely contains caps-MUST violations and stale hedging clauses.
-2. `skills/investigate/SKILL.md` (839 lines, 20 rows) — Phase 1 taxonomy section likely has menu-of-options violations.
-3. `skills/refactor/SKILL.md` (716 lines, 24 rows) — Smell-detection section likely mixes terminology (`smell` / `code-smell` / `refactor target`).
-4. `skills/review/SKILL.md` (602 lines, 23 rows) — 9-dim grid likely has terminology inconsistency between `dim` / `dimension` / `reviewer` / `dim-spec`.
-5. `skills/implement/SKILL.md` (643 lines, 18 rows) — already partially audited during the recent rewrite; check Step 0 area for menu-of-options patterns.
+1. `skills/debug/SKILL.md` — highest density; likely contains caps-MUST violations and stale hedging clauses.
+2. `skills/investigate/SKILL.md` — Phase 1 taxonomy section likely has menu-of-options violations.
+3. `skills/refactor/SKILL.md` — Smell-detection section likely mixes terminology (`smell` / `code-smell` / `refactor target`).
+4. `skills/review/SKILL.md` — dimension grid likely has terminology inconsistency between `dim` / `dimension` / `reviewer` / `dim-spec`.
+5. `skills/implement/SKILL.md` — already partially audited during the recent rewrite; check Step 0 area for menu-of-options patterns.
 
 For each, walk the file once and look for:
 

@@ -3,13 +3,13 @@
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules executed orchestrator-side, near-zero token usage.
 
 **Spec source:** *(internal)*
-**Status:** Authoritative. The orchestrator runs all 14 checks in sequence; each returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
+**Status:** Authoritative. The orchestrator runs all checks in sequence; each returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
 **Hard-fail handling:** see `plan-loop.md` — 3 auto-revision rounds, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
 
 ---
 
-## good-goal criteria (9 checks)
+## good-goal criteria
 
 ### 1. `single_objective`
 
@@ -90,7 +90,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ---
 
-## Additional checks (4)
+## Additional checks
 
 ### 10. `placeholder_scan`
 
@@ -140,6 +140,6 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ## Implementation note (— deferred)
 
-Whether these 14 checks live as a dedicated Python script OR as inline orchestrator-side logic is deferred to implementation. Tentative: inline initially (since the orchestrator already parses spec.md and state.md anyway); promote to a script if complexity grows beyond ~150 lines.
+Whether these checks live as a dedicated Python script OR as inline orchestrator-side logic is deferred to implementation. Tentative: inline initially (since the orchestrator already parses spec.md and state.md anyway); promote to a script if complexity grows beyond ~150 lines.
 
 The check API contract (`(check_id, status, finding_text, fix_hint)`) is fixed regardless of implementation surface.

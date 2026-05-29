@@ -100,5 +100,5 @@ Shared rules consumed by this skill:
 - `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` — L2 write helper (Phase 8 conditional `decision` emit).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` — cross-layer L4/L3/L2 conflict protocol.
 - `${CLAUDE_SKILL_DIR}/spec-template.md` — 10-section schema template (Phase 6 input).
-- `${CLAUDE_SKILL_DIR}/validator-checks.md` — 13 mechanical checks (Phase 7 input).
+- `${CLAUDE_SKILL_DIR}/validator-checks.md` — mechanical checks (Phase 7 input).
 - Architecture spec: *(internal)*.
