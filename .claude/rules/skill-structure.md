@@ -72,7 +72,7 @@ Sections 1-7 land in the top third (high-attention zone per [Liu et al. 2024](ht
 |---|---|---|
 | Reference a sibling skill | `/geniro:plan` | `skills/plan/SKILL.md:319` |
 | Reference a phase | `/geniro:plan Phase 5` | `plan-loop.md:319-322` |
-| Reference a sub-step | content-anchored: "the Phase 4c F→P invariant" | "step at line 350" |
+| Reference a sub-step | content-anchored: "the Phase 4.3 F→P invariant" | "step at line 350" |
 | Reference a shared helper | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/<name>.md` | bare filename without root |
 | Reference an agent contract | `${CLAUDE_PLUGIN_ROOT}/agents/<name>.md` §Output Format | line-numbered ref |
 

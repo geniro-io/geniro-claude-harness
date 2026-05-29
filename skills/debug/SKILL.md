@@ -85,7 +85,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 | Spawn | Tier | Why |
 |---|---|---|
 | `codebase-research-agent` | inherit (OMIT `model=`) | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant #8). Inherits orchestrator tier so research runs at Opus on an Opus session. Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
-| `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
+| `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4.3, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 ---
 

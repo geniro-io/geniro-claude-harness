@@ -14,7 +14,7 @@ Comprehensive code review using parallel multi-agent analysis.
 **Detailed phase contracts:**
 - `${CLAUDE_SKILL_DIR}/phase-1-triage-reference.md` — Phase 1 input mode / scope / risk-tier / memory load.
 - `${CLAUDE_SKILL_DIR}/phase-4-verification-reference.md` — Phase 4.2 per-finding verifier contract (every CRITICAL/HIGH/MEDIUM survivor of §4.1).
-- `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md` — Phase 4c test-confirmation gate.
+- `${CLAUDE_SKILL_DIR}/phase-4-3-test-gate-reference.md` — Phase 4.3 test-confirmation gate.
 - `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` — Phase 6 action-gate hand-off + Post drill.
 - `${CLAUDE_SKILL_DIR}/plan-context-reference.md` · `incoming-mode-reference.md` · `tdd-mode-reference.md` — PLAN CONTEXT load / INCOMING mode / `--tdd` semantics.
 
@@ -61,7 +61,7 @@ The invariants apply unchanged:
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 9. **Re-verify ambiguity gates at external-effect boundaries.** §2.5 Pre-gate, §3 Step 0, and the Phase 4.2 per-finding verifier establish gate invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, and kept-finding `Validation:` respectively; §7.0 re-reads ALL THREE before any `gh api POST /reviews` because mid-phase producer writes, parallel resolvers, or orchestrator drift can re-create unresolved ambiguity (or surface a `Validation: refuted` finding that bypassed the upstream filter) between the upstream gate and the external write. Never trust an upstream gate's invariant at a public-surface boundary.
 
-`## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5b emit-learning + 1 per PR-side-effect).
+`## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5.3 emit-learning + 1 per PR-side-effect).
 
 ---
 
@@ -99,7 +99,7 @@ Every Agent prompt satisfies the six pre-inlined fields per `${CLAUDE_PLUGIN_ROO
 |---|---|---|
 | `reviewer-agent` (all built-in dims) | OMIT | Frontmatter `model: inherit` — orchestrator tier propagates |
 | `reviewer-agent` (custom dim) | OMIT (default) OR explicit value when user-declared | User declaration wins per model-tiering doctrine |
-| `adversarial-tester-agent` (Phase 4c only) | OMIT | Frontmatter `model: inherit` |
+| `adversarial-tester-agent` (Phase 4.3 only) | OMIT | Frontmatter `model: inherit` |
 | Per-finding validation sub-agents (CRITICAL/HIGH) | OMIT | Frontmatter `model: inherit` |
 
 ---
@@ -330,7 +330,7 @@ State.md `phase: filter`.
 The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent outputs + Phase 1.5 mechanical findings) and performs dedup inline — no subagent spawn:
 
 - **Dedup key:** `path:line + finding-title` (case-insensitive title match).
-- **Convergence_count:** for each dedup'd finding, count how many reviewers + mechanical checks reported the same key. Persisted as a field on the finding (consumed by Phase 5b auto-emit threshold).
+- **Convergence_count:** for each dedup'd finding, count how many reviewers + mechanical checks reported the same key. Persisted as a field on the finding (consumed by Phase 5.3 auto-emit threshold).
 - **Drop hallucinations:** findings without a real file:line correspondence (orchestrator verifies file exists and line is within bounds via Read; if not, drop with a `## Caveats` line citing the dropped finding).
 - **Convention context:** orchestrator reads convention files when present — CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs. These inform KEEP/FILTER decisions.
 
@@ -408,7 +408,7 @@ Full prompt template, isolated-context contract, anti-sycophancy guard, and work
 
 ### 4.3 Failing-to-passing test-confirmation gate
 
-**Full contract:** `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md`.
+**Full contract:** `${CLAUDE_SKILL_DIR}/phase-4-3-test-gate-reference.md`.
 
 Summary:
 - Filter findings by decision-type per the runtime-behavior classification rule.
@@ -648,11 +648,11 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | three loaded layers | precedence-resolved |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `review` + `global` + `code-style` | rule body (refreshed) |
 | Phase 5 | `atomic_state_write` | write T2 | n/a | state file path; full body | whole-file rewrite |
-| Phase 5b | `emit-learning` | write L2 | n/a | producer = /review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
+| Phase 5.3 | `emit-learning` | write L2 | n/a | producer = /review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
 | Phase 6 | `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |
 
 **L2 emit triggers** per patched contract:
-- `pitfall` — **YES** — Phase 5b auto-emit when convergence ≥3.
+- `pitfall` — **YES** — Phase 5.3 auto-emit when convergence ≥3.
 - `convention` — Not. /implement owns.
 - `decision` — Not. /plan owns.
 - `diagnosis` — Not. /debug owns.
@@ -670,9 +670,9 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | "Just keep guidelines — duplicate finding is a feature, not a bug." | User-facing "told twice" is concrete UX friction. Two reviewers reporting the same thing wastes user attention. The specialized dim (conventions) wins on cost AND quality; let the dedicated reviewer own the finding category. |
 | "I'll tag this LOW finding as MEDIUM so it surfaces past the threshold filter." | The Phase 4.1 multi-signal gate (§4.1) provides four independent signals for a correct finding to surface (convergence_count ≥2, Evidence-Block + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback) — the confidence threshold is one of four, not a load-bearing primary. Inflating severity to game the gate corrupts the severity taxonomy for downstream consumers (verifier, stratifier, /implement consumer) AND surfaces low-impact findings on the PR. Trust the multi-signal gate; let LOW be LOW. |
 | "Auto-drop MEDIUM findings to reduce user friction." | MEDIUM routes through the always-WAIT MEDIUM-gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Auto-dropping makes the skill less trustworthy — users notice when their MEDIUMs vanish silently. Never auto-drop. |
-| "I'll spawn the adversarial-tester-agent and ask the user to confirm later." | Inline-after-action gates rationalize into "this counts as approval". The Phase 4c invariant is `AskUserQuestion` BEFORE spawning, not after. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
+| "I'll spawn the adversarial-tester-agent and ask the user to confirm later." | Inline-after-action gates rationalize into "this counts as approval". The Phase 4.3 invariant is `AskUserQuestion` BEFORE spawning, not after. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
 | "The findings look obviously postable — I'll just batch-post to the PR and tell the user after." | Posting to a PR is an external write to a public surface. Phase 6 Action gate's "Post" selection IS the consent — without it, ambiguity that should have been resolved gets pushed onto the PR author or downstream reviewer. |
-| "TDD mode is on, user clearly wants tests authored — skip the Phase 4c AUQ." | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4c invariant is non-negotiable in every mode. Empty-answer fallback re-asks rather than auto-defaults. |
+| "TDD mode is on, user clearly wants tests authored — skip the Phase 4.3 AUQ." | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4.3 invariant is non-negotiable in every mode. Empty-answer fallback re-asks rather than auto-defaults. |
 | "I'll auto-update Linear status from /review when findings are critical — saves the user a step." | /review is a Reporter. Linear `update_issue` / `create_comment` are external side-effect writes; only /geniro:plan and /geniro:implement run them per their workflow contracts. /review's MCP surface is read-only (`get_issue` / `list_issues`) per ACI. The Open Questions schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 lets /review surface ambiguity without mutating tracker state. |
 | "Inline LINEAR CONTEXT into every dim — more context = better review." | Cross-reviewer convergence anti-pattern: LINEAR CONTEXT helps spec-compliance (rubric source), pr-metadata (title-divergence check), architecture (parent-epic linkage), and regressions (intent classification). Other dims see it as noise that biases their per-file rubric. The narrow 4-dim distribution is the documented pattern. |
 | "Regressions dim feels redundant with spec-compliance — skip it on PRs that have a spec." | spec-compliance covers diff-omits-spec-item; regressions covers diff-exceeds-stated-intent. They're inverse directions, not duplicates. Regressions also fires on spec-less PRs where spec-compliance can't (matches user mental model: catch unintended changes broadly). |
@@ -700,12 +700,12 @@ Code review is complete when:
 - [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding
 - [ ] Phase 4 judge validation complete; Step 0 intent reconciliation applied (plan-authorized divergences demoted to `[INTENT-CHECK]`)
 - [ ] Phase 4.1 multi-signal threshold gate applied (convergence ≥2 OR Evidence-Block + confidence ≥60 OR criteria-pre-resolved marker OR confidence ≥80 fallback; high-tier relaxes signal 4 to ≥70; MEDIUM additionally requires signal #2 / Evidence-Block per Loop Invariant #6)
-- [ ] Phase 4c test-gate evaluated (skipped when no eligible findings or user declines); user approval persisted to `approvals[]`
-- [ ] TDD mode only: Phase 4c Step 2 AUQ rendered with `(Recommended)` suffix on "Author tests…" (gate itself fired exactly as in Standard mode); Phase 6 Step 3.5 post-set filter applied
+- [ ] Phase 4.3 test-gate evaluated (skipped when no eligible findings or user declines); user approval persisted to `approvals[]`
+- [ ] TDD mode only: Phase 4.3 Step 2 AUQ rendered with `(Recommended)` suffix on "Author tests…" (gate itself fired exactly as in Standard mode); Phase 6 Step 3.5 post-set filter applied
 - [ ] Issues classified by severity (CRITICAL/HIGH/MEDIUM/LOW per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1) and Decision Type ([FIX-NOW] / [TESTABLE] / [PRODUCT-DECISION] / [INTENT-CHECK])
 - [ ] All findings tagged `[NEW]` (in changed lines) or `[PRE-EXISTING]` (in unchanged code) per `agents/reviewer-agent.md` Output Format; build-failure findings additionally tagged per §2.7
 - [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`
-- [ ] Phase 5b L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
+- [ ] Phase 5.3 L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
 - [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT)
 - [ ] Phase 6 Step 0 per-finding gate completed AND every PRODUCT-DECISION finding's `step0_status` flipped from `pending` to `resolved` (or `wontfix`) BEFORE the Action gate's Post drill fires; §7.0 Pre-Post guard re-reads both `open_questions[]` and `## Findings` and aborts the post on any remaining `unresolved` / `pending` per `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §7.0
 - [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision; user pick persisted to `approvals[]` (category `action_gate`)
