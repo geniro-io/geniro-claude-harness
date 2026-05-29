@@ -119,6 +119,7 @@ Every persisted fact lives in exactly one of four layers. Writers know **what** 
 | `_shared/redact-secrets.sh` | Regex sanitization for any free-form text — called automatically by `emit_learning`; also reusable standalone |
 | `_shared/archive-stale.sh` | Walk `learnings.jsonl` and flip `deprecated: true` on entries matching score<0.1 + age>180d + access_count==0. Auto-runs on SessionStart (default ON, opt-out via `safety.json memory.auto_archive_stale: false`); `--dry-run` previews manually. Never deletes (audit trail). Multi-tab safe via mkdir-lock. |
 | `_shared/emit-rejection.sh` | AUQ-rejection L2 emit helper — exports `emit_rejection_if_signal()`; detects explicit-cancel/no/skip OR picked-non-recommended signals and emits `user_rejected_suggestion` to L2. Wired in /plan, /implement Phase 3 ship-mode, /actions run-mode. |
+| `lib/repo-root.sh` | Resolve the repository root — exports `_geniro_repo_root` (worktree-aware: walks up for `.geniro/`, falls back to `git rev-parse --show-toplevel`, then `$PWD`). Sourced by `update-semantic` / `emit-learning` so memory writes land at the correct root across multi-worktree checkouts. |
 
 ### Conflict surfacing protocol
 
