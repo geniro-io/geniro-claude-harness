@@ -17,7 +17,7 @@
 | T1.5 session-bound state (`.geniro/state/<skill>/<slug>/state.md`) | `atomic_state_write` |
 | T1.5 singleton state (`.geniro/state/setup/state.md`) | `atomic_state_write` |
 | T2 handoff (`.geniro/state/handoff/from-*.md`) | `atomic_state_write` |
-| T3 CRUD (`instructions/*.md`, `actions/*.md`, `workflow/*.yaml`, `planning/_*.md`) | `atomic_state_write` (with caller-side mtime check — see below) |
+| T3 CRUD (`instructions/*.md`, `actions/*.md`, `workflow/*.md`, `planning/_*.md`) | `atomic_state_write` (with caller-side mtime check — see below) |
 | T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` |
 | T1 ephemeral transient outputs (`.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `notes.md`, `playwright-verify.png`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at Ship |
 | Reading state — no helper needed | use `Read` tool directly |
@@ -154,22 +154,21 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 
 ---
 
-## Why per-write atomic (Q2)
+## Why per-write atomic
 
-From the audit (M1 §Verification):
-- Audit problem #1 — no atomic writes — root cause: direct `Edit`/`Write` calls truncate-and-rewrite, leaving a window where reader sees half-written file.
+- Without atomic writes, direct `Edit`/`Write` calls truncate-and-rewrite, leaving a window where reader sees half-written file.
 - Fix: every state path goes through this helper. `tmp + fsync + rename + fsync-dir` guarantees either pre- or post-state, never partial.
 
 The PreToolUse hook `enforce-state-helper.sh` (warn-mode initially, block-mode after migration completes) catches sites that bypass the helper.
 
 ---
 
-## Portability notes (§Open Q2 in M1 design)
+## Portability notes
 
 - `sync -d <file>` works on Linux (GNU coreutils). macOS `sync` has no `-d` flag.
 - Helper probes `sync -d` per-call; on failure falls back to whole-disk `sync`. Slower on macOS but portable.
 
-## NFS safety (§Open Q3 in M1 design)
+## NFS safety
 
 - Tmp filename includes `$$` (PID) and `${HOSTNAME}`. Same-host PID collisions don't happen; cross-host shared `.geniro/` directories (rare) are safe because PID space + hostname is unique.
 

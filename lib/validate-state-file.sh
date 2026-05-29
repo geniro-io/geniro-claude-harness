@@ -166,6 +166,12 @@ validate_state_file() {
         echo "validate_state_file: $target — missing or empty required field 'consumer' (T2 schema)" >&2
         return "$_VSF_MISSING_TIER_FIELD"
       fi
+      # open_questions is required-present but MAY be empty ([]) — use key-presence,
+      # not nonempty, so a handoff that surfaced no questions still validates.
+      if ! _vsf_fm_has_key "$fm" open_questions; then
+        echo "validate_state_file: $target — missing required field 'open_questions' (T2 schema; MAY be empty [])" >&2
+        return "$_VSF_MISSING_TIER_FIELD"
+      fi
       ;;
     T3)
       if ! _vsf_fm_has_nonempty_key "$fm" concurrency; then

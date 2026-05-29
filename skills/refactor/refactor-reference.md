@@ -35,7 +35,7 @@ verify ──┬── (happy: → done above)
 └── adr-documented (terminal — "Document as ADR")
 ```
 
-**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. The SessionStart recovery treats all six as «task complete — no resume needed».
+**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. The SessionStart recovery treats all six as "task complete — no resume needed".
 
 **Non-terminal states:** `plan`, `apply`, `verify`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures HIGH-step + PRODUCT-DECISION gates skip already-answered).
 

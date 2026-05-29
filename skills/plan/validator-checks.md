@@ -90,7 +90,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ---
 
-## Additional checks (4)
+## Additional checks (5)
 
 ### 10. `placeholder_scan`
 

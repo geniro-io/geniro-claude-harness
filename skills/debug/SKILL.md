@@ -48,7 +48,7 @@ The 8 invariants apply unchanged:
 7. **Errors → structured observations.** Failed `git diff`, denied permission, `adversarial-tester-agent` "agent not found" ladder fallback all become structured `## Tool log` entries before being acted on.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-`## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, escalation entries for /). Routine Read / Edit / Bash skipped.
+`## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped.
 
 ---
 
@@ -60,7 +60,7 @@ This skill has **NO hard kill caps**. Same model as other skills.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component (8 options) → user supplies missing or picks alternative |
+| Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component (8-category taxonomy; 4 rendered per AUQ) → user supplies missing or picks alternative |
 | Fix attempts failed verification | 2 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
 | Adversarial mode authored tests | 10 hard cap | (delegated to agent contract) | Stop authoring; surface findings |
 | Adversarial mode consecutive discards | 5 | (delegated to agent contract) | Stop hypothesis generation; surface partial |
@@ -72,7 +72,7 @@ This skill has **NO hard kill caps**. Same model as other skills.
 | Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `adversarial-tester-agent` (adversarial mode only) | |
 | Reproduction-test framework | Project's native (detected from CLAUDE.md Essential Commands) | |
 
-**Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale as — complex multi-cause bugs may legitimately need hours of investigation; hypothesis testing against a large codebase may need many Read/Grep calls.
+**Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Complex multi-cause bugs may legitimately need hours of investigation; hypothesis testing against a large codebase may need many Read/Grep calls.
 
 ---
 
@@ -95,7 +95,7 @@ Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standa
 
 **Debug-specific framing — hypothesis-confirmation artifact kinds.** A hypothesis is **confirmed** ONLY when its `Result:` field cites one of the artifact kinds 1-5 from the shared rule. Hypothesis-tracking is the most evidence-rigorous flow in the plugin: every entry in state.md § `## Hypotheses` Result MUST attach a captured artifact (kind 1: file:line + verified snippet; kind 2: captured command/test/build output; kind 3: log line / stack trace; kind 4: datastore query result; kind 5: user-provided artifact). Reasoning is correlation; only reproduction with a captured artifact confirms causation.
 
-If the orchestrator's tools cannot produce evidence for a hypothesis (no DB access, no production logs, no credentials, no environment access), do NOT mark it inconclusive by default — use the missing-data gate in to ask the user for the artifact.
+If the orchestrator's tools cannot produce evidence for a hypothesis (no DB access, no production logs, no credentials, no environment access), do NOT mark it inconclusive by default — use the missing-data gate in §1.5 to ask the user for the artifact.
 
 ---
 
@@ -131,13 +131,15 @@ When in doubt (ambiguous input), default to Scientific Mode — user can re-invo
 
 ## Phase 1 — Investigate
 
-state.md `phase: investigate`. Mirrors Phase 1 (entry-gate + context load) plus Phase 2-style inner loop (hypothesis test iterations). Exits to Phase 2 only when a hypothesis is confirmed AND its Result: field cites an artifact per Evidence Standard.
+state.md `phase: investigate`. Mirrors `/geniro:implement` Phase 1 (entry-gate + context load) plus a Phase 2-style inner loop (hypothesis test iterations). Exits to Phase 2 only when a hypothesis is confirmed AND its Result: field cites an artifact per Evidence Standard.
 
 ### 1.1 Memory layer load (past-knowledge query)
 
 On Phase 1 entry, in order:
 
-1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` per Echo contract.2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)`. Fingerprint drift check fires if applicable.3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per "debug session start" trigger. Top-K=5 default, filter superseded + deprecated. Skipped if $ARGUMENTS too generic to infer tags. Result count IS the recurrence signal used by the promotion-to-rule suggestion.
+1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` per Echo contract.
+2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)`. Fingerprint drift check fires if applicable.
+3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per "debug session start" trigger. Top-K=5 default, filter superseded + deprecated. Skipped if $ARGUMENTS too generic to infer tags. Result count IS the recurrence signal used by the promotion-to-rule suggestion.
 **surfacing convention:** when results include `discarded_hypothesis` entries, display them with a distinct label so the orchestrator can skip dead-ends faster:
 ```
 Past investigations in this scope ruled out:
@@ -146,8 +148,7 @@ Past diagnoses:
 - <summary> (fixed <ts>)
 ```
 These get surfaced on hypothesis formation so that the orchestrator does NOT re-form a hypothesis equivalent to an already-ruled-out one without explicit re-justification.
-4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per
-Echo lines per mandatory.
+4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md`. Echo lines per each helper's mandatory echo contract.
 
 5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. Read-only — /debug never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
@@ -223,13 +224,13 @@ Example payload:
 }
 ```
 
-**Sliding-window cap (Reflexion bound):** keep at most 5 latest `discarded_hypothesis` entries per `(producer, scope)`. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; if ≥5, mark the oldest matching entry `deprecated: true` via direct edit to `learnings.jsonl` BEFORE appending the new one. Prevents discarded-hypothesis chatter from drowning out `diagnosis` entries at retrieval time.
+**Sliding-window cap (Reflexion bound):** keep at most 5 latest `discarded_hypothesis` entries per `(producer, scope)`. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; if ≥5, mark the oldest matching entry `deprecated: true` BEFORE appending the new one. This field-flip is a mutation of `.geniro/knowledge/learnings.jsonl`, which the state-helper enforcement hook guards — perform it through the atomic-write path (rewrite the file via `atomic_state_write`, not a direct `Edit`/`Write`), and rely on the `enforce-state-helper` allow-pattern in `.geniro/safety.json` only if the atomic path is unavailable. Prevents discarded-hypothesis chatter from drowning out `diagnosis` entries at retrieval time.
 
-`rejected` is a normal outcome of hypothesis testing — emit fires in the happy path. `inconclusive` does NOT emit (the data is ambiguous; recording it would seed noise). `confirmed` does NOT emit a `discarded_hypothesis` (it emits a `diagnosis` later at).
+`rejected` is a normal outcome of hypothesis testing — emit fires in the happy path. `inconclusive` does NOT emit (the data is ambiguous; recording it would seed noise). `confirmed` does NOT emit a `discarded_hypothesis` (it emits a `diagnosis` later at Phase 3 §3.3).
 
 state.md `phase: investigate` throughout. `## Hypotheses` body section grows iteratively.
 
-### 1.6 Isolate root cause → [ROOT-CAUSE] finding
+### 1.6 Isolate root cause
 
 Once a hypothesis is confirmed:
 - Identify exact code location. Trace data/control flow. Apply techniques per § Isolation Techniques below (binary search / git bisect / profiling).
@@ -273,7 +274,7 @@ state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduct
 
 On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` call. Mirrors Phase 3 entry contract: always re-fires. Cost: 1 helper read.
 
-### 2.2 Multi-path fix gate (Always-WAIT, )
+### 2.2 Multi-path fix gate (Always-WAIT)
 
 If the confirmed root cause has more than one valid fix path with real trade-offs (e.g., snapshot-vs-live-fetch, COALESCE vs CHECK constraint vs catch+log, fix-at-source vs fix-at-call-site), do NOT pick one and write a single text proposal.
 
@@ -422,7 +423,7 @@ Only after the summary above is visible AND persisted, `AskUserQuestion` with he
 
 - **Trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`** — ≤2 files, obvious target, no architecture or auth/permissions change.
 - **Non-trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern. (Both Trivial and Non-trivial route to the same target — `/geniro:implement`. The Trivial/Non-trivial designation surfaces in the spec context the receiving skill loads.)
-- **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger a follow-up `AskUserQuestion` with concrete options for the missing data. When data arrives, return to, do NOT escalate yet.
+- **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger a follow-up `AskUserQuestion` with concrete options for the missing data. When data arrives, return to the §3.0 Pre-gate, do NOT escalate yet.
 - **Leave it to me** — user will apply the patch manually using the state file as reference. state.md transitions to `phase: ship-summary-only` (terminal).
 
 Do NOT auto-invoke the next skill — surface the suggestion only. State file IS the handoff channel. You do NOT apply the patch yourself.
@@ -432,7 +433,8 @@ Do NOT auto-invoke the next skill — surface the suggestion only. State file IS
 At Phase 3 exit:
 
 - **`emit-learning`** — called by /debug at two distinct points:
-- **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified` per- **`discarded_hypothesis` (, fires at per-rejection during Phase 1)** — every rejected hypothesis emits one entry with required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See for the payload schema and emit logic.
+- **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`.
+- **`discarded_hypothesis`** (fires per-rejection during Phase 1) — every rejected hypothesis emits one entry with required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See §1.5 for the payload schema and emit logic.
 - **NOT emitted :** `pitfall` (/refactor + /review own), `convention` (/implement self-review owns), `decision` (/plan owns), `discovery` (/refactor + /onboard + /investigate own).
 
 - **L4 promotion suggestion:** when the prior-knowledge query returned **≥1 matching prior diagnosis** (recurrence signal), surface a one-line suggestion in the Phase 3 final report:
@@ -486,7 +488,7 @@ Cleanup is best-effort — if a command fails silently, that's fine.
 
 ### 3.6 Atomic non-resumable updates
 
-After each side-effect that cannot be replayed safely (none in baseline — debug performs no `git push` / `gh pr create`), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_write`. Mirrors step 4.
+After each side-effect that cannot be replayed safely (none in baseline — debug performs no `git push` / `gh pr create`), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_write`.
 
 The empty baseline is intentional: debug ships proposals, not commits. If a future user-customization introduces side-effects (e.g. a `.geniro/actions/post-finding-to-slack.md` invocation), THAT action becomes a non-resumable entry — not the standard ship flow.
 
@@ -592,7 +594,9 @@ T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `a
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
 | Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes hypotheses |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
-| Phase 3 exit | `emit-learning` | write L2 | n/a (sole emit type: `diagnosis`; required `ext.{symptom, root_cause, fix}` ) |
+| Phase 1 (per rejection) | `emit-learning` | write L2 | n/a (type `discarded_hypothesis`; fires per rejected hypothesis; required `ext.{hypothesis, evidence_against, tested_by}`) |
+| Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence`; fires when `fix_attempts >= 2`; required `ext.{phase, attempts, resolution}`) |
+| Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis`; required `ext.{symptom, root_cause, fix}`) |
 
 `update-semantic` is NOT called. Debug investigates existing code; it does not add modules, move files, or rename — those are /implement and /refactor concerns.
 

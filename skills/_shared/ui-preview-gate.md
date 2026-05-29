@@ -10,10 +10,10 @@ Skip entirely unless at least one file in the predicted affected-files list matc
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent with `model="haiku"` (mechanical transformation of spec/plan into a structured description — not reasoning work).
+Spawn a general-purpose subagent with `model="haiku"` (mechanical transformation of spec/plan into a structured description — not reasoning work; `model=` is passed explicitly because the tier IS the deliverable contract per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Apply the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
 
 ```
-Agent(model="haiku", prompt="""
+Agent(model="haiku", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Describe UI Before Implementation
 
 Produce a textual, structured description of how the UI will LOOK after this change — so the user can review it and request changes BEFORE any code is written.
@@ -69,7 +69,7 @@ Present the agent's output verbatim. Then use `AskUserQuestion` (do NOT print op
 
 ### Step 4: Emit approved description
 
-Write the approved description to the caller-designated path (e.g., `<task-dir>/ui-preview.md` for `/geniro:implement`, or hold in-memory for `/geniro:follow-up`). Return control to the caller along with the file path or content.
+Write the approved description to the caller-designated path (e.g., `<task-dir>/ui-preview.md` for `/geniro:implement`), or return the content inline when the caller provides no destination path. Return control to the caller along with the file path or content.
 
 ## Caller contract
 

@@ -2,8 +2,6 @@
 
 **Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/implement` (adds module entries), `/refactor` (move/rename), and `/plan` (manages `_FEATURES.md`).
 
-
-
 ## API
 
 ```bash
@@ -22,7 +20,8 @@ Exit codes:
 - `0` — wrote (or no-op, e.g. replace with no match — surfaced via stderr).
 - `11` — lock held by another writer; caller should defer or retry.
 - `64` — bad / missing flags.
-- `70` — append failed (filesystem / IO).
+- `68` — append line exceeds 4096 bytes.
+- `69` — append IO failure.
 - `71` — atomic write of replacement failed.
 
 ## MODE contract
@@ -32,7 +31,7 @@ invocation is a one-shot file mutation; the helper holds no context-resident
 state across calls. Skill flow decides when to re-invoke after a SessionStart
 event.
 
-## Constraints (from .3)
+## Constraints
 
 - **Applies only to `_CODEBASE_MAP.md` and `_FEATURES.md`.** Other L3 files (`_project.md`, `_architecture.md`, `_focus-*.md`) are manual-only.
 - **Append-only or single-line replacement.** Never rewrites the whole file. Human edits anywhere in the file survive untouched.

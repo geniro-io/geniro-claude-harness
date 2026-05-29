@@ -2,7 +2,7 @@
 
 **Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`.
 
- and (lifecycle).
+`ARCHITECTURE.md` § "Memory Layers" documents the L2 entry schema and lifecycle.
 
 ## API
 
@@ -49,7 +49,7 @@ The helper rejects entries missing any of these with rc=64.
 - `supersedes` — if the caller provides it, it's preserved verbatim. Otherwise the helper may auto-inject it (see Dedup).
 - `type`, `trust`, `links`, `deprecated` — passed through unchanged.
 
-Unknown fields are also passed through — the schema is open.1.
+Unknown fields are also passed through — the schema is open.
 
 ## Sanitization
 
@@ -111,7 +111,7 @@ jq -nc \
 - **Dedup window is 200 lines.** Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/debug` session, a few per `/implement` run) the 200-line window covers weeks; if it becomes too short, callers can pre-query `learnings.jsonl` via `query-learnings` (next helper) and pass `supersedes` explicitly.
 - **No multi-entry batching.** One JSON object per call. Callers that need to emit many at once should loop.
 - **Sanitization is per-call.** A pattern that fires across multiple ext fields emits multiple audit-log rows. Aggregating is left to readers of the audit log.
-- **No producer→trust auto-default.** .3 documents per-emitter trust defaults (e.g. `/geniro:debug` → `verified`). The helper does NOT auto-set `trust` based on producer; callers must supply it explicitly. Skills will set the right value when they integrate; meanwhile a missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).
+- **No producer→trust auto-default.** `ARCHITECTURE.md` § "Memory Layers" documents per-emitter trust defaults (e.g. `/geniro:debug` → `verified`). The helper does NOT auto-set `trust` based on producer; callers must supply it explicitly. Skills will set the right value when they integrate; meanwhile a missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).
 - **Concurrent emit-learning with the same caller-supplied `dedup_key` is not serialized.** Two parallel calls with the same key but different content append both without auto-injecting `supersedes`, because each call's dedup-scan happens before the other's append. Acceptable given the helper's no-lock design; if strict serialization is needed, callers can wrap calls with a file lock.
 
 ## Test coverage

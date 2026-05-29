@@ -1,6 +1,6 @@
 # Finding Tagging
 
-Authoritative tag definitions for reviewer-agent output, /plan orchestrator-side spec-authoring output, and orchestrator routing. The `[ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN] / [SYMPTOM-ACK]` tags form a finding-classification system parallel to the existing `[CONFIRMED-BY-TEST] / [CHALLENGED-BY-TEST] / [NEW] / [PRE-EXISTING] / [PRODUCT-DECISION]` tag families: same persistence channel (`<task-dir>/review-feedback.md` and `.geniro/state/<skill>/state-<slug>.md`), same audit-trail discipline, different classification axis (cause vs effect, instead of newness or evidence-strength). Tags persist across skill phases and are the trigger predicate for `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md`.
+Authoritative tag definitions for reviewer-agent output, /plan orchestrator-side spec-authoring output, and orchestrator routing. The `[ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN] / [SYMPTOM-ACK]` tags form a finding-classification system parallel to the existing `[CONFIRMED-BY-TEST] / [CHALLENGED-BY-TEST] / [NEW] / [PRE-EXISTING] / [PRODUCT-DECISION]` tag families: same persistence channel (`<task-dir>/state.md` `## Accepted Findings` and `.geniro/state/<skill>/state-<slug>.md`), same audit-trail discipline, different classification axis (cause vs effect, instead of newness or evidence-strength). Tags persist across skill phases and are the trigger predicate for `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md`.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste tag definitions or routing rules.
 
@@ -45,7 +45,7 @@ The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Pha
 
 Tags persist in two artifact families, mirroring the existing `[CONFIRMED-BY-TEST]` persistence pattern (per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema):
 
-**1. Reviewer findings — `<task-dir>/review-feedback.md` (`/implement` Phase 3 self-review intermediate) and `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. Path `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md` is read once on resume for compatibility per SKILL.md only.**
+**1. Reviewer findings — `<task-dir>/state.md` `## Accepted Findings` body block (`/implement` Phase 3 self-review records accepted findings here; in-loop findings are held in memory and applied inline) and `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`.**
 
 The per-finding line gains a `cause:` field (lowercase to match existing field convention — `decision:`, `recommendation:`, `confidence:`). The field is appended after `confidence:` for both severity-section rows (CRITICAL/HIGH/MEDIUM) and Intent-section rows. Exact line format:
 
@@ -62,9 +62,9 @@ When `cause: SYMPTOM` (or `cause: UNKNOWN` requiring debug escalation), the line
 
 These sub-fields populate the gate's `<symptom>` and `<suspected root cause>` slots in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` § Required AUQ shape. Rows with `cause: ROOT-CAUSE` or `cause: SYMPTOM-ACK` do NOT need these sub-fields (gate does not fire / already resolved); rows with `cause: UNKNOWN` SHOULD include them as best-effort hypothesis seeds for the downstream `/geniro:debug` invocation.
 
-**2. Architect design units — `<task-dir>/design.md` (`/implement` Phase 2 output):**
+**2. Spec-authoring design units — `<task-dir>/spec.md` (`/geniro:plan` orchestrator-side spec-authoring output):**
 
-Each design unit's "Root-cause classification" section uses block format. Architect output uses unbracketed `Root-cause classification: ROOT-CAUSE` / `SYMPTOM-PATCH` / `MIXED` (3-tag set, UNKNOWN reserved for reviewer post-implementation escape hatch):
+Each design unit's "Root-cause classification" section uses block format. Spec-authoring output uses unbracketed `Root-cause classification: ROOT-CAUSE` / `SYMPTOM-PATCH` / `MIXED` (3-tag set, UNKNOWN reserved for reviewer post-implementation escape hatch):
 
 ```
 Root-cause classification: <ROOT-CAUSE|SYMPTOM-PATCH|MIXED>

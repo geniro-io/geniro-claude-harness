@@ -94,7 +94,7 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 | `geniro_kind` | Producer schema marker — informational only |
 | `geniro_schema_version` | Producer schema-version marker — informational only |
 
-### T1 optional `approvals` array (P-M1-1)
+### T1 optional `approvals` array
 
 Persisted AUQ outcomes for compaction-survival. Only **one-time** decisions (e.g., `$ARGUMENTS` disambiguation, ship-mode). Context-dependent decisions (escalation, retry choices) are NOT persisted.
 
@@ -172,7 +172,7 @@ open_questions:
 
 **Producer responsibilities:**
 - Initialize `open_questions: []` in the handoff frontmatter. NEVER use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
-- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `resolution`) are optional.
+- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `resolution`) are optional. `related_hypotheses` is the `/debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
 - **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich `AskUserQuestion` preview per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust. Producer-side context is cheaper to author once than to reconstruct downstream.
 - When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
@@ -340,11 +340,11 @@ schema-version: 1
 branch: main
 timestamp: 2026-05-19T14:30:00Z
 concurrency: append-only
-schema-ref: "M2 §5.1 (canonical L2 entry schema)"
+schema-ref: "canonical L2 entry schema"
 ---
 ```
 
-Per-line JSONL schema (canonical in M2 §5.1): `ts`, `producer`, `scope`, `summary`, `tags`, plus optional `body`, `links`, `dedup_key`, `supersedes`, `deprecated`, `trust`, `type`, `ext`.
+Per-line JSONL schema (canonical L2 entry schema): `ts`, `producer`, `scope`, `summary`, `tags`, plus optional `body`, `links`, `dedup_key`, `supersedes`, `deprecated`, `trust`, `type`, `ext`.
 
 ---
 
@@ -358,7 +358,7 @@ The `validate_state_file` helper enforces:
 4. Tier-specific required fields present per the `tier:` value.
 5. `schema-version: 1` (fall-through to migration prompt on mismatch).
 6. If `checksum` present, body sha256 matches.
-7. If `worktree` present, path exists in `git worktree list` output (P-M1-2; graceful skip on non-repo paths).
+7. If `worktree` present, path exists in `git worktree list` output (graceful skip on non-repo paths).
 
 On failure: hard-fail with a recovery AskUserQuestion (per Q5 — delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
 

@@ -3,7 +3,7 @@ name: geniro:implement
 description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, EnterWorktree]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, EnterWorktree, ExitWorktree]
 argument-hint: "[task description | spec.md path | empty to resume | 'continue']"
 ---
 
@@ -59,17 +59,17 @@ self-review ──┬── (happy: → ship)
 Apply throughout all 3 phases:
 
 1. **One result per tool call.** Every Edit / Write / Bash / Agent spawn produces exactly one structured result. Failed spawn → result with `status: failed`; never absent.
-2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Paths absolute; slugs match §Slug rules.
+2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Paths absolute; slugs match the rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.
 3. **Permission before side-effect.** Any tool call mutating external state (`git push`, `gh pr create`, posted PR comment) is preceded by AUQ approval or recorded approval (persisted via schema).
 4. **Bounded and structured tool results.** Reviewer-agent output capped at ~4000 chars per dimension; longer truncated with marker. Bash output >8000 chars summarized before downstream use.
-5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds in, 3 rounds in) surface to user via `AskUserQuestion` at exhaustion — never silent abort, never infinite loop.
+5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds in Phase 2, 3 rounds in Phase 3) surface to user via `AskUserQuestion` at exhaustion — never silent abort, never infinite loop.
 6. **Final answer grounded in observations.** Phase 3 Ship result text MUST quote actual tool output (push ref, PR URL, commit SHA) — never "git push succeeded" without evidence. Self-review reads `## Tool log` entries before claiming clean state.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Failed `gh pr create`, denied permission, hook-blocked Write, subagent timeout, non-zero Bash exit becomes a structured observation entry — never silently skipped.
 8. **Investigation reads delegated to subagents.** Phase 1 inline-Reads only L4 instructions (3 files), L3 semantic snapshot (2 files), spec.md body, and state.md. `.claude/rules/*.md` bodies, exemplar source files, L2 learnings entries, and prior plans are spawned out to Knowledge-Retrieval + Codebase-Explorer subagents and read back as condensed reports. Inline-reading the rest is the documented context-bloat regression. The two primary Phase 1 subagent spawns are the plugin-defined `knowledge-retrieval-agent` and `codebase-explorer-agent` (implementation-specific — takes a spec.md, produces REUSE/EXTEND/NO-ANALOGUE inventory). For ad-hoc cross-file research inside Phase 2 (per-step "trace this flow" / "find all sites that call this helper" queries that aren't covered by Codebase-Explorer's Phase 1 inventory), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 9. **One todo in_progress at a time.** Phase 2's TodoWrite decomposition enforces sequential focus. Marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop).
 10. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. (Phase 1's `codebase-explorer-agent` is the implementation-specific spec-scoping spawn per Invariant #8; this invariant covers ad-hoc cross-file research in Phase 2 and elsewhere.)
 
-**Side-effect — `## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into a body section per the schema in `${CLAUDE_SKILL_DIR}/implement-reference.md`. Routine Read/Edit/Bash on local files do NOT need logging — Claude Code's tool_result return is sufficient.
+**Side-effect — `## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into a body section per `${CLAUDE_SKILL_DIR}/implement-reference.md` §Tool log persistence. Routine Read/Edit/Bash on local files do NOT need logging — Claude Code's tool_result return is sufficient.
 
 ---
 
@@ -104,7 +104,7 @@ Apply throughout all 3 phases:
 .geniro/planning/<task-slug>/
 ```
 
-Where `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch §Slug rules. Created at start of Phase 1.
+Where `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`. Created at start of Phase 1.
 
 **State.md frontmatter:**
 
@@ -299,7 +299,7 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ AUTO-CONTINUE in current worktree. NO workspace AUQ. Echo:
         "Continuing in worktree '<dir>' on '<branch>'.
          Detected signal(s): <REVIEW_HANDOFF | DEBUG_HANDOFF | EXISTING_TASK_STATE | slug match>.
-         <when REVIEW_HANDOFF == true:> Handoff carries N unresolved open question(s) — will gate Edit/Write at Step 12."
+         <when REVIEW_HANDOFF == true:> Handoff carries N unresolved open question(s) — will be resolved before any code changes (open-question gate)."
       Workflow Question 2 still asked if applicable (see 0c).
 
 3. IN_WORKTREE == false
@@ -445,7 +445,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
     3. Parse frontmatter `open_questions[]` per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
     4. Filter to entries with `status: unresolved`.
     5. **If the filtered list is non-empty, fire an AUQ batch BEFORE transitioning to `phase: implement`.** Chain one AUQ per unresolved entry (cap-extension when >4). Apply the 3-tier rendering procedure in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5 — Tier 1 uses producer-authored `context`/`evidence`/`options`/`recommendation` fields; Tier 2 cross-references `related_findings[]` into the handoff body's `## Findings` section; Tier 3 is the legacy bare-question synth fallback. Set `resolution.asked_in_phase: phase-1-step-12` and `resolution.resolved_by: implement` when persisting answers (vs §2.5's `phase-6-pre-gate` / `review`).
-    6. After each user pick, update the entry in the PRODUCER's handoff file via `atomic_state_write` (round-trip update): set `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-1-step-12`, `resolution.resolved_by: implement`. Preserve `id`, `source`, `question`, `related_findings`.
+    6. After each user pick, update the entry in the PRODUCER's handoff file via `atomic_state_write` (round-trip update): set `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-1-step-12`, `resolution.resolved_by: implement`. Preserve `id`, `source`, `question`, `related_findings`, `related_hypotheses`.
     7. Persist a parallel approval to state.md `approvals[]` with `category: review_handoff_resolution`, `picked: <chosen option>`, `at: <ISO-8601 UTC>`, `source_handoff: <producer>`, `question_id: <id>` for compaction-resume idempotency.
     8. After all entries are `resolved` or `wontfix`, proceed to sub-step 9.
     9. **Extract authored F→P tests when the handoff is from `/debug`.** Skip when `<producer>` is anything other than `debug` (e.g., `review`); fire only for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md`. Apply the canonical Scan/Extract/Verify/Decide protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md`:
@@ -569,7 +569,7 @@ PHASE 2 (sequential, single-context):
 
    - **Custom reviewer dimensions** — discovered once at Round 1 entry via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, ≤10 cap, path-filtered). Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the same parallel batch.
 
-2. **Collect findings.** Reviewer-agent output schema per `agents/reviewer-agent.md` §Output Format. Adversarial-tester output schema per `agents/adversarial-tester-agent.md` §Output Format AND authored test files on disk under the project's test directory. Cap per-dim output at ~4K chars (invariant #4); truncate with marker on overflow.
+2. **Collect findings.** Reviewer-agent output schema per `agents/reviewer-agent.md` §Output Format. Adversarial-tester output schema per `agents/adversarial-tester-agent.md` §Output Schema AND authored test files on disk under the project's test directory. Cap per-dim output at ~4K chars (invariant #4); truncate with marker on overflow.
 
 3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns; if clean AND no authored adversarial tests still fail, exit to Ship; otherwise apply fixes inline (no further agent spawns), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the failing reviewer dims (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
 

@@ -4,7 +4,7 @@
 
 ## Why this exists
 
-Pre-helper, every consumer SKILL.md duplicated the producer-side directive prose: *"Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/<skill>.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints."* Across 12 skills + 13 mid-pipeline refresh sites this produced three phrasings (brace-expansion, comma-separated, hook prose) that drifted independently. Worse, the natural-language "Load X" directive empirically did NOT reliably trigger the Read tool — documented as a failure mode in Anthropic's own Memory docs and Claude Code issue #27032, and reproduced in Spec Kit issue #2459 ("`/speckit.implement` does not load constitution.md"). This helper makes the load:
+Pre-helper, every consumer SKILL.md duplicated the producer-side directive prose: *"Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/<skill>.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints."* Across every consumer skill and mid-pipeline refresh site this produced three phrasings (brace-expansion, comma-separated, hook prose) that drifted independently. Worse, the natural-language "Load X" directive empirically did NOT reliably trigger the Read tool — documented as a failure mode in Anthropic's own Memory docs and Claude Code issue #27032, and reproduced in Spec Kit issue #2459 ("`/speckit.implement` does not load constitution.md"). This helper makes the load:
 
 - **Tool-explicit** — imperative `` Read `<path>` `` directives, not "Load X if present"
 - **Observable** — a one-line echo after every Read, so the user can SEE that the read fired

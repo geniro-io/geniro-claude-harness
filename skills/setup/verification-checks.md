@@ -33,20 +33,9 @@ Search generated files for phrases that belong in templates, not in production f
 
 If found → rewrite the section to be concrete and project-specific.
 
-**Review criteria contamination check:**
-
-For each generated criteria file (`${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md`), verify:
-- No `file.js` or `file.ts` references remain (unless the project IS JavaScript/TypeScript)
-- No `npm audit` / `npm list` commands remain (unless the project uses npm)
-- No "Stack-Agnostic Patterns" section remains (should have been removed during generation)
-- Grep patterns use the correct file extension for the detected language
-- Framework-specific checks are present (e.g., Django N+1 for Python/Django projects)
-
-If any template-era JS patterns remain in a non-JS project's criteria → rewrite the offending sections.
-
 **Reference example contamination check:**
 
-Verify that none of the `reference/*.example` content was copied verbatim:
-- The reference files contain generic multi-language examples for all possible stacks
-- Generated files must be project-specific, not generic
-- Spot-check: compare a few sections of each generated file against its reference example. If they're identical (just with placeholders filled in), the file needs to be regenerated more thoughtfully.
+Verify that the `reference/CLAUDE.md.example` content was not copied verbatim:
+- The reference example contains generic placeholder content
+- The generated CLAUDE.md must be project-specific, not generic
+- Spot-check: compare a few sections of the generated CLAUDE.md against the reference example. If they're identical (just with placeholders filled in), the file needs to be regenerated more thoughtfully.

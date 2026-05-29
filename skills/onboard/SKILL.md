@@ -3,13 +3,13 @@ name: geniro:onboard
 description: "Use when starting fresh in an unfamiliar codebase and need rapid orientation. Scans structure and conventions; produces _CODEBASE_MAP.md with architecture, module graph, critical paths, entry points. Skip for specific Q&A (/geniro:investigate) or bug investigation (/geniro:debug)."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: --focus area1,area2 --depth N]"
 ---
 
 # Onboard: Rapid Codebase Orientation
 
-redesign — 2-phase loop (Discover → Map) mirroring `/implement`, `/refactor`, `/debug`. Generates a structured map that serves as a reference for the session. Useful for: new developers, new sessions after long gaps, understanding unfamiliar repos, or onboarding to an unfamiliar domain.
+2-phase loop (Discover → Map) mirroring `/implement`, `/refactor`, `/debug`. Generates a structured map that serves as a reference for the session. Useful for: new developers, new sessions after long gaps, understanding unfamiliar repos, or onboarding to an unfamiliar domain.
 
 Section-reference convention: local refs like Phase X are within this SKILL.md.
 
@@ -23,7 +23,7 @@ Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, conce
 
 ## Outputs
 
-**Primary artifact:** `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` (508 underscore-prefixed L3 registry ). Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees and isn't lost when a linked worktree is removed.
+**Primary artifact:** `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` (underscore-prefixed L3 registry). Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees and isn't lost when a linked worktree is removed.
 
 8-section template:
 1. **Project Overview** — name, purpose, language/stack, entry points
@@ -53,13 +53,11 @@ When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate det
 └── routed (terminal — empty/near-empty repo, recommend `/geniro:investigate`)
 ```
 
-Terminal states: `done`, `map-truncated`, `aborted`, `routed`. the SessionStart recovery treats all as "task complete — no resume". Non-terminal states (`discover`, `map`) roll back to phase-entry on compaction-resume and re-run idempotently. Escalation state (`discover-escalated`) surfaces to user as "task was paused — last AUQ options" so user re-picks without losing context.
-
-See for the canonical phase enum + for termination-case mapping.
+Terminal states: `done`, `map-truncated`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states (`discover`, `map`) roll back to phase-entry on compaction-resume and re-run idempotently. Escalation state (`discover-escalated`) surfaces to user as "task was paused — last AUQ options" so user re-picks without losing context.
 
 ## Loop invariants
 
-The 7 loop invariants from *(internal)* apply throughout /onboard. Three skill-specific notes
+The 10 canonical loop invariants from `/geniro:implement` § Loop invariants apply throughout /onboard. Three skill-specific notes:
 
 1. **Invariant #4 (bounded structured tool results)** — repo-scan output (file list, directory tree) is bounded; long lists truncated with marker.
 2. **Invariant #7 (errors → structured observations)** — permission errors during scan, missing access become structured `## Errors` body section entries.
@@ -69,11 +67,11 @@ The 7 loop invariants from *(internal)* apply throughout /onboard. Three skill-s
 
 ## Quality-first budgets
 
-Per — quality-first framing. /onboard has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
+Quality-first framing: /onboard has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Repo-size scan cap | 50 files (default) OR user-configured expansion | | AUQ — "Apply --focus" / "Expand scan (specify cap)" / "Truncate at top 50" / "Abort". **User picks; persists to `approvals[]` per.** |
+| Repo-size scan cap | 50 files (default) OR user-configured expansion | §1.3 Step 1 | AUQ — "Apply --focus" / "Expand scan (specify cap)" / "Truncate at top 50" / "Abort". **User picks; persists to state.md `approvals[]` (category `expand_scope`).** |
 
 **Architecture constraints (design intent, not budget):**
 - No parallel agent spawns — /onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -104,23 +102,26 @@ Pre-Phase-1 detect (transient — does not persist a state.md row):
 
 On Phase 1 entry:
 
-1. **Refresh custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.3. **Query past learnings** — `query-learnings --tag onboard --tag architecture --tag codebase --scope task --limit 5` per «discovery start» trigger. To surface prior architectural decisions and gotchas relevant to the scan.4. **Cross-layer conflict resolution** — `resolve-conflicts` per (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
+1. **Refresh custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.
+2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
+3. **Query past learnings** — `query-learnings --tag onboard --scope global --limit 5` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md`. Surfaces prior architectural decisions and gotchas relevant to the scan (matches the `scope: global` discovery entries this skill emits in §2.3).
+4. **Cross-layer conflict resolution** — `resolve-conflicts` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
 
-Echo lines per mandatory.
+Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract.
 
 ### 1.3 Step 1 — Repo-size scan + ≤50-file cap
 
-obligation per master plan — "Avoid loading entire repositories" — bounded scan ≤50 files default.
+Avoid loading entire repositories — bounded scan ≤50 files default.
 
 **Procedure:**
 
 1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod,.github/, src/.
-2. **Estimate scan size** — `find. -type f | wc -l` (or platform equivalent) to count total files. Skip standard ignores: `node_modules`, `.git`, `dist/`, `build/`, `target/`, `.venv`, `vendor/`, `__pycache__`.
+2. **Estimate scan size** — `find . -type f | wc -l` (or platform equivalent) to count total files. When `--depth N` is set, bound traversal with `find . -maxdepth N -type f` and record `scan_depth: N` in state.md frontmatter so Phase 2 mapping honors the same bound. Skip standard ignores: `node_modules`, `.git`, `dist/`, `build/`, `target/`, `.venv`, `vendor/`, `__pycache__`.
 3. **Apply ≤50-file default cap:**
 - If total file count ≤50 OR `--focus` provided AND focus-glob hits ≤50: proceed unblocked.
 - If total >50 AND no `--focus`: fire **AUQ "Scope"** — header "Repo-size cap":
 - **"Apply --focus <area>"** — user supplies focus areas; re-run scan with filter.
-- **"Expand scan (specify cap)"** — user provides explicit cap (e.g. 200, 500). **Persists to state.md `approvals[]` with category `expand_scope` per.**
+- **"Expand scan (specify cap)"** — user provides explicit cap (e.g. 200, 500). **Persists to state.md `approvals[]` with category `expand_scope`.**
 - **"Truncate at top 50"** — proceeds with top 50 most-likely-relevant files. Terminal state on completion: `map-truncated`.
 - **"Abort"** — terminal `aborted`.
 
@@ -147,23 +148,23 @@ State.md update: `phase: discover` → `phase: map`. `## Scope` body section cap
 
 ## Phase 2 — Map
 
-State.md `phase: map`. Builds `_CODEBASE_MAP.md` (508 underscore-prefixed) with the 8-section template + optional `--focus` concentration.
+State.md `phase: map`. Builds `_CODEBASE_MAP.md` (underscore-prefixed) with the 8-section template + optional `--focus` concentration.
 
 ### 2.1 Build `_CODEBASE_MAP.md`
 
-Canonical path: `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` 508. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees.
+Canonical path: `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md`. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees.
 
 Use the 8-section template from §Outputs above. Apply `--focus` concentration per the rule in §Outputs (sections 3 / 4 / 6 / 7 concentrate on focus areas; 1 / 2 / 5 / 8 stay full-scope).
 
 ### 2.2 Update project snapshot via `update-semantic`
 
-After `_CODEBASE_MAP.md` write, call `update-semantic --file codebase-map --replace "<previous-content>" "<new-content>"` per The helper handles bounded auto-incremental updates and lock-guarding via `.codebase-map.lock`. For a full regen (first onboard or major architectural shift), pass the full new content.
+After `_CODEBASE_MAP.md` write, call `update-semantic --file codebase-map --replace "<previous-content>" "<new-content>"` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.md`. The helper handles bounded auto-incremental updates and lock-guarding via `.codebase-map.lock`. For a full regen (first onboard or major architectural shift), pass the full new content.
 
 ### 2.3 Emit `discovery` learning
 
 After `_CODEBASE_MAP.md` write:
 
-- `emit-learning` per — emit `discovery` type entry per row /onboard. Required `ext.{area, insight}`. Default trust `verified` per (code-grounded).
+- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded).
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
@@ -183,7 +184,7 @@ emit_learning <<'EOF'
 EOF
 ```
 
-**Trigger:** emit on **first successful onboarding of a new codebase** OR **major architectural shift detected** (existing `_CODEBASE_MAP.md` content significantly diverges from previous version — heuristic per deferred: compare section counts / module-count delta / new top-level entries). Skip when re-running onboard against a stable codebase (no architectural change).
+**Trigger:** emit on **first successful onboarding of a new codebase** OR **major architectural shift detected** (existing `_CODEBASE_MAP.md` content significantly diverges from previous version — heuristic: compare section counts / module-count delta / new top-level entries). Skip when re-running onboard against a stable codebase (no architectural change).
 
 ### 2.4 Next-step AUQ
 
@@ -201,7 +202,7 @@ After map ships, route user via `AskUserQuestion`:
 State.md `phase: map` → `done`. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
-rm -rf.geniro/state/onboard/<slug>/ 2>/dev/null || true
+rm -rf .geniro/state/onboard/<slug>/ 2>/dev/null || true
 ```
 
 **Persistent artifacts STAY:** `_CODEBASE_MAP.md` is T3 — never auto-deleted.
@@ -218,12 +219,12 @@ Write via `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write ".geniro/state/onboard/<slug>/state.md" <<EOF
 ---
-tier: T1
+tier: T1.5
 producer: onboard
 schema-version: 1
 branch: <git-branch>
 timestamp: <ISO-8601 UTC>
-phase: <mode-detect|discover|map|discover-escalated|done|map-truncated|aborted|routed>
+phase: <discover|map|discover-escalated|done|map-truncated|aborted|routed>
 status: <in-progress|done|failed>
 non-resumable-actions: []
 approvals: []
@@ -245,7 +246,7 @@ scan_cap: 50
 <incremental scan results before final _CODEBASE_MAP.md write>
 
 ## Tool log
-<selective logging per — L3 writes, L2 emits, escalation entries>
+<selective logging — L3 writes, L2 emits, escalation entries>
 
 ## Errors
 <Block 5b — permission errors, tool failures>
@@ -261,7 +262,7 @@ scan_cap: 50
 EOF
 ```
 
-`approvals[]` populated per when fires (category `expand_scope`).
+`approvals[]` populated when the expand-scope AUQ fires at §1.3 Step 1 (category `expand_scope`).
 
 Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`.
 
@@ -272,8 +273,8 @@ Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skil
 Mirrors structure.
 
 **Phase 1 (Discover):**
-- Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find. -type f`, `wc -l`).
-- Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`, Agent spawns (/onboard does not spawn subagents).
+- Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`).
+- Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
 - Allowed: Read / Write (for `_CODEBASE_MAP.md` only — scope to `.geniro/planning/**` via existing safety hooks).
@@ -286,8 +287,6 @@ Existing safety hooks apply across all phases (file-protection / git-guardrail /
 
 ## Anti-rationalization
 
-Per master plan — every milestone closes with an explicit anti-pattern check.
-
 | Your reasoning | Why it's wrong |
 |---|---|
 | "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
@@ -295,9 +294,9 @@ Per master plan — every milestone closes with an explicit anti-pattern check.
 | "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
 | "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
 | "The repo has 5000 files but I'll just scan everything — better safe than sorry." | Mass-scan violates. The ≤50-file default cap exists for tokens + speed. Fire the AUQ — user picks `--focus`, expansion, or truncation. Don't silently broad-scan. |
-| "Quick mode would be nice here — I'll informally produce a focus-only output." | Quick mode dropped per design Q4. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
+| "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
 | "Add a wall-time kill cap so long-running discovery aborts cleanly." | Class-A hard caps abort legitimate complex discovery mid-stride. quality-first — no Class-A caps. ≤50-file gate escalates to user via AUQ. User has agency. |
-| "/onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | Master plan is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
+| "/onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
 | "Defer compaction-survival to downstream skills — /onboard is mostly scan." | The contract IS /onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
 | "Audit trail isn't needed for local /onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. the SessionStart re-injects on compaction; without log, post-mortem requires re-running the scan from scratch. |
 
@@ -453,8 +452,8 @@ For each onboarding, confirm:
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use `--focus` for large repos)
 - [ ] L3 `_CODEBASE_MAP.md` updated via `update-semantic`
 - [ ] L2 `discovery` emit fired per trigger conditions
-- [ ] User routed to a next-step command via `AskUserQuestion` (other skills options per)
-- [ ] State.md cleaned up per
+- [ ] User routed to a next-step command via `AskUserQuestion` (next-step options per §2.4)
+- [ ] State.md cleaned up per §2.5
 ---
 
 ## When to Use This Skill

@@ -5,7 +5,12 @@ Concrete, measurable performance wins on the changed lines: skip ORM hydration o
 ## Scope Boundary — Defers to `architecture-criteria.md`
 This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` (Performance & Scalability). Defer to that section; do not duplicate findings:
 
-1. **N+1 query patterns** — queries inside loops without batching → architecture2. **ORM eager-loading** — `include` / `prefetch_related` / `joinedload` design → architecture3. **Caching / memoization at the architecture level** — missing layers, not micro-memo → architecture4. **Missing pagination on unbounded queries** → architecture5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
+1. **N+1 query patterns** — queries inside loops without batching → architecture
+2. **ORM eager-loading** — `include` / `prefetch_related` / `joinedload` design → architecture
+3. **Caching / memoization at the architecture level** — missing layers, not micro-memo → architecture
+4. **Missing pagination on unbounded queries** → architecture
+5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture
+6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
 If a finding fits one of those six, emit it under architecture's `category: "performance"` instead. Optimizations stays focused on the six categories below.
 
 ## What to Check
@@ -243,6 +248,7 @@ A valid finding shape: «PR #N (peer) optimizes `<path>` at `<file:line>` via <m
 
 ## Severity Guidelines
 
-- **CRITICAL**: not emitted. Optimization findings are improvements, not correctness bugs — bugs and security own CRITICAL. Any genuinely critical perf regression (unbounded query, sync I/O on hot path) belongs in architecture- **HIGH**: per-row INSERT/UPDATE in a loop on a path that processes >100 items; long-list render >1000 rows without virtualization; eager-import of a heavy lib (>100KB minified) used only behind a tab/modal
+- **CRITICAL**: not emitted. Optimization findings are improvements, not correctness bugs — bugs and security own CRITICAL. Any genuinely critical perf regression (unbounded query, sync I/O on hot path) belongs in architecture
+- **HIGH**: per-row INSERT/UPDATE in a loop on a path that processes >100 items; long-list render >1000 rows without virtualization; eager-import of a heavy lib (>100KB minified) used only behind a tab/modal
 - **MEDIUM**: missing `.lean` / `raw:true` / projection on hot-path read; sequential awaits on independent calls; missing route code-splitting; missing `React.memo` on demonstrably expensive child; long-list render 100–1000 rows without virtualization; image without modern format / `loading="lazy"` on hero
 - **LOW**: minor projection wins on cold paths; below-fold image without `loading="lazy"`; tree-shaking-hostile `import _ from 'lodash'` where only one helper is used

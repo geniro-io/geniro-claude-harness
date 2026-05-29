@@ -1,6 +1,6 @@
 # Phase 4c Test Gate Reference
 
-Detailed contract for `/geniro:review` Phase 4c (Test-Confirmation Gate). Extracted from SKILL.md (design fix). SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 4c (Test-Confirmation Gate). SKILL.md retains a 2-3 line summary + a pointer here.
 
 State.md `phase: stratify` during Phase 4c (which is a sub-phase of Phase 4 stratification).
 
@@ -100,6 +100,8 @@ If `backpressure.sh` unavailable: `<project test command> <test path> 2>&1 | tai
 - Zero (green) → test passes despite agent reporting it red → likely flake or framework issue. Note "[test path] flipped green on independent re-run" under `## Caveats`. Do NOT delete the test (user reviews authored tests in Phase 6); do NOT tag the finding `[CONFIRMED-BY-TEST]`.
 
 Never trust the agent's red/green claim alone — the orchestrator's independent re-run IS the gate.
+
+**Persist authored tests for Phase 6.** For every test kept on disk in Step 4 (red on independent re-run), record its path as a row in the state.md `## Authored Tests` body section. Phase 6's Failing-tests gate fires off that section being non-empty; without this write, the tests authored here never reach the commit-policy gate.
 
 ---
 

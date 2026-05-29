@@ -2,8 +2,6 @@
 
 **Status:** Authoritative for L3 read-side access.
 
-
-
 ## API
 
 ```bash
@@ -33,15 +31,15 @@ mode is documentary, signaling to the caller why they're invoking.
 
 **Phase-boundary refresh sites:** unlike `load-custom-instructions`, this
 helper has NO mid-pipeline refresh sites — L3 facts are baseline awareness
-(model corroborates via direct Grep/Read of code, not L3 prose).
-: skills MAY invoke on-demand if a phase explicitly needs a fresh
-module map, but no skill is required to do so.
+(model corroborates via direct Grep/Read of code, not L3 prose). Skills MAY
+invoke on-demand if a phase explicitly needs a fresh module map, but no skill
+is required to do so.
 
 ### `load_semantic`
 
 Concatenates the requested L3 markdown files to stdout. Each file is prefixed with a `=== file: <relative-path> ===` header so the model knows the source of each block.
 
-**Default load:** `_project.md` + `_CODEBASE_MAP.md` (per .4 top-2). Typical baseline cost: ~5–15 KB.
+**Default load:** `_project.md` + `_CODEBASE_MAP.md` (the canonical top-2 L3 snapshot files). Typical baseline cost: ~5–15 KB.
 
 **Extras:** space-separated names (with or without leading `_`). Common usage: `--extras "_architecture _FEATURES"`.
 

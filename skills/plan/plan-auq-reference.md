@@ -73,7 +73,7 @@ options:
       Surfaced in spec.md section 4 Assumptions for /implement to verify.
 ```
 
-The `preview` field is the missing capability the prior skill version lacked — empty `Approve / Revise / Skip` options waste user attention. Every Phase 3 option carries concrete consequence content.
+Every `preview` field carries concrete consequence content — empty `Approve / Revise / Skip` options waste user attention.
 
 Each answered AUQ → append entry to state.md frontmatter `approvals[]` via `atomic_state_write` BEFORE proceeding to the next question:
 
