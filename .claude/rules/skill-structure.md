@@ -101,23 +101,10 @@ Before committing edits to `skills/**/*.md` or `agents/**/*.md`, walk this check
 
 ## Migration audit — remaining work
 
-The numbers below reflect the codebase after the structural-refactor pass. Re-run the greps in §Pre-commit verification when auditing.
+Don't hardcode current line/row counts here — they go stale the moment a file is edited. Derive them on demand with the §Pre-commit verification greps:
 
-**SKILL.md files exceeding the 500-line target** (all under the 700 hard ceiling):
+- **Over-target SKILL.md files:** `wc -l skills/*/SKILL.md` — anything over the 500-line target (700 hard ceiling) needs detail moved to a sibling `*-reference.md`. The orchestrator-heavy skills (review, debug, implement, setup) sit closest to the ceiling and are the first to re-examine.
+- **Anti-rationalization tables:** confirm each is ≤15 rows via the §Pre-commit verification grep.
+- **Reference files > 100 lines lacking a TOC:** add a 5-15 line "Contents" block right after the H1 per §Reference graph.
 
-| File | Lines | Note |
-|---|---|---|
-| `skills/review/SKILL.md` | 712 | Marginal — 12 over the 700 hard ceiling; revisit on next structural pass (spawn-list + 9-dim grid + Definition of Done + Phase 2 narration + Phase 4.1 MEDIUM-Evidence constraint dominate length) |
-| `skills/debug/SKILL.md` | 689 | Acceptable — under hard ceiling; Adversarial Mode A1-A6 procedure inline |
-| `skills/implement/SKILL.md` | 668 | Acceptable — under hard ceiling; 3-phase loop with KR/CE/TR/reviewer/adversarial spawn sites |
-| `skills/setup/SKILL.md` | 629 | Acceptable — 4-phase singleton bootstrap inline |
-| `skills/instructions/SKILL.md` | 593 | Acceptable — 10-scope CRUD inline |
-| `skills/actions/SKILL.md` | 568 | Acceptable — 6-op CRUD + 3-tier risk-class AUQ inline |
-| `skills/refactor/SKILL.md` | 550 | Acceptable — under hard ceiling |
-| `skills/onboard/SKILL.md` | 505 | Marginal — re-examine if it grows |
-
-**Anti-rationalization tables**: all ≤15 rows. Caps respected.
-
-**Reference files > 100 lines lacking a TOC**: re-audit when adding new reference files. Add a 5-15 line "Contents" block right after the H1 per §Reference graph rule.
-
-This audit reflects the post-refactor state. New edits self-enforce via the §Pre-commit verification checklist.
+New edits self-enforce via the §Pre-commit verification checklist.

@@ -60,7 +60,7 @@ This skill has **NO hard kill caps**. Same model as other skills.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component (8 options) → user supplies missing or picks alternative |
+| Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component → user supplies missing or picks alternative |
 | Fix attempts failed verification | 2 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
 | Adversarial mode authored tests | 10 hard cap | (delegated to agent contract) | Stop authoring; surface findings |
 | Adversarial mode consecutive discards | 5 | (delegated to agent contract) | Stop hypothesis generation; surface partial |
@@ -549,7 +549,7 @@ When the §1.7 stall gate fires (5 inconclusive hypothesis tests), classify the 
 
 ## State file schema
 
-T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `approvals[]`) + body sections (Scientific Mode 14 sections / Adversarial Mode 6 sections); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 ---
 

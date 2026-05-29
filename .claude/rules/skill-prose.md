@@ -237,11 +237,11 @@ Per Anthropic [Effective context engineering](https://www.anthropic.com/engineer
 
 Run a manual prose review on each skill in this order:
 
-1. `skills/debug/SKILL.md` (920 lines, 32 anti-rationalization rows) — highest density; likely contains caps-MUST violations and stale hedging clauses.
-2. `skills/investigate/SKILL.md` (839 lines, 20 rows) — Phase 1 taxonomy section likely has menu-of-options violations.
-3. `skills/refactor/SKILL.md` (716 lines, 24 rows) — Smell-detection section likely mixes terminology (`smell` / `code-smell` / `refactor target`).
-4. `skills/review/SKILL.md` (602 lines, 23 rows) — 9-dim grid likely has terminology inconsistency between `dim` / `dimension` / `reviewer` / `dim-spec`.
-5. `skills/implement/SKILL.md` (643 lines, 18 rows) — already partially audited during the recent rewrite; check Step 0 area for menu-of-options patterns.
+1. `skills/debug/SKILL.md` — highest density; likely contains caps-MUST violations and stale hedging clauses.
+2. `skills/investigate/SKILL.md` — Phase 1 taxonomy section likely has menu-of-options violations.
+3. `skills/refactor/SKILL.md` — Smell-detection section likely mixes terminology (`smell` / `code-smell` / `refactor target`).
+4. `skills/review/SKILL.md` — dimension grid likely has terminology inconsistency between `dim` / `dimension` / `reviewer` / `dim-spec`.
+5. `skills/implement/SKILL.md` — already partially audited during the recent rewrite; check Step 0 area for menu-of-options patterns.
 
 For each, walk the file once and look for:
 
