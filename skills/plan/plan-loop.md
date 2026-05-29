@@ -378,9 +378,9 @@ State.md `phase: validate` during this phase.
 
 Phase 7 uses a **deterministic validator** — script-checkable rules executed orchestrator-side. No LLM round-trip per check.
 
-### 7.2 Validator checks ( — 13 checks)
+### 7.2 Validator checks
 
-See `skills/plan/validator-checks.md` for the canonical check definitions (13 checks total). Each check returns `(check_id, status, finding_text, fix_hint)`. Run all 13 in sequence.
+See `skills/plan/validator-checks.md` for the canonical check definitions. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set in sequence.
 
 ### 7.3 Hard-fail handling
 
@@ -510,7 +510,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
 - [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present.
 - [ ] Phase 6 did NOT auto-commit (D1 fix).
-- [ ] Phase 7 mechanical validator ran 14 checks; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
+- [ ] Phase 7 mechanical validator ran the full check set defined in `validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 8 schema-rich AUQ fired with fields inline; user picked one of 3 options; max 3 user-revision rounds respected.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
 - [ ] Phase 9 hand-off AUQ fired with 2 options (D5 fix); pick persisted to `approvals[]`.

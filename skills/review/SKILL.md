@@ -49,7 +49,7 @@ State.md `phase:` enum transitions:
 
 ## Loop Invariants
 
-The 9 invariants apply unchanged:
+The invariants apply unchanged:
 
 1. **One result per tool call.** Phase 2 parallel-spawn reviewer-agents — each must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` flag parsing (semantic, no CLI grammar); PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
