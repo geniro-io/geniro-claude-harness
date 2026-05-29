@@ -7,7 +7,7 @@
     "email": "hello@geniro.io"
   },
   "repository": "https://github.com/geniro-io/geniro-claude-harness",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "harness",
     "setup",
