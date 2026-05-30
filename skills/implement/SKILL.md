@@ -239,7 +239,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 | Phase | Allowed | Blocked |
 |---|---|---|
-| **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (read-only: `git status`, `gh pr view`, `git worktree add`, `git checkout -b`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent` only | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
+| **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (`git status`, `gh pr view`, `git worktree add`, `git checkout -b`, and the Step 0 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent` only | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
 | **Phase 1 subagents** | Per agent frontmatter `tools:` whitelist — see `agents/knowledge-retrieval-agent.md` and `agents/codebase-explorer-agent.md` | Edit / Write (except their own OUTPUT_PATH); Agent (leaf agents, no nesting) |
 | **Phase 2 (Implement) inner loop** | Read / Grep / Glob / Edit / Write / Bash (incl. test runs); `test-runner-agent` spawn at end-of-phase | `git push`, `gh pr create`, `gh pr comment`, Phase 3 agent types |
 | **Phase 2 test-runner-agent** | Bash (one test-suite invocation), Read, Grep — enforced by `agents/test-runner-agent.md` frontmatter | Edit / Write on source code; git mutation; destructive Bash; Agent (leaf agent) |
@@ -324,6 +324,8 @@ Decision tree (first match wins; evaluate top-down):
 6. IN_WORKTREE == false, PROTECTED_BRANCH == false, no continuing signals
    ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already.
 ```
+
+On any AUTO-CONTINUE path (rules 2-3, which skip the AUQ), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` right after the continue echo — offer to update a branch that is behind the default branch before Phase 1 begins. It skips silently when the branch is already current, and is skipped entirely on a compaction-resume (the branch was synced when the run first started).
 
 **Inline modifier overrides** (parsed from `$ARGUMENTS` per the Phase 1 semantic-parse table; modifiers ALWAYS win over auto-detection):
 
@@ -411,7 +413,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 
 #### 0e — Execution after AUQ
 
-1. **Workspace action** — execute branch creation / worktree create / no-op per `implement_workspace_setup` pick. Slug source: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.
+1. **Workspace action** — execute branch creation / worktree create / no-op per `implement_workspace_setup` pick. Slug source: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`. Branch and worktree creation cut from the latest default branch — apply Mode FRESH-BASE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` so the new working tree starts from the freshest default-branch tip rather than the current HEAD. For the "Current branch" (no-op) pick, apply Mode FRESH-CONTINUE from the same helper — offer to bring the branch up to date before Phase 1 proceeds.
 2. **Workflow status action** — for each persisted `implement_workflow_status` approval, follow the workflow file's `### On task start` instructions. Skill does NOT hardcode MCP call shape — workflow file owns that.
 3. **State.md frontmatter update** — `branch:` and `worktree:` reflect the new working tree before Phase 1 continues.
 

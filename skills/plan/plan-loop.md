@@ -73,6 +73,10 @@ At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 
 Loading all three layers ensures research agents have full context — prior decisions (L2), codebase map (L3), and user rules (L4) — preventing repeated rediscovery.
 
+### 1.1b Branch freshness
+
+On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`. /plan does not create branches, but when the session sits on a feature branch behind the default branch, offer to update it before research spawns — so the spec is grounded in fresh code rather than a stale tree. Skipped silently when the branch is already current.
+
 ### 1.2 Effort-tier-scaled research spawns
 
 Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`:
