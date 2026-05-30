@@ -213,7 +213,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 |-----------|---------------|-------|
 | `bugs` | `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md` | Logic errors, null/undefined, off-by-one, race conditions, broken invariants |
 | `security` | `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 |
-| `architecture` | `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` | Layering, coupling, abstractions, dead code, duplication, naming, file placement. **Also covers docs-staleness** (OQ-9 closure): explicit check for README / architecture-doc / contributing-guide references to patterns or files renamed in Phase 2. **Also covers spec-compliance**: explicit check that the Phase 2 diff matches spec.md scope — no unspec'd files touched, no spec'd requirements unaddressed. |
+| `architecture` | `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` | Layering, coupling, abstractions, dead code, duplication, naming, file placement. **Also covers docs-staleness**: explicit check for README / architecture-doc / contributing-guide references to patterns or files renamed in Phase 2. **Also covers spec-compliance**: explicit check that the Phase 2 diff matches spec.md scope — no unspec'd files touched, no spec'd requirements unaddressed. |
 | `tests` | `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases. **Pre-condition:** tests are green per Phase 2; this dim NEVER sees failing tests. |
 | `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities. |
 
@@ -388,7 +388,7 @@ The user can always type a custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back to ship-mode AUQ.
 - **"Don't push"** (via Other; semantically equivalent to the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses step 3's push, not the upstream commit.
 
-**Approvals-persistence protocol (, step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow). If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
+**Approvals-persistence protocol (step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow). If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
 **L2 emit on rejection signal:** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 

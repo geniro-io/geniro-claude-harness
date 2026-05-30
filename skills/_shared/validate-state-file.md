@@ -63,7 +63,7 @@ The 7 steps validated, in order:
 5. **`tier:` value is T1, T1.5, T2, or T3.** Tier-specific required fields are checked:
    - T1 → `phase`, `status`, `non-resumable-actions`
    - T1.5 → `phase`, `status`, `non-resumable-actions` (same shape as T1; differs in lifecycle — T1.5 survives Phase Ship)
-   - T2 → `consumer`
+   - T2 → `consumer`, `open_questions` (key-presence; MAY be empty `[]`)
    - T3 → `concurrency`
 6. **`schema-version: 1`** — current supported version. Mismatch returns code 6 (caller decides whether to attempt migration).
 7. **Optional checks:**
@@ -124,7 +124,7 @@ schema-version: 1
 branch: main
 timestamp: 2026-05-19T14:30:00Z
 concurrency: append-only
-schema-ref: "M2 §5.1 (canonical L2 entry schema)"
+schema-ref: "canonical L2 entry schema"
 ---
 ```
 

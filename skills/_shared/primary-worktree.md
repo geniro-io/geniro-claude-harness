@@ -53,12 +53,12 @@ These are intended to outlive any single task. The resolver applies to both read
 | Artifact | Producer(s) | Consumer(s) | Notes |
 |---|---|---|---|
 | `.geniro/knowledge/learnings.jsonl` | `/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/onboard`, `/investigate` | every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
-| `.geniro/state/handoff/from-debug-<branch>.md` | `/debug` Phase 3 | `/implement` Phase 1 Step 1 | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
+| `.geniro/state/handoff/from-debug-<branch>.md` | `/debug` Phase 3 | `/implement` Phase 1 Step 12 | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
 | `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/debug` adversarial mode | `/implement` Phase 1 Step 1 | same handoff |
 | `.geniro/state/handoff/from-review-<branch>.md` | `/review` | `/implement` Phase 1 Step 12 (the handoff-persist step that gates on unresolved open questions) | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
 | `.geniro/planning/_FEATURES.md` | manual or `/plan` | `/implement` (binding), `/plan` | persistent registry |
 | `.geniro/planning/_CODEBASE_MAP.md` | `/onboard` | every skill that consults the map (`/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` |
-| `.geniro/planning/_focus-<area>.md` | `/onboard <area>` (manual scope-limiter via `--focus` flag persists a concentrated map alongside the full `_CODEBASE_MAP.md`); `/investigate --persist` | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
+| `.geniro/planning/_focus-<area>.md` | manual | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
 | `.geniro/workflow/<kind>.md` | manual / `/setup` | `/plan`, `/implement`, `/review`, `/refactor` | Tracker integration configs (Linear/Jira/GitHub-Issues/Asana); read with cwd-first / primary-fallback per per-site preambles |
 | `.geniro/actions/<slug>.md` | manual / `/actions create` | `/actions` (list/run/validate/delete) | User-authored workflow-helper actions; dual-glob with local-wins-on-slug-collision per `skills/actions/SKILL.md` Phase 5.0 Step 1 |
 | `.geniro/instructions/<scope>.md` | manual / `/setup` / `/instructions create` | every pipeline skill's Phase 1 `load-custom-instructions` invocation | L4 procedural memory (global / code-style / per-skill / review-extra/<slug>); cwd-first / primary-fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §"Resolve `PRIMARY_ROOT` once" |

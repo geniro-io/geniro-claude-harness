@@ -11,7 +11,7 @@ argument-hint: "[what to refactor and why]"
 
 Safe incremental refactoring that validates behavior is preserved at every step. Restructures code for better organization, reduces tech debt, and improves patterns without changing observable behavior. 3 phases mirroring `/geniro:implement`.
 
-**Architecture spec:** *(internal)*. Detailed contracts:
+**Detailed contracts:**
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — smell-detection sub-step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — PRODUCT-DECISION escalation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — ADR-path (4th AUQ option when ADR-eligible)
 
@@ -50,7 +50,7 @@ The canonical loop invariants apply, with four skill-specific notes:
 
 ## Budgets — Quality-First
 
-This skill has **NO hard kill caps**. Same model as other skills /
+This skill has **NO hard kill caps**. Same model as other skills.
 **Quality gates (escalate to user, do not abort):**
 
 | Gate | Cap | Where | Past threshold |
@@ -195,7 +195,7 @@ public_surface: <true|false>
 abstraction_audit: <REUSE-AS-IS|EXTEND|NO-ANALOGUE — per audit output>
 ```
 
-Risk classification (LOW / MEDIUM / HIGH) and ordering happen in (orchestrator decisions, not's job).
+Risk classification (LOW / MEDIUM / HIGH) and ordering happen in §1.6 (orchestrator decisions, not the smell-detector's job).
 
 Anchor: stay within WORKTREE on BRANCH — orchestrator verifies with `pwd && git branch --show-current` once at entry; abort if either differs.
 
@@ -223,7 +223,7 @@ KEEP smells enter plan-build. FILTERED smells are noted in state.md `## Filtered
 
 ### 1.6 Risk classification + plan build + approval AUQ
 
-Orchestrator builds the plan from-inline output (Medium+) or directly from scope-files (Trivial/Small):
+Orchestrator builds the plan from the smell-evidence inline output (Medium+) or directly from scope-files (Trivial/Small):
 
 1. **Classify risk per smell** (lookup):
 - 1-3 consumers → LOW
@@ -234,7 +234,7 @@ Orchestrator builds the plan from-inline output (Medium+) or directly from scope
 3. **Mark HIGH-risk steps for user confirmation** (presented via `AskUserQuestion`).
 4. **Build the final plan** with: smells, ordered steps, risk per step, consumer counts, files that will change, what will NOT change (public APIs, DB schema, test behavior), `max_risk` (max across all step risks).
 
-**Approval gate (Always-WAIT, ):** If any steps are **HIGH risk**, present them to user via `AskUserQuestion` header "Approve HIGH-risk steps" and wait for confirmation. Each step rendered with: file path / proposed transformation / consumer count / risk classification / rationale.
+**Approval gate (Always-WAIT):** If any steps are **HIGH risk**, present them to user via `AskUserQuestion` header "Approve HIGH-risk steps" and wait for confirmation. Each step rendered with: file path / proposed transformation / consumer count / risk classification / rationale.
 
 **Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entries with `category: refactor_high_step` matching the current step. Use prior `picked` if found. On user pick, append entries to `approvals[]` via `atomic_state_write`. The persisted-approvals render surfaces these on resume.
 
@@ -261,7 +261,7 @@ The orchestrator executes the approved plan inline, one step at a time — no su
 **Pre-loop setup:**
 
 - Read the approved plan from state.md `## Plan steps` (skipping any HIGH steps the user rejected in the Phase 1 §1.6 approval gate).
-- Read code-style content as echoed by / loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
+- Read code-style content as echoed by the load-custom-instructions loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
 - Resolve test commands: `<test_cmd_affected>` from CLAUDE.md's Essential Commands (per-step gate; falls back to `<test_cmd>` if undefined); `<test_cmd>` for final regression.
 - Anchor: verify `pwd && git branch --show-current` once at entry; abort if either differs from baseline.
 
@@ -344,7 +344,7 @@ Surface every PRODUCT-DECISION finding via `AskUserQuestion` per `${CLAUDE_PLUGI
 1. **Run /geniro:implement on this finding (Recommended)** — exit /refactor; user runs /implement separately to apply a behavioral fix. state.md → `phase: verify-escalated` then on pick → exit (out-of-skill).
 2. **Revert this refactor and start over** — `git checkout -- .` with user confirmation. state.md → `reverted` (terminal).
 3. **Document and ship as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
-4. **(ADR-eligible only)** **Document as ADR** — spawn a focused agent (`model: sonnet`) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
+4. **(ADR-eligible only)** **Document as ADR** — spawn a focused ADR-drafting agent (OMIT `model=` — inherits the orchestrator's session tier per the canonical model-tiering rule and the table row in the Subagent Model Tiering section) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
 
 **ADR-eligibility check (before adding 4th option):** include the "Document as ADR" option ONLY when the rejected refactor candidate meets all three criteria from `improvement-routing.md` § ADR target: (1) hard to reverse, (2) surprising without context, (3) result of genuine trade-offs. Examples that qualify: rejecting "split this god-class into 3 modules because the team prefers single-file feature ownership" (the *rejection* is the durable decision); rejecting "switch from inheritance to composition here because the existing inheritance is load-bearing for the plugin system." Examples that do NOT qualify: rejecting a duplicate-extraction smell because the duplication is intentional (Rule of Three not yet met) — that's a learning, not an ADR. If unsure, omit the ADR option; routing to Knowledge is always safe.
 

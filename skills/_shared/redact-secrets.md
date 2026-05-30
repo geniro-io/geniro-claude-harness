@@ -1,6 +1,6 @@
 # Secrets sanitization helper
 
-**Status:** Authoritative for L2 episodic-memory write-side sanitization. Every entry that flows through `_shared/emit-learning.sh` is sanitized via this helper before append.
+**Status:** Authoritative for L2 episodic-memory write-side sanitization. Every entry that flows through `lib/emit-learning.sh` is sanitized via this helper before append.
 
 **Spec source:** `ARCHITECTURE.md` §Memory Layers.
 
@@ -53,7 +53,7 @@ The spec's "generic high-entropy ≥32 chars" entry is intentionally **not** aut
 
 ## Audit log
 
-Path: `.geniro/knowledge/.redaction-log.jsonl` (T2 sidecar, appended via `atomic_state_append`).
+Path: `.geniro/knowledge/.redaction-log.jsonl` (T3 persistent append-only sidecar, appended via `atomic_state_append`).
 
 Schema (one JSONL line per `(pattern, entry)` fire):
 

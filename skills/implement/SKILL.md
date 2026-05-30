@@ -17,7 +17,7 @@ You are an autonomous executor. You consume an externally-provided spec (or inli
 2. **Implement (Phase 2)** — TodoWrite sequential decomposition (3-15 todos, one in_progress at a time); per-todo Edit/Write batch; end-of-phase test-suite run via `test-runner-agent`; bounded 3-retry fix loop on test failure → escalate-AUQ on exhaust.
 3. **Self-review + Ship (Phase 3)** — reviewer-agents in parallel (bugs / security / architecture / tests / code-quality) + 1 adversarial-tester-agent (skipped when codebase-explorer reports `change_scope: trivial` OR when `--no-adversarial` modifier is present in `$ARGUMENTS`) + any custom dimensions discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, ≤10 cap, path-filtered); bounded 3-round fix loop, round N+1 = failing dims only; on clean exit, ship sub-step (Pre-Ship Visual Verification if applicable, commit, ship-mode AUQ, learnings + snapshot writes, cleanup).
 
-**Reference material** (templates, $ARGUMENTS-parse table, subagent spawn templates, fix-loop, ship sub-step): Read `${CLAUDE_SKILL_DIR}/implement-reference.md` AT each phase. Do NOT pre-load the entire file.
+**Reference material** (templates, $ARGUMENTS-parse table, subagent spawn templates, fix-loop, ship sub-step): Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` AT each phase. Do NOT pre-load the entire file.
 
 ---
 
@@ -69,7 +69,7 @@ Apply throughout all 3 phases:
 9. **One todo in_progress at a time.** Phase 2's TodoWrite decomposition enforces sequential focus. Marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop).
 10. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. (Phase 1's `codebase-explorer-agent` is the implementation-specific spec-scoping spawn per Invariant #8; this invariant covers ad-hoc cross-file research in Phase 2 and elsewhere.)
 
-**Side-effect — `## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into a body section per `${CLAUDE_SKILL_DIR}/implement-reference.md` §Tool log persistence. Routine Read/Edit/Bash on local files do NOT need logging — Claude Code's tool_result return is sufficient.
+**Side-effect — `## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into a body section per `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling" (the "Tool log persistence." paragraph). Routine Read/Edit/Bash on local files do NOT need logging — Claude Code's tool_result return is sufficient.
 
 ---
 
@@ -152,7 +152,7 @@ fi
 
 ### Phase 1 entry inventory
 
-Phase 1 entry runs Step 0 first (workspace setup — see §PHASE 1 Step 0 below), then six helper calls — five reads + one cross-layer protocol:
+Phase 1 entry runs Step 0 first (workspace setup — see §PHASE 1 Step 0 below), then six helper calls — two L4/L3 reads, two subagent spawns (Knowledge-Retrieval + Codebase-Explorer), one L2 query, one cross-layer protocol:
 
 0. **Step 0 workspace setup** — passive context detection followed by 1-2 question AUQ (skipped on auto-continue path). Fires BEFORE any L4/L3/L2 helper call; workspace decision determines the worktree the rest of Phase 1 inspects.
 1. `load-custom-instructions` (L4) with `MODE: refresh` — see §L4 below.
@@ -428,13 +428,13 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 
 ### Steps (after Step 0 settles)
 
-1. **Semantic-parse `$ARGUMENTS`.** Apply the table in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: $ARGUMENTS semantic-parse table".
-2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: Spec discovery walk-list"). If no spec.md / plan.md / DESIGN_DOC frontmatter found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` to state.md body).
+1. **Semantic-parse `$ARGUMENTS`.** Apply the table in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: $ARGUMENTS semantic-parse table".
+2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Spec discovery walk-list"). If no spec.md / plan.md / DESIGN_DOC frontmatter found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` to state.md body).
 3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Persist outcome to state.md frontmatter `approvals[]` with `category: disambiguate_arguments`.
 4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`.
 5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); the §Echo contract requires one observable line per file. Both are mandatory.
 6. **Load project snapshot.** `load_semantic` with default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification to user.
-7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 1: Subagent spawn template". Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — both agents declare `model: inherit`.
+7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Subagent spawn template". Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — both agents declare `model: inherit`.
 8. **Read subagent outputs.** Read `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`. The codebase-explorer's `change_scope` field gates Phase 3 adversarial-tester spawn (`trivial` → skip). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
 9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
@@ -467,10 +467,9 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 When Codebase-Explorer reports `change_scope: big` AND no `milestone-*.md` files exist alongside spec.md, emit one informational notice (NOT AUQ — just observation):
 
 ```
-[Phase 1] Codebase-Explorer scope=big — consider running /geniro:plan in
-milestone-mode to split into milestone-*.md siblings before /geniro:implement.
-Current run will proceed monolithically with TodoWrite decomposition; cleaner
-if you split.
+This is a large change. Consider running /geniro:plan in milestone mode to
+split it into separate milestone files before implementing. This run will
+proceed as a single pass with a step-by-step task list; splitting is cleaner.
 ```
 
 Milestone-mode is the canonical answer for truly Big tasks (separate worktrees, separate /implement runs). User may cancel and re-run via `/geniro:plan --milestones`; otherwise the run proceeds.
@@ -510,7 +509,7 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
 
 4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, OUTPUT_PATH `<task-dir>/.tr-out.md`, and `MAX_FAILURES_REPORTED: 15`. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. OMIT `model=`. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
-5. **In-phase fix loop on test failure.** Up to 3 retries (full pseudo-code + token-cost analysis: `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, exit on `ALL_GREEN`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. Retry exhaust → escalate-AUQ.
+5. **In-phase fix loop on test failure.** Up to 3 retries (full pseudo-code + token-cost analysis: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, exit on `ALL_GREEN`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. Retry exhaust → escalate-AUQ.
 
 6. **Escalation on retry exhaust or INFRA_ERROR.** Fire AUQ (header: `"Test failure"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
@@ -561,9 +560,9 @@ PHASE 2 (sequential, single-context):
 
 1. **Round 1 parallel spawn — reviewer-agents + 1 adversarial-tester-agent in the SAME assistant response.** Multiple `Agent(...)` tool uses in one message. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` at every spawn site (every agent declares `model: inherit`).
 
-   - **reviewer-agents** — one per dimension. Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". Dimensions: `bugs` / `security` / `architecture` / `tests` / `code-quality`. The `architecture` dim covers docs-staleness AND spec-compliance. See reference.md §"The reviewer dimensions" for full criteria-file mapping.
+   - **reviewer-agents** — one per dimension. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". Dimensions: `bugs` / `security` / `architecture` / `tests` / `code-quality`. The `architecture` dim covers docs-staleness AND spec-compliance. See reference.md §"The reviewer dimensions" for full criteria-file mapping.
 
-   - **1 adversarial-tester-agent** — apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3: Adversarial-tester spawn template". The agent authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
+   - **1 adversarial-tester-agent** — apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Adversarial-tester spawn template". The agent authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
      - Codebase-Explorer `change_scope: trivial`, OR
      - `--no-adversarial` modifier present in `$ARGUMENTS`.
 
@@ -571,7 +570,7 @@ PHASE 2 (sequential, single-context):
 
 2. **Collect findings.** Reviewer-agent output schema per `agents/reviewer-agent.md` §Output Format. Adversarial-tester output schema per `agents/adversarial-tester-agent.md` §Output Schema AND authored test files on disk under the project's test directory. Cap per-dim output at ~4K chars (invariant #4); truncate with marker on overflow.
 
-3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns; if clean AND no authored adversarial tests still fail, exit to Ship; otherwise apply fixes inline (no further agent spawns), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the failing reviewer dims (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
+3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns; if clean AND no authored adversarial tests still fail, exit to Ship; otherwise apply fixes inline (no further agent spawns), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the failing reviewer dims (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
 
 4. **Escalation on round-3 exhaust.** AUQ (header: `"Resolve findings"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
@@ -584,11 +583,11 @@ PHASE 2 (sequential, single-context):
 
 State.md `phase: ship` on entry.
 
-1. **Pre-Ship Visual Verification** — fires only when frontend files in scope AND Playwright MCP available. Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Pre-Ship Visual Verification".
+1. **Pre-Ship Visual Verification** — fires only when frontend files in scope AND Playwright MCP available. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Pre-Ship Visual Verification".
 2. **Commit.** Stage relevant files, `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata.
-3. **Ship-mode AUQ.** Push is draft-grade (auto); AUQ gates only commit-grade PR creation. See `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Commit + Push + PR" for the canonical AUQ shape and approvals-persistence protocol. Inline modifiers from $ARGUMENTS (`"don't push"`, `"draft only"`, `"with PR"`, `"stop after review"`) override the AUQ deterministically.
+3. **Ship-mode AUQ.** Push is draft-grade (auto); AUQ gates only commit-grade PR creation. See `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" for the canonical AUQ shape and approvals-persistence protocol. Inline modifiers from $ARGUMENTS (`"don't push"`, `"draft only"`, `"with PR"`, `"stop after review"`) override the AUQ deterministically.
 4. **Atomic `non-resumable-actions[]` update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
-5. **Emit learnings.** Emit `convention` to learnings.jsonl when ≥3-instance pattern detected; emit `decision` if spec.md recorded a non-trivial approach choice. Default trust = `verified`. Surface promotion suggestion only for `convention` type. Apply `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Extract Learnings".
+5. **Emit learnings.** Emit `convention` to learnings.jsonl when ≥3-instance pattern detected; emit `decision` if spec.md recorded a non-trivial approach choice. Default trust = `verified`. Surface promotion suggestion only for `convention` type. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Extract Learnings".
 6. **Update project snapshot.** If Phase 2 added a new module, `update_semantic --file codebase-map --append "..."`. Lock-guarded; rc=11 = recoverable skip.
 7. **Update Docs / Suggest Improvements / Integration Updates / Cleanup.** Apply reference.md sub-sections in order. Cleanup deletes only transient subagent outputs — durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) survive Ship for downstream /review / /debug / /refactor / Adjustment Routing consumers:
 
@@ -605,7 +604,7 @@ rm -f "<task-dir>"/.kr-out.md \
 
 ### Adjustment routing (post-ship feedback)
 
-When ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` invocation, route per the Big/Medium/Small classification in `${CLAUDE_SKILL_DIR}/implement-reference.md` §"Phase 3 — Adjustment Routing".
+When ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` invocation, route per the Big/Medium/Small classification in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3 — Adjustment Routing".
 
 ---
 
@@ -633,7 +632,7 @@ When no ship-mode modifier is present, the ship-mode AUQ fires. Conflicting modi
 
 0. **Check for existing state.md.** Glob `<task-slug>/state.md`:
 - **No state.md** → fresh run. Proceed to Phase 1.
-- **state.md exists, phase in non-terminal set** → resume from `phase:` value. The SessionStart hook hook re-injects context.
+- **state.md exists, phase in non-terminal set** → resume from `phase:` value. The SessionStart hook re-injects context.
 - **state.md exists, phase in terminal set** → task complete. Surface terminal state to user; if `$ARGUMENTS` carries new task description, derive new slug, fresh run.
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).

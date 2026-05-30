@@ -15,7 +15,7 @@ The orchestrator collects PLAN CONTEXT from up to four sources, in this **priori
 5. **PR body as opaque prose** — when PR mode but no `geniro-plan:` reference found, fall back to `gh pr view <ref> --json body` content treated as prose.
 6. **None** — no PR body, no `--plan`, no project files. PLAN CONTEXT renders as the literal string `none` in every reviewer prompt.
 
-**Concatenation rule:** when ≥1 source resolves to a structured spec.md (frontmatter detected — see), that source's structured-section blob is the canonical PLAN CONTEXT. Other sources (if any) are dropped — section-tagged structured blob and prose blob do not mix cleanly. When NO source has frontmatter, the prose concat behavior runs: non-empty sources concatenated with source-delimiter, capped at ~3000 chars total.
+**Concatenation rule:** when ≥1 source resolves to a structured spec.md (frontmatter detected — see §2 Detection), that source's structured-section blob is the canonical PLAN CONTEXT. Other sources (if any) are dropped — section-tagged structured blob and prose blob do not mix cleanly. When NO source has frontmatter, the prose concat behavior runs: non-empty sources concatenated with source-delimiter, capped at ~3000 chars total.
 
 ---
 
@@ -36,7 +36,7 @@ If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR 
 
 ## 3. Structured-section parser
 
-When frontmatter detected, parse the 10 named sections per Section header format is rigid (`## 1. Objective` through `## 11. Done Condition` — 10 sections numbered 1-11, since is split into 3a/3b would be N/A; the spec template emits 11 numeric headers beyond 10 logical sections per the spec-template).
+When frontmatter detected, parse the 10 named sections. Section-header format is rigid (`## 1. Objective` through `## 11. Done Condition`) — the spec template emits 11 numeric headers.
 
 Sections expected:
 
@@ -120,7 +120,7 @@ In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 D
 
 ## 5. Decision-Marker Convention
 
-Project plans commonly label decisions with markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning with such a marker as an authoritative intent statement. This applies in both mode (markers may appear in any section body) and prose mode.
+Project plans commonly label decisions with markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning with such a marker as an authoritative intent statement. This applies in both structured mode (markers may appear in any section body) and prose mode.
 
 **Example marker line in a plan:**
 

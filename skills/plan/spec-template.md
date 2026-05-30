@@ -2,8 +2,6 @@
 
 Canonical 10-section markdown template that Phase 6 fills in. One source of truth for schema.
 
-**Spec source:** *(internal)* (schema definition), (goal-state frontmatter block), (per-section content guidance).
-
 **Status:** Authoritative. Phase 7 mechanical validator enforces this layout exactly. Every spec.md emitted by `/geniro:plan` conforms.
 
 ## Frontmatter
@@ -20,7 +18,7 @@ geniro_schema_version: m5-v2 # schema version (m5-v2 adds workflow_refs[])
 task_slug: <slug> # extension
 topic: <one-sentence-topic> # extension
 mode: <IDEA|DESIGN_DOC> # extension
-effort_tier: <trivial|medium|big> # extension
+effort_tier: <trivial|small|medium|big> # extension
 lifecycle: draft # design-doc lifecycle (draft|approved|superseded)
 workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / Asana)
 - kind: linear # matches .geniro/workflow/<kind>.md filename
@@ -57,7 +55,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 - Fields 1-5 (tier → timestamp): required base.
 - Fields 6-11 (geniro_kind → lifecycle): schema markers + extensions.
 - Field `workflow_refs`: optional tracker linkage (m5-v2). Omitted from frontmatter when no tracker was linked (pure inline-task /plan); downstream skills treat absence as "no tracker linkage".
-- Fields 12-17 (budget → tools_required): goal-state block embedded in frontmatter per.
+- Fields 12-17 (budget → tools_required): goal-state block embedded in frontmatter.
 
 **`workflow_refs[]` per-entry shape:**
 
@@ -129,7 +127,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 <Single statement of the observable signal that the task is complete. E.g., "all 5 acceptance tests green AND PR approved" / "feature ships behind flag AND telemetry shows ≥1 successful use".>
 ```
 
-(Note: section 11 «Done Condition» is the 10th sectioned body section but uses heading level «## 11.» — the count starts at 1, not 0; the schema-completeness check counts 10 sections, `## 1` through `## 11` reading «11 = Done Condition» as section 10. Pedantic count adjustment for header consistency.)
+(Note: the schema has 11 numbered headers (`## 1` … `## 11`); downstream consumers and the validator key off header text, not ordinal count.)
 
 Body sections beyond the 10 (allowed):
 - `## Considered Alternatives` — captured from Phase 4 Always present if Phase 4 ran with ≥2 approaches.

@@ -91,7 +91,7 @@ Grouping convention only — stdlib / third-party / first-party / relative. Whet
 **How to detect:**
 ```bash
 # Skip if formatter/linter already enforces ordering
-grep -lE "import/order|simple-import-sort".eslintrc* package.json 2>/dev/null
+grep -lE "import/order|simple-import-sort" .eslintrc* package.json 2>/dev/null
 grep -E "^profile.*black|isort" pyproject.toml 2>/dev/null
 
 # Are import groups separated by blank lines?

@@ -11,11 +11,11 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 
 Use this skill to systematically debug complex issues. Replaces guessing with evidence gathering and hypothesis testing. 3 phases mirroring `/geniro:implement`.
 
-**Architecture spec:** *(internal)*. Detailed contracts:
+**Detailed contracts:**
 - Infrastructure-cause guidance — see § Infrastructure Investigation below
 - Isolation techniques (binary search / git bisect / profiling) — see § Isolation Techniques below
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading our T2 hand-offs
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes
 
 **Section-reference convention:** references in this SKILL.md point to local sub-sections (Phase 1, Phase 2, Phase 3 respectively — header lines `### 1.1`, `### 2.4`, etc. below).
 
@@ -158,7 +158,7 @@ These get surfaced on hypothesis formation so that the orchestrator does NOT re-
 - Identify what changed (recent commit, config, user action). Record exact repro steps.
 - **If repro is unclear/missing:** `AskUserQuestion` with header "Repro details" — 2-4 concrete options (environment / steps to trigger / expected vs actual behavior). Do NOT guess.
 
-Persist to state.md body sections `## Symptom` and `## Reproduction Steps` (B).
+Persist to state.md body sections `## Symptom` and `## Reproduction Steps` (per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2).
 
 ### 1.3 Build feedback loop
 
@@ -183,17 +183,17 @@ A feedback loop is a fast (≤30s, ideally ≤5s), deterministic, captured signa
 
 If 10 minutes pass without a working feedback loop, do NOT proceed by guessing — `AskUserQuestion` with header "Repro signal" — paste log / run command / mark intermittent + investigate without loop.
 
-Persist to state.md `## Feedback Loop` body section: Command / Expected output / Actual output / Re-run cost / Determinism (perB).
+Persist to state.md `## Feedback Loop` body section: Command / Expected output / Actual output / Re-run cost / Determinism.
 
-> **NOT the reproduction test.** authors a unit/integration test in the project framework that ships with the fix as the regression guard. builds a fast-iteration scratch signal so-can move quickly. The test STAYS on disk; the scratch signal is reverted at Cleanup.
+> **NOT the reproduction test.** The reproduction test is a unit/integration test in the project framework that ships with the fix as the regression guard. The feedback loop is a fast-iteration scratch signal so you can move quickly. The test STAYS on disk; the scratch signal is reverted at Cleanup.
 
 ### 1.4 Hypothesize
 
-Based on Observation + Feedback Loop output, form **2-3 competing hypotheses**. Each must be testable AGAINST THE FEEDBACK LOOP —'s tests will toggle one variable, re-run the loop, observe whether the captured signature changes.
+Based on Observation + Feedback Loop output, form **2-3 competing hypotheses**. Each must be testable against the feedback loop — each hypothesis test toggles one variable, re-runs the loop, and observes whether the captured signature changes.
 
 **Consider infrastructure causes alongside code causes** per § Infrastructure Investigation below. If symptoms include timeouts, intermittent failures, or environment-only manifestation, form at least one infrastructure hypothesis.
 
-Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypothesis / Evidence For / Evidence Against / Status: pending → testing → confirmed | rejected | inconclusive / Test Plan / Result perB schema).
+Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypothesis / Evidence For / Evidence Against / Status: pending → testing → confirmed | rejected | inconclusive / Test Plan / Result — per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2).
 
 > **Inconclusive** means the test could not distinguish whether the hypothesis is true or false. Common causes: (1) test environment differs from production, (2) bug is intermittent and didn't manifest, (3) test was too coarse, (4) multiple interacting causes mask effects. Inconclusive is NOT a rejection — you need a better test or more data.
 

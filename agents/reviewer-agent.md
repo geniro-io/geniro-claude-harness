@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits a structured validation result (confirmed/refuted/clarified) for a single HIGH finding."
+description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits a structured validation result (confirmed/refuted/clarified) for a single CRITICAL/HIGH/MEDIUM survivor finding."
 tools: [Read, Glob, Grep, Bash]
 model: inherit
 maxTurns: 100
@@ -34,7 +34,7 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 
 The orchestrating skill passes you:
 
-1. **Dimension**: Which review dimension you own. Always-fire built-ins (8): bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions. Conditional built-ins: design, pr-metadata, spec-compliance, code-quality. Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
+1. **Dimension**: Which review dimension you own. Always-fire built-ins (8): bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions. Conditional built-ins: design, pr-metadata, spec-compliance. /implement Phase 3 self-review also spawns code-quality (always-fire there, not a /review conditional). Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
 2. **Criteria**: Content of the corresponding criteria file (e.g., `bugs-criteria.md`)
 3. **Changed files**: List of files to review, with their diffs or full content
 4. **Project context**: Brief description of the project's stack and conventions
@@ -89,7 +89,7 @@ Only output findings with confidence ≥60. When a finding's behavior is explici
 
 The reviewer-agent emits `Confidence: XX%` (0-100). This is an **advisory hint** about your self-rated certainty — NOT the load-bearing filter. Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §4, LLM self-reported confidence is documented as poorly calibrated for Claude (arXiv 2405.02917) and "nearly random" in production (Greptile). The orchestrator's Phase 4.1 multi-signal gate uses convergence + evidence-grounding as primary signals, with the percentage as a fallback.
 
-Still rate your confidence — downstream consumers (orchestrator tie-breaking, the per-HIGH verifier, the user) read it. But do not inflate confidence to push a finding past a perceived threshold; if the finding is correct, the multi-signal gate will surface it via convergence or evidence-grounding even at 60-79%.
+Still rate your confidence — downstream consumers (orchestrator tie-breaking, the per-finding verifier, the user) read it. But do not inflate confidence to push a finding past a perceived threshold; if the finding is correct, the multi-signal gate will surface it via convergence or evidence-grounding even at 60-79%.
 
 | Score | Meaning | Example |
 |-------|---------|---------|
@@ -151,7 +151,7 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 
 ### Verify-finding mode
 
-When the input prompt contains `mode: verify-finding`, emit a structured verification result INSTEAD of the standard finding schema. This mode is used by `/geniro:review` Phase 4.2 per-HIGH-finding verifier — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` for the full contract.
+When the input prompt contains `mode: verify-finding`, emit a structured verification result INSTEAD of the standard finding schema. This mode is used by `/geniro:review` Phase 4.2 per-finding verifier — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` for the full contract.
 
 In verify-finding mode you receive:
 - A single finding body (title, file:line, severity, decision-type, evidence, suggested-fix)
@@ -174,7 +174,7 @@ Field semantics:
 - `validation: clarified` — finding is correct but recommended action differs; `recommended_action` overrides original decision-type
 - `confidence` — 1 (uncertain) to 5 (direct evidence in quoted code)
 - `evidence` — MUST be a literal quote from the cited file or caller chain. "I agree" or paraphrases are insufficient.
-- `recommended_action: drop` — Verify-finding mode only. Emit when `validation: refuted` — the verifier read the cited code and judged the finding incorrect. The orchestrator demotes refuted findings to `## Filtered` by the orchestrator; never appears as a standard finding `Decision Type:` tag.
+- `recommended_action: drop` — Verify-finding mode only. Emit when `validation: refuted` — the verifier read the cited code and judged the finding incorrect. The orchestrator demotes refuted findings to `## Filtered`; never appears as a standard finding `Decision Type:` tag.
 
 Re-read the cited code before answering. Confirmation without empirical re-read is rationalization theater; sycophancy is the documented multi-judge failure mode.
 
