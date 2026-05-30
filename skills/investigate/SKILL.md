@@ -9,7 +9,7 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 # Investigate: Deep Codebase Q&A
 
-redesign — 3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/implement`, `/debug`, `/refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, fresh-reviews, and presents the answer.
+3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/implement`, `/debug`, `/refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, fresh-reviews, and presents the answer.
 
 Section-reference convention: local refs like Phase X are within this SKILL.md.
 
@@ -30,7 +30,7 @@ The canonical loop invariants apply, with three skill-specific notes:
 
 ## Quality-first budgets
 
-Per — quality-first framing. /investigate has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
+Quality-first framing: /investigate has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -52,7 +52,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. OMIT `model=` at
 
 ## Subagent Spawn Contract
 
-Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh reviewer-agent, and Phase 3 Step 4a save-routing agents — MUST satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier). The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state — bare prompts force re-discovery and silently drift from intended scope. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents (none in this skill today; the rule applies if a future research agent is promoted to a custom agent type).
+Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh reviewer-agent, and Phase 3 Step 4a save-routing agents — must satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier); subagents that skip a field re-discover from scratch and drift from intended scope. The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state — bare prompts force re-discovery and silently drift from intended scope. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents (none in this skill today; the rule applies if a future research agent is promoted to a custom agent type).
 
 ## Evidence Standard
 
@@ -78,13 +78,16 @@ $ARGUMENTS
 
 ## Phase 1: Classify+Scope
 
-State.md `phase: classify`. Light per cost — a semantic $ARGUMENTS classification + memory-layer load (instructions + snapshot + past learnings) + glossary-mismatch check. Critical for correctness: bad classification → wrong agent set → wasted research budget.
+State.md `phase: classify`. Low cost — a semantic $ARGUMENTS classification + memory-layer load (instructions + snapshot + past learnings) + glossary-mismatch check. Critical for correctness: bad classification → wrong agent set → wasted research budget.
 
 ### Step 0: Load custom instructions + past learnings
 
 On Phase 1 entry:
 
-1. **Refresh custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory.2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Note: `_CODEBASE_MAP.md` content (if exists) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.3. **Query past learnings** — `query-learnings --tags <inferred from $ARGUMENTS keywords> --scope task --limit 5` per «investigate session start» trigger. To find prior answers and avoid duplicate research.4. **Cross-layer conflict resolution** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
+1. **Refresh custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory.
+2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Note: `_CODEBASE_MAP.md` content (if exists) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
+3. **Query past learnings** — `query-learnings --tag <kw1> --tag <kw2> --scope global --limit 5` (one `--tag` per keyword inferred from $ARGUMENTS). To find prior answers and avoid duplicate research.
+4. **Cross-layer conflict resolution** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
 
 Echo lines per mandatory.
 
@@ -128,7 +131,7 @@ From the question, extract:
 
 ### Step 2.5: Glossary-mismatch check (WAIT if mismatch found)
 
-CLAUDE.md is auto-loaded and may contain a "Domain Context" section (added by `/geniro:setup` Phase 3.1) listing domain entities, safety rules, and API contracts. Before Phase 2 spawn, check whether the user's question uses terms that conflict with the documented glossary — investigating with the wrong vocabulary returns the wrong answer.
+CLAUDE.md is auto-loaded and may contain a "Domain Context" section (added by `/geniro:setup` Phase 3.2) listing domain entities, safety rules, and API contracts. Before Phase 2 spawn, check whether the user's question uses terms that conflict with the documented glossary — investigating with the wrong vocabulary returns the wrong answer.
 
 Procedure:
 
@@ -143,13 +146,13 @@ Procedure:
 - **Options**: "Use the glossary definition" / "Use my new meaning (and note the divergence in the answer)" / "Both — these are genuinely different concepts that share a name (please pick disambiguating names)"
 5. Record the resolution in the answer's Sources section so the synthesized answer carries the disambiguation forward.
 
-**Approvals-persistence:** persist the user's pick to state.md frontmatter `approvals[]` with category `glossary_resolve`. Subsequent compaction-resume reads prior pick from `approvals[]` rather than re-asking. Block 5d renders this. Re-ask only if context materially changed (new glossary section added since the pick).
+**Approvals-persistence:** persist the user's pick to state.md frontmatter `approvals[]` with category `glossary_resolve`. Subsequent compaction-resume reads prior pick from `approvals[]` rather than re-asking. The state.md `## Persisted approvals` body section renders this. Re-ask only if context materially changed (new glossary section added since the pick).
 
 Skip this step entirely when CLAUDE.md has no Domain Context section, when the question has no domain-shaped terms, or when all terms are exact matches. When in doubt, skip — false positives waste user time more than false negatives waste investigation budget.
 
 ### Step 2.6: 5-step JIT retrieval cadence
 
-Formalizes /investigate's informal approach per master plan 5 steps:
+The 5-step just-in-time retrieval cadence:
 
 1. **Infer** — extract specific tags, file-paths, and symbols from $ARGUMENTS. Don't broad-scan.
 2. **Search** — apply skip criteria from Step 2; spawn only the literal classified set from Step 1.
@@ -157,7 +160,7 @@ Formalizes /investigate's informal approach per master plan 5 steps:
 4. **Return concise** — agents output structured findings (Evidence Standard kind 1-5 only); no narrative drift.
 5. **Store exact refs** — every claim cites file:line / commit-hash / URL with verbatim snippet, not paraphrase.
 
-Step 5 closes the spec's L2 emit auto-step (replaces /learnings skill drop per master plan) — the "exact refs" are what get persisted in the Phase 3 `discovery` emit's `ext.{area, insight}` fields.
+Step 5 closes the L2 emit auto-step — the "exact refs" are what get persisted in the Phase 3 `discovery` emit's `ext.{area, insight}` fields.
 
 State.md `## JIT Cadence` body section logs which steps fired for this run (audit trail).
 
@@ -289,7 +292,7 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text) with header
 
 Before writing to a single store, classify each finding to its proper destination per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`:
 
-Every save-routing Agent spawn below MUST satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier) AND obey the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type not found"). The save-routing agents do not currently use a custom subagent type (they spawn as `general-purpose` directly), but the spawn-agent.md rule still applies for any future promotion to a plugin-defined agent.
+Every save-routing Agent spawn below must satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier) and obey the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type not found"). The save-routing agents do not currently use a custom subagent type (they spawn as `general-purpose` directly), but the spawn-agent.md rule still applies for any future promotion to a plugin-defined agent.
 
 1. **Domain-vocabulary findings** — the investigation surfaced a new domain entity, role, or business-rule term that wasn't in CLAUDE.md's Domain Context. Examples: "the codebase calls X a `Tenant` but production calls it a `Workspace`" / "there's a hidden `BillingAccount` entity that wraps `Subscription`+`PaymentMethod`+`Invoice`."
 - Route: **CLAUDE.md** "Domain Context" section.
@@ -313,9 +316,9 @@ If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` 
 - label: "Plan a bigger change" — description: "Run `/geniro:plan <feature>` to draft an approved spec first"
 - label: "Nothing — just wanted the answer" — description: "End here. Resume your prior work." — terminal `present-summary-only`
 
-### Step 5: L2 `discovery` emit with trust label
+### Step 5: Record the answer as a learning (with trust label)
 
-Per minimal scope per design Q3:
+Emit a minimal-scope `discovery` entry:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
@@ -340,7 +343,7 @@ EOF
 - `trust: retrieved` — WebFetch/WebSearch findings were load-bearing to the final answer.
 - `trust: inferred` — N/A for /investigate (model-deduced claims do not pass Evidence Standard's confidence-driven action).
 
-Per row /investigate: `Default trust: retrieved if WebFetch/WebSearch used; verified if code-grounded only`. No `<untrusted_external_data>` envelope wrapping per design Q3 — defer to full. Trust-label propagation IS sufficient for baseline awareness.
+Default trust: `retrieved` if WebFetch/WebSearch was load-bearing; `verified` if code-grounded only. No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS sufficient for baseline awareness.
 
 **Trigger:** emit when the investigation produced a substantive structured answer (not a quick reference lookup). Heuristic: ≥2 agents spawned OR question type is one of How / Why / What-if / Compare / Risk. Skip for "quick lookup" classifications (Current-code trace / Commit archaeology / External docs lookup).
 
@@ -349,7 +352,7 @@ Per row /investigate: `Default trust: retrieved if WebFetch/WebSearch used; veri
 State.md `phase: present` → `done`. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
-rm -rf.geniro/state/investigate/<slug>/ 2>/dev/null || true
+rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true
 ```
 
 No handoff file to delete. Chat answer is the deliverable. Persistent artifacts from save-routing (CLAUDE.md, ADRs, learnings.jsonl) STAY.
@@ -363,8 +366,6 @@ T1 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — w
 ---
 
 ## ACI per-phase tool surface
-
-Mirrors structure.
 
 **Phase 1 (Classify+Scope):**
 - Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`); WebSearch / WebFetch (rare for Phase 1 prelim).
@@ -393,7 +394,7 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `
 
 ## Anti-rationalization
 
-Per master plan — every milestone closes with an explicit anti-pattern check.
+Check these rationalizations before drifting from the procedure.
 
 | Your reasoning | Why it's wrong |
 |---|---|
@@ -409,7 +410,7 @@ Per master plan — every milestone closes with an explicit anti-pattern check.
 | "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
 | "Auto-promote /investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
 | "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5. Issue threads contain speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
-| "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field. Future readers (later /audit or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
+| "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field. Future readers (later retrieval or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
 | "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | If CLAUDE.md has a Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. Always run the check when Domain Context is present. |
 | "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | The 5-step cadence is what makes /investigate evidence-disciplined; dropping it would let claims drift from evidence. Step 2.6 is the audit trail that makes JIT discipline reviewable. |
 

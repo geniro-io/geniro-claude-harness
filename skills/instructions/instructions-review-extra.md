@@ -1,12 +1,28 @@
 # review-extra: Custom Reviewer Authoring & Create Flow
 
+## Contents
+
+- Custom Reviewer Authoring (review-extra) — body shape, severity-default, paths scoping, model choice, count caps.
+- Command: create — review-extra variant — the slug-bearing flow:
+  - Step 1: Resolve the slug
+  - Step 2: Validate the slug
+  - Step 3: Check count caps
+  - Step 4: Ensure directory exists
+  - Step 5: Gather the description
+  - Step 6: Optional model override
+  - Step 7: Optional paths globs
+  - Step 8: Optional severity-default
+  - Step 9: Gather the criteria body
+  - Step 10: Write the file
+  - Step 11: Confirm
+
 Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-11). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer.
 
 See `SKILL.md` for the load-bearing rules referenced below: validation rules (Command: validate, Step 2 "review-extra files"), file structure (File Structure: review-extra), count caps cross-references.
 
 ## Custom Reviewer Authoring (review-extra)
 
-Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a different shape from the other instruction files — they declare a new code-review dimension that runs alongside the built-in reviewer-agents (bugs, security, architecture, tests, optimizations, guidelines, conventions, plus design/pr-metadata). Treat each file as a reviewer-agent prompt body, not a workflow rule:
+Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a different shape from the other instruction files — they declare a new code-review dimension that runs alongside the built-in reviewer-agents (bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, plus design/pr-metadata/spec-compliance). Treat each file as a reviewer-agent prompt body, not a workflow rule:
 
 - **Keep the criteria body short — 30-80 lines is the sweet spot.** Reviewer-agents do better with a focused checklist than a long prose document. If your reviewer body exceeds ~120 lines, you are probably encoding two reviewers in one — split into two files with distinct slugs.
 - **Mirror the `what to flag / what NOT to flag` shape** of the canonical exemplars at `${CLAUDE_PLUGIN_ROOT}/skills/review/*-criteria.md` (e.g., `bugs-criteria.md`, `security-criteria.md`). The reviewer-agent infrastructure expects this convention and pattern-matches against the "What to flag" list to extract candidate findings.
@@ -31,7 +47,7 @@ If the slug was provided on the command line (e.g., `/geniro:instructions create
 Refuse and re-ask if any of the following fail:
 
 - **Regex** — must match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter).
-- **No built-in collision** — must NOT match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
+- **No built-in collision** — must NOT match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
 - **No existing file** — `.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `.geniro/instructions/review-extra/{{slug}}.md` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it.` and stop.
 
 On any validation failure, re-ask via `AskUserQuestion` with the error message included in the question text.
@@ -41,11 +57,11 @@ On any validation failure, re-ask via `AskUserQuestion` with the error message i
 Count existing files in `.geniro/instructions/review-extra/`:
 
 ```bash
-ls.geniro/instructions/review-extra/*.md 2>/dev/null | wc -l
+ls .geniro/instructions/review-extra/*.md 2>/dev/null | wc -l
 ```
 
 - If creating the 7th file (existing count == 6), warn via `AskUserQuestion`:
-- **Question:** "Custom reviewer count will be 7 — Pattern 1 sweet-spot is 4-6 dimensions, so you'd be exceeding it. Proceed?"
+- **Question:** "Custom reviewer count will be 7 — the sweet spot is 4-6 reviewers, so you'd be exceeding it. Proceed?"
 - **Options:**
 - label: "Proceed anyway" — description: "Create the 7th reviewer despite exceeding the sweet spot"
 - label: "Cancel" — description: "Don't create — consider consolidating overlapping reviewers first"
@@ -69,7 +85,7 @@ Stop without writing.
 ### Step 4: Ensure directory exists
 
 ```bash
-mkdir -p.geniro/instructions/review-extra
+mkdir -p .geniro/instructions/review-extra
 ```
 
 ### Step 5: Gather the description
@@ -158,7 +174,7 @@ Show the created file content and report:
 ```
 Created `.geniro/instructions/review-extra/{{slug}}.md`.
 
-This reviewer will run alongside the built-in 7-9 every time you invoke
+This reviewer will run alongside the built-in reviewers every time you invoke
 /geniro:review (or /geniro:implement Phase 3 self-review / /geniro:refactor Phase 3 verify).
 
 Test it: run `/geniro:review` against a PR you expect this reviewer to flag,

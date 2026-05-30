@@ -10,7 +10,7 @@ Canonical 10-section markdown template that Phase 6 fills in. One source of trut
 
 ```yaml
 ---
-tier: T1 # required (spec.md lives in task-dir)
+tier: T1.5 # required (spec.md lives in task-dir; durable — survives Ship cleanup)
 producer: plan # required
 schema-version: 1 # required
 branch: <git-branch> # required
@@ -19,7 +19,7 @@ geniro_kind: design-doc # design-doc-detect.md contract — required marker
 geniro_schema_version: m5-v2 # schema version (m5-v2 adds workflow_refs[])
 task_slug: <slug> # extension
 topic: <one-sentence-topic> # extension
-mode: <IDEA|DESIGN_DOC-fresh> # extension
+mode: <IDEA|DESIGN_DOC> # extension
 effort_tier: <trivial|medium|big> # extension
 lifecycle: draft # design-doc lifecycle (draft|approved|superseded)
 workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / Asana)
@@ -144,7 +144,7 @@ Body sections beyond the 10 (allowed):
 
 **Section 6 (Steps):** Each step cites ≥1 file:line reference unless it's a meta-step (e.g., "Step 1: Create new branch"). Phase 7 validator check #3 enforces this.
 
-**Section 8 (Approval Points):** This is the contract /implement reads to know when to pause for user gates. Phase 2 inner loop checks this at the start of each step and fires `AskUserQuestion` if the step anchor matches an Approval-Points entry. ↔ the contract.
+**Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /implement run. These are advisory goal-state documentation — /implement does not yet auto-gate on a step-anchor match; the enforced Edit/Write gate in /implement is the handoff `open_questions[]` check (Phase 1 Step 12). Use "none" if /implement may run autonomously start-to-finish.
 
 **Section 10 (Rollback-Recovery):** «none — pure additive» is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is «none» — it auto-fails if body is empty.
 

@@ -8,10 +8,10 @@ Hook configuration is **split** across two files:
 
 | File | Purpose |
 |---|---|
-| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, PostToolUse, Stop, SessionStart). Pointed to by [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `hooks` field. |
+| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, Stop, SessionStart). Pointed to by [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `hooks` field. |
 | [`settings.json`](settings.json) (root) | Defines plugin-wide permissions and the `statusLine` command. The status line is NOT a Claude Code hook — it's a separate display feature. |
 
-The status messages set on each `hooks.json` entry (e.g. `"Checking for unsafe database operations..."`) appear as spinner text while the hook runs.
+The status messages set on each `hooks.json` entry (e.g. `"Checking for destructive git operations..."`) appear as spinner text while the hook runs.
 
 ## Hook scripts
 
@@ -122,7 +122,7 @@ Spawns a detached child process via `spawn(..., detached: true, stdio: 'ignore')
 
 **Wiring:** [`settings.json`](settings.json) `statusLine.command`. Not registered in `hooks.json` — `statusLine` is a separate Claude Code display feature, not a hook event.
 
-**Stdin (3s timeout):** JSON containing `model.display_name`, `workspace.current_dir`, `context_window.remaining_percentage`, `context_window.size`, `session_id`. Reads `~/.claude/cache/geniro-update-check.json` for the update banner and `~/.claude/todos/*.json` for the in-progress task. Renders an ANSI-colored bar:
+**Stdin (3s timeout):** JSON containing `model.display_name`, `workspace.current_dir`, `context_window.remaining_percentage`, `context_window.context_window_size`, `session_id`. Reads `~/.claude/cache/geniro-update-check.json` for the update banner and `~/.claude/todos/*.json` for the in-progress task. Renders an ANSI-colored bar:
 
 - Context %: green (<50%), yellow (50-65%), orange (65-80%), red blinking (>80%)
 - Format: `model | task | dir | context%`
@@ -143,7 +143,7 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "npm 
 
 On success: emits `✓ Tests passed (N lines suppressed)` (~5 tokens). On failure: filters and caps output at 150 lines. Manages its own `mktemp` lifecycle; no persistence.
 
-Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/SKILL.md`](skills/review/SKILL.md), [`skills/implement/implement-reference.md`](skills/implement/implement-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
+Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/SKILL.md`](skills/review/SKILL.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
 
 ## Testing
 

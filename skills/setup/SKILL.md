@@ -9,7 +9,7 @@ argument-hint: "[optional: path to template directory]"
 
 # Setup: AI-Driven Plugin Setup
 
-4-phase loop: **Detect → Interview → Generate → Validate**. Turns an unfamiliar repository into a Geniro-ready project in one supervised run. **Singleton bootstrap** — one canonical state file at `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (no `<slug>/` subdir, no parallel runs). Supports `init` (first time) and `re-run` (refresh after stack changes). Uninstall is out of scope. Architecture spec: *(internal)*.
+4-phase loop: **Detect → Interview → Generate → Validate**. Turns an unfamiliar repository into a Geniro-ready project in one supervised run. **Singleton bootstrap** — one canonical state file at `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (no `<slug>/` subdir, no parallel runs). Supports `init` (first time) and `re-run` (refresh after stack changes). Uninstall is out of scope.
 
 **Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
 
@@ -96,8 +96,8 @@ if frontmatter.phase != "done":
 resume from frontmatter.phase
 else:
 mode = re-run (a prior /setup completed; user is re-invoking)
-elif exists(CLAUDE.md) AND grep "<!-- geniro-setup-version:" CLAUDE.md:
-mode = re-run (no state file, but generated marker present)
+elif exists(CLAUDE.md):
+mode = re-run (no state file, but a prior CLAUDE.md exists — merge into it rather than overwrite)
 else:
 mode = init
 ```
@@ -193,7 +193,8 @@ skill_inventory:
 - {slug: update, purpose: "Plugin update + integrity check"}
 ```
 
-If marketplace.json read fails, fallback to the hardcoded list above. **The 8 deleted skills** (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) MUST NOT appear in generated CLAUDE.md — they were dropped per master plan
+If marketplace.json read fails, fallback to the hardcoded list above. Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) out of generated CLAUDE.md — they no longer exist as live skills, so listing them points the user at commands that do not run.
+
 ### 1.6 Detect output
 
 All-results land in state frontmatter `detected:` block. Phase log captures one summary line:
@@ -255,7 +256,7 @@ E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package ma
 Use `AskUserQuestion` header "Tracker" — recommended default reflects `$ISSUE_TRACKER` detected in:
 
 - Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) preserved verbatim from current skill — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates.
-- On selection, install `.geniro/workflow/<tracker>.md` from template (or stub for non-Linear). All workflow files MUST include AI-Disclosure Prefix section.
+- On selection, install `.geniro/workflow/<tracker>.md` from template (or stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
 
 Store as `$ISSUE_TRACKER_CHOICE` for Phase 3.
 
@@ -333,21 +334,21 @@ Section merge runs **orchestrator-inline** — no subagent spawn. Rules:
 1. Preserve all user customizations.
 2. Apply factual updates from detection (e.g., new commands detected, stack changes).
 3. If conflict (same statement contradicted), surface both versions via AUQ — let user pick.
-4. NEVER add geniro-specific content (skill tables, hook lists, path rules) during merge — those belong in the plugin, not CLAUDE.md.
+4. Do not add geniro-specific content (skill tables, hook lists, path rules) during merge — those already live in plugin files that load automatically, so adding them to CLAUDE.md duplicates the plugin and wastes tokens on every run.
 
 ### 3.5 Runtime directories + gitignore
 
 ```bash
-mkdir -p.geniro/workflow.geniro/instructions.geniro/planning.geniro/knowledge
+mkdir -p .geniro/workflow .geniro/instructions .geniro/planning .geniro/knowledge
 
-#.gitignore — only write if file exists and doesn't already cover these (never create from scratch)
-if [ -f.gitignore ]; then
-grep -q "^\.geniro/\*$".gitignore 2>/dev/null || echo ".geniro/*" >>.gitignore
-grep -q "^\!\.geniro/$".gitignore 2>/dev/null || echo "!.geniro/" >>.gitignore
-grep -q "^\!\.geniro/workflow/$".gitignore 2>/dev/null || echo "!.geniro/workflow/" >>.gitignore
-grep -q "^\!\.geniro/workflow/\*\*$".gitignore 2>/dev/null || echo "!.geniro/workflow/**" >>.gitignore
-grep -q "^\!\.geniro/instructions/$".gitignore 2>/dev/null || echo "!.geniro/instructions/" >>.gitignore
-grep -q "^\!\.geniro/instructions/\*\*$".gitignore 2>/dev/null || echo "!.geniro/instructions/**" >>.gitignore
+# .gitignore — only write if file exists and doesn't already cover these (never create from scratch)
+if [ -f .gitignore ]; then
+grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
+grep -q "^\!\.geniro/$" .gitignore 2>/dev/null || echo "!.geniro/" >> .gitignore
+grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
+grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
+grep -q "^\!\.geniro/instructions/$" .gitignore 2>/dev/null || echo "!.geniro/instructions/" >> .gitignore
+grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/instructions/**" >> .gitignore
 fi
 ```
 
@@ -406,7 +407,7 @@ Anchor: stay within current cwd; verify with `pwd && git branch --show-current` 
 
 `## Open Questions` accumulates DRIFT items across rounds — survives compaction.
 
-### 4.3 Emit learning on successful Validate (D9 closure)
+### 4.3 Emit learning on successful Validate
 
 On transition to DONE — emit one `discovery` learning row:
 
@@ -425,8 +426,7 @@ emit_learning <<'EOF'
 "test_runner": "jest",
 "ship_mode_default": "open-pr-draft",
 "reviewer_set": "full",
-"claude_md_loc": 67,
-"spun_out_docs": ["hooks.md", "mcp.md"]
+"claude_md_loc": 67
 }
 }
 EOF
@@ -493,17 +493,17 @@ update brought a new install path, but in-memory skill bodies still reference
 the old one. Restart and you're done.
 ```
 
-Only emitted when `mode == re-run` AND `/setup` detected `plugin.json` version delta vs the version recorded in the prior state file or CLAUDE.md `<!-- geniro-setup-version: -->` marker. Fresh `init` runs never emit this.
+Only emitted when `mode == re-run` AND `/setup` detected a `plugin.json` version delta vs the version recorded in the prior state file. Fresh `init` runs never emit this.
 
 ## State file schema
 
-Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1 tier (session-bound, ephemeral, deleted at Phase Done).
+Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable task state — singleton; deleted at Phase Done since the bootstrap state has zero value once complete).
 
 ### Frontmatter
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: setup
 schema-version: 1
 branch: <git-branch> # may be empty if not a git repo
@@ -542,7 +542,7 @@ validate_rounds: 1
 [2026-05-19T14:00:00Z] init → detect (mode=init)
 [2026-05-19T14:02:00Z] detect complete — stack=node/npm, evidence_count=14
 [2026-05-19T14:05:00Z] interview → detection confirmed, tracker: Linear
-[2026-05-19T14:10:00Z] generate Step 3.3 → 3 sections spun out (hooks, mcp, agent-runtime)
+[2026-05-19T14:10:00Z] generate → CLAUDE.md written (45 lines, project-specific only)
 [2026-05-19T14:30:00Z] validate round 1 → 0 DRIFT
 [2026-05-19T14:32:00Z] → done
 
@@ -575,7 +575,7 @@ validate_rounds: 1
 
 | # | Anti-pattern | Status |
 |---|---|---|
-| 1 | One giant prompt | ✅ SKILL.md modular; phase sections in `_shared/setup/*.md` helpers if SKILL.md grows beyond ~600 LOC |
+| 1 | One giant prompt | ✅ SKILL.md modular; phase detail moves to a sibling `skills/setup/<phase>-reference.md` if SKILL.md grows beyond ~600 LOC |
 | 2 | One giant tool | ✅ N/A — Edit/Write/Bash/Glob/Grep native |
 | 3 | Unbounded autonomous loop | ✅ 3-retry validation loop with AUQ escalation; no infinite retry |
 | 4 | Autonomous external sends in first release | ✅ Phase Generate ACI forbids `mcp__github__*` and network egress; no Slack/PR auto-send |
@@ -583,8 +583,8 @@ validate_rounds: 1
 | 6 | No durable plans or goals | ✅ State file mandatory — singleton at `state/setup/state.md` |
 | 7 | No compaction strategy | ✅ `## Tool log` + `## Errors` + `## Open Questions` + `## Persisted approvals` populated — survives compaction via SessionStart re-injection |
 | 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools without policy | ✅ §ACI per-phase table; verification subagent constrained to `tools: [Read, Bash, Glob, Grep]`; section-merge runs orchestrator-inline (no subagent) per |
-| 10 | Subagents before single-agent MVP measured | ✅ `/setup` uses 1 verification subagent (Phase 4); section-merge is orchestrator-inline per |
+| 9 | High-risk tools without policy | ✅ §ACI per-phase table; verification subagent constrained to `tools: [Read, Bash, Glob, Grep]`; section-merge runs orchestrator-inline (no subagent). |
+| 10 | Subagents before single-agent MVP measured | ✅ `/setup` uses 1 verification subagent (Phase 4); section-merge is orchestrator-inline. |
 | 11 | Dynamic timestamps in plugin-distributed Markdown | ⚠ This SKILL.md must NOT embed runtime timestamps; state file timestamps are fine (state files are generated, not plugin-distributed) |
 | 12 | Non-deterministic agent registration order | ✅ N/A — `/setup` consumes registration, doesn't define it |
 
@@ -615,15 +615,10 @@ validate_rounds: 1
 
 ## Cross-references
 
-- — singleton state-file tier definition; `/setup` writes a T1 file
-- — L2 base schema with `trust:` field; emit conforms
-- — L2 emit trigger table; `discovery` row matches the bootstrap trigger
-- — body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason)
-- Block 5d — approvals[] category list; adds setup-specific categories
-- — 7 loop invariants
-- — quality-first budgets
-- — Evidence Block standard; conforms
-- — model tiering; verification subagent on `sonnet` (section merge runs orchestrator-inline, no separate model assignment)
-- — per-phase ACI
-- (latest doc shape) — TOC structure, anti-rationalization placement; mirrors
-- *(internal)* — full design rationale
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/setup` writes a T1.5 durable file) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
+- §Loop invariants and §Budgets (this file) — 7 loop invariants and quality-first budgets.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; verification subagent on `sonnet` (section merge runs orchestrator-inline, no separate model assignment).
+- §ACI surface per phase (this file) — per-phase ACI.
+- `/setup` adds no preference categories — `approvals[]` stays empty / one-shot (detection-confirm + onboard prompt only).

@@ -75,7 +75,7 @@ Other writers (manually authored design docs, docs imported from external source
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll add a `--from-design` flag to make it explicit" | Flag-free principle (Part 2 §"Auto-detection of existing design doc"). Auto-detect is the contract — adding a flag duplicates information already encoded in the marker, fragments the surface, and creates a "did you remember the flag?" failure mode. |
+| "I'll add a `--from-design` flag to make it explicit" | Auto-detect is the contract — adding a flag duplicates information already encoded in the marker, fragments the surface, and creates a "did you remember the flag?" failure mode. |
 | "Path alone is enough — design docs always live in `.geniro/planning/`" | False. Users move files; copy-paste and tracker-attachments lose the path; cross-project imports land elsewhere. Path is the most fragile of the three markers. |
 | "I'll only check the HTML marker — frontmatter and path are redundant" | Pasted-as-plain-text strips HTML comments; some Markdown editors strip them on save. Single-marker checks have known failure paths. The 3-way OR is the answer. |
 | "I'll only check YAML frontmatter — it's the most reliable" | Some editors strip frontmatter on auto-format. Reliable does not mean infallible. Same logic as the HTML-only argument: defense in depth requires three. |

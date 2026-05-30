@@ -1,8 +1,6 @@
 # L2 episodic-memory read helper
 
-**Status:** Authoritative for every read of `.geniro/knowledge/learnings.jsonl`. Skills that recall prior diagnoses, decisions, conventions, pitfalls, or discoveries (per .3) — `/debug`, `/implement`, `/plan`, `/review` — call this helper.
-
- + trust enum + trust defaults.
+**Status:** Authoritative for every read of `.geniro/knowledge/learnings.jsonl`. Skills that recall prior diagnoses, decisions, conventions, pitfalls, or discoveries — `/debug`, `/implement`, `/plan`, `/review` — call this helper.
 
 ## API
 
@@ -33,13 +31,13 @@ resume if its hypothesis thread depends on prior findings).
 | `--tag TAG` | (any) | Entries whose `tags` array contains `TAG`. |
 | `--scope SCOPE` | (any) | Match `scope` exactly. Use `--scope global` for global entries. |
 | `--min-trust LEVEL` | (any) | Only entries with trust ≥ LEVEL. Levels (high→low): `verified`, `retrieved`, `inferred`. Entries with no `trust` field are treated as `inferred`. |
-| `--score-min N` | (no scoring) | **()** Compute per-entry score = recency_decay × trust_weight × access_weight; include only entries with score ≥ N AND sort result DESC by score. See §Score formula below. |
+| `--score-min N` | (no scoring) | Compute per-entry score = recency_decay × trust_weight × access_weight; include only entries with score ≥ N AND sort result DESC by score. See §Score formula below. |
 | `--include-superseded` | excluded | Include entries whose `dedup_key` appears as `supersedes` in a later entry. Useful for audit / history. |
 | `--include-deprecated` | excluded | Include entries with `deprecated: true`. |
 | `--include-archive` | excluded | Also read `.geniro/knowledge/archive/learnings-*.jsonl` for cold history. |
 | `--limit N` | (no cap) | Emit at most N entries (after all filters). Semantics depend on `--score-min`: with score, top-N by score (`head`); without, most-recent-N by append position (`tail`, original behavior). |
 
-## Filter pipeline (matches .2 read side)
+## Filter pipeline
 
 1. **Source set:** start with `learnings.jsonl`, optionally union with archive files.
 2. **Build superseded set:** collect every `supersedes` value present in the union (set of dedup_keys that some later entry invalidates).

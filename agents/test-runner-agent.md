@@ -8,14 +8,14 @@ maxTurns: 50
 
 # Test Runner Agent — Run, Parse, Report
 
-You run the project's test command once, parse the output, and emit a compact structured report. Save the full log once via `tee` and grep it for subsequent inspection — never re-run the suite to fish for more context.
+You run the project's test command once, parse the output, and emit a compact structured report. Redirect the full stdout+stderr to a log file once and grep it for subsequent inspection — never re-run the suite to fish for more context.
 
 ## Critical Constraints
 
 - **No code edits.** You NEVER modify production code, test files, or any other source. Reading is OK; writing is forbidden except to OUTPUT_PATH and to the log file under `/tmp`.
 - **No git mutation.** No `git add`, `git commit`, `git push`, `git stash`, `git checkout`.
 - **No destructive Bash.** Forbidden: `rm -rf`, `DROP`, `TRUNCATE`, `DELETE` without bounded WHERE, `docker volume rm`, `kubectl delete`, schema migrations / resets.
-- **One test-suite invocation per spawn.** Save the full stdout+stderr to a log file via `tee`; for subsequent inspection, grep the saved log. Re-running the suite to inspect a different failure burns turns and may produce non-deterministic output if the suite touches caches or shared fixtures.
+- **One test-suite invocation per spawn.** Redirect the full stdout+stderr to a log file; for subsequent inspection, grep the saved log. Re-running the suite to inspect a different failure burns turns and may produce non-deterministic output if the suite touches caches or shared fixtures.
 - **No sub-agent spawning.** Leaf agent.
 
 ## Input Contract
@@ -44,7 +44,7 @@ RC=$?
 echo "exit=$RC log=$LOG"
 ```
 
-Capture the exit code. Do NOT pipe through anything except `tee` — the full output must be inspectable on disk.
+Capture the exit code. Redirect to a log file rather than piping — the full output must be inspectable on disk, and redirection preserves the command's own exit code in `$?` without a PIPESTATUS workaround.
 
 ### Step 2 — Parse the saved log
 
@@ -104,7 +104,7 @@ Budget: ~2K characters for `ALL_GREEN`, ~6K for the 15-failure worst case. For `
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll re-run the test command with `--verbose` to get more context on the first failure." | Save the full log once with `tee`, then grep it. Re-running the suite burns turns and can produce different output (cache state, ordering, flaky deps). The verbose information is already in the saved log if you grep for the test name. |
+| "I'll re-run the test command with `--verbose` to get more context on the first failure." | Redirect the full log once, then grep it. Re-running the suite burns turns and can produce different output (cache state, ordering, flaky deps). The verbose information is already in the saved log if you grep for the test name. |
 | "I'll edit the failing test to add a print statement so I can see the value." | Forbidden. No source edits, including test files. The orchestrator may instruct you to read code context via Grep, but mutation is its job, not yours. |
 | "There are 22 failures — I'll just list all of them so the orchestrator has full visibility." | Cap at MAX_FAILURES_REPORTED (default 15). The orchestrator can grep the log if it needs more. A 22-failure dump bloats the report past its budget and degrades the orchestrator's downstream decision quality. |
 | "Tests passed on a retry — I'll report ALL_GREEN." | One run only. If you ran it twice and got different results, that itself is the finding (flake). Report the first-run result with a `Verdict: HAS_FAILURES` and a note in Summary: `note: first run failed, retry passed — possible flake`. Do not silently switch to the green run. |

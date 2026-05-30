@@ -113,7 +113,7 @@ Summary of what Phase 1 does:
 1. **Step 0 — Workspace setup** — passive context detection (IN_WORKTREE, REVIEW_HANDOFF, DEBUG_HANDOFF, IMPLEMENT_TASK_STATE, BRANCH_MATCHES_TASK_SLUG, PROTECTED_BRANCH, TARGET_PR_NUMBER, IN_TARGET_WORKTREE) followed by a decision tree with auto-continue branches for in-worktree continuing-work signals. Workspace AUQ (single question — workspace decision) fires only when ambiguous. Inline modifier overrides (`worktree` / `no-worktree` / `current-branch` / `new-branch`) win deterministically. Approvals persist as `review_workspace_setup` to survive compaction and Round 2+ re-runs. /review never mutates workflow tracker status — that is `/geniro:plan` and `/geniro:implement` territory; /review reads tracker context only (see item 5). Fires BEFORE all subsequent items so they operate on the correct working tree. Full contract: `${CLAUDE_SKILL_DIR}/phase-1-triage-reference.md` §0.
 2. **Input mode detect** — OUTGOING / INCOMING / pr-ref routing per `$ARGUMENTS`. Anchored NL signals ("process review on #N") route to INCOMING; PR ref + K>0 unresolved threads fires Mode AUQ.
 3. **Scope resolution** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. NEVER invoke `gh pr list` to invent a target.
-4. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`.
+4. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`. From the thread-state fetch (`reviewThreads[]` per `${CLAUDE_SKILL_DIR}/phase-1-triage-reference.md` §1), persist every `isResolved == true` thread's `path:line` to state.md frontmatter `resolved-threads-snapshot:` so the Phase 6 Post drill's §7.1 input-side dedup can exclude findings overlapping already-resolved threads. Leave `resolved-threads-snapshot: null` when no PR ref or the fetch fails (§7.1 treats absence as "no dedup").
 5. **Workflow integrations** — workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A); glob both `./.geniro/workflow/*.md` (cwd-local — uncommitted local edits win) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback). Read them, apply tracker-ID regex against `$ARGUMENTS` + `pr.title` + `pr.body`, AND when a spec.md is resolvable (via `--plan <path>`, `geniro-plan:` PR-body line, walk-up `.geniro/planning/*/spec.md`, or canonical project paths) parse its frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read entries). Merge sources by `(kind, issue_id)` — `$ARGUMENTS` reference wins on conflict (user just typed it, fresher signal); PR body next; spec.md frontmatter as fallback. On Linear match with MCP available: fetch issue (+ parent epic + sibling sub-tasks). Build `LINEAR CONTEXT:` block. Persist `linear-task-ref:` + `linear-parent-ref:` to state.md frontmatter, derived from the deduplicated merged list. Read-only — /review never mutates tracker state via MCP. Fail-open if MCP unavailable.
 6. **Peer-PR scout** (PR-ref only) — top-10 sibling PRs scored by file overlap + Linear-relatedness bonus (parent-epic / sibling-sub-task matches); inlined into reviewer prompts (architecture + design + bugs + conventions + optimizations + spec-compliance + regressions).
 7. **Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope = `review` + `global` + `code-style` — pipeline tier, 3 files).
@@ -130,7 +130,7 @@ Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr di
 
 ---
 
-## Phase 1.5 — Mechanical Pre-pass (NEW — closure)
+## Phase 1.5 — Mechanical Pre-pass
 
 State.md `phase: mechanical-prepass`.
 
@@ -155,7 +155,7 @@ Regex pass against changed-file content:
 - `-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----` (PEM markers)
 - `ghp_[a-zA-Z0-9]{36}` (GitHub personal tokens)
 
-**Risk-tier:high strict mode (D6 NEW knob)** adds:
+**Risk-tier:high strict mode** adds:
 - `(?:AWS|GCP|AZURE)_(?:SECRET|ACCESS)_KEY=`
 - GCP service-account JSON markers (`"type": "service_account"`)
 - Azure SAS tokens (`?si=.+&sig=`)
@@ -420,7 +420,7 @@ Summary:
 
 ### 4.4 `--simplify` flag interaction
 
-`--simplify` does NOT change Phase 4 thresholds or validator behavior. P1/P2/P3 simplify severities mapped to CRITICAL/HIGH/MEDIUM tag pool in Phase 3 — they pass through Phase 4 like native CRITICAL/HIGH/MEDIUM findings.
+`--simplify` does NOT change Phase 4 thresholds or validator behavior. Simplify severities map P1→HIGH, P2→MEDIUM, P3→informational (per `${CLAUDE_SKILL_DIR}/simplify-criteria.md`): P1/P2 pass through Phase 4 like native HIGH/MEDIUM findings; P3 is filtered out of Phase 4 unless `--tdd` or risk-tier:high.
 
 ---
 
@@ -585,7 +585,6 @@ completed-at: <ISO-8601>
 pr-ref: <owner>/<repo>#<num>
 finding-count: <N>
 comment-ids: [<id1>, <id2>,...]
-review-state: PENDING
 ```
 
 PR post fails fail-closed — on non-zero `gh api` exit (HTTP error, missing scopes, secondary rate limit), write `## Errors` entry + abort Phase 5; never silently downgrade to top-level `gh pr comment` or retry with `event: COMMENT`.
@@ -669,7 +668,7 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | "The custom reviewer in `.geniro/instructions/review-extra/<slug>.md` is narrow scope — skip its discovery to save turns." | Discovery is a mechanical Glob + frontmatter parse — cheap. Custom reviewers exist because the user explicitly authored them; silently skipping defeats the entire `instructions/review-extra/` feature. Per Phase 1.5 §1.5.4, discovery runs in the mechanical pre-pass so Phase 2 has zero cognitive load for it. |
 | "Just keep guidelines — duplicate finding is a feature, not a bug." | User-facing "told twice" is concrete UX friction. Two reviewers reporting the same thing wastes user attention. The specialized dim (conventions) wins on cost AND quality; let the dedicated reviewer own the finding category. |
 | "I'll tag this LOW finding as MEDIUM so it surfaces past the threshold filter." | The Phase 4.1 multi-signal gate (§4.1) provides four independent signals for a correct finding to surface (convergence_count ≥2, Evidence-Block + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback) — the confidence threshold is one of four, not a load-bearing primary. Inflating severity to game the gate corrupts the severity taxonomy for downstream consumers (verifier, stratifier, /implement consumer) AND surfaces low-impact findings on the PR. Trust the multi-signal gate; let LOW be LOW. |
-| "Auto-drop MEDIUM findings to reduce user friction." | MEDIUM routes through the always-WAIT MEDIUM-gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Auto-dropping makes the skill less trustworthy — users notice when their MEDIUMs vanish silently. Never auto-drop. |
+| "Auto-drop MEDIUM findings to reduce user friction." | /review is a Reporter with no fix loop, so no MEDIUM-gate AUQ ever fires here. MEDIUMs run through the §4.1 multi-signal filter: those clearing a signal are admitted to the findings list; sub-threshold MEDIUMs are written to `## Deferred — sub-threshold` for user awareness (never posted to PR, never silently dropped). Auto-dropping makes the skill less trustworthy — users notice when their MEDIUMs vanish silently. |
 | "I'll spawn the adversarial-tester-agent and ask the user to confirm later." | Inline-after-action gates rationalize into "this counts as approval". The Phase 4.3 invariant is `AskUserQuestion` BEFORE spawning, not after. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
 | "The findings look obviously postable — I'll just batch-post to the PR and tell the user after." | Posting to a PR is an external write to a public surface. Phase 6 Action gate's "Post" selection IS the consent — without it, ambiguity that should have been resolved gets pushed onto the PR author or downstream reviewer. |
 | "TDD mode is on, user clearly wants tests authored — skip the Phase 4.3 AUQ." | TDD mode flips the *Recommended* highlight, not the *gate*. The Phase 4.3 invariant is non-negotiable in every mode. Empty-answer fallback re-asks rather than auto-defaults. |

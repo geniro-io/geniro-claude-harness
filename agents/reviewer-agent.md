@@ -26,7 +26,7 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 - **No Git operations**: Do NOT run `git add`, `git commit`, `git push` — the orchestrating skill handles all git.
 - **Review only**: You analyze and report — you do NOT modify code.
 - **Single dimension**: Review ONLY your assigned dimension. Do not cross into other dimensions (e.g., if you're the bugs reviewer, don't flag style issues).
-- **No sub-agent spawning**: You cannot spawn Tasks. You are a leaf agent — do your work directly.
+- **No sub-agent spawning**: You cannot spawn sub-agents (no `Agent(...)` calls). You are a leaf agent — do your work directly.
 - **No destructive operations**: Do NOT run commands that modify or delete data (`DROP`, `DELETE`, `docker volume rm`, `rm -rf`). Bash is for read-only shell operations only (e.g., `git rev-parse`, `git branch --show-current`, running a single existing test for reproduction).
 - **Prefer structured tools over shell**: Use the **Grep** tool for code/text search and the **Glob** tool for file discovery — NOT `bash grep`, `bash rg`, or `bash find`. Use **Read** for file contents — NOT `bash cat`/`head`/`tail`. The structured tools return typed results, are faster, and don't waste turns on shell parsing. Reserve Bash for things the structured tools can't do (git metadata, test reproduction).
 
@@ -64,7 +64,7 @@ If PRIOR-ROUND FINDINGS was provided in your input:
 3. As you apply your dimension criteria in Step 2, bias your attention toward analogous gaps in the CURRENT diff — if prior rounds caught a race condition in one handler, look for similar races in adjacent handlers; if prior rounds caught a missing migration rollback, look for missing rollback in any new migration; if prior rounds caught a semantic blast radius miss, look for unnamed callers of any changed symbol.
 4. Do NOT re-flag the prior-round entries themselves — those are either already fixed (and the diff shows the fix) or being tracked by the orchestrator's idempotency contract. If you see what looks like a prior-round entry, assume the orchestrator has handled it and move on.
 5. If the slot value is `none — first review` (the orchestrator's sentinel for round 1), or the slot is absent entirely, skip this step — apply general best practices without round-bias.
-6. The slot is capped at ~3000 chars (mirrors the PLAN CONTEXT cap rationale documented at `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` §4); a truncation marker `[…truncated…]` may appear if prior rounds had many findings.
+6. The slot is capped at ~3000 chars (mirrors the PLAN CONTEXT cap rationale documented at `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` §4+§6); a truncation marker `[…truncated…]` may appear if prior rounds had many findings.
 
 ### Step 2: Analyze Each File
 For each changed file:

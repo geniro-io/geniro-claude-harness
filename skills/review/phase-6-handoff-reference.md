@@ -4,7 +4,7 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Hand-off). Extracted
 
 State.md `phase: action-gate` during this phase.
 
-**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per SKILL.md §State file schema). Consumers accept BOTH `m6-v1` (legacy — verification fields absent) AND `m6-v2` (rich — verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM). Within m6-v2, a producer running the pre-hoist Phase 4.2 (HIGH-only verification) emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM as legacy-pre-hoist, applying the same "treat as confirmed + one-line warning" fallback as `m6-v1` absence on HIGH.
+**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per SKILL.md §5.1 Handoff file write). Consumers accept BOTH `m6-v1` (legacy — verification fields absent) AND `m6-v2` (rich — verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM). Within m6-v2, a producer running the pre-hoist Phase 4.2 (HIGH-only verification) emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM as legacy-pre-hoist, applying the same "treat as confirmed + one-line warning" fallback as `m6-v1` absence on HIGH.
 
 ## Contents
 
@@ -236,7 +236,7 @@ Persist user pick to `approvals[]` with category `round_n_escalation`.
 Fires when `## Authored Tests` section is non-empty. Firing order conditional per gate chain.
 
 - **Header:** "Failing tests"
-- **Question:** "How should the N failing tests authored by Phase 4.3 be handled? They are AI-authored — review before merging. If you just chose to post findings as a Draft PR review, the comment bodies reference these test files by path — pushing them to the PR's branch is what makes those references resolve for PR reviewers."
+- **Question:** "How should the N failing tests authored during the test-confirmation step be handled? They are AI-authored — review before merging. If you just chose to post findings as a Draft PR review, the comment bodies reference these test files by path — pushing them to the PR's branch is what makes those references resolve for PR reviewers."
 
 **Options:**
 - "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add.`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. **Recommended in Standard mode and in TDD mode without a PR ref** — except when user selected "Post" in Action gate, in which case commit+push is Recommended.

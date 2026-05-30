@@ -12,7 +12,7 @@ argument-hint: "[what to refactor and why]"
 Safe incremental refactoring that validates behavior is preserved at every step. Restructures code for better organization, reduces tech debt, and improves patterns without changing observable behavior. 3 phases mirroring `/geniro:implement`.
 
 **Architecture spec:** *(internal)*. Detailed contracts:
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big) adopted per Q2
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — smell-detection sub-step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — PRODUCT-DECISION escalation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — ADR-path (4th AUQ option when ADR-eligible)
 
 **Section-reference convention:** references in this SKILL.md point to local sub-sections (Phase 1, Phase 2, Phase 3 respectively).
@@ -87,7 +87,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 If any delegated agent fails (timeout, error, empty/garbage result): retry once with the same prompt. If the retry also fails:
 - **Smell detection and smell evidence** run orchestrator-inline and cannot fail separately — failures bubble up as normal orchestrator errors (Read / Grep / Glob unavailable would halt the skill).
-- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue per (≥30% blocked → AUQ). Catastrophic Edit failures (filesystem error) → revert all changes (`git checkout --.` with user confirmation per) and escalate to user with failure context.
+- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue (the ≥30% blocked → AUQ gate fires in Phase 2 §2.3). Catastrophic Edit failures (filesystem error) → revert all changes (`git checkout -- .` with user confirmation) and escalate to user with failure context.
 - **Phase 3 reviewer-agent:** note the failure in the completion summary and proceed (fail-open); warn the user that independent review did not complete.
 
 ---
@@ -100,7 +100,7 @@ Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standa
 
 ## Universal Rule: All Choice Questions Use AskUserQuestion
 
-Every user-facing choice in this skill MUST go through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Universal AskUserQuestion Rule. The enumerated gates are examples, not an exhaustive list.
+Every user-facing choice in this skill MUST go through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The enumerated gates are examples, not an exhaustive list.
 
 ---
 
@@ -114,7 +114,10 @@ Exits to Phase 2 only when: (a) baseline validation green, (b) tier classified, 
 
 On Phase 1 entry, in order:
 
-1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per To find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict.
+1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.
+2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.
+3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` to find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.
+4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict.
 Echo lines from the loader are mandatory per its §Echo contract.
 5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). Read-only — /refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
@@ -130,7 +133,7 @@ Echo lines from the loader are mandatory per its §Echo contract.
 - **Green:** record passing-state fingerprint (test count) in state.md `## Baseline` body section; proceed.
 6. **Test-First Gate (behavior-adjacent coverage check).** Before any refactor edit, check whether each function/symbol in scope has at least one test exercising it. If a gap is detected, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-first-gate.md` — author RED before refactor edit. If every scope-symbol already has coverage, skip silently.
 
-### 1.3 Tier classification (canonical effort-scaling — Q2 closure)
+### 1.3 Tier classification (canonical effort-scaling)
 
 **Adopt canonical effort-scaling.md rubric**. /refactor no longer overrides the canonical. Apply effort-scaling Step 1 (hard signals) → Step 2 (5-dim score) → Step 3 (tier behavior). Refactor-specific hard signals apply orthogonally — they escalate OUT of /refactor entirely.
 
@@ -147,7 +150,7 @@ Echo lines from the loader are mandatory per its §Echo contract.
 | Tier | Refactor behavior |
 |---|---|
 | **Trivial** | 1-2 files, mechanical (rename, single extract). Skip smell-detection. Skip relevance-filter. Skip independent reviewer + custom reviewers. Orchestrator authors the plan directly from $ARGUMENTS + scope-files Read; goes straight to Phase 2 execution. |
-| **Small** | Full smell-detection in BUT skip relevance-filter (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
+| **Small** | Full smell-detection in Phase 1 BUT skip smell evidence (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
 | **Medium** | Full pipeline as specified — orchestrator-inline smell-detect + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
 | **Big** | Recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user wants to proceed without planning, require explicit confirmation via `AskUserQuestion` header "Scope": "Run /geniro:plan first" / "Proceed without a plan (risky)". On "Proceed without a plan", Big runs the Medium pipeline. The only difference is user has accepted the added risk of proceeding without architectural review. |
 
@@ -172,7 +175,8 @@ The orchestrator runs the 6 smell detection categories + Deepening Opportunities
 
 **Per-smell procedure:**
 
-1. Apply the 6 smell categories (duplication / long methods / god classes / dead code / tight coupling / type+import issues) via Read + Grep against the FILES IN SCOPE from2. Apply the Deepening Opportunities lens — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first for vocabulary grounding, then scan for wide-interface shallow modules / pass-through wrappers / repeated cross-call orchestration / high-leverage shallow code.
+1. Apply the 6 smell categories (duplication / long methods / god classes / dead code / tight coupling / type+import issues) via Read + Grep against the FILES IN SCOPE from Phase 1 §1.2.
+2. Apply the Deepening Opportunities lens — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first for vocabulary grounding, then scan for wide-interface shallow modules / pass-through wrappers / repeated cross-call orchestration / high-leverage shallow code.
 3. For every detected smell, run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (Grep designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format.
 4. Count consumers per smell via Grep (`Grep(pattern="SymbolName", output_mode="count")`). Adjust glob filter based on language (`*.ts` / `*.py` / etc).
 5. Public-surface guard: flag smells that change public API signature, module export, or shared type — these are HIGH-risk regardless of consumer count.
@@ -232,7 +236,7 @@ Orchestrator builds the plan from-inline output (Medium+) or directly from scope
 
 **Approval gate (Always-WAIT, ):** If any steps are **HIGH risk**, present them to user via `AskUserQuestion` header "Approve HIGH-risk steps" and wait for confirmation. Each step rendered with: file path / proposed transformation / consumer count / risk classification / rationale.
 
-**Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entries with `category: refactor_high_step` matching the current step. Use prior `picked` if found. On user pick, append entries to `approvals[]` via `atomic_state_write`. Block 5d renders on resume.
+**Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entries with `category: refactor_high_step` matching the current step. Use prior `picked` if found. On user pick, append entries to `approvals[]` via `atomic_state_write`. The persisted-approvals render surfaces these on resume.
 
 If all steps are LOW/MEDIUM: present the plan summary in chat and proceed (no AUQ).
 
@@ -256,7 +260,7 @@ The orchestrator executes the approved plan inline, one step at a time — no su
 
 **Pre-loop setup:**
 
-- Read the approved plan from state.md `## Plan steps` (skipping any HIGH steps the user rejected in).
+- Read the approved plan from state.md `## Plan steps` (skipping any HIGH steps the user rejected in the Phase 1 §1.6 approval gate).
 - Read code-style content as echoed by / loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
 - Resolve test commands: `<test_cmd_affected>` from CLAUDE.md's Essential Commands (per-step gate; falls back to `<test_cmd>` if undefined); `<test_cmd>` for final regression.
 - Anchor: verify `pwd && git branch --show-current` once at entry; abort if either differs from baseline.
@@ -285,23 +289,23 @@ For each step N in `## Plan steps` where `status: pending`:
 
 State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
 
-Model tier note: the orchestrator's own model (Opus 4.7 typically) runs the loop. HIGH-risk plan steps don't need separate model tiering — orchestrator is already on the highest tier; per-step reasoning runs at orchestrator-grade quality throughout.
+Model tier note: the orchestrator's session tier runs the loop. HIGH-risk plan steps don't need separate model tiering — orchestrator is already on the highest tier; per-step reasoning runs at orchestrator-grade quality throughout.
 
 ### 2.3 Session-level cap + escalation AUQ
 
 After execution returns, count BLOCKED-to-executed ratio (post-user-rejection denominator: approved plan steps minus user-rejected HIGH-risk steps). **If ≥30% BLOCKED:** stop and escalate via `AskUserQuestion` header "Stuck":
 
 - **Keep what worked and escalate the rest** — proceed to Phase 3 with blocked-steps list noted; user runs `/geniro:implement` separately for blocked items. state.md → `phase: verify` with `## Accepted Blocks` body section.
-- **Revert all changes** — `git checkout --.` (with user confirmation per). state.md → `phase: reverted` (terminal).
+- **Revert all changes** — `git checkout -- .` (with user confirmation). state.md → `phase: reverted` (terminal).
 - **Force-continue (not recommended)** — proceed to Phase 3 with blocked work treated as accepted. state.md → `phase: verify`.
 
-Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `phase: apply-escalated` with timestamp + blocked-ratio + blocked-steps list before AUQ; transitions per user pick. Block 5c renders open question on resume.
+Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `phase: apply-escalated` with timestamp + blocked-ratio + blocked-steps list before AUQ; transitions per user pick. The open-question render surfaces this on resume.
 
 ### 2.4 Final regression run + Evidence Block
 
 After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change invariant held.
 
-If regression failed: fire AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git checkout --.` after explicit user confirmation. state.md → `phase: reverted` (terminal).
+If regression failed: fire AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git checkout -- .` after explicit user confirmation. state.md → `phase: reverted` (terminal).
 
 If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
@@ -338,7 +342,7 @@ A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor
 Surface every PRODUCT-DECISION finding via `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`). 4 fixed options (ADR-eligibility determines whether 4th option included):
 
 1. **Run /geniro:implement on this finding (Recommended)** — exit /refactor; user runs /implement separately to apply a behavioral fix. state.md → `phase: verify-escalated` then on pick → exit (out-of-skill).
-2. **Revert this refactor and start over** — `git checkout --.` with user confirmation. state.md → `reverted` (terminal).
+2. **Revert this refactor and start over** — `git checkout -- .` with user confirmation. state.md → `reverted` (terminal).
 3. **Document and ship as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
 4. **(ADR-eligible only)** **Document as ADR** — spawn a focused agent (`model: sonnet`) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
 
@@ -395,7 +399,8 @@ Output the markdown block directly in chat. No persistence to a handoff file —
 At Phase 3 exit:
 
 - **`emit-learning`** — called by /refactor for two emit types per canonical contract:
-- **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified` per- **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
+- **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified`.
+- **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
 - **NOT emitted :** `diagnosis` (/debug owns); `convention` (/implement self-review owns); `decision` (/plan owns).
 
 **L4 promotion suggestion:** when a `discovery` or `pitfall` entry is emitted, surface a one-line suggestion in Phase 3 final report:
@@ -446,7 +451,7 @@ Cleanup is best-effort — failed commands silently OK.
 
 ## State file schema
 
-T1 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}; body sections (Scope / Baseline / Smells Detected / Plan / Apply Summary / Accepted Blocks / Review Findings / Persisted approvals / Tool log / Errors / Open Questions / Termination reason). No T2 handoff — diff IS the deliverable. Full frontmatter + body schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
+T1 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}; body sections (Scope / Baseline / Smells Detected / Plan / Plan steps / Apply Summary / Accepted Blocks / Review Findings / Persisted approvals / Tool log / Errors / Open Questions / Termination reason). `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
 
 ---
 
@@ -465,7 +470,7 @@ T1 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categorie
 **Phase 3 (Verify):**
 - Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs).
 - Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only), focused ADR-drafting agent (if PRODUCT-DECISION ADR path picked).
-- Allowed: `git checkout --.` (orchestration-level revert per / /) — exception to git-write constraint.
+- Allowed: `git checkout -- .` (orchestration-level revert) — exception to git-write constraint.
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.
 
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
@@ -486,13 +491,13 @@ T1 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categorie
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (emit types: `discovery` with `ext.{area, insight}` OR `pitfall` with `ext.{trap, mitigation}`) |
 
-`update-semantic` writes to `_CODEBASE_MAP.md` for move/rename refactors (bounded auto-incremental ). Not applicable when refactor adds modules (would be a behavioral change → escalate per).
+`update-semantic` writes to `_CODEBASE_MAP.md` for move/rename refactors (bounded auto-incremental write). Not applicable when refactor adds modules (would be a behavioral change → escalate to `/geniro:implement`).
 
 ---
 
 ## Git Constraint
 
-Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: `git checkout --.` is permitted in / / for reverting failed changes — this is an orchestration-level revert, not a version-control operation.
+Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: `git checkout -- .` is permitted in Phase 2 / Phase 3 for reverting failed changes — this is an orchestration-level revert, not a version-control operation.
 
 ---
 
@@ -512,7 +517,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 | "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Class-A hard caps abort legitimate complex refactors mid-stride. The skill is quality-first — no Class-A caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
 | "Auto-promote L2 discoveries to L4 rules when refactor completes." | Phase 3 §3.5 surfaces a suggestion line; do NOT auto-promote. User remains source-of-truth for L4 curation. Auto-promotion creates noise + drift. |
-| "Bypass `git guardrail` hooks if a needed `git stash` / `git checkout --.` step blocks." | The hooks fail-closed for a reason. `git checkout --.` (revert path) is explicitly permitted per § ACI per-phase. Other git mutations stay blocked. If a specific guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
+| "Bypass `git guardrail` hooks if a needed `git stash` / `git checkout -- .` step blocks." | The hooks fail-closed for a reason. `git checkout -- .` (revert path) is explicitly permitted per § ACI per-phase. Other git mutations stay blocked. If a specific guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
 | "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
 | "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
 

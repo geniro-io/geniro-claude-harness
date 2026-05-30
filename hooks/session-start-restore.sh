@@ -42,6 +42,22 @@ if ! command -v _geniro_repo_root >/dev/null 2>&1; then
 fi
 GENIRO_ROOT="$(_geniro_repo_root)"
 
+# Find the nearest .geniro/safety.json walking up from cwd. Mirrors
+# file-protection.sh / block-dangerous-git.sh so the auto-archive opt-out is
+# honored regardless of cwd depth (a single cwd-relative check misses the
+# opt-out from any subdirectory or linked worktree).
+find_safety_json() {
+  local dir="$PWD"
+  while [ "$dir" != "/" ]; do
+    if [ -f "$dir/.geniro/safety.json" ]; then
+      echo "$dir/.geniro/safety.json"
+      return 0
+    fi
+    dir=$(dirname "$dir")
+  done
+  return 1
+}
+
 SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // "compact"' 2>/dev/null || echo "compact")
 
 # `clear` source: explicit user reset; no auto-reload.
@@ -401,10 +417,11 @@ _body_section_to_jsonl() {
 }
 
 # Render `## Errors` body section into Block 5b bullets.
-# Filter: entries with `resolved: "true"` are excluded; default (missing field) renders.
+# Filter: resolved entries are excluded — legacy `resolved: "true"` OR canonical
+# `status: resolved|wontfix`; default (neither set) renders.
 _render_errors_block() {
   jq -r '
-    if .resolved == "true" then empty
+    if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") then empty
     else
       "  - \(.ts // "?") · \(.tool // "?") `\(.detail // "")` failed: \(.error // "(no error message)")\n      attempted_fix: \(.attempted_fix // "?") — did NOT resolve"
     end
@@ -414,7 +431,7 @@ _render_errors_block() {
 # Render `## Open Questions` body section into Block 5c bullets.
 _render_open_questions_block() {
   jq -r '
-    if .resolved == "true" then empty
+    if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") then empty
     else "  - \"\(.question // "?")\""
     end
   ' 2>/dev/null
@@ -618,8 +635,9 @@ _threshold="${GENIRO_AUTO_ARCHIVE_THRESHOLD:-5000}"
 if [ -f "$_learnings_log" ]; then
   # Opt-out check (default ON; user sets false to disable).
   _auto_enabled="true"
-  if [ -f "./.geniro/safety.json" ]; then
-    _opt=$(jq -r '.memory.auto_archive_stale // true' ./.geniro/safety.json 2>/dev/null)
+  _safety_file=$(find_safety_json 2>/dev/null || true)
+  if [ -n "$_safety_file" ] && [ -f "$_safety_file" ]; then
+    _opt=$(jq -r '.memory.auto_archive_stale // true' "$_safety_file" 2>/dev/null)
     if [ "$_opt" = "false" ]; then
       _auto_enabled="false"
     fi

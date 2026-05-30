@@ -203,7 +203,7 @@ If `gh` is unavailable or the PR cannot be fetched, report the error and stop �
 
 ## 3.5. Workflow integrations (issue-tracker fetch)
 
-Mirrors `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md:22` plumbing pattern — read `.geniro/workflow/*.md` integrations, apply argument-detection regex, attempt MCP fetch when backend available. Read-only from /review's perspective; status/comment updates remain in /implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
+Mirrors the Workflow-integration plumbing pattern in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` (§"Phase 1: $ARGUMENTS semantic-parse table") — read `.geniro/workflow/*.md` integrations, apply argument-detection regex, attempt MCP fetch when backend available. Read-only from /review's perspective; status/comment updates remain in /implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
 
 Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not configured by /setup). Other inputs (files / diff range / branch / PR ref) ALL eligible — tracker IDs surface in `$ARGUMENTS` independently of PR-ref-driven flow.
 
@@ -333,7 +333,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 4. Persist to state.md frontmatter.
 
 **Downstream knobs (4 — one NEW ):**
-- Phase 4a severity threshold: standard ≥80; high ≥70.
+- Phase 4.1 severity threshold: standard ≥80; high ≥70.
 - Phase 4.2 verifier coverage: ALL HIGH-severity survivors verified (no tier-scaling — same coverage at standard and high tier).
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - **NEW:** Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.

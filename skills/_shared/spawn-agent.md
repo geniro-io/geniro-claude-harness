@@ -9,7 +9,7 @@ The plugin defines several custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.m
 | Runtime | Agents registered? | Resolvable as `<agent>`? | Resolvable as `geniro-claude-plugin:<agent>`? |
 |---|---|---|---|
 | Interactive Claude Code with plugin marketplace-installed | Yes, under plugin namespace | **No** | **Yes** |
-| `/geniro:vendor`-ed project (agents copied to `.claude/agents/geniro-*.md`, YAML `name:` unchanged) | Yes, under bare YAML name | **Yes** | No |
+| Vendored / harness install (agents copied to `.claude/agents/geniro-*.md`, YAML `name:` unchanged) | Yes, under bare YAML name | **Yes** | No |
 | Claude Code SDK / harness / cloud runners | **No** ([SDK init reports `plugins`+`slash_commands`, not agents](https://code.claude.com/docs/en/agent-sdk/plugins)) | No — hard error | No — hard error |
 
 When the agent is not registered under the form you try, the call fails with: `Agent type 'X' not found. Available agents: …`. There is **no silent fallback**. Skills that don't handle this break in one or more runtimes.
@@ -24,7 +24,7 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
 1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro-claude-plugin:<agent>", description="...", prompt="...")`. **OMIT the `model=` argument** — plugin agents declare `model: inherit` in frontmatter; omitting the runtime arg lets the Agent tool resolve the orchestrator's tier. Pass `model=` only if the caller has an explicit non-inherit override (rare — user-authored custom reviewers with declared tier; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). This step is the happy path on interactive Claude Code with the plugin marketplace-installed.
 
-2. **If — and only if — the call returns `Agent type 'geniro-claude-plugin:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)` (same `model=` policy — OMIT by default). This is the form registered in `/geniro:vendor`-ed projects (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
+2. **If — and only if — the call returns `Agent type 'geniro-claude-plugin:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)` (same `model=` policy — OMIT by default). This is the form registered in vendored / harness installs (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
 
 3. **If the bare-name attempt also returns "not found"**, re-attempt as:
 
@@ -43,9 +43,9 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
 ## Why prefixed-first
 
-Plugin namespacing (`geniro-claude-plugin:reviewer-agent`) is the form Claude Code exposes when the plugin is marketplace-installed. The "Available agents" error list shows agents under their prefixed names in this runtime — evidence that this is the registered form, not just a UI typeahead artifact. Empirical confirmation: spawn sites that attempted bare names first hit a wasted "not found" error before succeeding under the prefixed form (ManifestOS, 2026-05-13).
+Plugin namespacing (`geniro-claude-plugin:reviewer-agent`) is the form Claude Code exposes when the plugin is marketplace-installed. The "Available agents" error list shows agents under their prefixed names in this runtime — evidence that this is the registered form, not just a UI typeahead artifact. Empirical confirmation: spawn sites that attempted bare names first hit a wasted "not found" error before succeeding under the prefixed form.
 
-A previous version of this rule asserted that the prefixed form was UI-only and that bare names were the programmatic happy path. That was wrong in interactive-plugin mode and produced one wasted spawn error per call. GSD's framework uses bare names internally because GSD's agents register under bare names in their target runtime — that does not generalize to this plugin's registration scheme.
+Treating the prefixed form as UI-only and bare names as the programmatic happy path is wrong in interactive-plugin mode and produces one wasted spawn error per call. Other frameworks that register agents under bare names in their target runtime use bare-first internally — that does not generalize to this plugin's registration scheme.
 
 Note: [claude-code issue #19276](https://github.com/anthropics/claude-code/issues/19276) (closed not-planned) is sometimes cited as evidence that prefixed lookup doesn't work for `Task()`. The closure was about a specific lookup-precedence proposal; the prefixed form does in fact resolve in `Agent()` calls today, as the "Available agents" error list directly shows.
 
@@ -69,7 +69,7 @@ CRITERIA: [content of bugs-criteria.md]
 """)
 ```
 
-Step 2 — bare (vendored-project mode, after step 1 returns "not found"):
+Step 2 — bare (vendored / harness mode, after step 1 returns "not found"):
 ```
 Agent(subagent_type="reviewer-agent", prompt="""
 DIMENSION: bugs

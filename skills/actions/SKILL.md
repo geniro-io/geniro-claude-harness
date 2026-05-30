@@ -9,7 +9,7 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 
 # Actions: Custom Workflow-Helper Management
 
-3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`. Stateless. Architecture spec: *(internal)*.
+3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`. Stateless.
 
 ## Sub-commands
 
@@ -48,7 +48,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
 | `execute` (list) | `Read`, `Glob`, `Bash(ls...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
-| `execute` (create) | `Read`, `Write`, `Bash(mkdir -p.geniro/actions/, grep, echo >>.gitignore)`, `AskUserQuestion` | `mcp__github__*`, network egress, `Agent` |
+| `execute` (create) | `Read`, `Write`, `Bash(mkdir -p .geniro/actions/, grep, echo >> .gitignore)`, `AskUserQuestion` | `mcp__github__*`, network egress, `Agent` |
 | `execute` (edit) | `Read`, `Edit`, `Bash(stat, mv)`, `AskUserQuestion` | `mcp__*`, network egress |
 | `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
 | `execute` (run) | **Intersection of /actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
@@ -178,22 +178,22 @@ If `.geniro/actions/<name>.md` already exists, AUQ:
 
 On **Edit in place**: route to Phase 6 (which handles external-editor flow with `edit-in-place` entry mode).
 
-On **Version it**: `mv.geniro/actions/<name>.md.geniro/actions/<name>-v1.md`, then continue to Step 2.
+On **Version it**: `mv .geniro/actions/<name>.md .geniro/actions/<name>-v1.md`, then continue to Step 2.
 
 On **Cancel**: stop.
 
 ### Step 2 — Ensure directory + gitignore
 
 ```bash
-mkdir -p.geniro/actions
+mkdir -p .geniro/actions
 
 # Remove bare `.geniro/` if present — it would block negation patterns below.
-sed -i.bak '/^\.geniro\/$/d'.gitignore 2>/dev/null && rm -f.gitignore.bak
+sed -i.bak '/^\.geniro\/$/d' .gitignore 2>/dev/null && rm -f .gitignore.bak
 
-grep -q "^\.geniro/\*$".gitignore 2>/dev/null || echo ".geniro/*" >>.gitignore
-grep -q "^\!\.geniro/$".gitignore 2>/dev/null || echo "!.geniro/" >>.gitignore
-grep -q "^\!\.geniro/actions/$".gitignore 2>/dev/null || echo "!.geniro/actions/" >>.gitignore
-grep -q "^\!\.geniro/actions/\*\*$".gitignore 2>/dev/null || echo "!.geniro/actions/**" >>.gitignore
+grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
+grep -q "^\!\.geniro/$" .gitignore 2>/dev/null || echo "!.geniro/" >> .gitignore
+grep -q "^\!\.geniro/actions/$" .gitignore 2>/dev/null || echo "!.geniro/actions/" >> .gitignore
+grep -q "^\!\.geniro/actions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/actions/**" >> .gitignore
 ```
 
 This default keeps `.geniro/actions/` committed (team-shareable). Users who want their actions ignored can manually remove the `!.geniro/actions/` lines.
@@ -216,7 +216,7 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 **Q4 — Test cases (optional):** "Should we include a brief 'how to test it' note?"
 - `Yes — add 1–2 test cases`, `Skip`
 
-**Q5 — Risk class (NEW):** "What is the risk class for this action?"
+**Q5 — Risk class:** "What is the risk class for this action?"
 - `low` — Pure read operations: read files, list dirs, aggregate data, display info. No network, no file mutation outside cwd. Runs with no AUQ confirmation.
 - `medium` — Local file mutation, git commit (no push), tests with side effects (DB seed, integration test). External reads (HTTP GET). Runs with 1-click confirm.
 - `high` — External sends (Slack/PR/email), git push, npm publish, docker push, cloud mutations, file deletion outside `.geniro/`. Runs with explicit Cancel-default confirm.
@@ -258,22 +258,22 @@ Use the Write tool to write `.geniro/actions/<name>.md`. Frontmatter MUST includ
 
 After Write, run these checks (orchestrator-side, no subagent):
 
-| # | Check | Severity | Source |
-|---|---|---|---|
-| 1 | YAML frontmatter parses | CRITICAL | preserved |
-| 2 | `name:` matches filename slug exactly | CRITICAL | preserved |
-| 3 | `description:` starts with "Use when" (case-insensitive) | HIGH | preserved |
-| 4 | `description:` ≤250 chars | HIGH | preserved |
-| 5 | No `{{placeholder}}` in body | HIGH | preserved |
-| 6 | File <500 lines | MEDIUM | preserved |
-| 7 | `## Steps` section present with ≥1 numbered item | HIGH | preserved |
-| 8 | **`risk_class:` field present** | **CRITICAL** | **NEW** |
-| 9 | **`risk_class:` value in `{low, medium, high}`** | **CRITICAL** | **NEW** |
-| 10 | **If `external-send: true`, `risk_class` MUST be `medium` or `high`** | **HIGH** | **NEW** |
+| # | Check | Severity |
+|---|---|---|
+| 1 | YAML frontmatter parses | CRITICAL |
+| 2 | `name:` matches filename slug exactly | CRITICAL |
+| 3 | `description:` starts with "Use when" (case-insensitive) | HIGH |
+| 4 | `description:` ≤250 chars | HIGH |
+| 5 | No `{{placeholder}}` in body | HIGH |
+| 6 | File <500 lines | MEDIUM |
+| 7 | `## Steps` section present with ≥1 numbered item | HIGH |
+| 8 | **`risk_class:` field present** | **CRITICAL** |
+| 9 | **`risk_class:` value in `{low, medium, high}`** | **CRITICAL** |
+| 10 | **If `external-send: true`, `risk_class` MUST be `medium` or `high`** | **HIGH** |
 
 On fail: surface the specific failure (check, line, expected). The on-failure rollback depends on **entry mode**:
 
-- **Entry mode `create`** (Step 5 just wrote the file from a Step 4 draft): `rm -f.geniro/actions/<name>.md`. Re-run `/geniro:actions create <name>`.
+- **Entry mode `create`** (Step 5 just wrote the file from a Step 4 draft): `rm -f .geniro/actions/<name>.md`. Re-run `/geniro:actions create <name>`.
 - **Entry mode `edit-in-place`** (Phase 6 OR Step 1 "Edit in place"): leave the file as the user left it. Re-run `/geniro:actions edit <name>`.
 
 Do NOT auto-fix the written file in either mode. Re-validate up to 3 retry rounds.
@@ -297,14 +297,14 @@ Glob `./.geniro/actions/*.md` for the local registry. If cwd is a linked worktre
 Compute `<lookup>` from input: if already a valid kebab slug, `<lookup> = <input>`; otherwise normalize (trim, lowercase, whitespace-runs → hyphens). If `<lookup>` matches a registry entry's `name`:
 
 - **Source = local:** return `(<resolved-path>, <resolved-slug>, local)`. No AUQ.
-- **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree gate per step 1, D9 closure):
+- **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree gate per step 1):
 - **Question:** "Action `<lookup>` exists in the main worktree at `<PRIMARY_ROOT>/.geniro/actions/<lookup>.md`. Use it?"
 - **Options:** `Use the main-worktree copy` / `Cancel`
 - **Source = main-worktree, sub-command = `delete` or `edit`:** skip the gate here; Step 4 handles the refuse-and-surface.
 
 #### Step 3 — Free-text matching path
 
-If Step 2 did not resolve, score every entry by semantic fit (orchestrator scores in-context). Take top 4 candidates by score.
+If Step 2 did not resolve, score every entry by semantic fit (orchestrator scores in-context). Take the top 3 candidates by score.
 
 Present an AUQ picker with up to 3 candidate options plus a final "Other" option. When "Other" is picked, surface free-text and loop. Cap loop at **3 rounds**; then surface "Could not narrow down — try `/geniro:actions list` for exact slugs" and stop.
 
@@ -334,7 +334,8 @@ Read action's frontmatter `risk_class`:
 - **Options:** `Cancel` (Recommended) / `Run anyway`
 - If Cancel → failed.
 
-**Approvals[] persistence does NOT apply to run mode.** Risk-class AUQs are context-dependent (re-ask each run intentionally; "did I confirm `slack-release-ping` last week" must NOT auto-confirm this week). This is intentional per
+**Approvals[] persistence does NOT apply to run mode.** Risk-class AUQs are context-dependent (re-ask each run intentionally; "did I confirm `slack-release-ping` last week" must NOT auto-confirm this week).
+
 **L2 emit on rejection signal:** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once:
 
 ```bash
@@ -343,7 +344,7 @@ emit_rejection_if_signal \
 "Run action <slug>" "<picked label>" "<recommended label>"
 ```
 
-`<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (`Cancel`/`Cancel anyway`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /actions runs of the same slug surface «user rejected this action N times». Note this is distinct approvals[] which is intentionally skipped here.
+`<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (picks containing `Cancel`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /actions runs of the same slug surface «user rejected this action N times». This is distinct from approvals[], which is intentionally skipped in run mode.
 
 ### Phase 5.4: Execute INLINE (tool-scope intersection)
 
@@ -358,7 +359,7 @@ If no gaps, proceed without asking. Do NOT call any tool the action did not decl
 
 If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt; transition to `failed` with step number captured.
 
-### Phase 5.5: Wrap-up + L2 emit (D10 closure)
+### Phase 5.5: Wrap-up + L2 emit
 
 Print summary:
 
@@ -437,15 +438,15 @@ Read action's frontmatter `risk_class`. AUQ:
 If confirmed:
 
 ```bash
-rm -f.geniro/actions/<resolved-slug>.md
-rmdir.geniro/actions/ 2>/dev/null # silently if empty
+rm -f .geniro/actions/<resolved-slug>.md
+rmdir .geniro/actions/ 2>/dev/null # silently if empty
 ```
 
 Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
 
 The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/actions/<slug>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk deletion is blocked.
 
-## Phase 8: Command `validate` (NEW — closure)
+## Phase 8: Command `validate`
 
 ### Step 1 — Resolve scope
 
@@ -457,21 +458,21 @@ If `<slug>` provided: resolve via Phase 5.0 (Steps 1-3) to get `<resolved-path>`
 
 Combined rule table (Phase 4 Step 6 checks + description hygiene):
 
-| Check | Severity | Source |
-|---|---|---|
-| YAML frontmatter parses | CRITICAL | Phase 4 Step 6 |
-| `name:` matches filename | CRITICAL | Phase 4 |
-| `description:` starts with "Use when" | HIGH | Phase 4 + |
-| `description:` ≤250 chars | HIGH | Phase 4 |
-| `description:` mentions adjacent terms | LOW | |
-| `description:` includes boundary clause ("Skip for...") | LOW | |
-| `risk_class:` present and valid (`low\|medium\|high`) | CRITICAL | (new) |
-| `external-send: true` ⇒ `risk_class: medium\|high` | HIGH | (new) |
-| `## Steps` section present with ≥1 numbered item | HIGH | Phase 4 |
-| No `{{placeholder}}` in body | HIGH | Phase 4 |
-| File <500 lines | MEDIUM | Phase 4 |
-| `allowed-tools:` field present (if action mutates) | LOW | "scoped" guideline |
-| No references to dropped skills in body | HIGH | alignment |
+| Check | Severity |
+|---|---|
+| YAML frontmatter parses | CRITICAL |
+| `name:` matches filename | CRITICAL |
+| `description:` starts with "Use when" | HIGH |
+| `description:` ≤250 chars | HIGH |
+| `description:` mentions adjacent terms | LOW |
+| `description:` includes boundary clause ("Skip for...") | LOW |
+| `risk_class:` present and valid (`low\|medium\|high`) | CRITICAL |
+| `external-send: true` ⇒ `risk_class: medium\|high` | HIGH |
+| `## Steps` section present with ≥1 numbered item | HIGH |
+| No `{{placeholder}}` in body | HIGH |
+| File <500 lines | MEDIUM |
+| `allowed-tools:` field present (if action mutates) | LOW |
+| No references to dropped skills in body | HIGH |
 
 Dropped-skill ref check uses the list: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`.
 
@@ -546,12 +547,11 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - PERSISTENT (CRUD) — `.geniro/actions/` tier; optimistic mtime check
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
 - Block 1 — file-on-disk compaction-survival channel
-- — 7 loop invariants
-- — quality-first budgets
-- — per-phase ACI
-- — edit dialogue-mode pattern (shared)
-- — validate rule set (shared + structural lint)
-- *(internal)* — full design rationale
+- §Loop invariants — 7 loop invariants
+- §Budgets — quality-first budgets
+- §ACI surface per phase — per-phase ACI
+- §Phase 6: Command `edit` — edit dialogue-mode pattern
+- §Phase 8: Command `validate` — validate rule set (shared + structural lint)
 
 ## Definition of Done
 

@@ -38,7 +38,7 @@ emit_rejection_if_signal \
 | Signal | Condition | Example |
 |---|---|---|
 | `explicit_cancel` | `picked` matches /cancel|abort/i | User picked "Cancel walk" |
-| `explicit_no` | `picked` matches /^no/i OR /reject/i OR /don't|do not/i | User picked "No — we don't want Redis" |
+| `explicit_no` | `picked` is exactly `no` / `no.` / `no,` / `no!`, OR starts with `don't` / `do not`, OR contains `reject` | User picked "No" |
 | `explicit_skip` | `picked` matches /skip/i | User picked "Skip for now" |
 | `picked_non_recommended` | `recommended` supplied AND `picked != recommended` | User picked Postgres when Redis was recommended |
 
@@ -105,9 +105,9 @@ User: /geniro:plan implement caching layer
   "(previously rejected by user)".
 ```
 
-## Test coverage
+## Behaviors to cover
 
-`tests/memory/emit-rejection.sh` exercises:
+When adding tests for this helper, exercise:
 - Explicit cancel/abort/no/reject/skip signals
 - picked_non_recommended detection
 - picked == recommended (no-op)

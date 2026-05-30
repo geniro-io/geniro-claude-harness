@@ -44,10 +44,10 @@ Each consumer cites this file rather than redefining vocabulary:
 
 | Skill | Where it cites this file |
 |---|---|
-| `/geniro:refactor` | M8 Phase 1 §1.4 orchestrator-inline smell detection ("deepening opportunities" lens) |
+| `/geniro:refactor` | Phase 1 orchestrator-inline smell detection ("deepening opportunities" lens) |
 | `/geniro:review --simplify` | `simplify-criteria.md` Pass A (Reuse & Duplication — Existing Abstraction Audit asks "could deepening absorb this duplication?") |
-| `/geniro:investigate` | M9 §10.1 synthesis templates ("Why" and "Compare" answer formats) |
-| `/geniro:plan` | M5 orchestrator-side spec-authoring prompts + spec template's "Modules & Interfaces" subsection |
+| `/geniro:investigate` | synthesis templates ("Why" and "Compare" answer formats) |
+| `/geniro:plan` | orchestrator-side spec-authoring prompts + spec template's "Modules & Interfaces" subsection |
 | `/geniro:instructions` "Writing Effective Instructions" | Reference when authoring rules about module design |
 
 ## Anti-rationalization
@@ -56,4 +56,4 @@ Each consumer cites this file rather than redefining vocabulary:
 |---|---|
 | "These terms are obvious; skills don't need to cite them" | Without a single source, each skill drifts into its own vocabulary ("layer", "boundary", "facade"). Cross-skill handoffs (architect → reviewer, debug → implement) lose meaning. |
 | "I'll add 'cohesion' and 'coupling' too" | Resist vocabulary bloat. Depth + seam + locality already cover what cohesion and coupling describe. Adding synonyms dilutes shared meaning. |
-| "Pocock's `improve-codebase-architecture` uses different word — switch to his" | Stay with your own terms once defined. The point is consistency across YOUR skills, not external alignment. Keep this file canonical and reference it. |
+| "Another tool uses a different word for this — switch to match it" | Stay with these terms once defined. The point is consistency across these skills, not external alignment. Keep this file canonical and reference it. |

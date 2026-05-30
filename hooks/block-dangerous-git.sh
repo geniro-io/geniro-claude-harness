@@ -15,7 +15,7 @@
 #   }
 #
 # Pattern IDs: force-push, force-push-with-lease, reset-hard, branch-delete-force,
-#              clean-fd, checkout-mass-discard, restore-mass-discard, rebase-onto-hard,
+#              clean-fd, checkout-mass-discard, restore-mass-discard,
 #              update-ref-delete, filter-branch
 
 set -euo pipefail
@@ -134,10 +134,10 @@ if ! is_allowed "clean-fd"; then
     if echo "$PADDED" | grep -qE '[[:space:]]-[a-zA-Z]*d[a-zA-Z]*f[a-zA-Z]*[[:space:]]'; then
       block "clean-fd" "git clean -df deletes untracked files and directories"
     fi
-    # Long-form: --force AND -d (in either order)
-    if echo "$PADDED" | grep -qE '[[:space:]]--force[[:space:]]' && \
+    # Separate tokens: a standalone -f/--force AND a standalone -d (in either order)
+    if echo "$PADDED" | grep -qE '[[:space:]](-f|--force)[[:space:]]' && \
        echo "$PADDED" | grep -qE '[[:space:]]-d[[:space:]]'; then
-      block "clean-fd" "git clean --force -d deletes untracked files and directories"
+      block "clean-fd" "git clean -f -d deletes untracked files and directories"
     fi
   fi
 fi

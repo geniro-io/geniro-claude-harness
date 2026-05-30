@@ -4,6 +4,8 @@ description: "Use when a pull request is opened or updated and you want to post 
 model: inherit
 allowed-tools: [Read, Bash(gh *), Bash(curl *), AskUserQuestion]
 argument-hint: "[pr_number]"
+risk_class: high
+external-send: true
 created: 2026-04-25
 created-by: geniro:actions
 ---

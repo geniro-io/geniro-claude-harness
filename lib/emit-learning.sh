@@ -12,7 +12,7 @@
 # Required JSON fields: producer, scope, summary, tags
 # Optional fields:      ts, body, dedup_key, supersedes, deprecated, type, ext, trust, links
 #
-# Pipeline (matches M2 §5.2):
+# Pipeline:
 #   1. Validate required fields.
 #   2. Compute dedup_key if absent: sha256(producer|scope|normalize(summary))[:12]
 #   3. Auto-inject ts (UTC ISO-8601) if absent.
@@ -35,8 +35,8 @@ if [ -z "${_EL_DEPS_LOADED:-}" ]; then
   _EL_DEPS_LOADED=1
 fi
 
-# Normalize a summary string for dedup-key computation. Per M2 §5.1 the spec
-# just says `normalize(summary)`; we standardize on lowercase + whitespace
+# Normalize a summary string for dedup-key computation. The dedup-key spec
+# just says `normalize(summary)`; standardize on lowercase + whitespace
 # collapse + trim. Documented in the helper spec.
 _el_normalize() {
   printf '%s' "$1" \
@@ -81,7 +81,7 @@ emit_learning() {
     return 64
   fi
 
-  # Type-check `trust` if present. Spec M2 §5.1 defines a closed enum
+  # Type-check `trust` if present. The schema defines a closed enum
   # {verified, retrieved, inferred}; an invalid value would silently filter
   # under --min-trust queries and confuse readers. Absent trust is allowed
   # (query-side treats it as `inferred`).
@@ -160,7 +160,7 @@ emit_learning() {
   if [ -f "$log" ]; then
     local last_match
     last_match=$(tail -n 200 "$log" 2>/dev/null \
-      | jq -c --arg k "$dedup_key" 'select(.dedup_key == $k)' 2>/dev/null \
+      | jq -Rc --arg k "$dedup_key" 'fromjson? | select(.dedup_key == $k)' 2>/dev/null \
       | tail -n 1)
 
     if [ -n "$last_match" ]; then

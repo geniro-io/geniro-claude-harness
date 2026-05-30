@@ -69,8 +69,8 @@ TASK_DESCRIPTION: [pre-inlined]
 INFERRED_TAGS: [comma-separated list]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
-Follow the procedure in your agent file §Search procedure. Write the structured
-report to OUTPUT_PATH per the §Output schema (cap ~3K chars). Do NOT mutate the
+Follow the procedure in your agent file §Workflow. Write the structured
+report to OUTPUT_PATH per the §Output Schema (cap ~3K chars). Do NOT mutate the
 codebase or git state — read-only retrieval only.
 """)
 ```
@@ -95,8 +95,8 @@ RULES_DIR: [absolute path to .claude/rules/]
 SEMANTIC_MAP: [pre-inlined _CODEBASE_MAP.md body]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
-Follow the procedure in your agent file §Exploration procedure. Write the
-structured report to OUTPUT_PATH per the §Output schema (cap ~5K chars). Do NOT
+Follow the procedure in your agent file §Workflow. Write the
+structured report to OUTPUT_PATH per the §Output Schema (cap ~5K chars). Do NOT
 mutate the codebase or git state — read-only reconnaissance only.
 
 For `.claude/rules/` matching: parse YAML frontmatter `paths:` field per file;
@@ -428,21 +428,21 @@ If updates needed, delegate to a general-purpose subagent with `model="haiku"` c
 
 ### Extract Learnings
 
-Per master plan, the standalone `/learnings` skill is deleted; learning capture is an auto-step at the end of /implement. Phase 3 calls the L2 helper `emit-learning` when conditions are met.
+Learning capture is an auto-step at the end of /implement. Phase 3 calls the L2 helper `emit-learning` when conditions are met.
 
-**Emit triggers per + **
+**Emit triggers** (per the table below):
 
 | Type | When emits |
 |---|---|
 | `convention` | Phase 3 architecture or code-quality reviewer reports ≥3 instances of same pattern in changed code. Threshold tuning lives in the reviewer-agent spawn prompt. |
 | `decision` | Spec.md records a non-trivial approach choice with `## Considered Alternatives` section. Mirrors that decision to L2 for cross-session recall. (Note: when /plan ships, /plan emits the decision directly; inline-task path only.) |
 
-**Trust default per row /implement: `verified`** — entries are grounded in Phase 2 code and Phase 3 reviewer findings (test-validated on entry).
+**Trust default: `verified`** — entries are grounded in Phase 2 code and Phase 3 reviewer findings (test-validated on entry).
 
 **Promotion suggestion.** When a `convention` entry is emitted, additionally surface a one-line suggestion in the Phase 3 final report:
 
 ```
-[learnings] Pattern detected ≥3 times: "<convention summary>". Recorded to L2.
+[learnings] Pattern detected ≥3 times: "<convention summary>". Recorded as a learning.
 → Consider /geniro:instructions edit <scope>.md to promote as rule.
 ```
 
@@ -491,7 +491,7 @@ These files were used once by the orchestrator or subagents during the run; they
 
 ```
 <task-dir>/spec.md         # /geniro:plan canonical output — needed for /review spec-compliance
-<task-dir>/state.md        # frontmatter + ## Tool log + ## Open Questions — needed for Adjustment Routing
+<task-dir>/state.md        # frontmatter + ## Tool log + ## Adjustments — needed for Adjustment Routing
 <task-dir>/plan-*.md       # versioned plans from /geniro:plan iterations
 <task-dir>/milestone-*.md  # /geniro:plan Big-mode milestone splits
 ```
@@ -538,9 +538,10 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 
 - [ ] State.md frontmatter `phase:` is a terminal state `done` / `ship-committed-only` / `self-review-only` / `debug-handoff` / `aborted`.
 - [ ] Spec source resolved — either a spec.md / plan.md / DESIGN_DOC frontmatter file was loaded, OR inline-task mode wrote a `## Inline Plan` to state.md.
-- [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures` per).
-- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated per- [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
+- [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures`).
+- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated.
+- [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] `non-resumable-actions[]` frontmatter updated for every external side-effect (`git push`, `gh pr create`).
-- [ ] Learning emit fired when triggers were met (`convention` or `decision`); promotion suggestion surfaced for `convention` emits per.
+- [ ] Learning emit fired when triggers were met (`convention` or `decision`); promotion suggestion surfaced for `convention` emits.
 - [ ] Project-snapshot update fired if Phase 2 added new modules — `_CODEBASE_MAP.md` appended via `update-semantic`.
 - [ ] Stop-hook evidence scan satisfied — Ship report's PASS/FAIL claims attach Evidence Blocks.

@@ -68,12 +68,14 @@ query_learnings() {
   esac
 
   if [ -n "$score_min" ]; then
-    case "$score_min" in
-      ''|*[!0-9.]*)
-        echo "query_learnings: --score-min must be a non-negative number (got '$score_min')" >&2
-        return 64
-        ;;
-    esac
+    # Require a single optional-dot non-negative number (e.g. 0, .5, 1.25).
+    # The looser non-digit-non-dot guard let through "0.0.1", "1.", ".5"
+    # in malformed forms, which jq --argjson then rejected — surfacing as a
+    # silent empty result instead of the documented rc=64.
+    if ! printf '%s' "$score_min" | grep -Eq '^[0-9]+(\.[0-9]+)?$|^\.[0-9]+$'; then
+      echo "query_learnings: --score-min must be a non-negative number (got '$score_min')" >&2
+      return 64
+    fi
   fi
 
   local root log
@@ -143,8 +145,11 @@ query_learnings() {
     | .[]
   '
 
+  # Pre-parse each line with `jq -Rc 'fromjson?'` so a single malformed line
+  # drops instead of aborting the slurp and zeroing the whole result set.
   local result
   result=$(cat "${files[@]}" 2>/dev/null \
+    | jq -Rc 'fromjson?' \
     | jq -cs \
         --arg type_filter "$type_filter" \
         --arg tag_filter "$tag_filter" \
@@ -237,12 +242,15 @@ record_access() {
   [ -f "$log" ] || return 0
 
   local tmp="${log}.tmp.$$"
-  jq -c --arg k "$key" '
-    if (.dedup_key // "") == $k then
-      . + {access_count: ((.access_count // 0) + 1)}
-    else
-      .
-    end
+  # Read raw and `fromjson?` per line so a single malformed line drops instead
+  # of aborting the rewrite (which would fail the whole counter bump).
+  jq -Rc --arg k "$key" '
+    fromjson?
+    | if (.dedup_key // "") == $k then
+        . + {access_count: ((.access_count // 0) + 1)}
+      else
+        .
+      end
   ' "$log" > "$tmp" 2>/dev/null || {
     rm -f "$tmp"
     return 1

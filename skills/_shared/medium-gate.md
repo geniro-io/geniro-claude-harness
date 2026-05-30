@@ -12,7 +12,7 @@ Skip silently when zero MEDIUM findings exist after deduplication, or when no re
 
 ## Always-WAIT contract
 
-This gate is **Always-WAIT** in every mode and lane (Auto, Fast, Light included). Auto-handling MEDIUMs (drop or auto-fix) is unsafe — the user has context (e.g., an integration test or migration step already covers the gap, making the MEDIUM informational; or the MEDIUM is a real regression that must block) the orchestrator does not. See `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Auto Mode Behavior, `MEDIUM findings present in fix-loop entry` row.
+This gate is **Always-WAIT** in every mode and lane (Auto, Fast, Light included). Auto-handling MEDIUMs (drop or auto-fix) is unsafe — the user has context (e.g., an integration test or migration step already covers the gap, making the MEDIUM informational; or the MEDIUM is a real regression that must block) the orchestrator does not.
 
 Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask. Never auto-default.
 
@@ -54,7 +54,7 @@ Promoted MEDIUMs lose their MEDIUM tag in the fix-loop pool — the fixer agent 
 
 ## Persisted-fields requirement
 
-For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/review` Phase 5 — M6 §15.1 M1-T2 canonical path) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
+For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/review` Phase 5) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
 
 ## Why this exists
 

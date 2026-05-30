@@ -74,12 +74,29 @@ schema-version: 1
 branch: fix/null-ptr
 timestamp: 2026-05-19T14:30:00Z
 consumer: implement
+open_questions: []
 ---
 
 ## Findings
 content
 EOF
 expect_rc "$TMPDIR/t2.md" 0 "valid T2"
+
+# Test 2b: T2 missing open_questions (consumer present) → 5
+cat > "$TMPDIR/t2-no-oq.md" <<'EOF'
+---
+tier: T2
+producer: debug
+schema-version: 1
+branch: fix/null-ptr
+timestamp: 2026-05-19T14:30:00Z
+consumer: implement
+---
+
+## Findings
+content
+EOF
+expect_rc "$TMPDIR/t2-no-oq.md" 5 "missing T2-specific field 'open_questions'"
 
 # Test 3: valid T3 CRUD
 cat > "$TMPDIR/t3-crud.md" <<'EOF'

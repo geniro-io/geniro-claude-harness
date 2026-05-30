@@ -23,7 +23,7 @@ state.md `phase:` enum transitions:
 │ │ │
 │ │ └── ship-summary-only (terminal — "Leave it to me")
 │ │
-│ └── phase-2-escalated ──┬── debug-handoff (terminal — fix-fail)
+│ └── phase-2-escalated ──┬── ship (accept-as-documented-limitation)
 │ ├── propose (try-different-approach loop-back)
 │ └── aborted (terminal)
 │
@@ -35,7 +35,7 @@ state.md `phase:` enum transitions:
 └── adversarial-aborted (terminal — zero red tests)
 ```
 
-**Terminal states:** `done`, `ship-summary-only`, `debug-handoff`, `aborted`, `adversarial-aborted`. The SessionStart recovery treats all five as "task complete — no resume needed".
+**Terminal states:** `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`. The SessionStart recovery treats all four as "task complete — no resume needed".
 
 **Non-terminal states:** `mode-detect`, `investigate`, `propose`, `ship`, `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures gates skip already-answered).
 
@@ -84,6 +84,7 @@ Body sections (Scientific Mode):
 - `## Tool log` — selective logging (adversarial-tester-agent spawns, stall escalations)
 - `## Errors`
 - `## Open Questions` (stall AUQ + outcome)
+- `## Resolved Questions` (Phase 3 §3.0 Pre-gate writes resolution mirror here)
 - `## Termination reason` (only on terminal aborted-state)
 - `## Persisted approvals` (render of frontmatter approvals[])
 

@@ -1,6 +1,6 @@
 # TDD Cycle
 
-Canonical RED→GREEN→REFACTOR procedure. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` § Phase 2 in TDD Mode, `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`, `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` adversarial mode. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
+Canonical RED→GREEN→REFACTOR procedure. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`, `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` adversarial mode. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
 
@@ -42,7 +42,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
 
 ## RED phase
 
-1. **Author the failing test FIRST.** Production code changes are forbidden in this phase. The test targets the new behavior using the public interface signatures already approved (per `implement-reference.md` § Interface-Design Pre-Approval Gate, when applicable).
+1. **Author the failing test FIRST.** Production code changes are forbidden in this phase. The test targets the new behavior using the already-approved public interface signatures.
 2. **Run the test command** (project-specific, captured from CLAUDE.md). Capture stdout/stderr + exit code verbatim.
 3. **Verify exit code != 0 AND the failure signature matches the behavior under test.** A test that fails with `ImportError: no module named X` does not prove the new behavior is uncovered — it proves the test file is malformed. The signature must be a real assertion failure (`AssertionError`, `expected X got Y`, or equivalent).
 4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` schema: command, exit code, last 3 lines of output. Reasoning-from-the-diff is forbidden — the captured run is the only proof.
@@ -87,7 +87,7 @@ The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user 
 | "I'll skip REFACTOR — the GREEN code is fine, no duplication." | REFACTOR is optional, but explicitly mark state IDLE so the hook stops gating Edit|Write. Leaving phase at GREEN during the next cycle's RED step blocks the test author from writing the new test. |
 | "The state file is overhead — I'll skip writing it for this one quick fix." | The state file IS the contract. Without it the hook can't enforce order, and concurrent same-cwd sessions on different branches collide. The slug-scoped path solves the collision; the headers carry branch identity through compaction. |
 | "Sub-agents can write the state file — they're trustworthy." | Single-writer is non-negotiable. If a sub-agent could write `phase: GREEN`, the hook is bypassable by any agent that mis-reads the cycle, and the discipline collapses. Orchestrator writes; agents read (or are pre-inlined the relevant phase by the orchestrator). |
-| "I'll keep the state in JSON — it's more structured." | JSON corrupts on partial write per the within-skill-state-handoff.md convention (Citadel's GSD Pattern 5). Markdown with `## phase` sections is half-readable when truncated; JSON is unparseable. The format choice is for compaction-resilience, not aesthetics. |
+| "I'll keep the state in JSON — it's more structured." | JSON corrupts on partial write; a half-written `{...}` is unparseable, while half a Markdown file is still readable. Markdown with `## phase` sections is half-readable when truncated; JSON is unparseable. The format choice is for compaction-resilience, not aesthetics. |
 
 ## Definition of Done
 

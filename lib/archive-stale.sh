@@ -10,9 +10,11 @@
 #   - access_count == 0 (never queried)
 #
 # NEVER deletes — flips deprecated:true only, audit trail preserved.
-# NEVER auto-runs — invoked explicitly by user OR surfaced as notice
-# in SessionStart Block 5e. Idempotent: already-deprecated entries
-# skipped.
+# Auto-runs on SessionStart (default ON, hash-gated, opt-out via
+# safety.json memory.auto_archive_stale: false). The SessionStart hook
+# acquires the mkdir-lock and invokes this helper; this helper never
+# auto-locks (the hook owns the lock). Also invokable explicitly by
+# user. Idempotent: already-deprecated entries skipped.
 #
 # API:
 #   archive_stale_learnings [--dry-run]
@@ -70,7 +72,8 @@ archive_stale_learnings() {
     def access_weight($n):
       1.0 + (($n + 1) | log10);
 
-    . as $entry
+    fromjson?
+    | . as $entry
     | (try (.ts // "" | fromdateiso8601) catch null) as $epoch
     | (if $epoch == null then null else ($now - $epoch) / 86400 end) as $age_days
     | (recency_decay($age_days; $tau_days)) as $rd
@@ -90,7 +93,7 @@ archive_stale_learnings() {
   '
 
   local processed
-  processed=$(jq -c \
+  processed=$(jq -Rc \
       --argjson now "$now" \
       --argjson tau_days "$tau" \
       --argjson dry "$dry_run" \

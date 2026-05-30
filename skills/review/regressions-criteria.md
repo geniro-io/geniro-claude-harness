@@ -138,7 +138,7 @@ Two false-positive classes route to other dims rather than being suppressed here
 - **Cause-path comparison for deleted tests vs. outcome-matching surviving tests.** Belongs to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)". This dim emits the higher-level "test deleted, production stayed" signal; that section handles the cause-path nuance.
 - **Cross-round PR-body vs. diff drift.** Belongs to `pr-metadata-criteria.md` §11 (Description ↔ Code Drift on Re-Review). This dim covers the broader diff-vs-stated-intent direction across all intent sources, not just the PR body across rounds.
 
-When two dims have legitimate overlap on the same hunk, both emit. The Phase 5 filter and stratify steps in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` deduplicate by `file:line + cause`; orthogonal findings on the same hunk survive deduplication.
+When two dims have legitimate overlap on the same hunk, both emit. The Phase 3 filter and Phase 4 stratify steps in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` deduplicate by `file:line + cause`; orthogonal findings on the same hunk survive deduplication.
 
 ## Severity Tagging
 
@@ -163,12 +163,12 @@ The rubric is additive — a single hunk can trigger multiple rows (e.g., a dele
 | "There's no spec.md, so I can't classify behavior changes as in-scope or out-of-scope; skip the dim." | Spec-less changes are the highest-risk regression class. When no intent source exists, default every behavior-mutating hunk to INTENT-CHECK at MEDIUM severity. The user resolves at the open-question gate; silently passing the hunk strips them of that decision. |
 | "Symbol-deletion blast radius is the architecture dim's job — skip it here." | `architecture-criteria.md` §1.5 covers blast radius of NON-deleted symbol changes (operator flips, return-value shifts in surviving code). Deleted-symbol caller blast is a distinct defect class with a different fix shape (restore vs. update caller vs. document migration). Both dims can fire; do not skip. |
 | "The PR body says 'minor refactor only' — that licenses the behavior change in this hunk." | "Minor refactor only" is intent narrative, not a license. A behavior-mutating hunk under a "refactor only" body is a contradiction between the stated intent and the diff — that IS the finding. Severity HIGH, decision-type PRODUCT-DECISION; the author must either narrow the diff or revise the body. |
-| "The deleted test was clearly redundant — same outcome as a surviving test." | Outcome match is not coverage match. Two tests asserting `expect(x).toBeNull()` can pin distinct cause paths. Emit the §3 finding when production survives; the cause-path verification belongs to `tests-criteria.md` §Inverse Deletion Test and routes from your finding via Phase 5 filter. |
+| "The deleted test was clearly redundant — same outcome as a surviving test." | Outcome match is not coverage match. Two tests asserting `expect(x).toBeNull()` can pin distinct cause paths. Emit the §3 finding when production survives; the cause-path verification belongs to `tests-criteria.md` §Inverse Deletion Test and routes from your finding via Phase 3 filter. |
 
 ## Reference notes
 
 - Reviewer output format: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 - Phase 1 input inlining (DIFF / PLAN / LINEAR / PEER-PR slots): `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 1.
-- Phase 5 dedup + stratify pipeline: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5.
+- Phase 3 dedup + Phase 4 stratify pipeline: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 3 and Phase 4.
 - Cause-path comparison for deleted tests: `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)".
 - Caller-blast for surviving symbols: `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` §1.5.

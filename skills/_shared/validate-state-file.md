@@ -29,7 +29,7 @@ source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
 
 if ! validate_state_file ".geniro/planning/dark-mode/state.md"; then
   rc=$?
-  # Handle recovery per Q5 — open recovery AUQ.
+  # Handle recovery per the Recovery AUQ template — open recovery AUQ.
   ...
 fi
 ```
@@ -46,7 +46,7 @@ fi
 | 5 | Missing tier-specific required field | AUQ — same |
 | 6 | `schema-version` mismatch (file from older plugin version) | AUQ: migrate / delete-and-restart |
 | 7 | Body checksum mismatch | Manual-edit corruption — AUQ: revert / accept |
-| 8 | `worktree:` path not in `git worktree list` (P-M1-2) | AUQ: update worktree path / delete-and-restart |
+| 8 | `worktree:` path not in `git worktree list` | AUQ: update worktree path / delete-and-restart |
 | 9 | `tier:` value not `T1` / `T1.5` / `T2` / `T3` | AUQ: open-in-editor |
 | 64 | Caller error — no target path provided | Bug — fix caller |
 
@@ -54,7 +54,7 @@ fi
 
 ## Validation procedure
 
-The 7 steps validated, in order (per M1 §Validation helper):
+The 7 steps validated, in order:
 
 1. **File exists** at the given path.
 2. **Line 1 is `---`** — frontmatter must start at line 1, no leading content or BOM.
@@ -72,7 +72,7 @@ The 7 steps validated, in order (per M1 §Validation helper):
 
 ---
 
-## Recovery AUQ template (Q5)
+## Recovery AUQ template
 
 When `validate_state_file` returns non-zero, the calling skill MUST open an `AskUserQuestion`:
 
@@ -92,7 +92,7 @@ The exact wording is per-skill; the four options are canonical.
 
 ---
 
-## YAML parsing strategy (§Open Q1 in M1 design)
+## YAML parsing strategy
 
 **Shell-line only.** No `yq` dependency.
 

@@ -2,7 +2,7 @@
 name: geniro:plan
 description: "Use to turn a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
 context: main
-allowed-tools: [Read, Write, Bash, Glob, Grep, Task, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
+allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: opus
 argument-hint: "<topic-string-or-design-doc-path>"
 ---
@@ -91,15 +91,15 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 ```yaml
 ## Tool log
 - ts: 2026-05-17T10:42:13Z
-tool: Agent
-detail: "Research: existing auth flow"
-status: ok
-summary: "found 3 relevant files, 1 convention pattern"
+  tool: Agent
+  detail: "Research: existing auth flow"
+  status: ok
+  summary: "found 3 relevant files, 1 convention pattern"
 - ts: 2026-05-17T11:08:00Z
-tool: Write
-detail: ".geniro/planning/<task-dir>/spec.md"
-status: ok
-result_ref: "1247 bytes"
+  tool: Write
+  detail: ".geniro/planning/<task-dir>/spec.md"
+  status: ok
+  result_ref: "1247 bytes"
 ```
 
 Each entry written via `atomic_state_write`. AUQ calls do NOT need logging — `approvals[]` is the structured record.

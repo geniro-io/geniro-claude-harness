@@ -17,7 +17,7 @@ argument-hint: "[--dry-run]"
 
 ## Loop invariants
 
-1. One result per subagent call — `/update` does NOT spawn subagents.
+1. `/update` does NOT spawn subagents.
 2. Args validated before exec — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 3. Permission before side-effect — the pre-update AUQ (§Phase 1 Step 3) is the explicit gate.
 4. Bounded structured results — hash diffs truncated at ~2000 chars; per migration step at ~500 chars.
@@ -262,11 +262,11 @@ Transition to Phase 4.
 MIGRATION_FILE="$PLUGIN_PATH/MIGRATION.md"
 if [ ! -f "$MIGRATION_FILE" ]; then
 echo "[info] No MIGRATION.md in v$NEW_VERSION — skipping migration walk."
-# Transition to Phase 5.
+# Terminate and emit final report.
 fi
 ```
 
-Parse MIGRATION.md, find entries between `v<CURRENT_VERSION>` (exclusive) and `v<NEW_VERSION>` (inclusive). The file follows the schema in *(internal)* — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, and `Severity:` fields.
+Parse MIGRATION.md, find entries between `v<CURRENT_VERSION>` (exclusive) and `v<NEW_VERSION>` (inclusive). The file follows the schema in *(internal)* — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
 
 For each entry, in chronological order:
 
@@ -278,15 +278,15 @@ For each entry, in chronological order:
 - `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry. If the entry has no `Auto-fix:` field (manual-only migration), fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` to verify — if still affected, warn and continue.
 - `Show me how to fix manually` — Print the `Action required:` text with exact commands; continue to next entry.
 - `Skip for now` — Log skipped; continue to next entry.
-- `Cancel migration walk` — Stop here; log remaining; transition to Phase 5.
+- `Cancel migration walk` — Stop here; log remaining; terminate and emit final report.
 
-After last entry: transition to Phase 5.
+After last entry: terminate and emit final report.
 
 If MIGRATION.md is present but malformed (cannot parse the heading structure), skip Phase 4 with one warning line: `[warn] MIGRATION.md present but malformed — proceeding without walk`.
 
 **Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. Entries without `Auto-fix:` (marked `Auto-fix: manual-only`) require user action; the agent prints the manual steps instead.
 
-## Phase 5 — Done
+## Done — Final report
 
 ### Final report
 
@@ -343,11 +343,5 @@ Restart + setup recommendation is **always emitted** by `/update` (unlike `/setu
 
 ## Cross-references
 
-- — 7 loop invariants (cited above)
-- — quality-first budgets
-- — per-phase ACI
-- — restart-session warning (conditional for `/setup`; unconditional for `/update`)
-- — validate rule set (referenced when surfacing `/geniro:instructions edit` recommendations)
-- — Cancel-as-recommended AUQ pattern (used by hash-fail and content-tamper AUQs)
 - CLAUDE.md "For git fetch/pull" — 4-retry exponential-backoff rule
 - *(internal)* — full design rationale and MIGRATION.md schema

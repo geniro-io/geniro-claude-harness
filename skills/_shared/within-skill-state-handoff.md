@@ -29,7 +29,7 @@ When `git` is unavailable or the project isn't a git repo, the fallback chain pr
 Every producer of a within-skill state file MUST:
 
 1. Compute the slug per `## Slug rules`.
-2. Write to the slug-scoped path: `.geniro/state/<skill>/state-<slug>.md` (or `.geniro/state/debug/<slug>/state.md` for debug — .1 subdir-per-slug layout; or `.geniro/state/refactor/<slug>/state.md` for refactor — .1 subdir-per-slug layout; or `.geniro/state/onboard/<slug>/state.md` for onboard — .1 subdir-per-slug layout; or `.geniro/state/investigate/<slug>/state.md` for investigate — .2 subdir-per-slug layout — all four session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
+2. Write to the slug-scoped path: `.geniro/state/<skill>/<slug>/state.md` (subdir-per-slug layout for all four — debug, refactor, onboard, investigate — all session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
 3. Embed these three headers at the TOP of the file, before any other content:
 
 ```
@@ -45,7 +45,7 @@ The `Branch:` header is the source of truth on resume — even if two branch nam
 On skill start (or resume after compaction), every consumer MUST:
 
 1. Compute current branch + slug per `## Slug rules`.
-2. Try to read `.geniro/state/<skill>/state-<slug>.md` (primary path; debug uses `.geniro/state/debug/<slug>/state.md`.1; refactor uses `.geniro/state/refactor/<slug>/state.md`.1; onboard uses `.geniro/state/onboard/<slug>/state.md`.1; investigate uses `.geniro/state/investigate/<slug>/state.md`.2).
+2. Try to read `.geniro/state/<skill>/<slug>/state.md` (primary path; subdir-per-slug layout for debug, refactor, onboard, investigate alike).
 3. If the primary path exists, parse `Branch:` and `Worktree:` headers and run `## Mismatch handling` Case A/B/C.
 4. If the primary path does NOT exist BUT an older path exists at any of these locations, enter Case D (migration). Try in this order:
  - `.geniro/<skill>/state-<slug>.md` (slug-scoped, older directory layout)
@@ -75,7 +75,7 @@ Four cases — consumers MUST handle all four:
 
 ## Cleanup contract
 
-When a skill completes its pipeline, it MUST delete its slug-scoped state file at `.geniro/state/<skill>/state-<slug>.md`. The slug is recomputed from the current branch at cleanup time, so the deletion targets the file the skill itself wrote — no need to grep `Branch:` headers. Skills MUST NOT glob and bulk-delete `.geniro/state/<skill>/state-*.md` — sibling slugs belong to parallel pipelines on other branches still in flight.
+When a skill completes its pipeline, it MUST delete its slug-scoped state file at `.geniro/state/<skill>/<slug>/state.md`. The slug is recomputed from the current branch at cleanup time, so the deletion targets the file the skill itself wrote — no need to grep `Branch:` headers. Skills MUST NOT glob and bulk-delete `.geniro/state/<skill>/*/state.md` — sibling slugs belong to parallel pipelines on other branches still in flight.
 
 **Old path cleanup.** Producer skills MUST also `rm -f` older paths on cleanup, in case stale files persist. Paths to clear per skill:
 

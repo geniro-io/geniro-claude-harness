@@ -1,6 +1,6 @@
 ---
 name: geniro:instructions
-description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing and review step. Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — use.claude/rules/."
+description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step. Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
 context: main
 model: sonnet
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
@@ -9,7 +9,7 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 # Instructions: Custom Instruction Management
 
-3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file. Architecture spec: *(internal)*.
+3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file.
 
 Code rules split three ways depending on **when** they should fire:
 
@@ -113,7 +113,7 @@ What to NOT flag:
 ```
 
 **Frontmatter field reference:**
-- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. MUST NOT match a built-in dimension (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `design`, `pr-metadata`).
+- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. MUST NOT match a built-in dimension (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`).
 - `description` (required) — one-line summary, ≤250 chars.
 - `model` (optional) — `haiku`/`sonnet`/`opus`; default `sonnet`.
 - `paths` (optional) — list of globs.
@@ -143,9 +143,9 @@ If no arguments: default to `list`.
 - Multi-scope: "all", "every", "global and review" → collect into list
 - "all" / "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create)
 
-### Ambiguity resolution (simplified vs current )
+### Ambiguity resolution
 
-Current skill chains up to 3 AUQs across the stable scope set. Use a 2-level chain:
+Chain up to 3 AUQs across the stable scope set. Use a 2-level chain:
 
 **Level 1 — category:**
 
@@ -181,7 +181,7 @@ If multi-scope, proceed to **Batch Mode**. Otherwise proceed to the resolved com
 
 ## Phase 2: Mode dispatch (single-scope)
 
-Branch: `list` → · `create` → · `edit` → · `validate` → · `delete` →
+Branch to the matching `## — Mode: <op>` section (`list` / `create` / `edit` / `validate` / `delete`).
 ## Batch Mode
 
 For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow. Across the stable scope set the multi-scope chain stays under 4 AUQ rounds.
@@ -202,8 +202,8 @@ Print summary after all scopes complete:
 ### Step 1 — Scan directory
 
 ```bash
-ls -la.geniro/instructions/ 2>/dev/null
-ls -la.geniro/instructions/review-extra/ 2>/dev/null
+ls -la .geniro/instructions/ 2>/dev/null
+ls -la .geniro/instructions/review-extra/ 2>/dev/null
 ```
 
 ### Step 2 — Present results
@@ -253,8 +253,8 @@ If file exists: AUQ "File exists — overwrite, edit instead, or cancel?". Branc
 ### Step 2 — Ensure directory exists
 
 ```bash
-mkdir -p.geniro/instructions
-mkdir -p.geniro/instructions/review-extra # if scope == review-extra
+mkdir -p .geniro/instructions
+mkdir -p .geniro/instructions/review-extra # if scope == review-extra
 ```
 
 ### Step 3 — Gather project context
@@ -311,7 +311,7 @@ Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into
 
 ### Step 5 — Generate the file
 
-Apply writing principles ("Writing Effective Instructions" below). Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, atomic write §Atomic write helper (`atomic_state_write` is for state tiers; instruction files use direct Write through the file-protection hook).
+Apply writing principles ("Writing Effective Instructions" below). Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
 
 ### Step 6 — Confirm
 
@@ -378,7 +378,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
 | `## Rules` heading present | HIGH | File has body but no `## Rules` header |
 | `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead) | HIGH | Missing `## Constraints` |
-| File ≤ 200 lines (; threshold env-overridable, see Step 1) | LOW | Anthropic Claude Code memory guidance: «longer files consume more context and reduce adherence». Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
+| File ≤ 200 lines (; threshold env-overridable, see Step 1) | LOW | Anthropic Claude Code memory guidance: "longer files consume more context and reduce adherence". Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
 
 **Reference checks:**
 
@@ -392,7 +392,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 
 | Scope | Extra checks |
 |---|---|
-| `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` starts with "Use when" or describes intent (LOW preference); `model` in `{haiku, sonnet, opus}` if present; `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present |
+| `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` describes intent (LOW preference); `model` in `{haiku, sonnet, opus}` if present; `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present |
 | `code-style.md` | At least 1 rule under `## Rules` — LOW warning if empty (no-op file) |
 
 **description lint rules** (applied to `review-extra/<slug>.md` frontmatter `description:` field only):
@@ -400,7 +400,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | Rule | Severity |
 |---|---|
 | lowercase-hyphens slug (`^[a-z][a-z0-9-]*$`) | HIGH (CRITICAL if slug fails validation entirely) |
-| description starts with "Use when" or describes intent vs implementation | LOW warning |
+| description describes intent vs implementation | LOW warning |
 | description mentions adjacent terms (e.g., for `sql-bindings`: mentions "SQL", "ORM", "DAO") | LOW warning |
 | description has explicit boundary clauses ("Skip for …", "Not for …") | LOW info |
 
@@ -411,7 +411,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | Scope | Real phase enum (M-doc) | Example subsection names |
 |---|---|---|
 | `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
-| `plan` | `mode-detect \| explore \| clarify \| approaches \| section-approve \| write-spec \| validate \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
+| `plan` | `mode-detect \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
 | `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
 | `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| debug-handoff \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
 | `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
@@ -465,18 +465,18 @@ AUQ 2-option: `Confirm delete` / `Cancel`. Show file size + last-modified for co
 ### Step 3 — Execute
 
 ```bash
-rm -f.geniro/instructions/<scope>.md
+rm -f .geniro/instructions/<scope>.md
 # OR for review-extra:
-rm -f.geniro/instructions/review-extra/<slug>.md
+rm -f .geniro/instructions/review-extra/<slug>.md
 ```
 
-The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/instructions/<scope>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk `rm -rf.geniro/instructions/` is blocked.
+The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/instructions/<scope>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk `rm -rf .geniro/instructions/` is blocked.
 
 Clean up empty parent dirs silently:
 
 ```bash
-rmdir.geniro/instructions/review-extra/ 2>/dev/null
-rmdir.geniro/instructions/ 2>/dev/null
+rmdir .geniro/instructions/review-extra/ 2>/dev/null
+rmdir .geniro/instructions/ 2>/dev/null
 ```
 
 For `review-extra` ALL: explicitly refused with "Use `/instructions delete review-extra <slug>` per-file; bulk delete protected by guard hook."
@@ -584,10 +584,8 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 
 ## Cross-references
 
-- PERSISTENT (CRUD) — `.geniro/instructions/` tier and optimistic mtime check
-- L4 Procedural — `.geniro/instructions/*.md` is the canonical L4 home
-- Block 1 — file-on-disk compaction-survival channel
-- / other skills / phase enums — phase-name validation table cites them
-- / / — phase enums for `/onboard` and `/investigate`
-- — `/actions validate` shares the rule set
-- *(internal)* — full design rationale
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — T3 persistent-CRUD tier for `.geniro/instructions/` and the optimistic mtime check
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the L4 procedural-memory loader for `.geniro/instructions/*.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for instruction files
+- `/geniro:implement`, `/geniro:plan`, `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate` — the per-skill phase enums the validation table checks against
+- `/geniro:actions` — `validate` mode shares this lint rule set

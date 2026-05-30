@@ -6,7 +6,7 @@ This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either t
 
 ## schema-aware mode
 
-When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schema_version` of either `m5-v1` OR `m5-v2`, PLAN CONTEXT is delivered as a **section-tagged blob** with 10 named sections per the schema (plus the frontmatter goal-state block; `m5-v2` additionally surfaces `workflow_refs[]` if present):
+When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schema_version` of either `m5-v1` OR `m5-v2`, PLAN CONTEXT is delivered as a **section-tagged blob** with 11 named sections per the schema (plus the frontmatter goal-state block; `m5-v2` additionally surfaces `workflow_refs[]` if present):
 
 - Section 1: Objective
 - Section 2: Scope — Included
@@ -160,7 +160,7 @@ The plan names an operational concern that requires observability — a rollout 
 
 **Red flag:** plan names a monitoring or operational concern; diff has no observability emission at the named boundary.
 
-### 10. Done Condition Met (NEW )
+### 10. Done Condition Met
 
 The spec's section 11 (Done Condition) names an observable signal that defines completion (e.g., "all 5 acceptance tests green", "PR approved by stakeholder X", "feature ships behind flag AND telemetry shows ≥1 successful use"). The diff must achieve, or visibly progress towards, that signal — not just touch the named files.
 
@@ -177,7 +177,7 @@ The spec's section 11 (Done Condition) names an observable signal that defines c
 
 **Red flag:** section 11 specifies "<observable signal> AND <verification>" but the diff carries no artifact realizing the signal or its verification.
 
-### 11. Tools Required Available (NEW )
+### 11. Tools Required Available
 
 The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field enumerates tools the change needs (e.g., specific CLI binaries, infra services, MCP connectors). The diff or local environment must show all listed tools are actually available — a spec promising "requires `kubectl` + `helm`" but landing in a repo without either ships broken.
 
