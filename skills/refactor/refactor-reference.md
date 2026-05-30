@@ -17,7 +17,7 @@ state.md `phase:` enum transitions:
 ```
 [entry] → plan ──┬── apply ──┬── verify ──┬── done
 │ │ │
-│ │ └── verify-summary-only (terminal — "Document and ship as-is" path)
+│ │ └── verify-summary-only (terminal — see verify-escalated branch)
 │ │
 │ └── apply-escalated ──┬── verify (keep what worked → partial-application note)
 │ ├── reverted (terminal — "Revert all changes")
@@ -31,7 +31,7 @@ verify ──┬── (happy: → done above)
 │
 └── verify-escalated ──┬── apply ("Run /implement" on PRODUCT-DECISION → exit /refactor)
 ├── reverted (terminal — "Revert this refactor")
-├── done ("Document and ship as-is" → done with deferred-decision note)
+├── verify-summary-only (terminal — "Document and ship as-is" → deferred-decision note)
 └── adr-documented (terminal — "Document as ADR")
 ```
 

@@ -36,7 +36,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A to compu
 
 Walk the actions-skill convention exactly: when running in a linked worktree, glob BOTH `./.geniro/instructions/review-extra/*.md` (local) and `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md` (main). When the same slug appears in both, **local wins** — drop the main-worktree entry from the candidate list. Uncommitted local edits take precedence over the committed primary-worktree version.
 
-If `git` is unavailable or the project has only one worktree, the registry is just `local` — same as `actions/SKILL.md` §Phase 4.0 Step 1.
+If `git` is unavailable or the project has only one worktree, the registry is just `local` — same as `actions/SKILL.md` §Phase 5.0 Step 1.
 
 ### Step 2: Glob the directory
 

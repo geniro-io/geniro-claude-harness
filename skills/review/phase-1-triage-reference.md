@@ -332,11 +332,11 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 3. If ANY signal matches → `risk-tier: high`. Otherwise → `risk-tier: standard`.
 4. Persist to state.md frontmatter.
 
-**Downstream knobs (4 — one NEW ):**
+**Downstream knobs (4):**
 - Phase 4.1 severity threshold: standard ≥80; high ≥70.
 - Phase 4.2 verifier coverage: ALL HIGH-severity survivors verified (no tier-scaling — same coverage at standard and high tier).
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
-- **NEW:** Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
+- Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
 
 ---
 
@@ -363,7 +363,7 @@ Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After tr
 
 If user declines (empty answer), default to Standard. `--tdd`/`--standard` flag (when present) always overrides this AUQ. Persist to `approvals[]` with category `tdd_mode_choice`.
 
-See `${CLAUDE_SKILL_DIR}/tdd-mode-reference.md` for what TDD mode flips, edge cases, F→P contract scope, and rollback notes.
+See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode flips, edge cases, F→P contract scope, and rollback notes.
 
 ---
 
