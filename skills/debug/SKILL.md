@@ -109,6 +109,8 @@ Every user-facing choice in this skill — including ad-hoc gates NOT explicitly
 
 state.md `phase: mode-detect`. **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Echo per the helper's contract.
 
+**Step 0.1 — Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /debug investigates in place on the current branch, so if that branch is behind the default branch, offer to update it before the investigation starts. Skipped silently when the branch is already current.
+
 $ARGUMENTS routing:
 
 | $ARGUMENTS shape | Mode | Transition |
