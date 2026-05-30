@@ -73,4 +73,4 @@ created-by: geniro:actions
 
 ## Where the template is read from
 
-The parent skill (`skills/actions/SKILL.md` Phase 4 Step 4 — Draft preview) reads this file via `Read("${CLAUDE_SKILL_DIR}/skill-template.md")` during the create flow's draft step.
+The parent skill (`skills/actions/SKILL.md` Phase 4 Step 4) reads this file via `Read("${CLAUDE_SKILL_DIR}/skill-template.md")` during the create flow's draft step.

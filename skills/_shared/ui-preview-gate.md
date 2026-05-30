@@ -69,7 +69,7 @@ Present the agent's output verbatim. Then use `AskUserQuestion` (do NOT print op
 
 ### Step 4: Emit approved description
 
-Write the approved description to the caller-designated path (e.g., `<task-dir>/ui-preview.md` for `/geniro:implement`), or return the content inline when the caller provides no destination path. Return control to the caller along with the file path or content.
+Write the approved description to the caller-designated path (e.g., `<task-dir>/ui-preview.md` for `/geniro:implement`, or hold in-memory when the caller requests it). Return control to the caller along with the file path or content.
 
 ## Caller contract
 

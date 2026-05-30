@@ -167,6 +167,8 @@ KEEP IF:
 ELSE DEFER to ## Deferred — sub-threshold (state.md body, NOT PR comment)
 ```
 
+Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence-Block drops to `## Deferred — sub-threshold` regardless of convergence or confidence score.
+
 Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80). High tier (`risk-tier: high`) relaxes signal #4 to `confidence ≥ 70`. Other signals (convergence, Evidence-Block, pre-resolved) unchanged across tiers. `--tdd` flag does not affect §4.1 admission — it only affects §4.2 verifier scope.
 
 Rationale:
@@ -176,7 +178,7 @@ Rationale:
 - Pre-resolved markers: explicit overrides preserve existing simplify P1/P2 / regressions-criteria signal-table semantics
 - Confidence >= 80: kept as a fallback path, no longer the primary gate
 
-The Phase 4.2 per-HIGH verifier is the disproof step on HIGH-severity survivors (Anthropic's plugin pattern: "attempts to disprove each finding").
+The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor — CRITICAL, HIGH, AND MEDIUM (Anthropic's plugin pattern: "attempts to disprove each finding").
 
 ---
 
@@ -196,7 +198,7 @@ When a per-dim file specializes severity, it MUST cite §1 above as the canonica
 
 - `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Severity levels + §Confidence Scoring — agent-side rubric pointers here
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.1 — multi-signal Phase 4.1 gate consumer
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` — per-HIGH verifier (disproof step)
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` — per-finding verifier (disproof step on every §4.1 survivor)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` — Cause taxonomy ([ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN])
 - "Overconfidence is Key", arXiv 2405.02917 — Claude verbalized-confidence calibration limits
 - "On Verbalized Confidence Scores", arXiv 2412.14737 — coarse-grained vs percentage calibration

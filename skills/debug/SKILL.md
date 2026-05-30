@@ -37,7 +37,7 @@ Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}
 
 ## Loop Invariants
 
-The 8 invariants apply unchanged:
+The invariants apply unchanged:
 
 1. **One result per tool call.** Adversarial Mode parallel-spawn → each spawn must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` semantic parse; PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
@@ -60,7 +60,7 @@ This skill has **NO hard kill caps**. Same model as other skills.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component (8-category taxonomy; 4 rendered per AUQ) → user supplies missing or picks alternative |
+| Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component → user supplies missing or picks alternative |
 | Fix attempts failed verification | 2 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
 | Adversarial mode authored tests | 10 hard cap | (delegated to agent contract) | Stop authoring; surface findings |
 | Adversarial mode consecutive discards | 5 | (delegated to agent contract) | Stop hypothesis generation; surface partial |
@@ -85,7 +85,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 | Spawn | Tier | Why |
 |---|---|---|
 | `codebase-research-agent` | inherit (OMIT `model=`) | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant #8). Inherits orchestrator tier so research runs at Opus on an Opus session. Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
-| `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4c, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
+| `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4.3, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 ---
 
@@ -551,7 +551,7 @@ When the §1.7 stall gate fires (5 inconclusive hypothesis tests), classify the 
 
 ## State file schema
 
-T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `approvals[]`) + body sections (Scientific Mode 14 sections / Adversarial Mode 6 sections); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 ---
 

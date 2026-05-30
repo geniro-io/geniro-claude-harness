@@ -72,7 +72,7 @@ Sections 1-7 land in the top third (high-attention zone per [Liu et al. 2024](ht
 |---|---|---|
 | Reference a sibling skill | `/geniro:plan` | `skills/plan/SKILL.md:319` |
 | Reference a phase | `/geniro:plan Phase 5` | `plan-loop.md:319-322` |
-| Reference a sub-step | content-anchored: "the Phase 4c F→P invariant" | "step at line 350" |
+| Reference a sub-step | content-anchored: "the Phase 4.3 F→P invariant" | "step at line 350" |
 | Reference a shared helper | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/<name>.md` | bare filename without root |
 | Reference an agent contract | `${CLAUDE_PLUGIN_ROOT}/agents/<name>.md` §Output Format | line-numbered ref |
 
@@ -101,23 +101,10 @@ Before committing edits to `skills/**/*.md` or `agents/**/*.md`, walk this check
 
 ## Migration audit — remaining work
 
-The numbers below reflect the codebase after the structural-refactor pass. Re-run the greps in §Pre-commit verification when auditing.
+Don't hardcode current line/row counts here — they go stale the moment a file is edited. Derive them on demand with the §Pre-commit verification greps:
 
-**SKILL.md files exceeding the 500-line target** (all under the 700 hard ceiling):
+- **Over-target SKILL.md files:** `wc -l skills/*/SKILL.md` — anything over the 500-line target (700 hard ceiling) needs detail moved to a sibling `*-reference.md`. The orchestrator-heavy skills (review, debug, implement, setup) sit closest to the ceiling and are the first to re-examine.
+- **Anti-rationalization tables:** confirm each is ≤15 rows via the §Pre-commit verification grep.
+- **Reference files > 100 lines lacking a TOC:** add a 5-15 line "Contents" block right after the H1 per §Reference graph.
 
-| File | Lines | Note |
-|---|---|---|
-| `skills/review/SKILL.md` | 707 | Marginal — 7 over the 700 hard ceiling; revisit on next structural pass (spawn-list + 9-dim grid + Definition of Done dominate length) |
-| `skills/debug/SKILL.md` | 689 | Acceptable — under hard ceiling; Adversarial Mode A1-A6 procedure inline |
-| `skills/implement/SKILL.md` | 668 | Acceptable — under hard ceiling; 3-phase loop with KR/CE/TR/reviewer/adversarial spawn sites |
-| `skills/setup/SKILL.md` | 629 | Acceptable — 4-phase singleton bootstrap inline |
-| `skills/instructions/SKILL.md` | 593 | Acceptable — 10-scope CRUD inline |
-| `skills/actions/SKILL.md` | 568 | Acceptable — 6-op CRUD + 3-tier risk-class AUQ inline |
-| `skills/refactor/SKILL.md` | 550 | Acceptable — under hard ceiling |
-| `skills/onboard/SKILL.md` | 505 | Marginal — re-examine if it grows |
-
-**Anti-rationalization tables**: all ≤15 rows. Caps respected.
-
-**Reference files > 100 lines lacking a TOC**: re-audit when adding new reference files. Add a 5-15 line "Contents" block right after the H1 per §Reference graph rule.
-
-This audit reflects the post-refactor state. New edits self-enforce via the §Pre-commit verification checklist.
+New edits self-enforce via the §Pre-commit verification checklist.

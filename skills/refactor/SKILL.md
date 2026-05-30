@@ -37,7 +37,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ## Loop Invariants
 
-The 7 invariants apply unchanged. Four skill-specific notes:
+The canonical loop invariants apply, with four skill-specific notes:
 
 1. **Invariant #4 (bounded structured tool results)** — orchestrator-inline execution writes per-step status and blocked-step reasons to state.md `## Plan steps`; total file body capped at ~8K chars via atomic_state_write truncation marker.
 2. **Invariant #5 (escalation gates, not silent abort)** — ≥30% blocked AUQ + PRODUCT-DECISION always-WAIT.

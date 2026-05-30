@@ -170,7 +170,7 @@ gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -F cursor=null -f q
 
 Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatenate `nodes[]` across pages — typical PR completes in 1-3 calls, stays under rate-limit budget). Compute `K = count(nodes where isResolved == false && isOutdated == false)`. Outdated threads are excluded from K (referenced code rewritten; comment stale).
 
-**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): set K to `unknown`, default routing to OUTGOING, surface `PR review-thread fetch failed — defaulting to Outgoing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4b / 4c fail-open).
+**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): set K to `unknown`, default routing to OUTGOING, surface `PR review-thread fetch failed — defaulting to Outgoing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open).
 
 **INCOMING AUQ.** When K > 0, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` (substitute the computed K — do NOT render the literal `K`) with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`.
 
@@ -358,8 +358,8 @@ Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After tr
 - **Header:** "Review mode"
 - **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings backed by an F→P-verified failing test)?"
 - **Options:**
-- "Standard review (Recommended)" — current behavior; Phase 4c gate opt-in per-run; Phase 6 posts all kept findings.
-- "TDD review (auto-author failing tests for findings)" — Phase 4c gate's Recommended option flips to "Author tests…"; Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.
+- "Standard review (Recommended)" — current behavior; Phase 4.3 gate opt-in per-run; Phase 6 posts all kept findings.
+- "TDD review (auto-author failing tests for findings)" — Phase 4.3 gate's Recommended option flips to "Author tests…"; Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.
 
 If user declines (empty answer), default to Standard. `--tdd`/`--standard` flag (when present) always overrides this AUQ. Persist to `approvals[]` with category `tdd_mode_choice`.
 

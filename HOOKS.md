@@ -15,7 +15,7 @@ The status messages set on each `hooks.json` entry (e.g. `"Checking for destruct
 
 ## Hook scripts
 
-The plugin ships 7 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 9 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
@@ -24,6 +24,7 @@ The plugin ships 7 safety / lifecycle hooks, 1 sourced utility library, and 2 No
 | [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
 | [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
 | [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write` | warn-mode (block in a future release) | Warns on direct Edit/Write to canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`; suggests `atomic_state_write` / `atomic_state_append` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
+| [`security-pattern-check.sh`](hooks/security-pattern-check.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Cheap regex scan for high-signal security anti-patterns in file content (eval/exec, pickle, yaml.load, shell=True, curl\|sh, TLS bypass, XSS sinks, weak crypto). Per-pattern bypass: `sec-eval-exec`, `sec-pickle`, `sec-yaml-unsafe`, `sec-shell-injection`, `sec-curl-pipe-sh`, `sec-tls-bypass`, `sec-xss-sink`, `sec-weak-crypto`. Scope-limited to applicable file extensions per pattern. Logic-level issues (authz bypass, IDOR, race conditions) are not regex-detectable and require `/geniro:review`. |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Read-only — never writes state.md. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
@@ -74,6 +75,35 @@ Emits an `additionalContext` block-set:
 
 `systemMessage` one-liner emitted on every source except cold startup with no active task. Read-only — never writes state.md.
 
+### security-pattern-check.sh
+
+**Event:** PreToolUse `Edit|Write`. **Stdin:** `jq -r '.tool_input.file_path // ""'` and `jq -r '.tool_input.content // .tool_input.new_string // ""'`. **Block exit:** `exit 2`.
+
+Cheap regex scan for high-signal, low-false-positive security anti-patterns in the content about to land in the file. Catches the obvious string-level wins at edit time without the LLM-cost of an ambient Stop-hook review.
+
+Each pattern is scoped to applicable file extensions — Python's `pickle.loads` won't fire on `.js` files, JavaScript's `innerHTML=` won't fire on `.py` files. On match the hook prints to stderr (pattern ID, file, matched line, two remediation paths — inline justification + retry, OR per-project bypass) and exits 2.
+
+**Pattern IDs** (each individually bypassable):
+
+| ID | Triggers on | Applicable extensions |
+|---|---|---|
+| `sec-eval-exec` | `eval(`, `exec(`, `new Function(` | `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.mjs`, `.cjs` |
+| `sec-pickle` | `pickle.load(s)` | `.py` |
+| `sec-yaml-unsafe` | `yaml.load(` (use `yaml.safe_load`) | `.py` |
+| `sec-shell-injection` | `subprocess shell=True`, `os.system`, `os.popen` | `.py` |
+| `sec-curl-pipe-sh` | `curl … \| sh`, `wget … \| bash` | `.sh`, `.bash`, `.zsh`, Dockerfile |
+| `sec-tls-bypass` | `verify=False`, `rejectUnauthorized: false`, `--insecure`, `--no-check-certificate` | `.py`, `.js`/`.ts`, shell |
+| `sec-xss-sink` | `.innerHTML=`, `dangerouslySetInnerHTML`, `document.write(` | `.js`, `.jsx`, `.ts`, `.tsx`, `.html`, `.vue`, `.svelte` |
+| `sec-weak-crypto` | `createHash('md5'\|'sha1')`, `hashlib.md5/sha1` | `.py`, `.js`/`.ts` |
+
+**Per-project bypass:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]`. Adding any pattern ID disables that pattern entire project-wide:
+
+```json
+{"allow_patterns": ["sec-eval-exec", "sec-xss-sink"]}
+```
+
+**What this hook does NOT catch:** logic-level vulnerabilities (authorization bypass, IDOR, race conditions, mass assignment, JWT `alg: none`, business-logic flaws). Regex cannot see semantics. Run `/geniro:review` for the LLM-driven review that catches those.
+
 ### enforce-state-helper.sh
 
 **Event:** PreToolUse `Edit|Write`. **Block exit:** warn-mode initially; flips to exit-2 hard-block in a future release.
@@ -113,7 +143,7 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "npm 
 
 On success: emits `✓ Tests passed (N lines suppressed)` (~5 tokens). On failure: filters and caps output at 150 lines. Manages its own `mktemp` lifecycle; no persistence.
 
-Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/SKILL.md`](skills/review/SKILL.md), [`skills/review/phase-4c-test-gate-reference.md`](skills/review/phase-4c-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
+Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/SKILL.md`](skills/review/SKILL.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
 
 ## Testing
 
@@ -121,6 +151,13 @@ Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.
 # Test file protection (expect exit code 2 = blocked)
 echo '{"tool_input":{"file_path":"/config/.env"}}' | ./hooks/file-protection.sh
 echo "exit=$?"
+
+# Test security pattern scan (expect exit code 2 = blocked)
+echo '{"tool_input":{"file_path":"/tmp/x.py","content":"r = eval(s)"}}' | ./hooks/security-pattern-check.sh
+echo "exit=$?"
+
+# Full smoke-test suite
+bash tests/hooks/security-pattern-check.sh
 ```
 
 ## Key Safety Principles

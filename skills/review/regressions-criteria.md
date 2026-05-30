@@ -92,6 +92,28 @@ For each deletion:
 
 For deeper cause-path analysis of WHICH scenario the deleted test was pinning (vs. an outcome-matching surviving test), defer to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)". This dim emits the higher-level "test deleted, production stayed" signal; that section handles the cause-path nuance when both dims fire on the same deletion.
 
+### 4. Regression provenance
+
+When §1 (symbol-deletion) or §2 (intent-vs-behavior) fires on a hunk that touches code the current PR didn't author, attach provenance — keep these five roles separate so the finding routes to the right human:
+
+- **Blamed code author** — `git log -L`/`git blame` for the affected line; the original author of the surviving (or recently deleted) code.
+- **Blamed PR author** — the PR that introduced the blamed line, resolved via `gh pr list --state merged --search "<commit-sha>"` or equivalent.
+- **PR merger / committer** — who landed the blamed PR (may differ from the author when CODEOWNERS or maintainers merge).
+- **Current PR author** — who wrote the regression-introducing diff under review now.
+- **Automation trigger** — the human who armed the merge if the merger account is a bot (see below).
+
+For each finding that needs provenance:
+
+1. Run `git blame -L <line>,<line> -- <path>` on the affected hunk; record the blamed commit SHA.
+2. Resolve the blamed commit to its merge PR via `gh` (or the local equivalent) — record `Provenance-PR: #<number>` with PR author and merger.
+3. If no merge PR is traceable (commit landed directly on the base branch), fall back to the blamed commit: `Provenance-commit: <SHA> by @<username> on <date>`. Do not guess a merger when none exists; do not raise the missing PR metadata as a separate finding.
+4. If the merger is an automation account (`*[bot]`, e.g. `dependabot[bot]`, `claude[bot]`, `clawsweeper[bot]`), identify the human trigger when practical: scan PR timeline / comments for maintainer commands such as `@<bot> automerge`, `/landpr`, or labels / status comments that armed automerge. Report `Automerge-triggered-by: @<login>`; if no human trigger is locatable, report `Automerge-triggered-by: trigger unknown`.
+5. Attach the resolved provenance to the finding's body under a `Provenance:` field — not as a separate finding.
+
+**Example trigger.** §1 fires on a deleted `parseFlag()` export. `git blame` on the deletion site shows the line was last touched in commit `a1b2c3d` by `@alice`, merged via PR #482 (author `@bob`, merger `@dependabot[bot]`). Scanning PR #482 timeline shows `@maintainer-carol` commented `/landpr` 3 minutes before merge. Attach `Provenance-PR: #482 author @bob merger @dependabot[bot] automerge-triggered-by @maintainer-carol` to the finding.
+
+**Example skip.** Hunk only touches lines the current PR added (no pre-existing code blamed). Skip provenance — the current PR author owns the finding.
+
 ## Output Format
 
 Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format. Per-finding fields:
@@ -99,12 +121,13 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - `File:` — `path:line` anchored at the deletion site (for §1 and §3) or at the behavior-mutating hunk (for §2). When the finding cites a caller in an unchanged file, name BOTH the deletion site and the caller in the body — the `File:` anchor stays at the deletion.
 - `Severity:` — CRITICAL / HIGH / MEDIUM / LOW per the rubric in §Severity Tagging.
 - `Cause:` — `[ROOT-CAUSE] | [SYMPTOM] | [UNKNOWN]` per the canonical enum at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Phase 3 dedup keys off this classification.
-- `Criteria:` — short label naming the specific check from this file. Suggested values: `Symbol-deletion + caller-blast` (§1) / `Intent-vs-behavior over-reach` (§2) / `Test-coverage delta` (§3).
+- `Criteria:` — short label naming the specific check from this file. Suggested values: `Symbol-deletion + caller-blast` (§1) / `Intent-vs-behavior over-reach` (§2) / `Test-coverage delta` (§3) / `Regression provenance` (§4).
 - `Evidence:` — quote the deleted hunk verbatim AND cite the surviving caller / surviving production / quoted intent fragment. The reader must be able to reproduce the finding from `Evidence:` alone.
 - `Why this matters:` — name the downstream consequence (compile failure, runtime error, silent behavior change, coverage regression).
 - `Suggested fix:` — concrete next step (update caller at `<path:line>`, restore deleted block, add test, narrow intent, etc.).
 - `Decision Type:` — FIX-NOW for §1 and §3; INTENT-CHECK for §2 when intent sources are absent or ambiguous; PRODUCT-DECISION for §2 when stated intent EXISTS and the diff contradicts it.
 - `Confidence:` — 0-100 numeric. Heuristic — ≥80 when caller-grep returns unambiguous downstream references and the deleted symbol has no rename/move match in the diff; 60-79 when callers were checked in a single language scope only; 40-59 when the caller-grep was partial or the intent classification rests on inference rather than explicit statement.
+- `Provenance:` — present only when §4 applies; the resolved 5-role attribution per §4. Carries `Provenance-PR: #<num> author @<login> merger @<login>` OR `Provenance-commit: <SHA> by @<login> on <date>` as appropriate; bot merger gets the `automerge-triggered-by: @<login | trigger unknown>` suffix.
 
 ## Common False Positives
 
@@ -112,7 +135,7 @@ Two false-positive classes route to other dims rather than being suppressed here
 
 - **Behavior shifts in surviving (non-deleted) symbols whose callers are silently exposed to new semantics.** Belongs to `architecture-criteria.md` §1.5 (Caller-Blast Check for Semantic Mutations). This dim covers the inverse: callers of DELETED symbols.
 - **Diff OMITS items the spec promised.** Belongs to `spec-compliance-criteria.md` (when fires). This dim covers the inverse: the diff EXCEEDS the spec.
-- **Cause-path comparison for deleted tests vs. outcome-matching surviving tests.** Belongs to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)". This dim emits the higher-level "test gone, production stayed" signal; that section handles the cause-path nuance.
+- **Cause-path comparison for deleted tests vs. outcome-matching surviving tests.** Belongs to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)". This dim emits the higher-level "test deleted, production stayed" signal; that section handles the cause-path nuance.
 - **Cross-round PR-body vs. diff drift.** Belongs to `pr-metadata-criteria.md` §11 (Description ↔ Code Drift on Re-Review). This dim covers the broader diff-vs-stated-intent direction across all intent sources, not just the PR body across rounds.
 
 When two dims have legitimate overlap on the same hunk, both emit. The Phase 3 filter and Phase 4 stratify steps in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` deduplicate by `file:line + cause`; orthogonal findings on the same hunk survive deduplication.

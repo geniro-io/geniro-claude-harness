@@ -219,13 +219,42 @@ Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches
 - **Trade-off** (1 sentence: gain vs give-up)
 - **Effort estimate** (Trivial / Medium / Big per effort-scaling.md)
 
-### 4.2 AUQ shape
+### 4.2 Independent stress-test (adversarial weighing)
 
-Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. Header "Approach"; each option carries an `description` (summary + trade-off, ≤2 lines) AND a `preview` field containing an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier (new class/function/file name) + dominant tradeoff one-liner. Full literal example with preview content (Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §3.
+The model that generated the approaches in §4.1 also ranks them in the §4.3 AUQ — same context, same blind spots, so its `Recommended` pick just re-confirms its own bias. Before ranking, get an independent challenge grounded in the actual codebase, so the `Recommended` marker reflects feasibility evidence rather than the author's confidence.
 
-### 4.3 Persistence
+Effort-tier-scaled (tier already detected in Phase 1.2 — the critic cost lands only where a wrong approach is expensive):
 
-User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`.
+| Tier | Stress-test spawns |
+|---|---|
+| Trivial | Skipped — single narrow approach, no ranking risk |
+| Medium | 1 `codebase-research-agent` — stress-tests all approaches comparatively in one spawn |
+| Big | 1 `codebase-research-agent` per approach (2-3 in parallel) — each independently challenges its assigned approach |
+
+Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research, all in a single assistant response (parallel-spawn rule), OMIT `model=`, apply the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration ladder. Per-spawn slots:
+
+- `RESEARCH_QUESTION`: "Stress-test approach «<name>» against this codebase: find blockers, hidden coupling, convention conflicts, and prior rejected attempts that would make it fail or cost more than its stated effort estimate." (Medium tier: enumerate all approaches in one question.)
+- `DELIVERABLE_SHAPE`: `"table of [{approach, risk, evidence file:line, severity: blocking|major|minor}]"`
+- `SCOPE_HINT`: path globs from the approach's touched surface (Phase 1 echo entries).
+- `PRE_INLINED_CONTEXT`: the §4.1 approach list + relevant Phase 1 `query-learnings` entries — especially any prior `user_rejected_suggestion` for this topic-area, which is itself a blocking signal.
+- `OUTPUT_PATH`: `<task-dir>/.research-critique-<approach-slug>.md` (Big) or `<task-dir>/.research-critique.md` (Medium) — T1 ephemeral, within the documented `.research-<facet>.md` glob.
+- `THOROUGHNESS`: `medium`.
+
+After the batch returns, fold the critiques into the ranking:
+
+- An approach carrying a `blocking` risk is never the `Recommended` option — demote it. If every approach carries a blocking risk, loop back to Phase 3 with a tighter scope question rather than recommend a non-viable plan.
+- `major` / `minor` risks annotate an approach but do not bar recommendation.
+- Each approach gains a one-line `Stress-test:` verdict (top risk + evidence file:line) carried into the §4.3 AUQ `preview` and the §4.4 `## Considered Alternatives` body.
+
+Append a `## Tool log` Echo entry per spawn (same shape as §1.3). Fail-open: if a critic spawn fails, log a `## Errors` entry and proceed to §4.3 on the model's own ranking, noting "stress-test unavailable" in the AUQ preview — the weighing is advisory, not a hard gate.
+
+### 4.3 AUQ shape
+
+Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a blocking feasibility risk is never Recommended. Header "Approach"; each option carries an `description` (summary + trade-off, ≤2 lines) AND a `preview` field containing an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier (new class/function/file name) + dominant tradeoff one-liner + the approach's `Stress-test:` verdict line from §4.2. Full literal example with preview content (Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §3.
+
+### 4.4 Persistence
+
+User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`, each carrying its §4.2 `Stress-test:` verdict line + evidence; an approach demoted for a blocking risk records `Why not recommended: <blocking risk + file:line>`.
 
 ** L2 emit on rejection signal:** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 
@@ -247,6 +276,7 @@ Example body:
 ### Inline Refactor (rejected)
 Summary: ...
 Trade-off: smaller surface change, but locks into existing module shape.
+Stress-test: shared mutable cache in src/store/cache.ts:88 is read by 3 other modules — refactor would break them (severity: major).
 Why rejected: violates new boundary established in Q3 2026 architecture review.
 ```
 
@@ -344,9 +374,9 @@ State.md `phase: validate` during this phase.
 
 Phase 7 uses a **deterministic validator** — script-checkable rules executed orchestrator-side. No LLM round-trip per check.
 
-### 7.2 Validator checks (14 checks)
+### 7.2 Validator checks
 
-See `skills/plan/validator-checks.md` for the canonical check definitions (14 checks total). Each check returns `(check_id, status, finding_text, fix_hint)`. Run all 14 in sequence.
+See `skills/plan/validator-checks.md` for the canonical check definitions. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set in sequence.
 
 ### 7.3 Hard-fail handling
 
@@ -471,11 +501,12 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
 - [ ] Phase 3 used `AskUserQuestion` one-at-a-time, ≤5 questions, single dimension per question; each option carried a `preview` field; each answer persisted to `approvals[]`.
 - [ ] Phase 4 presented 2-3 approaches with Recommended first; each option carried a `preview` (ASCII sketch + code identifier + tradeoff); pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
+- [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); critique verdicts carried into the AUQ preview + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
 - [ ] Phase 5 used per-section AUQ for the fixed 10-section schema; incremental authoring (section N → AUQ → on approve author N+1); each option carried a `preview` field; each pick persisted to `approvals[]`.
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
 - [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present.
 - [ ] Phase 6 did NOT auto-commit.
-- [ ] Phase 7 mechanical validator ran 14 checks; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
+- [ ] Phase 7 mechanical validator ran the full check set defined in `validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 8 schema-rich AUQ fired with fields inline; user picked one of 3 options; max 3 user-revision rounds respected.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
 - [ ] Phase 9 hand-off AUQ fired with 2 options; pick persisted to `approvals[]`.
@@ -494,6 +525,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 | "Per-section AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the section" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Use the AskUserQuestion `preview` field on every option to carry concrete content (UI ASCII, code snippet, behavior trace). The chat becomes a one-line "Section: X — focus an option to inspect" announcement; the AUQ IS the rendered content. |
 | "I'll write the design doc with only the YAML frontmatter — that's enough" | Defense in depth requires all three markers (path + HTML comment + frontmatter). See `design-doc-detect.md` § Why defense in depth — each marker survives a different user action. |
 | "Phase 4 — 4 or 5 approaches gives the user more choice" | More than 3 indicates Phase 3 didn't narrow scope; loop back to Phase 3 with a tighter scope-boundary question. |
+| "My §4.1 approaches are well-reasoned — the §4.2 stress-test is redundant overhead" | The model that authored the approaches shares their blind spots; ranking them in the same context re-confirms its own bias rather than testing it. An independent codebase-grounded critic catches blockers the author cannot see from generation context alone — hidden coupling, a previously-rejected shape in L2, a convention conflict — which is the load-bearing reason `Recommended` is set from evidence, not self-confidence. It is tier-scaled (skipped on Trivial) so the cost lands only where a wrong approach is expensive. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Metaswarm anti-pattern. Compaction mid-Phase-5 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |
 | "I'll `Write` outside `.geniro/planning/**` to save a step — /plan can touch source directly" | /plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended `Write` target is the planning task-dir; writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |

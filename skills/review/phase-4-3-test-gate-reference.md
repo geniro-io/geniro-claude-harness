@@ -1,8 +1,8 @@
-# Phase 4c Test Gate Reference
+# Phase 4.3 Test Gate Reference
 
-Detailed contract for `/geniro:review` Phase 4c (Test-Confirmation Gate). SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 4.3 (Test-Confirmation Gate). SKILL.md retains a 2-3 line summary + a pointer here.
 
-State.md `phase: stratify` during Phase 4c (which is a sub-phase of Phase 4 stratification).
+State.md `phase: stratify` during Phase 4.3 (which is a sub-phase of Phase 4 stratification).
 
 ---
 
@@ -26,11 +26,11 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 - `decision: FIX-NOW` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
 
 Use the decision-type taxonomy as defined in `${CLAUDE_SKILL_DIR}/plan-context-reference.md`
-If eligible set is empty after filtering, skip the rest of Phase 4c entirely — do NOT show an AUQ. Proceed to Phase 5.
+If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely — do NOT show an AUQ. Proceed to Phase 5.
 
 ### 2.1 Runtime-behavior classification (canonical rule)
 
-Used by both Phase 4c Step 1 AND Phase 6 Step 3.5. A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query).
+Used by both Phase 4.3 Step 1 AND Phase 6 Step 3.5. A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query).
 
 A `FIX-NOW` finding's description is NON-runtime ("typo-class") if it cites: typo / spelling, cross-reference (link, anchor, ref number), wrong import path, dead code that compiles, comment-only edits, formatting, lint-style issues.
 
@@ -128,13 +128,13 @@ Also log a structured entry to state.md `## Errors`:
 
 ```yaml
 - phase: stratify
-stage: phase-4c
+stage: phase-4-3
 error: adversarial-tester-agent-failed-or-unparseable
 consequence: bug-confirmation-skipped
 ```
 
 ---
 
-## 8. Why Phase 4c exists
+## 8. Why Phase 4.3 exists
 
-Phase 4c is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4.2's read-only verifier. The gate is non-negotiable: the user can decline, but the offer is not orchestrator's to skip.
+Phase 4.3 is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4.2's read-only verifier. The gate is non-negotiable: the user can decline, but the offer is not orchestrator's to skip.

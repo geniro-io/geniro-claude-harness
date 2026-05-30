@@ -4,7 +4,7 @@ description: "Use to turn a vague idea or feature request into an approved spec.
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: opus
-argument-hint: <topic-string-or-design-doc-path>
+argument-hint: "<topic-string-or-design-doc-path>"
 ---
 
 # /geniro:plan — Spec-first planning
@@ -65,7 +65,7 @@ phase-8-escalated ──┬── user-approve (Approve as-is)
 | 4 | Approaches (2-3 with Recommended first, each option carries `preview`) | §"Phase 4 — Approaches" |
 | 5 | Section approval (incremental authoring, fixed 10-section schema, milestone-mode, each option carries `preview`) | §"Phase 5 — Section approval" |
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
-| 7 | Mechanical validator (14 checks — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
+| 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 8 | User approve (schema-rich AUQ + git commit) | §"Phase 8 — User approval" |
 | 9 | Hand-off (2 options: /implement / Stop) | §"Phase 9 — Hand-off" |
 
@@ -75,7 +75,7 @@ Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema 
 
 ## Loop invariants
 
-These 8 invariants apply throughout all phases. Identical to conceptually; phase numbers and tool surface differ.
+These invariants apply throughout all phases; phase numbers and tool surface differ.
 
 1. **One result per tool call.** Every AskUserQuestion / Write / Bash / Agent spawn produces exactly one structured result. Failed AUQ (empty-answer bug) → fall back to plain-text re-ask; never auto-default.
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Path-based detection (design-doc-detect.md) validates file existence before treating $ARGUMENTS as a path.
@@ -234,7 +234,7 @@ Per master plan anti-patterns guardrail — must NOT reintroduce these:
 | "Per-section AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the section." | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Use the AskUserQuestion `preview` field on every option to carry concrete content (UI ASCII, code snippet, behavior trace). The chat becomes a one-line "Section: X — focus an option to inspect" announcement; the AUQ IS the rendered content. |
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /implement when the rendered UI doesn't match). |
 | "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections from prose — structurally-lossy. design fix: «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
-| "Phase 7 mechanical validator misses cases a smart LLM would catch." | 14 checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
+| "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects." | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "Plan-mode mutation guard is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field + PreToolUse Bash guard are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
 | "5 clarifying questions is too few for complex tasks." | Phase 3 ≤5 is a quality-first signal. >5 means Phase 1 underspecified OR the task is too vague. Force consolidation — better questions, not more questions. |

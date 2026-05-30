@@ -1,6 +1,6 @@
 ---
 name: geniro:review
-description: "Use when a comprehensive code review of pending changes is needed. 6-phase loop (triage → mechanical pre-pass → LLM reviewers (always-fire + conditional + N custom per §2.1) → filter → stratify → persist → action-gate). MANDATORY spawn list per §2.1. Always-fire dims include `regressions` (catches unintended deletes and behavior changes outside stated intent). Reporter behavior — emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/implement, manual) apply fixes. Phase 6 Pre-gate resolves any unresolved open_questions[] from spec-compliance / pr-metadata / plan-context BEFORE the action-gate fires. Optional --simplify flag folds Reuse/Quality/Efficiency criteria into existing dims. Optional --tdd flag tightens Phase 4.2 per-HIGH verification + Phase 4.3 F→P test-gate."
+description: "Use when a comprehensive code review of pending changes is needed. 6-phase loop (triage → mechanical pre-pass → LLM reviewers (always-fire + conditional + N custom per §2.1) → filter → stratify → persist → action-gate). MANDATORY spawn list per §2.1. Always-fire dims include `regressions` (catches unintended deletes and behavior changes outside stated intent). Reporter behavior — emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/implement, manual) apply fixes. Phase 6 Pre-gate resolves any unresolved open_questions[] from spec-compliance / pr-metadata / plan-context BEFORE the action-gate fires. Optional --simplify flag folds Reuse/Quality/Efficiency criteria into existing dims. Optional --tdd flag tightens Phase 4.2 per-finding verification + Phase 4.3 F→P test-gate. Phase 4.2 verifier runs on every §4.1 survivor (CRITICAL/HIGH/MEDIUM) — no tier-scaling."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree]
@@ -13,8 +13,8 @@ Comprehensive code review using parallel multi-agent analysis.
 
 **Detailed phase contracts:**
 - `${CLAUDE_SKILL_DIR}/phase-1-triage-reference.md` — Phase 1 input mode / scope / risk-tier / memory load.
-- `${CLAUDE_SKILL_DIR}/phase-4-verification-reference.md` — Phase 4.2 per-HIGH verifier contract.
-- `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md` — Phase 4.3 test-confirmation gate.
+- `${CLAUDE_SKILL_DIR}/phase-4-verification-reference.md` — Phase 4.2 per-finding verifier contract (every CRITICAL/HIGH/MEDIUM survivor of §4.1).
+- `${CLAUDE_SKILL_DIR}/phase-4-3-test-gate-reference.md` — Phase 4.3 test-confirmation gate.
 - `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` — Phase 6 action-gate hand-off + Post drill.
 - `${CLAUDE_SKILL_DIR}/plan-context-reference.md` · `incoming-mode-reference.md` · `tdd-mode-reference.md` — PLAN CONTEXT load / INCOMING mode / `--tdd` semantics.
 
@@ -49,19 +49,19 @@ State.md `phase:` enum transitions:
 
 ## Loop Invariants
 
-The 9 invariants apply unchanged:
+The invariants apply unchanged:
 
 1. **One result per tool call.** Phase 2 parallel-spawn reviewer-agents — each must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` flag parsing (semantic, no CLI grammar); PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
 3. **Permission before side-effect.** Phase 6 "Post Draft PR" requires AUQ approval before posting to GitHub. The post is a single `gh api POST /repos/<owner>/<repo>/pulls/<number>/reviews` call per `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §7.5 — `event` field omitted so the review is created in GitHub's PENDING state (private to the reviewer, no notifications fire). State.md writes via `atomic_state_write`.
 4. **Bounded and structured tool results.** Reviewer-agent output ≤4000 chars per dim; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 5. **Escalation gates, not silent abort.** Round-N ≥3 → Phase 6 escalation gate.
-6. **Final answer grounded in observations.** Phase 6 hand-off message MUST cite the state.md path; finding bodies MUST include Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
+6. **Final answer grounded in observations — at every kept severity.** Phase 6 hand-off message MUST cite the state.md path; every kept finding body (CRITICAL / HIGH / MEDIUM) MUST include an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` that quotes the cited file or caller chain literally. The Phase 4.2 per-finding verifier (`${CLAUDE_SKILL_DIR}/phase-4-verification-reference.md` §3) formalizes this for every §4.1 survivor — empirical reproduction of the cited code is the load-bearing check that turns a reviewer's confidence score into grounded evidence.
 7. **Errors → structured observations.** Reviewer spawn failures → `## Errors` body section. `gh` fail-open NOT silent — log to `## Errors`.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
-9. **Re-verify ambiguity gates at external-effect boundaries.** §2.5 Pre-gate, §3 Step 0, and the Phase 4.2 per-HIGH verifier establish gate invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, and HIGH-severity `Validation:` respectively; §7.0 re-reads ALL THREE before any `gh api POST /reviews` because mid-phase producer writes, parallel resolvers, or orchestrator drift can re-create unresolved ambiguity (or surface a `Validation: refuted` finding that bypassed the upstream filter) between the upstream gate and the external write. Never trust an upstream gate's invariant at a public-surface boundary.
+9. **Re-verify ambiguity gates at external-effect boundaries.** §2.5 Pre-gate, §3 Step 0, and the Phase 4.2 per-finding verifier establish gate invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, and kept-finding `Validation:` respectively; §7.0 re-reads ALL THREE before any `gh api POST /reviews` because mid-phase producer writes, parallel resolvers, or orchestrator drift can re-create unresolved ambiguity (or surface a `Validation: refuted` finding that bypassed the upstream filter) between the upstream gate and the external write. Never trust an upstream gate's invariant at a public-surface boundary.
 
-`## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5b emit-learning + 1 per PR-side-effect).
+`## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5.3 emit-learning + 1 per PR-side-effect).
 
 ---
 
@@ -254,7 +254,11 @@ This is observability for the Phase 4 §4.0 verification gate — declared-vs-ac
 
 ### 2.3 Spawn invocation
 
-Single message with N parallel `Agent` tool uses, one per dimension. Each spawn:
+Before firing the parallel batch, narrate the spawn to the user — read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`guidelines` -> "code quality", `pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit a one-line status:
+
+> Spawning <N> reviewers: <comma-separated plain-English list>.
+
+Then fire the parallel batch — single message with N parallel `Agent` tool uses, one per dimension. Each spawn:
 
 - `subagent_type: reviewer-agent` (plugin) — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder.
 - OMIT `model=` argument — reviewer-agent declares `model: inherit`. Custom reviewers that declare an explicit tier in their `.geniro/instructions/review-extra/<slug>.md` frontmatter pass that tier verbatim; otherwise OMIT.
@@ -269,6 +273,12 @@ Single message with N parallel `Agent` tool uses, one per dimension. Each spawn:
   - PEER-PR CONTEXT — architecture + design + bugs + conventions + optimizations + spec-compliance + regressions dims ONLY.
   - Dimension-specific criteria file body inlined.
   - Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
+
+After the parallel batch returns, narrate completion before transitioning to §3:
+
+> All <N> reviewers returned. Aggregating findings.
+
+Surface any `status: failed` entries by their plain-English dim name (e.g., "PR metadata reviewer failed — see `## Errors`"), not by raw slug.
 
 **Criteria files** (read once at Phase 2 entry):
 - `${CLAUDE_SKILL_DIR}/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `optimizations-criteria.md` · `guidelines-criteria.md` · `conventions-criteria.md` · `regressions-criteria.md`
@@ -320,7 +330,7 @@ State.md `phase: filter`.
 The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent outputs + Phase 1.5 mechanical findings) and performs dedup inline — no subagent spawn:
 
 - **Dedup key:** `path:line + finding-title` (case-insensitive title match).
-- **Convergence_count:** for each dedup'd finding, count how many reviewers + mechanical checks reported the same key. Persisted as a field on the finding (consumed by Phase 5b auto-emit threshold).
+- **Convergence_count:** for each dedup'd finding, count how many reviewers + mechanical checks reported the same key. Persisted as a field on the finding (consumed by Phase 5.3 auto-emit threshold).
 - **Drop hallucinations:** findings without a real file:line correspondence (orchestrator verifies file exists and line is within bounds via Read; if not, drop with a `## Caveats` line citing the dropped finding).
 - **Convention context:** orchestrator reads convention files when present — CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs. These inform KEEP/FILTER decisions.
 
@@ -369,19 +379,21 @@ When `missing` is empty, proceed directly to §4.1.
 
 KEEP rule (admit to Phase 4.2 verifier + Phase 5 stratify) — `severity >= MEDIUM` AND ONE OF:
 1. `convergence_count >= 2` — finding raised by 2+ independent reviewer dims (k-review pattern; cross-dim agreement beats any single dim's self-rating). `convergence_count` is set during §3.1 dedup.
-2. `Evidence-Block present AND properly formatted` AND `confidence >= 60` — cites a real file:line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Properly formatted" = Evidence-Block fence OR file:line pattern + ≥2 quoted lines (mechanical check at §4.1 entry on each finding's `Evidence:` field; false on missing; orchestrator does NOT re-read the cited file — Phase 4.2 verifier handles that for HIGHs).
+2. `Evidence-Block present AND properly formatted` AND `confidence >= 60` — cites a real file:line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Properly formatted" = Evidence-Block fence OR file:line pattern + ≥2 quoted lines (mechanical check at §4.1 entry on each finding's `Evidence:` field; false on missing; orchestrator does NOT re-read the cited file — Phase 4.2 verifier handles that for every §4.1 survivor).
 3. Pre-resolved override marker — tagged by a criteria file as pre-resolved priority (e.g., `simplify-criteria.md` P1/P2; `regressions-criteria.md` signal-table-flagged HIGH).
 4. `confidence >= 80` — advisory fallback for findings without convergence or evidence. High tier (`risk-tier: high`) relaxes this to `confidence >= 70` (matches the legacy threshold); other signals unchanged. `--tdd` does not affect §4.1 admission (only Phase 4.2 verifier scope).
+
+Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence drops to `## Deferred — sub-threshold` regardless of convergence or confidence score.
 
 DEFER rule (write to `## Deferred — sub-threshold` for user awareness; do NOT post to PR; do NOT populate `open_questions[]`):
 - `severity < MEDIUM` — always deferred per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5.
 - `severity >= MEDIUM` that fails ALL FOUR signals above.
 
-### 4.2 Per-HIGH-finding empirical-reproduction verification
+### 4.2 Per-finding empirical-reproduction verification
 
-Every HIGH-severity finding surviving Phase 4.1 gets ONE fresh `reviewer-agent` spawn in verify-finding mode (parallel batch, single assistant turn). No tier-scaling — ALL HIGHs verified regardless of `risk-tier` or `--tdd`.
+Every finding surviving Phase 4.1 — CRITICAL, HIGH, AND MEDIUM — gets ONE fresh `reviewer-agent` spawn in verify-finding mode (parallel batch, single assistant turn). No tier-scaling, no severity-scaling — every §4.1 survivor is verified regardless of `risk-tier` or `--tdd`. The §4.1 multi-signal gate already constrains the survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM per §4.1; Loop Invariant #6 mandates Evidence at every kept severity), so every survivor has a concrete file:line for the verifier to re-read.
 
-For each HIGH finding, the orchestrator reads the cited `file:line` ± 30 lines, greps the key symbol's 1-hop callers (cap 50 lines) + test dirs (cap 20 lines), then composes a verify-finding spawn carrying ONLY the finding body + cited slice + grep outputs (NOT the full reviewer bundle — isolated context prevents anchoring). All verifier spawns fire in ONE assistant response using the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
+For each kept finding, the orchestrator reads the cited `file:line` ± 30 lines, greps the key symbol's 1-hop callers (cap 50 lines) + test dirs (cap 20 lines), then composes a verify-finding spawn carrying ONLY the finding body + cited slice + grep outputs (NOT the full reviewer bundle — isolated context prevents anchoring). All verifier spawns fire in ONE assistant response using the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
 Each verifier emits: `validation: confirmed | refuted | clarified`, `recommended_action: fix-now | testable | product-decision | intent-check | drop`, `confidence: 1-5`, `evidence: "<file:line quote>"`.
 
@@ -390,11 +402,13 @@ Aggregation:
 - `clarified` findings keep severity but update `decision-type` to the verifier's `recommended_action`; verifier confidence and evidence append to the finding body.
 - `confirmed` findings retain decision-type; verifier confidence and evidence append.
 
+A `refuted` verdict on a CRITICAL is high-impact (the finding drops out of the handoff entirely). The verifier contract requires a literal quote from the cited file showing the defect is NOT present (paraphrased "looks fine" is insufficient). See `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §6 for the anti-sycophancy guard.
+
 Full prompt template, isolated-context contract, anti-sycophancy guard, and worked examples: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md`.
 
 ### 4.3 Failing-to-passing test-confirmation gate
 
-**Full contract:** `${CLAUDE_SKILL_DIR}/phase-4c-test-gate-reference.md`.
+**Full contract:** `${CLAUDE_SKILL_DIR}/phase-4-3-test-gate-reference.md`.
 
 Summary:
 - Filter findings by decision-type per the runtime-behavior classification rule.
@@ -633,11 +647,11 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a | three loaded layers | precedence-resolved |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` | scope = `review` + `global` + `code-style` | rule body (refreshed) |
 | Phase 5 | `atomic_state_write` | write T2 | n/a | state file path; full body | whole-file rewrite |
-| Phase 5b | `emit-learning` | write L2 | n/a | producer = /review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
+| Phase 5.3 | `emit-learning` | write L2 | n/a | producer = /review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
 | Phase 6 | `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |
 
 **L2 emit triggers** per patched contract:
-- `pitfall` — **YES** — Phase 5b auto-emit when convergence ≥3.
+- `pitfall` — **YES** — Phase 5.3 auto-emit when convergence ≥3.
 - `convention` — Not. /implement owns.
 - `decision` — Not. /plan owns.
 - `diagnosis` — Not. /debug owns.
@@ -661,8 +675,8 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | "I'll auto-update Linear status from /review when findings are critical — saves the user a step." | /review is a Reporter. Linear `update_issue` / `create_comment` are external side-effect writes; only /geniro:plan and /geniro:implement run them per their workflow contracts. /review's MCP surface is read-only (`get_issue` / `list_issues`) per ACI. The Open Questions schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 lets /review surface ambiguity without mutating tracker state. |
 | "Inline LINEAR CONTEXT into every dim — more context = better review." | Cross-reviewer convergence anti-pattern: LINEAR CONTEXT helps spec-compliance (rubric source), pr-metadata (title-divergence check), architecture (parent-epic linkage), and regressions (intent classification). Other dims see it as noise that biases their per-file rubric. The narrow 4-dim distribution is the documented pattern. |
 | "Regressions dim feels redundant with spec-compliance — skip it on PRs that have a spec." | spec-compliance covers diff-omits-spec-item; regressions covers diff-exceeds-stated-intent. They're inverse directions, not duplicates. Regressions also fires on spec-less PRs where spec-compliance can't (matches user mental model: catch unintended changes broadly). |
-| "Per-HIGH verifier agreed with the finding — confirmation logged, done." | Confirmation without an `evidence:` quote from the cited file or caller chain is rationalization theater. If the verifier didn't quote literal code, the verification didn't happen — re-spawn with stricter prompt. Sycophancy is the documented multi-judge failure mode (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §6). |
-| "§2.5 Pre-gate fired earlier in Phase 6, so §7.0 doesn't need to re-check before the Post drill." | Per ARCHITECTURE.md §`/review (M6)`, `open_questions[]` is gated by a 3-gate chain (§2.5 Pre-gate / §7.0 Pre-Post guard / consumer-side `/implement` Phase 1 Step 12); PRODUCT-DECISION findings via the `step0_status:` sentinel are gated by a 2-gate chain (§3 / §7.0 — Step 12 reads `open_questions[]` only, not `## Findings`). Each upstream gate is a single point of failure; mid-phase producer writes and parallel resolvers can re-create unresolved entries between §2.5/§3 and the `gh api POST /reviews` call. The real incident where an AUQ `header: "Open question"` literal leaked into a PR comment happened because §7.0 didn't re-check `## Findings`. Re-verify at every external-effect boundary; never trust the upstream gate. |
+| "Per-finding verifier agreed with the finding — confirmation logged, done." | Confirmation without an `evidence:` quote from the cited file or caller chain is rationalization theater. If the verifier didn't quote literal code, the verification didn't happen — re-spawn with stricter prompt. Sycophancy is the documented multi-judge failure mode. Additional anti-rationalization guards for the hoisted §4.2 scope (sampling pressure, CRITICAL-skip rationalization) live in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §6. |
+| "Round 1 returned clean. Run round 2 to confirm / get a nicer summary line / second opinion." | Clean = Done. The Round-N escalation gate (Loop Invariant #5) ends the flow on clean result; do not loop back into Phase 2 for cosmetic polish or a "second opinion." Extra rounds waste compute AND risk hallucinated findings against an empty diff. Once a round exits with zero kept findings, the Phase 6 Action gate is the terminal step. |
 
 ---
 
@@ -679,18 +693,18 @@ Code review is complete when:
 - [ ] Phase 1.5 mechanical pre-pass ran — 3 checks (lint / schema / secret scan) with strict-mode secret-scan when risk-tier:high
 - [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT (spec-compliance + regressions dims only) + LINEAR CONTEXT (spec-compliance + pr-metadata + architecture + regressions dims only) + PEER-PR CONTEXT (per Phase 1 Peer-PR scout) + PRIOR-ROUND FINDINGS + Mechanical Pre-pass Findings + alignment-tag instruction (PR metadata flows via the pr-metadata reviewer's existing context channel — no separate `PR CONTEXT:` slot)
 - [ ] Phase 2 spawn list includes `regressions` (8th always-fire dim) — declared in state.md `spawn_dims_declared[]` before parallel batch
-- [ ] Phase 4.2 per-HIGH verifier spawned for EVERY HIGH-severity survivor (no tier-scaling); refuted findings demoted to `## Filtered` before §4.3 F→P gate
+- [ ] Phase 4.2 per-finding verifier spawned for EVERY §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, no severity-scaling); refuted findings demoted to `## Filtered` before §4.3 F→P gate
 - [ ] Phase 2 spec-compliance reviewer spawned when PLAN CONTEXT non-`none` AND (input was a PR ref OR risk-tier:high)
 - [ ] Phase 2 `--simplify` flag prepended deep-simplify criteria to (architecture / conventions / guidelines / bugs / optimizations) dimensions when present
 - [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding
 - [ ] Phase 4 judge validation complete; Step 0 intent reconciliation applied (plan-authorized divergences demoted to `[INTENT-CHECK]`)
-- [ ] Phase 4.1 multi-signal threshold gate applied (convergence ≥2 OR Evidence-Block + confidence ≥60 OR criteria-pre-resolved marker OR confidence ≥80 fallback; high-tier relaxes signal 4 to ≥70)
+- [ ] Phase 4.1 multi-signal threshold gate applied (convergence ≥2 OR Evidence-Block + confidence ≥60 OR criteria-pre-resolved marker OR confidence ≥80 fallback; high-tier relaxes signal 4 to ≥70; MEDIUM additionally requires signal #2 / Evidence-Block per Loop Invariant #6)
 - [ ] Phase 4.3 test-gate evaluated (skipped when no eligible findings or user declines); user approval persisted to `approvals[]`
 - [ ] TDD mode only: Phase 4.3 Step 2 AUQ rendered with `(Recommended)` suffix on "Author tests…" (gate itself fired exactly as in Standard mode); Phase 6 Step 3.5 post-set filter applied
 - [ ] Issues classified by severity (CRITICAL/HIGH/MEDIUM/LOW per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1) and Decision Type ([FIX-NOW] / [TESTABLE] / [PRODUCT-DECISION] / [INTENT-CHECK])
 - [ ] All findings tagged `[NEW]` (in changed lines) or `[PRE-EXISTING]` (in unchanged code) per `agents/reviewer-agent.md` Output Format; build-failure findings additionally tagged per §2.7
 - [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`
-- [ ] Phase 5b L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
+- [ ] Phase 5.3 L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
 - [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding (always-WAIT)
 - [ ] Phase 6 Step 0 per-finding gate completed AND every PRODUCT-DECISION finding's `step0_status` flipped from `pending` to `resolved` (or `wontfix`) BEFORE the Action gate's Post drill fires; §7.0 Pre-Post guard re-reads both `open_questions[]` and `## Findings` and aborts the post on any remaining `unresolved` / `pending` per `${CLAUDE_SKILL_DIR}/phase-6-handoff-reference.md` §7.0
 - [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision; user pick persisted to `approvals[]` (category `action_gate`)
