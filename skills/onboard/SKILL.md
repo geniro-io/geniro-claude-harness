@@ -300,25 +300,6 @@ Existing safety hooks apply across all phases (file-protection / git-guardrail /
 | "Defer compaction-survival to downstream skills — /onboard is mostly scan." | The contract IS /onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
 | "Audit trail isn't needed for local /onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. the SessionStart re-injects on compaction; without log, post-mortem requires re-running the scan from scratch. |
 
-## Anti-pattern check
-
-| # | Anti-pattern | /onboard status |
-|---|---|---|
-| 1 | One giant prompt | ✅ Avoided — orchestration shell + delegated helpers (load-semantic, emit-learning, update-semantic) |
-| 2 | One giant tool | ✅ N/A |
-| 3 | Unbounded autonomous loop | ✅ cap + AUQ escalation gates |
-| 4 | Autonomous external sends in first release | ✅ N/A — /onboard ships no commits / no PRs / no posts |
-| 5 | No approval state | ✅ approvals[] + Block 5d render |
-| 6 | No durable plans or goals | ✅ State.md mandatory; schema |
-| 7 | No compaction strategy | ✅ body sections + SessionStart re-injects |
-| 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools without policy | ✅ §ACI per-phase + existing safety hooks |
-| 10 | Subagents before single-agent MVP measured | ✅ N/A — /onboard is solo |
-| 11 | Dynamic timestamps in plugin-distributed Markdown bodies | ✅ Verified — no runtime timestamps in this SKILL.md body |
-| 12 | Non-deterministic agent registration order | ✅ N/A — no agents spawned |
-
----
-
 ## CODEBASE_MAP.md format example
 
 ```markdown

@@ -49,7 +49,7 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §1.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
 4. **Transition.** `phase: explore` via `atomic_state_write`.
 
 ### 0.4 Cancel handling
@@ -193,11 +193,11 @@ Questions MUST be grounded in Phase 1 findings. Generic «what tech stack?» que
 
 ### 3.2 One-at-a-time AUQ shape
 
-Fire questions sequentially, **never** as a multi-question form. Each AUQ uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. **Every option carries a `preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview) — empty `Approve / Revise / Skip` options waste user attention. Full literal example with preview content in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §2.
+Fire questions sequentially, **never** as a multi-question form. Each AUQ uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. **Every option carries a `preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview) — empty `Approve / Revise / Skip` options waste user attention. Full literal example with preview content in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 ### 3.3 Persistence
 
-Each answered AUQ → append entry to state.md frontmatter `approvals[]` via `atomic_state_write` BEFORE proceeding to the next question. Entry shape (category `clarify_<dim>` / prompt / options / picked / at / asked_in_phase) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §2.
+Each answered AUQ → append entry to state.md frontmatter `approvals[]` via `atomic_state_write` BEFORE proceeding to the next question. Entry shape (category `clarify_<dim>` / prompt / options / picked / at / asked_in_phase) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 On compaction-resume, the SessionStart re-injector renders `approvals[]` and the model re-reads it to skip already-answered questions.
 
@@ -250,7 +250,7 @@ Append a `## Tool log` Echo entry per spawn (same shape as §1.3). Fail-open: if
 
 ### 4.3 AUQ shape
 
-Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a blocking feasibility risk is never Recommended. Header "Approach"; each option carries an `description` (summary + trade-off, ≤2 lines) AND a `preview` field containing an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier (new class/function/file name) + dominant tradeoff one-liner + the approach's `Stress-test:` verdict line from §4.2. Full literal example with preview content (Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §3.
+Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a blocking feasibility risk is never Recommended. Header "Approach"; each option carries an `description` (summary + trade-off, ≤2 lines) AND a `preview` field containing an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier (new class/function/file name) + dominant tradeoff one-liner + the approach's `Stress-test:` verdict line from §4.2. Full literal example with preview content (Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §3.
 
 ### 4.4 Persistence
 
@@ -290,7 +290,7 @@ State.md `phase: section-approve` during this phase.
 
 ### 5.1 Section template
 
-Use the **fixed 10-section schema** detailed in `${CLAUDE_SKILL_DIR}/spec-template.md`:
+Use the **fixed 10-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md`:
 
 1. Objective
 2. Scope — Included
@@ -312,11 +312,11 @@ For Trivial tasks, sections 4 / 5 / 10 may have body content «none — task sco
 
 One AUQ per section, sequentially. **Do NOT pre-fill all 10 sections in a batch** — pre-fill makes per-section approval redundant. Section N+1 is authored only after section N approval. Procedure: (1) author section N inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate; (2) fire AUQ with header `"Section: <name>"` and three options (Approve / Revise — I'll describe / Skip — accept as-is with warning) each carrying a `preview` field with concrete content; (3) persist pick to `approvals[]` with category `section_<id>`; (4) transition to section N+1.
 
-Max 3 revisions per section. Concrete-example content per section type lives in `${CLAUDE_SKILL_DIR}/plan-reference.md`. Full procedure + Option preview templates in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §4.1.
+Max 3 revisions per section. Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md`. Full procedure + Option preview templates in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.1.
 
 ### 5.3 Milestone-mode
 
-Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/implement milestone 1`. Full AUQ shape + follow-up procedure in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §4.2. Milestone-mode does NOT fire for Medium/Trivial.
+Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/implement milestone 1`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode does NOT fire for Medium/Trivial.
 
 ---
 
@@ -330,7 +330,7 @@ Path: `.geniro/planning/<task-slug>/spec.md`.
 
 Content: schema (10 sections) + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode).
 
-**Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_SKILL_DIR}/spec-template.md` §workflow_refs).
+**Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §workflow_refs).
 
 Frontmatter MUST carry `geniro_schema_version: m5-v2` when `workflow_refs:` is present. For pure inline-task /plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
 
@@ -405,7 +405,7 @@ Phase 8 fires a **schema-rich AUQ** carrying fields inline in the question body.
 
 ### 8.2 AUQ shape
 
-Header "Approve spec"; `question` body renders a multi-line schema digest (Objective from section 1 / Scope summary from sections 2-3 / Approval Points from section 8 / Risk class auto-computed from section 5 + section 7 / Rollback from section 10 / Done Condition from section 11 / touched-file glob count / approval-expiration notice). Options: "Approve — proceed to hand-off" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal question template in `${CLAUDE_SKILL_DIR}/plan-auq-reference.md` §5.
+Header "Approve spec"; `question` body renders a multi-line schema digest (Objective from section 1 / Scope summary from sections 2-3 / Approval Points from section 8 / Risk class auto-computed from section 5 + section 7 / Rollback from section 10 / Done Condition from section 11 / touched-file glob count / approval-expiration notice). Options: "Approve — proceed to hand-off" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal question template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5.
 
 ### 8.3 Revision-round escalation
 

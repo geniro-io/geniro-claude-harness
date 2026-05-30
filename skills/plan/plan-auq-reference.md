@@ -129,7 +129,7 @@ One AUQ per section, sequentially. Do NOT pre-fill all 10 sections in a batch �
 
 2. **Fire AUQ** with header `"Section: <name>"`. Chat-side companion is one short line: `"Section: <name> — focus an option to inspect"`. The AUQ options carry concrete content in their `preview` field:
 
-   - **Approve (Recommended)** — `preview`: the section content + ONE concrete example (per section type, see `${CLAUDE_SKILL_DIR}/plan-reference.md` §"Concrete-example per section type").
+   - **Approve (Recommended)** — `preview`: the section content + ONE concrete example (per section type, see `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete-example per section type").
    - **Revise — I'll describe** — `preview`: the section content + a placeholder line `"Type your revision text in Other"`. User types text → model re-authors → re-fires the AUQ (max 3 revisions per section).
    - **Skip — accept as-is with warning** — `preview`: brief consequence statement, e.g., `"Section 9 Validation skipped — /implement Phase 3 reviewer-agent cannot verify section-9 acceptance criteria; manual checks required."`
 
@@ -148,9 +148,9 @@ header: "Milestone slicing"
 question: "This task is large enough to slice into milestones. Slice it now or keep as a single spec?"
 options:
   - label: "Slice into milestones"            # Recommended for Big
-    description: "Model proposes 3-7 milestone names; user approves; Phase 6 emits sibling milestone-N.md files alongside spec.md."
+    description: "Model proposes 3-7 milestone names; user approves; the spec write step emits sibling milestone-N.md files alongside spec.md."
   - label: "Keep as a single spec"
-    description: "Phase 6 emits only spec.md; /implement consumes the whole thing."
+    description: "The spec write step emits only spec.md; /implement consumes the whole thing."
 ```
 
 If "Slice into milestones" picked:
@@ -192,7 +192,7 @@ question: |
 
 options:
   - label: "Approve — proceed to hand-off"   # Recommended
-    description: "Phase 9 fires next."
+    description: "The hand-off step runs next."
   - label: "Request changes — I'll describe"
     description: "Fires a sub-AUQ for revision text; revisions re-run affected sections (max 3 user-revision rounds before escalation)."
   - label: "Abort — discard spec"

@@ -71,7 +71,7 @@ Used by:
 
 ### Cap-extension for >4 options
 
-If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follow-up)`, chain a follow-up `AskUserQuestion` per the canonical cap-extension pattern (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 6 "Failing tests" block). The body schema above applies identically to each chained call — preview content is the SAME body each time.
+If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follow-up)`, chain a follow-up `AskUserQuestion` per the canonical cap-extension pattern (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 6 Open-Questions Pre-gate "Chain one AUQ per unresolved entry (cap-extension >4)"; full procedure at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5). The body schema above applies identically to each chained call — preview content is the SAME body each time.
 
 ## Multi-select pick loop (multiple findings per call)
 
@@ -85,7 +85,7 @@ Used by:
 - **`multiSelect: true`**.
 - **`question`**: a single sentence stating the picking task — set by the calling skill (e.g. `"Pick findings to author tests for"`, `"Pick findings to post as PR comments"`).
 - **`options[]`** — one per eligible finding:
- - **`label`**: as currently specified by each call site (e.g. `path:line — short title — decision: <type>` for the Test-gate Pick — decision-type is what matters when picking findings to AUTHOR TESTS FOR; severity drives sort order at the call site, not label content) — call sites set their own label format; do NOT change existing label conventions.
+ - **`label`**: call sites set their own label format. When a label needs to convey decision-type (e.g. the Test-gate Pick, where decision-type is what matters when picking findings to author tests for), render it in plain English — "auto-fixable" (FIX-NOW), "testable" (TESTABLE), "needs your decision" (PRODUCT-DECISION), "confirm intent" (INTENT-CHECK) — rather than the raw `decision: <type>` tag, since the label is user-facing; keep the raw taxonomy tag in `description` or `preview` if a call site needs it. Severity drives sort order at the call site, not label content.
  - **`description`**: 1-line per current call-site spec — call sites set their own.
  - **`preview`**: full finding body, formatted identically to the Single-finding gate's preview block above (Evidence / Suggested fix / Confidence / Origin).
 - **Cap-extension:** when more than 4 eligible findings exist, batch across multiple chained AUQ calls (≤4 per call); preview body is per-finding (each option carries its own finding's body).

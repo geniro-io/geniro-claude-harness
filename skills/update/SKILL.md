@@ -9,7 +9,7 @@ argument-hint: "[--dry-run]"
 
 # /geniro:update — Update Plugin
 
-4-phase loop: **Pre-check → Update → Post-check → Migration**. Stateless. Architecture spec: *(internal)*.
+4-phase loop: **Pre-check → Update → Post-check → Migration**. Stateless.
 
 ## Path Constraints
 
@@ -80,14 +80,18 @@ CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
 
 # Resolve the primary worktree once; downstream snapshot/diff steps reuse it.
-PRIMARY_ROOT="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
-PRIMARY_ROOT="${PRIMARY_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
-PRIMARY_ROOT="${PRIMARY_ROOT:-$PWD}"
+TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"
+PRIMARY="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
+if [ -z "$TOPLEVEL" ] || [ -z "$PRIMARY" ] || [ "$TOPLEVEL" = "$PRIMARY" ]; then
+  PRIMARY_ROOT="."
+else
+  PRIMARY_ROOT="$PRIMARY"
+fi
 
 # Snapshot user-content sha256 + mtime for survival verification
 USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
-| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}") {}"' 2>/dev/null)
+| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null)
 # Save USER_SNAPSHOT (env var) for Phase 3 Step 2 comparison.
 ```
 
@@ -219,7 +223,7 @@ fi
 
 CURRENT_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
-| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}") {}"' 2>/dev/null)
+| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null)
 
 if [ "$USER_SNAPSHOT" != "$CURRENT_SNAPSHOT" ]; then
 diff <(echo "$USER_SNAPSHOT") <(echo "$CURRENT_SNAPSHOT") > /tmp/geniro-content-diff.log
@@ -266,7 +270,7 @@ echo "[info] No MIGRATION.md in v$NEW_VERSION — skipping migration walk."
 fi
 ```
 
-Parse MIGRATION.md, find entries between `v<CURRENT_VERSION>` (exclusive) and `v<NEW_VERSION>` (inclusive). The file follows the schema in *(internal)* — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
+Parse MIGRATION.md, find entries between `v<CURRENT_VERSION>` (exclusive) and `v<NEW_VERSION>` (inclusive). The file follows this schema — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
 
 For each entry, in chronological order:
 
@@ -324,24 +328,6 @@ Restart + setup recommendation is **always emitted** by `/update` (unlike `/setu
 | L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
 | `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
 
-## Anti-pattern check
-
-| # | Anti-pattern | Status |
-|---|---|---|
-| 1 | One giant prompt | ✅ SKILL.md ~350 LOC; no helper sprawl needed |
-| 2 | One giant tool | ✅ N/A — shell + python3 + native tools |
-| 3 | Unbounded autonomous loop | ✅ 4-retry exponential backoff → abort; migration walk has explicit Cancel at every step |
-| 4 | Autonomous external sends | ✅ N/A — marketplace fetches are inbound |
-| 5 | No approval state | ✅ Pre-update AUQ; hash-fail AUQ; content-tamper AUQ; per-migration-step AUQ. Approvals[] persistence N/A (stateless, context-dependent) |
-| 6 | No durable plans or goals | ✅ N/A — operational maintenance |
-| 7 | No compaction strategy | ✅ N/A — `/update` is single-pass; survives natively via file-on-disk |
-| 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools without policy | ✅ §ACI surface per phase; user content mutated ONLY via explicit "Fix it for me" AUQ pick per migration entry |
-| 10 | Subagents before single-agent MVP measured | ✅ Zero subagents |
-| 11 | Dynamic timestamps in plugin-distributed Markdown | ✅ This SKILL.md has no timestamps. Hash fingerprints are runtime, never persisted to plugin |
-| 12 | Non-deterministic agent registration order | ✅ N/A |
-
 ## Cross-references
 
 - CLAUDE.md "For git fetch/pull" — 4-retry exponential-backoff rule
-- *(internal)* — full design rationale and MIGRATION.md schema

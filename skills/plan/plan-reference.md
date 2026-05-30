@@ -1,6 +1,6 @@
 # /geniro:plan Reference
 
-Companion reference for less-common usage paths of `/geniro:plan`. The main flow lives in `${CLAUDE_SKILL_DIR}/SKILL.md`; this file documents edge cases, the deprecation alias note, and the shared rules consumed.
+Companion reference for less-common usage paths of `/geniro:plan`. The main flow lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md`; this file documents edge cases, the deprecation alias note, and the shared rules consumed.
 
 ## Contents
 
@@ -52,7 +52,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 - `m5-v1` — legacy schema, no `workflow_refs[]`. Still valid for inline-task /plan with no tracker linkage.
 - `m5-v2` — adds optional `workflow_refs[]`. Field absent ⇔ no tracker linkage; field present ⇔ Phase 7 check #14 validates structure.
 
-**Per-entry shape:** see `${CLAUDE_SKILL_DIR}/spec-template.md` §`workflow_refs[]` per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
+**Per-entry shape:** see `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §`workflow_refs[]` per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
 
 **Mutation responsibility:** only `/implement` MUTATES tracker state via MCP — Step 0c (kickoff: status-conditional "Move to In Progress?" / "Reopen?" prompts per the workflow file's `### On task start` block) and Phase 3 Ship (completion: status-conditional "Move to In Review?" / comment posting per `### On task completion`). `/plan` is a tracker reader — Phase 1.4 fetches issue context to inform planning, Phase 6 copies the cached payload into spec.md frontmatter; both are local-write only, never POST to tracker. `/review`, `/debug`, `/refactor` are also read-only consumers — they parse `workflow_refs[]` for priming context but never POST tracker updates.
 
@@ -86,7 +86,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 Shared rules consumed by this skill:
 
-- `${CLAUDE_SKILL_DIR}/plan-loop.md` — canonical 10-phase loop (Phases 0–9; Phase 2 Visual Companion fires only on UI trigger).
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — canonical 10-phase loop (Phases 0–9; Phase 2 Visual Companion fires only on UI trigger).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` — `AskUserQuestion` schema for the Phase 0 AUQ, the empty-argument fallback, and the Phase 9 hand-off menu.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — multi-select picker schema for Phase 5 milestone-name approval.
@@ -99,6 +99,5 @@ Shared rules consumed by this skill:
 - `${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh` — L2 read helper (Phase 1 entry).
 - `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` — L2 write helper (Phase 8 conditional `decision` emit).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` — cross-layer L4/L3/L2 conflict protocol.
-- `${CLAUDE_SKILL_DIR}/spec-template.md` — 10-section schema template (Phase 6 input).
-- `${CLAUDE_SKILL_DIR}/validator-checks.md` — mechanical checks (Phase 7 input).
-- Architecture spec: *(internal)*.
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` — 10-section schema template (Phase 6 input).
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` — mechanical checks (Phase 7 input).

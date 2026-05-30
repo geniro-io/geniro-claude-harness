@@ -182,6 +182,7 @@ If multi-scope, proceed to **Batch Mode**. Otherwise proceed to the resolved com
 ## Phase 2: Mode dispatch (single-scope)
 
 Branch to the matching `## — Mode: <op>` section (`list` / `create` / `edit` / `validate` / `delete`).
+
 ## Batch Mode
 
 For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow. Across the stable scope set the multi-scope chain stays under 4 AUQ rounds.
@@ -450,7 +451,7 @@ Exit status: 0 if no `CRITICAL`/`HIGH`; non-zero otherwise. `MEDIUM`/`LOW` are w
 
 ### No auto-fix
 
-Per sub-decision: `validate` reports; does not mutate. Auto-fix would silently change user-authored content — violates the user-content-sacred rule.
+`validate` reports; it does not mutate. Auto-fix would silently rewrite user-authored instruction content, which is never overwritten without explicit user action.
 
 ## — Mode: delete
 
@@ -542,23 +543,6 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 - Temporary rules → conversation context
 - Rules for skills that don't load instructions (operational skills)
 
-## Anti-pattern check
-
-| # | Anti-pattern | Status |
-|---|---|---|
-| 1 | One giant prompt | ✅ SKILL.md modular; no helper sprawl needed |
-| 2 | One giant tool | ✅ N/A — Edit/Write/Bash native |
-| 3 | Unbounded autonomous loop | ✅ 3-retry on scope ambiguity, then final abort AUQ |
-| 4 | Autonomous external sends | ✅ N/A — no external send surface |
-| 5 | No approval state | ✅ N/A — stateless; user re-confirms on each invocation. `approvals[]` is for stateful skills |
-| 6 | No durable plans or goals | ✅ N/A — CRUD is inherently single-transaction |
-| 7 | No compaction strategy | ✅ Output files (L4) survive compaction natively (file-on-disk Block 1) |
-| 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools without policy | ✅ §ACI table; Write/Delete AUQ-gated; hooks block bulk deletion |
-| 10 | Subagents before single-agent MVP measured | ✅ Zero subagents |
-| 11 | Dynamic timestamps in plugin-distributed Markdown | ⚠ Implementation note — `/instructions` SKILL.md must NOT embed runtime timestamps. Stateless skill — no state-file timestamp risk |
-| 12 | Non-deterministic agent registration order | ✅ N/A |
-
 ## Anti-rationalization
 
 | Reasoning | Why it's wrong |
@@ -566,7 +550,7 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 | "I'll auto-fix `validate` issues to save the user a step" | No — auto-fix would silently mutate user-authored content. `validate` reports; user fixes via `edit`. |
 | "I'll silently overwrite existing instruction file" | No — for `create` on existing, present overwrite/edit-instead/cancel via AUQ. |
 | "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name - |
-| "I'll spawn a subagent to do the freeform rule synthesis" | No — `/instructions` doesn't spawn subagents (per sub-decision). |
+| "I'll spawn a subagent to do the freeform rule synthesis" | No — `/instructions` is a small CRUD frontend; subagents add no parallelism benefit and complicate the stateless single-transaction model. |
 | "I'll output the questions as plain text instead of `AskUserQuestion`" | No — every WAIT gate uses `AskUserQuestion`. |
 | "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the stable scope set. |
 | "I'll skip showing the scope-specific scaffold to save tokens" | No — scaffolds make the empty-file moment less confusing; they're not optional. |

@@ -47,7 +47,7 @@ Write via `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write ".geniro/state/investigate/<slug>/state.md" <<EOF
 ---
-tier: T1
+tier: T1.5
 producer: investigate
 schema-version: 1
 branch: <git-branch>

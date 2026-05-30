@@ -64,7 +64,7 @@ Top-level non-string fields, `tags`, `producer`, `scope`, etc. are NOT sanitized
 
 1. Compute or accept `dedup_key`.
 2. `tail -n 200` of the log file (cheap — covers the recency window where dups appear).
-3. Find the **last** prior entry with matching `dedup_key` (handles supersede chains correctly — we compare against the head of the chain).
+3. Find the **last** prior entry with matching `dedup_key` (handles supersede chains correctly — the comparison targets the head of the chain).
 4. Compare prior vs new excluding `ts` via `jq -cS 'del(.ts)'` (canonicalized).
 5. Decisions:
  - **Equal** → no-op return 0.
