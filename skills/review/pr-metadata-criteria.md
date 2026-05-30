@@ -172,4 +172,4 @@ PR-metadata findings have no `path:lines`. Emit each finding with:
 - All other reviewer-agent output fields per the standard template (Severity, Cause, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
 - `Evidence:` quotes the relevant fragment of the title or body verbatim, with a brief surrounding-prose marker so the reader sees what was missing (e.g., "title: `Add stuff`" or "body section: `## Test plan` heading present but empty").
 
-The Phase 6 Step 4 comment-body composer in `skills/review/SKILL.md` detects the `File: PR-METADATA` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST, NOT into the inline `comments[]` array (which requires a path-anchored line).
+The Phase 6 Post drill's Step 4 composer (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §7.5) detects the `File: PR-METADATA` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST, NOT into the inline `comments[]` array (which requires a path-anchored line).

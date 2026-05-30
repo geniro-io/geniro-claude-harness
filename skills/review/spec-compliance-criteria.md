@@ -234,4 +234,4 @@ Spec-compliance findings have no `path:lines`. Emit each finding with:
 - All other reviewer-agent output fields per the standard template (Severity, Cause, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
 - `Evidence:` quotes the relevant fragment of the plan verbatim (with a brief surrounding marker — e.g., "plan section: `## Acceptance criteria`, AC3: `…`") AND names the missing artifact in the diff (e.g., "no file under `migrations/` in the changed-files list").
 
-The Phase 6 Step 4 comment-body composer in `skills/review/SKILL.md` detects the `File: SPEC-COMPLIANCE` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST under a `## Spec Compliance` section, NOT into the inline `comments[]` array (which requires a path-anchored line).
+The Phase 6 Post drill's Step 4 composer (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §7.5) detects the `File: SPEC-COMPLIANCE` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST under a `## Spec Compliance` section, NOT into the inline `comments[]` array (which requires a path-anchored line).

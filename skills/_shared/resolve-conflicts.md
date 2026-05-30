@@ -4,7 +4,7 @@
 
 **Spec source:** `ARCHITECTURE.md` §Memory Layers.
 
-**MODE contract (M3 §7.4):** formatting helper — **no MODE parameter, compaction-immune.** Behavior is derived from `load-*` outputs at call time; refreshes cascade from the load-side and need no signaling here.
+**MODE contract:** formatting helper — **no MODE parameter, compaction-immune.** Behavior is derived from `load-*` outputs at call time; refreshes cascade from the load-side and need no signaling here.
 
 ## What this helper does — and what it doesn't
 
@@ -15,7 +15,7 @@
 **It does NOT:**
 - Detect conflicts. Conflicts are semantic ("use webpack" in L4 conflicts with "vite.config.ts present" in L3); the calling skill — with its LLM context window of loaded L4/L3/L2 content — is the only entity that can reliably tell. The helper exists so that once a skill HAS decided a conflict exists, every skill formats the notice identically.
 
-This split matches M1's pattern: `validate-state-file.sh` validates schema (mechanical), but routing decisions (T1/T2/T3 selection) live in the calling skill.
+This split matches the `validate-state-file.sh` pattern: it validates schema (mechanical), but routing decisions (T1/T2/T3 selection) live in the calling skill.
 
 ## API
 

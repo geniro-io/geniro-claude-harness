@@ -238,7 +238,7 @@ Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, t
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
 - Frontmatter `external-send: true` if Q3 = "Posts to an external system" or "Multiple side effects" with external.
-- Body sections: `## Overview`, `## Steps` (numbered), and `## Test` (only if Q4 = Yes).
+- Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if no adjacent-action collision), `## Steps` (numbered), `## Output`, `## Test cases` (only if Q4 = Yes).
 
 **Show the drafted markdown to the user. Do NOT call Write yet.** Then AUQ:
 
@@ -506,23 +506,6 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 | Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD ; NOT part memory model |
 
 Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivially (file-on-disk Block 1).
-
-## Anti-pattern check
-
-| # | Anti-pattern | Status |
-|---|---|---|
-| 1 | One giant prompt | ✅ SKILL.md modular; action bodies are user-authored; action template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md` is ~80 LOC |
-| 2 | One giant tool | ✅ N/A |
-| 3 | Unbounded autonomous loop | ✅ 3-retry on slug + 3-retry on create-validation; run mode is one-pass through action body |
-| 4 | Autonomous external sends in first release | ✅ `risk_class: high` AUQ-gate with Cancel-as-recommended default; bare-slug fast path still respects the gate |
-| 5 | No approval state | ✅ Run-mode is per-invocation (context-dependent) — approvals[] persistence intentionally NOT applied; rationale documented in Phase 5.3 |
-| 6 | No durable plans or goals | ✅ N/A — actions ARE the durable plans for user-authored workflows |
-| 7 | No compaction strategy | ✅ Actions are file-on-disk; survive compaction natively |
-| 8 | All connectors loaded up front | ✅ Actions are loaded only when invoked; one at a time |
-| 9 | High-risk tools without policy | ✅ §ACI surface per phase + §Phase 5.3 risk-class AUQ ladder + Phase 4 schema constraints (allowed-tools intersection) |
-| 10 | Subagents before single-agent MVP measured | ✅ Zero subagents in /actions itself (action body may spawn agents if user-authored, but that's not /actions concern) |
-| 11 | Dynamic timestamps in plugin-distributed Markdown | ⚠ Implementation note — this SKILL.md has no runtime timestamps; the action `created:` field IS a timestamp but lives in user-authored content (not plugin-distributed) |
-| 12 | Non-deterministic agent registration order | ✅ N/A |
 
 ## Anti-rationalization
 

@@ -1,6 +1,6 @@
 # Phase 6 Action-Gate Hand-off Reference
 
-Detailed contract for `/geniro:review` Phase 6 (Action Gate Hand-off). Extracted from SKILL.md (design fix). SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 6 (Action Gate Hand-off). SKILL.md retains a 2-3 line summary + a pointer here.
 
 State.md `phase: action-gate` during this phase.
 
@@ -275,7 +275,7 @@ This §7.0 check is the fail-closed second line of defense for ALL THREE invaria
 1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`. Read the `## Findings` body section and parse each finding's `Severity:`, `Decision Type:`, `step0_status:`, AND `Validation:` fields.
 2. Build three filter lists: (a) `open_questions[]` entries with `status: unresolved`; (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`; (c) findings with `Severity: CRITICAL | HIGH | MEDIUM` AND (`Validation: refuted` OR `Validation:` set to a non-enum value).
 3. If any of the three lists is non-empty:
-   - Surface a one-line chat warning naming the count of each non-empty list (e.g., `"Post drill aborted: 2 open questions unresolved + 1 PRODUCT-DECISION finding without Step 0 resolution + 1 finding refuted by verifier"`) and the first 1-2 affected items.
+   - Surface a one-line chat warning naming the count of each non-empty list (e.g., `"Can't post yet: 2 open questions still need your answer + 1 finding needs a decision from you + 1 finding the verifier couldn't confirm."`) and the first 1-2 affected items.
    - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, the pending finding IDs, AND the refuted/invalid finding IDs.
    - Re-fire the §2.5 Pre-gate for any unresolved `open_questions[]` entries (if list (a) non-empty).
    - Re-fire the §3 Step 0 per-finding gate for any `step0_status: pending` PRODUCT-DECISION findings (if list (b) non-empty).

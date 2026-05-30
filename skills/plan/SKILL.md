@@ -9,15 +9,13 @@ argument-hint: "<topic-string-or-design-doc-path>"
 
 # /geniro:plan — Spec-first planning
 
-Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 10-phase loop (Phases 0–9; Phase 2 Visual Companion is UI-conditional — fires only when the UI trigger matches) in `${CLAUDE_SKILL_DIR}/plan-loop.md`. It applies the loop verbatim.
-
-**Spec source:** *(internal)*. Read this skill in context of the architecture spec — every decision and trade-off is documented there.
+Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical 10-phase loop (Phases 0–9; Phase 2 Visual Companion is UI-conditional — fires only when the UI trigger matches) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`. It applies the loop verbatim.
 
 **Output:**
 - spec.md at `.geniro/planning/<task-slug>/spec.md` with the fixed 10-section schema, goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
-- `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6 (D1 defect fix).
+- `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6.
 - Phase 9 hand-off — 2-option menu (`/implement directly` / `Stop`).
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
@@ -42,19 +40,14 @@ The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Pha
 ## Phase structure
 
 ```
-[entry]
-└── mode-detect ──┬── explore ──┬── visual-companion ──┬── clarify ──┬── approaches ──┬── section-approve ──┬── write-spec ──┬── validate ──┬── user-approve ──┬── handoff ──┬── done
-│ │ │ (skipped if no UI trigger) │ │ │ │ │ │ │
-└── aborted (terminal) └── (terminal)
-
-phase-8-escalated ──┬── user-approve (Approve as-is)
-├── write-spec (Re-revise)
-└── aborted
+mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → user-approve → handoff → done
 ```
+
+Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve.
 
 **Terminal states:** `done`, `aborted`. the SessionStart treats both as «planning complete or cancelled — no resume needed».
 
-**Phase contracts** are defined in `${CLAUDE_SKILL_DIR}/plan-loop.md`:
+**Phase contracts** are defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`:
 
 | Phase | Purpose | Plan-loop section |
 |---|---|---|
@@ -86,7 +79,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-`## Tool log` schema (selective logging, ):
+`## Tool log` schema (selective logging):
 
 ```yaml
 ## Tool log
@@ -167,7 +160,7 @@ fi
 
 ## Memory I/O
 
-Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/plan-loop.md` for full call signatures.
+Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` for full call signatures.
 
 | Phase | Helper | Direction | Notes |
 |---|---|---|---|
@@ -220,20 +213,20 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_SKILL_DIR}/p
 
 2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Section approve / Phase 6 Write / Phase 7 Validate / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
 
-3. **Begin Phase 0.** Execute `${CLAUDE_SKILL_DIR}/plan-loop.md` end-to-end.
+3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` end-to-end.
 
 ---
 
 ## Anti-rationalization
 
-Per master plan anti-patterns guardrail — must NOT reintroduce these:
+Do NOT reintroduce these anti-patterns:
 
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I'll pre-fill all 10 sections upfront so the user sees the whole plan, then ask per-section approval." | Pre-fill makes per-section AUQ redundant — the user has already read the content; the AUQ has nothing new to inspect. Author section N → AUQ on section N → on approve, author section N+1. Incremental authoring catches cross-section issues at the section that triggered them, not after the user has read 10 sections. |
 | "Per-section AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the section." | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Use the AskUserQuestion `preview` field on every option to carry concrete content (UI ASCII, code snippet, behavior trace). The chat becomes a one-line "Section: X — focus an option to inspect" announcement; the AUQ IS the rendered content. |
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /implement when the rendered UI doesn't match). |
-| "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections from prose — structurally-lossy. design fix: «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
+| "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections from prose — structurally-lossy. «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
 | "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects." | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "Plan-mode mutation guard is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field + PreToolUse Bash guard are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |

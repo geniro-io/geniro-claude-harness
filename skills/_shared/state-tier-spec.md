@@ -187,7 +187,7 @@ open_questions:
 
 Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `risk-tier`). Constraints:
 - MUST NOT shadow common-base or tier-specific field names with different semantics.
-- MUST be documented in the producer's M-doc frontmatter example block.
+- MUST be documented in the producing skill's SKILL.md / reference-file frontmatter example block.
 - The validator silently passes them through — only required-field presence and enum values are checked.
 
 **`/review` producer-specific fields:**
@@ -360,7 +360,7 @@ The `validate_state_file` helper enforces:
 6. If `checksum` present, body sha256 matches.
 7. If `worktree` present, path exists in `git worktree list` output (graceful skip on non-repo paths).
 
-On failure: hard-fail with a recovery AskUserQuestion (per Q5 — delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
+On failure: hard-fail with a recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
 
 JSONL files use line-by-line validation: malformed lines logged and skipped.
 
@@ -368,11 +368,4 @@ JSONL files use line-by-line validation: malformed lines logged and skipped.
 
 ## Slug rule (T1 session-bound layouts)
 
-```bash
-slug=$(git branch --show-current | tr '[:upper:]' '[:lower:]' | sed 's#[^a-z0-9]\+#-#g')
-if [ "${#slug}" -gt 60 ]; then
-  slug="$(printf '%s' "$slug" | head -c 52)-$(printf '%s' "$slug" | sha256sum | head -c 8)"
-fi
-```
-
-Truncation + hash suffix prevents long-branch collisions to the same 60-char prefix.
+Compute the session-bound slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules.

@@ -132,7 +132,7 @@ fi
 
 Resolved path written to state frontmatter `template_dir:`.
 
-### 1.4 Codebase scan (Evidence Block )
+### 1.4 Codebase scan (Evidence Block standard)
 
 Detect via **lockfile / config presence**, NOT inference:
 
@@ -293,7 +293,8 @@ If `mode == re-run`:
 4. If existing CLAUDE.md contains legacy geniro-specific sections (skill table, path rules, hooks, updating) from a prior `/setup` version — **remove them silently**. They're plugin noise.
 5. Display merged diff to user; AUQ if diff is non-trivial.
 
-If `mode == init`: skip
+If `mode == init`, skip the pre-write audit and proceed to §3.2.
+
 ### 3.2 CLAUDE.md generation — project-only content
 
 CLAUDE.md is a **project file**, not a plugin manual. It contains ONLY information specific to THIS repository. Geniro plugin information (skills, hooks, path rules, MCP dependencies) lives in the plugin's own files and is loaded automatically — it does NOT belong in CLAUDE.md.
@@ -571,23 +572,6 @@ validate_rounds: 1
 | L3 `.geniro/planning/_*.md` | not read | not written | `/setup` and `/onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 
-## Anti-pattern check
-
-| # | Anti-pattern | Status |
-|---|---|---|
-| 1 | One giant prompt | ✅ SKILL.md modular; phase detail moves to a sibling `skills/setup/<phase>-reference.md` if SKILL.md grows beyond ~600 LOC |
-| 2 | One giant tool | ✅ N/A — Edit/Write/Bash/Glob/Grep native |
-| 3 | Unbounded autonomous loop | ✅ 3-retry validation loop with AUQ escalation; no infinite retry |
-| 4 | Autonomous external sends in first release | ✅ Phase Generate ACI forbids `mcp__github__*` and network egress; no Slack/PR auto-send |
-| 5 | No approval state | ✅ `approvals[]` populated and rendered as Block 5d |
-| 6 | No durable plans or goals | ✅ State file mandatory — singleton at `state/setup/state.md` |
-| 7 | No compaction strategy | ✅ `## Tool log` + `## Errors` + `## Open Questions` + `## Persisted approvals` populated — survives compaction via SessionStart re-injection |
-| 8 | All connectors loaded up front | ✅ N/A |
-| 9 | High-risk tools without policy | ✅ §ACI per-phase table; verification subagent constrained to `tools: [Read, Bash, Glob, Grep]`; section-merge runs orchestrator-inline (no subagent). |
-| 10 | Subagents before single-agent MVP measured | ✅ `/setup` uses 1 verification subagent (Phase 4); section-merge is orchestrator-inline. |
-| 11 | Dynamic timestamps in plugin-distributed Markdown | ⚠ This SKILL.md must NOT embed runtime timestamps; state file timestamps are fine (state files are generated, not plugin-distributed) |
-| 12 | Non-deterministic agent registration order | ✅ N/A — `/setup` consumes registration, doesn't define it |
-
 ## Anti-rationalization
 
 | Reasoning | Why it's wrong |
@@ -596,7 +580,7 @@ validate_rounds: 1
 | "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md,.cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
 | "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
 | "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
-| "I already verified inx checks, skip the verification agent" | You generated the files — you're blind to your own mistakes. The independent agent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
+| "I already verified everything in my own checks, skip the verification agent" | You generated the files — you're blind to your own mistakes. The independent agent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
 | "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Plugin info lives in plugin files and is loaded automatically. Adding it to CLAUDE.md wastes tokens on every run. |
 | "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
 | "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
