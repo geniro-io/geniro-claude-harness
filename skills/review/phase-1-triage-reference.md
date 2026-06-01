@@ -221,7 +221,7 @@ pr-formal-reviews-snapshot:              # null when no PR ref or none with bodi
     excerpt: "Requesting changes: the new retry path never caps attempts — unbounded backoff under sustained 5xx..."
 ```
 
-Render the human-readable mirror as a `## Existing PR review comments` block in the spawn prompts of the bugs / architecture / regressions / security dims (per SKILL.md §2.3). Each entry: `- <author> @ <path>:<line> — <excerpt>`. The same block ALSO includes a `## Existing PR formal reviews` subsection (same target dims), each entry: `- <author> (<state>) — <excerpt>`.
+Render two sibling blocks in the spawn prompts of the bugs / architecture / regressions / security dims (per SKILL.md §2.3): a `## Existing PR review comments` block (from `pr-bot-comments-snapshot:`), each entry `- <author> @ <path>:<line> — <excerpt>`; and a `## Existing PR formal reviews` block (from `pr-formal-reviews-snapshot:`), each entry `- <author> (<state>) — <excerpt>`. Each block is omitted when its snapshot is null.
 
 **Fail-open.** No PR ref → set both `pr-bot-comments-snapshot: null` and `pr-formal-reviews-snapshot: null`, skip. Fetch error (network / scope / rate limit) or zero kept entries → set the corresponding snapshot key (`pr-bot-comments-snapshot` and/or `pr-formal-reviews-snapshot`) to `null` and surface `PR review ingest failed — reviewers run without prior formal-review / inline-bot context` under `## Caveats` (mirrors the thread-state fail-open). Never block on this fetch.
 

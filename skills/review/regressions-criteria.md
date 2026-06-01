@@ -99,7 +99,7 @@ When the diff adds or changes a guard / filter / cleanup / replacement on ONE co
 For each guard / filter / replacement / cleanup the diff adds or modifies:
 
 1. Name the invariant the change enforces (e.g., "every deleted weekly row is replaced", "superseded records are synced, not dropped").
-2. Identify sibling paths that share the invariant. Cues: a sibling function in the same module with a parallel name (`syncWeekly` ↔ `syncDaily`, `reclaim` ↔ `release`); a `switch` / `if` arm adjacent to the changed arm; a caller that dispatches to N variants where only one variant was edited. Grep the enclosing module (read-only) for the sibling symbol: `Grep(pattern="<sibling-name-stem>", output_mode="files_with_matches", glob="<project-language-glob>")`.
+2. Identify sibling paths that share the invariant. Cues: a sibling function in the same module with a parallel name (`syncWeekly` ↔ `syncDaily`, `reclaim` ↔ `release`); a `switch` / `if` arm adjacent to the changed arm; a caller that dispatches to N variants where only one variant was edited. Grep the enclosing module (read-only) for the sibling symbol: `Grep(pattern="<sibling-name-stem>", output_mode="files_with_matches", glob="<project-language-glob>")` (adjust `glob` per the project's languages — e.g., `**/*.{ts,tsx,js,jsx}` / `**/*.py` / `**/*.go`).
 3. For each sibling path, check the diff: was the same guard / replacement applied there? If a sibling shares the invariant but the diff does NOT touch it, that is the mirror gap.
 4. Flag as a finding anchored at the EDITED path, body naming the unedited sibling `path:line` and the invariant it now violates. `Suggested fix:` "apply the same <guard|replacement|cleanup> at <sibling-path:line>".
 

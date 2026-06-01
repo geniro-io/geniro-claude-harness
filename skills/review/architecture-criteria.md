@@ -73,6 +73,20 @@ A "semantic mutation" is a code change where a function / method / field / opera
 - Severity CRITICAL when the semantic change is fail-closed (returns null / empty / throws on what previously succeeded) AND a downstream filter / sort / dispatch / digest relies on non-null / non-empty results — the change silently DROPS data from user-visible surfaces.
 - The fix is rarely "revert" — it's "name the affected callers in the PR description, add tests asserting new semantic at each non-trivial caller, and confirm whether each caller still satisfies its own contract under the new semantic."
 
+### 1.6. Parallel-path symmetry (mirror-gap)
+
+When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code path, verify the same treatment reached every sibling path that shares the invariant. The defect is an asymmetric edit: path A gets the new guard, the structurally parallel path B is left in the old behavior, and the gap is invisible at A's diff site. Common pairs: scheduled vs. on-demand (cron ↔ manual trigger), delete vs. replace (a row removed on one branch must be re-created on the mirror branch), cascade vs. single-row wipe, create vs. reclaim, encode ↔ decode, serialize ↔ deserialize.
+
+**How to detect:**
+1. Name the invariant the change enforces (e.g., "every deleted row is replaced", "superseded records are synced, not dropped").
+2. Identify sibling paths that share it — a sibling function with a parallel name (`syncWeekly` ↔ `syncDaily`), an adjacent `switch` / `if` arm, or a dispatcher where only one variant was edited. `Grep(pattern="<sibling-stem>", output_mode="files_with_matches", glob="<project-language-glob>")` the enclosing module (adjust `glob` per the project's languages — e.g., `**/*.{ts,tsx,js,jsx}` / `**/*.py` / `**/*.go`).
+3. For each sibling: did the diff apply the same guard / replacement there? A sibling that shares the invariant but is untouched by the diff is the mirror gap.
+4. When you confirm one gap, sweep the rest — enumerate ALL siblings in the module / switch / dispatch table and check each; a point-fix on one while C and D stay broken reproduces the asymmetry one level down.
+
+Severity HIGH when the untreated sibling loses or corrupts data; MEDIUM when it degrades gracefully. Anchor the finding at the edited path and name the unedited sibling `path:line`.
+
+This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence — Phase 3 dedup merges them and treats the agreement as a strong keep signal, so do not suppress your finding on the assumption another dimension will cover it.
+
 ### 2. Abstraction & Interface Design
 - Missing abstraction layers (business logic tightly coupled to implementation)
 - Poor interface design (leaky abstractions)
