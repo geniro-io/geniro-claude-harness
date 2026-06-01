@@ -216,7 +216,7 @@ State.md `phase: llm-spawn`.
 | 5 | optimizations | Always fires — no exception |
 | 6 | guidelines | Always fires — no exception |
 | 7 | conventions | Always fires — no exception. Owns repo-modal-pattern findings exclusively |
-| 8 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 3 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta. Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` |
+| 8 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` |
 | 9 | design | Fires when UI globs match changed files (see §2.4 UI-file detection rule) |
 | 10 | pr-metadata | Fires when `pr-ref:` is non-none |
 | 11 | spec-compliance | Fires when PLAN CONTEXT is non-none AND (`pr-ref:` non-none OR risk-tier:high) |

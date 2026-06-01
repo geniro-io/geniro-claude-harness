@@ -92,9 +92,26 @@ For each deletion:
 
 For deeper cause-path analysis of WHICH scenario the deleted test was pinning (vs. an outcome-matching surviving test), defer to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)". This dim emits the higher-level "test deleted, production stayed" signal; that section handles the cause-path nuance when both dims fire on the same deletion.
 
-### 4. Regression provenance
+### 4. Parallel-path symmetry (mirror-gap)
 
-When §1 (symbol-deletion) or §2 (intent-vs-behavior) fires on a hunk that touches code the current PR didn't author, attach provenance — keep these five roles separate so the finding routes to the right human:
+When the diff adds or changes a guard / filter / cleanup / replacement on ONE code path, verify the same treatment was applied to every sibling path that shares the invariant. The defect class is an asymmetric edit: path A gets the new guard, the structurally parallel path B is left in the old behavior, and the gap is invisible at A's diff site. Common parallel-path pairs: scheduled vs. on-demand (sync ↔ weekly / cron ↔ manual trigger), delete vs. replace (a row removed on one branch must be re-created on the mirror branch — delete-without-replacement), cascade vs. single-row wipe, create vs. reclaim, encode vs. decode, serialize vs. deserialize.
+
+For each guard / filter / replacement / cleanup the diff adds or modifies:
+
+1. Name the invariant the change enforces (e.g., "every deleted weekly row is replaced", "superseded records are synced, not dropped").
+2. Identify sibling paths that share the invariant. Cues: a sibling function in the same module with a parallel name (`syncWeekly` ↔ `syncDaily`, `reclaim` ↔ `release`); a `switch` / `if` arm adjacent to the changed arm; a caller that dispatches to N variants where only one variant was edited. Grep the enclosing module (read-only) for the sibling symbol: `Grep(pattern="<sibling-name-stem>", output_mode="files_with_matches", glob="<project-language-glob>")`.
+3. For each sibling path, check the diff: was the same guard / replacement applied there? If a sibling shares the invariant but the diff does NOT touch it, that is the mirror gap.
+4. Flag as a finding anchored at the EDITED path, body naming the unedited sibling `path:line` and the invariant it now violates. `Suggested fix:` "apply the same <guard|replacement|cleanup> at <sibling-path:line>".
+
+**Sweep before closing.** When step 3 confirms one mirror gap, do not stop at the single sibling — enumerate ALL sibling paths in the enclosing module / switch / dispatch table that share the invariant, and check each. A point-fix on one sibling while paths C and D of the same class stay broken reproduces the original asymmetry one level down.
+
+**Example trigger.** Diff adds a replacement-insert after a row delete in `syncDaily()` at `src/sync/daily.ts:88`. The module also has `syncWeekly()` at `src/sync/weekly.ts:91` which deletes the same row class but the diff does NOT add the replacement there. Emit HIGH finding, decision-type INTENT-CHECK: weekly path deletes without replacement — mirror gap; data loss on the weekly schedule.
+
+**Example skip.** Diff adds a guard to `parseUserInput()`; the only sibling `parseAdminInput()` already had the guard before this diff (grep the working tree confirms the guard line is present and unchanged). No finding — symmetry already holds.
+
+### 5. Regression provenance
+
+When §1 (symbol-deletion), §2 (intent-vs-behavior), or §4 (parallel-path symmetry) fires on a hunk that touches code the current PR didn't author, attach provenance — keep these five roles separate so the finding routes to the right human:
 
 - **Blamed code author** — `git log -L`/`git blame` for the affected line; the original author of the surviving (or recently deleted) code.
 - **Blamed PR author** — the PR that introduced the blamed line, resolved via `gh pr list --state merged --search "<commit-sha>"` or equivalent.
@@ -118,16 +135,16 @@ For each finding that needs provenance:
 
 Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format. Per-finding fields:
 
-- `File:` — `path:line` anchored at the deletion site (for §1 and §3) or at the behavior-mutating hunk (for §2). When the finding cites a caller in an unchanged file, name BOTH the deletion site and the caller in the body — the `File:` anchor stays at the deletion.
+- `File:` — `path:line` anchored at the deletion site (for §1 and §3), at the behavior-mutating hunk (for §2), or at the edited path (for §4). When the finding cites a caller or unedited sibling in an unchanged file, name BOTH the anchor site and the cited path in the body — the `File:` anchor stays at the deletion / edited site.
 - `Severity:` — CRITICAL / HIGH / MEDIUM / LOW per the rubric in §Severity Tagging.
 - `Cause:` — `[ROOT-CAUSE] | [SYMPTOM] | [UNKNOWN]` per the canonical enum at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Phase 3 dedup keys off this classification.
-- `Criteria:` — short label naming the specific check from this file. Suggested values: `Symbol-deletion + caller-blast` (§1) / `Intent-vs-behavior over-reach` (§2) / `Test-coverage delta` (§3) / `Regression provenance` (§4).
+- `Criteria:` — short label naming the specific check from this file. Suggested values: `Symbol-deletion + caller-blast` (§1) / `Intent-vs-behavior over-reach` (§2) / `Test-coverage delta` (§3) / `Parallel-path symmetry` (§4) / `Regression provenance` (§5).
 - `Evidence:` — quote the deleted hunk verbatim AND cite the surviving caller / surviving production / quoted intent fragment. The reader must be able to reproduce the finding from `Evidence:` alone.
 - `Why this matters:` — name the downstream consequence (compile failure, runtime error, silent behavior change, coverage regression).
 - `Suggested fix:` — concrete next step (update caller at `<path:line>`, restore deleted block, add test, narrow intent, etc.).
-- `Decision Type:` — FIX-NOW for §1 and §3; INTENT-CHECK for §2 when intent sources are absent or ambiguous; PRODUCT-DECISION for §2 when stated intent EXISTS and the diff contradicts it.
+- `Decision Type:` — FIX-NOW for §1 and §3; INTENT-CHECK for §2 when intent sources are absent or ambiguous; PRODUCT-DECISION for §2 when stated intent EXISTS and the diff contradicts it. INTENT-CHECK for §4 mirror-gaps.
 - `Confidence:` — 0-100 numeric. Heuristic — ≥80 when caller-grep returns unambiguous downstream references and the deleted symbol has no rename/move match in the diff; 60-79 when callers were checked in a single language scope only; 40-59 when the caller-grep was partial or the intent classification rests on inference rather than explicit statement.
-- `Provenance:` — present only when §4 applies; the resolved 5-role attribution per §4. Carries `Provenance-PR: #<num> author @<login> merger @<login>` OR `Provenance-commit: <SHA> by @<login> on <date>` as appropriate; bot merger gets the `automerge-triggered-by: @<login | trigger unknown>` suffix.
+- `Provenance:` — present only when §5 applies; the resolved 5-role attribution per §5. Carries `Provenance-PR: #<num> author @<login> merger @<login>` OR `Provenance-commit: <SHA> by @<login> on <date>` as appropriate; bot merger gets the `automerge-triggered-by: @<login | trigger unknown>` suffix.
 
 ## Common False Positives
 
@@ -152,6 +169,7 @@ When two dims have legitimate overlap on the same hunk, both emit. The Phase 3 f
 | Test deleted; production survives | Test removed in diff; production file / symbol persists | HIGH — coverage regression |
 | Test deleted alongside production (both removed) | Test and production removed in same diff | LOW informational OR skip; defer to §1 for the caller-blast finding |
 | Conditional branch removed with surviving callers relying on the branch outcome | Diff drops an `else if` / `case` arm; grep shows callers asserting on the removed outcome | HIGH |
+| Guard / replacement / cleanup added on one path; sibling parallel path left untreated | Sibling shares the invariant and is not touched by the diff | HIGH when the gap causes data loss / corruption on the untreated path; MEDIUM when it degrades gracefully |
 
 The rubric is additive — a single hunk can trigger multiple rows (e.g., a deleted public API with no test replacement triggers CRITICAL for §1 AND HIGH for §3). Emit both findings; do not merge.
 
@@ -164,6 +182,7 @@ The rubric is additive — a single hunk can trigger multiple rows (e.g., a dele
 | "Symbol-deletion blast radius is the architecture dim's job — skip it here." | `architecture-criteria.md` §1.5 covers blast radius of NON-deleted symbol changes (operator flips, return-value shifts in surviving code). Deleted-symbol caller blast is a distinct defect class with a different fix shape (restore vs. update caller vs. document migration). Both dims can fire; do not skip. |
 | "The PR body says 'minor refactor only' — that licenses the behavior change in this hunk." | "Minor refactor only" is intent narrative, not a license. A behavior-mutating hunk under a "refactor only" body is a contradiction between the stated intent and the diff — that IS the finding. Severity HIGH, decision-type PRODUCT-DECISION; the author must either narrow the diff or revise the body. |
 | "The deleted test was clearly redundant — same outcome as a surviving test." | Outcome match is not coverage match. Two tests asserting `expect(x).toBeNull()` can pin distinct cause paths. Emit the §3 finding when production survives; the cause-path verification belongs to `tests-criteria.md` §Inverse Deletion Test and routes from your finding via Phase 3 filter. |
+| "The fix only touched the sync path; the weekly path is out of scope for this diff." | If the diff changed a guard / filter / replacement on one path, every parallel path sharing the same invariant IS in scope — an asymmetric edit IS the regression (the asymmetric-edit data-loss class — fix one branch of a cadence/type split, leave the mirror branch in the old behavior). Grep the enclosing module for the sibling symbol and verify the same treatment landed there; a sibling left untreated is the mirror-gap finding. |
 
 ## Reference notes
 

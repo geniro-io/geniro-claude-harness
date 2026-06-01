@@ -193,17 +193,19 @@ Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatena
 
 There is **NO `--incoming` flag**. Explicit override into INCOMING is via the anchored natural-language signals above. Bare keywords without a PR-ref anchor route to OUTGOING.
 
-### 1.1 Existing review-bot comment ingest
+### 1.1 Existing PR review ingest (formal reviews + inline bot comments)
 
 The thread-state fetch above reads thread STATE (`isResolved`/`isOutdated`/`path`/`line`) for dedup only — it never reads comment BODIES. Automated reviewers (CodeRabbit, Greptile, Sourcery, and other bots) post findings as review-thread comments; a real incident had /review declare a PR "CLEAN — ship-ready" while CodeRabbit had already flagged a Major bug in scope. Fetch those bodies so they reach the LLM reviewers as prior-context.
 
-For a target PR ref (skip entirely when `INPUT_SHAPE != pr-ref` — OUTGOING runs have no PR to query), extend the thread-state GraphQL to also select comment author + body, OR run a second `gh` call. MCP-preferred path: the `mcp__github__pull_request_read` payload already carries thread comments — read `comments[].author.login` + `comments[].body` from each `reviewThreads[]` node. Fallback GraphQL:
+Two distinct surfaces carry prior findings: (a) the top-level **formal review** (`reviews(){ state body author }` — APPROVED / CHANGES_REQUESTED / COMMENTED with a summary body, posted by humans AND bots), and (b) **inline review-thread comments** (anchored to `path:line`, mostly bots). A real incident had a run address only the failing-CI commit and inline comments while a teammate's posted formal review — carrying two advisory findings beyond the inline ones — went unread. Read BOTH so neither surface is silently dropped.
+
+For a target PR ref (skip entirely when `INPUT_SHAPE != pr-ref` — OUTGOING runs have no PR to query), extend the thread-state GraphQL to also select comment author + body, OR run a second `gh` call. MCP-preferred path: the `mcp__github__pull_request_read` payload already carries thread comments — read `comments[].author.login` + `comments[].body` from each `reviewThreads[]` node, and the formal reviews too — read `reviews[].state` + `reviews[].body` + `reviews[].author.login`. Fallback GraphQL:
 
 ```bash
-gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved isOutdated path line comments(first:10){nodes{author{login} body}}}}}}}'
+gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviews(first:50){nodes{state body author{login} submittedAt}} reviewThreads(first:100){nodes{isResolved isOutdated path line comments(first:10){nodes{author{login} body}}}}}}}'
 ```
 
-Keep only comments whose `author.login` ends in `[bot]` OR matches a known reviewer-bot list (`coderabbitai`, `greptile-apps`, `sourcery-ai`, `codeant-ai`). For each kept comment, capture a short excerpt: `{path, line, author, excerpt}` where `excerpt` is the first ~280 chars of `body` trimmed at a sentence boundary (drop CodeRabbit's collapsible-HTML scaffolding and `<details>` blocks before trimming). Cap the snapshot at ~12 comments / ~4000 chars total — keep the highest-severity-worded comments first (lines containing `Major` / `Critical` / `Potential issue` / `bug` outrank `nitpick` / `suggestion`).
+Keep only comments whose `author.login` ends in `[bot]` OR matches a known reviewer-bot list (`coderabbitai`, `greptile-apps`, `sourcery-ai`, `codeant-ai`). For the formal **reviews**, the bot-only filter does NOT apply — keep every review whose `state` is `CHANGES_REQUESTED` or `COMMENTED` and whose `body` is non-empty (human reviewers' summaries are the highest-signal surface and must not be filtered out). Skip `APPROVED` reviews with empty bodies. For each kept review capture `{author, state, excerpt}` where `excerpt` is the first ~400 chars of `body` trimmed at a sentence boundary. Cap formal reviews at ~5 / ~2500 chars, newest first. For each kept inline comment, capture a short excerpt: `{path, line, author, excerpt}` where `excerpt` is the first ~280 chars of `body` trimmed at a sentence boundary (drop CodeRabbit's collapsible-HTML scaffolding and `<details>` blocks before trimming). Cap the snapshot at ~12 comments / ~4000 chars total — keep the highest-severity-worded comments first (lines containing `Major` / `Critical` / `Potential issue` / `bug` outrank `nitpick` / `suggestion`).
 
 Persist to state.md frontmatter:
 
@@ -213,11 +215,15 @@ pr-bot-comments-snapshot:                # null when no PR ref or fetch failed/e
     line: 42
     author: coderabbitai[bot]
     excerpt: "Major: seeder runs before migration completes — race on first boot."
+pr-formal-reviews-snapshot:              # null when no PR ref or none with bodies
+  - author: teammate-login
+    state: CHANGES_REQUESTED
+    excerpt: "Requesting changes: the new retry path never caps attempts — unbounded backoff under sustained 5xx..."
 ```
 
-Render the human-readable mirror as a `## Existing PR review comments` block in the spawn prompts of the bugs / architecture / regressions / security dims (per SKILL.md §2.3). Each entry: `- <author> @ <path>:<line> — <excerpt>`.
+Render the human-readable mirror as a `## Existing PR review comments` block in the spawn prompts of the bugs / architecture / regressions / security dims (per SKILL.md §2.3). Each entry: `- <author> @ <path>:<line> — <excerpt>`. The same block ALSO includes a `## Existing PR formal reviews` subsection (same target dims), each entry: `- <author> (<state>) — <excerpt>`.
 
-**Fail-open.** No PR ref → set `pr-bot-comments-snapshot: null`, skip. Fetch error (network / scope / rate limit) or zero bot comments → set `pr-bot-comments-snapshot: null` and surface `PR review-bot comment fetch failed — reviewers run without prior-bot context` under `## Caveats` (mirrors the thread-state fail-open). Never block on this fetch.
+**Fail-open.** No PR ref → set both `pr-bot-comments-snapshot: null` and `pr-formal-reviews-snapshot: null`, skip. Fetch error (network / scope / rate limit) or zero kept entries → set the corresponding snapshot key (`pr-bot-comments-snapshot` and/or `pr-formal-reviews-snapshot`) to `null` and surface `PR review ingest failed — reviewers run without prior formal-review / inline-bot context` under `## Caveats` (mirrors the thread-state fail-open). Never block on this fetch.
 
 ---
 
