@@ -213,6 +213,7 @@ fi
 active_skill=""
 spec_file=""
 phase=""
+status=""
 non_resumable_count=0
 
 _fm_scalar() {
@@ -449,8 +450,52 @@ if [ -n "$state_file" ] && [ -f "$state_file" ]; then
   active_skill="$(_fm_scalar "$state_file" producer)"
   spec_file="$(_fm_scalar "$state_file" spec-file)"
   phase="$(_fm_scalar "$state_file" phase)"
+  status="$(_fm_scalar "$state_file" status)"
   non_resumable_count="$(_fm_block_list_count "$state_file" non-resumable-actions)"
   [ -z "$non_resumable_count" ] && non_resumable_count=0
+fi
+
+# ---------------------------------------------------------------------------
+# Terminal-state gate
+# ---------------------------------------------------------------------------
+#
+# A resolved state.md whose task already finished must NOT be surfaced as
+# resumable — otherwise a fresh session (e.g. opened to run /update) re-opens a
+# completed task and the orchestrator announces a bogus "resume". state.md is a
+# durable T1.5 artifact retained after Ship, so the hook cannot rely on its
+# absence; it must read the terminal markers and discard the task.
+#
+# Completion is carried primarily by `phase:` — implement/plan/refactor/onboard/
+# investigate leave `status: in-progress` even at their terminal phase and mark
+# done via `phase:` alone. `status:` is the coarse fallback (setup/debug/review
+# advance it; it also absorbs model-drift values like `completed`, which is not
+# in the documented in-progress|done|failed enum but was observed in the wild).
+# Match either against the terminal sets, then clear the task so every
+# downstream block falls through to the existing cold-startup (no-active-task)
+# path. The `*-escalated` paused phases are deliberately absent from the sets —
+# those represent in-flight work waiting on the user and must still resume.
+TERMINAL_PHASES="done aborted routed failed ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted verify-summary-only reverted adr-documented map-truncated present-summary-only"
+TERMINAL_STATUSES="done completed failed aborted routed"
+
+if [ -n "$state_file" ]; then
+  _is_terminal=false
+  if [ -n "$phase" ]; then
+    case " $TERMINAL_PHASES " in *" $phase "*) _is_terminal=true ;; esac
+  fi
+  if [ "$_is_terminal" = false ] && [ -n "$status" ]; then
+    case " $TERMINAL_STATUSES " in *" $status "*) _is_terminal=true ;; esac
+  fi
+  if [ "$_is_terminal" = true ]; then
+    state_file=""
+    task_dir=""
+    active_skill=""
+    spec_file=""
+    phase=""
+    status=""
+    non_resumable_count=0
+    validation_status="not-applicable"
+    validation_error=""
+  fi
 fi
 
 # ---------------------------------------------------------------------------

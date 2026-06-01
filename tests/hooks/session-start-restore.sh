@@ -546,6 +546,125 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 15. Terminal-state task → treated as no-active-task (mirrors Case 5).
+#     A finished state.md (terminal `phase:` OR terminal `status:`) must NOT be
+#     surfaced as resumable: no "Active task detected", no "Resume steps:",
+#     systemMessage suppressed. Guards the /update-resumes-completed-/implement
+#     regression. The `*-escalated` paused phases are the negative control —
+#     they are in-flight and must still resume.
+# ---------------------------------------------------------------------------
+
+# 15a. Terminal via `phase: done` (status stays in-progress — the implement /
+#      plan / refactor / onboard / investigate completion pattern).
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: done
+status: in-progress
+non-resumable-actions: []
+---
+
+## Phase log
+- shipped
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+
+if echo "$ac" | grep -q "Active task detected"; then
+  fail "terminal phase=done: Block 1 should NOT say 'Active task detected'"
+else
+  pass "terminal phase=done: Block 1 omits 'Active task detected'"
+fi
+
+if echo "$ac" | grep -q "Resume steps:"; then
+  fail "terminal phase=done: Block 6 resume protocol should be suppressed"
+else
+  pass "terminal phase=done: Block 6 suppressed"
+fi
+
+[ -z "$sm" ] \
+  && pass "terminal phase=done: systemMessage suppressed (startup)" \
+  || fail "terminal phase=done: systemMessage should be suppressed — '$sm'"
+
+echo "$ac" | grep -q "no in-flight task" \
+  && pass "terminal phase=done: cold-startup phrasing fires" \
+  || fail "terminal phase=done: cold-startup phrasing missing"
+
+# 15b. Terminal via `status: completed` drift (phase left at a working value).
+#      The real /implement state.md that triggered the bug carried
+#      `status: completed` — outside the documented in-progress|done|failed enum
+#      — so the `status:` fallback must catch it independently of `phase:`.
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: implement
+status: completed
+non-resumable-actions: []
+---
+
+## Phase log
+- shipped
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+
+if echo "$ac" | grep -q "Active task detected"; then
+  fail "terminal status=completed: Block 1 should NOT say 'Active task detected'"
+else
+  pass "terminal status=completed: Block 1 omits 'Active task detected'"
+fi
+
+if echo "$ac" | grep -q "Resume steps:"; then
+  fail "terminal status=completed: Block 6 resume protocol should be suppressed"
+else
+  pass "terminal status=completed: Block 6 suppressed"
+fi
+
+[ -z "$sm" ] \
+  && pass "terminal status=completed: systemMessage suppressed (startup)" \
+  || fail "terminal status=completed: systemMessage should be suppressed — '$sm'"
+
+# 15c. Negative control — a non-terminal `*-escalated` paused phase must STILL
+#      resume (the terminal gate must not over-match).
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: phase-2-escalated
+status: in-progress
+non-resumable-actions: []
+---
+
+## Phase log
+- paused at escalation
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q "Active task detected" \
+  && pass "escalated phase: still surfaced as active (terminal gate did not over-match)" \
+  || fail "escalated phase: should still resume — 'Active task detected' missing"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
