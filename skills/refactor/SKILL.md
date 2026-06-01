@@ -21,7 +21,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 ## Your Role — Restructure, Don't Ship
 
-You refactor. You validate behavior preservation. You do NOT commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship.
+You refactor. You validate behavior preservation. You do NOT commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 The constitutional rule (zero behavior change) is enforced per-step via the orchestrator-inline regression test gate AND post-execution via the final regression run. PRODUCT-DECISION findings ALWAYS escalate — picking one resolution path is a behavior change.
 

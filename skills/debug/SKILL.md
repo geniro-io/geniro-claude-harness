@@ -41,7 +41,7 @@ The invariants apply unchanged:
 
 1. **One result per tool call.** Adversarial Mode parallel-spawn → each spawn must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` semantic parse; PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
-3. **Permission before side-effect.** State.md writes via `atomic_state_write`. /debug performs NO `git push` / `gh pr create` — debug never ships code.
+3. **Permission before side-effect.** State.md writes via `atomic_state_write`. /debug performs NO `git push` / `gh pr create` — debug never ships code. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 4. **Bounded and structured tool results.** `adversarial-tester-agent` output ≤4K chars per finding block; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 5. **Escalation gates, not silent abort.** stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate to user via AUQ. Never silently fabricate a conclusion.
 6. **Final answer grounded in observations.** Evidence Standard for hypothesis confirmation — every Result: field in `## Hypotheses` MUST cite an artifact kind 1-5 per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Symptom matches" is correlation, not causation; not allowed.

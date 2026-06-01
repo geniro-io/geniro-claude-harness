@@ -47,6 +47,8 @@ What counts as an artifact:
 
 Reasoning, "the symptom matches", "the agent reported PASS", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only a captured artifact (kind 1, 3, or 4) confirms causation.
 
+A passing-test claim adds one requirement on top of kind 1: the tail must show a non-zero observed test count (e.g. "N passed", "N tests", "N collected"), not just exit code 0. vitest, jest, and pytest exit 0 when zero test files match ("No test files found" / "no tests ran"), so a green exit with no collected tests is a false-green for a *passing* claim. Capture the run summary line carrying the count, not the exit code alone.
+
 ## Forbidden phrases
 
 The `Stop` hook (`require-evidence-on-completion.sh`) scans final responses for these tokens. Do NOT use them without an attached Evidence Block in the same message:
@@ -70,6 +72,7 @@ Stop hooks fire approximately 50–80% of the time per multi-framework data; ECC
 | "I'll cite an old log file as evidence." | Evidence must be captured in this message (or be a user-provided artifact in this turn). Stale artifacts don't count — the tree may have mutated since. |
 | "The agent reported PASS, I'll forward that as evidence." | Sub-agent PASS reports are inputs, not evidence. The orchestrator MUST attach the captured command output (or independently re-run per `verification-cache.md`) before forwarding the claim. |
 | "It's a CRITICAL finding but I'm confident — I'll skip the Evidence Block." | Reviewer-agent findings without an Evidence Block are downgraded or dropped at the relevance-filter step. Confidence does not substitute for artifact. |
+| "The test command exited 0, so the tests pass." | Exit 0 is not proof of a passing run — vitest, jest, and pytest exit 0 on "No test files found" / zero collected. A passing claim requires the observed count in the tail ("N passed"). A backgrounded run's exit code especially must be paired with the summary line; a clipped or empty summary is not a green. |
 
 ## Definition of Done
 
