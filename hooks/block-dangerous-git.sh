@@ -32,6 +32,8 @@ fi
 # Also collapse newlines to spaces so multi-line commands (heredocs, line-continuation,
 # embedded \n) don't slip past line-oriented grep matching — a force-push on line 1
 # of a multi-line command must still trigger the block.
+# The force-push flag matchers below bound the span after `git push` with [^&;|]*
+# so a -f/--force from a separate command chained after `git push` (e.g. rm -f) does not false-positive.
 PADDED=" ${COMMAND//$'\n'/ } "
 
 # Find the nearest .geniro/safety.json walking up from cwd
@@ -79,21 +81,21 @@ block() {
 
 # 1. force-push-with-lease — must come before generic force-push
 if ! is_allowed "force-push-with-lease"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push.*--force-with-lease'; then
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*--force-with-lease'; then
     block "force-push-with-lease" "git push --force-with-lease can still overwrite remote work if your local ref is stale"
   fi
 fi
 
 # 2. force-push (--force or -f as a flag, NOT part of another long flag like --force-if-includes)
 if ! is_allowed "force-push"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push.*[[:space:]]--force[[:space:]]'; then
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]--force[[:space:]]'; then
     block "force-push" "git push --force overwrites remote history"
   fi
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push.*[[:space:]]-f[[:space:]]'; then
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]-f[[:space:]]'; then
     block "force-push" "git push -f overwrites remote history"
   fi
   # Combined short flags like -fu (force + set-upstream)
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push.*[[:space:]]-[a-zA-Z]*f[a-zA-Z]*[[:space:]]'; then
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]-[a-zA-Z]*f[a-zA-Z]*[[:space:]]'; then
     block "force-push" "git push with combined -f flag overwrites remote history"
   fi
 fi
