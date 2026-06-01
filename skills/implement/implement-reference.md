@@ -422,7 +422,7 @@ Scan the diff against main and check:
 - Did this implementation introduce a new pattern that should be documented as a canonical example?
 - Do README, architecture docs, or contributing guides need patches?
 
-If updates needed, delegate to a general-purpose subagent with `model="haiku"` containing the diff summary + the doc files to patch. Keep changes minimal — patch what's stale or add a new reference, don't rewrite docs. If no docs need updating, skip silently.
+If updates needed, delegate to a general-purpose subagent with `model="haiku"` containing the diff summary + the doc files to patch. If that spawn returns empty (`0 tokens` — the Haiku tier is unavailable under the orchestrator's context-beta, e.g. a 1M-context session), apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (retry with `model=` omitted, then patch inline). Keep changes minimal — patch what's stale or add a new reference, don't rewrite docs. If no docs need updating, skip silently.
 
 ---
 

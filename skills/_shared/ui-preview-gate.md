@@ -10,10 +10,10 @@ Skip entirely unless at least one file in the predicted affected-files list matc
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent with `model="haiku"` (mechanical transformation of spec/plan into a structured description — not reasoning work; `model=` is passed explicitly because the tier IS the deliverable contract per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Apply the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
+Spawn a general-purpose subagent for the description (a transform of spec/plan into a structured description). OMIT `model=` so the subagent inherits the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. A hardcoded cross-tier spawn (e.g. `model="haiku"`) returns an immediate empty result when the orchestrator runs a context-window beta the target tier doesn't support — a 1M-context Opus/Sonnet session cannot spawn a Haiku child, since Haiku 4.5 has no 1M-context variant and rejects the inherited context configuration, surfacing as `Done (0 tool uses · 0 tokens)`. Apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` if the spawn still returns nothing, and satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
 
 ```
-Agent(model="haiku", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Describe UI Before Implementation
 
 Produce a textual, structured description of how the UI will LOOK after this change — so the user can review it and request changes BEFORE any code is written.

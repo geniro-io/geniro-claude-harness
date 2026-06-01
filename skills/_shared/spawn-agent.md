@@ -41,6 +41,17 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
 5. **Parallel-spawn sites:** if a skill spawns N agents in one response and any one of them returns "not found" at the same ladder rung, ALL N are degraded to the same next rung — fall back the entire batch in the next response. Do not mix ladder rungs in the same batch.
 
+## Empty-result fallback (spawn returned 0 tokens)
+
+The ladder above resolves "agent type not found" — an agent-*registration* failure. A separate, independent failure is a spawn that resolves and runs but returns **empty** (`Done (0 tool uses · 0 tokens · 1s)` — no usable output). The common cause is a model-availability mismatch: a spawn that hardcodes a tier different from the orchestrator's (e.g. `model="haiku"`) fails immediately when the orchestrator session runs a context-window beta the target tier doesn't support — a 1M-context Opus/Sonnet session cannot spawn a Haiku child, because Haiku 4.5 has no 1M-context variant and rejects the inherited context configuration. The orchestrator sees an error it may misread as "prompt too long" even when the prompt is tiny; an empty return on a *small* prompt is the tell that this is a tier/beta mismatch, not a real size problem.
+
+When any spawn returns empty (zero output tokens / no parseable result):
+
+1. **Retry once with `model=` omitted** so the subagent inherits the orchestrator's tier and beta configuration — the inherited child runs under the same context window as the parent, so the mismatch cannot recur. This is the canonical default anyway per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`; the hardcoded tier is the thing that broke.
+2. **If the inherit retry is also empty**, the runtime cannot spawn this work — author the output inline in the orchestrator's own context using the same prompt contract. Do not loop a third spawn. For a parallel batch, only the empty agent(s) degrade this way; the agents that returned output are unaffected.
+
+Caller skills that hardcode a tier (the two sanctioned sites in `model-tiering.md`) apply this fallback — the hardcode is a speed/cost preference, never a hard requirement, so it degrades to inherit (then inline) before failing the phase.
+
 ## Why prefixed-first
 
 Plugin namespacing (`geniro-claude-plugin:reviewer-agent`) is the form Claude Code exposes when the plugin is marketplace-installed. The "Available agents" error list shows agents under their prefixed names in this runtime — evidence that this is the registered form, not just a UI typeahead artifact. Empirical confirmation: spawn sites that attempted bare names first hit a wasted "not found" error before succeeding under the prefixed form.
@@ -106,3 +117,4 @@ Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full to
 | "Read-only agents like reviewer-agent shouldn't run as general-purpose at step 3 because they could now Edit files" | Correct hazard, wrong mitigation. The mitigation is an explicit instruction inside the inlined prompt — most agent files already say "Do not Edit/Write/Bash apart from read-only commands." If yours doesn't, add it before falling back. |
 | "If steps 1 and 2 both fail, I'll just give up and run the work in my own context" | That defeats the parallelism/isolation purpose of the spawn. Always degrade to general-purpose at step 3. The exception is single-agent spawns where the orchestrator was going to wait synchronously anyway — in that case, inline is fine. |
 | "I'll pass `model='sonnet'` (or any other tier) explicitly at the spawn site to be safe" | Plugin agents declare `model: inherit` in frontmatter; OMITTING `model=` at the spawn site is the canonical inherit pattern per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Passing a hardcoded tier defeats the user's session-level `/model` choice. The only spawn sites that pass `model=` are user-authored custom reviewers whose own frontmatter declared an explicit tier — honor the user's declaration, not your own pessimism about runtime behavior. |
+| "The spawn came back empty saying the prompt was too long — I'll shorten the prompt and retry." | An empty return (`0 tokens`) with a "too long" message on a *small* prompt is a tier/context-beta mismatch, not a real size problem — shortening won't help (the retry comes back just as empty). Apply the empty-result fallback: retry once with `model=` omitted (inherit the parent's context window), then author the output inline. |

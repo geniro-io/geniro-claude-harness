@@ -16,7 +16,7 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
    - `skills/implement/implement-reference.md` doc-patcher → `model="haiku"` — mechanical rewrite-file-with-known-output transform; haiku is sufficient and the speed floor matters.
    - `skills/setup/SKILL.md` verification subagent → `model="sonnet"` — runs under a tightly constrained tool budget (`[Read, Bash, Glob, Grep]` — no Write/Edit); the hardcoded floor is the safety contract, not the model preference.
 
-   Both sites carry an inline comment justifying the exemption. Any new hardcode requires the same justification.
+   Both sites carry an inline comment justifying the exemption. Any new hardcode requires the same justification. A hardcoded tier is a speed/cost preference, not a hard requirement — apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` so the spawn degrades to inherit (then inline) when the target tier is unavailable in the runtime (e.g. a Haiku spawn from a 1M-context Opus/Sonnet session returns `0 tokens`, since Haiku has no 1M-context variant).
 
 ## Tier table — fallback for runtimes without an orchestrator
 
