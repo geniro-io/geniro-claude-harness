@@ -611,7 +611,7 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
 2. **Step 0 — Open-decision** per `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero.
 3. **Action gate** — fire `AskUserQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?" / "apply the fix now" / "add the test now") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). The canonical 4 option labels below are an allowlist: substituting an ad-hoc "apply the fix" / "add the test" / "what next?" option (or applying any fix from /review) is forbidden — fixes route to `/implement findings`. Option labels (verbatim, do not paraphrase):
    - `"/implement findings"` — append ` (Recommended)` when CRITICAL≥1 OR HIGH≥2; exits /review and the model surfaces `/geniro:implement .geniro/state/handoff/from-review-<branch>.md` as the next command.
-   - `"Post Draft PR review"` — OMIT entirely when `pr-ref: none` OR zero unposted findings remain.
+   - `"Post Draft PR review"` — present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted. OMIT only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]` from a prior round.
    - `"Continue rounds (re-review)"` — Round-N escalation gate fires when round ≥3.
    - `"Skip — keep findings on disk"` — append ` (Recommended)` when CRITICAL=0 AND HIGH≤1.
 

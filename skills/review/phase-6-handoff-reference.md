@@ -181,7 +181,7 @@ AskUserQuestion(
       "description": "Exit /review. Run `/geniro:implement <handoff-path>` next — handoff pre-loads findings from the state file."
     },
     {
-      "label": "Post Draft PR review",         # OMIT this option entirely when pr-ref:none OR zero unposted findings remain
+      "label": "Post Draft PR review",         # present when pr-ref non-none AND >=1 finding of any severity (incl. LOW/deferred) unposted; OMIT only when pr-ref:none OR no findings at all OR all already [POSTED-TO-PR]
       "description": "Post findings as a PENDING review on <pr-ref> (private to you, no notifications fire until you click Submit on github.com)."
     },
     {
@@ -207,11 +207,11 @@ After the user picks, surface ONE follow-up chat line stating the chosen next co
 **Options (≤4 per AUQ cap):**
 
 - **/implement findings (Recommended when CRITICAL/HIGH count >0)** — exit /review, suggest the next command `/geniro:implement.geniro/state/handoff/from-review-<branch>.md`. Pre-load findings from the state file.
-- **Post Draft PR review** — present ONLY when state file's `pr-ref:` is non-`none` AND at least one finding remains unposted (no `[POSTED-TO-PR]` tag from prior run). On selection, drill into granularity sub-question (Step 2 below) before any `gh api` call. Posting is an external write to a public surface — the skill never posts without explicit approval; picking this option IS the approval.
+- **Post Draft PR review** — present whenever state file's `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag from prior run). LOW / deferred awareness findings count as postable — an all-LOW review still offers this option. On selection, drill into granularity sub-question (Step 2 below) before any `gh api` call. Posting is an external write to a public surface — the skill never posts without explicit approval; picking this option IS the approval.
 - **Continue rounds (re-review)** — when round ≥3 fires Round-N escalation gate; otherwise loops back to Phase 1 increment round counter.
 - **Skip — keep findings on disk** — terminal exit; user can resume later.
 
-When `pr-ref: none` OR zero unposted findings, "Post" is omitted. The Action gate is mutually exclusive — user chooses ONE path.
+"Post" is omitted only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]` — findings of any severity (including LOW / deferred / sub-threshold) count as postable, so an all-LOW review still presents the option. The Action gate is mutually exclusive — user chooses ONE path.
 
 **Persist user pick to `approvals[]`** with category `action_gate`.
 
@@ -287,7 +287,7 @@ This guard exists because posting a draft PR review with unresolved ambiguity, m
 
 ### 7.1 Step 1.5 — Resolved-thread dedup (input-side filter)
 
-Before showing eligible findings to the user, exclude findings whose `path:lines` overlaps an entry in the state file's `resolved-threads-snapshot:`. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required.
+The post-drill's eligible-finding set is every unposted finding across BOTH `## Findings` (kept CRITICAL / HIGH / MEDIUM) and `## Deferred — sub-threshold` (LOW awareness items) — once the user has chosen to post, severity no longer gates postability. Before showing eligible findings to the user, exclude findings whose `path:lines` overlaps an entry in the state file's `resolved-threads-snapshot:`. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required.
 
 For each matching finding, append `[ALREADY-RESOLVED-ON-PR]` to its tag list and add `reason: already-resolved-on-pr` annotation when moving to `## Filtered`. The Step 2 granularity AUQ and Step 3 per-finding gate count only non-excluded findings.
 
@@ -297,7 +297,7 @@ When Step 1.5 empties the post set, fall back to Skip semantics — do not call 
 
 Chain a follow-up `AskUserQuestion` with header "Post mode":
 
-- **Question:** "Send all kept findings in a single batched review, or pick which ones to post?"
+- **Question:** "Send all unposted findings (including LOW / deferred awareness items) in a single batched review, or pick which ones to post?"
 - **Options:**
 - "Send all (Recommended)" — single batched review event minimizes per-finding AUQ calls and dodges secondary rate limits with a single POST.
 - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include.

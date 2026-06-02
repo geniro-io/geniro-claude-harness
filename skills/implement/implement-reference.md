@@ -473,6 +473,14 @@ Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvemen
 
 ---
 
+### Custom post-ship steps
+
+Execute any user-authored post-ship steps from the loaded L4 `<skill>.md` (`.geniro/instructions/implement.md`). Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-ship anchor is `### After ship` (`ship` is the terminal phase enum value). Run any subsection whose phase anchor is post-ship. When a step is conditioned on a PR existing and the run did not create one (ship-mode "commit only" / "no push"), skip it.
+
+Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The preceding Ship sequence (Update Docs / Extract Learnings / Suggest Improvements / Integration Updates) covers plugin-defined post-ship work; this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
+
+---
+
 ### Cleanup
 
 Run cleanup directly (no agent needed). The T1 / T1.5 split contract keeps durable artifacts on disk and deletes only transient subagent outputs.
