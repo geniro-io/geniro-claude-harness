@@ -257,7 +257,7 @@ If "Slice into milestones" picked:
 2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 11-section schema scoped to the milestone.
 3. Persist to `approvals[]` with category `milestone_slice`.
 
-Hand-off (Phase 9) offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs. Milestone-mode fires only when the task warrants it — for Medium/Trivial, the milestone-mode AUQ does not fire.
+Hand-off (Phase 9) offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs. The milestone-mode AUQ fires only at Big tier; not Small/Medium/Trivial.
 
 ---
 

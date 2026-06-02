@@ -41,11 +41,11 @@ The helper never errors out — it falls through to passthrough if `git`, `jq`, 
 | `url-cred` | `(https?)://[^:/[:space:]]+:[^@/[:space:]]+@` | `\1://[REDACTED:url-cred]@` |
 | `private-key` | `-----BEGIN [A-Z ]*PRIVATE KEY-----.*-----END [A-Z ]*PRIVATE KEY-----` | `[REDACTED:private-key]` |
 
-### Two design decisions worth flagging
+### Pattern label and order constraints
 
-**1. Provider-name labels (not literal prefixes).** The spec talks about `[REDACTED:api-key:<prefix>]`; the helper emits `[REDACTED:api-key:anthropic]` instead of `[REDACTED:api-key:sk-ant]`. Reason: the literal-prefix label `[REDACTED:api-key:sk-ant]` contains the substring `sk-ant`, which the next `sk-` pattern would re-match, producing nested gibberish like `[REDACTED:api-key:[REDACTED:api-key:openai-or-similar]]`. Provider names break the self-recursion AND stay readable.
+**1. Use provider-name labels, not literal prefixes.** Emit `[REDACTED:api-key:anthropic]`, not `[REDACTED:api-key:sk-ant]`. A literal-prefix label `[REDACTED:api-key:sk-ant]` contains the substring `sk-ant`, which the next `sk-` pattern would re-match, producing nested gibberish like `[REDACTED:api-key:[REDACTED:api-key:openai-or-similar]]`. Provider names break the self-recursion and stay readable.
 
-**2. Pattern order matters.** `sk-ant-` must run before `sk-` (`sk-ant-foo` would otherwise be redacted as if it were a generic OpenAI key). The helper enforces this in the built-in `_RED_NAMES` array order — do not reorder without re-running the test suite.
+**2. Keep `sk-ant-` ahead of `sk-` in pattern order.** Otherwise `sk-ant-foo` is redacted as if it were a generic OpenAI key. The built-in `_RED_NAMES` array order enforces this — do not reorder without re-running the test suite.
 
 ## High-entropy warning
 
@@ -78,7 +78,7 @@ Schema (one JSONL line per `(pattern, entry)` fire):
 }
 ```
 
-- **`additional_patterns`** — appended to the built-in list (run after, single-line only — multiline custom patterns are not supported in this milestone). `replacement` may include sed backreferences like `\1`. The pattern's `name` appears in the audit log verbatim.
+- **`additional_patterns`** — appended to the built-in list (run after, single-line only — multiline custom patterns are not supported). `replacement` may include sed backreferences like `\1`. The pattern's `name` appears in the audit log verbatim.
 - **`ignore_patterns`** — list of names (built-in OR additional) to skip entirely. The pattern is not run; no redaction, no audit.
 - **`audit_log_enabled`** — default `true`. Set `false` to suppress audit-log writes (sanitization still runs; the redaction itself is silent).
 

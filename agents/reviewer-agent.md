@@ -106,7 +106,7 @@ Only output findings with confidence ≥60. When a finding's behavior is explici
 
 ## Confidence Scoring (advisory)
 
-The reviewer-agent emits `Confidence: XX%` (0-100). This is an **advisory hint** about your self-rated certainty — NOT the load-bearing filter. Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §4, LLM self-reported confidence is documented as poorly calibrated for Claude (arXiv 2405.02917) and "nearly random" in production (Greptile). The orchestrator's Phase 4.1 multi-signal gate uses convergence + evidence-grounding as primary signals, with the percentage as a fallback.
+Emit `Confidence: XX%` (0-100) — an advisory hint about your self-rated certainty, NOT the load-bearing filter. Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §4, LLM self-reported confidence is poorly calibrated for Claude and nearly random in production. The orchestrator's Phase 4.1 multi-signal gate uses convergence + evidence-grounding as primary signals, with the percentage as a fallback.
 
 Still rate your confidence — downstream consumers (orchestrator tie-breaking, the per-finding verifier, the user) read it. But do not inflate confidence to push a finding past a perceived threshold; if the finding is correct, the multi-signal gate will surface it via convergence or evidence-grounding even at 60-79%.
 

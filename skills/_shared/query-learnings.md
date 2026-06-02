@@ -25,7 +25,7 @@ query_learnings [flags] > matches.jsonl
 
 Emits matching JSONL entries to stdout, one per line. Exit codes (`query_learnings`):
 - `0` — query ran (zero or more matches).
-- `64` — unknown flag or invalid `--min-trust` value.
+- `64` — unknown flag, invalid `--min-trust` value, or malformed `--score-min` value.
 
 The `record_access` function has its own exit-code table in the §`record_access` function section (rc=1 IO error, rc=64 missing key).
 
@@ -136,7 +136,7 @@ query_learnings --scope src/legacy/old.ts --include-archive --limit 20
 ## Known limitations
 
 - **No fuzzy match.** `--scope` and `--type` are exact. Callers that want substring search should pipe through `jq 'select(.scope | test("..."))'`.
-- **No date-range filter.** A future flag could be `--since`/`--until`; PR-0 keeps it simple. Callers can pipe through `jq 'select(.ts >= "2026-01-01")'`.
+- **No date-range filter.** There is no `--since`/`--until` flag. Callers can pipe through `jq 'select(.ts >= "2026-01-01")'`.
 - **Archive enumeration is glob-based.** All files matching `learnings-*.jsonl` under `.geniro/knowledge/archive/` are loaded; broken or partial archives can crash jq's slurp. Helper swallows jq errors and returns empty.
 - **Supersede filter is position-based, not `ts`-based.** Spec says "last-write-wins by ts"; impl orders by file position. They agree as long as `emit_learning` is the only writer (it appends in temporal order). A back-dated hand-injected entry with an older `ts` placed at the end of the file would still be treated as the latest. skill integration should re-evaluate.
 - **O(n²) at scale.** The position-aware supersede filter runs `index()` per entry against the suffix of the array. Measured: 500 entries → 60ms, 1000 → 200ms, **5000 → 4.2s**. The archival threshold is 5000 lines, so a user hitting this size has already been nudged to archive. A precomputed-superseded-set rewrite would restore O(n); deferred until a real performance complaint arrives.

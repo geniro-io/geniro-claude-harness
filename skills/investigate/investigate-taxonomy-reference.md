@@ -209,7 +209,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
 ### Acceptance criteria (self-check before reporting completion)
-- Every Finding has a Source URL (Evidence Standard kind: external documented fact). No "I recall…" without a URL.
+- Every Finding has a Source URL (Evidence Standard kind 6: external documented fact). No "I recall…" without a URL.
 - Reliability label is one of: official docs / widely-accepted / single source / opinion.
 - Consensus + Disagreements sections present (may be empty if N=1 source).
 

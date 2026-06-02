@@ -290,23 +290,7 @@ grep -n "workaround\|temporary\|quick fix" file.js
 
 ## Output Format
 
-```json
-{
-"type": "architecture",
-"severity": "critical|high|medium",
-"title": "Brief architecture issue",
-"file": "path/to/file.js",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of architectural concern",
-"category": "coupling|abstraction|solid|organization|errorhandling|performance|debt|testing",
-"pattern_location": ["file.js:42", "other.js:15"],
-"current_design": "How it's currently structured",
-"impact": "Why this matters (maintainability, scalability, etc.)",
-"recommendation": "Proposed refactoring or improvement",
-"confidence": 85
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

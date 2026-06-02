@@ -29,7 +29,7 @@ Code rules split three ways depending on **when** they should fire:
 
 ## Budgets — quality-first
 
-`/geniro:instructions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry scope ambiguity → final AUQ abort, list-mode body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
+`/geniro:instructions` has **zero hard kill caps**. Soft gates: 3-retry scope ambiguity → final AUQ abort, list-mode body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
 
 ## ACI surface per phase
 
@@ -60,7 +60,7 @@ The stable scope set:
 | Scope | File path | Layer | Loaded by | Notes |
 |---|---|---|---|---|
 | `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only |
-| `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase Review, `refactor` Phase Verify); pre-inlined into reviewer-agent prompts for guidelines/conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
+| `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase self-review, `refactor` Phase verify); pre-inlined into reviewer-agent prompts for guidelines/conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
 | `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default` |
 | `implement` | `.geniro/instructions/implement.md` | L4 | `/geniro:implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `plan` | `.geniro/instructions/plan.md` | L4 | `/geniro:plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
@@ -113,7 +113,7 @@ What to NOT flag:
 ```
 
 **Frontmatter field reference:**
-- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. MUST NOT match a built-in dimension (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`).
+- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. The slug must not match a built-in dimension name (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`) — the loader treats a colliding slug as the built-in reviewer and the custom criteria silently never run.
 - `description` (required) — one-line summary, ≤250 chars.
 - `model` (optional) — `haiku`/`sonnet`/`opus`; default `sonnet`.
 - `paths` (optional) — list of globs.
@@ -416,8 +416,8 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
 | `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
 | `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
-| `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | `After discover`, `Before map` |
-| `investigate` | `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | `After classify`, `After investigate`, `Before present` |
+| `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
+| `investigate` | `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
 
 Free-form subsections raise `LOW` warning. Subsections referencing dropped phase names (e.g., `After Phase 4 (Implement)`) raise `MEDIUM`.
 
@@ -549,7 +549,7 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 |---|---|
 | "I'll auto-fix `validate` issues to save the user a step" | No — auto-fix would silently mutate user-authored content. `validate` reports; user fixes via `edit`. |
 | "I'll silently overwrite existing instruction file" | No — for `create` on existing, present overwrite/edit-instead/cancel via AUQ. |
-| "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name - |
+| "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name. |
 | "I'll spawn a subagent to do the freeform rule synthesis" | No — `/geniro:instructions` is a small CRUD frontend; subagents add no parallelism benefit and complicate the stateless single-transaction model. |
 | "I'll output the questions as plain text instead of `AskUserQuestion`" | No — every WAIT gate uses `AskUserQuestion`. |
 | "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the stable scope set. |

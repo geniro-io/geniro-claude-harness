@@ -186,22 +186,7 @@ grep -n "mktemp\|tmpfile\|createTempFile\|tmp\." file.js | grep -v "unlink\|remo
 
 ## Output Format
 
-```json
-{
-"type": "bug",
-"severity": "critical|high|medium",
-"title": "Brief issue title",
-"file": "path/to/file.js",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of the bug",
-"code_snippet": "Relevant code lines",
-"evidence": "Why this is a bug (execution path, condition)",
-"impact": "What could go wrong",
-"recommendation": "How to fix it",
-"confidence": 95
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

@@ -96,6 +96,8 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 - Line length ≤ 4096 bytes (POSIX `PIPE_BUF` atomicity guarantee).
 - One line per invocation. Multi-line appends must call repeatedly.
 
+**Empty stdin is a deliberate no-op.** When stdin is empty (zero bytes), the helper appends nothing, leaves `<target>` untouched, and returns 0 — the same guard `atomic_state_write` applies, so a failed upstream pipe can never inject a blank line into the JSONL log.
+
 **Exit codes:**
 
 | Code | Meaning |

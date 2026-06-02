@@ -38,7 +38,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 ## Budgets — quality-first
 
-`/geniro:actions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry slug ambiguity → abort, body preview truncation at 200 chars, 3-retry on create-validation failure. Architecture constraints: stateless; one action runs at a time (assumed sequential).
+`/geniro:actions` has **zero hard kill caps**. Soft gates: 3-retry slug ambiguity → abort, body preview truncation at 200 chars, 3-retry on create-validation failure. Architecture constraints: stateless; one action runs at a time (assumed sequential).
 
 ## ACI surface per phase
 
@@ -53,13 +53,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 | `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
-**Run mode tool gating:**
-
-```
-effective_tool_surface = intersection(global allowed-tools for /geniro:actions skill, # from SKILL.md frontmatter
-action frontmatter `allowed-tools:` field,
-)
-```
+**Run mode tool gating:** the effective tool surface is the intersection of the `/geniro:actions` skill's own `allowed-tools` (SKILL.md frontmatter) with the action's frontmatter `allowed-tools:` field. Phase 5.4 applies this intersection before any step runs.
 
 Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`) — these are then AUQ-gated by `risk_class` per the run-mode risk-class gate (Phase 5.3).
 
@@ -123,7 +117,7 @@ Re-ask up to 3 times via AskUserQuestion until valid.
 
 Branch on resolved action: `list` → Phase 3 · `create` → Phase 4 · `run` → Phase 5 · `edit` → Phase 6 · `delete` → Phase 7 · `validate` → Phase 8.
 
-## Phase 3: Command `list`
+## Phase 3: `list` sub-command
 
 ### Step 1 — Scan directory
 
@@ -160,7 +154,7 @@ Otherwise, for each `.md` file, Read the frontmatter and extract `name`, `descri
 
 Close with: "Run with `/geniro:actions run <name>`."
 
-## Phase 4: Command `create`
+## Phase 4: `create` sub-command
 
 ### Step 1 — Pre-check
 
@@ -278,7 +272,7 @@ Do NOT auto-fix the written file in either mode. Re-validate up to 3 retry round
 
 After all 10 checks pass, print: `Created \`.geniro/actions/<name>.md\`. Run with \`/geniro:actions run <name>\`.`
 
-## Phase 5: Command `run`
+## Phase 5: `run` sub-command
 
 ### Phase 5.0: Resolve target by name-or-description (shared by `run` / `delete` / `validate`)
 
@@ -388,7 +382,7 @@ EOF
 
 Else: no emit (most action runs are not novel-discovery events).
 
-## Phase 6: Command `edit`
+## Phase 6: `edit` sub-command
 
 ### Step 1 — Resolve target
 
@@ -418,7 +412,7 @@ The auto-validation does NOT block save; it surfaces. User remains in control.
 
 After all 10 checks pass: `Edited \`.geniro/actions/<resolved-slug>.md\`. Run with \`/geniro:actions run <resolved-slug>\`.`
 
-## Phase 7: Command `delete`
+## Phase 7: `delete` sub-command
 
 ### Step 1 — Resolve + source-guard
 
@@ -444,7 +438,7 @@ Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
 
 The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/actions/<slug>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk deletion is blocked.
 
-## Phase 8: Command `validate`
+## Phase 8: `validate` sub-command
 
 ### Step 1 — Resolve scope
 
@@ -531,8 +525,8 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - §Loop invariants — 7 loop invariants
 - §Budgets — quality-first budgets
 - §ACI surface per phase — per-phase ACI
-- §Phase 6: Command `edit` — edit dialogue-mode pattern
-- §Phase 8: Command `validate` — validate rule set (shared + structural lint)
+- §Phase 6: `edit` sub-command — edit dialogue-mode pattern
+- §Phase 8: `validate` sub-command — validate rule set (shared + structural lint)
 
 ## Definition of Done
 

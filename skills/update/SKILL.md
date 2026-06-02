@@ -13,7 +13,7 @@ argument-hint: "[--dry-run]"
 
 ## Path Constraints
 
-**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** Use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files. Honor `CLAUDE_CONFIG_DIR` and fall back to `$HOME/.claude` only inside Bash blocks where `$HOME` expands correctly.
+Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project files) to Read, Write, Edit, and Glob — these tools do not expand `~`, so a literal `~` directory gets created. Honor `CLAUDE_CONFIG_DIR` and fall back to `$HOME/.claude` only inside Bash blocks where `$HOME` expands correctly.
 
 ## Loop invariants
 
@@ -27,7 +27,7 @@ argument-hint: "[--dry-run]"
 
 ## Budgets — quality-first
 
-`/geniro:update` has **zero Class-A hard kill caps**. Class-B gates: 4-retry network backoff, hash-diff truncation, per-migration-step truncation. NOT capped: migration walk step count, hash-check file count, total update duration.
+`/geniro:update` has **zero hard kill caps**. Class-B gates: 4-retry network backoff, hash-diff truncation, per-migration-step truncation. NOT capped: migration walk step count, hash-check file count, total update duration.
 
 ## ACI surface per phase
 
@@ -87,7 +87,8 @@ USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro
 | sort \
 | xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null) || true
 # The snapshot is best-effort (a benign trailing find/xargs status must not read as failure); survival is verified by the Phase 3 Step 2 diff, not this exit code.
-# Save USER_SNAPSHOT (env var) for Phase 3 Step 2 comparison.
+# Persist the snapshot to a temp file — each Bash call runs in a fresh shell, so the shell variable does not survive to Phase 3 Step 2. The temp file is the carry-forward channel.
+printf '%s\n' "$USER_SNAPSHOT" > /tmp/geniro-user-snapshot.txt
 ```
 
 ### Step 3 — Version-confirm AUQ
@@ -205,16 +206,21 @@ If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
 
 ### Step 2 — User-content survival check
 
-Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless; `$USER_SNAPSHOT` stashed by Phase 1 carries forward via the orchestrator's state, not the shell.
+Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless. The pre-update snapshot carries forward through the temp file `/tmp/geniro-user-snapshot.txt` written in Phase 1 Step 2, not through a shell variable — read it back below.
 
 ```bash
 # PRIMARY_ROOT is set by the Mode A resolver run above.
+# Read the pre-update snapshot back from the temp file written in Phase 1 Step 2.
+USER_SNAPSHOT=$(cat /tmp/geniro-user-snapshot.txt 2>/dev/null)
+
 CURRENT_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
 | xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null)
 
-if [ "$USER_SNAPSHOT" != "$CURRENT_SNAPSHOT" ]; then
-diff <(echo "$USER_SNAPSHOT") <(echo "$CURRENT_SNAPSHOT") > /tmp/geniro-content-diff.log
+if [ -z "$USER_SNAPSHOT" ]; then
+echo "[info] pre-update snapshot missing or empty — skipping tamper diff (cannot compare against a baseline that was never recorded)."
+elif [ "$USER_SNAPSHOT" != "$CURRENT_SNAPSHOT" ]; then
+diff <(printf '%s\n' "$USER_SNAPSHOT") <(printf '%s\n' "$CURRENT_SNAPSHOT") > /tmp/geniro-content-diff.log
 # Fire AUQ below.
 fi
 ```
@@ -254,11 +260,13 @@ Transition to Phase 4.
 MIGRATION_FILE="$PLUGIN_PATH/MIGRATION.md"
 if [ ! -f "$MIGRATION_FILE" ]; then
 echo "[info] No MIGRATION.md in v$NEW_VERSION — skipping migration walk."
-# Terminate and emit final report.
+exit 0
 fi
 ```
 
-Parse MIGRATION.md and collect **every** `### <name>` entry across **all** `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble. The version heading groups entries into feature cohorts for readability; it is not a selection gate. The `## vX.Y.Z` axis tracks plugin features, not the package's semver, so a feature can already be live in this install even when its heading version sits outside the `<CURRENT_VERSION> → <NEW_VERSION>` package range — gating on the heading would silently skip it. Run each entry's read-only `Auto-detect:` command and let its output decide relevance (empty → already current → skipped). The file follows this schema — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
+When MIGRATION.md is absent, there are no breaking changes to walk — skip the rest of Phase 4 and go straight to the Done — Final report below.
+
+Otherwise, parse MIGRATION.md and collect **every** `### <name>` entry across **all** `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble. The version heading groups entries into feature cohorts for readability; it is not a selection gate. The `## vX.Y.Z` axis tracks plugin features, not the package's semver, so a feature can already be live in this install even when its heading version sits outside the `<CURRENT_VERSION> → <NEW_VERSION>` package range — gating on the heading would silently skip it. Run each entry's read-only `Auto-detect:` command and let its output decide relevance (empty → already current → skipped). The file follows this schema — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
 
 For each entry, in file order (newest cohort first — entries are independent, so order does not affect which fire):
 

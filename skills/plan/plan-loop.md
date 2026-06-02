@@ -185,7 +185,7 @@ Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` 
  - src/middleware/session.ts:88-101
 ```
 
-Phase 7 validator (check #3) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
+Phase 7 validator (check #3) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Small ≥1; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
 
 ### 1.4 Workflow refs fetch (tracker linkage)
 
@@ -412,7 +412,7 @@ Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills
 
 ### 5.3 Milestone-mode
 
-Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode does NOT fire for Medium/Trivial.
+Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode fires only at Big tier; not Small/Medium/Trivial.
 
 ---
 
@@ -487,7 +487,7 @@ If any check fails:
 
 ### 7.4 No transition to Phase 7.5 if validator hard-fails
 
-The validator is a gate, not advisory. Phase 7.5 spec challenge and the Phase 8 user-approve MUST see a validator-clean spec.md (or one where hard-fails were explicitly accepted by the user via path A). Protects from the "user approves blind" failure mode. On a clean (or user-accepted) validator pass, transition `phase: spec-challenge` before Phase 7.5 entry.
+The validator is a gate, not advisory. Phase 7.5 spec challenge and the Phase 8 user-approve MUST see a validator-clean spec.md (or one where hard-fails were explicitly accepted by the user via the §7.3 Accept-as-is option). Protects from the "user approves blind" failure mode. On a clean (or user-accepted) validator pass, transition `phase: spec-challenge` before Phase 7.5 entry.
 
 ---
 
@@ -508,7 +508,7 @@ This fires on every plan regardless of effort tier — no Trivial skip. Cost sta
 ### 7.5.2 Verdict handling
 
 - **keep** (clean) — surface a one-line advisory note (top challenge observation, if any) and transition `phase: user-approve` to Phase 8.
-- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`Write` mechanism (§6.1; idempotent regeneration, `Write` not `Edit`), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 path-A/B/C AUQ. The human then approves a hardened spec.
+- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`Write` mechanism (§6.1; idempotent regeneration, `Write` not `Edit`), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 accept-as-is / re-revise / abort AUQ. The human then approves a hardened spec.
 - **re-plan** (the approach itself is refuted) — re-enter approach selection. Transition `phase: approaches` and re-run Phase 4 (re-run Phase 3 first if the refutation invalidates a clarifying answer), inlining the challenge's evidence into the §4.1 approach synthesis and the §4.2 stress-test `PRE_INLINED_CONTEXT`.
 
 ### 7.5.3 Advisory + fail-open
@@ -653,7 +653,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Metaswarm anti-pattern. Compaction mid-Phase-5 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |
 | "I'll `Write` outside `.geniro/planning/**` to save a step — /geniro:plan can touch source directly" | /geniro:plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended `Write` target is the planning task-dir; writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
-| "Phase 0 Refine path saves three phases of re-work — keep it" | Refine re-derives sections from prose — structurally-lossy. Downstream consumers parse a malformed spec.md. "Start fresh with doc as context" is honest and produces a schema-clean spec.md. |
+| "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work" | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |
 | "Hand-off menu should add a separate backlog-capture step for backlog discipline" | A backlog IS a spec.md saved on disk. No separate step needed — picking "Stop — keep spec for later" at Phase 9 leaves the committed spec on disk as the backlog entry. |
 | "Auto-default empty AUQ answer to the Recommended option" | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
 | "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /geniro:plan has bounded gates (Phase 3 ≤5 questions, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |

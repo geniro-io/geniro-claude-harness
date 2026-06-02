@@ -218,22 +218,7 @@ grep -n "Object\|Function" file.ts
 
 ## Output Format
 
-```json
-{
-"type": "guidelines",
-"severity": "medium|low",
-"title": "Style or guideline violation",
-"file": "path/to/file.js",
-"line_start": 42,
-"line_end": 48,
-"description": "Description of the guideline violation",
-"category": "naming|formatting|comments|duplication|imports|types",
-"current": "Current code/pattern",
-"expected": "Expected code/pattern per guidelines",
-"recommendation": "How to fix it",
-"confidence": 92
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

@@ -36,6 +36,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 **Rule:** state.md `## Tool log` body has ≥1 Agent entry with `status: ok` per effort tier:
 - Trivial: ≥1 (OR explicit "scope-bound, no exploration needed" note)
+- Small: ≥1
 - Medium: ≥2
 - Big: ≥3
 

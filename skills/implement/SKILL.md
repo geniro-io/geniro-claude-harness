@@ -3,7 +3,7 @@ name: geniro:implement
 description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, EnterWorktree, ExitWorktree]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, EnterWorktree, ExitWorktree]
 argument-hint: "[task description | spec.md path | empty to resume | 'continue']"
 ---
 
@@ -123,7 +123,7 @@ approvals: [] # appended after each one-time AUQ resolution
 ---
 ```
 
-**Write contract.** Every state.md mutation goes through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`). NEVER direct `Edit` or `Write` on canonical state paths — the State-helper enforcement hook will warn (and PR-final, hard-block).
+**Write contract.** Route every state.md mutation through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`) — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash. The State-helper enforcement hook warns on such a direct write (warn-mode initially; it flips to a hard-block in a future release).
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
@@ -170,7 +170,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 
 **Phase boundaries:**
 - Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style` (3 files). `refresh` re-Reads every file and re-emits the Echo lines; the procedure is identical to initial-load. The mode name signals compaction-survival intent.
-- Phase 3 entry — `MODE: refresh` ALWAYS — survives Phase 2 compaction. Cost: 1 extra helper read.
+- Phase 3 entry — `MODE: refresh` on every run, because the re-read survives any Phase 2 compaction. Cost: 1 extra helper read.
 
 The Echo contract survives compaction via the SessionStart hook re-injection.
 
@@ -280,7 +280,7 @@ Collect these signals before deciding:
 | `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `skills/plan/spec-template.md` §Frontmatter). Empty list when field absent. |
 | `BRANCH_FORMAT_RULE` | Read `<PRIMARY_ROOT>/.geniro/instructions/global.md` directly here at Step 0a. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 will re-Read the same file with full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. Without this signal, Step 0c authorizes branch names that violate project rules and the agent has to rename after the fact. |
 | `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. Cross-checked against `BRANCH_FORMAT_RULE` at Step 0c to decide whether the no-ticket-ID sub-flow fires. |
-| `CONCURRENT_ACTIVITY` | Set when another agent/session may be mutating this checkout: `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. Signals a contested shared checkout where in-place work risks an external reset/rename orphaning a commit. |
+| `CONCURRENT_ACTIVITY` | Set when another agent/session may be mutating this working tree: `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. Signals a contested shared working tree where in-place work risks an external reset/rename orphaning a commit. |
 
 #### 0b — Decide action
 
@@ -308,7 +308,7 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ When CONCURRENT_ACTIVITY is set, do NOT auto-continue in place — fire the full
       workspace AUQ (0c) with the recommendation flipped to "Git worktree (Recommended)"
       (an isolated worktree prevents a concurrent process from orphaning this run's commit
-      via an external reset/rename on the shared checkout). Otherwise AUTO-CONTINUE on
+      via an external reset/rename on the shared working tree). Otherwise AUTO-CONTINUE on
       current branch, NO workspace AUQ. Echo (translate <signal> to the plain-English reason per rule 2's mapping — never the raw token):
         "Continuing on '<branch>' — <plain-English reason>.
          Reverse with: re-run with 'new-branch' modifier in arguments."
@@ -326,12 +326,12 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ Fire the full workspace AUQ (0c). "New feature branch (Recommended)" stays default.
 
 6. IN_WORKTREE == false, PROTECTED_BRANCH == false, no continuing signals
-   ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already — unless CONCURRENT_ACTIVITY is set, in which case the recommendation is "Git worktree (Recommended)" so a concurrent process mutating the shared checkout cannot orphan this run's work.
+   ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already — unless CONCURRENT_ACTIVITY is set, in which case the recommendation is "Git worktree (Recommended)" so a concurrent process mutating the shared working tree cannot orphan this run's work.
 ```
 
 On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both skip the AUQ), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` right after the continue echo — offer to update a branch that is behind the default branch before Phase 1 begins. It skips silently when the branch is already current, and is skipped entirely on a compaction-resume (the branch was synced when the run first started).
 
-**Inline modifier overrides** (parsed from `$ARGUMENTS` per the Phase 1 semantic-parse table; modifiers ALWAYS win over auto-detection):
+**Inline modifier overrides** (parsed from `$ARGUMENTS` per the Phase 1 semantic-parse table; an explicit modifier wins over auto-detection, because the user's stated intent overrides an inferred signal):
 
 | Modifier in $ARGUMENTS | Effect |
 |---|---|
@@ -524,7 +524,7 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
 
    No parallel subagent fan-out for code edits. Single orchestrator owns context throughout Phase 2.
 
-   **Halt on unbidden working-tree mutation.** Between Edits, if the working tree changes in ways this run did not make — an Edit/Write repeatedly fails with "file changed since read", or files/tests this run never authored appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Workspace changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a checkout another process is mutating risks the commit being orphaned by an external reset.
+   **Halt on unbidden working-tree mutation.** Between Edits, if the working tree changes in ways this run did not make — an Edit/Write repeatedly fails with "file changed since read", or files/tests this run never authored appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Workspace changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a working tree another process is mutating risks the commit being orphaned by an external reset.
 
 4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, OUTPUT_PATH `<task-dir>/.tr-out.md`, and `MAX_FAILURES_REPORTED: 15`. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. OMIT `model=`. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
@@ -692,7 +692,7 @@ These patterns must NOT be reintroduced:
 | "/geniro:implement should fire a user-approval AUQ before Phase 3 adversarial-tester spawn, mirroring /geniro:review Phase 4.3." | /geniro:review needs the AUQ because its contract is read-only reporter — spawning a test author is a scope expansion past contract. /geniro:implement is already authorized to mutate code (Phase 2 IS the mutation phase). Phase 3 adversarial test authoring is symmetric to Phase 2 code authoring, NOT a new authority surface. Phase 8 spec.md approval covers it. Use `--no-adversarial` modifier for explicit opt-out. |
 | "Branch format requires a ticket prefix per global.md — I'll create the Linear / Jira / GitHub-Issues ticket so the slug conforms." | /geniro:implement never creates tracker artifacts. Per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` mutation-responsibility note: /geniro:implement mutates tracker state (status transitions at Step 0c kickoff + Phase 3 Ship completion) but does not create tickets, issues, epics, or sub-tasks. A branch-format rule that demands a ticket ID is satisfied by user-provided ID (Step 0c no-ticket-ID sub-flow option A), placeholder slug (option B), or cancellation (option C) — never by inventing an upstream artifact. Tracker creation is a human authoring action, not a code-execution side-effect; an agent-created ticket appears in the user's tracker without authorization and triggers downstream artifacts (notifications, dashboard rows, sprint-planning surface area) the user did not approve. |
 | "/geniro:implement should inline-Read every relevant .claude/rules/, exemplar, and prior plan for thoroughness." | Loop invariant #8. Phase 1 delegates investigation reads to Knowledge-Retrieval + Codebase-Explorer subagents; orchestrator inline-Reads only L4 (3 files), L3 (2 files), spec.md, and state.md. `.claude/rules/*.md` bodies and exemplar sources are JIT-loaded in Phase 2 only when an Edit target matches the rule's `paths:` glob (using the path list returned by Codebase-Explorer). Inline-reading the rest is the documented context-bloat regression. |
-| "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it does not write new files or tests you never created. Content appearing that this run did not author indicates a concurrent external process. Committing from a checkout another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Workspace changed" AUQ (Phase 2 guard) instead of rationalizing the mutation away. |
+| "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it does not write new files or tests you never created. Content appearing that this run did not author indicates a concurrent external process. Committing from a working tree another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Workspace changed" AUQ (Phase 2 guard) instead of rationalizing the mutation away. |
 
 ---
 

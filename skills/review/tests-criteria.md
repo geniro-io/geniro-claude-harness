@@ -294,24 +294,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 
 ## Output Format
 
-```json
-{
-"type": "test",
-"severity": "critical|high|medium",
-"title": "Test coverage or quality issue",
-"file": "path/to/file.js",
-"test_file": "path/to/test.js",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of test gap",
-"category": "coverage|edge_cases|quality|async|integration|organization|mocking|critical_path",
-"missing_tests": ["null input", "empty array", "timeout scenario"],
-"current_coverage": "What's currently tested",
-"recommendation": "What tests to add",
-"impact": "Risk if this isn't tested",
-"confidence": 88
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

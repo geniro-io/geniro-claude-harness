@@ -211,7 +211,7 @@ rm -rf .geniro/knowledge/{gotchas,patterns,sessions}/ 2>/dev/null
 
 ### Orphan state files at `.geniro/state/` root
 
-State files placed directly at `.geniro/state/` root (not in a skill subdirectory) are non-canonical. Canonical T1 paths follow `.geniro/state/<skill>/<slug>/state.md`. Files like `integration-flakes-grind.md` and `pre-compact-snapshot.json` at state root are task artifacts from prior sessions that were never cleaned up.
+State files placed directly at `.geniro/state/` root (not in a skill subdirectory) are non-canonical. Canonical T1.5 paths follow `.geniro/state/<skill>/<slug>/state.md`. Files like `integration-flakes-grind.md` and `pre-compact-snapshot.json` at state root are task artifacts from prior sessions that were never cleaned up.
 
 **Action required:** Delete orphan files at state root.
 
@@ -362,7 +362,7 @@ cd .geniro/planning && \
 
 ### Legacy state-file paths superseded by T1/T2/T3
 
-`.geniro/state/` was reorganized per the 3-tier framework: T1 ephemeral session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry for backward-compat resume but writes to the T2 path.
+`.geniro/state/` was reorganized per the tier framework: T1.5 durable session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry for backward-compat resume but writes to the T2 path.
 
 **Action required:** Optional cosmetic cleanup (orphan files inert).
 

@@ -199,23 +199,7 @@ grep -nB2 -A1 "for\|while" file.ts | grep "\.set("
 
 ## Output Format
 
-```json
-{
-"type": "optimization",
-"severity": "high|medium|low",
-"title": "Brief optimization opportunity",
-"file": "path/to/file.ts",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of the opportunity",
-"category": "hydration|projection|react-render|bundle|async-parallel|bulk-ops",
-"code_snippet": "Relevant code lines",
-"evidence": "Why this is slower than necessary (round-trips, hydration cost, render count)",
-"impact": "Expected magnitude (e.g., N→1 round-trips, removes O(rows × columns) hydration)",
-"recommendation": "Concrete change (e.g., add.lean, batch via insertMany, wrap with React.memo)",
-"confidence": 80
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

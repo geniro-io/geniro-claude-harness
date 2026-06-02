@@ -54,7 +54,7 @@ The invariants apply unchanged:
 
 ## Budgets — Quality-First
 
-This skill has **NO hard kill caps**. Same model as other skills.
+This skill has **NO hard kill caps**. Runs at opus by default (deep hypothesis-driven investigation) per `skills/_shared/model-tiering.md`.
 
 **Quality gates (escalate to user, do not abort):**
 
@@ -389,7 +389,7 @@ Output the markdown block directly in chat AND write the same content (with full
 
 **Source worktree:** [from `git rev-parse --show-toplevel`]
 
-**Why escalating to <target>:** [one sentence — which target and concrete reason scope fits it; user makes final routing choice in]
+**Why escalating to <target>:** [one sentence — which target and concrete reason scope fits it; user makes the final routing choice in the escalation question (§3.2)]
 
 **Root cause:** [one sentence, plain language — why the bug happens]
 
@@ -476,7 +476,7 @@ Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 
 After Phase 3 completes (escalated, accepted, or user-handles):
 
-- **Scientific-method mode only:** Remove `<PRIMARY_ROOT>/.geniro/state/debug/<slug>/state.md` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — its useful content has already been saved (root cause, repro, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + persisted handoff. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
+- **Scientific-method mode only:** Remove `.geniro/state/debug/<slug>/state.md` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — its useful content has already been saved (root cause, repro, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + persisted handoff. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
 - **Clear old state files** (best-effort; any may not exist):
 ```bash
 rm -f ".geniro/debug/HYPOTHESES.md" 2>/dev/null
@@ -674,7 +674,7 @@ For each debug session, confirm the checklist for the mode that ran.
 - [ ] Authored tests independently re-run by orchestrator (1× per test)
 - [ ] F→P-confirmed tests retained; any passing-today tests deleted
 - [ ] Adversarial Findings summary (A6) presented to user in chat
-- [ ] Escalation decision made via (or "no bugs found" exit if zero red tests → terminal `adversarial-aborted`)
+- [ ] Escalation decision made via AskUserQuestion (or no-bugs-found exit if zero red tests → terminal `adversarial-aborted`)
 - [ ] Authored test files left on disk (NOT reverted — unlike scientific-method experiments)
 - [ ] Cleanup completed (`from-debug-adversarial-<branch>.md` may remain as audit trail)
 

@@ -227,27 +227,9 @@ Counter-example: 4 of 7 siblings use named exports, 3 use default. 57% — ambig
 
 ## Output Format
 
-```json
-{
-"type": "conventions",
-"severity": "high|medium",
-"title": "Convention drift in <file>",
-"file": "path/to/file.tsx",
-"line_start": 42,
-"line_end": 48,
-"description": "What the diff does and what the modal pattern is",
-"category": "sibling-consistency|mixing-of-kinds|declaration-order|naming-style|import-grouping|error-handling|class-construction|module-boundary",
-"current": "Current pattern in the diff",
-"modal_pattern": "What ≥80% of N≥3 siblings do",
-"evidence_paths": ["src/components/Avatar.tsx", "src/components/Badge.tsx", "src/components/Card.tsx"],
-"modal_frequency": "6/7",
-"tag": "[NEW]|[PRE-EXISTING]",
-"recommendation": "Match the modal pattern:...",
-"confidence": 85
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
-The `evidence_paths` field is **mandatory**. Every finding MUST cite the supporting sample paths or it is not emitted. A finding without evidence paths is bikeshedding — the threshold is structural, not opinion.
+Every finding must cite the supporting sample paths in its evidence, or it is not emitted. A finding without evidence paths is bikeshedding — the threshold is structural, not opinion.
 
 ## [NEW] vs [PRE-EXISTING] Tagging
 

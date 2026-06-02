@@ -19,7 +19,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 
 ## Loop invariants
 
-The canonical loop invariants apply, with three skill-specific notes:
+The 10 canonical loop invariants from `/geniro:implement` § Loop invariants apply, with three skill-specific notes:
 1. **Invariant #4 (bounded structured tool results)** — research-agent outputs (Codebase / Git / Internet) each capped at ~8K chars with truncation marker if exceeded.
 2. **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
 3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -28,7 +28,7 @@ The canonical loop invariants apply, with three skill-specific notes:
 
 ## Quality-first budgets
 
-Quality-first framing: /geniro:investigate has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
+Quality-first framing: /geniro:investigate has **NO hard kill caps** — all limits are escalation gates that surface to the user.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -63,6 +63,7 @@ A claim is evidence-backed ONLY when it cites one of these artifact kinds:
 | 3 | Log line or stack trace from the running system | `ERROR 2026-04-01... NullPointerException at...` |
 | 4 | Query result against the actual datastore | `SELECT count(*) FROM users WHERE... → 17 rows` |
 | 5 | User-provided artifact (screenshot, log paste, data dump, config snippet) | user pastes failing request body |
+| 6 | External documented fact (WebFetch/WebSearch source URL + verbatim quote) | `https://docs.example.com/api → 'rate limit is 100 req/min'` |
 
 Reasoning, paraphrased agent claims, "looks consistent", convergent agent self-reports, and "I inferred from context" are NOT evidence. They are hypotheses that still need verification.
 
@@ -188,7 +189,7 @@ Read-only research agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
-WebSearch+WebFetch agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, no local-codebase Bash. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard external-doc kind) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent C).
+WebSearch+WebFetch agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, no local-codebase Bash. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent C).
 
 ### Step 2: Verify — orchestrator re-checks each load-bearing claim
 
@@ -303,7 +304,7 @@ Every save-routing Agent spawn below must satisfy the 6-field pre-inlined-contex
 Findings can route to multiple stores when they're load-bearing in different ways (e.g., a domain term that's also an ADR-worthy decision). Do NOT batch all findings into one save action — present them grouped by target so the user sees what goes where.
 
 If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). **Max 2 dive-deeper rounds** — track the count in your own scratchpad; if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
-If user wants to save findings: follow Step 4a save-routing (above) — classify each finding to CLAUDE.md Domain Context (new domain terms), ADR (architectural decisions meeting 3 criteria), `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` (reusable insights), or auto-memory (collaboration preferences). Do NOT default everything to learnings.jsonl. Before writing to any store, check if an existing entry covers the topic — UPDATE rather than duplicate.
+If user wants to save findings: follow Step 4a save-routing (above). Do NOT default everything to learnings.jsonl. Before writing to any store, check if an existing entry covers the topic — UPDATE rather than duplicate.
 
 If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` to route them to any follow-up action the investigation surfaced. Skip this second question if the user already indicated they are done with the topic entirely (terminal `present-summary-only`).
 - **Question:** "Anything to act on from this investigation?"
@@ -382,7 +383,7 @@ T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative —
 - Allowed: Read (for re-reading cited files during synthesis).
 - Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
 - Fresh verifier agent: Read / Grep (no Edit / Write).
-- Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` / `.geniro/knowledge/learnings.jsonl`). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks.
+- Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` only). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks. The learnings save routes through `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` via Bash (matching the body Step 4a routing), because a raw Write to the append-only `.geniro/knowledge/learnings.jsonl` truncates the log and bypasses secret-redaction.
 
 **Existing safety layer** applies across ALL phases (file-protection / git-guardrail / `.geniro/` deletion guard).
 

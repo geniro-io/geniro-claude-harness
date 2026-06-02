@@ -15,7 +15,7 @@ Smell detection + change-impact scoring + per-step execution protocol for `/geni
 - Phase 2: Refactoring Plan — plan-line schema
 - Phase 3: Atomic Application & Verification — per-step execution + Blocked Step Protocol
 - Phase 4: Structured Reporting — completion-summary schema
-- Guardrails (Always Enforce) — what never to do without approval
+- Guardrails — what to avoid without approval, and what to do every step
 - When to Stop the Session & Report Back — terminal conditions
 - Git Operations — no version control from this protocol
 
@@ -236,23 +236,23 @@ Next Steps:
 
 ---
 
-## Guardrails (Always Enforce)
+## Guardrails
 
-**Never do this without explicit request:**
-- Change public interfaces (method signatures, API contracts)
-- Alter business logic (unless you add tests proving the change)
-- Touch authentication, cryptography, or payment code (requires owner review)
-- Remove code flagged as "unused" without confirming no hidden references
-- Rewrite SQL/data logic without validating output equivalence and performance
-- Modify test files themselves (document what you would change, ask for approval)
+Avoid these without an explicit request — each widens blast radius beyond a zero-behavior-change refactor:
+- Change public interfaces (method signatures, API contracts) — callers break silently.
+- Alter business logic (unless you add tests proving the change) — that is a feature change, not a refactor.
+- Touch authentication, cryptography, or payment code — requires owner review.
+- Remove code flagged as "unused" without confirming no hidden references — dynamic dispatch and reflection hide call sites from Grep.
+- Rewrite SQL/data logic without validating output equivalence and performance.
+- Modify test files themselves — document what you would change and ask for approval instead.
 
-**Always do this:**
-- Run tests before and after every transformation (subject to skip predicate Step 2)
-- Keep changes scoped to 1-2 files per transformation
-- Report plainly if tests failed or were not run (no "should pass" language)
-- Preserve existing code style and formatting
-- Document mechanical transformations for easy review
-- Score change impact before proposing transformations
+Do these on every transformation:
+- Run tests before and after every transformation (subject to skip predicate Step 2).
+- Keep changes scoped to 1-2 files per transformation.
+- Report plainly if tests failed or were not run (no "should pass" language).
+- Preserve existing code style and formatting.
+- Document mechanical transformations for easy review.
+- Score change impact before proposing transformations.
 
 ## When to Stop the Session & Report Back
 
@@ -265,7 +265,7 @@ Stop the entire refactoring session when:
 - Requested change contradicts guardrails
 - Codebase has no test infrastructure
 
-**Note:** If a single transformation fails after 3 attempts, use the **Blocked Step Protocol** (Phase 3) — revert that step and continue to the next. Do NOT stop the session for per-step failures.
+If a single transformation fails after 3 attempts, use the **Blocked Step Protocol** (Phase 3) — revert that step and continue to the next. A per-step failure reverts that step, not the whole session.
 
 ## Git Operations
 

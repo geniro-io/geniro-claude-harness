@@ -106,7 +106,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 ## 2.6 Handoff file template (written in Phase 5.1)
 
-Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write` — never a direct Edit/Write on the canonical state path (the `enforce-state-helper` hook warn-flags direct writes; PR-final hard-blocks). `<PRIMARY_ROOT>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write` — never a direct Edit/Write on the canonical state path (the `enforce-state-helper` hook warn-flags direct writes initially and flips to a hard-block in a future release). `<PRIMARY_ROOT>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 
 The canonical handoff is a one-shot producer→consumer artifact; /geniro:review extends it with `phase:` / `status:` / `round:` / `approvals[]` so a compaction mid-run can recover. The file behaves as a handoff AT REST (after Phase 5 persist) and as a working state file DURING THE RUN.
 
@@ -178,6 +178,10 @@ open_questions:                       # MUST be present; MAY be empty []
 ## Deferred — sub-threshold
 <list, surfaced for user awareness>
 
+## Authored Tests
+<!-- Populated only when the test-confirmation gate authored tests; lists each AI-authored test file by path. Empty otherwise. The Failing-tests gate fires when this section is non-empty. -->
+<list of test file paths, or empty>
+
 ## Tool log
 <reviewer spawns + side-effects>
 
@@ -237,7 +241,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
   OR (command-based form): `Command:` / `Exit code:` / `Tail (last 3 lines):`
 - **Validation:** `confirmed | refuted | clarified` [every kept finding — CRITICAL / HIGH / MEDIUM; emitted by Phase 4.2 per-finding verifier; ABSENT on LOW (which never enters Phase 4.2)]
 - **Recommended-action:** `fix-now | testable | product-decision | intent-check | drop` [every kept finding — verifier override; when `Validation: clarified`, this field supersedes the original `Decision Type:` for downstream routing]
-- **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [every kept finding — Greptile-style 1-5 scale, distinct from the LLM `Confidence: NN%` field above]
+- **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [every kept finding — coarse 1-5 scale, distinct from the LLM `Confidence: NN%` field above]
 - **Verification-evidence:** `"<literal quote from cited file:line or caller chain>"` [every kept finding — verifier's grounding citation, distinct from the reviewer's `Evidence:` codeblock above]
 - **Options:** [PRODUCT-DECISION only — omit for other types]
   - `<option-id>`: `<short label>` — `<one-line trade-off>`

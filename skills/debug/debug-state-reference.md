@@ -20,19 +20,18 @@ state.md `phase:` enum transitions:
 
 ```
 [entry] → mode-detect ──┬── investigate ──┬── propose ──┬── ship ── done
-│ │ │
-│ │ └── ship-summary-only (terminal — "Leave it to me")
-│ │
-│ └── phase-2-escalated ──┬── ship (accept-as-documented-limitation)
-│ ├── propose (try-different-approach loop-back)
-│ └── aborted (terminal)
-│
-└── phase-1-escalated ──┬── investigate (supply-data loop-back)
-├── ship-summary-only (abandon — partial findings)
-└── aborted (terminal)
+                        │                 │             └── ship-summary-only (terminal — "Leave it to me")
+                        │                 │
+                        │                 └── phase-2-escalated ──┬── ship (accept-as-documented-limitation)
+                        │                                         ├── propose (try-different-approach loop-back)
+                        │                                         └── aborted (terminal)
+                        │
+                        └── phase-1-escalated ──┬── investigate (supply-data loop-back)
+                                                ├── ship-summary-only (abandon — partial findings)
+                                                └── aborted (terminal)
 
 [entry] → adversarial-mode-detect ── adversarial-investigate ── adversarial-ship ──┬── done
-└── adversarial-aborted (terminal — zero red tests)
+                                                                                   └── adversarial-aborted (terminal — zero red tests)
 ```
 
 **Terminal states:** `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`. The SessionStart recovery treats all four as "task complete — no resume needed".

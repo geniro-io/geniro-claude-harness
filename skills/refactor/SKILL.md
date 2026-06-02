@@ -25,7 +25,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 You refactor. You validate behavior preservation. You do NOT commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
-The constitutional rule (zero behavior change) is enforced per-step via the orchestrator-inline regression test gate AND post-execution via the final regression run. PRODUCT-DECISION findings ALWAYS escalate — picking one resolution path is a behavior change.
+The constitutional rule (zero behavior change) is enforced per-step via the orchestrator-inline regression test gate AND post-execution via the final regression run. PRODUCT-DECISION findings always escalate because picking one resolution path is itself a behavior change.
 
 ---
 
@@ -42,7 +42,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 The canonical loop invariants apply, with four skill-specific notes:
 
 1. **Invariant #4 (bounded structured tool results)** — orchestrator-inline execution writes per-step status and blocked-step reasons to state.md `## Plan steps`; total file body capped at ~8K chars via atomic_state_write truncation marker.
-2. **Invariant #5 (escalation gates, not silent abort)** — ≥30% blocked AUQ + PRODUCT-DECISION always-WAIT.
+2. **Invariant #5 (escalation gates, not silent abort)** — ≥30% blocked AUQ + PRODUCT-DECISION always waits for the user.
 3. **Invariant #7 (errors → structured observations)** — per-step blocked rationale, baseline validation failure, and reviewer CRITICAL findings all become structured `## Tool log` / `## Errors` entries.
 4. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
@@ -337,7 +337,7 @@ Full spawn template (acceptance criteria, pre-inlined `code-style.md`, focus are
 
 ### 3.3 Orchestrator disposition logic
 
-**PRODUCT-DECISION findings → ESCALATE (Always-WAIT, every tier):**
+**PRODUCT-DECISION findings → escalate (always wait for the user, every tier):**
 
 A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor guarantees zero behavior change. Picking one is a behavior change, contradicting the constitution. Phase 3 ESCALATES PRODUCT-DECISION to `/geniro:implement`; does NOT gate-and-fix in-skill.
 
@@ -345,7 +345,7 @@ Surface every PRODUCT-DECISION finding via `AskUserQuestion` per `${CLAUDE_PLUGI
 
 1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: verify-escalated` then on pick → exit (out-of-skill).
 2. **Revert this refactor and start over** — `git checkout -- .` with user confirmation. state.md → `reverted` (terminal).
-3. **Document and ship as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
+3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
 4. **(ADR-eligible only)** **Document as ADR** — spawn a focused ADR-drafting agent (OMIT `model=` — inherits the orchestrator's session tier per the canonical model-tiering rule and the table row in the Subagent Model Tiering section) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
 
 **ADR-eligibility check (before adding 4th option):** include the "Document as ADR" option ONLY when the rejected refactor candidate meets all three criteria from `improvement-routing.md` § ADR target: (1) hard to reverse, (2) surprising without context, (3) result of genuine trade-offs. Examples that qualify: rejecting "split this god-class into 3 modules because the team prefers single-file feature ownership" (the *rejection* is the durable decision); rejecting "switch from inheritance to composition here because the existing inheritance is load-bearing for the plugin system." Examples that do NOT qualify: rejecting a duplicate-extraction smell because the duplication is intentional (Rule of Three not yet met) — that's a learning, not an ADR. If unsure, omit the ADR option; routing to Knowledge is always safe.
@@ -356,7 +356,7 @@ Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings �
 
 **CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
 
-Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — surface to user via AUQ header "Verify-fix" with options: "Escalate to /geniro:implement" / "Document remaining findings and ship as-is" / "Revert all changes". state.md → `verify-escalated` with timestamp + 1-round fix attempt summary.
+Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" / "Document remaining findings and keep the diff as-is" / "Revert all changes". state.md → `verify-escalated` with timestamp + 1-round fix attempt summary.
 
 **MEDIUM findings only → note in completion summary; proceed.**
 
@@ -521,7 +521,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change constitution applies even when the in-scope behavior is buggy. |
 | "I'll hardcode `model='sonnet'` at the reviewer-agent spawn site to cap cost — the user might not realize Opus is expensive" | Forbidden. Plugin subagents inherit the orchestrator tier per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user chose Opus at session start with full knowledge of cost; overriding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that is the canonical knob. |
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
-| "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Class-A hard caps abort legitimate complex refactors mid-stride. The skill is quality-first — no Class-A caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
+| "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Hard kill caps abort legitimate complex refactors mid-stride. The skill is quality-first — no hard kill caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
 | "Auto-promote a recorded discovery into a project rule when refactor completes." | Phase 3 §3.5 offers to capture it via `/geniro:instructions create` and only when the same pattern has recurred (`recurrence_count >= 3`) — do NOT auto-write the rule. The user authors and curates project rules; auto-promotion creates noise + drift. |
 | "Bypass `git guardrail` hooks if a needed `git stash` / `git checkout -- .` step blocks." | The hooks fail-closed for a reason. `git checkout -- .` (revert path) is explicitly permitted per § ACI per-phase. Other git mutations stay blocked. If a specific guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
 | "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
@@ -549,7 +549,7 @@ Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level
 - [ ] Diff sanity check ran
 - [ ] Independent reviewer + custom reviewers ran (Medium+ only)
 - [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT) — refactor's zero-behavior-change constitution means multi-path findings are NOT fixed in-skill
-- [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → verify-fix AUQ
+- [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → "Findings remain" AUQ
 - [ ] MEDIUM findings noted in completion summary; proceeded
 - [ ] Completion summary presented in chat
 - [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`

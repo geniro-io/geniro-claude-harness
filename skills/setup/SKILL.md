@@ -1,6 +1,6 @@
 ---
 name: geniro:setup
-description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, generates a project-specific CLAUDE.md (stack, commands, conventions, domain — no plugin info), and validates the result. Re-run mode runs a migration sweep for breaking changes. Singleton bootstrap."
+description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, generates a project-specific CLAUDE.md (stack, commands, conventions, domain), and validates it. Re-run mode runs a migration sweep. Singleton bootstrap."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
@@ -25,7 +25,7 @@ CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 ## Subagent Model Tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn passes `model=` explicitly.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — one of the two documented hardcode carve-outs (`model=sonnet`, justified inline at §4.1 by its read-only tool floor).
 
 | Spawn | Tier | Why |
 |---|---|---|
@@ -45,7 +45,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` 
 
 ## Budgets — quality-first
 
-`/geniro:setup` has **zero Class-A hard kill caps**. Aborting mid-bootstrap leaves the project in a half-configured state.
+`/geniro:setup` has **zero hard kill caps**. Aborting mid-bootstrap leaves the project in a half-configured state.
 
 | Layer | Lever | Why |
 |---|---|---|
@@ -177,7 +177,7 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/marketplace.json` (or `plugin.json`). Extract the canonical 11-skill list:
+The canonical 11-skill list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries.)
 
 ```yaml
 skill_inventory:
@@ -194,7 +194,7 @@ skill_inventory:
 - {slug: update, purpose: "Plugin update + integrity check"}
 ```
 
-If marketplace.json read fails, fallback to the hardcoded list above. Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) out of generated CLAUDE.md — they no longer exist as live skills, so listing them points the user at commands that do not run.
+Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) out of generated CLAUDE.md — they no longer exist as live skills, so listing them points the user at commands that do not run.
 
 ### 1.6 Detect output
 
@@ -373,7 +373,7 @@ Transition to Phase 4.
 ### 4.1 Verification subagent spawn
 
 ```
-Agent(subagent_type=<resolved-rung>, # via _shared/spawn-agent.md ladder
+Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the spawn-agent.md ladder applies only if promoted to a plugin-defined agent
 model="sonnet", # hardcode carve-out: read-only tool budget (no Write/Edit) IS the safety floor, per _shared/model-tiering.md
 tools=["Read", "Bash", "Glob", "Grep"], # NO Write/Edit per §ACI
 prompt="""
@@ -411,7 +411,7 @@ Anchor: stay within current cwd; verify with `pwd && git branch --show-current` 
 | 1 | Spawn subagent. If `DRIFT items` empty → transition to Phase Done. Else → regenerate affected sections (jump back to Phase 3 for those sections only). |
 | 2 | Re-spawn subagent. Same logic. |
 | 3 | Re-spawn subagent. Same logic. |
-| 4 | **AUQ escalation:** `accept-with-warnings (proceed to done, drift documented in ## Open Questions) | abort (transition to failed) | re-run from Detect`. |
+| 4 | **AUQ escalation:** `Accept with warnings (finish setup; remaining issues noted for next run) | Abort setup | Start over from the beginning (re-detect the codebase)`. |
 
 `## Open Questions` accumulates DRIFT items across rounds — survives compaction.
 

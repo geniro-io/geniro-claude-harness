@@ -129,22 +129,7 @@ diff /tmp/exemplar.txt /tmp/new.txt
 
 ## Output Format
 
-```json
-{
-"type": "design",
-"severity": "critical|high|medium",
-"title": "Visual or interaction quality issue",
-"file": "path/to/Component.tsx",
-"line_start": 42,
-"line_end": 48,
-"description": "Description of the design violation",
-"category": "tokens|spacing|typography|variants|states|responsive|contrast|a11y|exemplar-drift|hierarchy",
-"current": "Current markup/class/style",
-"expected": "Expected pattern per design system",
-"recommendation": "How to fix it",
-"confidence": 88
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

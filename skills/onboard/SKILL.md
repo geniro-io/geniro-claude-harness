@@ -3,7 +3,7 @@ name: geniro:onboard
 description: "Use when starting fresh in an unfamiliar codebase and need rapid orientation. Scans structure and conventions; produces _CODEBASE_MAP.md with architecture, module graph, critical paths, entry points. Skip for specific Q&A (/geniro:investigate) or bug investigation (/geniro:debug)."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
+allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: --focus area1,area2 --depth N]"
 ---
 
@@ -45,11 +45,10 @@ When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate det
 
 ```
 [entry]
-  └── discover ──┬── map ──┬── done
-  │              │         └── map-truncated (terminal — repo-size cap exceeded + user picked "Truncate at top 50")
-  │              │
-  │              ├── aborted (terminal — user picks "Abort" at the repo-size cap)
-  │              └── routed  (terminal — empty/near-empty repo, recommend `/geniro:investigate`)
+  └── discover ──┬── aborted (terminal — user picks 'Abort' at the repo-size cap)
+                 ├── routed  (terminal — empty/near-empty repo, recommend `/geniro:investigate`)
+                 └── map ──┬── done
+                           └── map-truncated (terminal — user picked 'Truncate at top 50'; map ships from truncated scan)
 ```
 
 Terminal states: `done`, `map-truncated`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states (`discover`, `map`) roll back to phase-entry on compaction-resume and re-run idempotently.
@@ -66,7 +65,7 @@ The 10 canonical loop invariants from `/geniro:implement` § Loop invariants app
 
 ## Quality-first budgets
 
-Quality-first framing: /geniro:onboard has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
+Quality-first framing: /geniro:onboard has **NO hard kill caps**. All limits are **escalation gates that surface to user**.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -83,7 +82,7 @@ Quality-first framing: /geniro:onboard has **NO Class-A hard kill caps**. All li
 
 ## Phase 1 — Discover
 
-State.md `phase: discover`. Light per cost — a repo-size scan + Glob + initial Read of project entry files. Exits to Phase 2 only when scan is bounded and repo-size cap is respected.
+State.md `phase: discover`. Low cost — a repo-size scan + Glob + initial Read of project entry files. Exits to Phase 2 only when scan is bounded and repo-size cap is respected.
 
 ### 1.1 Step 0 — Mode detect
 
@@ -273,7 +272,7 @@ Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skil
 
 ## ACI per-phase tool surface
 
-Mirrors structure.
+Mirrors the /geniro:implement ACI surface — read-only Phase 1, helper-mediated writes Phase 2.
 
 **Phase 1 (Discover):**
 - Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`).
@@ -485,7 +484,7 @@ For each onboarding, confirm:
 | "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
 | "The repo has 5000 files but I'll just scan everything — better safe than sorry." | Mass-scan violates the bounded-scan contract. The ≤50-file default cap exists for tokens + speed. Fire the AUQ — user picks `--focus`, expansion, or truncation. Don't silently broad-scan. |
 | "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
-| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Class-A hard caps abort legitimate complex discovery mid-stride. Quality-first — no Class-A caps. The ≤50-file gate escalates to the user via AUQ. User has agency. |
+| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Hard caps abort legitimate complex discovery mid-stride. Quality-first — no hard caps. The ≤50-file gate escalates to the user via AUQ. User has agency. |
 | "/geniro:onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
 | "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
 | "Audit trail isn't needed for local /geniro:onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. The SessionStart hook re-injects on compaction; without the log, post-mortem requires re-running the scan from scratch. |

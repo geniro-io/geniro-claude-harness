@@ -12,6 +12,7 @@ State.md `phase: triage` during this phase.
 - §3 PR-ref input parsing
 - §3.5 Workflow integrations (issue-tracker fetch)
 - §4 Peer-PR scout (PR-ref input only)
+- §5 reserved — scope resolution is covered under §2 above
 - §6 L4 instructions load
 - §7 Step 0.5 — Round-N counter
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
@@ -251,7 +252,7 @@ If `gh` is unavailable or the PR cannot be fetched, report the error and stop �
 
 ## 3.5. Workflow integrations (issue-tracker fetch)
 
-Mirrors the Workflow-integration plumbing pattern in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` (§"Phase 1: $ARGUMENTS semantic-parse table") — read `.geniro/workflow/*.md` integrations, apply argument-detection regex, attempt MCP fetch when backend available. Read-only from /geniro:review's perspective; status/comment updates remain in /geniro:implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
+Read `.geniro/workflow/*.md` integrations, apply each file's argument-detection regex against `$ARGUMENTS` / `pr.title` / `pr.body`, and on a match fetch tracker context via the registered MCP server. Fail-open when the MCP server is unregistered: degrade to regex-only ID detection, surface a `## Caveats` one-liner, never block. Read-only from /geniro:review's perspective; status/comment updates remain in /geniro:implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
 
 Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not configured by /geniro:setup). Other inputs (files / diff range / branch / PR ref) ALL eligible — tracker IDs surface in `$ARGUMENTS` independently of PR-ref-driven flow.
 
@@ -335,6 +336,10 @@ Read-only — never writes files, never mutates git state. Latency ~1-3s base + 
 
 ---
 
+(§5 reserved — scope resolution is covered under §2 above.)
+
+---
+
 ## 6. L4 instructions load
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `review.md`, and `code-style.md` (3 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
@@ -358,7 +363,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 Per `plan-context-reference.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
-1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (10 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).
+1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (11 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).
 2. Else fall back to prose detection with ~3000-char cap.
 
 PLAN CONTEXT body inlined in spec-compliance reviewer spawn prompt only (Phase 2). Other dimensions don't see it.
@@ -398,7 +403,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After triage, surface one `AskUserQuestion` (do NOT print options as plain text):
 
 - **Header:** "Review mode"
-- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings backed by an F→P-verified failing test)?"
+- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings that an auto-authored failing test can reproduce)?"
 - **Options:**
 - "Standard review (Recommended)" — current behavior; Phase 4.3 gate opt-in per-run; Phase 6 posts all kept findings.
 - "TDD review (auto-author failing tests for findings)" — Phase 4.3 gate's Recommended option flips to "Author tests…"; Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.

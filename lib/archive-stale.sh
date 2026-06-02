@@ -4,11 +4,12 @@
 # Spec: skills/_shared/archive-stale.md
 #
 # Walks .geniro/knowledge/learnings.jsonl and flips `deprecated: true`
-# on entries matching all three criteria simultaneously:
+# on entries matching all four criteria simultaneously:
 #   - score < 0.1 (recency_decay × trust_weight × access_weight ×
 #       recurrence_weight — same scoring formula as query-learnings --score-min)
 #   - age > 180 days
 #   - access_count == 0 (never queried)
+#   - not already deprecated ((.deprecated // false) == false)
 #
 # NEVER deletes — flips deprecated:true only, audit trail preserved.
 # Auto-runs on SessionStart (default ON, hash-gated, opt-out via

@@ -28,9 +28,9 @@ state.md `phase:` enum transitions:
 
 verify ──┬── (happy: → done above)
          │
-         └── verify-escalated ──┬── apply ("Run /geniro:implement" on PRODUCT-DECISION → exit /geniro:refactor)
+         └── verify-escalated ──┬── (exit — out-of-skill; user runs /geniro:implement separately)
                                 ├── reverted (terminal — "Revert this refactor")
-                                ├── verify-summary-only (terminal — "Document and ship as-is" → deferred-decision note)
+                                ├── verify-summary-only (terminal — "Document and keep the diff as-is" → deferred-decision note)
                                 └── adr-documented (terminal — "Document as ADR")
 ```
 

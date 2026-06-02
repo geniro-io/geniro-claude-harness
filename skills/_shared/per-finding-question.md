@@ -88,7 +88,7 @@ If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follo
 Used by:
 - `/geniro:review` Phase 4.3 Step 2 (Test-gate "Let me pick" branch)
 
-> Historical note: `/geniro:review` Phase 6 PR-comment Step 3 previously used this multi-select shape. It now uses the Single-finding gate above with a calling-skill-set fixed menu (Post / Skip / Stop posting) — see that section's "Used by" list. The multi-select pattern remains canonical for the Test-gate Pick branch, which selects a subset of findings as input to a downstream agent rather than as discrete approval decisions per finding.
+The multi-select shape is canonical for the Test-gate Pick branch, which selects a subset of findings as input to a downstream agent rather than as discrete approval decisions per finding. The PR-comment per-finding gate uses the Single-finding gate above with a calling-skill-set fixed menu (Post / Skip / Stop posting) — see that section's "Used by" list.
 
 ### Required AUQ shape
 
