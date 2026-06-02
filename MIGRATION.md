@@ -429,7 +429,7 @@ rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent
 
 ## Notes on `/setup` re-run cleanup scope
 
-`/geniro:setup` re-run runs a **migration sweep** (Phase 3.0) that reads this MIGRATION.md and silently applies all auto-fix commands for entries where the auto-detect indicates the install is affected. This covers orphan file cleanup, state-path renames, frontmatter additions, and other mechanical fixes.
+`/geniro:setup` re-run runs a **migration sweep** (Phase 3.0) that reads this MIGRATION.md and silently applies safe mechanical auto-fix commands (state-path renames, frontmatter additions, and similar) for entries where the auto-detect indicates the install is affected. Destructive cleanups (rm/delete-class, e.g. orphan-file deletion) are never silently applied — they are surfaced to `## Open Questions` for the user to run via `/geniro:update`'s per-entry walk.
 
 User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/_*.md` artifacts are **never** touched by the migration sweep — only entries with explicit `Auto-fix:` commands from this file are applied.
 

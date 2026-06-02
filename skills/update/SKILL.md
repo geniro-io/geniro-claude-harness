@@ -91,7 +91,8 @@ fi
 # Snapshot user-content sha256 + mtime for survival verification
 USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
-| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null)
+| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null) || true
+# The snapshot is best-effort (a benign trailing find/xargs status must not read as failure); survival is verified by the Phase 3 Step 2 diff, not this exit code.
 # Save USER_SNAPSHOT (env var) for Phase 3 Step 2 comparison.
 ```
 
@@ -274,12 +275,12 @@ Parse MIGRATION.md and collect **every** `### <name>` entry across **all** `## v
 
 For each entry, in file order (newest cohort first — entries are independent, so order does not affect which fire):
 
-1. Run the `Auto-detect:` shell command from the entry. Capture output.
+1. Run the entry's `Auto-detect:` shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the walk. Run each entry's command in isolation so one failing detect cannot cascade into the rest. Capture output.
 2. If output empty → user not affected; log "skipped (not affected): <change-name>"; continue.
 3. If output non-empty → AUQ:
 - **Question:** `Breaking change in v<X.Y.Z>: <change-name>. <Action required text>. Auto-detected N affected files: <first 10 lines truncated>`
 - **Options:**
-- `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry. If the entry has no `Auto-fix:` field (manual-only migration), fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` to verify — if still affected, warn and continue.
+- `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry via `bash -c` (same shell-safety reason as the detect). If the entry has no `Auto-fix:` field (manual-only migration), fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` via `bash -c` to verify — if still affected, warn and continue.
 - `Show me how to fix manually` — Print the `Action required:` text with exact commands; continue to next entry.
 - `Skip for now` — Log skipped; continue to next entry.
 - `Cancel migration walk` — Stop here; log remaining; terminate and emit final report.
@@ -320,7 +321,7 @@ Migration walked: <N changes — M applied, K skipped, L deferred>
    skill bodies still point at v<CURRENT_VERSION> until you restart.
 
 After restart, run /geniro:setup — re-run mode will:
-   • Auto-migrate your .geniro/ directory (rename files, add missing fields, clean orphans)
+   • Auto-migrate your .geniro/ directory (rename files, add missing fields) — safe mechanical fixes apply silently; destructive cleanups like orphan deletion are surfaced for your review, not auto-applied, so anything you deferred in this walk is never silently reversed
    • Regenerate CLAUDE.md with the updated skill table and conventions
    • Preserve your custom instructions, actions, and knowledge
 
@@ -336,6 +337,12 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
 | `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "My recalled experience says the MIGRATION.md version headings don't match the package version, so I'll range-filter or read only the newest block." | A recalled learning does not override the walk-all consumption contract. The version heading is not a selection gate — walk EVERY entry across ALL sections (Phase 4) and let each read-only auto-detect decide relevance. The current skill body and the MIGRATION.md preamble are authoritative over any prior-session recollection. |
 
 ## Cross-references
 
