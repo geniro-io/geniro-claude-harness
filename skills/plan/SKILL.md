@@ -40,7 +40,7 @@ The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Pha
 ## Phase structure
 
 ```
-mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → user-approve → handoff → done
+mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → spec-challenge → user-approve → handoff → done
 ```
 
 Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve.
@@ -59,6 +59,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 5 | Section approval (incremental authoring, fixed 10-section schema, milestone-mode, each option carries `preview`) | §"Phase 5 — Section approval" |
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
+| 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open) | §"Phase 7.5 — Spec challenge" |
 | 8 | User approve (schema-rich AUQ + git commit) | §"Phase 8 — User approval" |
 | 9 | Hand-off (2 options: /implement / Stop) | §"Phase 9 — Hand-off" |
 
@@ -211,7 +212,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Section approve / Phase 6 Write / Phase 7 Validate / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
+2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Section approve / Phase 6 Write / Phase 7 Validate / Phase 7.5 Spec challenge / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
 
 3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` end-to-end.
 
