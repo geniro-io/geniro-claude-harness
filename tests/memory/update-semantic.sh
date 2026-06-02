@@ -30,7 +30,7 @@ fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo 
 new_sandbox
 update_semantic --file codebase-map --append "- src/foo.ts — root, used by App.tsx"
 if [ -f .geniro/planning/_CODEBASE_MAP.md ] \
-   && [ "$(wc -l < .geniro/planning/_CODEBASE_MAP.md)" = "1" ]; then
+   && [ "$(wc -l < .geniro/planning/_CODEBASE_MAP.md)" -eq 1 ]; then
   pass "append to missing file creates it with one line"
 else
   fail "append to missing file"
@@ -43,7 +43,7 @@ new_sandbox
 printf 'pre-existing line without newline' > .geniro/planning/_CODEBASE_MAP.md
 update_semantic --file codebase-map --append "- new line"
 n=$(wc -l < .geniro/planning/_CODEBASE_MAP.md)
-if [ "$n" = "2" ]; then
+if [ "$n" -eq 2 ]; then
   pass "append to no-trailing-newline file produces 2 lines (P0 regression)"
 else
   fail "no-trailing-newline append: got $n lines (want 2). content: $(cat .geniro/planning/_CODEBASE_MAP.md)"
@@ -53,7 +53,7 @@ fi
 new_sandbox
 update_semantic --file codebase-map --append "- a"
 update_semantic --file codebase-map --append "- b"
-if [ "$(wc -l < .geniro/planning/_CODEBASE_MAP.md)" = "2" ]; then
+if [ "$(wc -l < .geniro/planning/_CODEBASE_MAP.md)" -eq 2 ]; then
   pass "append preserves prior content (2 lines)"
 else
   fail "append-then-append: lines=$(wc -l < .geniro/planning/_CODEBASE_MAP.md)"

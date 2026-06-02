@@ -114,7 +114,7 @@ check() {
   if is_allowed "$id"; then return 0; fi
   if ! ext_matches "$exts"; then return 0; fi
   local matched=""
-  matched=$(printf '%s' "$CONTENT" | grep -nP "$regex" 2>/dev/null | head -1 || true)
+  matched=$(printf '%s' "$CONTENT" | RX="$regex" perl -ne 'if (/$ENV{RX}/) { printf "%d:%s", $., $_; exit 0 }' 2>/dev/null | head -1 || true)
   if [ -n "$matched" ]; then
     block "$id" "$desc" "$matched"
   fi
