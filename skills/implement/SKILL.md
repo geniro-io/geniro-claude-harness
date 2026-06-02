@@ -23,28 +23,28 @@ You are an autonomous executor. You consume an externally-provided spec (or inli
 
 ## State machine
 
-State.md frontmatter `phase:` enum:
+State.md frontmatter `phase:` transitions (alignment-immune table; `from-phase → to-phase | trigger`):
 
-```
-[entry]
-└── analyze ──┬── implement ──┬── self-review ──┬── ship ──┬── done (terminal)
-│ │ │ ├── ship-committed-only (terminal — "don't push" / "no push" / "commit only" modifier)
-│ │ │ └── (non-resumable-actions[] update per side-effect)
-│ │ │
-│ │ └── self-review-only (terminal — "stop after review" modifier)
-│ │
-│ └── phase-2-escalated ──┬── debug-handoff (terminal)
-│ ├── self-review (user picked "accept failures")
-│ └── aborted (terminal)
-│
-└── (analyze surface failures inline; no additional escalation state)
+| From | To | Trigger |
+|---|---|---|
+| (entry) | analyze | Phase 1 start |
+| analyze | implement | spec parsed, handoffs resolved |
+| analyze | (analyze) | surface failures inline; no separate escalation state |
+| implement | self-review | Phase 2 todos done, tests green |
+| implement | phase-2-escalated | test fix-loop exhausted / not converging |
+| phase-2-escalated | debug-handoff | user picked "escalate to debug" (terminal) |
+| phase-2-escalated | self-review | user picked "accept failures" |
+| phase-2-escalated | aborted | user picked "abort" (terminal) |
+| self-review | ship | happy path — review clean |
+| self-review | self-review-only | "stop after review" modifier — exit before commit (terminal) |
+| self-review | phase-3-escalated | review fix-loop exhausted / not converging |
+| phase-3-escalated | debug-handoff | user picked "escalate to debug" (terminal) |
+| phase-3-escalated | ship | user picked "accept findings" → `## Accepted Findings` body block |
+| phase-3-escalated | aborted | user picked "abort" (terminal) |
+| ship | done | committed + pushed + PR (terminal) |
+| ship | ship-committed-only | "don't push" / "no push" / "commit only" modifier (terminal) |
 
-self-review ──┬── (happy: → ship)
-│
-└── phase-3-escalated ──┬── debug-handoff (terminal)
-├── ship (user picked "accept findings" → `## Accepted Findings` body block)
-└── aborted (terminal)
-```
+Each `git push` / `gh pr create` / posted comment appends to `non-resumable-actions[]` as it fires.
 
 **Terminal states**: `done`, `ship-committed-only`, `self-review-only`, `debug-handoff`, `aborted`.
 
@@ -110,7 +110,7 @@ Where `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch p
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: implement
 schema-version: 1
 branch: <git-branch>
@@ -444,9 +444,9 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 8. **Read subagent outputs.** Read `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`. The codebase-explorer's `change_scope` field gates Phase 3 adversarial-tester spawn (`trivial` → skip). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
 9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
-11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Phase 3 design-conventions injection and Pre-Ship Visual Verification.
+11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Pre-Ship Visual Verification.
 12. **Persist review/debug handoffs AND gate on unresolved open questions.** For every `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
-    1. Read the file via `atomic_state_write`-safe Bash `cat` (NOT direct `Edit`/`Write`).
+    1. Read the handoff file with the `Read` tool (or Bash `cat`).
     2. Persist the body under state.md `## Inputs from <producer>` body section.
     3. Parse frontmatter `open_questions[]` per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
     4. Filter to entries with `status: unresolved`.

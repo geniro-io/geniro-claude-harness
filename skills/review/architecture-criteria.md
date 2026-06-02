@@ -2,6 +2,17 @@
 
 Design patterns, modularity, coupling, performance, scalability, and technical debt assessment.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## What to Check
 
 ### 1. Module Design & Coupling

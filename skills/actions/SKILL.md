@@ -63,7 +63,7 @@ action frontmatter `allowed-tools:` field,
 )
 ```
 
-Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`) — these are then AUQ-gated by `risk_class` per §Phase 4 Step 2 below.
+Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`) — these are then AUQ-gated by `risk_class` per the run-mode risk-class gate (Phase 5.3).
 
 ## Termination case → state mapping
 
@@ -81,7 +81,7 @@ Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`) �
 
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory.
 
-Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which action is targeted. NEVER output questions as plain text — always use the `AskUserQuestion` tool at every WAIT gate.
+Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which action is targeted. Surface every WAIT gate through the `AskUserQuestion` tool, not plain-text questions — plain-text prompts aren't gated and the run can proceed without an answer.
 
 ### Action detection
 
@@ -101,16 +101,16 @@ If `$ARGUMENTS` is empty, default to `list`.
 The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`/`delete`/`validate`:
 
 - **`create`** — the next non-verb token MUST be a kebab-case slug (lowercase letters, digits, hyphens; ≤64 chars; not a reserved word; no leading/trailing hyphen).
-- **`run`, `delete`, `validate`** — the non-verb remainder is treated as a **resolution input** that may be either an exact kebab slug (fast path) or a free-text description (routed through Phase 4.0).
+- **`run`, `delete`, `validate`** — the non-verb remainder is treated as a **resolution input** that may be either an exact kebab slug (fast path) or a free-text description (routed through Phase 5.0).
 
 ### Ambiguity resolution
 
-**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the entire `$ARGUMENTS` exact-matches an existing action file (literal or kebab-normalized: `daily recap` → `daily-recap`), default to `run` with that resolved slug. Typing a known slug IS the answer to "what do you want to do?"; re-asking would violate "skip questions already answered". Cross-worktree confirmation (§Phase 4 below) still fires.
+**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the entire `$ARGUMENTS` exact-matches an existing action file (literal or kebab-normalized: `daily recap` → `daily-recap`), default to `run` with that resolved slug. Typing a known slug IS the answer to "what do you want to do?"; re-asking would violate "skip questions already answered". The cross-worktree confirmation in Phase 5.0 Step 2 still fires.
 
 **Otherwise** AUQ the verb:
 
 - **Question:** "What would you like to do with custom actions?"
-- **Options:** `List` / `Create` / `Run` / `Delete` (Validate is documented but rarely the default — user invokes explicitly)
+- **Options:** `List` / `Create` / `Run` / `Delete` (Edit and Validate omitted at the 4-option cap — both are rarely the ambiguous default; the user invokes them explicitly)
 
 ### Name validation (for `create` only)
 
@@ -234,7 +234,7 @@ Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, t
 
 - Frontmatter `name` = the kebab-case slug.
 - Frontmatter `description` MUST start with "Use when" and reflect Q2's trigger context (≤250 chars).
-- Frontmatter `risk_class:` = Q5's answer (REQUIRED — new minimal).
+- Frontmatter `risk_class:` = Q5's answer (REQUIRED).
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
 - Frontmatter `external-send: true` if Q3 = "Posts to an external system" or "Multiple side effects" with external.
@@ -346,16 +346,16 @@ emit_rejection_if_signal \
 
 `<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (picks containing `Cancel`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /geniro:actions runs of the same slug surface «user rejected this action N times». This is distinct from approvals[], which is intentionally skipped in run mode.
 
-### Phase 5.4: Execute INLINE (tool-scope intersection)
+### Phase 5.4: Execute inline (tool-scope intersection)
 
-Follow the action body's numbered steps directly. The orchestrator is the runtime — no subagent dispatch in v1. Pass extra positional `$ARGUMENTS` (after the action name) as input context under a "User-supplied input" heading.
+Follow the action body's numbered steps directly. The orchestrator is the runtime — no subagent dispatch; Phase 5 runs inline. Pass extra positional `$ARGUMENTS` (after the action name) as input context under a "User-supplied input" heading.
 
 **Tool-scope contract.** BEFORE running any step, intersect the action's frontmatter `allowed-tools` with the orchestrator's own `allowed-tools` ONCE and identify any step whose required tools fall outside the intersection. If gaps exist, surface them in a single AUQ before execution begins:
 
 - **Question:** "The action declares N step(s) using tools outside this run's tool scope: [list step numbers + missing tools]. How should I proceed?"
 - **Options:** `Skip the affected steps and run the rest` / `Cancel the run`
 
-If no gaps, proceed without asking. Do NOT call any tool the action did not declare in `allowed-tools`. Do NOT re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
+If no gaps, proceed without asking. Do not call any tool the action did not declare in `allowed-tools` — the intersection is the action author's stated tool budget. Do not re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
 
 If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt; transition to `failed` with step number captured.
 
@@ -516,7 +516,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 | "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
 | "The five interview questions are overkill for a small action" | No — they're the official skill-creator questions; even small actions need a clear purpose, trigger, output, and risk class documented in the file. |
 | "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
-| "I'll spawn a subagent to execute the action" | Not in v1 — Phase 5 is inline-only. |
+| "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
 | "I'll skip the risk_class AUQ if the user already confirmed last week" | No — risk-class decisions are context-dependent. Re-ask each run. The approvals[] persistence applies to one-time decisions (e.g., $ARGUMENTS disambiguation), NOT runtime confirmations. |
 | "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
 | "I'll allow `--skip-confirm` flag to bypass the risk-class gate" | No — explicit anti-pattern. If user wants no-AUQ, they pick `risk_class: low` on create. Bypass would defeat the safety net. |

@@ -2,7 +2,7 @@
 name: geniro:instructions
 description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step. Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
 context: main
-model: sonnet
+model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
 argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instructions', 'delete review rules']"
 ---
@@ -19,7 +19,7 @@ Code rules split three ways depending on **when** they should fire:
 
 ## Loop invariants
 
-1. One result per subagent call — `/geniro:instructions` never spawns subagents (CRUD too small for parallelism).
+1. Single transaction, no subagents — `/geniro:instructions` runs entirely in the orchestrator (CRUD is too small for parallelism).
 2. Args validated before exec — every Write preceded by scope validation (regex match) AND file-existence check.
 3. Permission before side-effect — Write/Delete are AUQ-gated.
 4. Bounded structured results — `list` mode truncates per-file body display at ~2000 chars.
@@ -50,8 +50,8 @@ No state file, but failure paths report a structured reason in the final user me
 | User cancelled at any AUQ | `aborted: user cancelled at <step>` |
 | Scope resolution failed after 3 AUQ retries | `aborted: scope unresolved after 3 AUQ rounds` |
 | Validation found N issues, user picked "Abort" | `aborted: validate surfaced N issues; user picked abort` |
-| Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>; see.geniro/safety.json` |
-| Delete blocked by `.geniro/` deletion guard | `aborted:.geniro/ deletion guard blocked rm of <path>; see.geniro/safety.json` |
+| Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>; see .geniro/safety.json` |
+| Delete blocked by `.geniro/` deletion guard | `aborted: .geniro/ deletion guard blocked rm of <path>; see .geniro/safety.json` |
 
 ## Valid scope set
 
@@ -221,7 +221,7 @@ or `/geniro:instructions create code-style` for project-wide style rules.
 Else, table format:
 
 ```
-Custom instructions in.geniro/instructions/ (project: my-project):
+Custom instructions in .geniro/instructions/ (project: my-project):
 
 global.md 348 B modified 3 days ago
 code-style.md 1.2 KB modified 2 hours ago
@@ -409,10 +409,10 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 
 `Additional Steps` subsections must match a real phase enum value from the corresponding skill doc. Lowercase-hyphenated; subsection prose may use any case (validate normalizes).
 
-| Scope | Real phase enum (M-doc) | Example subsection names |
+| Scope | Real phase enum | Example subsection names |
 |---|---|---|
 | `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
-| `plan` | `mode-detect \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
+| `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
 | `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
 | `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| debug-handoff \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
 | `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |

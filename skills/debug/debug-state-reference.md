@@ -5,7 +5,7 @@ Detail sections extracted from `skills/debug/SKILL.md` to keep the main skill bo
 ## Contents
 
 1. State machine — full ASCII diagram + state semantics
-2. State file schema — frontmatter + body sections (T1 state.md, T2 handoff files)
+2. State file schema — frontmatter + body sections (T1.5 state.md, T2 handoff files)
 3. Infrastructure Investigation — signals + investigation checklist
 4. Isolation Techniques — binary search, git bisect, profiling
 5. Stall Diagnosis Taxonomy — 8-component missing-component table
@@ -47,13 +47,13 @@ The `## Termination reason` body section is written on `aborted` / `adversarial-
 
 ## 2. State file schema
 
-### state.md (T1 — session-bound, `.geniro/state/debug/<slug>/state.md`)
+### state.md (T1.5 — session-bound, `.geniro/state/debug/<slug>/state.md`)
 
 Frontmatter:
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: debug
 schema-version: 1
 branch: <git-branch>

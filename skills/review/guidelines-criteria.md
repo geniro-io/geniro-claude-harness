@@ -2,7 +2,18 @@
 
 Code style, naming conventions, documentation, consistency, and compliance with project standards.
 
-> **Scope:** repo-modal-pattern findings (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency, ADR contradictions) are owned exclusively by the `conventions` review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`. Do NOT emit such findings from `guidelines` — that produces user-facing «told twice». This file covers style / naming / documentation / formatting / type-safety / public-API surface / dead-code only.
+> **Scope:** repo-modal-pattern findings (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency, ADR contradictions) are owned exclusively by the `conventions` review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`. Do NOT emit such findings from `guidelines` — that produces a finding the user is told twice. This file covers style / naming / documentation / formatting / type-safety / public-API surface / dead-code only.
+
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Tagging
+
+---
 
 ## What to Check
 

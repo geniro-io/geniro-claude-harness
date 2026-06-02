@@ -55,7 +55,7 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 
 ## Hard rules
 
-- **Architect-flavored work (multi-file design, planning, threat modeling) runs orchestrator-side**, not in a subagent. The orchestrator's own model handles this reasoning inline. (When the orchestrator is on Opus 4.7, architecture work happens on Opus; when on Sonnet, on Sonnet. The user picks.)
+- **Architect-flavored work (multi-file design, planning, threat modeling) runs orchestrator-side**, not in a subagent. The orchestrator's own model handles this reasoning inline. (When the orchestrator is on Opus, architecture work happens on Opus; when on Sonnet, on Sonnet. The user picks.)
 
 ## maxTurns convention
 

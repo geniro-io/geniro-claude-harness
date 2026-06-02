@@ -9,7 +9,7 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 # Investigate: Deep Codebase Q&A
 
-3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/geniro:implement`, `/geniro:debug`, `/geniro:refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, fresh-reviews, and presents the answer.
+3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/geniro:implement`, `/geniro:debug`, `/geniro:refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, verifies with a fresh agent, and presents the answer.
 
 Section-reference convention: local refs like Phase X are within this SKILL.md.
 
@@ -26,7 +26,7 @@ The canonical loop invariants apply, with three skill-specific notes:
 2. **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
 3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 reviewer + save-routing focused agents), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
+**`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier + save-routing focused agents), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
 
 ## Quality-first budgets
 
@@ -35,7 +35,7 @@ Quality-first framing: /geniro:investigate has **NO Class-A hard kill caps**. Al
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
 | Dive-deeper rounds | 2 | Phase 3 Step 4 follow-up AUQ | At max, suggest fresh `/geniro:investigate` with refined question; do not silently re-loop. |
-| Fresh-reviewer re-review rounds | 1 | Phase 3 Step 2 | At max, present to user with remaining blockers flagged. |
+| Fresh-verifier re-review rounds | 1 | Phase 3 Step 2 | At max, present to user with remaining blockers flagged. |
 | Research-agent output size | ~8K chars per agent | Loop invariant #4 | Truncation with marker. |
 
 **Architecture constraints (design intent, not budget):**
@@ -52,7 +52,7 @@ Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering
 
 ## Subagent Spawn Contract
 
-Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh reviewer-agent, and Phase 3 Step 4a save-routing agents — must satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier); subagents that skip a field re-discover from scratch and drift from intended scope. The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state — bare prompts force re-discovery and silently drift from intended scope. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents (none in this skill today; the rule applies if a future research agent is promoted to a custom agent type).
+Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh verifier agent, and Phase 3 Step 4a save-routing agents — must satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier); subagents that skip a field re-discover from scratch and drift from intended scope. The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state — bare prompts force re-discovery and silently drift from intended scope. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; the Git Historian, Internet Researcher, fresh verifier, and save-routing agents are general-purpose spawns.
 
 ## Evidence Standard
 
@@ -174,7 +174,7 @@ State.md `phase: investigate`. Parallel research-agent spawns + orchestrator re-
 
 ### Step 1: Parallel research agents
 
-Spawn 1-3 agents in ONE response — all Agent calls in the same assistant turn, NOT one per turn — matching the literal "Agents needed" set from Phase 1 Step 1. No agent is unconditional; each must pass the Phase 1 Step 2 skip criteria. When only one agent is spawned, it is still spawned via `Agent(...)` (not inlined) so Phase 3 Step 2 fresh-reviewer can verify its findings against a fresh transcript.
+Spawn 1-3 agents in ONE response — all Agent calls in the same assistant turn, NOT one per turn — matching the literal "Agents needed" set from Phase 1 Step 1. No agent is unconditional; each must pass the Phase 1 Step 2 skip criteria. When only one agent is spawned, it is still spawned via `Agent(...)` (not inlined) so the Phase 3 Step 2 fresh verifier can check its findings against a fresh transcript.
 
 Every spawn below pre-populates the 6 required fields from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier) and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (bare-name first; degrade to `general-purpose` only on "Agent type not found"). Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
 
@@ -222,7 +222,7 @@ For each unverified claim, choose ONE:
 
 Do NOT advance to Phase 3 synthesis until every load-bearing claim is either verified or has a pending user-data request.
 
-### Step 3: Missing-data gate (WAIT )
+### Step 3: Missing-data gate (WAIT for user data)
 
 If Step 2 left any load-bearing claim unverified AND only the user can supply the missing artifact, PAUSE and use the `AskUserQuestion` tool (do NOT output options as plain text — use the tool's structured UI) BEFORE drafting the answer. Header: "Missing data". Phrase the question concretely; offer 2-4 specific options for what data the user can provide. Examples:
 
@@ -236,7 +236,7 @@ State.md `## Open Questions` body section logs missing-data gate question + user
 
 ## Phase 3: Synthesize+Review+Present
 
-State.md `phase: present`. Synthesizes verified findings, fresh reviewer-agent re-checks, presents to user, offers save-routing AUQ, emits L2 `discovery` with trust label.
+State.md `phase: present`. Synthesizes verified findings, a fresh verifier agent re-checks, presents to user, offers save-routing AUQ, emits L2 `discovery` with trust label.
 
 ### Step 1: Synthesize draft
 
@@ -261,9 +261,9 @@ For each major claim, check it has a verified artifact per the Evidence Standard
 - **Unverified and only the user can supply the artifact**: route through the Phase 2 Step 3 missing-data gate.
 - **Unverifiable** (no path to evidence): omit the claim. Note the gap explicitly in the answer's "Open questions" section. Do NOT ship a labelled "low-confidence" claim as a substitute for evidence.
 
-### Step 2: Fresh reviewer-agent
+### Step 2: Fresh verifier agent
 
-Spawn a fresh review agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §4.
+Spawn a fresh verifier agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §4.
 
 #### Process review results:
 - **Blockers**: Fix the answer (orchestrator corrects directly — these are text edits, not code).
@@ -361,7 +361,7 @@ No handoff file to delete. Chat answer is the deliverable. Persistent artifacts 
 
 ## State file schema
 
-T1 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Write via `atomic_state_write`; validate on resume via `validate_state_file`. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Reviewer Findings / Final Answer / Tool log / Errors / Open Questions / Termination reason / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
+T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Write via `atomic_state_write`; validate on resume via `validate_state_file`. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Termination reason / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
 
 ---
 
@@ -382,8 +382,8 @@ T1 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — w
 
 **Phase 3 (Synthesize+Review+Present):**
 - Allowed: Read (for re-reading cited files during synthesis).
-- Allowed Agent spawns: fresh reviewer-agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
-- Reviewer-agent: Read / Grep (no Edit / Write).
+- Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
+- Fresh verifier agent: Read / Grep (no Edit / Write).
 - Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` / `.geniro/knowledge/learnings.jsonl`). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks.
 
 **Existing safety layer** applies across ALL phases (file-protection / git-guardrail / `.geniro/` deletion guard).

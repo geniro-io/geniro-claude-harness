@@ -38,7 +38,7 @@ TDD mode is an opt-in variant of `/geniro:review` that biases the run toward aut
 
 The F-to-P semantics are **unchanged** between modes. `adversarial-tester-agent` runs the same protocol (3x flake check plus orchestrator independent re-run) per the canonical RED → GREEN → REFACTOR cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`. Mode does not affect what the agent does, only how the orchestrator surfaces the gate and filters posting.
 
-**No P-to-P (preservation tests) is added.** The user-facing TDD mode does NOT widen the agent's contract to also run repo-wide existing tests stay green; that is out of scope for this design (see SWE-bench's F-to-P + P-to-P dual gate for what a future expansion could add).
+**No P-to-P (preservation tests) is added.** TDD mode does NOT widen the agent's contract to also ensure repo-wide existing tests stay green; that is out of scope.
 
 **No mutation-testing self-check** is added. Out of scope.
 

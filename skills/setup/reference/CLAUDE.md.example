@@ -2,6 +2,15 @@
 
 > **Reference example**: The /geniro:setup skill reads this for structure guidance and generates a project-specific CLAUDE.md from scratch — it does NOT fill in placeholders.
 
+## Sections
+
+- Project Overview
+- Coding Conventions
+- Design System
+- Testing
+- Git Workflow
+- Integration Points
+
 ## Project Overview
 
 {{One paragraph describing what this project does and what domain it operates in. Extracted from README.md or project documentation during /geniro:setup. E.g., "A multi-tenant SaaS platform for managing construction project timelines, budgets, and contractor coordination."}}

@@ -29,7 +29,7 @@ You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 han
 
 ## State Machine
 
-state.md `phase:` enum: `mode-detect` → `investigate` → `propose` → `ship` → `done` (Scientific Mode happy path). Terminal states: `done`, `ship-summary-only`, `debug-handoff`, `aborted`, `adversarial-aborted` (SessionStart recovery treats these as complete). Escalation states: `phase-1-escalated`, `phase-2-escalated` (recovery surfaces "task was paused — last AUQ options:" so user re-picks without losing context). Adversarial Mode runs a parallel chain (`adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship` → `done`).
+state.md `phase:` enum: `mode-detect` → `investigate` → `propose` → `ship` → `done` (Scientific Mode happy path). Terminal states: `done`, `ship-summary-only`, `aborted`, `adversarial-aborted` (SessionStart recovery treats these as complete). Escalation states: `phase-1-escalated`, `phase-2-escalated` (recovery surfaces "task was paused — last AUQ options:" so user re-picks without losing context). Adversarial Mode runs a parallel chain (`adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship` → `done`).
 
 Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §1.
 
@@ -101,7 +101,7 @@ If the orchestrator's tools cannot produce evidence for a hypothesis (no DB acce
 
 ## Universal Rule: All Choice Questions Use AskUserQuestion
 
-Every user-facing choice in this skill — including ad-hoc gates NOT explicitly enumerated below — MUST go through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Universal AskUserQuestion Rule. The enumerated gates are examples, not an exhaustive list. If you're about to type `(A)... or (B)...` in chat, stop and call the tool instead.
+Every user-facing choice in this skill — including ad-hoc gates NOT explicitly enumerated below — MUST go through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The enumerated gates are examples, not an exhaustive list. If you're about to type `(A)... or (B)...` in chat, stop and call the tool instead.
 
 ---
 
@@ -125,7 +125,7 @@ $ARGUMENTS routing:
 - Phrase signals: `verify last changes`, `verify recent changes`, `verify my changes`, `check last changes`, `break my diff`
 - Explicit diff range signals: `HEAD~N..HEAD`, `HEAD~N`, `main...HEAD`, bare PR ref (`#1234` or GitHub PR URL), bare branch name + verify keyword
 
-**Approvals-persistence protocol:** before firing the empty-AUQ, check state.md frontmatter `approvals[]` for prior entry with `category: disambiguate_mode`. If found, use prior `picked` value. If not, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_write` before proceeding. Block 5d renders this on resume.
+**Approvals-persistence protocol:** before firing the empty-AUQ, check state.md frontmatter `approvals[]` for prior entry with `category: disambiguate_mode`. If found, use prior `picked` value. If not, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_write` before proceeding. The session-start restore re-surfaces this saved choice from `approvals[]` on resume.
 
 When in doubt (ambiguous input), default to Scientific Mode — user can re-invoke with explicit adversarial phrasing if needed.
 
@@ -226,7 +226,7 @@ Example payload:
 }
 ```
 
-**Sliding-window cap (Reflexion bound):** keep at most 5 latest `discarded_hypothesis` entries per `(producer, scope)`. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; if ≥5, mark the oldest matching entry `deprecated: true` BEFORE appending the new one. This field-flip is a mutation of `.geniro/knowledge/learnings.jsonl`, which the state-helper enforcement hook guards — perform it through the atomic-write path (rewrite the file via `atomic_state_write`, not a direct `Edit`/`Write`), and rely on the `enforce-state-helper` allow-pattern in `.geniro/safety.json` only if the atomic path is unavailable. Prevents discarded-hypothesis chatter from drowning out `diagnosis` entries at retrieval time.
+**Sliding-window cap:** keep at most 5 latest `discarded_hypothesis` entries per `(producer, scope)`. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; if ≥5, mark the oldest matching entry `deprecated: true` BEFORE appending the new one. This field-flip is a mutation of `.geniro/knowledge/learnings.jsonl`, which the state-helper enforcement hook guards — perform it through the atomic-write path (rewrite the file via `atomic_state_write`, not a direct `Edit`/`Write`), and rely on the `enforce-state-helper` allow-pattern in `.geniro/safety.json` only if the atomic path is unavailable. Prevents discarded-hypothesis chatter from drowning out `diagnosis` entries at retrieval time.
 
 `rejected` is a normal outcome of hypothesis testing — emit fires in the happy path. `inconclusive` does NOT emit (the data is ambiguous; recording it would seed noise). `confirmed` does NOT emit a `discarded_hypothesis` (it emits a `diagnosis` later at Phase 3 §3.3).
 
@@ -290,7 +290,7 @@ If the confirmed root cause has more than one valid fix path with real trade-off
 
 **Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entry with `category: multi_path_fix` and matching `root_cause` (use root-cause text as the disambiguator). If found, use prior `picked` value. If not, fire AUQ → on user pick, append entry to `approvals[]` via `atomic_state_write`.
 
-**Re-ask trigger:** if the root cause changes (second-pass investigation overturns the prior root cause), the prior `approvals[]` entry is stale — clear it and re-fire. Block 5d renders this from `approvals[]` on resume.
+**Re-ask trigger:** if the root cause changes (second-pass investigation overturns the prior root cause), the prior `approvals[]` entry is stale — clear it and re-fire. The session-start restore re-surfaces this from `approvals[]` on resume.
 
 The single-text-proposal default applies ONLY when there is one obvious right fix; multi-path is the explicit branch.
 
@@ -333,7 +333,7 @@ When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-
 - **Try different approach** — go back to (Hypothesize) with a fresh angle. state.md transitions back to `phase: investigate`.
 - **Accept as documented limitation** — proceed to Phase 3 ship sub-step with `## Accepted Limitations` block in state.md body. state.md transitions to `phase: ship`. Receiving skill sees the unresolved limitation in the findings summary.
 - **Abort** — `phase: aborted` (terminal).
-3. state.md marks `phase: phase-2-escalated` with timestamp + fix-attempt count + accumulated test outputs. Block 5c renders open question on resume.
+3. state.md marks `phase: phase-2-escalated` with timestamp + fix-attempt count + accumulated test outputs. The session-start restore re-surfaces the open question on resume.
 
 **L2 emit on fix-loop exit.** When Phase 2 exits AND `fix_attempts ≥ 2`, call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "fix-attempts", attempts: [{round: N, failure: "<why this attempt did not verify>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` (passed = test confirmed fix; escalated = user picked "Try different approach" or "Accept as documented limitation"; aborted = terminal). Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-attempt exits (fix_attempts == 1) do NOT emit. Scope = the file/module the fix targeted.
 
@@ -432,11 +432,12 @@ Do NOT auto-invoke the next skill — surface the suggestion only. State file IS
 
 ### 3.3 Emit learnings + offer to capture a recurring diagnosis as a rule
 
-At Phase 3 exit:
+At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnosis rule offer. The other two `emit-learning` types fire earlier in their own phases — listed here together so the full debug emit surface is visible in one place:
 
-- **`emit-learning`** — called by /geniro:debug at two distinct points:
+- **`emit-learning`** — called by /geniro:debug at three distinct points:
 - **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`.
 - **`discarded_hypothesis`** (fires per-rejection during Phase 1) — every rejected hypothesis emits one entry with required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See §1.5 for the payload schema and emit logic.
+- **`retry_failure_sequence`** (fires at Phase 2 exit, conditional on `fix_attempts >= 2`) — captures the failed fix-attempt chain with required `ext.{phase, attempts, resolution}`. Single-attempt exits do not emit. See §2.5 for the payload schema and emit logic.
 - **NOT emitted :** `pitfall` (/geniro:refactor + /geniro:review own), `convention` (/geniro:implement self-review owns), `decision` (/geniro:plan owns), `discovery` (/geniro:refactor + /geniro:onboard + /geniro:investigate own).
 
 - **Offer to capture a recurring diagnosis as a project rule:** when the emitted diagnosis carries `recurrence_count >= 3` (this exact root cause has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen diagnoses do not warrant a rule.
@@ -555,7 +556,7 @@ When the §1.7 stall gate fires (5 inconclusive hypothesis tests), classify the 
 
 ## State file schema
 
-T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 ---
 
@@ -620,7 +621,7 @@ T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `a
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per Evidence Standard kind 1-5 (file:line snippet, captured command output, log line, query result, user-provided artifact). |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | Inconclusive-by-default is a fabrication shortcut. Run the §1.5 missing-data gate first — `AskUserQuestion` asking the user to supply the specific artifact. Only mark inconclusive if user confirms they cannot supply it. |
 | "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at §3.5 Cleanup and leave no regression guard. §2.4 mandates the reproduction be authored as a unit/integration test in the project's framework. Escape hatch (Reproduction Decision) is opt-in for genuinely non-reproducible cases only. |
-| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The Universal AUQ rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` makes the tool mandatory for ANY choice question. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
+| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The canonical gate at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate makes the tool mandatory for ANY choice question. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 | "I'll name the reproduction test after the confirmed hypothesis number from `## Hypotheses`" | state.md gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. §2.4 mandates: describe the bug behavior, not the thread-local label. |
 | "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskUserQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
 | "Bypass `git guardrail` hooks if a needed `git bisect` step blocks." | Hooks fail for a reason. `git bisect` is permitted (read-only investigation per § ACI per-phase). If a specific guardrail blocks legitimate debug work, the path is `.geniro/safety.json` allow_patterns, not `--no-verify`. |

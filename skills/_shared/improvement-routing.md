@@ -1,5 +1,13 @@
 # Improvement Routing (canonical)
 
+## Contents
+
+- §Routing table — improvement type → target file
+- §Decision logic when target is ambiguous
+- §ADR target — when to use it (sparingly)
+- §Why code rules go to `.claude/rules/`, not CLAUDE.md
+- §Presentation — how to surface the routed suggestion
+
 When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, classify it by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
 
 ## Routing table

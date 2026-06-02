@@ -1,10 +1,22 @@
 # Load custom instructions (canonical, shared)
 
+## Contents
+
+- §Why this exists — tool-explicit, observable, canonical load
+- §When to invoke — initial-load / refresh modes
+- §Caller contract — SKILL_SLUG / LOAD_TIER / MODE parameters
+- §Procedure — load set, primary-worktree fallback, per-file reads
+- §Echo contract — the one-line-per-file proof of read
+- §Mid-pipeline refresh — phase-boundary re-read
+- §Producer contract — instruction-file schema the loader applies
+- §Anti-rationalization
+- §Definition of Done
+
 **Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, and `.geniro/instructions/code-style.md`.
 
 ## Why this exists
 
-Pre-helper, every consumer SKILL.md duplicated the producer-side directive prose: *"Load custom instructions from `.geniro/instructions/global.md` and `.geniro/instructions/<skill>.md`. Read any found. Apply rules as constraints, additional steps at specified phases, and hard constraints."* Across every consumer skill and mid-pipeline refresh site this produced three phrasings (brace-expansion, comma-separated, hook prose) that drifted independently. Worse, the natural-language "Load X" directive empirically did NOT reliably trigger the Read tool — documented as a failure mode in Anthropic's own Memory docs and Claude Code issue #27032, and reproduced in Spec Kit issue #2459 ("`/speckit.implement` does not load constitution.md"). This helper makes the load:
+A natural-language "Load X" directive does not reliably trigger the Read tool — the model often treats it as already-satisfied and skips the actual file read. Defining the load procedure once here, in tool-explicit terms, is the durable fix: consumers reference this file by path instead of each restating the directive in prose that drifts apart. This helper makes the load:
 
 - **Tool-explicit** — imperative `` Read `<path>` `` directives, not "Load X if present"
 - **Observable** — a one-line echo after every Read, so the user can SEE that the read fired

@@ -4,6 +4,20 @@ This file contains templates, examples, and detailed procedures referenced by SK
 
 **Scope:** `/geniro:implement` is a 3-phase autonomous loop (Analyze → Implement → Self-review-and-Ship).
 
+## Contents
+
+- Phase 1: $ARGUMENTS semantic-parse table
+- Phase 1: Spec discovery walk-list
+- Phase 1: Subagent spawn template
+- Phase 2: test-runner-agent spawn template
+- Phase 2: Implement — error-handling
+- Phase 3: Self-review reviewer-agent template
+- Phase 3: Adversarial-tester spawn template
+- Phase 3: Bounded fix loop
+- Phase 3 — Ship sub-step
+- Phase 3 — Adjustment Routing (Big / Medium / Small)
+- Definition of Done
+
 ---
 
 ## Phase 1: $ARGUMENTS semantic-parse table

@@ -50,7 +50,7 @@ For each tag in `INFERRED_TAGS`, run:
 bash <LIB_ROOT>/query-learnings.sh --tag <tag> --limit 5
 ```
 
-Aggregate the union of results. Keep the top 5 across all tags by composite score (recency × trust × access-count × recurrence — the helper returns this score per row). De-duplicate by `dedup_key` field. Drop entries with `trust: hearsay` unless no higher-trust match exists. Drop entries marked `deprecated: true`.
+Aggregate the union of results. Keep the top 5 across all tags by composite score (recency × trust × access-count × recurrence — the helper returns this score per row). De-duplicate by `dedup_key` field. Drop entries with `trust: inferred` unless no higher-trust match exists. Drop entries marked `deprecated: true`.
 
 ### Step 2 — L3 semantic snapshots
 
@@ -76,7 +76,7 @@ Write to OUTPUT_PATH using exactly this structure:
 ## Knowledge Retrieval Report — task "<TASK_DESCRIPTION>"
 
 ### Relevant Learnings (N kept)
-- [L2 #<id>] <one-line summary> · trust=<verified|retrieved|hearsay> · access=<N>
+- [L2 #<id>] <one-line summary> · trust=<verified|retrieved|inferred> · access=<N>
   - Why relevant: <one line tying to the task>
 
 ### Codebase-Map Hits (N kept)

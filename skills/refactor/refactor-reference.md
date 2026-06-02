@@ -39,7 +39,7 @@ verify ──┬── (happy: → done above)
 
 **Non-terminal states:** `plan`, `apply`, `verify`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures HIGH-step + PRODUCT-DECISION gates skip already-answered).
 
-**Escalation states:** `plan-escalated` (hard signal OR baseline red), `apply-escalated` (≥30% blocked), `verify-escalated` (PRODUCT-DECISION or 1-round fix-loop exhausted). The recovery surfaces these to the user as "task was paused — last AUQ options:" so the user re-picks without losing context.
+**Escalation states:** `plan-escalated` (hard signal OR baseline red), `apply-escalated` (≥30% blocked), `verify-escalated` (PRODUCT-DECISION or 1-round fix-loop exhausted). The recovery surfaces these to the user as "task was paused — your previous options:" so the user re-picks without losing context.
 
 The `## Termination reason` body section is written on `aborted` / `reverted` / `routed` terminals.
 
@@ -47,13 +47,13 @@ The `## Termination reason` body section is written on `aborted` / `reverted` / 
 
 ## 2. State file schema
 
-### state.md (T1 — session-bound, `.geniro/state/refactor/<slug>/state.md`)
+### state.md (T1.5 — session-bound durable, `.geniro/state/refactor/<slug>/state.md`)
 
 Frontmatter:
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: refactor
 schema-version: 1
 branch: <git-branch>
@@ -75,7 +75,9 @@ Body sections:
 - `## Scope` — files + symbols in refactor scope
 - `## Baseline` — Evidence Block from Phase 1 §1.2 step 5 (test count + pass status)
 - `## Smells Detected` — (Medium+) orchestrator-inline output from Phase 1 §1.4
+- `## Filtered smells` — (Medium+) smells dropped by the §1.5 smell-evidence filter, each with its synthesis reason
 - `## Plan` — ordered steps + risk + consumer counts + KEEP/FILTER decisions
+- `## Plan steps` — per-step execution rows (schema at SKILL.md Phase 2 §2.2), distinct from `## Plan`; orchestrator updates each row's `status` / `attempts` / `last_post_check` after each step
 - `## Apply Summary` — executed / blocked / final-suite status
 - `## Accepted Blocks` — (optional, path "Keep what worked")
 - `## Review Findings` — (Medium+, after Phase 3) CRITICAL/HIGH/MEDIUM lists

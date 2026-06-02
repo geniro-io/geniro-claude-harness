@@ -2,6 +2,17 @@
 
 OWASP-aligned security analysis: injection attacks, authentication/authorization, secrets management, crypto, input validation, and data exposure.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## What to Check
 
 ### 1. Injection Vulnerabilities

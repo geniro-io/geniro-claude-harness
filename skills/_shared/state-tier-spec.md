@@ -6,6 +6,18 @@ Helpers reference this spec:
 - `skills/_shared/atomic-state-write.md` — write helper for T1, T3 CRUD, and append-only.
 - `skills/_shared/validate-state-file.md` — validates frontmatter against this spec.
 
+## Contents
+
+- Tier model — the four tiers and their lifecycle contracts
+- Path roots — which files live under each tier
+- Frontmatter contract — common-base + tier-specific required fields
+- T2 `open_questions` array schema — the handoff gate substrate
+- `authored_tests` array schema — the debug-handoff test record
+- Format rules — frontmatter fence + body conventions
+- Concrete examples — one worked frontmatter per tier/layout
+- Validation rules — what `validate_state_file` enforces
+- Slug rule — computing the session-bound slug
+
 ---
 
 ## Tier model
@@ -366,6 +378,6 @@ JSONL files use line-by-line validation: malformed lines logged and skipped.
 
 ---
 
-## Slug rule (T1 session-bound layouts)
+## Slug rule (T1.5 session-bound layouts)
 
 Compute the session-bound slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules.

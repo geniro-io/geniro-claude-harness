@@ -100,7 +100,7 @@ Every Agent prompt satisfies the six pre-inlined fields per `${CLAUDE_PLUGIN_ROO
 | `reviewer-agent` (all built-in dims) | OMIT | Frontmatter `model: inherit` — orchestrator tier propagates |
 | `reviewer-agent` (custom dim) | OMIT (default) OR explicit value when user-declared | User declaration wins per model-tiering doctrine |
 | `adversarial-tester-agent` (Phase 4.3 only) | OMIT | Frontmatter `model: inherit` |
-| Per-finding validation sub-agents (CRITICAL / HIGH / MEDIUM) | OMIT | Frontmatter `model: inherit` |
+| Per-finding verifier (reviewer-agent in verify-finding mode; CRITICAL / HIGH / MEDIUM) | OMIT | Frontmatter `model: inherit` |
 
 ---
 
@@ -217,7 +217,7 @@ State.md `phase: llm-spawn`.
 | 6 | guidelines | Always fires — no exception |
 | 7 | conventions | Always fires — no exception. Owns repo-modal-pattern findings exclusively |
 | 8 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` |
-| 9 | design | Fires when UI globs match changed files (see §2.4 UI-file detection rule) |
+| 9 | design | Fires when UI globs match changed files (see §2.5 UI-file detection rule) |
 | 10 | pr-metadata | Fires when `pr-ref:` is non-none |
 | 11 | spec-compliance | Fires when PLAN CONTEXT is non-none AND (`pr-ref:` non-none OR risk-tier:high) |
 | +N | custom:* | Fires per user-authored `.geniro/instructions/review-extra/<slug>.md`, discovered in Phase 1.5 |
@@ -440,113 +440,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per row. `<
 
 **`step0_status:` producer-side initialization contract.** When writing each PRODUCT-DECISION finding into `## Findings`, also write `step0_status: pending` as the last sub-field of its body block (schema at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema"). This is the runtime sentinel §3 flips to `resolved` (or `wontfix`) after the per-finding AUQ pick lands, and the §7.0 Pre-Post guard re-reads to fail-close before posting. Omit the field entirely for non-PRODUCT-DECISION findings — its presence is the marker that §3 owes them an AUQ.
 
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
----
-tier: T2
-producer: review
-schema-version: 1
-branch: <git-branch>
-timestamp: <ISO-8601 UTC>
-consumer: implement
-geniro_kind: state-handoff
-geniro_schema_version: m6-v2
-task_slug: review-<branch>
-phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
-status: <in-progress|done|failed>
-mode: <standard|tdd>
-round: <int>
-risk-tier: <standard|high>
-pr-ref: <owner/repo#num|null>
-pr-url: <https://...|null>
-pr-head-sha: <40-char SHA|null>
-pr-title: <verbatim title|null>
-pr-body: <verbatim body|null>
-plan-context-ref: <abs-path|null>
-linear-task-ref: <ENG-123|null>
-linear-parent-ref: <ENG-100|null>
-simplify-mode: <true|false>
-resolved-threads-snapshot: [<path:line entries|null>]
-approvals: []
-non-resumable-actions: []
-open_questions:                       # MUST be present; MAY be empty []
-  - id: q1                            # short stable anchor
-    source: <reviewer-dim or producer-step>
-    question: <verbatim question text>
-    related_findings: [F1, F4]        # optional — finding IDs this question gates
-    status: unresolved                # enum: unresolved | resolved | wontfix
-    resolution:                       # populated when status moves out of `unresolved`
-      picked: <chosen option>
-      at: <ISO-8601 UTC>
-      asked_in_phase: <phase name>
-      resolved_by: <skill that ran the resolution AUQ>
----
-
-# Review: <topic / branch>
-
-## Summary
-- Branch: <branch>
-- Mode: <standard|tdd>
-- Round: <N>
-- Risk-tier: <standard|high>
-- Dimensions spawned: [<list>]
-- Mechanical pre-pass: [lint:N, schema:M, secrets:K]
-- Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
-
-## Findings
-
-### CRITICAL
-<list>
-
-### HIGH
-<list>
-
-### MEDIUM
-<list>
-
-## Deferred — sub-threshold
-<list, surfaced for user awareness>
-
-## Tool log
-<reviewer spawns + side-effects>
-
-## Errors
-<failed spawns, gh fail-open, mechanical-prepass failures>
-
-## Open Questions
-<!-- Human-readable mirror of frontmatter `open_questions[]`. Frontmatter is source of truth. -->
-
-### q1 — <source>: <one-line summary>
-**Status:** unresolved
-**Question:** <verbatim question>
-**Related findings:** F1, F4
-**Why this gates downstream action:** <one sentence — e.g., "drives whether to revert api seeders or update spec.forbidden_actions">
-
-### q2 — ...
-
-<!-- If open_questions[] is empty, this section reads: "No open questions — handoff is unconditionally actionable." -->
-
-## Resolved Questions
-<!-- Populated when downstream consumer (or /geniro:review's §2.5 Pre-gate) resolves an entry; mirrors frontmatter `open_questions[].resolution`. -->
-
-### q1 — <source>: <one-line summary>
-**Picked:** <chosen option>
-**At:** <ISO-8601 UTC>
-**Resolved by:** <skill — review | implement | manual>
-**Phase:** <phase that ran the resolution AUQ>
-
-## Termination reason
-<rendered per phase-6-handoff-reference.md §9 — only on aborted | escalated state>
-
-## Persisted approvals
-<rendered from approvals[] frontmatter for user-readability>
-EOF
-```
-
-**T2 extensions for in-run state-tracking:** The canonical handoff is a one-shot producer→consumer artifact; /geniro:review extends it with `phase:`/`status:`/`round:`/`approvals[]` to enable mid-run compaction recovery. The file functions as a T2 handoff AT REST (after Phase 5 persist) and as a T1-like state file DURING THE RUN.
-
-**Per-finding body schema** — multi-line block per finding under `## Findings` (NOT a one-liner). Full schema + backward-compat parsing contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema". Phase 4 judge MUST preserve every reviewer-agent field listed there when persisting findings; dropping fields to reach a one-liner is the failure mode the schema exists to prevent.
+Write the full handoff frontmatter + body skeleton from the template at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.6 "Handoff file template" (the `atomic_state_write` heredoc block). Each finding under `## Findings` renders as the multi-line per-finding body block (NOT a one-liner) per §"Per-finding body schema" in that same reference — Phase 4 judge preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
 
 ### 5.2 Old state-file fallback
 
@@ -631,7 +525,7 @@ Operational rules:
 | Phase | Allowed tools | Restricted |
 |---|---|---|
 | Phase 1 / 1.5 | Read, Grep, Glob, Bash (read-only — `gh pr view`, `git diff`, `which <tool>`, lint commands, `tsc --noEmit`), **`mcp__linear__*` (read-only — `get_issue` / `list_issues` for workflow integration; degrade silently if unregistered)** | No Edit/Write apart state.md; no Linear `update_issue` / `create_comment` from /geniro:review (those remain in /geniro:implement Ship) |
-| Phase 2 / 3 / 4 | Agent (reviewer-agent, validation sub-agents, adversarial-tester-agent); Phase 3 dedup orchestrator-inline (no spawn) | No Edit/Write/Bash mutations |
+| Phase 2 / 3 / 4 | Agent (reviewer-agent, per-finding verifier (reviewer-agent in verify-finding mode), adversarial-tester-agent); Phase 3 dedup orchestrator-inline (no spawn) | No Edit/Write/Bash mutations |
 | Phase 5 | Write (scoped to `.geniro/state/handoff/**`), `Bash` (conditional — `gh api POST /pulls/N/reviews` with `event` omitted; see §5.4), `emit-learning` helper | Direct edits outside scope blocked by hooks; never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES` |
 | Phase 6 | AskUserQuestion | Read-only |
 

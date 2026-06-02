@@ -84,6 +84,6 @@ Write the approved description to the caller-designated path (e.g., `<task-dir>/
 | "The plan already describes the UI, skip the preview" | Plans describe files and steps. They do not describe what the user will see. The preview gate surfaces visual intent BEFORE code is written — that is its whole job. |
 | "No UI files matched — skip" | Correct — skip. The gate is conditional by design, enforced by the caller. |
 | "The user will approve anyway — skip" | Preview is cheap. Rebuilding UI after approval is expensive. Never skip when the rule matches. |
-| "I'll describe the UI myself as the orchestrator" | Delegate to the haiku agent. Orchestrator tokens are the most expensive resource. |
+| "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (OMIT `model=` so it inherits the orchestrator's tier per the procedure above). Orchestrator tokens are the most expensive resource. |
 | "3 revision rounds isn't enough, keep looping" | If 3 rounds did not converge, the real issue is plan-level, not preview-level. Route to plan adjustment. |
 | "I'll tack on a 'also note X' after the approved description" | Rewrite the description in full via another revision round. Appended notes rot and get missed by implementation agents. |

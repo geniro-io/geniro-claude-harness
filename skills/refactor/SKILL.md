@@ -13,9 +13,11 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 **Detailed contracts:**
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — smell-detection sub-step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — PRODUCT-DECISION escalation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — ADR-path (4th AUQ option when ADR-eligible)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — the smell-detection sub-step (reuse-vs-create audit per detected smell)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — the single-finding AskUserQuestion gate
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — the PRODUCT-DECISION ADR-path (4th AskUserQuestion option, included only when ADR-eligible)
 
-**Section-reference convention:** references in this SKILL.md point to local sub-sections (Phase 1, Phase 2, Phase 3 respectively).
+**Section-reference convention:** bare `§N.M` refs point to local sub-sections (Phase 1, Phase 2, Phase 3 respectively); `§ <name>` refs name a section inside the cited `_shared` helper.
 
 ---
 
@@ -29,7 +31,7 @@ The constitutional rule (zero behavior change) is enforced per-step via the orch
 
 ## State Machine
 
-state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented` (SessionStart recovery treats all six as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (≥30% blocked), `verify-escalated` (PRODUCT-DECISION or 1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — last AUQ options:" so the user re-picks without losing context.
+state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented` (SessionStart recovery treats all six as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (≥30% blocked), `verify-escalated` (PRODUCT-DECISION or 1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — your previous options:" so the user re-picks without losing context.
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
 
@@ -66,7 +68,7 @@ This skill has **NO hard kill caps**. Same model as other skills.
 |---|---|---|
 | Parallel reviewer spawns | 1 independent + N custom reviewers | |
 | Smell-detection rounds | 1 (orchestrator-inline) | |
-| Relevance-filter rounds | 1 (Medium+ only) | |
+| Smell-evidence filter rounds | 1 (Medium+ only) | |
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
 ---
@@ -94,7 +96,7 @@ If any delegated agent fails (timeout, error, empty/garbage result): retry once 
 
 ## Evidence Standard
 
-Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. applies it at baseline validation, per-step regression gate (orchestrator-inline pre/post-check), and final regression run.
+Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. /geniro:refactor applies it at baseline validation, the per-step regression gate (orchestrator-inline pre/post-check), and the final regression run.
 
 ---
 
@@ -108,7 +110,7 @@ Every user-facing choice in this skill MUST go through the `AskUserQuestion` too
 
 state.md `phase: plan`. Light by cost vs Phase 2 — a scope-discovery batch (Read + Grep) + 1 baseline validation run + orchestrator-inline smell detection (Medium+) + orchestrator-inline smell evidence (Medium+) + orchestrator plan-build.
 
-Exits to Phase 2 only when: (a) baseline validation green, (b) tier classified, (c) hard signals checked, (d) smells identified (Medium+) + relevance-filtered (Medium+), (e) plan built and approved (HIGH-risk steps gated).
+Exits to Phase 2 only when: (a) baseline validation green, (b) tier classified, (c) hard signals checked, (d) smells identified (Medium+) + smell-evidence filtered (Medium+), (e) plan built and approved (HIGH-risk steps gated).
 
 ### 1.1 Memory layer load (instructions / snapshot / learnings)
 
@@ -150,7 +152,7 @@ Echo lines from the loader are mandatory per its §Echo contract.
 
 | Tier | Refactor behavior |
 |---|---|
-| **Trivial** | 1-2 files, mechanical (rename, single extract). Skip smell-detection. Skip relevance-filter. Skip independent reviewer + custom reviewers. Orchestrator authors the plan directly from $ARGUMENTS + scope-files Read; goes straight to Phase 2 execution. |
+| **Trivial** | 1-2 files, mechanical (rename, single extract). Skip smell-detection. Skip smell-evidence filter. Skip independent reviewer + custom reviewers. Orchestrator authors the plan directly from $ARGUMENTS + scope-files Read; goes straight to Phase 2 execution. |
 | **Small** | Full smell-detection in Phase 1 BUT skip smell evidence (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
 | **Medium** | Full pipeline as specified — orchestrator-inline smell-detect + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
 | **Big** | Recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user wants to proceed without planning, require explicit confirmation via `AskUserQuestion` header "Scope": "Run /geniro:plan first" / "Proceed without a plan (risky)". On "Proceed without a plan", Big runs the Medium pipeline. The only difference is user has accepted the added risk of proceeding without architectural review. |
@@ -204,7 +206,7 @@ Anchor: stay within WORKTREE on BRANCH — orchestrator verifies with `pwd && gi
 
 Skipped for Trivial and Small. The orchestrator gathers evidence on detected smells against repo conventions inline — no subagent spawn (folded under subagent rationalization; light reasoning that fits orchestrator's main context cleanly should not be spawned).
 
-For each smell detected per, the orchestrator weighs three signals inline:
+For each smell detected in §1.4, the orchestrator weighs three signals inline:
 
 1. **Convention alignment** — is this «smell» actually the repo's chosen pattern? Cross-check with CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs (when present) and CLAUDE.md.
 2. **Over-engineering** — would fixing this smell introduce more complexity than it removes? Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` mental check.
@@ -247,7 +249,7 @@ state.md transitions: `plan` → `apply` once approval complete. `## Plan` body 
 
 ## Phase 2 — Apply
 
-state.md `phase: apply`. Refactor-agent executes the approved plan, one step at a time, with per-step validation. The zero-behavior-change constitutional rule is enforced via the per-step regression test pass.
+state.md `phase: apply`. The orchestrator executes the approved plan, one step at a time, with per-step validation. The zero-behavior-change constitutional rule is enforced via the per-step regression test pass.
 
 ### 2.1 Refresh custom instructions on entry
 
@@ -288,7 +290,7 @@ For each step N in `## Plan steps` where `status: pending`:
 3. Attempt 3: try one more variation, re-run.
 4. After 3 failures: REVERT step's Edit changes (orchestrator uses Edit tool's `old_string`/`new_string` reversal or re-reads file and rewrites to pre-step content), mark `status: blocked`, `attempts: 3`, `last_post_check: REVERTED`, append blocked-rationale row to state.md. Continue to next step (NOT stop session).
 
-State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
+State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
 
 Model tier note: the orchestrator's session tier runs the loop. HIGH-risk plan steps don't need separate model tiering — orchestrator is already on the highest tier; per-step reasoning runs at orchestrator-grade quality throughout.
 
@@ -374,7 +376,7 @@ Output the markdown block directly in chat. No persistence to a handoff file —
 ### Blocked Steps (N)
 - [file:line] — [what was attempted] — reason: [failure summary]
 
-### Filtered by Relevance (N — omit for Trivial/Small; relevance filter not run)
+### Filtered smells (intentional patterns) (N — omit for Trivial/Small; smell-evidence filter not run)
 - [smell] — [reason filtered]
 
 ### Review Findings (Medium and Big only — omit for Trivial/Small)
@@ -454,7 +456,7 @@ Cleanup is best-effort — failed commands silently OK.
 
 ## State file schema
 
-T1 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}; body sections (Scope / Baseline / Smells Detected / Plan / Plan steps / Apply Summary / Accepted Blocks / Review Findings / Persisted approvals / Tool log / Errors / Open Questions / Termination reason). `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
+T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}; body sections (Scope / Baseline / Smells Detected / Filtered smells / Plan / Plan steps / Apply Summary / Accepted Blocks / Review Findings / Persisted approvals / Tool log / Errors / Open Questions / Termination reason). `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
 
 ---
 
@@ -540,12 +542,12 @@ Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level
 - [ ] Hard escalation signals checked
 - [ ] Smell detection + smell evidence ran orchestrator-inline (Medium+ only)
 - [ ] Plan built and presented in chat; HIGH-risk steps gated via AUQ
-- [ ] Refactor-agent executes plan, one transformation at a time
+- [ ] The orchestrator executes the plan, one transformation at a time
 - [ ] ≥30% blocked → stuck AUQ fired (User picks; never silent abort)
 - [ ] Final regression run captured as Evidence Block
 - [ ] Diff sanity check ran
-- [ ] Independent reviewer + custom reviewers ran (Medium+ only —)
-- [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT,) — refactor's zero-behavior-change constitution means multi-path findings are NOT fixed in-skill
+- [ ] Independent reviewer + custom reviewers ran (Medium+ only)
+- [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT) — refactor's zero-behavior-change constitution means multi-path findings are NOT fixed in-skill
 - [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → verify-fix AUQ
 - [ ] MEDIUM findings noted in completion summary; proceeded
 - [ ] Completion summary presented in chat

@@ -2,6 +2,22 @@
 
 Statistical pattern inference across siblings. Flags deviations from the modal pattern when no explicit rule exists. Treats code as a language: sample N siblings, compute frequency per pattern category, take the mode, flag the diff only when one variant is dominant.
 
+## Contents
+
+- Methodology — Modal Pattern Inference
+- What to Check
+- What This Dimension Does NOT Cover
+- How to Detect — Worked Example
+- Output Format
+- [NEW] vs [PRE-EXISTING] Tagging
+- Common False Positives
+- Stack-Agnostic Patterns
+- Cross-PR Convention Drift (peer-PR context)
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## Methodology — Modal Pattern Inference
 
 Per Allamanis et al. NATURALIZE and Microsoft IntelliCode: structural conventions emerge from repetition. Codify them by sampling.

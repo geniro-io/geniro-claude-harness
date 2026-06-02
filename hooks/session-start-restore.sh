@@ -3,7 +3,7 @@
 #
 # Responsibilities:
 #   1. Read $SOURCE from input (compact|resume|startup|clear); exit 0 on clear.
-#   2. Resolve the active T1 state file using the canonical slug + frontmatter
+#   2. Resolve the active T1.5 state file using the canonical slug + frontmatter
 #      `branch:` fallback (see skills/_shared/state-tier-spec.md Slug rule).
 #   3. Pre-flight validate via lib/validate-state-file.sh; if the helper
 #      itself is missing, degrade gracefully with Block 4 notice.
@@ -81,7 +81,7 @@ if [ "${#slug}" -gt 60 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Active T1 state-file resolution
+# Active T1.5 state-file resolution
 # ---------------------------------------------------------------------------
 #
 # Layouts (state-tier-spec Path roots):

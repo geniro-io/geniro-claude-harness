@@ -4,6 +4,17 @@ Defect-class audit for **unintended damage** introduced by the diff: production 
 
 This dim fires ALWAYS — it does not require a spec.md, a PR ref, or a Linear ticket. When intent sources are absent, behavior-mutating hunks degrade to INTENT-CHECK decision-type rather than HIGH findings, surfacing the question to the user instead of suppressing it.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Severity Tagging
+- Anti-rationalization
+- Reference notes
+
+---
+
 ## What to Check
 
 Inputs available to your review:

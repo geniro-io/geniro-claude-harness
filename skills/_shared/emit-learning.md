@@ -1,5 +1,18 @@
 # L2 episodic-memory write helper
 
+## Contents
+
+- §API — `emit_learning` signature
+- §MODE contract
+- §Required fields — what every entry must carry
+- §Optional fields the helper recognizes
+- §Sanitization — secret-redaction before write
+- §Dedup pipeline — supersede-chain handling
+- §4096-byte limit — the per-line atomicity cap
+- §Example callers
+- §Known limitations
+- §Test coverage
+
 **Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`.
 
 `ARCHITECTURE.md` § "Memory Layers" documents the L2 entry schema and lifecycle.

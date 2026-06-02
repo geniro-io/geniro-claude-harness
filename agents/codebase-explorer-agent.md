@@ -108,7 +108,7 @@ Write to OUTPUT_PATH using exactly this structure:
 - `<file>` — <3-5 line summary of role + key exports>
 
 ### Summary for Orchestrator
-- Estimated change scope: trivial | small | medium | big
+- change_scope: trivial | small | medium | big  # estimated change scope; consumers key on the literal `change_scope:` token
 - Top 3 things the orchestrator should know before Phase 2
 - Risk flags: <comma-separated signals matched, or "none">
 ```

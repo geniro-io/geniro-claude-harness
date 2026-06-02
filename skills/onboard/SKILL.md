@@ -16,7 +16,7 @@ Section-reference convention: local refs like Phase X are within this SKILL.md.
 ## Arguments
 
 - **No arguments** — full codebase scan; produces the 8-section `_CODEBASE_MAP.md` (default mode).
-- `--focus area1,area2,...` — scope-limiter. Scans all, but concentrates the map output on focus areas; non-focus areas get summary-level coverage. Full mode with `--focus` covers concentrated mapping.
+- `--focus area1,area2,...` — scope-limiter. Scans all, but concentrates the map output on focus areas; non-focus areas get summary-level coverage.
 - `--depth N` — limit directory scanning to N levels deep. Useful for large monorepos where full traversal is too slow. Orthogonal to `--focus` (combine as needed).
 
 Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, concentrate on auth+api).
@@ -45,15 +45,14 @@ When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate det
 
 ```
 [entry]
-└── discover ──┬── map ──┬── done
-│ └── map-truncated (terminal — repo-size cap exceeded + user picked "Truncate at top 50")
-│
-└── discover-escalated ──┬── discover (user supplies missing access / picks "Continue" → resume)
-├── aborted (terminal — user picks "Cannot proceed")
-└── routed (terminal — empty/near-empty repo, recommend `/geniro:investigate`)
+  └── discover ──┬── map ──┬── done
+  │              │         └── map-truncated (terminal — repo-size cap exceeded + user picked "Truncate at top 50")
+  │              │
+  │              ├── aborted (terminal — user picks "Abort" at the repo-size cap)
+  │              └── routed  (terminal — empty/near-empty repo, recommend `/geniro:investigate`)
 ```
 
-Terminal states: `done`, `map-truncated`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states (`discover`, `map`) roll back to phase-entry on compaction-resume and re-run idempotently. Escalation state (`discover-escalated`) surfaces to user as "task was paused — last AUQ options" so user re-picks without losing context.
+Terminal states: `done`, `map-truncated`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states (`discover`, `map`) roll back to phase-entry on compaction-resume and re-run idempotently.
 
 ## Loop invariants
 
@@ -71,7 +70,7 @@ Quality-first framing: /geniro:onboard has **NO Class-A hard kill caps**. All li
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Repo-size scan cap | 50 files (default) OR user-configured expansion | §1.3 Step 1 | AUQ — "Apply --focus" / "Expand scan (specify cap)" / "Truncate at top 50" / "Abort". **User picks; persists to state.md `approvals[]` (category `expand_scope`).** |
+| Repo-size scan cap | 50 files (default) OR user-configured expansion | §1.3 Step 2 | AUQ — "Apply --focus" / "Expand scan (specify cap)" / "Truncate at top 50" / "Abort". **User picks; persists to state.md `approvals[]` (category `expand_scope`).** |
 
 **Architecture constraints (design intent, not budget):**
 - No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -86,9 +85,9 @@ Quality-first framing: /geniro:onboard has **NO Class-A hard kill caps**. All li
 
 State.md `phase: discover`. Light per cost — a repo-size scan + Glob + initial Read of project entry files. Exits to Phase 2 only when scan is bounded and repo-size cap is respected.
 
-### 1.1 Phase 0 — Mode detect (pre-Phase-1)
+### 1.1 Step 0 — Mode detect
 
-Pre-Phase-1 detect (transient — does not persist a state.md row):
+Transient detect on entry — does not persist a state.md row:
 
 | `$ARGUMENTS` shape | Behavior |
 |---|---|
@@ -98,7 +97,7 @@ Pre-Phase-1 detect (transient — does not persist a state.md row):
 | Combined | Both flags supported. |
 
 
-### 1.2 Step 0 — Load custom instructions + past learnings
+### 1.2 Step 1 — Load custom instructions + past learnings
 
 On Phase 1 entry:
 
@@ -109,7 +108,7 @@ On Phase 1 entry:
 
 Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract.
 
-### 1.3 Step 1 — Repo-size scan + ≤50-file cap
+### 1.3 Step 2 — Repo-size scan + ≤50-file cap
 
 Avoid loading entire repositories — bounded scan ≤50 files default.
 
@@ -119,20 +118,20 @@ Avoid loading entire repositories — bounded scan ≤50 files default.
 2. **Estimate scan size** — `find . -type f | wc -l` (or platform equivalent) to count total files. When `--depth N` is set, bound traversal with `find . -maxdepth N -type f` and record `scan_depth: N` in state.md frontmatter so Phase 2 mapping honors the same bound. Skip standard ignores: `node_modules`, `.git`, `dist/`, `build/`, `target/`, `.venv`, `vendor/`, `__pycache__`.
 3. **Apply ≤50-file default cap:**
 - If total file count ≤50 OR `--focus` provided AND focus-glob hits ≤50: proceed unblocked.
-- If total >50 AND no `--focus`: fire **AUQ "Scope"** — header "Repo-size cap":
+- If total >50 AND no `--focus`: fire the repo-size scan cap AUQ — header "Repo-size cap":
 - **"Apply --focus <area>"** — user supplies focus areas; re-run scan with filter.
 - **"Expand scan (specify cap)"** — user provides explicit cap (e.g. 200, 500). **Persists to state.md `approvals[]` with category `expand_scope`.**
 - **"Truncate at top 50"** — proceeds with top 50 most-likely-relevant files. Terminal state on completion: `map-truncated`.
 - **"Abort"** — terminal `aborted`.
 
-**Approvals-persistence:** before firing the expand-scope AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: expand_scope`. If found, use prior `picked` (typical compaction-resume scenario). Block 5d renders this.
+**Approvals-persistence:** before firing the expand-scope AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: expand_scope`. If found, use prior `picked` (typical compaction-resume scenario). The state.md `## Persisted approvals` section renders this.
 
 **Edge cases:**
 - **Empty or near-empty repo** (no source files found): terminal `routed` with suggestion "Repo appears empty. Use `/geniro:investigate` to clarify project state."
 - **Permission errors on key directories** — log to `## Errors` body section; note gaps in final map's `## Tech Debt & Notes`.
 - **Very large repos (50,000+ files)** — auto-applies `--depth 2` AND fires the AUQ above; user picks; default to truncate.
 
-### 1.4 Step 2 — Scan structure
+### 1.4 Step 3 — Scan structure
 
 After caps respected:
 
@@ -224,7 +223,7 @@ producer: onboard
 schema-version: 1
 branch: <git-branch>
 timestamp: <ISO-8601 UTC>
-phase: <discover|map|discover-escalated|done|map-truncated|aborted|routed>
+phase: <discover|map|done|map-truncated|aborted|routed>
 status: <in-progress|done|failed>
 non-resumable-actions: []
 approvals: []
@@ -234,10 +233,8 @@ task_slug: <slug>
 worktree: <abs-path>
 focus_areas: []
 scan_cap: 50
+scan_depth: <N|null>
 ---
-
-## Inputs from <producer>
-<optional — present when a T2 input was consumed>
 
 ## Scope
 <files / symbols / top-level dirs scanned; applied cap; --focus areas if any>
@@ -249,20 +246,20 @@ scan_cap: 50
 <selective logging — L3 writes, L2 emits, escalation entries>
 
 ## Errors
-<Block 5b — permission errors, tool failures>
+<permission errors, tool failures>
 
 ## Open Questions
-<Block 5c — missing access AUQs>
+<missing access AUQs>
 
 ## Termination reason
 <— only on terminal aborted/routed states; >
 
 ## Persisted approvals
-<Block 5d — render of frontmatter approvals[] (category: expand_scope)>
+<render of frontmatter approvals[] (category: expand_scope)>
 EOF
 ```
 
-`approvals[]` populated when the expand-scope AUQ fires at §1.3 Step 1 (category `expand_scope`).
+`approvals[]` populated when the expand-scope AUQ fires at §1.3 Step 2 (category `expand_scope`).
 
 Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`.
 
@@ -310,15 +307,14 @@ Existing safety hooks apply across all phases (file-protection / git-guardrail /
 **Framework:** Express, PostgreSQL
 **Team Size:** 1–3 devs (estimated)
 
-## Quick Reference
+## Project Overview
 
 | Aspect | Details |
 |--------|---------|
 | **Purpose** | User task management SaaS |
+| **Language/Stack** | TypeScript/Node.js, Express, PostgreSQL |
 | **Entry Point** | src/index.ts → Express server port 3000 |
-| **Database** | PostgreSQL, migrations in./db/migrations |
-| **CI/CD** | GitHub Actions in.github/workflows |
-| **Package Manager** | npm, lockfile: package-lock.json |
+| **Database** | PostgreSQL, migrations in ./db/migrations |
 
 ## Directory Structure
 
@@ -369,6 +365,22 @@ Express App (index.ts)
 | **Error Handling** | Try-catch → ErrorHandler middleware | middleware/errorHandler.ts |
 | **Dependency Injection** | Service constructors receive DB instance | services/*.ts |
 
+## Key Files & Configuration
+
+| File | Role |
+|------|------|
+| package.json | Dependencies and scripts; npm, lockfile package-lock.json |
+| tsconfig.json | TypeScript compiler config |
+| .github/workflows | CI/CD via GitHub Actions |
+| db/schema.sql | Database schema reference |
+| db/migrations/ | SQL migration files (run on startup) |
+| .env.example | Environment template |
+
+**Entry points:**
+- API Server: src/index.ts (port 3000)
+- Tests: [test command from package.json/Makefile/CLAUDE.md]
+- DB Setup: [migration command if applicable]
+
 ## Conventions & Defaults
 
 - **Naming:** camelCase for variables/functions, PascalCase for classes
@@ -393,7 +405,7 @@ Express App (index.ts)
 3. db.query('SELECT * FROM tasks WHERE user_id = $1')
 4. Return Task[]
 
-## Known Issues & Tech Debt
+## Tech Debt & Notes
 
 | Issue | Impact | Workaround |
 |-------|--------|-----------|
@@ -401,19 +413,6 @@ Express App (index.ts)
 | No rate limiting | DDoS risk | Add nginx upstream |
 | Migrations run on startup | Risk of conflicts | Plan migration strategy |
 | No type safety on DB queries | Runtime errors | Consider Prisma migration |
-
-## Entry Points
-
-- **API Server:** src/index.ts (port 3000)
-- **Tests:** [test command from package.json/Makefile/CLAUDE.md]
-- **DB Setup:** [migration command if applicable]
-- **Config:**.env file (see.env.example)
-
-## Resources
-
-- README.md – Project overview and setup
-- package.json – Dependencies and scripts
-- db/schema.sql – Database schema reference
 ```
 
 ---

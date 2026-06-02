@@ -1,6 +1,17 @@
 # Plan Context Reference
 
-How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions dimensions. Schema-aware loader that parses the spec's 10-section `spec.md` format when present, falling back to prose detection when no frontmatter is found.
+How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions dimensions. Schema-aware loader that parses the spec's 11-section `spec.md` format when present, falling back to prose detection when no frontmatter is found.
+
+## Contents
+
+- §1 — Accepted Input Forms
+- §2 — Detection — schema vs prose
+- §3 — Structured-section parser
+- §4 — Prose mode (fallback)
+- §5 — Decision-Marker Convention
+- §6 — Cap Rationale
+- §7 — Decision Type values (canonical)
+- §8 — Worked Example
 
 ---
 
@@ -28,7 +39,7 @@ geniro_kind: design-doc
 geniro_schema_version: m5-v1   # or m5-v2 — both accepted
 ```
 
-→ switch to **structured-section parser**. Both `m5-v1` and `m5-v2` carry the same 10-section body schema; `m5-v2` additionally exposes `workflow_refs[]` in frontmatter (`/geniro:plan` Impl-10 onward writes m5-v2 by default when a tracker reference is fetched). Downstream readers MUST accept either version.
+→ switch to **structured-section parser**. Both `m5-v1` and `m5-v2` carry the same 11-section body schema; `m5-v2` additionally exposes `workflow_refs[]` in frontmatter (`/geniro:plan` writes m5-v2 by default when a tracker reference is fetched). Downstream readers MUST accept either version.
 
 If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` → fall back to **prose mode**.
 
@@ -36,7 +47,7 @@ If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR 
 
 ## 3. Structured-section parser
 
-When frontmatter detected, parse the 10 named sections. Section-header format is rigid (`## 1. Objective` through `## 11. Done Condition`) — the spec template emits 11 numeric headers.
+When frontmatter detected, parse the 11 named sections. Section-header format is rigid (`## 1. Objective` through `## 11. Done Condition`) — the spec template emits 11 numeric headers.
 
 Sections expected:
 

@@ -2,6 +2,17 @@
 
 Visual and interaction quality for UI changes: tokens, spacing, typography, states, responsive, contrast, a11y polish, and exemplar conformance.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## What to Check
 
 ### 1. Token Conformance

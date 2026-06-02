@@ -1,6 +1,6 @@
 ---
 name: geniro:update
-description: "Use when the status line shows a plugin update is available, or to manually pull the latest geniro-claude-plugin version. Verifies plugin integrity, ensures user-authored.geniro/instructions/ and.geniro/actions/ survived intact, and walks any breaking changes in MIGRATION.md."
+description: "Use when the status line shows a plugin update is available, or to manually pull the latest geniro-claude-plugin version. Verifies plugin integrity, ensures user-authored .geniro/instructions/ and .geniro/actions/ survived intact, and walks any breaking changes in MIGRATION.md."
 context: main
 model: inherit
 allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep]
@@ -21,7 +21,7 @@ argument-hint: "[--dry-run]"
 2. Args validated before exec — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 3. Permission before side-effect — the pre-update AUQ (§Phase 1 Step 3) is the explicit gate.
 4. Bounded structured results — hash diffs truncated at ~2000 chars; per migration step at ~500 chars.
-5. Hard escalation gates — 4-retry exponential-backoff (2s, 4s, 8s, 16s) per CLAUDE.md network rules; after 4 retries → abort.
+5. Hard escalation gates — 4-retry exponential-backoff (2s, 4s, 8s, 16s) on network errors; after 4 retries → abort.
 6. Observations not assumed success — shell exit codes checked at every step.
 7. Errors as structured observations — surfaced inline; no silent skips.
 
@@ -58,7 +58,7 @@ External sends: not in `/geniro:update` ACI ever.
 
 ### Step 0 — Load custom instructions
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: update`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory. Per-skill `update.md` and `code-style.md` are NOT loaded — this is a meta-skill that updates the plugin itself, so the pipeline-tier files don't apply (helper §Caller contract «rules-only» list).
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: update`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory. Per-skill `update.md` and `code-style.md` are NOT loaded — this is a meta-skill that updates the plugin itself, so the pipeline-tier files don't apply (helper §Caller contract `rules-only` list).
 
 ### Step 1 — Read current version
 
@@ -113,7 +113,7 @@ If `--dry-run` was passed in `$ARGUMENTS`, **skip the AUQ entirely** and instead
 
 ### Step 1 — Marketplace refresh + plugin update (exponential backoff)
 
-Per CLAUDE.md network rules — 4 retries with 2s / 4s / 8s / 16s backoff:
+On network errors — 4 retries with 2s / 4s / 8s / 16s backoff:
 
 ```bash
 attempt=1
@@ -234,9 +234,9 @@ fi
 
 If diff non-empty, AUQ:
 
-- **Question:** `WARNING: user content under.geniro/instructions/ or.geniro/actions/ changed during update. Files affected: <list>. The plugin update should NOT touch user-authored content.`
+- **Question:** `WARNING: user content under .geniro/instructions/ or .geniro/actions/ changed during update. Files affected: <list>. The plugin update should NOT touch user-authored content.`
 - **Options:**
-- `Show diff and continue (review later)` — Print diff, proceed to Phase 4
+- `Show diff and continue (review later)` — Print diff, then continue to the migration walk
 - `Abort — preserve current state` — Exit; investigate manually (Recommended)
 
 ### Step 3 — Refresh update cache
@@ -346,4 +346,4 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 
 ## Cross-references
 
-- CLAUDE.md "For git fetch/pull" — 4-retry exponential-backoff rule
+- 4-retry exponential-backoff (2s/4s/8s/16s) — see §Phase 2 Step 1

@@ -45,7 +45,7 @@ Each consumer cites this file rather than redefining vocabulary:
 | Skill | Where it cites this file |
 |---|---|
 | `/geniro:refactor` | Phase 1 orchestrator-inline smell detection ("deepening opportunities" lens) |
-| `/geniro:review --simplify` | `simplify-criteria.md` Pass A (Reuse & Duplication — Existing Abstraction Audit asks "could deepening absorb this duplication?") |
+| `/geniro:review --simplify` | `${CLAUDE_PLUGIN_ROOT}/skills/review/simplify-criteria.md` Pass A (Reuse & Duplication — Existing Abstraction Audit asks "could deepening absorb this duplication?") |
 | `/geniro:investigate` | synthesis templates ("Why" and "Compare" answer formats) |
 | `/geniro:plan` | orchestrator-side spec-authoring prompts + spec template's "Modules & Interfaces" subsection |
 | `/geniro:instructions` "Writing Effective Instructions" | Reference when authoring rules about module design |

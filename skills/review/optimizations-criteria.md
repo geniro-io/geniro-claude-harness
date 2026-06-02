@@ -2,6 +2,19 @@
 
 Concrete, measurable performance wins on the changed lines: skip ORM hydration on read-only paths, project columns, parallelize independent awaits, batch per-row writes, hygiene React re-renders, and ship the frontend bundle leanly.
 
+## Contents
+
+- Scope Boundary — Defers to `architecture-criteria.md`
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Cross-PR Hot-Path Work (peer-PR context)
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## Scope Boundary — Defers to `architecture-criteria.md`
 This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` (Performance & Scalability). Defer to that section; do not duplicate findings:
 

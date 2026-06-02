@@ -2,6 +2,20 @@
 
 Test coverage analysis, edge case handling, test quality, and critical path coverage assessment.
 
+## Contents
+
+- Test Design Philosophy (canonical)
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Litmus Test (The Deletion Test)
+- Test Deletions in the Diff (Inverse Deletion Test)
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## Test Design Philosophy (canonical)
 
 This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), the `adversarial-tester-agent` when authoring F→P tests (`/geniro:implement` Phase 3 self-review (Round 1), `/geniro:debug` Adversarial Mode), and the `/geniro:debug` reproduction-test author. Write the test according to these principles; review the test against them.

@@ -1,5 +1,16 @@
 # L2 stale-entry archival helper
 
+## Contents
+
+- §API — invocation + flags
+- §Criteria — the three conditions an entry must meet to be archived
+- §Output — what the helper reports
+- §Safety invariants — never deletes, audit-trail preserving
+- §Environment — env-var knobs
+- §Caller conventions
+- §Known limitations
+- §Test coverage
+
 **Status:** Authoritative for marking `.geniro/knowledge/learnings.jsonl` entries `deprecated: true` based on score-decay criteria. Surfaces as a user-invoked operation OR via SessionStart Block 5e notice.
 
 

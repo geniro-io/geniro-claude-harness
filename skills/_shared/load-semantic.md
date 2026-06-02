@@ -1,5 +1,15 @@
 # L3 semantic-memory read helper + fingerprint drift detection
 
+## Contents
+
+- §API — `load_semantic` / `update_fingerprint` signatures
+- §MODE contract — initial-load vs refresh
+- §Fingerprint schema — the drift-detection record
+- §Drift warning shape — what a stale snapshot prints
+- §Caller patterns — how skills invoke the helper
+- §Known limitations
+- §Test coverage
+
 **Status:** Authoritative for L3 read-side access.
 
 ## API

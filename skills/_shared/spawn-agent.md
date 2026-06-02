@@ -1,5 +1,14 @@
 # Spawn Agent — Runtime Degradation Rule
 
+## Contents
+
+- §The problem — registration name varies by runtime
+- §The rule — the prefixed → bare → general-purpose ladder
+- §Empty-result fallback — when a spawn returns 0 tokens
+- §Why prefixed-first — ordering rationale
+- §Worked example
+- §Anti-rationalization
+
 Canonical rule for invoking the plugin's custom agents (`reviewer-agent`, `adversarial-tester-agent`). Referenced from every skill that spawns one.
 
 ## The problem

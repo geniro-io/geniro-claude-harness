@@ -2,6 +2,18 @@
 
 Logic errors, null/undefined checks, boundary conditions, state management, and type safety issues.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Cross-PR API Conflicts (peer-PR context)
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## What to Check
 
 ### 1. Null/Undefined Handling

@@ -4,6 +4,17 @@
 
 Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the headers every producer embeds, and the mismatch UX every consumer surfaces on resume.
 
+## Contents
+
+- §Why this exists — the same-pwd-different-branch collision
+- §Slug rules — how the task slug is derived
+- §Producer contract — headers every writer embeds
+- §Consumer contract — how a resume reads the state file
+- §Mismatch handling — Case A/B/C/D resume UX
+- §Cleanup contract — when the state file is removed
+- §Anti-rationalization
+- §Definition of Done
+
 ## Why this exists
 
 Two terminals open in the same `pwd` on different branches both write `.geniro/<skill>/state.md` — one silently overwrites the other. Sequential same-cwd sessions on different branches inherit the prior branch's state on resume after compaction, applying old plans to new code. Cross-session state files (`.geniro/knowledge/*`, `.geniro/state/handoff/from-review-<branch>.md`, `.geniro/state/handoff/from-debug-<branch>.md` canonical) route through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` to land in the primary worktree's tree — a different problem with a different fix, and NOT this file's concern. Within-skill state must stay task-local AND become branch-scoped so concurrent same-cwd pipelines on different branches stop colliding.

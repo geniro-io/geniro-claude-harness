@@ -4,6 +4,17 @@ Detailed contract for `/geniro:review` Phase 4.3 (Test-Confirmation Gate). SKILL
 
 State.md `phase: stratify` during Phase 4.3 (which is a sub-phase of Phase 4 stratification).
 
+## Contents
+
+- §1 — Purpose
+- §2 — Step 1: Filter findings by decision-type
+- §3 — Step 2: User-approval gate (mandatory before any agent spawn)
+- §4 — Step 3: Spawn the adversarial-tester-agent
+- §5 — Step 4: Independent re-verification by the orchestrator
+- §6 — Step 5: Demote-don't-delete logic
+- §7 — Step 6: Fail-open
+- §8 — Why Phase 4.3 exists
+
 ---
 
 ## 1. Purpose

@@ -7,7 +7,7 @@ Detail sections extracted from `skills/investigate/SKILL.md` to keep the main sk
 1. State machine — full ASCII diagram
 2. State file schema — frontmatter + body sections
 3. Phase 2 research-agent spawn templates (Codebase / Git / Internet)
-4. Phase 3 fresh reviewer-agent spawn template
+4. Phase 3 fresh verifier agent spawn template
 5. Answer-structure templates per question type (How / Why / What-if / Compare / Risk)
 6. Extended examples (Design Rationale, Impact Analysis, Forward-looking integration)
 
@@ -18,19 +18,19 @@ Detail sections extracted from `skills/investigate/SKILL.md` to keep the main sk
 ```
 [entry]
 └── classify ──┬── investigate ──┬── present ──┬── done
-│ │ └── present-summary-only (terminal — "Nothing — just wanted the answer" pick)
-│ │
-│ └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
-│ ├── present (user picks "drop unverified claims" → continue with gaps)
-│ └── aborted (terminal)
-│
-└── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
-├── aborted (terminal)
-└── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
+               │                 │            └── present-summary-only (terminal — "Nothing — just wanted the answer" pick)
+               │                 │
+               │                 └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
+               │                                             ├── present (user picks "drop unverified claims" → continue with gaps)
+               │                                             └── aborted (terminal)
+               │
+               └── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
+                                        ├── aborted (terminal)
+                                        └── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
 
 present ──┬── (happy: flows to done)
-└── present-loop ──┬── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
-└── done (user picks "save findings" → save-routing AUQ executes → done)
+          └── present-loop ──┬── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
+                             └── done (user picks "save findings" → save-routing AUQ executes → done)
 ```
 
 Terminal states: `done`, `present-summary-only`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context.
@@ -83,8 +83,8 @@ dive_deeper_rounds: 0
 ## Draft Answer
 <pre-review version — preserved for compaction-resume>
 
-## Reviewer Findings
-<fresh-reviewer issue list>
+## Verifier Findings
+<fresh-verifier issue list>
 
 ## Final Answer
 <post-review version>
@@ -243,7 +243,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ---
 
-## 4. Phase 3 fresh reviewer-agent spawn template
+## 4. Phase 3 fresh verifier agent spawn template
 
 The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
 
@@ -262,7 +262,7 @@ BRANCH: [from `git branch --show-current`]
 - If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
 
 ### Pre-Inlined Files
-{{paste verbatim contents of every file cited in the draft answer's file:line references; reviewer re-Reads from these — does NOT re-Glob}}
+{{paste verbatim contents of every file cited in the draft answer's file:line references; the verifier re-Reads from these — does NOT re-Glob}}
 
 ### Draft answer
 {{full draft answer from Phase 3}}

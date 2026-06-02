@@ -18,7 +18,7 @@ Written at Phase 0.3 via `atomic_state_write` to `.geniro/planning/<task-slug>/s
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: plan
 schema-version: 1
 branch: <git-branch>
@@ -47,7 +47,7 @@ prd_mode: true                               # optional, present only when --prd
 ## Open Questions
 ```
 
-After all 10 sections approved in Phase 5, `## Workflow Refs` (populated by Phase 1.4), `## UI Preview` (populated by Phase 2 when triggered), and `## Problem Framing` (populated by Phase 0.5 when `--prd` was passed) appear as additional body sections. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise.
+After all 11 sections approved in Phase 5, `## Workflow Refs` (populated by Phase 1.4), `## UI Preview` (populated by Phase 2 when triggered), and `## Problem Framing` (populated by Phase 0.5 when `--prd` was passed) appear as additional body sections. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise.
 
 ---
 
@@ -108,7 +108,7 @@ approvals:
 
 ## 3. Phase 4 approach AUQ — shape with ASCII-sketch previews
 
-Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`. The `Recommended` marker reflects the Phase 4 §4.2 stress-test ranking — an approach with a blocking feasibility risk is never Recommended. Each option's `preview` contains an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier + one-line dominant tradeoff + the `Stress-test:` verdict line from §4.2:
+Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). The `Recommended` marker reflects the Phase 4 §4.2 stress-test ranking — an approach with a blocking feasibility risk is never Recommended. Each option's `preview` contains an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier + one-line dominant tradeoff + the `Stress-test:` verdict line from §4.2:
 
 ```yaml
 header: "Approach"
@@ -140,7 +140,7 @@ User pick → append to `approvals[]` with category `approach_choice`. Other app
 
 ### 4.1 Cluster authoring procedure
 
-Group the 10-section schema into 3 dependency-ordered clusters. Author and gate cluster-by-cluster; each cluster fires ONE batched `AskUserQuestion` call carrying one question per section:
+Group the 11-section schema into 3 dependency-ordered clusters. Author and gate cluster-by-cluster; each cluster fires ONE batched `AskUserQuestion` call carrying one question per section:
 
 | Cluster | Plain-English name | Sections | `header` chips (≤12 chars each) |
 |---|---|---|---|
@@ -254,10 +254,10 @@ options:
 If "Slice into milestones" picked:
 
 1. Fire a follow-up AUQ with the proposed milestone names (single-select for "approve all" or multi-select pick per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`).
-2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 10-section schema scoped to the milestone.
+2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 11-section schema scoped to the milestone.
 3. Persist to `approvals[]` with category `milestone_slice`.
 
-Hand-off (Phase 9) offers `/geniro:implement milestone 1` for sliced specs. Milestone-mode fires only when the task warrants it — for Medium/Trivial, the milestone-mode AUQ does not fire.
+Hand-off (Phase 9) offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs. Milestone-mode fires only when the task warrants it — for Medium/Trivial, the milestone-mode AUQ does not fire.
 
 ---
 

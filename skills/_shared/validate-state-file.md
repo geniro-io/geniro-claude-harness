@@ -7,6 +7,17 @@
 - **Design rationale:** `ARCHITECTURE.md` §State Files
 - **Write helper:** `skills/_shared/atomic-state-write.md`
 
+## Contents
+
+- When to call — situations that warrant validation
+- API — source-and-invoke pattern
+- Exit codes — return-code table + recovery action per code
+- Validation procedure — the ordered checks
+- Recovery AUQ template — what to ask the user on failure
+- YAML parsing strategy — shell-line-only, no `yq`
+- What this helper does NOT do — out-of-scope checks
+- Sidecar files for JSONL — optional unrealized convention
+
 ---
 
 ## When to call
@@ -59,7 +70,7 @@ The 7 steps validated, in order:
 1. **File exists** at the given path.
 2. **Line 1 is `---`** — frontmatter must start at line 1, no leading content or BOM.
 3. **Frontmatter is closed** with a `---` on its own line.
-4. **Common-base required fields present:** `tier`, `producer`, `schema-version`, `branch`, `timestamp`. Just key-presence — values are not validated except `tier` and `schema-version`.
+4. **Common-base required fields present AND non-empty:** `tier`, `producer`, `schema-version`, `branch`, `timestamp`. Each must carry a non-empty scalar value — a bare `producer:` (key present, value empty) fails with code 4. `tier` and `schema-version` are additionally enum/value-checked in steps 5-6.
 5. **`tier:` value is T1, T1.5, T2, or T3.** Tier-specific required fields are checked:
    - T1 → `phase`, `status`, `non-resumable-actions`
    - T1.5 → `phase`, `status`, `non-resumable-actions` (same shape as T1; differs in lifecycle — T1.5 survives Phase Ship)
@@ -96,7 +107,7 @@ The exact wording is per-skill; the four options are canonical.
 
 **Shell-line only.** No `yq` dependency.
 
-Rationale: the frontmatter schema is flat (no nested structures except optional `approvals` list and `tags` inline-list). Required-field check is just key-presence (`grep -qE "^<key>:"`). Scalar values (`tier`, `schema-version`, `checksum`, `worktree`) are extracted via `awk` line-strip.
+Rationale: the frontmatter schema is flat (no nested structures except optional `approvals` list and `tags` inline-list). Common-base required scalar fields are checked for presence AND a non-empty value (extract via `awk` line-strip, then test for non-empty); block-list fields whose inline value may be empty (e.g. `non-resumable-actions:`) are checked for key-presence only (`grep -qE "^<key>:"`). Scalar values (`tier`, `schema-version`, `checksum`, `worktree`) are extracted via `awk` line-strip.
 
 The `approvals:` array is checked only for key-presence (caller-side concern to parse the list structure when consuming it).
 
@@ -108,13 +119,13 @@ The `approvals:` array is checked only for key-presence (caller-side concern to 
 - **No semantic validation.** `producer: foo` is accepted regardless of whether `foo` is a real skill.
 - **No body schema check.** Body is free-form per per-skill conventions; `## Section` headers not enforced.
 - **No auto-repair.** Recovery is always user-driven via AUQ.
-- **No JSONL line validation.** JSONL files (`learnings.jsonl`) use line-by-line validation elsewhere — the JSONL itself has no frontmatter; the tier metadata lives in the sidecar `<file>.meta.yaml`.
+- **No JSONL line validation.** JSONL files (`learnings.jsonl`) use line-by-line validation elsewhere — the JSONL itself has no frontmatter. An optional `<file>.meta.yaml` sidecar convention exists for carrying tier metadata (see below), but no helper currently emits or reads it; `emit-learning.sh` / `query-learnings.sh` operate directly on the JSONL.
 
 ---
 
-## Sidecar files for JSONL
+## Sidecar files for JSONL (optional convention — no current producer/consumer)
 
-`learnings.jsonl` has no frontmatter (it's pure JSONL). The canonical tier metadata lives in `<file>.meta.yaml` which IS validatable:
+`learnings.jsonl` has no frontmatter (it's pure JSONL). A `<file>.meta.yaml` sidecar MAY carry tier metadata in a form this helper can validate. This is an unrealized convention: no helper in the codebase currently emits or reads the sidecar (`emit-learning.sh` / `query-learnings.sh` work on the JSONL directly). Document it as the intended shape if a future producer adopts it; treat the JSONL as self-sufficient until then. Sidecar shape:
 
 ```yaml
 ---
@@ -128,4 +139,4 @@ schema-ref: "canonical L2 entry schema"
 ---
 ```
 
-Call `validate_state_file` on the sidecar; the JSONL itself uses line-by-line parsing in the consumer (`query-learnings.sh`).
+If a producer adopts the sidecar, call `validate_state_file` on it; the JSONL itself uses line-by-line parsing in the consumer (`query-learnings.sh`).

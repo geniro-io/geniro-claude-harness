@@ -7,6 +7,18 @@ description: "Smell taxonomy, change-impact scoring, and atomic per-step executi
 
 Smell detection + change-impact scoring + per-step execution protocol for `/geniro:refactor`. The orchestrator reads this file in Phase 1 (smell detection) and Phase 2 (per-step execution) and applies the patterns inline.
 
+## Contents
+
+- Core Principle — the behavior-preservation invariant
+- Data Safety Rule — never destroy local data or volumes
+- Phase 1: Code Smell Detection — smell taxonomy + change-impact scoring
+- Phase 2: Refactoring Plan — plan-line schema
+- Phase 3: Atomic Application & Verification — per-step execution + Blocked Step Protocol
+- Phase 4: Structured Reporting — completion-summary schema
+- Guardrails (Always Enforce) — what never to do without approval
+- When to Stop the Session & Report Back — terminal conditions
+- Git Operations — no version control from this protocol
+
 ## Core Principle
 
 **If you cannot prove behavior is preserved through tests, you must stop and ask for a safety net.** Never make transformations that cannot be validated.
@@ -137,7 +149,7 @@ For each transformation in `## Plan steps`:
 
 2. **Pre-condition check** — required only when one of the following holds: (a) this is the FIRST transformation in the plan (no `last_post_check` recorded yet), OR (b) `last_post_check` is unset OR `last_post_check == REVERTED` (the previous step entered the Blocked Step Protocol and was reverted — the revert touched the working tree but no post-condition was successfully recorded, so the baseline must be re-verified before the next transformation), OR (c) anything other than this skill's transformations has touched the working tree since the last post-check (e.g., user interrupt that the session routed back). For step 2..N when `last_post_check == PASS`, **skip the pre-condition test** — the post-condition of the previous step already verified the same baseline (no edits intervene between consecutive transformations in this strictly-sequential atomic protocol). Skipping eliminates ~50% of test runs in the typical N-step plan (2N → N+1).
 
- **Test command selection:** if CLAUDE.md's Essential Commands section defines `<test_cmd_affected>` (an incremental command that targets only tests affected by the current diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`), use it for the per-step pre-check and per-step post-check below — these are tight per-step gates, not regression gates. /geniro:refactor Phase 1 Step 6 (final) baseline and Phase 2.4 final regression run keep `<test_cmd>` (full suite). If `<test_cmd_affected>` is not defined in CLAUDE.md, fall back to `<test_cmd>` (current behavior).
+ **Test command selection:** if CLAUDE.md's Essential Commands section defines `<test_cmd_affected>` (an incremental command that targets only tests affected by the current diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`), use it for the per-step pre-check and per-step post-check below — these are tight per-step gates, not regression gates. /geniro:refactor's Phase 1 baseline validation (§1.2) and Phase 2.4 final regression run keep `<test_cmd>` (full suite). If `<test_cmd_affected>` is not defined in CLAUDE.md, fall back to `<test_cmd>` (current behavior).
 
  When the pre-condition IS required, run tests via backpressure to preserve context:
  ```bash

@@ -4,6 +4,17 @@ Canonical RED→GREEN→REFACTOR procedure. Consumers: `${CLAUDE_PLUGIN_ROOT}/sk
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
 
+## Contents
+
+- §Why this exists
+- §State file contract — the `.geniro/state/tdd/state-<slug>.md` schema
+- §RED phase — write the failing test first
+- §GREEN phase — minimal code to pass
+- §REFACTOR phase — clean up under green tests
+- §Hook enforcement — how `enforce-tdd-order.sh` reads the state file
+- §Anti-rationalization
+- §Definition of Done
+
 ## Why this exists
 
 Without an explicit cycle contract, "TDD" reduces to "tests are present" — which is necessary but not sufficient. Three observed failure modes when the cycle is skipped:

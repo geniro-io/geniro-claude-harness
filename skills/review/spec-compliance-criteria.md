@@ -4,6 +4,18 @@ Completeness audit of the diff **against the plan / spec** — what the spec pro
 
 This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `skills/review/plan-context-reference.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
 
+## Contents
+
+- schema-aware mode
+- LINEAR CONTEXT supplement (workflow integration)
+- What to Check
+- Common False Positives
+- Severity Tagging
+- Cross-PR Scope Split (peer-PR context)
+- Output Anchor
+
+---
+
 ## schema-aware mode
 
 When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schema_version` of either `m5-v1` OR `m5-v2`, PLAN CONTEXT is delivered as a **section-tagged blob** with 11 named sections per the schema (plus the frontmatter goal-state block; `m5-v2` additionally surfaces `workflow_refs[]` if present):

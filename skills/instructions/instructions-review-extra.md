@@ -72,7 +72,7 @@ On "Cancel", stop without writing.
 ```
 Hard cap reached: 10 custom reviewers maximum.
 
-Existing slugs in.geniro/instructions/review-extra/:
+Existing slugs in .geniro/instructions/review-extra/:
 - {{slug-1}}
 - {{slug-2}}
 ...
@@ -143,7 +143,7 @@ Explain the body shape before asking. Use `AskUserQuestion` with no options (fre
 
 ### Step 10: Write the file
 
-Assemble the frontmatter (omitting fields the user skipped) and write to `.geniro/instructions/review-extra/{{slug}}.md`. Use the Write tool.
+Assemble the frontmatter (omitting fields the user skipped) and route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
 
 Example output for the `sql-bindings` walk-through:
 

@@ -1,5 +1,19 @@
 # L2 episodic-memory read helper
 
+## Contents
+
+- §API — `query_learnings` signature
+- §MODE contract
+- §Flags — type / tag / scope / trust / score filters
+- §Filter pipeline — order of application
+- §Score formula — recency × trust × access × recurrence
+- §`record_access` function — bumping access counts on read
+- §Trust level ordering
+- §Examples
+- §Caller conventions
+- §Known limitations
+- §Test coverage
+
 **Status:** Authoritative for every read of `.geniro/knowledge/learnings.jsonl`. Skills that recall prior diagnoses, decisions, conventions, pitfalls, or discoveries — `/geniro:debug`, `/geniro:implement`, `/geniro:plan`, `/geniro:review` — call this helper.
 
 ## API

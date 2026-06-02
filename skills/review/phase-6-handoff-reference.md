@@ -11,6 +11,7 @@ State.md `phase: action-gate` during this phase.
 - §1 — Reporter behavior (no fix loop)
 - §2 — Gate chain (firing order)
 - §2.5 — Pre-gate: resolve open questions (Invariant A)
+- §2.6 — Handoff file template (written in Phase 5.1)
 - §3 — Step 0: open-decision per PRODUCT-DECISION finding (Invariant B initial flip)
 - §4 — Action gate (consolidated decision)
 - §5 — Round-N escalation
@@ -100,6 +101,122 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 5. When >4 unresolved entries, chain into a second AUQ batch per the AskUserQuestion cap-extension pattern.
 
 6. After the last unresolved entry resolves, ALL `open_questions[].status` MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
+
+---
+
+## 2.6 Handoff file template (written in Phase 5.1)
+
+Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write` — never a direct Edit/Write on the canonical state path (the `enforce-state-helper` hook warn-flags direct writes; PR-final hard-blocks). `<PRIMARY_ROOT>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+
+The canonical handoff is a one-shot producer→consumer artifact; /geniro:review extends it with `phase:` / `status:` / `round:` / `approvals[]` so a compaction mid-run can recover. The file behaves as a handoff AT REST (after Phase 5 persist) and as a working state file DURING THE RUN.
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
+atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
+---
+tier: T2
+producer: review
+schema-version: 1
+branch: <git-branch>
+timestamp: <ISO-8601 UTC>
+consumer: implement
+geniro_kind: state-handoff
+geniro_schema_version: m6-v2
+task_slug: review-<branch>
+phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
+status: <in-progress|done|failed>
+mode: <standard|tdd>
+round: <int>
+risk-tier: <standard|high>
+pr-ref: <owner/repo#num|null>
+pr-url: <https://...|null>
+pr-head-sha: <40-char SHA|null>
+pr-title: <verbatim title|null>
+pr-body: <verbatim body|null>
+plan-context-ref: <abs-path|null>
+linear-task-ref: <ENG-123|null>
+linear-parent-ref: <ENG-100|null>
+simplify-mode: <true|false>
+resolved-threads-snapshot: [<path:line entries|null>]
+approvals: []
+non-resumable-actions: []
+open_questions:                       # MUST be present; MAY be empty []
+  - id: q1                            # short stable anchor
+    source: <reviewer-dim or producer-step>
+    question: <verbatim question text>
+    related_findings: [F1, F4]        # optional — finding IDs this question gates
+    status: unresolved                # enum: unresolved | resolved | wontfix
+    resolution:                       # populated when status moves out of `unresolved`
+      picked: <chosen option>
+      at: <ISO-8601 UTC>
+      asked_in_phase: <phase name>
+      resolved_by: <skill that ran the resolution AUQ>
+---
+
+# Review: <topic / branch>
+
+## Summary
+- Branch: <branch>
+- Mode: <standard|tdd>
+- Round: <N>
+- Risk-tier: <standard|high>
+- Dimensions spawned: [<list>]
+- Mechanical pre-pass: [lint:N, schema:M, secrets:K]
+- Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
+
+## Findings
+
+### CRITICAL
+<list>
+
+### HIGH
+<list>
+
+### MEDIUM
+<list>
+
+## Deferred — sub-threshold
+<list, surfaced for user awareness>
+
+## Tool log
+<reviewer spawns + side-effects>
+
+## Errors
+<failed spawns, gh fail-open, mechanical-prepass failures>
+
+## Open Questions
+<!-- Human-readable mirror of frontmatter `open_questions[]`. Frontmatter is source of truth. -->
+
+### q1 — <source>: <one-line summary>
+**Status:** unresolved
+**Question:** <verbatim question>
+**Related findings:** F1, F4
+**Why this gates downstream action:** <one sentence — e.g., "drives whether to revert api seeders or update spec.forbidden_actions">
+
+### q2 — ...
+
+<!-- If open_questions[] is empty, this section reads: "No open questions — handoff is unconditionally actionable." -->
+
+## Resolved Questions
+<!-- Populated when downstream consumer (or /geniro:review's §2.5 Pre-gate) resolves an entry; mirrors frontmatter `open_questions[].resolution`. -->
+
+### q1 — <source>: <one-line summary>
+**Picked:** <chosen option>
+**At:** <ISO-8601 UTC>
+**Resolved by:** <skill — review | implement | manual>
+**Phase:** <phase that ran the resolution AUQ>
+
+## Termination reason
+<rendered per §9 — only on aborted | escalated state>
+
+## Persisted approvals
+<rendered from approvals[] frontmatter for user-readability>
+EOF
+```
+
+Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — Phase 4 judge preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
+
+---
 
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding under the handoff's `## Findings` body renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff:
 

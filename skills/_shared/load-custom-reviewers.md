@@ -1,5 +1,15 @@
 # Load Custom Reviewers — Discovery + Spawn-Spec Helper
 
+## Contents
+
+- §When to invoke — the last step before the parallel reviewer batch
+- §Inputs from the consumer skill — CHANGED_FILES / PRIMARY_ROOT slots
+- §What this helper produces — the spawn-spec schema
+- §Discovery procedure — Steps 1-7 (resolve root → glob → parse → validate → path-filter → cap → build specs)
+- §How consumers use the spawn-specs — the Agent() call template
+- §Batched-mode behavior — `/geniro:review` one-spawn-per-run rule
+- §Anti-rationalization
+
 Canonical rule for discovering and spawning user-authored custom review dimensions. Referenced from every skill that spawns the parallel reviewer batch: `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify.
 
 ## When to invoke
@@ -79,7 +89,7 @@ For each VALID file:
 After Step 5 filtering, count the surviving reviewers:
 
 - If count > 10, ABORT the helper with a hard error. Print: `[load-custom-reviewers] hard cap exceeded — <N> active reviewers after path filter; limit is 10. Delete or scope down some files in .geniro/instructions/review-extra/`. The consumer skill MUST propagate this as a fatal error to the user — no review proceeds with >10 custom reviewers active.
-- If count > 6, print a soft warning: `[load-custom-reviewers] <N> custom reviewers active — Pattern 1 sweet-spot is 4-6 dimensions per parallel batch; consider scoping some with paths: globs to reduce the per-run count.` Continue.
+- If count > 6, print a soft warning: `[load-custom-reviewers] <N> custom reviewers active — 4-6 dimensions per parallel batch is the sweet spot; consider scoping some with paths: globs to reduce the per-run count.` Continue.
 
 ### Step 7: Build spawn-specs
 

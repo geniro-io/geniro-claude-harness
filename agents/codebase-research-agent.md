@@ -79,7 +79,7 @@ Gaps are useful — they tell the orchestrator what to ask the user OR what addi
 
 ## Output Schema
 
-Write to OUTPUT_PATH using exactly this structure:
+Write to OUTPUT_PATH using exactly this structure. On the missing-slot terminal (a required Input Contract slot absent), emit the `## Errors` stub shape below INSTEAD of the normal sections, then exit.
 
 ```markdown
 ## Codebase Research Report
@@ -125,7 +125,16 @@ Write to OUTPUT_PATH using exactly this structure:
 - <one-line pointer to follow-up research if the question was bigger than the THOROUGHNESS budget allowed>
 ```
 
-Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a section overflows. Empty sections may be omitted EXCEPT `Findings` and `Summary for Orchestrator`, which are always emitted. If `Findings` is empty (no evidence found), state that explicitly: `(no matching evidence found in scanned scope — see Gaps)`.
+On the missing-slot terminal (Step "When a required slot is absent"), write the stub report below in place of the normal sections — one bullet per missing required slot — then exit:
+
+```markdown
+## Codebase Research Report
+
+## Errors
+- Missing required slot: `<SLOT_NAME>` — the orchestrator did not provide it; cannot proceed.
+```
+
+Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a section overflows. On a normal run, empty sections may be omitted EXCEPT `Findings` and `Summary for Orchestrator`, which are always emitted. If `Findings` is empty (no evidence found), state that explicitly: `(no matching evidence found in scanned scope — see Gaps)`. The `## Errors` section appears only on the missing-slot terminal.
 
 ## Anti-Patterns
 

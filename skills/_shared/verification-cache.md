@@ -32,7 +32,7 @@ When invalidated, the orchestrator re-runs the full triad and writes a fresh cac
 
 Only the orchestrator writes the cache; sub-agents NEVER write to the cache file directly. Sub-agents emit `## Checks Report` sections in their output; the orchestrator parses, validates, and writes.
 
-Writes go through tmpfile + rename for atomicity (per GSD Pattern 5):
+Writes go through tmpfile + atomic rename so a concurrent reader never sees a half-written record:
 
 ```bash
 tmpfile="$(mktemp -p "$(dirname "$cache_path")" .cache.XXXXXX)"
@@ -40,7 +40,7 @@ printf '%s\n' "$cache_record" > "$tmpfile"
 mv -f "$tmpfile" "$cache_path"
 ```
 
-This guarantees a concurrent reader never sees a half-written record. Single-writer means the cache file has one writer per orchestrator run; if an orchestrator spawns parallel sub-agents that each report PASS, the orchestrator serializes the writes (or merges into a single record after all complete).
+Single-writer means the cache file has one writer per orchestrator run; if an orchestrator spawns parallel sub-agents that each report PASS, the orchestrator serializes the writes (or merges into a single record after all complete).
 
 ## Anti-rationalization
 

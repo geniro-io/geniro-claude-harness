@@ -6,6 +6,12 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 **Hard-fail handling:** see `plan-loop.md` — 3 auto-revision rounds, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
 
+## Contents
+
+- good-goal criteria: 1 `single_objective` / 2 `bounded_scope` / 3 `source_materials` / 4 `allowed_tools` / 5 `forbidden_actions` / 6 `budget` / 7 `checkpoints` / 8 `validation_method` / 9 `stopping_condition`
+- Additional checks: 10 `placeholder_scan` / 11 `contradiction_heuristic` / 12 `scope_creep_marker` / 13 `schema_completeness` / 14 `workflow_refs_consistency`
+- Check API contract
+
 ---
 
 ## good-goal criteria
@@ -117,9 +123,9 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ### 13. `schema_completeness`
 
-**Rule:** all 10 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 10 + the optional body sections `## Considered Alternatives`, `## Milestones`, and `## Problem & Evidence`. The three optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); a normal spec omits it and still passes.
+**Rule:** all 11 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 11 + the optional body sections `## Considered Alternatives`, `## Milestones`, and `## Problem & Evidence`. The three optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); a normal spec omits it and still passes.
 
-**Heuristic:** parse all `## ` top-level headers; compare to the canonical list (10 required + 3 allowed-optional). A header outside that set fails; a missing optional section does not.
+**Heuristic:** parse all `## ` top-level headers; compare to the canonical list (11 required + 3 allowed-optional). A header outside that set fails; a missing optional section does not.
 
 **Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: «<canonical-header>». Got: «<actual>»."
 
@@ -137,8 +143,6 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ---
 
-## Implementation note (— deferred)
+## Check API contract
 
-Whether these checks live as a dedicated Python script OR as inline orchestrator-side logic is deferred to implementation. Tentative: inline initially (since the orchestrator already parses spec.md and state.md anyway); promote to a script if complexity grows beyond ~150 lines.
-
-The check API contract (`(check_id, status, finding_text, fix_hint)`) is fixed regardless of implementation surface.
+The check API contract (`(check_id, status, finding_text, fix_hint)`) is fixed regardless of how the checks are executed — inline orchestrator-side logic (the default, since the orchestrator already parses spec.md and state.md) or a dedicated script.

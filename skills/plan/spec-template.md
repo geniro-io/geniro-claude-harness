@@ -1,6 +1,16 @@
 # spec.md template — schema
 
-Canonical 10-section markdown template that Phase 6 fills in. One source of truth for schema.
+## Contents
+
+- Frontmatter
+- Body — 11 sections
+- Per-section content guidance
+- Problem & Evidence (optional — PRD-mode only)
+- Milestone-mode
+
+---
+
+Canonical 11-section markdown template that Phase 6 fills in. One source of truth for schema.
 
 **Status:** Authoritative. Phase 7 mechanical validator enforces this layout exactly. Every spec.md emitted by `/geniro:plan` conforms.
 
@@ -72,7 +82,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 
 **`status:` namespace note.** reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
 
-## Body — 10 sections
+## Body — 11 sections
 
 ```markdown
 <!-- geniro:design-doc -->
@@ -127,9 +137,9 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 <Single statement of the observable signal that the task is complete. E.g., "all 5 acceptance tests green AND PR approved" / "feature ships behind flag AND telemetry shows ≥1 successful use".>
 ```
 
-(Note: the schema has 11 numbered headers (`## 1` … `## 11`); downstream consumers and the validator key off header text, not ordinal count.)
+The schema has exactly 11 numbered headers (`## 1` … `## 11`); downstream consumers and the validator key off header text, not ordinal count.
 
-Body sections beyond the 10 (allowed):
+Body sections beyond the 11 (allowed):
 - `## Considered Alternatives` — captured from Phase 4 Always present if Phase 4 ran with ≥2 approaches.
 - `## Milestones` — captured from Phase 5 milestone-mode. Present only if milestone-mode was picked.
 - `## Problem & Evidence` — captured from the Phase 0.5 problem-discovery interview. **Optional** — present only when `/geniro:plan --prd` ran (`prd_mode: true`); absent on every normal spec. The Phase 7 validator treats it as allowed-optional, so a normal spec without it still passes the schema check.
@@ -181,6 +191,6 @@ The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3
 
 If Phase 5 milestone-mode was picked, Phase 6 emits:
 - `spec.md` — top-level with section 6 «Steps» listing milestone names (not raw steps) + a body section `## Milestones` indexing the sibling files.
-- `milestone-1.md`, `milestone-2.md`, …, each with its own 10-section schema scoped to the milestone.
+- `milestone-1.md`, `milestone-2.md`, …, each with its own 11-section schema scoped to the milestone.
 
-Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md (— tentatively yes; deferred to implementation).
+Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md.
