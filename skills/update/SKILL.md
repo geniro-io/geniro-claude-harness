@@ -270,9 +270,9 @@ echo "[info] No MIGRATION.md in v$NEW_VERSION — skipping migration walk."
 fi
 ```
 
-Parse MIGRATION.md, find entries between `v<CURRENT_VERSION>` (exclusive) and `v<NEW_VERSION>` (inclusive). The file follows this schema — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
+Parse MIGRATION.md and collect **every** `### <name>` entry across **all** `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble. The version heading groups entries into feature cohorts for readability; it is not a selection gate. The `## vX.Y.Z` axis tracks plugin features, not the package's semver, so a feature can already be live in this install even when its heading version sits outside the `<CURRENT_VERSION> → <NEW_VERSION>` package range — gating on the heading would silently skip it. Run each entry's read-only `Auto-detect:` command and let its output decide relevance (empty → already current → skipped). The file follows this schema — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
 
-For each entry, in chronological order:
+For each entry, in file order (newest cohort first — entries are independent, so order does not affect which fire):
 
 1. Run the `Auto-detect:` shell command from the entry. Capture output.
 2. If output empty → user not affected; log "skipped (not affected): <change-name>"; continue.
@@ -292,7 +292,7 @@ If MIGRATION.md is present but malformed (cannot parse the heading structure), s
 
 ## Done — Final report
 
-`/update` always emits the restart warning — a version transition leaves in-memory skill bodies pointing at the old version until the session restarts. The `/geniro:setup` re-run recommendation is **conditional**: `/setup`'s only work `/update` has not already done is regenerate the project CLAUDE.md (its `.geniro/` migration sweep re-walks the same MIGRATION.md range Phase 4 just walked), so recommend it only when the run leaves setup-relevant work.
+`/update` always emits the restart warning — a version transition leaves in-memory skill bodies pointing at the old version until the session restarts. The `/geniro:setup` re-run recommendation is **conditional**: `/setup`'s only work `/update` has not already done is regenerate the project CLAUDE.md (its `.geniro/` migration sweep re-walks the same MIGRATION.md entries Phase 4 just walked), so recommend it only when the run leaves setup-relevant work.
 
 Recommend `/geniro:setup` (append the re-setup section below) when ANY of these hold:
 

@@ -1,6 +1,8 @@
 # Migration Notes
 
-Plugin-maintainer-authored breaking-change log consumed by `/geniro:update` Phase 4. Each release version (`## vX.Y.Z`) lists changes user content must adapt to; auto-detect commands are safe (`grep` / `find` / `ls` only — never mutate) and report whether THIS install is affected.
+Plugin-maintainer-authored breaking-change log consumed by `/geniro:update` Phase 4 and the `/geniro:setup` re-run migration sweep.
+
+**Consumption contract (both consumers).** The `## vX.Y.Z` headings group changes into feature cohorts for human readability — they track plugin features, not the package's semver version, so a cohort's heading number can sit outside the installed package's version range while its features are already live (the "v3.0.0" cohort shipped across several 2.x releases). Consumers therefore do NOT select entries by version range. Walk *every* `### <name>` entry across *all* sections and run its `Auto-detect:` command — these are read-only (`grep` / `find` / `ls` only — never mutate) and report whether THIS install is affected. The auto-detect output is the sole relevance signal: an empty result means the install is already current for that entry and it is skipped. This contract governs entry selection and the relevance signal; each consumer applies and re-verifies an entry's `Auto-fix:` per its own interaction model.
 
 For users installing the plugin fresh (no pre-existing `.geniro/`), this file is purely informational — `/geniro:setup` writes the current schema directly.
 
@@ -431,4 +433,4 @@ rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent
 
 User-authored `.geniro/instructions/review-extra/*`, `.geniro/actions/*`, `.geniro/knowledge/learnings.jsonl`, `.geniro/planning/_*.md` artifacts are **never** touched by the migration sweep — only entries with explicit `Auto-fix:` commands from this file are applied.
 
-`/geniro:update` Phase 4 walks the same entries interactively with per-entry AUQ ("Fix it for me" / "Show me how" / "Skip" / "Cancel").
+`/geniro:update` Phase 4 walks the same full entry set interactively — relevance decided by each entry's read-only auto-detect, not by version range — with per-entry AUQ ("Fix it for me" / "Show me how" / "Skip" / "Cancel").
