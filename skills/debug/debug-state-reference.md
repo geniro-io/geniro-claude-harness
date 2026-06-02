@@ -123,7 +123,7 @@ authored_tests:                       # MUST be present; MAY be empty []
     mode: scientific                  # MUST match top-level `mode:`
     f_to_p_status: <enum>             # red-on-current | green-under-patch | red-on-current+green-under-patch | escape-hatch
     related_hypotheses: [H2]          # optional — Hypothesis IDs from `## Hypotheses`
-    targeted_source: <prod path>      # optional — production file the test targets (used by /implement for triage)
+    targeted_source: <prod path>      # optional — production file the test targets (used by /geniro:implement for triage)
     confidence: high                  # optional — adversarial mode only (high|medium|low)
 open_questions:                       # MUST be present; MAY be empty []
   - id: q1                            # short stable anchor (q1, q2, ...)
@@ -141,9 +141,9 @@ open_questions:                       # MUST be present; MAY be empty []
 
 Body: full content of findings template + body sections (`## Tool log` / `## Errors` / `## Open Questions` (human-readable mirror of frontmatter) / `## Resolved Questions` / `## Persisted approvals`).
 
-The `open_questions[]` frontmatter array is the machine-readable source of truth per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /implement's Phase 1 Step 12 gate.
+The `open_questions[]` frontmatter array is the machine-readable source of truth per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /geniro:implement's Phase 1 Step 12 gate.
 
-The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced — full schema and producer/consumer contracts in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /implement Phase 1 Step 12) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
+The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced — full schema and producer/consumer contracts in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /geniro:implement Phase 1 Step 12) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
 
 ### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
 
@@ -206,7 +206,7 @@ Use when the bug was absent at a prior commit. `git bisect run <repro-script>` a
 
 ## 5. Stall Diagnosis Taxonomy
 
-When /debug stalls (5 inconclusive hypothesis tests, stall gate), classify the root-cause-of-the-stall as a missing component:
+When /geniro:debug stalls (5 inconclusive hypothesis tests, stall gate), classify the root-cause-of-the-stall as a missing component:
 
 | # | Missing component | Symptom | AUQ option label | AUQ description |
 |---|---|---|---|---|
@@ -253,7 +253,7 @@ none — adversarial mode runs a fresh pass (no prior reviewer findings availabl
 ### Output
 Write your report to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
 
-The handoff's frontmatter MUST include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check. Inline this schema verbatim — the consumer (/implement Phase 1 Step 12) reads this field to relocate the tests into its worktree:
+The handoff's frontmatter MUST include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check. Inline this schema verbatim — the consumer (/geniro:implement Phase 1 Step 12) reads this field to relocate the tests into its worktree:
 
 ```yaml
 authored_tests:

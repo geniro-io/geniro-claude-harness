@@ -68,16 +68,16 @@ Skills that **read** these L2 entries (to surface "user previously rejected X" h
 3. Use surfaced info to re-rank or omit the rejected option from current AUQ — but do NOT silently skip the AUQ entirely. Pattern is informational, not gating.
 
 Suggested read sites:
-- /plan Phase 4 (before showing approach AUQ)
-- /implement Phase 1 (during ship-mode prep)
-- /actions run-mode (before risk-class confirm)
+- /geniro:plan Phase 4 (before showing approach AUQ)
+- /geniro:implement Phase 1 (during ship-mode prep)
+- /geniro:actions run-mode (before risk-class confirm)
 
 ## Example flow
 
 ```
 User: /geniro:plan implement session storage
 
-/plan Phase 4 surfaces 3 approaches:
+/geniro:plan Phase 4 surfaces 3 approaches:
   - Redis (Recommended)
   - Postgres
   - In-memory with file-snapshot
@@ -98,10 +98,10 @@ User picks: Postgres
 Two weeks later:
 User: /geniro:plan implement caching layer
 
-/plan Phase 1 query-learnings --type user_rejected_suggestion --scope global
+/geniro:plan Phase 1 query-learnings --type user_rejected_suggestion --scope global
 -> surfaces: "User previously rejected Redis (approach_choice, 2 weeks ago)"
 
-/plan Phase 4: Skip Redis from approach list, or surface with notice
+/geniro:plan Phase 4: Skip Redis from approach list, or surface with notice
   "(previously rejected by user)".
 ```
 

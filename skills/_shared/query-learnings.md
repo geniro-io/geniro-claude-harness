@@ -1,6 +1,6 @@
 # L2 episodic-memory read helper
 
-**Status:** Authoritative for every read of `.geniro/knowledge/learnings.jsonl`. Skills that recall prior diagnoses, decisions, conventions, pitfalls, or discoveries — `/debug`, `/implement`, `/plan`, `/review` — call this helper.
+**Status:** Authoritative for every read of `.geniro/knowledge/learnings.jsonl`. Skills that recall prior diagnoses, decisions, conventions, pitfalls, or discoveries — `/geniro:debug`, `/geniro:implement`, `/geniro:plan`, `/geniro:review` — call this helper.
 
 ## API
 
@@ -20,7 +20,7 @@ Emits matching JSONL entries to stdout, one per line. Exit code:
 Request/response helper — **no MODE parameter, compaction-immune.** Each
 call is a fresh query against the on-disk L2 log; the helper holds no
 context-resident state across calls. Skill flow decides when to re-query
-after a SessionStart event (e.g., `/debug` Phase 2 may re-query after
+after a SessionStart event (e.g., `/geniro:debug` Phase 2 may re-query after
 resume if its hypothesis thread depends on prior findings).
 
 ## Flags
@@ -80,7 +80,7 @@ record_access "<dedup_key>"
 - Returns 1 on IO error.
 - Returns 64 if no key supplied.
 - Best-effort: no lock. Concurrent misses are acceptable (counter, not ledger). Uses POSIX `rename(2)` for atomicity.
-- Callers typically invoke after surfacing a query result they actually used. Example: `/debug` Phase 1 surfaces 3 entries, orchestrator cites entry `bbb00002` in hypothesis → call `record_access bbb00002`.
+- Callers typically invoke after surfacing a query result they actually used. Example: `/geniro:debug` Phase 1 surfaces 3 entries, orchestrator cites entry `bbb00002` in hypothesis → call `record_access bbb00002`.
 
 ## Trust level ordering
 

@@ -1,6 +1,6 @@
 ---
 name: geniro:refactor
-description: "Use when restructuring code for better organization or reducing tech debt while guaranteeing zero behavior change. 3-phase loop (Plan → Apply → Verify) mirroring /implement. Adopts canonical effort-scaling tier rubric (Trivial / Small / Medium / Big). NEVER ships code — diff is the deliverable, working tree is the channel. For behavioral changes use /geniro:implement; for performance optimizations use /geniro:review --simplify."
+description: "Use when restructuring code for better organization or reducing tech debt while guaranteeing zero behavior change. 3-phase loop (Plan → Apply → Verify) mirroring /geniro:implement. Adopts canonical effort-scaling tier rubric (Trivial / Small / Medium / Big). NEVER ships code — diff is the deliverable, working tree is the channel. For behavioral changes use /geniro:implement; for performance optimizations use /geniro:review --simplify."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
@@ -119,8 +119,8 @@ On Phase 1 entry, in order:
 3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` to find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.
 4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict.
 Echo lines from the loader are mandatory per its §Echo contract.
-5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). Read-only — /refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
-6. **Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /refactor applies changes in place on the current branch, so if that branch is behind the default branch, offer to update it before scope discovery and baseline validation run against stale code. Skipped silently when the branch is already current.
+5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). Read-only — /geniro:refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
+6. **Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /geniro:refactor applies changes in place on the current branch, so if that branch is behind the default branch, offer to update it before scope discovery and baseline validation run against stale code. Skipped silently when the branch is already current.
 
 ### 1.2 Scope discovery + baseline + Test-first gate
 
@@ -136,7 +136,7 @@ Echo lines from the loader are mandatory per its §Echo contract.
 
 ### 1.3 Tier classification (canonical effort-scaling)
 
-**Adopt canonical effort-scaling.md rubric**. /refactor no longer overrides the canonical. Apply effort-scaling Step 1 (hard signals) → Step 2 (5-dim score) → Step 3 (tier behavior). Refactor-specific hard signals apply orthogonally — they escalate OUT of /refactor entirely.
+**Adopt canonical effort-scaling.md rubric**. /geniro:refactor no longer overrides the canonical. Apply effort-scaling Step 1 (hard signals) → Step 2 (5-dim score) → Step 3 (tier behavior). Refactor-specific hard signals apply orthogonally — they escalate OUT of /geniro:refactor entirely.
 
 #### 1.3.1 Apply canonical effort-scaling
 
@@ -342,7 +342,7 @@ A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor
 
 Surface every PRODUCT-DECISION finding via `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`). 4 fixed options (ADR-eligibility determines whether 4th option included):
 
-1. **Run /geniro:implement on this finding (Recommended)** — exit /refactor; user runs /implement separately to apply a behavioral fix. state.md → `phase: verify-escalated` then on pick → exit (out-of-skill).
+1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: verify-escalated` then on pick → exit (out-of-skill).
 2. **Revert this refactor and start over** — `git checkout -- .` with user confirmation. state.md → `reverted` (terminal).
 3. **Document and ship as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
 4. **(ADR-eligible only)** **Document as ADR** — spawn a focused ADR-drafting agent (OMIT `model=` — inherits the orchestrator's session tier per the canonical model-tiering rule and the table row in the Subagent Model Tiering section) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
@@ -355,7 +355,7 @@ Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings �
 
 **CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
 
-Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — surface to user via AUQ header "Verify-fix" with options: "Escalate to /implement" / "Document remaining findings and ship as-is" / "Revert all changes". state.md → `verify-escalated` with timestamp + 1-round fix attempt summary.
+Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — surface to user via AUQ header "Verify-fix" with options: "Escalate to /geniro:implement" / "Document remaining findings and ship as-is" / "Revert all changes". state.md → `verify-escalated` with timestamp + 1-round fix attempt summary.
 
 **MEDIUM findings only → note in completion summary; proceed.**
 
@@ -399,10 +399,10 @@ Output the markdown block directly in chat. No persistence to a handoff file —
 
 At Phase 3 exit:
 
-- **`emit-learning`** — called by /refactor for two emit types per canonical contract:
-- **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified`.
+- **`emit-learning`** — called by /geniro:refactor for two emit types per canonical contract:
+- **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /geniro:refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified`.
 - **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
-- **NOT emitted :** `diagnosis` (/debug owns); `convention` (/implement self-review owns); `decision` (/plan owns).
+- **NOT emitted :** `diagnosis` (/geniro:debug owns); `convention` (/geniro:implement self-review owns); `decision` (/geniro:plan owns).
 
 **L4 promotion suggestion:** when a `discovery` or `pitfall` entry is emitted, surface a one-line suggestion in Phase 3 final report:
 
@@ -519,7 +519,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Class-A hard caps abort legitimate complex refactors mid-stride. The skill is quality-first — no Class-A caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
 | "Auto-promote L2 discoveries to L4 rules when refactor completes." | Phase 3 §3.5 surfaces a suggestion line; do NOT auto-promote. User remains source-of-truth for L4 curation. Auto-promotion creates noise + drift. |
 | "Bypass `git guardrail` hooks if a needed `git stash` / `git checkout -- .` step blocks." | The hooks fail-closed for a reason. `git checkout -- .` (revert path) is explicitly permitted per § ACI per-phase. Other git mutations stay blocked. If a specific guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
-| "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
+| "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
 | "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
 
 ---

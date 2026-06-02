@@ -1,10 +1,10 @@
 # {{PROJECT_NAME}} — CLAUDE.md
 
-> **Reference example**: The /setup skill reads this for structure guidance and generates a project-specific CLAUDE.md from scratch — it does NOT fill in placeholders.
+> **Reference example**: The /geniro:setup skill reads this for structure guidance and generates a project-specific CLAUDE.md from scratch — it does NOT fill in placeholders.
 
 ## Project Overview
 
-{{One paragraph describing what this project does and what domain it operates in. Extracted from README.md or project documentation during /setup. E.g., "A multi-tenant SaaS platform for managing construction project timelines, budgets, and contractor coordination."}}
+{{One paragraph describing what this project does and what domain it operates in. Extracted from README.md or project documentation during /geniro:setup. E.g., "A multi-tenant SaaS platform for managing construction project timelines, budgets, and contractor coordination."}}
 
 **Tech stack**: {{e.g., Python 3.11, Django 4.2, PostgreSQL, React 18, TypeScript}}
 

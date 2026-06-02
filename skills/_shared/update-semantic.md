@@ -1,6 +1,6 @@
 # L3 semantic-memory write helper
 
-**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/implement` (adds module entries), `/refactor` (move/rename), and `/plan` (manages `_FEATURES.md`).
+**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), and `/geniro:plan` (manages `_FEATURES.md`).
 
 ## API
 
@@ -54,15 +54,15 @@ event.
 ## Examples
 
 ```bash
-# /implement records a new module
+# /geniro:implement records a new module
 update_semantic --file codebase-map \
  --append "- src/components/Toggle.tsx — controlled toggle widget, used by SettingsPage"
 
-# /refactor moves a file
+# /geniro:refactor moves a file
 update_semantic --file codebase-map \
  --replace "- src/old/legacy.ts" "- src/new/legacy.ts — moved during 2026-Q2 cleanup, used by App.tsx"
 
-# /plan records a new feature
+# /geniro:plan records a new feature
 update_semantic --file features \
  --append "- [feat-12] Dark mode toggle, scope: ui, status: pending"
 ```

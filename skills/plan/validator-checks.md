@@ -133,7 +133,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Fix hint on warn:** "spec.md `workflow_refs[]` references kind '<kind>' but `.geniro/workflow/<kind>.md` does not exist in cwd or primary worktree — downstream skills will skip workflow on-task-start hooks for this ref. Create the workflow file (see existing `linear.md` as template) OR remove the `workflow_refs` entry from spec.md frontmatter."
 
-**Fix hint on fail:** "Entry <N> in `workflow_refs[]` is missing required field `<field>`. Re-run /plan with the tracker URL/ID in $ARGUMENTS so Phase 1 can re-fetch, OR hand-edit the entry to add the field."
+**Fix hint on fail:** "Entry <N> in `workflow_refs[]` is missing required field `<field>`. Re-run /geniro:plan with the tracker URL/ID in $ARGUMENTS so Phase 1 can re-fetch, OR hand-edit the entry to add the field."
 
 ---
 

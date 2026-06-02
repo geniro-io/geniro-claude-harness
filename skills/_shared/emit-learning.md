@@ -79,7 +79,7 @@ A single JSONL line must fit in `PIPE_BUF` for POSIX `>>` to be atomic. If the l
 ## Example callers
 
 ```bash
-# /debug auto-emit after CONFIRMED + fix applied
+# /geniro:debug auto-emit after CONFIRMED + fix applied
 jq -nc \
  --arg p "/geniro:debug" \
  --arg s "src/components/Toggle.tsx" \
@@ -94,7 +94,7 @@ jq -nc \
 ```
 
 ```bash
-# /plan recording an architectural decision
+# /geniro:plan recording an architectural decision
 jq -nc \
  --arg p "/geniro:plan" \
  '{
@@ -108,7 +108,7 @@ jq -nc \
 
 ## Known limitations
 
-- **Dedup window is 200 lines.** Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/debug` session, a few per `/implement` run) the 200-line window covers weeks; if it becomes too short, callers can pre-query `learnings.jsonl` via `query-learnings` (next helper) and pass `supersedes` explicitly.
+- **Dedup window is 200 lines.** Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/geniro:debug` session, a few per `/geniro:implement` run) the 200-line window covers weeks; if it becomes too short, callers can pre-query `learnings.jsonl` via `query-learnings` (next helper) and pass `supersedes` explicitly.
 - **No multi-entry batching.** One JSON object per call. Callers that need to emit many at once should loop.
 - **Sanitization is per-call.** A pattern that fires across multiple ext fields emits multiple audit-log rows. Aggregating is left to readers of the audit log.
 - **No producer→trust auto-default.** `ARCHITECTURE.md` § "Memory Layers" documents per-emitter trust defaults (e.g. `/geniro:debug` → `verified`). The helper does NOT auto-set `trust` based on producer; callers must supply it explicitly. Skills will set the right value when they integrate; meanwhile a missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).

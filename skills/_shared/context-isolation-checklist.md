@@ -22,7 +22,7 @@ Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbid
 
 The plugin's `codebase-research-agent` (`agents/codebase-research-agent.md`) is the default for codebase research that would otherwise flood the orchestrator's context — mapping subsystems, tracing flows, locating definitions, summarising behaviour. It inherits the orchestrator's model tier (so on an Opus session the research runs Opus, where the built-in `Explore` subagent would have been pinned to Haiku 4.5) and as a plugin-defined custom agent it sidesteps [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) (MCP-overflow → `0 tool uses` on hosts with many MCP servers).
 
-Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body) and OMIT `model=` so the orchestrator's session tier propagates. Pre-inline the slots from the agent's Input Contract (3 required: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `OUTPUT_PATH`; 3 optional: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS`). `OUTPUT_PATH` convention: `.geniro/planning/<task-slug>/.research-out.md` (default) OR `.geniro/planning/<task-slug>/.research-<facet>.md` (when running multiple facets in parallel — `/plan` Phase 1 pattern). See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
+Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body) and OMIT `model=` so the orchestrator's session tier propagates. Pre-inline the slots from the agent's Input Contract (3 required: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `OUTPUT_PATH`; 3 optional: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS`). `OUTPUT_PATH` convention: `.geniro/planning/<task-slug>/.research-out.md` (default) OR `.geniro/planning/<task-slug>/.research-<facet>.md` (when running multiple facets in parallel — `/geniro:plan` Phase 1 pattern). See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
 
 Concrete call shape (step 1 of the spawn-agent ladder; substitute slot values):
 
@@ -45,7 +45,7 @@ THOROUGHNESS: <quick | medium | very thorough; default medium>
 """)
 ```
 
-Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. `/implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
+Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. `/geniro:implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
 
 ## Required pre-inlined context
 
@@ -60,12 +60,12 @@ Every Agent() prompt MUST include all six fields. Missing any one is a defect.
 **(4) Prohibited tools list.** When the agent must NOT touch certain surfaces, declare it explicitly via `disallowedTools: [<list>]` AND restate the constraint inside the prompt body (belt-and-suspenders, since degraded `general-purpose` calls per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` lose the tool allowlist enforcement). Common patterns:
 - reviewer-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` — read-only by contract.
 - adversarial-tester-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` outside test files — mutation allowed only on test paths via the spawn prompt's file allowlist.
-- `/investigate` research spawns (general-purpose): `disallowedTools: ["Edit", "Write"]` — research is read-only.
-- `/setup` Phase 4 verification spawn (general-purpose): `disallowedTools: ["Edit", "Write"]` — verification is read-only.
+- `/geniro:investigate` research spawns (general-purpose): `disallowedTools: ["Edit", "Write"]` — research is read-only.
+- `/geniro:setup` Phase 4 verification spawn (general-purpose): `disallowedTools: ["Edit", "Write"]` — verification is read-only.
 
 **(5) Output schema.** The exact format the agent's response must match. Examples: a Markdown table with named headers, a JSON block matching a stated schema, or finding objects matching the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. If the orchestrator cannot parse the agent's output, re-spawning is wasted work — pin the schema upfront. Include a one-example block showing the literal shape.
 
-**(6) Model tier.** For plugin-defined agents (reviewer-agent / adversarial-tester-agent / codebase-research-agent / codebase-explorer-agent / knowledge-retrieval-agent / test-runner-agent) OMIT `model=` so they inherit the orchestrator's session tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Pass `model=` explicitly ONLY for general-purpose spawns where the tier IS the deliverable contract (e.g. `/setup` Phase 4 verification = sonnet, ui-preview = haiku), and for user-authored custom reviewers that declared `model:` in their frontmatter. The tier choice is part of the spawn contract; document it at the spawn site.
+**(6) Model tier.** For plugin-defined agents (reviewer-agent / adversarial-tester-agent / codebase-research-agent / codebase-explorer-agent / knowledge-retrieval-agent / test-runner-agent) OMIT `model=` so they inherit the orchestrator's session tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Pass `model=` explicitly ONLY for general-purpose spawns where the tier IS the deliverable contract (e.g. `/geniro:setup` Phase 4 verification = sonnet, ui-preview = haiku), and for user-authored custom reviewers that declared `model:` in their frontmatter. The tier choice is part of the spawn contract; document it at the spawn site.
 
 ## Forbidden patterns
 

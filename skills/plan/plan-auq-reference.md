@@ -7,7 +7,7 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 1. state.md frontmatter — initial template (Phase 0.3)
 2. Phase 3 clarifying AUQ — shape with `preview` fields
 3. Phase 4 approach AUQ — shape with ASCII-sketch previews
-4. Phase 5 per-section AUQ — incremental authoring details + milestone-mode
+4. Phase 5 cluster AUQ — batched cluster approval (3 dependency-ordered gates) + milestone-mode
 5. Phase 8 approval AUQ — schema-rich question body
 
 ---
@@ -50,32 +50,48 @@ After all 10 sections approved in Phase 5, `## Workflow Refs` (populated by Phas
 
 ---
 
-## 2. Phase 3 clarifying AUQ — shape with `preview` fields
+## 2. Phase 3 clarifying AUQ — batched independent questions, sequenced dependents
 
-Each Phase 3 question is fired one-at-a-time via `AskUserQuestion`. Every option carries a **`preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview):
+Batch independent clarifying questions into ONE `AskUserQuestion` call (up to 4 questions per call). Fire questions sequentially only when one question's answer changes another's options (a genuine dependency). Every option carries a **`preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview).
+
+A single batched call carrying two independent questions:
 
 ```yaml
-header: "Auth method"
-question: "Which auth flow should this endpoint use?"
-options:
-  - label: "JWT — existing middleware"
-    preview: |
-      Adds `@UseGuards(JwtAuthGuard)` to controller. Reads token
-      from Authorization header. Throws 401 on missing/invalid.
-      Test: `expect(401).toMatchObject({code: 'UNAUTHENTICATED'})`.
-  - label: "Session cookie — existing session middleware"
-    preview: |
-      Adds `@UseGuards(SessionGuard)`. Reads `session_id` cookie.
-      Test mirror of /auth/session.spec.ts. Same 401 shape.
-  - label: "Skip — proceed assuming JWT"
-    preview: |
-      Recorded assumption: "endpoint uses JWT middleware (default)".
-      Surfaced in spec.md section 4 Assumptions for /implement to verify.
+questions:
+  - header: "Auth method"
+    question: "Which auth flow should this endpoint use?"
+    options:
+      - label: "JWT — existing middleware"
+        preview: |
+          Adds `@UseGuards(JwtAuthGuard)` to controller. Reads token
+          from Authorization header. Throws 401 on missing/invalid.
+          Test: `expect(401).toMatchObject({code: 'UNAUTHENTICATED'})`.
+      - label: "Session cookie — existing session middleware"
+        preview: |
+          Adds `@UseGuards(SessionGuard)`. Reads `session_id` cookie.
+          Test mirror of /auth/session.spec.ts. Same 401 shape.
+      - label: "Skip — proceed assuming JWT"
+        preview: |
+          Recorded assumption: "endpoint uses JWT middleware (default)".
+          Surfaced in spec.md section 4 Assumptions for /geniro:implement to verify.
+  - header: "Rate limit"
+    question: "Should the endpoint enforce a per-user rate limit?"
+    options:
+      - label: "Yes — reuse RateLimitGuard"
+        preview: |
+          Adds `@UseGuards(RateLimitGuard)` (src/common/rate-limit.guard.ts:18).
+          Default 60 req/min/user; 429 on exceed.
+      - label: "No — unlimited"
+        preview: |
+          No guard added. Matches sibling read-only endpoints.
+      - label: "Skip — proceed assuming no limit"
+        preview: |
+          Recorded assumption: "no rate limit". Surfaced in section 4 Assumptions.
 ```
 
-Every `preview` field carries concrete consequence content — empty `Approve / Revise / Skip` options waste user attention.
+These two questions are independent — auth method does not change the rate-limit options — so they ship in one call. A dependent pair (e.g., "Which datastore?" → then options for "Which migration tool?" that depend on the datastore pick) fires sequentially instead. Every `preview` field carries concrete consequence content — empty options waste user attention. The ≤5-total cap holds across calls; chain a second call if more than 4 independent questions exist rather than dropping or merging any.
 
-Each answered AUQ → append entry to state.md frontmatter `approvals[]` via `atomic_state_write` BEFORE proceeding to the next question:
+Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. A batched call returns all its answers at once — append one entry per answer before proceeding past the batch:
 
 ```yaml
 approvals:
@@ -119,25 +135,106 @@ User pick → append to `approvals[]` with category `approach_choice`. Other app
 
 ---
 
-## 4. Phase 5 per-section AUQ — incremental authoring + milestone-mode
+## 4. Phase 5 cluster AUQ — batched cluster approval + milestone-mode
 
-### 4.1 Per-section authoring procedure
+### 4.1 Cluster authoring procedure
 
-One AUQ per section, sequentially. Do NOT pre-fill all 10 sections in a batch — pre-fill makes per-section approval redundant (the user has already read the content). Section N+1 is authored only after section N approval.
+Group the 10-section schema into 3 dependency-ordered clusters. Author and gate cluster-by-cluster; each cluster fires ONE batched `AskUserQuestion` call carrying one question per section:
 
-1. **Author section N inline** (in orchestrator working memory) using Phase 1 research findings + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate. Do NOT render the section to chat at this step — the AUQ `preview` field IS the rendering surface.
+| Cluster | Plain-English name | Sections | `header` chips (≤12 chars each) |
+|---|---|---|---|
+| 1 | Goal & scope | 1 Objective, 2 Scope-Included, 3 Scope-Excluded | "Objective" / "In scope" / "Out of scope" |
+| 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required | "Assumptions" / "Risks" / "Steps" / "Tools" |
+| 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition | "Approvals" / "Validation" / "Rollback" / "Done" |
 
-2. **Fire AUQ** with header `"Section: <name>"`. Chat-side companion is one short line: `"Section: <name> — focus an option to inspect"`. The AUQ options carry concrete content in their `preview` field:
+Procedure per cluster:
 
-   - **Approve (Recommended)** — `preview`: the section content + ONE concrete example (per section type, see `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete-example per section type").
-   - **Revise — I'll describe** — `preview`: the section content + a placeholder line `"Type your revision text in Other"`. User types text → model re-authors → re-fires the AUQ (max 3 revisions per section).
-   - **Skip — accept as-is with warning** — `preview`: brief consequence statement, e.g., `"Section 9 Validation skipped — /implement Phase 3 reviewer-agent cannot verify section-9 acceptance criteria; manual checks required."`
+1. **Author the cluster's sections inline** (in orchestrator working memory) using Phase 1 research findings + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate. Do NOT render section bodies to chat — the option `preview` fields ARE the rendering surface.
 
-3. **Persist** each pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`).
+2. **Print a one-line chat lead-in**, e.g., `"Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each."` For Trivial/Small tier, a "none — task scope precludes" section is noted here as a one-line aside (no approval question fires for it).
 
-4. **Transition to section N+1** authoring (step 1). After all 10 sections approved → Phase 6.
+3. **Fire ONE batched AUQ** with one question per section in the cluster. Each question has three options carrying ADR-style `preview` content:
 
-The `preview` field replaces the prior "render section to chat then ask for approval" pattern — the chat output was redundant with the section content the user was about to approve. Empty AUQ options (`Approve / Revise / Skip` text only) degrade trust ("the skill is just clicking through"); concrete preview content makes the AUQ load-bearing.
+   - **Approve (Recommended)** — `preview`: the ADR digest + concrete example —
+     ```
+     DECISION: <what this section commits to — 1 line>
+     WHY: <rationale grounded in a Phase 1 finding file:line + the Phase 4 chosen approach — 1-2 lines>
+     HOW: <how /geniro:implement realizes it — concrete steps / files / identifiers — 1-2 lines>
+     <ASCII data-flow / sequence diagram — only for sections that benefit, esp. section 6 Steps>
+     Example: <the per-section concrete example from plan-reference.md §"Concrete-example per section type">
+     ```
+   - **Revise — I'll describe** — `preview`: the current section content + `"Type your revision in Other; I'll re-author and re-ask."`
+   - **Skip — accept as-is** — `preview`: the concrete consequence of skipping this section, e.g., `"Validation skipped — /geniro:implement's reviewer cannot verify acceptance criteria; manual checks required."`
+
+4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). The cluster is a presentation grouping only — no `cluster_<id>` category.
+
+5. **On approve, author the next cluster** (step 1). For any section marked "Revise", re-author it AND any sections in the same cluster that depend on it, then re-fire the cluster's batched AUQ (max 3 revision rounds per cluster). After all 3 clusters approved → Phase 6.
+
+Literal cluster-1 batched AUQ:
+
+```yaml
+questions:
+  - header: "Objective"
+    question: "Approve the objective?"
+    options:
+      - label: "Approve (Recommended)"
+        preview: |
+          DECISION: Add a /backfill endpoint that re-derives per-user
+          telemetry counts on demand.
+          WHY: src/telemetry/aggregate.ts:120 shows counts drift after
+          retroactive event edits; chosen approach = service-layer fan-out.
+          HOW: /geniro:implement adds BackfillController.run() calling the queued
+          BackfillQueue service; no schema change to events.
+          Example: "User triggers /backfill → counts reconcile within 30s."
+      - label: "Revise — I'll describe"
+        preview: |
+          Current: "Add a /backfill endpoint that re-derives per-user
+          telemetry counts on demand."
+          Type your revision in Other; I'll re-author and re-ask.
+      - label: "Skip — accept as-is"
+        preview: |
+          Objective accepted unchanged; downstream sections build on it.
+  - header: "In scope"
+    question: "Approve what's in scope?"
+    options:
+      - label: "Approve (Recommended)"
+        preview: |
+          DECISION: BackfillController + BackfillQueue service + per-user
+          job class are in scope.
+          WHY: integration surface from Phase 1 — src/jobs/ already hosts
+          a queue runner (src/jobs/runner.ts:40); reuse it.
+          HOW: /geniro:implement touches src/telemetry/, src/jobs/, src/api/routes.ts.
+          Example: bullets map to src/jobs/BackfillQueue.ts (new), routes.ts (edit).
+      - label: "Revise — I'll describe"
+        preview: |
+          Current: BackfillController + BackfillQueue + per-user job class.
+          Type your revision in Other; I'll re-author and re-ask.
+      - label: "Skip — accept as-is"
+        preview: |
+          In-scope list accepted; /geniro:implement edits exactly these surfaces.
+  - header: "Out of scope"
+    question: "Approve what's out of scope?"
+    options:
+      - label: "Approve (Recommended)"
+        preview: |
+          DECISION: Event-schema migration and the admin dashboard are
+          out of scope.
+          WHY: Phase 4 chosen approach reuses existing schema; dashboard is
+          a separate Linear epic (no file in the touched surface).
+          HOW: /geniro:implement will NOT touch src/db/schema.ts or src/admin/.
+          Example: "Backfill runs against the current events table as-is."
+      - label: "Revise — I'll describe"
+        preview: |
+          Current: schema migration + admin dashboard excluded.
+          Type your revision in Other; I'll re-author and re-ask.
+      - label: "Skip — accept as-is"
+        preview: |
+          Exclusions accepted; out-of-scope work stays out.
+```
+
+**Tier-scaling.** Sections 4 / 5 / 10 may be "none — task scope precludes" for Trivial/Small tasks — note these in the cluster lead-in rather than firing an approval question. At Trivial tier the clusters may collapse to 1-2 batched AUQs; the default 3-cluster grouping applies to Medium/Big.
+
+Empty AUQ options (`Approve / Revise / Skip` text only) degrade trust ("the skill is just clicking through"); the ADR-style `preview` makes each option load-bearing — it re-explains what was decided, why, and how /geniro:implement will build it.
 
 ### 4.2 Milestone-mode AUQ (Big tasks only)
 
@@ -150,7 +247,7 @@ options:
   - label: "Slice into milestones"            # Recommended for Big
     description: "Model proposes 3-7 milestone names; user approves; the spec write step emits sibling milestone-N.md files alongside spec.md."
   - label: "Keep as a single spec"
-    description: "The spec write step emits only spec.md; /implement consumes the whole thing."
+    description: "The spec write step emits only spec.md; /geniro:implement consumes the whole thing."
 ```
 
 If "Slice into milestones" picked:
@@ -159,7 +256,7 @@ If "Slice into milestones" picked:
 2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 10-section schema scoped to the milestone.
 3. Persist to `approvals[]` with category `milestone_slice`.
 
-Hand-off (Phase 9) offers `/implement milestone 1` for sliced specs. Milestone-mode fires only when the task warrants it — for Medium/Trivial, the milestone-mode AUQ does not fire.
+Hand-off (Phase 9) offers `/geniro:implement milestone 1` for sliced specs. Milestone-mode fires only when the task warrants it — for Medium/Trivial, the milestone-mode AUQ does not fire.
 
 ---
 

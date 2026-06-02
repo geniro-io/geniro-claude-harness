@@ -102,7 +102,7 @@ For each detected smell, score its change impact before including it in the plan
 
 ## Phase 2: Refactoring Plan
 
-The orchestrator builds a structured, prioritized plan in /refactor SKILL.md (plan-build), persisted to state.md `## Plan steps`. Plan-line schema:
+The orchestrator builds a structured, prioritized plan in /geniro:refactor SKILL.md (plan-build), persisted to state.md `## Plan steps`. Plan-line schema:
 
 ```
 - step: <N>
@@ -121,7 +121,7 @@ The orchestrator builds a structured, prioritized plan in /refactor SKILL.md (pl
  last_post_check: <PASS|FAIL|REVERTED|unset>
 ```
 
-HIGH-risk steps require user confirmation via /refactor AUQ before Phase 2 executes them.
+HIGH-risk steps require user confirmation via /geniro:refactor AUQ before Phase 2 executes them.
 
 ---
 
@@ -137,7 +137,7 @@ For each transformation in `## Plan steps`:
 
 2. **Pre-condition check** — required only when one of the following holds: (a) this is the FIRST transformation in the plan (no `last_post_check` recorded yet), OR (b) `last_post_check` is unset OR `last_post_check == REVERTED` (the previous step entered the Blocked Step Protocol and was reverted — the revert touched the working tree but no post-condition was successfully recorded, so the baseline must be re-verified before the next transformation), OR (c) anything other than this skill's transformations has touched the working tree since the last post-check (e.g., user interrupt that the session routed back). For step 2..N when `last_post_check == PASS`, **skip the pre-condition test** — the post-condition of the previous step already verified the same baseline (no edits intervene between consecutive transformations in this strictly-sequential atomic protocol). Skipping eliminates ~50% of test runs in the typical N-step plan (2N → N+1).
 
- **Test command selection:** if CLAUDE.md's Essential Commands section defines `<test_cmd_affected>` (an incremental command that targets only tests affected by the current diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`), use it for the per-step pre-check and per-step post-check below — these are tight per-step gates, not regression gates. /refactor Phase 1 Step 6 (final) baseline and Phase 2.4 final regression run keep `<test_cmd>` (full suite). If `<test_cmd_affected>` is not defined in CLAUDE.md, fall back to `<test_cmd>` (current behavior).
+ **Test command selection:** if CLAUDE.md's Essential Commands section defines `<test_cmd_affected>` (an incremental command that targets only tests affected by the current diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`), use it for the per-step pre-check and per-step post-check below — these are tight per-step gates, not regression gates. /geniro:refactor Phase 1 Step 6 (final) baseline and Phase 2.4 final regression run keep `<test_cmd>` (full suite). If `<test_cmd_affected>` is not defined in CLAUDE.md, fall back to `<test_cmd>` (current behavior).
 
  When the pre-condition IS required, run tests via backpressure to preserve context:
  ```bash
@@ -188,7 +188,7 @@ Per-step blocked rationale schema in state.md:
 
 ## Phase 4: Structured Reporting
 
-After all transformations, /refactor emits the completion summary using this schema:
+After all transformations, /geniro:refactor emits the completion summary using this schema:
 
 ```
 Refactoring Summary
@@ -257,4 +257,4 @@ Stop the entire refactoring session when:
 
 ## Git Operations
 
-No Git operations from within this protocol. The /refactor skill's verify phase and user-driven commits handle all version control. Do NOT run `git add`, `git commit`, `git push`, `git checkout` during atomic application.
+No Git operations from within this protocol. The /geniro:refactor skill's verify phase and user-driven commits handle all version control. Do NOT run `git add`, `git commit`, `git push`, `git checkout` during atomic application.

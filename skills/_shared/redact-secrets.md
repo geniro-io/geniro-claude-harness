@@ -8,7 +8,7 @@
 
 L2 episodic memory (`.geniro/knowledge/learnings.jsonl`) is append-only and shareable. A leaked JWT or AWS key written into a `summary` or `body` field stays forever and propagates to every teammate who clones the repo. Sanitization runs on every write; the audit log makes redaction observable.
 
-The same helper is reusable from any future skill that wants to sanitize free-form text before persisting (e.g. `/debug` writing a diagnosis to L2, `/review` recording a finding).
+The same helper is reusable from any future skill that wants to sanitize free-form text before persisting (e.g. `/geniro:debug` writing a diagnosis to L2, `/geniro:review` recording a finding).
 
 ## API
 

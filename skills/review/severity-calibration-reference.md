@@ -54,7 +54,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Edge-case bug with low likelihood (the edge case must be reachable)
 - Missing test coverage where the uncovered path has a documented failure mode
 - Maintainability or clarity issue with concrete user-visible impact
-- Convention drift on a required field (e.g., missing required `risk_class:` per CLAUDE.md `/actions` contract — MEDIUM because tooling depends on it)
+- Convention drift on a required field (e.g., missing required `risk_class:` per CLAUDE.md `/geniro:actions` contract — MEDIUM because tooling depends on it)
 
 **Excludes:**
 - Documentation polish, PR-description verbosity, comment wording — LOW (never MEDIUM)

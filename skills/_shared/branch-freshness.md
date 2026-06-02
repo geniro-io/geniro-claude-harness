@@ -21,7 +21,7 @@ Consumers: `/geniro:implement` (both modes), `/geniro:plan`, `/geniro:debug`, `/
 
 | Mode | Fires when | What it does |
 |---|---|---|
-| **FRESH-BASE** | A skill is about to CREATE a new branch or worktree (`/implement` Step 0, "New feature branch" / "Git worktree" options). | Cut the new branch/worktree from the latest default-branch tip instead of from wherever HEAD currently sits. |
+| **FRESH-BASE** | A skill is about to CREATE a new branch or worktree (`/geniro:implement` Step 0, "New feature branch" / "Git worktree" options). | Cut the new branch/worktree from the latest default-branch tip instead of from wherever HEAD currently sits. |
 | **FRESH-CONTINUE** | A skill is about to continue work on an EXISTING branch (auto-continue paths, "Current branch", or any skill entered on a feature branch). | If the branch is behind the default branch, offer to bring it up to date before work starts. Skip silently when already current. |
 
 Run the gate AFTER the workspace decision is known but BEFORE the first code edit / spec write / investigation. Skip the gate entirely on a compaction-resume (the branch was already synced when the run first started — re-asking on every resume is noise).

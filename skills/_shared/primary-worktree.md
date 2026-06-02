@@ -52,22 +52,22 @@ These are intended to outlive any single task. The resolver applies to both read
 
 | Artifact | Producer(s) | Consumer(s) | Notes |
 |---|---|---|---|
-| `.geniro/knowledge/learnings.jsonl` | `/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/onboard`, `/investigate` | every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
-| `.geniro/state/handoff/from-debug-<branch>.md` | `/debug` Phase 3 | `/implement` Phase 1 Step 12 | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
-| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/debug` adversarial mode | `/implement` Phase 1 Step 1 | same handoff |
-| `.geniro/state/handoff/from-review-<branch>.md` | `/review` | `/implement` Phase 1 Step 12 (the handoff-persist step that gates on unresolved open questions) | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
-| `.geniro/planning/_FEATURES.md` | manual or `/plan` | `/implement` (binding), `/plan` | persistent registry |
-| `.geniro/planning/_CODEBASE_MAP.md` | `/onboard` | every skill that consults the map (`/implement`, `/plan`, `/debug`, `/review`, `/refactor`, `/investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` |
+| `.geniro/knowledge/learnings.jsonl` | `/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate` | every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
+| `.geniro/state/handoff/from-debug-<branch>.md` | `/geniro:debug` Phase 3 | `/geniro:implement` Phase 1 Step 12 | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
+| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/geniro:debug` adversarial mode | `/geniro:implement` Phase 1 Step 1 | same handoff |
+| `.geniro/state/handoff/from-review-<branch>.md` | `/geniro:review` | `/geniro:implement` Phase 1 Step 12 (the handoff-persist step that gates on unresolved open questions) | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
+| `.geniro/planning/_FEATURES.md` | manual or `/geniro:plan` | `/geniro:implement` (binding), `/geniro:plan` | persistent registry |
+| `.geniro/planning/_CODEBASE_MAP.md` | `/geniro:onboard` | every skill that consults the map (`/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` |
 | `.geniro/planning/_focus-<area>.md` | manual | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
-| `.geniro/workflow/<kind>.md` | manual / `/setup` | `/plan`, `/implement`, `/review`, `/refactor` | Tracker integration configs (Linear/Jira/GitHub-Issues/Asana); read with cwd-first / primary-fallback per per-site preambles |
-| `.geniro/actions/<slug>.md` | manual / `/actions create` | `/actions` (list/run/validate/delete) | User-authored workflow-helper actions; dual-glob with local-wins-on-slug-collision per `skills/actions/SKILL.md` Phase 5.0 Step 1 |
-| `.geniro/instructions/<scope>.md` | manual / `/setup` / `/instructions create` | every pipeline skill's Phase 1 `load-custom-instructions` invocation | L4 procedural memory (global / code-style / per-skill / review-extra/<slug>); cwd-first / primary-fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §"Resolve `PRIMARY_ROOT` once" |
+| `.geniro/workflow/<kind>.md` | manual / `/geniro:setup` | `/geniro:plan`, `/geniro:implement`, `/geniro:review`, `/geniro:refactor` | Tracker integration configs (Linear/Jira/GitHub-Issues/Asana); read with cwd-first / primary-fallback per per-site preambles |
+| `.geniro/actions/<slug>.md` | manual / `/geniro:actions create` | `/geniro:actions` (list/run/validate/delete) | User-authored workflow-helper actions; dual-glob with local-wins-on-slug-collision per `skills/actions/SKILL.md` Phase 5.0 Step 1 |
+| `.geniro/instructions/<scope>.md` | manual / `/geniro:setup` / `/geniro:instructions create` | every pipeline skill's Phase 1 `load-custom-instructions` invocation | L4 procedural memory (global / code-style / per-skill / review-extra/<slug>); cwd-first / primary-fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §"Resolve `PRIMARY_ROOT` once" |
 
 ## Artifacts NOT in scope (task-local — keep cwd-relative)
 
 These are intentionally ephemeral with the current task. Promoting them to the resolver would introduce false durability where none is wanted.
 
-- `.geniro/planning/<task-dir>/*` — spec.md, plan-*.md, state.md, concerns.md, notes.md, milestone-*.md. Removed at `/implement` Phase 3 ship-cleanup.
+- `.geniro/planning/<task-dir>/*` — spec.md, plan-*.md, state.md, concerns.md, notes.md, milestone-*.md. Removed at `/geniro:implement` Phase 3 ship-cleanup.
 - `.geniro/state/refactor/<slug>/state.md`, `.geniro/state/debug/<slug>/state.md`, `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md` — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
 
 If a within-skill state file is later promoted to cross-session use, add it to the cross-session table above.
@@ -89,4 +89,4 @@ If a within-skill state file is later promoted to cross-session use, add it to t
 - [ ] Every cross-session consumer reads through the same prefix
 - [ ] Subagents that read cross-session state receive narrow `*_ROOT` slots (`KNOWLEDGE_ROOT`, `DEBUG_ROOT`, `PLANNING_ROOT`, `TASK_PLANNING_ROOT`) in their spawn prompt — never a cwd-relative `.geniro/...` path
 - [ ] Within-skill state files remain cwd-relative (intentional, not regressed)
-- [ ] `/implement`'s workspace-setup question (Step 0), Git-worktree option, surfaces a one-line worktree-entry note that knowledge/handoff writes auto-route to the main worktree
+- [ ] `/geniro:implement`'s workspace-setup question (Step 0), Git-worktree option, surfaces a one-line worktree-entry note that knowledge/handoff writes auto-route to the main worktree

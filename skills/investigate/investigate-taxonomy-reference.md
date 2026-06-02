@@ -26,7 +26,7 @@ Detail sections extracted from `skills/investigate/SKILL.md` to keep the main sk
 │
 └── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
 ├── aborted (terminal)
-└── routed (terminal — question intent doesn't match /investigate scope; route to /onboard, /debug, etc.)
+└── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
 
 present ──┬── (happy: flows to done)
 └── present-loop ──┬── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
