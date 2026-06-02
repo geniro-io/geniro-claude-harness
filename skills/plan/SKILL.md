@@ -54,9 +54,9 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 0 | Mode detect | §"Phase 0 — Mode detect" |
 | 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
-| 3 | Clarifying questions (≤5 one-at-a-time, each option carries `preview`) | §"Phase 3 — Clarifying questions" |
+| 3 | Clarifying questions (≤5 total — independent ones batched into one AUQ, dependent ones sequenced; each option carries `preview`) | §"Phase 3 — Clarifying questions" |
 | 4 | Approaches (2-3 with Recommended first, each option carries `preview`) | §"Phase 4 — Approaches" |
-| 5 | Section approval (incremental authoring, fixed 10-section schema, milestone-mode, each option carries `preview`) | §"Phase 5 — Section approval" |
+| 5 | Cluster approval (fixed 10-section schema grouped into 3 dependency-ordered cluster gates, batched AUQ per cluster, ADR-style `preview` per option, milestone-mode) | §"Phase 5 — Section approval" |
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open) | §"Phase 7.5 — Spec challenge" |
@@ -108,7 +108,7 @@ This skill has **NO hard kill caps**. All limits are **escalation gates that sur
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Phase 3 clarifying-question count | ≤5 one-at-a-time AUQs | plan-loop.md | Force consolidation OR proceed with stated assumptions. |
+| Phase 3 clarifying-question count | ≤5 total (independent questions batched into one AUQ call, ≤4 per call; dependent ones sequenced) | plan-loop.md | Force consolidation OR proceed with stated assumptions. |
 | Phase 7 → Phase 6 auto-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | ~4K chars per agent | invariant #4 | Truncation with marker, not abort. |
@@ -118,7 +118,7 @@ This skill has **NO hard kill caps**. All limits are **escalation gates that sur
 - spec.md section count: exactly 10.
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
-**Rationale.** The ≤3 AUQ gates guideline applies to /implement, NOT /plan. /plan is a **clarification-heavy** skill — its job IS to ask questions (Phase 3 ≤5 + Phase 4 1 + Phase 5 up to 10 per-section + Phase 8 1 → ~17 AUQs typical, not 3).
+**Rationale.** The ≤3 AUQ gates guideline applies to /implement, NOT /plan. /plan is a **clarification-heavy** skill — its job IS to ask questions. Batching keeps the call count low while preserving quality: Phase 3 ≤5 questions delivered in 1-2 batched calls + Phase 4 ×1 + Phase 5 ×3 cluster gates + Phase 8 ×1 → ~6-7 AUQ calls typical (each Phase 5 cluster gate carries 3-4 questions in one call), not 3.
 
 ---
 
@@ -212,7 +212,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Section approve / Phase 6 Write / Phase 7 Validate / Phase 7.5 Spec challenge / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
+2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Approve plan in groups / Phase 6 Write / Phase 7 Validate / Phase 7.5 Spec challenge / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
 
 3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` end-to-end.
 
@@ -224,8 +224,8 @@ Do NOT reintroduce these anti-patterns:
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll pre-fill all 10 sections upfront so the user sees the whole plan, then ask per-section approval." | Pre-fill makes per-section AUQ redundant — the user has already read the content; the AUQ has nothing new to inspect. Author section N → AUQ on section N → on approve, author section N+1. Incremental authoring catches cross-section issues at the section that triggered them, not after the user has read 10 sections. |
-| "Per-section AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the section." | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Use the AskUserQuestion `preview` field on every option to carry concrete content (UI ASCII, code snippet, behavior trace). The chat becomes a one-line "Section: X — focus an option to inspect" announcement; the AUQ IS the rendered content. |
+| "I'll author all 10 sections, then fire 3 cluster AUQs at the end." | Two failure modes to avoid. (a) Rendering section bodies to chat then re-asking — the user has already read the content; the AUQ has nothing new to inspect (the M5-v1 redundancy). (b) Authoring all 10 sections before the first gate — cross-section issues surface only after the user has read the whole plan, too late to cheaply correct. The correct middle path is cluster-batched authoring in dependency order: author a cluster's sections → ONE batched AUQ with the content carried in the option `preview` fields → on approve, author the next cluster. Cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. |
+| "Cluster AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the sections." | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Each option's `preview` carries the section's ADR digest — Decision (what it commits to) → Why (rationale grounded in a Phase 1 finding + the chosen approach) → How (how /implement realizes it) — plus an ASCII diagram where it aids comprehension (esp. section 6 Steps) and the section's concrete example. The chat is a one-line cluster lead-in; the AUQ `preview` IS the rendered content. |
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /implement when the rendered UI doesn't match). |
 | "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections from prose — structurally-lossy. «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
 | "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |

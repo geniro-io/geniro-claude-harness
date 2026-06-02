@@ -195,19 +195,19 @@ Model identifies up to 5 highest-leverage ambiguities from:
 
 Questions MUST be grounded in Phase 1 findings. Generic «what tech stack?» questions are forbidden — the model can answer those from L3 `_project.md`.
 
-### 3.2 One-at-a-time AUQ shape
+### 3.2 AUQ shape — batch independent, sequence dependent
 
-Fire questions sequentially, **never** as a multi-question form. Each AUQ uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. **Every option carries a `preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview) — empty `Approve / Revise / Skip` options waste user attention. Full literal example with preview content in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+Batch independent clarifying questions into ONE `AskUserQuestion` call (up to 4 questions per call). Fire questions sequentially only when one question's answer changes another's options (a genuine dependency) — batching independent questions cuts wall-time and click-through. Each question uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. **Every option carries a `preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview) — empty options waste user attention. The ≤5-total cap (§3.4) holds across calls; if more than 4 independent questions exist, chain a second call rather than dropping or merging any question. Full literal example with batched questions + preview content in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 ### 3.3 Persistence
 
-Each answered AUQ → append entry to state.md frontmatter `approvals[]` via `atomic_state_write` BEFORE proceeding to the next question. Entry shape (category `clarify_<dim>` / prompt / options / picked / at / asked_in_phase) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. A batched AUQ returns all its answers at once — append one `approvals[]` entry per answer before proceeding past the batch (or to the next sequential question). Entry shape (category `clarify_<dim>` / prompt / options / picked / at / asked_in_phase) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 On compaction-resume, the SessionStart re-injector renders `approvals[]` and the model re-reads it to skip already-answered questions.
 
 ### 3.4 Cap exhaustion
 
-If a 6th clarification arises, force consolidation OR proceed to Phase 4 with stated assumptions. The 5-AUQ cap is a quality-first signal — more than 5 means Phase 1 underspecified OR the topic is too vague for a single /plan session.
+If a 6th clarification arises, force consolidation OR proceed to Phase 4 with stated assumptions. The 5-question cap is a quality-first signal — more than 5 means Phase 1 underspecified OR the topic is too vague for a single /plan session.
 
 ---
 
@@ -312,11 +312,25 @@ Every spec.md has exactly the same 10 sections — schema-stable downstream cons
 
 For Trivial tasks, sections 4 / 5 / 10 may have body content «none — task scope precludes» with brief rationale. Headers MUST exist; bodies MAY be «none with rationale».
 
-### 5.2 Per-section AUQ — incremental authoring
+### 5.2 Cluster approval — incremental authoring in dependency order
 
-One AUQ per section, sequentially. **Do NOT pre-fill all 10 sections in a batch** — pre-fill makes per-section approval redundant. Section N+1 is authored only after section N approval. Procedure: (1) author section N inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate; (2) fire AUQ with header `"Section: <name>"` and three options (Approve / Revise — I'll describe / Skip — accept as-is with warning) each carrying a `preview` field with concrete content; (3) persist pick to `approvals[]` with category `section_<id>`; (4) transition to section N+1.
+Group the 10-section schema into 3 dependency-ordered clusters, authored and gated in order. Each cluster fires ONE batched `AskUserQuestion` call carrying one question per section (within the 4-question-per-call cap):
 
-Max 3 revisions per section. Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md`. Full procedure + Option preview templates in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.1.
+| Cluster | Plain-English name | Sections |
+|---|---|---|
+| 1 | Goal & scope | 1 Objective, 2 Scope-Included, 3 Scope-Excluded |
+| 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required |
+| 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition |
+
+Author cluster N's sections → fire the cluster's batched AUQ → on approve, author cluster N+1. Cluster 1 (Goal & scope) is approved before cluster 2 is authored, so each cluster is grounded in the prior cluster's approved content; this keeps cross-section issues catchable while preserving dependency order. **Do NOT author all 10 sections before the first gate**, and **do NOT render section bodies to chat before the AUQ** — the content lives in the option `preview` fields.
+
+Per cluster: (1) author the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate; (2) print a one-line chat companion (e.g., `"Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each."`); (3) fire ONE batched AUQ with one question per section, each question's three options (Approve — Recommended / Revise — I'll describe / Skip — accept as-is) carrying an ADR-style `preview` (Decision → Why → How → optional ASCII diagram → concrete example); (4) persist each section pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`) — the cluster is a presentation grouping only, no `cluster_<id>` category; (5) on approve, author the next cluster.
+
+For any section marked "Revise", re-author it AND any sections in the same cluster that depend on it, then re-fire the cluster's batched AUQ. Max 3 revision rounds per cluster.
+
+**Tier-scaling.** For Trivial/Small tasks, sections 4 / 5 / 10 may be "none — task scope precludes". A "none with rationale" section does NOT get its own approval question — include it as a one-line note in the cluster's chat lead-in instead. At Trivial tier the clusters may collapse to 1-2 batched AUQs; the default 3-cluster grouping applies to Medium/Big.
+
+Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md`. Full cluster AUQ template + ADR preview shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.1.
 
 ### 5.3 Milestone-mode
 
@@ -529,10 +543,10 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 1 loaded L4 + L3 + L2 (full tier); per-spawn Echo contract entries persisted to `## Tool log`.
 - [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs` (skipped when no tracker reference).
 - [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
-- [ ] Phase 3 used `AskUserQuestion` one-at-a-time, ≤5 questions, single dimension per question; each option carried a `preview` field; each answer persisted to `approvals[]`.
+- [ ] Phase 3 batched independent clarifying questions into one `AskUserQuestion` call (≤4 per call, dependent questions fired sequentially), ≤5 questions total; each option carried a `preview` field; each answer persisted to `approvals[]`.
 - [ ] Phase 4 presented 2-3 approaches with Recommended first; each option carried a `preview` (ASCII sketch + code identifier + tradeoff); pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
 - [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); critique verdicts carried into the AUQ preview + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
-- [ ] Phase 5 used per-section AUQ for the fixed 10-section schema; incremental authoring (section N → AUQ → on approve author N+1); each option carried a `preview` field; each pick persisted to `approvals[]`.
+- [ ] Phase 5 grouped the fixed 10-section schema into 3 dependency-ordered clusters (Goal & scope / Approach & steps / Safety & done); authored cluster-by-cluster in order, each gated by ONE batched AUQ (one question per section); each option carried an ADR-style `preview` (Decision → Why → How → optional diagram → example); each section pick persisted to `approvals[]` category `section_<id>` (no `cluster_<id>` category introduced).
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
 - [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present.
 - [ ] Phase 6 did NOT auto-commit.
@@ -552,8 +566,8 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 |---|---|
 | "This task is too simple to need a design" | "Simple" projects are where unexamined assumptions cause the most wasted work. Design can be short (Phase 5 Trivial = sections 4 / 5 / 10 with body «none with rationale»); presenting and approving is mandatory. HARD-GATE applies to EVERY task. |
 | "I'll skip Phase 8 user re-review, my Phase 7 validator is enough" | Validator catches mechanical defects (placeholders / contradictions / scope creep); user catches intent defects (wrong abstraction / missing constraint). Different defect classes; both required. |
-| "I'll pre-fill all 10 sections upfront so the user sees the whole plan, then ask per-section approval" | Forbidden. Pre-fill makes per-section AUQ redundant — the user has already read the content; the AUQ then has nothing new to inspect. Author section N → AUQ on section N → on approve, author section N+1. Incremental authoring catches cross-section issues at the section that triggered them, not after the user has read 10 sections. |
-| "Per-section AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the section" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Use the AskUserQuestion `preview` field on every option to carry concrete content (UI ASCII, code snippet, behavior trace). The chat becomes a one-line "Section: X — focus an option to inspect" announcement; the AUQ IS the rendered content. |
+| "I'll author all 10 sections, then fire 3 cluster AUQs at the end" | Two failure modes to avoid. (a) Rendering section bodies to chat then re-asking — the user has already read the content; the AUQ has nothing new to inspect (the M5-v1 redundancy). (b) Authoring all 10 sections before the first gate — cross-section issues surface only after the user has read the whole plan, too late to cheaply correct. The correct middle path is cluster-batched authoring in dependency order: author a cluster's sections → ONE batched AUQ with the content carried in the option `preview` fields → on approve, author the next cluster. Cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. |
+| "Cluster AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the sections" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Each option's `preview` carries the section's ADR digest — Decision (what it commits to) → Why (rationale grounded in a Phase 1 finding + the chosen approach) → How (how /implement realizes it) — plus an ASCII diagram where it aids comprehension (esp. section 6 Steps) and the section's concrete example. The chat is a one-line cluster lead-in; the AUQ `preview` IS the rendered content. |
 | "I'll write the design doc with only the YAML frontmatter — that's enough" | Defense in depth requires all three markers (path + HTML comment + frontmatter). See `design-doc-detect.md` § Why defense in depth — each marker survives a different user action. |
 | "Phase 4 — 4 or 5 approaches gives the user more choice" | More than 3 indicates Phase 3 didn't narrow scope; loop back to Phase 3 with a tighter scope-boundary question. |
 | "My §4.1 approaches are well-reasoned — the §4.2 stress-test is redundant overhead" | The model that authored the approaches shares their blind spots; ranking them in the same context re-confirms its own bias rather than testing it. An independent codebase-grounded critic catches blockers the author cannot see from generation context alone — hidden coupling, a previously-rejected shape in L2, a convention conflict — which is the load-bearing reason `Recommended` is set from evidence, not self-confidence. It is tier-scaled (skipped on Trivial) so the cost lands only where a wrong approach is expensive. |
@@ -563,5 +577,5 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 | "Phase 0 Refine path saves three phases of re-work — keep it" | Refine re-derives sections from prose — structurally-lossy. Downstream consumers parse a malformed spec.md. «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
 | "Hand-off menu should keep `/features add` for backlog discipline" | A «backlog» IS a spec.md saved on disk. No separate skill needed. |
 | "Auto-default empty AUQ answer to the Recommended option" | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
-| "Add a wall-time / token kill cap so runaway /plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /plan has bounded gates (Phase 3 ≤5 AUQs, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
+| "Add a wall-time / token kill cap so runaway /plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /plan has bounded gates (Phase 3 ≤5 questions, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4" | Hooks fail for a reason. Investigate root cause, not bypass. CLAUDE.md-level prohibition; honors it. |

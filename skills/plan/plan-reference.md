@@ -25,7 +25,7 @@ If the user really wants to surgically edit an existing design doc bypassing Pha
 
 ## Concrete-example per section type
 
-Phase 5 per-section AUQ (`plan-loop.md` §5.2) requires every `Approve` option to carry the section content PLUS one concrete example in its `preview` field. The shape of "concrete example" depends on section type:
+Phase 5 cluster AUQ (`plan-loop.md` §5.2) requires every `Approve` option to carry an ADR-style digest (Decision → Why → How → optional ASCII diagram) PLUS one concrete example in its `preview` field. This table supplies the example that drops into each section's question `preview`, after the DECISION/WHY/HOW lines. The shape of "concrete example" depends on section type:
 
 | Section | Example shape (drop into the `preview` after the section body) |
 |---|---|
@@ -40,7 +40,7 @@ Phase 5 per-section AUQ (`plan-loop.md` §5.2) requires every `Approve` option t
 | 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
 | 11. Done Condition | Observable signal phrase: «all 5 acceptance tests green AND telemetry shows ≥1 successful event insert» |
 
-The example IS the section content rendered in `preview` — the orchestrator does NOT render the section to chat AND THEN open the AUQ. It opens the AUQ with the section content already in `preview`. The chat says one short line («Section: <name> — focus an option to inspect»). Removes the «I already see the plan» redundancy.
+The example closes out each section's `preview`, below the DECISION/WHY/HOW lines — the orchestrator does NOT render section bodies to chat AND THEN open the AUQ. Each cluster fires ONE AUQ call with one question per section, the content already in each option's `preview`. The chat says one short cluster lead-in («Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each.»). Removes the «I already see the plan» redundancy.
 
 ---
 
