@@ -272,14 +272,15 @@ Transition to Phase 3.
 
 If `mode == re-run`, run a migration sweep before generating content. This ensures the `.geniro/` directory structure is current before CLAUDE.md and instructions are regenerated.
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries across ALL `## v<X.Y.Z>` sections (a user re-running `/setup` could be coming from any prior version — sweep all entries, let auto-detect determine relevance).
-2. For each entry with an `Auto-detect:` field, run the shell command. Capture output.
+1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries across ALL `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble: the version heading is not a selection gate, and each entry's read-only auto-detect decides relevance (a user re-running `/setup` could be coming from any prior version; sweep all entries).
+2. For each entry with an `Auto-detect:` field, run the shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the sweep mid-way. Capture output.
 3. If output non-empty (user IS affected):
-   - If entry has an `Auto-fix:` field (not `manual-only`): run the auto-fix commands silently. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
+   - If the entry's `Auto-fix:` is non-destructive (no `rm`, `-delete`, or `-exec rm`): run it silently via `bash -c`. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
+   - If the entry's `Auto-fix:` is destructive (contains `rm`, `-delete`, or `-exec rm`): do NOT apply it silently — a silent destructive sweep can delete working state the user would have chosen to keep. Log to `## Open Questions`: `[<ts>] migration destructive fix NOT auto-applied: <change-name> — run /geniro:update to apply it interactively per-entry`.
    - If entry is `manual-only`: log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
-4. After sweep, re-run all `Auto-detect:` commands to verify. Any still-affected entries are logged to `## Open Questions`.
+4. After sweep, re-run all `Auto-detect:` commands via `bash -c` to verify. Any still-affected entries are logged to `## Open Questions`.
 
-**No AUQ during migration sweep.** Setup re-run is already user-initiated — the user expects the plugin to bring their project up to date. Auto-fix commands are maintainer-written and tested (same commands `/update` surfaces with "Fix it for me"). Manual-only entries are either handled by Phase 3 regeneration (CLAUDE.md refresh) or surfaced in the final report.
+**No question during the sweep, but destructive fixes are surfaced, not auto-applied.** Setup re-run is user-initiated, so safe mechanical fixes (renames, field additions, mkdir) apply silently. Destructive fixes (rm/delete-class) are never silently applied — they are logged to `## Open Questions` for the user to apply through `/geniro:update`'s per-entry walk, so the sweep cannot reverse a deletion the user deliberately deferred. Auto-fix commands are maintainer-written and tested (same commands `/update` surfaces with "Fix it for me").
 
 **Init mode skips this step entirely** — fresh installs write the current schema directly.
 

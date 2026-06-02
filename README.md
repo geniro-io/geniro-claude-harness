@@ -214,7 +214,7 @@ When invoked from a linked git worktree, `run` falls back to the main worktree's
 
 ### `/geniro:update` — Update plugin
 
-4-phase stateless loop (Pre-check → Update → Post-check → Migration). Pre-update version-confirm AUQ. User-content snapshot at Pre-check + survival diff at Post-check (catches silent corruption). 4-retry exponential backoff (2s/4s/8s/16s) on network errors. Hash-check sanity mode. **Phase 4 MIGRATION.md reader** — for each user-affected breaking change, surfaces "Show me how to fix" / "Skip for now" / "Cancel walk"; NEVER auto-applies fixes. Restart-session warning always emitted.
+4-phase stateless loop (Pre-check → Update → Post-check → Migration). Pre-update version-confirm AUQ. User-content snapshot at Pre-check + survival diff at Post-check (catches silent corruption). 4-retry exponential backoff (2s/4s/8s/16s) on network errors. Hash-check sanity mode. **Phase 4 MIGRATION.md reader** — for each user-affected breaking change, offers "Fix it for me (Recommended)" / "Show me how to fix" / "Skip for now" / "Cancel walk"; "Fix it for me" runs only the maintainer-written `Auto-fix:` command for that entry, then re-verifies. Restart-session warning always emitted.
 
 ```
 /geniro:update
