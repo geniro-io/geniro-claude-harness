@@ -9,7 +9,7 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 # Investigate: Deep Codebase Q&A
 
-3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/implement`, `/debug`, `/refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, fresh-reviews, and presents the answer.
+3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/geniro:implement`, `/geniro:debug`, `/geniro:refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, fresh-reviews, and presents the answer.
 
 Section-reference convention: local refs like Phase X are within this SKILL.md.
 
@@ -30,7 +30,7 @@ The canonical loop invariants apply, with three skill-specific notes:
 
 ## Quality-first budgets
 
-Quality-first framing: /investigate has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
+Quality-first framing: /geniro:investigate has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -42,7 +42,7 @@ Quality-first framing: /investigate has **NO Class-A hard kill caps**. All limit
 - Parallel research agents — 1 to 3 per Phase 1 classification; never add beyond classified set.
 - Skip criteria apply ONLY to prune from classified set; never add.
 
-**Claude Code internals** (not under /investigate control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
+**Claude Code internals** (not under /geniro:investigate control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
 
 **Explicitly NOT capped:** wall-time per run; total Read/Grep/WebSearch calls; total cost per run (deferred to a future release).
 
@@ -113,11 +113,11 @@ When the question classifies as **External docs lookup** (Internet only — no p
 
 Fire `AskUserQuestion` (header "Research depth"):
 - **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
-- **Options**: "Run /deep-research instead" / "Continue with /investigate"
+- **Options**: "Run /deep-research instead" / "Continue with /geniro:investigate"
 
 On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate (`phase: routed`) — do NOT auto-invoke. On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no WebSearch tool), skip this step silently and continue.
 
-This routing fires ONLY for the Internet-only classification — any question that needs code or git evidence stays in /investigate, since `/deep-research` has no codebase or git access.
+This routing fires ONLY for the Internet-only classification — any question that needs code or git evidence stays in /geniro:investigate, since `/deep-research` has no codebase or git access.
 
 ### Step 2: Identify scope
 
@@ -312,7 +312,7 @@ If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` 
 - **Header:** "Next step"
 - **Options:**
 - label: "Fix a bug I found" — description: "Run `/geniro:debug <symptom>` to investigate and propose a fix"
-- label: "Implement a change" — description: "Run `/geniro:implement` to design and build the change (consumes a spec.md from /plan OR inline-task mode)"
+- label: "Implement a change" — description: "Run `/geniro:implement` to design and build the change (consumes a spec.md from /geniro:plan OR inline-task mode)"
 - label: "Plan a bigger change" — description: "Run `/geniro:plan <feature>` to draft an approved spec first"
 - label: "Nothing — just wanted the answer" — description: "End here. Resume your prior work." — terminal `present-summary-only`
 
@@ -341,7 +341,7 @@ EOF
 **Trust label:**
 - `trust: verified` — investigation was code-grounded only (no WebFetch/WebSearch agents spawned, OR WebFetch results were not load-bearing to the final answer).
 - `trust: retrieved` — WebFetch/WebSearch findings were load-bearing to the final answer.
-- `trust: inferred` — N/A for /investigate (model-deduced claims do not pass Evidence Standard's confidence-driven action).
+- `trust: inferred` — N/A for /geniro:investigate (model-deduced claims do not pass Evidence Standard's confidence-driven action).
 
 Default trust: `retrieved` if WebFetch/WebSearch was load-bearing; `verified` if code-grounded only. No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS sufficient for baseline awareness.
 
@@ -408,11 +408,11 @@ Check these rationalizations before drifting from the procedure.
 | "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence. Phase 3 Step 1 confidence-driven action requires verified / re-verify / ask-user / omit — there is no "ship with caveat" path. |
 | "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
 | "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
-| "Auto-promote /investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
+| "Auto-promote /geniro:investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
 | "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5. Issue threads contain speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
 | "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field. Future readers (later retrieval or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
 | "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | If CLAUDE.md has a Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. Always run the check when Domain Context is present. |
-| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | The 5-step cadence is what makes /investigate evidence-disciplined; dropping it would let claims drift from evidence. Step 2.6 is the audit trail that makes JIT discipline reviewable. |
+| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | The 5-step cadence is what makes /geniro:investigate evidence-disciplined; dropping it would let claims drift from evidence. Step 2.6 is the audit trail that makes JIT discipline reviewable. |
 
 ## Definition of Done
 

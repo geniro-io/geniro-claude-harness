@@ -20,7 +20,7 @@ The skill's documented on-disk deliverable (handoff file, reproduction test, or 
 
 The skill's documented `AskUserQuestion` options are an allowlist. Do not substitute an ad-hoc question — no "apply the fix now", no "add the test now", no "what next?". If the user asks mid-run for a fix to be applied, surface that this exceeds the skill's reporter scope and offer to hand off to `/geniro:implement`. Do not silently become a fixer.
 
-Routing findings to `/geniro:implement` hands off work to fix, not authority to ship. The action-gate pick ("/implement findings") authorizes /implement to apply the fixes; /implement still runs its own ship gate before any commit or push. A Reporter's action-gate selection never pre-authorizes the downstream push — an "apply the findings" approval is not ship consent.
+Routing findings to `/geniro:implement` hands off work to fix, not authority to ship. The action-gate pick ("/geniro:implement findings") authorizes /geniro:implement to apply the fixes; /geniro:implement still runs its own ship gate before any commit or push. A Reporter's action-gate selection never pre-authorizes the downstream push — an "apply the findings" approval is not ship consent.
 
 ### 3. State writes via atomic_state_write
 

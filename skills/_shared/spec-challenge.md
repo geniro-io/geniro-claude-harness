@@ -35,7 +35,7 @@ Caller invokes:
 | `MODE` | `plan` (post-write, pre-approval) or `implement` (Phase 1, pre-edit). Branches per-skill behavior — see §2. |
 | `SPEC_PATH` | Path to the `spec.md` to challenge. |
 | `TASK_DIR` | Planning task-dir; scratch output lands at `<TASK_DIR>/.spec-challenge-out.md`. |
-| `EFFORT_TIER` | Informational only — the caller's native scope signal (`/plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/implement`: codebase-explorer `change_scope` `trivial\|medium\|big`). Context for the synthesis judge's risk calibration, NOT a gate. This pass is always-on. |
+| `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|medium\|big`). Context for the synthesis judge's risk calibration, NOT a gate. This pass is always-on. |
 
 **Always-on, no tier skip.** The pass runs even on Trivial. "Always-on" does not mean "unbounded" — the cost is bounded by the spec's own cited-claim set (§3): one verifier per cited claim, scaling to claim count rather than every sentence. A Trivial spec cites few claims and gets a small batch; a Big spec cites many and gets a larger one. Tiering the SKIP decision was the rejected design — a Trivial spec with one wrong `file:line` is exactly the cheap-but-fatal case the pass catches. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, nothing more.
 
@@ -66,17 +66,17 @@ Read `SPEC_PATH` fully. Build the verifiable-claim set from the three places a s
 2. **Section 4 (Assumptions).** Each assumption is an explicit factual predicate about the codebase or environment ("the `users` table has a `deleted_at` column", "the job runs at most once per minute"). Each is a claim.
 3. **Frontmatter `budget` and `effort_tier`.** These are estimate-claims (write volume, time budget, row counts, tier sizing). A miscounted estimate — like the 12x write-volume miss — is a defect class this pass exists to catch, so estimate-claims enter the set.
 
-Record each claim with its source location and the literal asserted fact. This bounded set is the input to §4 — one verifier per claim, no more. Verifier count scales to the claim count, mirroring how `/review` verifies every survivor over a pre-bounded survivor set.
+Record each claim with its source location and the literal asserted fact. This bounded set is the input to §4 — one verifier per claim, no more. Verifier count scales to the claim count, mirroring how `/geniro:review` verifies every survivor over a pre-bounded survivor set.
 
 If the spec cites zero verifiable claims (e.g. a pure meta-step spec), skip §4 and note it in the scratch report; §5/§6/§7 still run.
 
 ## 4. Stage B — VERIFY claims (both modes)
 
-Spawn one verifier per cited claim. This stage reuses the `/review` per-finding verifier contract — read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` fully and mirror it. The two differences from `/review` are the polarity and the source of the "finding":
+Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-finding verifier contract — read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` fully and mirror it. The two differences from `/geniro:review` are the polarity and the source of the "finding":
 
-**Polarity flip.** The `/review` verifier asks "does the claimed DEFECT exist in the cited code?" The spec-claim verifier asks "is this asserted FACT true in the cited code?" Frame the spec claim as the thing under test; `validation: confirmed` means the fact holds, `validation: refuted` means the cited code contradicts the asserted fact, `validation: clarified` means the fact is partly true but the spec's framing is off (e.g. the column exists but is nullable when the step assumes NOT NULL).
+**Polarity flip.** The `/geniro:review` verifier asks "does the claimed DEFECT exist in the cited code?" The spec-claim verifier asks "is this asserted FACT true in the cited code?" Frame the spec claim as the thing under test; `validation: confirmed` means the fact holds, `validation: refuted` means the cited code contradicts the asserted fact, `validation: clarified` means the fact is partly true but the spec's framing is off (e.g. the column exists but is nullable when the step assumes NOT NULL).
 
-**Refute by default.** Mirror the `/review` stance: the verifier's job is to disprove the claim, not to rubber-stamp it. A claim survives only when the cited code, read directly, bears it out.
+**Refute by default.** Mirror the `/geniro:review` stance: the verifier's job is to disprove the claim, not to rubber-stamp it. A claim survives only when the cited code, read directly, bears it out.
 
 ### Input contract per verifier
 
@@ -105,7 +105,7 @@ evidence: "<literal quote from the cited file:line that confirms or refutes the 
 
 Compose the verifier prompt to reuse `agents/reviewer-agent.md` verify-finding mode as-is — frame the spec claim as the "finding body" and state the polarity flip ("verify the asserted FACT is true, not that a defect exists") in the prompt. No agent edit is needed: the agent's verify-finding mode already takes a single claim-like body + cited slice + caller grep + sibling tests and emits the `validation / confidence / evidence` schema; the polarity lives in the prompt framing, not the agent's schema.
 
-Spawn via the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:reviewer-agent` → bare → general-purpose-with-body). OMIT `model=` so verifiers inherit the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Send ALL verifier spawns in ONE assistant response — separate turns serialize execution and double wall-time; the parallel-spawn invariant applies here exactly as in `/review` Phase 4.2.
+Spawn via the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:reviewer-agent` → bare → general-purpose-with-body). OMIT `model=` so verifiers inherit the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Send ALL verifier spawns in ONE assistant response — separate turns serialize execution and double wall-time; the parallel-spawn invariant applies here exactly as in `/geniro:review` Phase 4.2.
 
 Aggregate: any `refuted` claim is a defect; `clarified` is a soft defect (the spec's framing needs a fix); `confirmed` claims pass. Record each result in the scratch report.
 
@@ -178,7 +178,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 |---|---|
 | "This is a Trivial task — skip the challenge to save time." | The pass is always-on by design. A Trivial spec with one wrong `file:line` is the cheap-but-fatal case the pass exists to catch; the cost is bounded to the spec's cited claims, which for a Trivial spec is a small batch. Tier gates the judge's risk tolerance, not whether the pass runs. |
 | "The spec was just written/approved, so its claims are probably correct — confirm them." | "Probably correct" is the exact posture the pass refutes. The three defects that motivated this pass all lived in an approved spec that read as plausible. Re-read the cited code; a claim survives only when the code bears it out. |
-| "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to file:line citations + assumptions + estimates, mirroring how `/review` verifies every survivor over a bounded set. Wall-time is ~max(spawn-time) because the batch is parallel. Sampling reintroduces the miss the pass eliminates. |
+| "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to file:line citations + assumptions + estimates, mirroring how `/geniro:review` verifies every survivor over a bounded set. Wall-time is ~max(spawn-time) because the batch is parallel. Sampling reintroduces the miss the pass eliminates. |
 | "A verifier said the claim looks consistent — that's a confirm." | "Looks consistent" is a paraphrase, not evidence. The output contract requires a literal quote from the cited file. Refuse the paraphrase-only verdict and re-prompt — the evidence standard forbids reasoning-as-evidence. |
 | "In implement mode a claim is refuted, so I'll just fix the spec and keep going." | Implement mode does not rewrite the user's approved spec — that re-opens a signed-off design and forces a producer-schema lockstep. Fire the AskUserQuestion and let the user choose proceed / fix-via-plan / abort. The helper verifies facts; the user owns the design. |
 | "The implement-mode pass came back clean — I'll surface a confirmation question anyway." | A question with nothing to decide is noise and breaks the always-WAIT-restraint norm. On a clean pass, emit the silent advisory line and proceed. Reserve the AUQ for a real refuted-claim-or-blocking-risk decision. |

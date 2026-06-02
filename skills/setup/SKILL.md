@@ -46,13 +46,13 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` 
 
 ## Budgets — quality-first
 
-`/setup` has **zero Class-A hard kill caps**. Aborting mid-bootstrap leaves the project in a half-configured state.
+`/geniro:setup` has **zero Class-A hard kill caps**. Aborting mid-bootstrap leaves the project in a half-configured state.
 
 | Layer | Lever | Why |
 |---|---|---|
 | **Class-B escalation gates** | 3-retry validation loop → AUQ | Validation drift after 3 rounds means structural disagreement; surface to user |
 | | Verification report truncation at ~4K chars | Long reports inflate context without commensurate signal |
-| **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/setup` runs would race and corrupt `CLAUDE.md` |
+| **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
 | **NOT capped** | Detect duration, Interview question count, total `Read`/`Bash`/`Glob` calls, total subagent spawns | Quality-first |
 
 ## ACI surface per phase
@@ -65,7 +65,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` 
 | `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent) | `Write`, `Edit` |
 | `done` (cleanup) | `Bash` (rm of state file) | everything else |
 
-External sends are not part of `/setup` ACI. Users wire those via `/actions` if needed.
+External sends are not part of `/geniro:setup` ACI. Users wire those via `/geniro:actions` if needed.
 
 ## Termination case → state mapping
 
@@ -81,7 +81,7 @@ External sends are not part of `/setup` ACI. Users wire those via `/actions` if 
 
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: setup`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Echo contract requires one observable line.
 
-**Resolve `PRIMARY_ROOT`** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. `/setup` writes to `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (singleton — main worktree only, even when invoked from a linked worktree).
+**Resolve `PRIMARY_ROOT`** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. `/geniro:setup` writes to `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (singleton — main worktree only, even when invoked from a linked worktree).
 
 ## Phase 1: Detect
 
@@ -95,7 +95,7 @@ rehydrate via ${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh
 if frontmatter.phase != "done":
 resume from frontmatter.phase
 else:
-mode = re-run (a prior /setup completed; user is re-invoking)
+mode = re-run (a prior /geniro:setup completed; user is re-invoking)
 elif exists(CLAUDE.md):
 mode = re-run (no state file, but a prior CLAUDE.md exists — merge into it rather than overwrite)
 else:
@@ -113,7 +113,7 @@ source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"
 query_learnings --type discovery --tag setup --limit 10
 ```
 
-Surface in `## Phase log` as `Prior /setup runs: N (last: <timestamp>, stack: <stack>)`. If N ≥ 1, this is at least the 2nd `/setup` — useful context for Interview.
+Surface in `## Phase log` as `Prior /geniro:setup runs: N (last: <timestamp>, stack: <stack>)`. If N ≥ 1, this is at least the 2nd `/geniro:setup` — useful context for Interview.
 
 ### 1.3 Locate plugin source
 
@@ -214,7 +214,7 @@ Before opening any AUQ, read state frontmatter `approvals[]`. For each AUQ slot,
 - If present and `picked != null` → reuse the prior answer; emit `## Phase log` line: "Reused prior answer for `<slot>`: `<picked>` (asked_in_phase: `<phase>`)". **No re-ask.**
 - If absent → ask via `AskUserQuestion`; on answer, append to `approvals[]`.
 
-`/setup` has no persistent preference categories. All AUQs are one-shot (detection confirmation, tracker selection, onboard prompt).
+`/geniro:setup` has no persistent preference categories. All AUQs are one-shot (detection confirmation, tracker selection, onboard prompt).
 
 ### 2.2 Confirm detection
 
@@ -272,7 +272,7 @@ Transition to Phase 3.
 
 If `mode == re-run`, run a migration sweep before generating content. This ensures the `.geniro/` directory structure is current before CLAUDE.md and instructions are regenerated.
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries across ALL `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble: the version heading is not a selection gate, and each entry's read-only auto-detect decides relevance (a user re-running `/setup` could be coming from any prior version; sweep all entries).
+1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries across ALL `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble: the version heading is not a selection gate, and each entry's read-only auto-detect decides relevance (a user re-running `/geniro:setup` could be coming from any prior version; sweep all entries).
 2. For each entry with an `Auto-detect:` field, run the shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the sweep mid-way. Capture output.
 3. If output non-empty (user IS affected):
    - If the entry's `Auto-fix:` is non-destructive (no `rm`, `-delete`, or `-exec rm`): run it silently via `bash -c`. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
@@ -280,7 +280,7 @@ If `mode == re-run`, run a migration sweep before generating content. This ensur
    - If entry is `manual-only`: log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
 4. After sweep, re-run all `Auto-detect:` commands via `bash -c` to verify. Any still-affected entries are logged to `## Open Questions`.
 
-**No question during the sweep, but destructive fixes are surfaced, not auto-applied.** Setup re-run is user-initiated, so safe mechanical fixes (renames, field additions, mkdir) apply silently. Destructive fixes (rm/delete-class) are never silently applied — they are logged to `## Open Questions` for the user to apply through `/geniro:update`'s per-entry walk, so the sweep cannot reverse a deletion the user deliberately deferred. Auto-fix commands are maintainer-written and tested (same commands `/update` surfaces with "Fix it for me").
+**No question during the sweep, but destructive fixes are surfaced, not auto-applied.** Setup re-run is user-initiated, so safe mechanical fixes (renames, field additions, mkdir) apply silently. Destructive fixes (rm/delete-class) are never silently applied — they are logged to `## Open Questions` for the user to apply through `/geniro:update`'s per-entry walk, so the sweep cannot reverse a deletion the user deliberately deferred. Auto-fix commands are maintainer-written and tested (same commands `/geniro:update` surfaces with "Fix it for me").
 
 **Init mode skips this step entirely** — fresh installs write the current schema directly.
 
@@ -291,7 +291,7 @@ If `mode == re-run`:
 1. Read existing `CLAUDE.md`.
 2. Identify project-specific sections (Tech Stack, Commands, Conventions, Domain Context).
 3. For each: merge detected updates into existing content via orchestrator-inline merge (preserve user edits + update facts).
-4. If existing CLAUDE.md contains legacy geniro-specific sections (skill table, path rules, hooks, updating) from a prior `/setup` version — **remove them silently**. They're plugin noise.
+4. If existing CLAUDE.md contains legacy geniro-specific sections (skill table, path rules, hooks, updating) from a prior `/geniro:setup` version — **remove them silently**. They're plugin noise.
 5. Display merged diff to user; AUQ if diff is non-trivial.
 
 If `mode == init`, skip the pre-write audit and proceed to §3.2.
@@ -470,7 +470,7 @@ Use `AskUserQuestion` (header: `"Onboard"`):
 
 On "Map codebase now" → print `Running /geniro:onboard...` and invoke the onboard skill inline (same session, no restart needed). On "Skip" → proceed to state file cleanup.
 
-**Skip this AUQ in re-run mode** — the user already has a codebase map from a prior `/onboard` run (or chose to skip it). Re-run is for refreshing CLAUDE.md and running migrations, not re-onboarding.
+**Skip this AUQ in re-run mode** — the user already has a codebase map from a prior `/geniro:onboard` run (or chose to skip it). Re-run is for refreshing CLAUDE.md and running migrations, not re-onboarding.
 
 ### 5.3 State file cleanup
 
@@ -481,7 +481,7 @@ rm -f "$PRIMARY_ROOT/.geniro/state/setup/state.md"
 rmdir "$PRIMARY_ROOT/.geniro/state/setup/" 2>/dev/null
 ```
 
-This is the **only** Geniro state file deleted on success — `/setup` is a singleton bootstrap and the state file has zero value once DONE.
+This is the **only** Geniro state file deleted on success — `/geniro:setup` is a singleton bootstrap and the state file has zero value once DONE.
 
 **Exception:** if `mode == re-run` AND user opted for `accept-with-warnings` at round 4, the state file is **kept** with `phase: done` and `## Open Questions` populated — surfaces for the next re-run.
 
@@ -495,7 +495,7 @@ update brought a new install path, but in-memory skill bodies still reference
 the old one. Restart and you're done.
 ```
 
-Only emitted when `mode == re-run` AND `/setup` detected a `plugin.json` version delta vs the version recorded in the prior state file. Fresh `init` runs never emit this.
+Only emitted when `mode == re-run` AND `/geniro:setup` detected a `plugin.json` version delta vs the version recorded in the prior state file. Fresh `init` runs never emit this.
 
 ## State file schema
 
@@ -512,7 +512,7 @@ branch: <git-branch> # may be empty if not a git repo
 timestamp: 2026-05-19T14:32:00Z # last-updated ISO-8601 UTC
 phase: detect # init|detect|interview|generate|validate|done|failed
 status: in-progress # in-progress|done|failed
-non-resumable-actions: [] # typically empty (/setup ships no external sends)
+non-resumable-actions: [] # typically empty (/geniro:setup ships no external sends)
 approvals: [] # no preference questions; AUQ-only for detection confirm + onboard prompt
 geniro_kind: setup-state
 geniro_schema_version: m10a-v1
@@ -559,7 +559,7 @@ validate_rounds: 1
 (empty)
 
 ## Persisted approvals # Block 5d (renders frontmatter approvals[])
-(empty — no preference questions in current /setup)
+(empty — no preference questions in current /geniro:setup)
 
 ## Termination reason # only set on `failed`
 ```
@@ -570,7 +570,7 @@ validate_rounds: 1
 |---|---|---|---|
 | L1 CLAUDE.md | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Contains ONLY project info (stack, commands, conventions, domain). No geniro plugin info. Preserves user customizations via orchestrator-inline merge |
 | L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
-| L3 `.geniro/planning/_*.md` | not read | not written | `/setup` and `/onboard` are different skills with non-overlapping write surfaces |
+| L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 
 ## Anti-rationalization
@@ -600,10 +600,10 @@ validate_rounds: 1
 
 ## Cross-references
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/setup` writes a T1.5 durable file) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
 - §Loop invariants and §Budgets (this file) — 7 loop invariants and quality-first budgets.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; verification subagent on `sonnet` (section merge runs orchestrator-inline, no separate model assignment).
 - §ACI surface per phase (this file) — per-phase ACI.
-- `/setup` adds no preference categories — `approvals[]` stays empty / one-shot (detection-confirm + onboard prompt only).
+- `/geniro:setup` adds no preference categories — `approvals[]` stays empty / one-shot (detection-confirm + onboard prompt only).

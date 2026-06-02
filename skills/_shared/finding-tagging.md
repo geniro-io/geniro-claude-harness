@@ -1,6 +1,6 @@
 # Finding Tagging
 
-Authoritative tag definitions for reviewer-agent output, /plan orchestrator-side spec-authoring output, and orchestrator routing. The `[ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN] / [SYMPTOM-ACK]` tags form a finding-classification system parallel to the existing `[CONFIRMED-BY-TEST] / [CHALLENGED-BY-TEST] / [NEW] / [PRE-EXISTING] / [PRODUCT-DECISION]` tag families: same persistence channel (`<task-dir>/state.md` `## Accepted Findings` and `.geniro/state/<skill>/<slug>/state.md`), same audit-trail discipline, different classification axis (cause vs effect, instead of newness or evidence-strength). Tags persist across skill phases and are the trigger predicate for `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md`.
+Authoritative tag definitions for reviewer-agent output, /geniro:plan orchestrator-side spec-authoring output, and orchestrator routing. The `[ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN] / [SYMPTOM-ACK]` tags form a finding-classification system parallel to the existing `[CONFIRMED-BY-TEST] / [CHALLENGED-BY-TEST] / [NEW] / [PRE-EXISTING] / [PRODUCT-DECISION]` tag families: same persistence channel (`<task-dir>/state.md` `## Accepted Findings` and `.geniro/state/<skill>/<slug>/state.md`), same audit-trail discipline, different classification axis (cause vs effect, instead of newness or evidence-strength). Tags persist across skill phases and are the trigger predicate for `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md`.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste tag definitions or routing rules.
 
@@ -29,14 +29,14 @@ When the reviewer cites cross-dimension evidence (e.g., the bugs reviewer notice
 - Design unit changes only the surface where the defect manifests → `[SYMPTOM]`.
 - Cause/symptom axis is not meaningfully applicable (pure refactor, doc-only, structural) OR confidence is below 60% → `[UNKNOWN]`.
 
-Both the reviewer-agent and /plan's orchestrator-side spec-authoring tag every finding/design unit. Omission is never acceptable — see § Anti-rationalization.
+Both the reviewer-agent and /geniro:plan's orchestrator-side spec-authoring tag every finding/design unit. Omission is never acceptable — see § Anti-rationalization.
 
 ## How orchestrators route by tag
 
 The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Phase 3 filter / `/geniro:refactor` Phase 3 verify) reads the `Cause:` field (reviewer findings) from the persisted artifact and routes:
 
 - **`[ROOT-CAUSE]`** → proceeds in the upstream skill's normal flow. The finding/design enters the fix-loop pool / implementation pool unchanged.
-- **`[SYMPTOM]`** that survives the upstream filter step (Phase 3 dedup for `/geniro:review`; Phase 3 self-review filter for `/geniro:implement`; Phase 3 verify for `/geniro:refactor`; /plan spec-authoring per design unit) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding/design unit. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
+- **`[SYMPTOM]`** that survives the upstream filter step (Phase 3 dedup for `/geniro:review`; Phase 3 self-review filter for `/geniro:implement`; Phase 3 verify for `/geniro:refactor`; /geniro:plan spec-authoring per design unit) → fires `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` once per finding/design unit. The gate's result handling re-tags to `[ROOT-CAUSE]` / `[SYMPTOM-ACK]` or halts the skill for `/geniro:debug` escalation.
 - **`[UNKNOWN]`** → orchestrator requires the reviewer / /plan-authoring to escalate to `/geniro:debug` BEFORE the gate fires. Surfacing `[UNKNOWN]` to the gate would force the user to make a cause/symptom call the upstream classifier itself couldn't make — which is the same anti-pattern as auto-classifying ambiguous findings (see § Anti-rationalization). The escalation path matches the gate's "Symptom — escalate to /geniro:debug" branch: surface the hand-off message, halt the upstream skill, the user re-invokes after `/geniro:debug` confirms the cause.
 - **`[SYMPTOM-ACK]`** → already user-acknowledged; orchestrator proceeds AND appends the entry to the Ship summary's `## Acknowledged tech debt` section (the gate's Result handling already wrote it; this is the read-back for ship-time rendering).
 
@@ -45,7 +45,7 @@ The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Pha
 
 Tags persist in two artifact families, mirroring the existing `[CONFIRMED-BY-TEST]` persistence pattern (per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema):
 
-**1. Reviewer findings — `<task-dir>/state.md` `## Accepted Findings` body block (`/implement` Phase 3 self-review records accepted findings here; in-loop findings are held in memory and applied inline) and `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`.**
+**1. Reviewer findings — `<task-dir>/state.md` `## Accepted Findings` body block (`/geniro:implement` Phase 3 self-review records accepted findings here; in-loop findings are held in memory and applied inline) and `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`.**
 
 The per-finding line gains a `cause:` field (lowercase to match existing field convention — `decision:`, `recommendation:`, `confidence:`). The field is appended after `confidence:` for both severity-section rows (CRITICAL/HIGH/MEDIUM) and Intent-section rows. Exact line format:
 

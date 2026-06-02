@@ -22,7 +22,7 @@ Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged
 
 - **IDEA(topic)** — free-form text; proceeds to Phase 1 with topic as initial context.
 - **DESIGN_DOC(path)** — existing design doc; flows to AUQ.
-- **CODE_REFERENCE(path)** — error per design-doc-detect.md per-consumer table: «code reference passed to /plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?». Exit without writing state.md.
+- **CODE_REFERENCE(path)** — error per design-doc-detect.md per-consumer table: «code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?». Exit without writing state.md.
 - **None** (empty $ARGUMENTS) — fires empty-argument AUQ:
  - `header`: "Topic"
  - `question`: "What do you want to plan?"
@@ -75,7 +75,7 @@ Loading all three layers ensures research agents have full context — prior dec
 
 ### 1.1b Branch freshness
 
-On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`. /plan does not create branches, but when the session sits on a feature branch behind the default branch, offer to update it before research spawns — so the spec is grounded in fresh code rather than a stale tree. Skipped silently when the branch is already current.
+On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`. /geniro:plan does not create branches, but when the session sits on a feature branch behind the default branch, offer to update it before research spawns — so the spec is grounded in fresh code rather than a stale tree. Skipped silently when the branch is already current.
 
 ### 1.2 Effort-tier-scaled research spawns
 
@@ -134,7 +134,7 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
     url: ...
 ```
 
-3. The fetched payload feeds Phase 1 research-agent prompts (existing behavior) AND becomes the canonical source for Phase 6 frontmatter copy. Skipped when `$ARGUMENTS` carries no tracker reference — pure inline-task /plan emits a spec.md without `workflow_refs[]`.
+3. The fetched payload feeds Phase 1 research-agent prompts (existing behavior) AND becomes the canonical source for Phase 6 frontmatter copy. Skipped when `$ARGUMENTS` carries no tracker reference — pure inline-task /geniro:plan emits a spec.md without `workflow_refs[]`.
 
 ### 1.5 Transition to Phase 2
 
@@ -207,7 +207,7 @@ On compaction-resume, the SessionStart re-injector renders `approvals[]` and the
 
 ### 3.4 Cap exhaustion
 
-If a 6th clarification arises, force consolidation OR proceed to Phase 4 with stated assumptions. The 5-question cap is a quality-first signal — more than 5 means Phase 1 underspecified OR the topic is too vague for a single /plan session.
+If a 6th clarification arises, force consolidation OR proceed to Phase 4 with stated assumptions. The 5-question cap is a quality-first signal — more than 5 means Phase 1 underspecified OR the topic is too vague for a single /geniro:plan session.
 
 ---
 
@@ -270,7 +270,7 @@ emit_rejection_if_signal \
 
 Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op.
 
-**Read side:** Phase 1 query-learnings on /plan entry already runs once. Extend its consumers to surface entries with `type=user_rejected_suggestion AND tags includes 'approach_choice'` matching the current topic — display as «User previously rejected <suggestion> on <ts>» so the orchestrator can re-rank or omit the rejected approach from AUQ.
+**Read side:** Phase 1 query-learnings on /geniro:plan entry already runs once. Extend its consumers to surface entries with `type=user_rejected_suggestion AND tags includes 'approach_choice'` matching the current topic — display as «User previously rejected <suggestion> on <ts>» so the orchestrator can re-rank or omit the rejected approach from AUQ.
 
 Example body:
 
@@ -284,7 +284,7 @@ Stress-test: shared mutable cache in src/store/cache.ts:88 is read by 3 other mo
 Why rejected: violates new boundary established in Q3 2026 architecture review.
 ```
 
-`## Considered Alternatives` is copied to spec.md body verbatim in Phase 6. /implement reads but not gates on it.
+`## Considered Alternatives` is copied to spec.md body verbatim in Phase 6. /geniro:implement reads but not gates on it.
 
 ---
 
@@ -334,7 +334,7 @@ Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills
 
 ### 5.3 Milestone-mode
 
-Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/implement milestone 1`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode does NOT fire for Medium/Trivial.
+Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement milestone 1`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode does NOT fire for Medium/Trivial.
 
 ---
 
@@ -350,9 +350,9 @@ Content: schema (10 sections) + frontmatter with goal block + optional `workflow
 
 **Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §workflow_refs).
 
-Frontmatter MUST carry `geniro_schema_version: m5-v2` when `workflow_refs:` is present. For pure inline-task /plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
+Frontmatter MUST carry `geniro_schema_version: m5-v2` when `workflow_refs:` is present. For pure inline-task /geniro:plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
 
-Use the `Write` tool. `/plan` writes only spec/state artifacts under `.geniro/planning/**` and `.geniro/state/**`; the skill's frontmatter `allowed-tools` omits `Edit`, so the only write surface is `Write` to those planning paths.
+Use the `Write` tool. `/geniro:plan` writes only spec/state artifacts under `.geniro/planning/**` and `.geniro/state/**`; the skill's frontmatter `allowed-tools` omits `Edit`, so the only write surface is `Write` to those planning paths.
 
 After writing spec.md, append a `## Tool log` entry to state.md via `atomic_state_write`:
 
@@ -507,10 +507,10 @@ State.md `phase: handoff` during this phase.
 
 Fire `AskUserQuestion` with header "Next step":
 
-- **/implement directly** (Recommended) — exit /plan, suggest the next command. For non-milestone specs: `/implement .geniro/planning/<slug>/spec.md`. For milestone specs: `/implement .geniro/planning/<slug>/milestone-1.md`.
-- **Stop — keep spec for later** — terminal exit; spec sits on disk; user resumes when ready via `/implement <path>`.
+- **/geniro:implement directly** (Recommended) — exit /geniro:plan, suggest the next command. For non-milestone specs: `/geniro:implement .geniro/planning/<slug>/spec.md`. For milestone specs: `/geniro:implement .geniro/planning/<slug>/milestone-1.md`.
+- **Stop — keep spec for later** — terminal exit; spec sits on disk; user resumes when ready via `/geniro:implement <path>`.
 
-Two options: `/implement directly` or `Stop — keep spec for later`. A design doc on disk IS the backlog entry.
+Two options: `/geniro:implement directly` or `Stop — keep spec for later`. A design doc on disk IS the backlog entry.
 
 ### 9.2 Persistence
 
@@ -519,16 +519,16 @@ User pick → append to `approvals[]` with category `handoff`:
 ```yaml
 - category: handoff
  prompt: "Next step?"
- options: ["/implement directly", "Stop — keep spec for later"]
- picked: "/implement directly"
+ options: ["/geniro:implement directly", "Stop — keep spec for later"]
+ picked: "/geniro:implement directly"
  at: <ISO-8601 UTC>
  asked_in_phase: handoff
 ```
 
 ### 9.3 Terminal transition
 
-- **/implement** picked → emit a one-line directive in chat (`Next: /implement .geniro/planning/<slug>/spec.md`); do NOT auto-invoke /implement (user agency). State.md `phase: done`.
-- **Stop** picked → emit a one-line directive (`Spec saved. Resume via: /implement .geniro/planning/<slug>/spec.md`); state.md `phase: done`.
+- **/geniro:implement** picked → emit a one-line directive in chat (`Next: /geniro:implement .geniro/planning/<slug>/spec.md`); do NOT auto-invoke /geniro:implement (user agency). State.md `phase: done`.
+- **Stop** picked → emit a one-line directive (`Spec saved. Resume via: /geniro:implement .geniro/planning/<slug>/spec.md`); state.md `phase: done`.
 
 Both paths terminate in `done`. SessionStart recovery treats it as completed.
 
@@ -567,15 +567,15 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 | "This task is too simple to need a design" | "Simple" projects are where unexamined assumptions cause the most wasted work. Design can be short (Phase 5 Trivial = sections 4 / 5 / 10 with body «none with rationale»); presenting and approving is mandatory. HARD-GATE applies to EVERY task. |
 | "I'll skip Phase 8 user re-review, my Phase 7 validator is enough" | Validator catches mechanical defects (placeholders / contradictions / scope creep); user catches intent defects (wrong abstraction / missing constraint). Different defect classes; both required. |
 | "I'll author all 10 sections, then fire 3 cluster AUQs at the end" | Two failure modes to avoid. (a) Rendering section bodies to chat then re-asking — the user has already read the content; the AUQ has nothing new to inspect (the M5-v1 redundancy). (b) Authoring all 10 sections before the first gate — cross-section issues surface only after the user has read the whole plan, too late to cheaply correct. The correct middle path is cluster-batched authoring in dependency order: author a cluster's sections → ONE batched AUQ with the content carried in the option `preview` fields → on approve, author the next cluster. Cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. |
-| "Cluster AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the sections" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Each option's `preview` carries the section's ADR digest — Decision (what it commits to) → Why (rationale grounded in a Phase 1 finding + the chosen approach) → How (how /implement realizes it) — plus an ASCII diagram where it aids comprehension (esp. section 6 Steps) and the section's concrete example. The chat is a one-line cluster lead-in; the AUQ `preview` IS the rendered content. |
+| "Cluster AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the sections" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Each option's `preview` carries the section's ADR digest — Decision (what it commits to) → Why (rationale grounded in a Phase 1 finding + the chosen approach) → How (how /geniro:implement realizes it) — plus an ASCII diagram where it aids comprehension (esp. section 6 Steps) and the section's concrete example. The chat is a one-line cluster lead-in; the AUQ `preview` IS the rendered content. |
 | "I'll write the design doc with only the YAML frontmatter — that's enough" | Defense in depth requires all three markers (path + HTML comment + frontmatter). See `design-doc-detect.md` § Why defense in depth — each marker survives a different user action. |
 | "Phase 4 — 4 or 5 approaches gives the user more choice" | More than 3 indicates Phase 3 didn't narrow scope; loop back to Phase 3 with a tighter scope-boundary question. |
 | "My §4.1 approaches are well-reasoned — the §4.2 stress-test is redundant overhead" | The model that authored the approaches shares their blind spots; ranking them in the same context re-confirms its own bias rather than testing it. An independent codebase-grounded critic catches blockers the author cannot see from generation context alone — hidden coupling, a previously-rejected shape in L2, a convention conflict — which is the load-bearing reason `Recommended` is set from evidence, not self-confidence. It is tier-scaled (skipped on Trivial) so the cost lands only where a wrong approach is expensive. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Metaswarm anti-pattern. Compaction mid-Phase-5 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |
-| "I'll `Write` outside `.geniro/planning/**` to save a step — /plan can touch source directly" | /plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended `Write` target is the planning task-dir; writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
+| "I'll `Write` outside `.geniro/planning/**` to save a step — /geniro:plan can touch source directly" | /geniro:plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended `Write` target is the planning task-dir; writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
 | "Phase 0 Refine path saves three phases of re-work — keep it" | Refine re-derives sections from prose — structurally-lossy. Downstream consumers parse a malformed spec.md. «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
 | "Hand-off menu should keep `/features add` for backlog discipline" | A «backlog» IS a spec.md saved on disk. No separate skill needed. |
 | "Auto-default empty AUQ answer to the Recommended option" | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
-| "Add a wall-time / token kill cap so runaway /plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /plan has bounded gates (Phase 3 ≤5 questions, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
+| "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /geniro:plan has bounded gates (Phase 3 ≤5 questions, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4" | Hooks fail for a reason. Investigate root cause, not bypass. CLAUDE.md-level prohibition; honors it. |

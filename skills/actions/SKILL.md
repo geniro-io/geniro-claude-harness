@@ -30,7 +30,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 ## Loop invariants
 
-1. One result per subagent call — `/actions` does NOT spawn subagents in CRUD modes.
+1. One result per subagent call — `/geniro:actions` does NOT spawn subagents in CRUD modes.
 2. Args validated before exec — every Write preceded by frontmatter validation; every `run` preceded by AUQ-gate matching `risk_class`.
 3. Permission before side-effect — `risk_class: medium|high` gates execution via AUQ; `risk_class: low` skips the gate but respects per-step tool-allowlist if declared.
 4. Bounded structured results — `list` truncates per-action body display at 200 chars.
@@ -40,7 +40,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 ## Budgets — quality-first
 
-`/actions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry slug ambiguity → abort, body preview truncation at 200 chars, 3-retry on create-validation failure. Architecture constraints: stateless; one action runs at a time (assumed sequential).
+`/geniro:actions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry slug ambiguity → abort, body preview truncation at 200 chars, 3-retry on create-validation failure. Architecture constraints: stateless; one action runs at a time (assumed sequential).
 
 ## ACI surface per phase
 
@@ -51,14 +51,14 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 | `execute` (create) | `Read`, `Write`, `Bash(mkdir -p .geniro/actions/, grep, echo >> .gitignore)`, `AskUserQuestion` | `mcp__github__*`, network egress, `Agent` |
 | `execute` (edit) | `Read`, `Edit`, `Bash(stat, mv)`, `AskUserQuestion` | `mcp__*`, network egress |
 | `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
-| `execute` (run) | **Intersection of /actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
+| `execute` (run) | **Intersection of /geniro:actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
 | `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
 **Run mode tool gating:**
 
 ```
-effective_tool_surface = intersection(global allowed-tools for /actions skill, # from SKILL.md frontmatter
+effective_tool_surface = intersection(global allowed-tools for /geniro:actions skill, # from SKILL.md frontmatter
 action frontmatter `allowed-tools:` field,
 )
 ```
@@ -344,7 +344,7 @@ emit_rejection_if_signal \
 "Run action <slug>" "<picked label>" "<recommended label>"
 ```
 
-`<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (picks containing `Cancel`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /actions runs of the same slug surface «user rejected this action N times». This is distinct from approvals[], which is intentionally skipped in run mode.
+`<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (picks containing `Cancel`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /geniro:actions runs of the same slug surface «user rejected this action N times». This is distinct from approvals[], which is intentionally skipped in run mode.
 
 ### Phase 5.4: Execute INLINE (tool-scope intersection)
 
@@ -454,7 +454,7 @@ Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktre
 
 If `<slug>` provided: resolve via Phase 5.0 (Steps 1-3) to get `<resolved-path>` and `<source>`, then validate only that single file. Else validate the deduped union from the dual-glob above. Read-only; never mutates.
 
-### Step 2 — Lint rule set (shared with `/instructions validate review-extra`)
+### Step 2 — Lint rule set (shared with `/geniro:instructions validate review-extra`)
 
 Combined rule table (Phase 4 Step 6 checks + description hygiene):
 
@@ -499,10 +499,10 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | not read | not written | `/actions` does not touch CLAUDE.md |
+| L1 CLAUDE.md | not read | not written | `/geniro:actions` does not touch CLAUDE.md |
 | L2 learnings.jsonl | not read in CRUD modes | written in run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run |
 | L3 semantic files | not read | not written | N/A |
-| L4 `.geniro/instructions/*.md` | not read by `/actions` itself | not written | `/instructions` owns this surface |
+| L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |
 | Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD ; NOT part memory model |
 
 Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivially (file-on-disk Block 1).

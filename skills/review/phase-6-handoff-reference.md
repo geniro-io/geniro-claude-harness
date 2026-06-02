@@ -23,7 +23,7 @@ State.md `phase: action-gate` during this phase.
 
 ## 1. Reporter behavior — no fix loop
 
-This skill confirms: /review does NOT apply fixes. Phase 6 hand-off message NEVER includes "I'll fix these now" language. The /implement option routes to /implement skill (manual or via Phase 6 hand-off line).
+This skill confirms: /geniro:review does NOT apply fixes. Phase 6 hand-off message NEVER includes "I'll fix these now" language. The /geniro:implement option routes to /geniro:implement skill (manual or via Phase 6 hand-off line).
 
 `--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention but the output is still a finding list for consumption by other skills.
 
@@ -40,7 +40,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 
 1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — open questions gate downstream action by definition. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
-3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /implement / Post Draft PR / Continue rounds / Skip.
+3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip.
 4. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
 - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
 - **Action != Post OR `## Authored Tests` empty:** Failing-tests fires AFTER Action gate's path completes.
@@ -53,7 +53,7 @@ Sequential: do not fire gate N+1 until gate N's answer is collected.
 
 This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gates — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`.
 
-**Why it runs first.** Open questions surface ambiguous-how-to-fix decisions (e.g., "API seeder additions in-scope or split into a separate PR?"). Resolving them changes what the Action gate is actually choosing between. Letting Action gate fire first means the user picks "/implement findings" without realizing 4 questions still gate the implementation.
+**Why it runs first.** Open questions surface ambiguous-how-to-fix decisions (e.g., "API seeder additions in-scope or split into a separate PR?"). Resolving them changes what the Action gate is actually choosing between. Letting Action gate fire first means the user picks "/geniro:implement findings" without realizing 4 questions still gate the implementation.
 
 **Procedure:**
 
@@ -136,13 +136,13 @@ The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding g
 1. `m6-v1` (pre-Phase-4.2) writers — no findings carry verification fields at any severity.
 2. `m6-v2` writers from before the verifier was hoisted to CRITICAL/MEDIUM — HIGH findings carry verification fields; CRITICAL and MEDIUM findings do not.
 
-Consumers (§7.0 fail-closed guard, /implement Phase 1 Step 12) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so missing-field MUST NOT block the Post drill that worked before the field existed.
+Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 Step 12) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so missing-field MUST NOT block the Post drill that worked before the field existed.
 
-**Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` (the safety improvement post-dates these handoffs) and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
+**Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /geniro:implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /geniro:review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` (the safety improvement post-dates these handoffs) and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
 
 **Wontfix path.** If the user picks "Other" with explicit text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream gates — they're recorded but de-prioritized. Downstream consumers treat `wontfix` as "user acknowledged and chose to defer".
 
-**No skipping.** The pre-gate cannot be deferred to /implement or to the Post drill. Resolving here makes the Action gate's options meaningful (e.g., "/implement findings" now points to a known-scope target). Resolving downstream creates the failure mode this gate exists to prevent.
+**No skipping.** The pre-gate cannot be deferred to /geniro:implement or to the Post drill. Resolving here makes the Action gate's options meaningful (e.g., "/geniro:implement findings" now points to a known-scope target). Resolving downstream creates the failure mode this gate exists to prevent.
 
 ---
 
@@ -177,8 +177,8 @@ AskUserQuestion(
   multiSelect=False,
   options=[
     {
-      "label": "/implement findings",          # append " (Recommended)" when CRITICAL>=1 OR HIGH>=2
-      "description": "Exit /review. You then run `/geniro:implement <handoff-path>` — it applies the fixes and asks before committing or pushing (a branch with an open PR prompts before that push; picking this routes the findings, it does not authorize a push)."
+      "label": "/geniro:implement findings",          # append " (Recommended)" when CRITICAL>=1 OR HIGH>=2
+      "description": "Exit /geniro:review. You then run `/geniro:implement <handoff-path>` — it applies the fixes and asks before committing or pushing (a branch with an open PR prompts before that push; picking this routes the findings, it does not authorize a push)."
     },
     {
       "label": "Post Draft PR review",         # present when pr-ref non-none AND >=1 finding of any severity (incl. LOW/deferred) unposted; OMIT only when pr-ref:none OR no findings at all OR all already [POSTED-TO-PR]
@@ -196,7 +196,7 @@ AskUserQuestion(
 )
 ```
 
-After the user picks, surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator NEVER auto-invokes /implement.
+After the user picks, surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator NEVER auto-invokes /geniro:implement.
 
 **Severity-driven recommendation:**
 - Any CRITICAL OR ≥2 HIGH findings → `/geniro:implement` is "(Recommended)"
@@ -206,7 +206,7 @@ After the user picks, surface ONE follow-up chat line stating the chosen next co
 
 **Options (≤4 per AUQ cap):**
 
-- **/implement findings (Recommended when CRITICAL/HIGH count >0)** — exit /review, suggest the next command `/geniro:implement .geniro/state/handoff/from-review-<branch>.md`. /implement pre-loads the findings, applies the fixes, and asks before committing or pushing — choosing this routes the work, it does not pre-authorize a ship.
+- **/geniro:implement findings (Recommended when CRITICAL/HIGH count >0)** — exit /geniro:review, suggest the next command `/geniro:implement .geniro/state/handoff/from-review-<branch>.md`. /geniro:implement pre-loads the findings, applies the fixes, and asks before committing or pushing — choosing this routes the work, it does not pre-authorize a ship.
 - **Post Draft PR review** — present whenever state file's `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag from prior run). LOW / deferred awareness findings count as postable — an all-LOW review still offers this option. On selection, drill into granularity sub-question (Step 2 below) before any `gh api` call. Posting is an external write to a public surface — the skill never posts without explicit approval; picking this option IS the approval.
 - **Continue rounds (re-review)** — when round ≥3 fires Round-N escalation gate; otherwise loops back to Phase 1 increment round counter.
 - **Skip — keep findings on disk** — terminal exit; user can resume later.
@@ -215,7 +215,7 @@ After the user picks, surface ONE follow-up chat line stating the chosen next co
 
 **Persist user pick to `approvals[]`** with category `action_gate`, written via `atomic_state_write` (never a raw `Edit`/`Write` on the handoff — that trips the `enforce-state-helper` hook).
 
-Do NOT auto-invoke /implement — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel.
+Do NOT auto-invoke /geniro:implement — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel.
 
 ---
 
@@ -279,7 +279,7 @@ This §7.0 check is the fail-closed second line of defense for ALL THREE invaria
    - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, the pending finding IDs, AND the refuted/invalid finding IDs.
    - Re-fire the §2.5 Pre-gate for any unresolved `open_questions[]` entries (if list (a) non-empty).
    - Re-fire the §3 Step 0 per-finding gate for any `step0_status: pending` PRODUCT-DECISION findings (if list (b) non-empty).
-   - For list (c) refuted/invalid findings: do NOT auto-resolve. Refuted findings must be moved to `## Filtered` (with `reason: verifier-refuted`) by re-running Phase 4.2's filter pass — surface a chat instruction: `"Re-run /geniro:review to re-fire Phase 4.2 per-finding verification, OR manually move the refuted finding(s) to ## Filtered."` Then abort Phase 6 entirely (terminal state `aborted`, `## Termination reason: producer-schema-violation: refuted-finding-in-handoff`) — the user re-runs /review rather than racing a manual edit against a pending Post.
+   - For list (c) refuted/invalid findings: do NOT auto-resolve. Refuted findings must be moved to `## Filtered` (with `reason: verifier-refuted`) by re-running Phase 4.2's filter pass — surface a chat instruction: `"Re-run /geniro:review to re-fire Phase 4.2 per-finding verification, OR manually move the refuted finding(s) to ## Filtered."` Then abort Phase 6 entirely (terminal state `aborted`, `## Termination reason: producer-schema-violation: refuted-finding-in-handoff`) — the user re-runs /geniro:review rather than racing a manual edit against a pending Post.
    - After resolution loops for lists (a) + (b) complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds ALL THREE filtered lists empty.
 4. When step 3 finds all three filtered lists empty, proceed to §7.1.
 
@@ -446,7 +446,7 @@ If `AskUserQuestion` returns an empty answer at any prompt in Phase 6, fall back
 Per
 | User pick | Terminal state | `## Termination reason` body |
 |---|---|---|
-| /implement findings | `done` | (omitted) |
+| /geniro:implement findings | `done` | (omitted) |
 | Post Draft PR review (successful POST) | `done` | (omitted) |
 | Post Draft PR review (POST failed) | `aborted` | `tool-unavailable: gh-api-post` |
 | Continue rounds → Round-N → Abort | `aborted` | `repeated-failure: round-limit-3` |

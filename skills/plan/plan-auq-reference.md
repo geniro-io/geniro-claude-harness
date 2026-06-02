@@ -73,7 +73,7 @@ questions:
       - label: "Skip — proceed assuming JWT"
         preview: |
           Recorded assumption: "endpoint uses JWT middleware (default)".
-          Surfaced in spec.md section 4 Assumptions for /implement to verify.
+          Surfaced in spec.md section 4 Assumptions for /geniro:implement to verify.
   - header: "Rate limit"
     question: "Should the endpoint enforce a per-user rate limit?"
     options:
@@ -159,12 +159,12 @@ Procedure per cluster:
      ```
      DECISION: <what this section commits to — 1 line>
      WHY: <rationale grounded in a Phase 1 finding file:line + the Phase 4 chosen approach — 1-2 lines>
-     HOW: <how /implement realizes it — concrete steps / files / identifiers — 1-2 lines>
+     HOW: <how /geniro:implement realizes it — concrete steps / files / identifiers — 1-2 lines>
      <ASCII data-flow / sequence diagram — only for sections that benefit, esp. section 6 Steps>
      Example: <the per-section concrete example from plan-reference.md §"Concrete-example per section type">
      ```
    - **Revise — I'll describe** — `preview`: the current section content + `"Type your revision in Other; I'll re-author and re-ask."`
-   - **Skip — accept as-is** — `preview`: the concrete consequence of skipping this section, e.g., `"Validation skipped — /implement's reviewer cannot verify acceptance criteria; manual checks required."`
+   - **Skip — accept as-is** — `preview`: the concrete consequence of skipping this section, e.g., `"Validation skipped — /geniro:implement's reviewer cannot verify acceptance criteria; manual checks required."`
 
 4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). The cluster is a presentation grouping only — no `cluster_<id>` category.
 
@@ -183,7 +183,7 @@ questions:
           telemetry counts on demand.
           WHY: src/telemetry/aggregate.ts:120 shows counts drift after
           retroactive event edits; chosen approach = service-layer fan-out.
-          HOW: /implement adds BackfillController.run() calling the queued
+          HOW: /geniro:implement adds BackfillController.run() calling the queued
           BackfillQueue service; no schema change to events.
           Example: "User triggers /backfill → counts reconcile within 30s."
       - label: "Revise — I'll describe"
@@ -203,7 +203,7 @@ questions:
           job class are in scope.
           WHY: integration surface from Phase 1 — src/jobs/ already hosts
           a queue runner (src/jobs/runner.ts:40); reuse it.
-          HOW: /implement touches src/telemetry/, src/jobs/, src/api/routes.ts.
+          HOW: /geniro:implement touches src/telemetry/, src/jobs/, src/api/routes.ts.
           Example: bullets map to src/jobs/BackfillQueue.ts (new), routes.ts (edit).
       - label: "Revise — I'll describe"
         preview: |
@@ -211,7 +211,7 @@ questions:
           Type your revision in Other; I'll re-author and re-ask.
       - label: "Skip — accept as-is"
         preview: |
-          In-scope list accepted; /implement edits exactly these surfaces.
+          In-scope list accepted; /geniro:implement edits exactly these surfaces.
   - header: "Out of scope"
     question: "Approve what's out of scope?"
     options:
@@ -221,7 +221,7 @@ questions:
           out of scope.
           WHY: Phase 4 chosen approach reuses existing schema; dashboard is
           a separate Linear epic (no file in the touched surface).
-          HOW: /implement will NOT touch src/db/schema.ts or src/admin/.
+          HOW: /geniro:implement will NOT touch src/db/schema.ts or src/admin/.
           Example: "Backfill runs against the current events table as-is."
       - label: "Revise — I'll describe"
         preview: |
@@ -234,7 +234,7 @@ questions:
 
 **Tier-scaling.** Sections 4 / 5 / 10 may be "none — task scope precludes" for Trivial/Small tasks — note these in the cluster lead-in rather than firing an approval question. At Trivial tier the clusters may collapse to 1-2 batched AUQs; the default 3-cluster grouping applies to Medium/Big.
 
-Empty AUQ options (`Approve / Revise / Skip` text only) degrade trust ("the skill is just clicking through"); the ADR-style `preview` makes each option load-bearing — it re-explains what was decided, why, and how /implement will build it.
+Empty AUQ options (`Approve / Revise / Skip` text only) degrade trust ("the skill is just clicking through"); the ADR-style `preview` makes each option load-bearing — it re-explains what was decided, why, and how /geniro:implement will build it.
 
 ### 4.2 Milestone-mode AUQ (Big tasks only)
 
@@ -247,7 +247,7 @@ options:
   - label: "Slice into milestones"            # Recommended for Big
     description: "Model proposes 3-7 milestone names; user approves; the spec write step emits sibling milestone-N.md files alongside spec.md."
   - label: "Keep as a single spec"
-    description: "The spec write step emits only spec.md; /implement consumes the whole thing."
+    description: "The spec write step emits only spec.md; /geniro:implement consumes the whole thing."
 ```
 
 If "Slice into milestones" picked:
@@ -256,7 +256,7 @@ If "Slice into milestones" picked:
 2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 10-section schema scoped to the milestone.
 3. Persist to `approvals[]` with category `milestone_slice`.
 
-Hand-off (Phase 9) offers `/implement milestone 1` for sliced specs. Milestone-mode fires only when the task warrants it — for Medium/Trivial, the milestone-mode AUQ does not fire.
+Hand-off (Phase 9) offers `/geniro:implement milestone 1` for sliced specs. Milestone-mode fires only when the task warrants it — for Medium/Trivial, the milestone-mode AUQ does not fire.
 
 ---
 

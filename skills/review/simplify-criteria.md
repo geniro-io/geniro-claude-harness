@@ -1,10 +1,10 @@
 # Simplify Analysis Criteria
 
-Reference file for the `/geniro:review --simplify` flag. When `--simplify` is present in `$ARGUMENTS`, /review's Phase 2 prepends these criteria onto 5 dimension reviewer prompts: **architecture** (Reuse), **conventions** (aggressive modal-pattern threshold), **guidelines** (Quality), **bugs** (Quality bug-class extensions), **optimizations** (Efficiency).
+Reference file for the `/geniro:review --simplify` flag. When `--simplify` is present in `$ARGUMENTS`, /geniro:review's Phase 2 prepends these criteria onto 5 dimension reviewer prompts: **architecture** (Reuse), **conventions** (aggressive modal-pattern threshold), **guidelines** (Quality), **bugs** (Quality bug-class extensions), **optimizations** (Efficiency).
 
 Severity reconciliation: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `--tdd` or risk-tier:high).
 
-NOT a new dimension — folds into existing dims. `/review` is a Reporter and does NOT auto-apply fixes. Users wanting auto-applied fixes pipe `/review --simplify` output to `/implement`.
+NOT a new dimension — folds into existing dims. `/geniro:review` is a Reporter and does NOT auto-apply fixes. Users wanting auto-applied fixes pipe `/geniro:review --simplify` output to `/geniro:implement`.
 
 (`/geniro:refactor` does NOT reference this file — its smell-detection routes through `existing-abstraction-audit.md` + orchestrator-inline deepening lens + `_shared/refactor-patterns.md`.)
 

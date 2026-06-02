@@ -85,7 +85,7 @@ When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code
 
 Severity HIGH when the untreated sibling loses or corrupts data; MEDIUM when it degrades gracefully. Anchor the finding at the edited path and name the unedited sibling `path:line`.
 
-This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence — Phase 3 dedup merges them and treats the agreement as a strong keep signal, so do not suppress your finding on the assumption another dimension will cover it.
+This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence — Phase 3 dedup merges them and treats the agreement as a strong keep signal, so do not suppress your finding on the assumption another dimension will cover it.
 
 ### 2. Abstraction & Interface Design
 - Missing abstraction layers (business logic tightly coupled to implementation)

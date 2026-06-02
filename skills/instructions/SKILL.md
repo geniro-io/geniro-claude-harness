@@ -19,7 +19,7 @@ Code rules split three ways depending on **when** they should fire:
 
 ## Loop invariants
 
-1. One result per subagent call — `/instructions` never spawns subagents (CRUD too small for parallelism).
+1. One result per subagent call — `/geniro:instructions` never spawns subagents (CRUD too small for parallelism).
 2. Args validated before exec — every Write preceded by scope validation (regex match) AND file-existence check.
 3. Permission before side-effect — Write/Delete are AUQ-gated.
 4. Bounded structured results — `list` mode truncates per-file body display at ~2000 chars.
@@ -29,7 +29,7 @@ Code rules split three ways depending on **when** they should fire:
 
 ## Budgets — quality-first
 
-`/instructions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry scope ambiguity → final AUQ abort, list-mode body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
+`/geniro:instructions` has **zero Class-A hard kill caps**. Class-B gates: 3-retry scope ambiguity → final AUQ abort, list-mode body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
 
 ## ACI surface per phase
 
@@ -39,7 +39,7 @@ Code rules split three ways depending on **when** they should fire:
 | `execute` | `Read`, `Write`, `Edit`, `Bash` (`mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Agent` (no subagents), `mcp__github__*`, network egress |
 | `done` | (terminal report) | (none) |
 
-External sends: not in `/instructions` ACI ever.
+External sends: not in `/geniro:instructions` ACI ever.
 
 ## Termination case → state mapping
 
@@ -61,16 +61,16 @@ The stable scope set:
 |---|---|---|---|---|
 | `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only |
 | `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase Review, `refactor` Phase Verify); pre-inlined into reviewer-agent prompts for guidelines/conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
-| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/review` Phase llm-spawn, `/implement` Phase self-review, `/refactor` Phase verify via `_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default` |
-| `implement` | `.geniro/instructions/implement.md` | L4 | `/implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `plan` | `.geniro/instructions/plan.md` | L4 | `/plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `review` | `.geniro/instructions/review.md` | L4 | `/review` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `debug` | `.geniro/instructions/debug.md` | L4 | `/debug` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `refactor` | `.geniro/instructions/refactor.md` | L4 | `/refactor` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `onboard` | `.geniro/instructions/onboard.md` | L4 | `/onboard` at Step 0 + phase-boundary refresh | Rules and Constraints only |
-| `investigate` | `.geniro/instructions/investigate.md` | L4 | `/investigate` at Step 0 + phase-boundary refresh | Same as `onboard` |
+| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default` |
+| `implement` | `.geniro/instructions/implement.md` | L4 | `/geniro:implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `plan` | `.geniro/instructions/plan.md` | L4 | `/geniro:plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `review` | `.geniro/instructions/review.md` | L4 | `/geniro:review` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `debug` | `.geniro/instructions/debug.md` | L4 | `/geniro:debug` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `refactor` | `.geniro/instructions/refactor.md` | L4 | `/geniro:refactor` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `onboard` | `.geniro/instructions/onboard.md` | L4 | `/geniro:onboard` at Step 0 + phase-boundary refresh | Rules and Constraints only |
+| `investigate` | `.geniro/instructions/investigate.md` | L4 | `/geniro:investigate` at Step 0 + phase-boundary refresh | Same as `onboard` |
 
-**Operational skills (`/setup`, `/instructions`, `/actions`, `/update`) do NOT load instruction files** beyond `global.md`.
+**Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`) do NOT load instruction files** beyond `global.md`.
 
 ## File Structure (singleton scopes)
 
@@ -337,7 +337,7 @@ If missing, branch to `create`. Else display current body inline.
 
 - **Question:** "How would you like to edit `<scope>`?"
 - **Options:**
-- `Open in editor (external)` — Print absolute path; instruct user to edit externally and re-run `/instructions validate <scope>` when done. Exit.
+- `Open in editor (external)` — Print absolute path; instruct user to edit externally and re-run `/geniro:instructions validate <scope>` when done. Exit.
 - `Rewrite via dialogue` — Interview-style sequence of AUQs (Add a Rule / Add an Additional Step / Add a Constraint / Remove a Rule by number / Done). Apply edits to an in-memory copy; final write AUQ-gated.
 - `Cancel`
 
@@ -480,20 +480,20 @@ rmdir .geniro/instructions/review-extra/ 2>/dev/null
 rmdir .geniro/instructions/ 2>/dev/null
 ```
 
-For `review-extra` ALL: explicitly refused with "Use `/instructions delete review-extra <slug>` per-file; bulk delete protected by guard hook."
+For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delete review-extra <slug>` per-file; bulk delete protected by guard hook."
 
 ## Memory I/O
 
-`/instructions` is the **CRUD frontend for L4 (procedural memory)**.
+`/geniro:instructions` is the **CRUD frontend for L4 (procedural memory)**.
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | not read | not written | That's `/setup`'s domain |
-| L2 learnings.jsonl | not read | not written | `/instructions` is a CRUD frontend, not a knowledge-emit producer |
+| L1 CLAUDE.md | not read | not written | That's `/geniro:setup`'s domain |
+| L2 learnings.jsonl | not read | not written | `/geniro:instructions` is a CRUD frontend, not a knowledge-emit producer |
 | L3 semantic files | not read | not written | Out of scope |
-| L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/instructions`'s entire surface |
+| L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/geniro:instructions`'s entire surface |
 
-**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `_shared/load-custom-instructions.md`. `/instructions`'s CRUD writes are immediately durable.
+**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.
 
 ## Writing Effective Instructions
 
@@ -536,7 +536,7 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 **What NOT to put in `.geniro/instructions/<skill>.md` or `code-style.md`:**
 
 - Per-file-pattern code rules → `.claude/rules/<scope>.md`
-- Tech stack info → CLAUDE.md (detected by `/setup`)
+- Tech stack info → CLAUDE.md (detected by `/geniro:setup`)
 - Build/test/lint commands → CLAUDE.md
 - Project structure facts → CLAUDE.md
 - Compaction-surviving global gates → CLAUDE.md
@@ -550,7 +550,7 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 | "I'll auto-fix `validate` issues to save the user a step" | No — auto-fix would silently mutate user-authored content. `validate` reports; user fixes via `edit`. |
 | "I'll silently overwrite existing instruction file" | No — for `create` on existing, present overwrite/edit-instead/cancel via AUQ. |
 | "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name - |
-| "I'll spawn a subagent to do the freeform rule synthesis" | No — `/instructions` is a small CRUD frontend; subagents add no parallelism benefit and complicate the stateless single-transaction model. |
+| "I'll spawn a subagent to do the freeform rule synthesis" | No — `/geniro:instructions` is a small CRUD frontend; subagents add no parallelism benefit and complicate the stateless single-transaction model. |
 | "I'll output the questions as plain text instead of `AskUserQuestion`" | No — every WAIT gate uses `AskUserQuestion`. |
 | "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the stable scope set. |
 | "I'll skip showing the scope-specific scaffold to save tokens" | No — scaffolds make the empty-file moment less confusing; they're not optional. |

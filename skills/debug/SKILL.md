@@ -1,6 +1,6 @@
 ---
 name: geniro:debug
-description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
+description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
@@ -41,7 +41,7 @@ The invariants apply unchanged:
 
 1. **One result per tool call.** Adversarial Mode parallel-spawn → each spawn must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` semantic parse; PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
-3. **Permission before side-effect.** State.md writes via `atomic_state_write`. /debug performs NO `git push` / `gh pr create` — debug never ships code. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+3. **Permission before side-effect.** State.md writes via `atomic_state_write`. /geniro:debug performs NO `git push` / `gh pr create` — debug never ships code. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 4. **Bounded and structured tool results.** `adversarial-tester-agent` output ≤4K chars per finding block; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 5. **Escalation gates, not silent abort.** stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate to user via AUQ. Never silently fabricate a conclusion.
 6. **Final answer grounded in observations.** Evidence Standard for hypothesis confirmation — every Result: field in `## Hypotheses` MUST cite an artifact kind 1-5 per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Symptom matches" is correlation, not causation; not allowed.
@@ -109,7 +109,7 @@ Every user-facing choice in this skill — including ad-hoc gates NOT explicitly
 
 state.md `phase: mode-detect`. **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Echo per the helper's contract.
 
-**Step 0.1 — Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /debug investigates in place on the current branch, so if that branch is behind the default branch, offer to update it before the investigation starts. Skipped silently when the branch is already current.
+**Step 0.1 — Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /geniro:debug investigates in place on the current branch, so if that branch is behind the default branch, offer to update it before the investigation starts. Skipped silently when the branch is already current.
 
 $ARGUMENTS routing:
 
@@ -152,7 +152,7 @@ Past diagnoses:
 These get surfaced on hypothesis formation so that the orchestrator does NOT re-form a hypothesis equivalent to an already-ruled-out one without explicit re-justification.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md`. Echo lines per each helper's mandatory echo contract.
 
-5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. Read-only — /debug never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
+5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. Read-only — /geniro:debug never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
 ### 1.2 Observe & repro
 
@@ -370,7 +370,7 @@ Fires FIRST in Phase 3 — before the findings summary, before the escalation AU
 
 **Wontfix path.** If the user picks "Other" with text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream consumers — they're recorded but de-prioritized.
 
-**No-skip rule.** This gate cannot be deferred to /implement or to the user's manual patch path. /debug is the producer that surfaced the ambiguity; resolving here makes the handoff actionable. Resolving downstream creates the failure mode this gate exists to prevent. The exception: when §3.2 fires and the user picks "Cannot verify — request specific data from user", that response itself IS a resolution path — emit a new `open_questions[]` entry with `source: phase-3-cannot-verify`, `status: unresolved`, then loop back to step 1 above when data arrives.
+**No-skip rule.** This gate cannot be deferred to /geniro:implement or to the user's manual patch path. /geniro:debug is the producer that surfaced the ambiguity; resolving here makes the handoff actionable. Resolving downstream creates the failure mode this gate exists to prevent. The exception: when §3.2 fires and the user picks "Cannot verify — request specific data from user", that response itself IS a resolution path — emit a new `open_questions[]` entry with `source: phase-3-cannot-verify`, `status: unresolved`, then loop back to step 1 above when data arrives.
 
 Skipped silently when `open_questions[]` has zero `unresolved` entries.
 
@@ -415,7 +415,7 @@ Output the markdown block directly in chat AND write the same content (with full
 **Accepted limitations?** [omit unless fix-fail path "Accept as documented limitation" was taken; if so: "<description of limitation>; user accepted on <ISO timestamp>"]
 ```
 
-**Populate `authored_tests[]` frontmatter (REQUIRED).** Alongside the body template above, write the `authored_tests[]` frontmatter array per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2 and the canonical contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Each F→P test authored in §2.4 gets one entry: `{id: t<N>, path: <repo-root-relative>, intent: <one-line guarantee>, mode: scientific, f_to_p_status: <enum>, related_hypotheses: [<H-IDs>]}`. If no test was authored (path B "Accept as documented limitation" or §2.4 escape-hatch with body `**Reproduction test:** escape hatch: <...>`), emit a single entry with `f_to_p_status: escape-hatch` and `intent: "escape-hatch: <verbatim rationale>"` — never omit the array. The body `**Reproduction test:**` line stays as human-readable mirror; the frontmatter is the machine-readable source for /implement Phase 1 Step 12's authored-test extraction (which invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to verify presence in the consumer's worktree and surface relocation suggestions if MISSING).
+**Populate `authored_tests[]` frontmatter (REQUIRED).** Alongside the body template above, write the `authored_tests[]` frontmatter array per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2 and the canonical contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Each F→P test authored in §2.4 gets one entry: `{id: t<N>, path: <repo-root-relative>, intent: <one-line guarantee>, mode: scientific, f_to_p_status: <enum>, related_hypotheses: [<H-IDs>]}`. If no test was authored (path B "Accept as documented limitation" or §2.4 escape-hatch with body `**Reproduction test:** escape hatch: <...>`), emit a single entry with `f_to_p_status: escape-hatch` and `intent: "escape-hatch: <verbatim rationale>"` — never omit the array. The body `**Reproduction test:**` line stays as human-readable mirror; the frontmatter is the machine-readable source for /geniro:implement Phase 1 Step 12's authored-test extraction (which invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to verify presence in the consumer's worktree and surface relocation suggestions if MISSING).
 
 The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path IS the contract.
 
@@ -434,10 +434,10 @@ Do NOT auto-invoke the next skill — surface the suggestion only. State file IS
 
 At Phase 3 exit:
 
-- **`emit-learning`** — called by /debug at two distinct points:
+- **`emit-learning`** — called by /geniro:debug at two distinct points:
 - **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`.
 - **`discarded_hypothesis`** (fires per-rejection during Phase 1) — every rejected hypothesis emits one entry with required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See §1.5 for the payload schema and emit logic.
-- **NOT emitted :** `pitfall` (/refactor + /review own), `convention` (/implement self-review owns), `decision` (/plan owns), `discovery` (/refactor + /onboard + /investigate own).
+- **NOT emitted :** `pitfall` (/geniro:refactor + /geniro:review own), `convention` (/geniro:implement self-review owns), `decision` (/geniro:plan owns), `discovery` (/geniro:refactor + /geniro:onboard + /geniro:investigate own).
 
 - **L4 promotion suggestion:** when the prior-knowledge query returned **≥1 matching prior diagnosis** (recurrence signal), surface a one-line suggestion in the Phase 3 final report:
 
@@ -506,7 +506,7 @@ Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff
 
 ### A2. Diff resolution
 
-**Delegates to /review Phase 1 multi-form parser.** See `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 1 — do NOT duplicate the parser here.
+**Delegates to /geniro:review Phase 1 multi-form parser.** See `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 1 — do NOT duplicate the parser here.
 
 **Default when no explicit range:** scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree + currently-checked-out branch. Resolve the base branch per scope-anchor rule #3 (`git symbolic-ref --short refs/remotes/origin/HEAD`). Compute `git diff <base>...HEAD`. If on the base branch, fall back to `HEAD~1..HEAD`.
 
@@ -527,7 +527,7 @@ Runs the **RED phase** of the canonical cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_
 1. **Resolve the diff** (A2). Pre-inline full diff + changed-file contents for the spawn prompt.
 2. **Detect the project test framework.** Read CLAUDE.md Essential Commands + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract test command, naming convention, and 1-2 exemplar test files closest to changed code.
 3. **Spawn `adversarial-tester-agent`** to AUTHOR RED tests — see Spawn Template (A5). The agent writes failing tests against today's code; no fix is authored.
-4. **Independently verify RED.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`, extract authored test file paths from frontmatter `authored_tests[]` (preferred) or fall back to body `**Test file:**` lines for legacy m7-v1 handoffs. Run the project test command **once per authored test** (single independent re-run — the agent already ran a 3× flake check per its Step 5). Tests that do not fail deterministically are deleted from disk AND removed from the body report AND pruned from the frontmatter `authored_tests[]` array — re-emit the handoff file via `atomic_state_write` so the consumer (/implement Phase 1 Step 12) sees the kept set only. **Re-emit contract:** the only delta is the pruned `authored_tests[]` entries plus the corresponding `**Test file:**` body lines. Preserve every other frontmatter key (`tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `open_questions`) and every other body section (Adversarial Findings summary, hypothesis details, Discarded / Inconclusive, etc.) byte-for-byte from the agent's original write — this is a surgical patch, not a rewrite. Mirror the producer-preserving pattern used by Phase 1 Step 12 sub-bullet 6 of `/implement` (Preserve `id`, `source`, `question`, `related_findings` on resolution writes). This is the orchestrator-side RED-verification per `tdd-cycle.md` § RED phase Step 3.
+4. **Independently verify RED.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`, extract authored test file paths from frontmatter `authored_tests[]` (preferred) or fall back to body `**Test file:**` lines for legacy m7-v1 handoffs. Run the project test command **once per authored test** (single independent re-run — the agent already ran a 3× flake check per its Step 5). Tests that do not fail deterministically are deleted from disk AND removed from the body report AND pruned from the frontmatter `authored_tests[]` array — re-emit the handoff file via `atomic_state_write` so the consumer (/geniro:implement Phase 1 Step 12) sees the kept set only. **Re-emit contract:** the only delta is the pruned `authored_tests[]` entries plus the corresponding `**Test file:**` body lines. Preserve every other frontmatter key (`tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `open_questions`) and every other body section (Adversarial Findings summary, hypothesis details, Discarded / Inconclusive, etc.) byte-for-byte from the agent's original write — this is a surgical patch, not a rewrite. Mirror the producer-preserving pattern used by Phase 1 Step 12 sub-bullet 6 of `/geniro:implement` (Preserve `id`, `source`, `question`, `related_findings` on resolution writes). This is the orchestrator-side RED-verification per `tdd-cycle.md` § RED phase Step 3.
 5. **Present Adversarial Findings** (A6 template).
 6. **Escalate fix authoring** — reuse escalation AUQ (Trivial / Non-trivial / Cannot-verify / Leave-it-to-me) with findings file path referencing `from-debug-adversarial-<branch>.md` instead of `from-debug-<branch>.md`. The authored test file paths inside are the escalation targets. The receiving skill writes the fix and runs GREEN verification (`tdd-cycle.md` § GREEN phase). If zero red tests survived re-verification, SKIP entirely — report `"no bugs found in scanned diff"` and go directly to Cleanup; terminal state `adversarial-aborted` with `## Termination reason: no-bugs-found-in-diff`.
 
@@ -600,7 +600,7 @@ T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `a
 | Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence`; fires when `fix_attempts >= 2`; required `ext.{phase, attempts, resolution}`) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis`; required `ext.{symptom, root_cause, fix}`) |
 
-`update-semantic` is NOT called. Debug investigates existing code; it does not add modules, move files, or rename — those are /implement and /refactor concerns.
+`update-semantic` is NOT called. Debug investigates existing code; it does not add modules, move files, or rename — those are /geniro:implement and /geniro:refactor concerns.
 
 ---
 
@@ -609,8 +609,8 @@ T1 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `a
 | Your reasoning | Why it's wrong |
 |---|---|
 | "It's probably a cache issue" — guess and code | Guesses waste time. Form a hypothesis, then test it with evidence per Evidence Standard. |
-| "The fix is one line, I'll just write it and escalate nothing" | /debug never applies code. Even one-line fixes go through `/geniro:implement` — the review gate still applies and the reproduction test ships with the fix as the regression guard. |
-| "I added experimental logging and while I'm here I'll patch the bug too" | Experiments and fixes are separate deliverables. Phase 2 mandates: revert experimental edits to non-test source; escalate the proposed patch as text. /implement applies the real fix cleanly. |
+| "The fix is one line, I'll just write it and escalate nothing" | /geniro:debug never applies code. Even one-line fixes go through `/geniro:implement` — the review gate still applies and the reproduction test ships with the fix as the regression guard. |
+| "I added experimental logging and while I'm here I'll patch the bug too" | Experiments and fixes are separate deliverables. Phase 2 mandates: revert experimental edits to non-test source; escalate the proposed patch as text. /geniro:implement applies the real fix cleanly. |
 | "Changes look fine, I'll skip adversarial mode" | "Looks fine" is the attacker's favorite surface. If user asked for verify-changes, run the adversarial pass — a zero-red-tests outcome is still a valid deliverable. |
 | "I'll reason about edges instead of authoring tests" | Reasoning is reviewer-mindset. Adversarial mode AUTHORS executable failing tests because reasoning misses what running code catches. |
 | "The agent reported F→P, I'll trust it" | Orchestrator MUST independently re-run authored tests (A4 step 4). Self-reported F→P is evidence, not proof. Same rule applies to scientific-mode hypothesis confirmation — re-run the test / re-read the file:line / re-execute the query yourself before advancing to Isolate. |

@@ -100,17 +100,17 @@ Always to stderr (so it doesn't pollute the loaded-content stream that callers c
 content=$(load_semantic)
 # stderr already surfaced any drift warning to the user.
 
-# /onboard rewrites the fingerprint after refresh (called from Phase 2)
+# /geniro:onboard rewrites the fingerprint after refresh (called from Phase 2)
 update_fingerprint
 ```
 
 ```bash
-# /implement loading extra context for a UI task
+# /geniro:implement loading extra context for a UI task
 content=$(load_semantic --extras "_architecture _FEATURES _focus-ui")
 ```
 
 ```bash
-# /investigate that wants L3 silently (no drift noise during a quiet query)
+# /geniro:investigate that wants L3 silently (no drift noise during a quiet query)
 content=$(load_semantic --quiet)
 ```
 

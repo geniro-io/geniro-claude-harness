@@ -225,7 +225,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ### Custom reviewer dimensions (`.geniro/instructions/review-extra/`)
 
-Round 1 only — before issuing the 5 built-in spawns, first resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash (the helper's Step 1 dual-globs `.geniro/instructions/review-extra/*.md` against cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`, so in a linked worktree where `.geniro/instructions/` is gitignored and does not propagate on `git worktree add`, the main-worktree fallback is the only path that finds user-authored review-extra files), then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored `review-extra/<slug>.md` files. The helper returns a list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing the ≤10 cap. Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the SAME parallel batch as the 5 built-ins (one assistant turn, one parallel batch — same rule as `/review` Phase llm-spawn and `/refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs).
+Round 1 only — before issuing the 5 built-in spawns, first resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash (the helper's Step 1 dual-globs `.geniro/instructions/review-extra/*.md` against cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`, so in a linked worktree where `.geniro/instructions/` is gitignored and does not propagate on `git worktree add`, the main-worktree fallback is the only path that finds user-authored review-extra files), then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored `review-extra/<slug>.md` files. The helper returns a list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing the ≤10 cap. Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the SAME parallel batch as the 5 built-ins (one assistant turn, one parallel batch — same rule as `/geniro:review` Phase llm-spawn and `/geniro:refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs).
 
 Round N+1: re-fire a custom reviewer only if its prior round flagged a CRITICAL or HIGH finding (mirrors the failing-dim rule for built-ins). The custom reviewer's spawn-spec list is recomputed only on round 1; round N+1 reuses the round-1 spec cache.
 
@@ -293,7 +293,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ### Why no user-approval AUQ before this spawn
 
-`/review` gates adversarial-tester spawns behind a user-approval AUQ because its contract is read-only reporter — spawning a test author is a scope expansion past contract. `/implement` is already authorized to mutate code (Phase 2 IS the mutation phase). Phase 3 adversarial test authoring is symmetric to Phase 2 code authoring, NOT a new authority surface. The spec.md approval upstream (when one exists) covers it. The scope-tier check (`change_scope: trivial` → skip) IS the mechanical gate. Use `--no-adversarial` modifier in `$ARGUMENTS` for explicit per-run opt-out.
+`/geniro:review` gates adversarial-tester spawns behind a user-approval AUQ because its contract is read-only reporter — spawning a test author is a scope expansion past contract. `/geniro:implement` is already authorized to mutate code (Phase 2 IS the mutation phase). Phase 3 adversarial test authoring is symmetric to Phase 2 code authoring, NOT a new authority surface. The spec.md approval upstream (when one exists) covers it. The scope-tier check (`change_scope: trivial` → skip) IS the mechanical gate. Use `--no-adversarial` modifier in `$ARGUMENTS` for explicit per-run opt-out.
 
 ---
 
@@ -376,9 +376,9 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 **Step 2 — Commit.** Before staging, run `git branch --show-current` and verify the working tree is on the branch this run targeted (the Phase-1 Step-0 captured `CURRENT_BRANCH` / state.md `branch:` field). The session-start / state-snapshot branch field can go stale across compaction or an intervening branch switch — trust the live command, not the snapshot. On a mismatch, do NOT `git add` or `git commit`; fire an `AskUserQuestion` (header: "Branch check", question: "The working tree is on branch `<live>` but this run targeted `<expected>` — committing here would land the change on the wrong branch. How do you want to proceed?", options: "Move my commit to `<expected>` first" / "Commit on `<live>` anyway" / "Stop — let me sort the branch out"). Once the branch is confirmed, stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). Provenance guard: diff `git status --porcelain` against CHANGED_FILES; any production file modified outside that set was authored by something other than this run — fire an `AskUserQuestion` (header: "Unexpected changes", options: "Include them — I authored them elsewhere" / "Exclude — commit only my files" / "Pause and review") rather than silently folding them into this run's commit. Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata. If a workflow file specifies commit-message format (e.g., appending issue ID), follow that format.
 
-**Step 3 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /review or /debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
+**Step 3 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
 
-Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a canonical allowlist — present them verbatim in the AUQ; never paraphrase, merge, or collapse them (e.g., never combine "Open draft PR (Recommended)" and "Open PR" into a single "open PR" / "Commit + push + open PR" label). "Open draft PR (Recommended)" must always appear as a distinct selectable option so the safe default is surfaced. (Mirrors the canonical-option-allowlist rule in /review's action gate.)
+Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a canonical allowlist — present them verbatim in the AUQ; never paraphrase, merge, or collapse them (e.g., never combine "Open draft PR (Recommended)" and "Open PR" into a single "open PR" / "Commit + push + open PR" label). "Open draft PR (Recommended)" must always appear as a distinct selectable option so the safe default is surfaced. (Mirrors the canonical-option-allowlist rule in /geniro:review's action gate.)
 
 - **Label:** `"Open draft PR (Recommended)"` / **Description:** `"git push then gh pr create --draft. Safest default — lets you review before marking ready."`
 - **Label:** `"Open PR"` / **Description:** `"git push then gh pr create (ready-for-review). Appends task ID to PR title."`
@@ -390,7 +390,7 @@ The user can always type a custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back to ship-mode AUQ.
 - **"Don't push"** (via Other; semantically equivalent to the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses step 3's push, not the upstream commit.
 
-**Approvals-persistence protocol (step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /review or /debug handoff (re-resolve per Step 3's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
+**Approvals-persistence protocol (step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /geniro:review or /geniro:debug handoff (re-resolve per Step 3's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
 **L2 emit on rejection signal:** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 
@@ -400,7 +400,7 @@ emit_rejection_if_signal \
 "<recommended ship-mode label>" "<picked label>" "<recommended label>"
 ```
 
-`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever option carries the `(Recommended)` suffix per ship-mode AUQ rules (typically «Open draft PR» by default; «Commit + push» when user has just selected «Post findings as Draft PR review» from a chained AUQ). Helper detects rejection signals and emits L2 entry — acceptance is a no-op. Future /implement Phase 1 surface «user consistently picks X over Y» pattern hint.
+`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever option carries the `(Recommended)` suffix per ship-mode AUQ rules (typically «Open draft PR» by default; «Commit + push» when user has just selected «Post findings as Draft PR review» from a chained AUQ). Helper detects rejection signals and emits L2 entry — acceptance is a no-op. Future /geniro:implement Phase 1 surface «user consistently picks X over Y» pattern hint.
 
 **Step 4 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
@@ -431,14 +431,14 @@ If updates needed, delegate to a general-purpose subagent with `model="haiku"` c
 
 ### Extract Learnings
 
-Learning capture is an auto-step at the end of /implement. Phase 3 calls the L2 helper `emit-learning` when conditions are met.
+Learning capture is an auto-step at the end of /geniro:implement. Phase 3 calls the L2 helper `emit-learning` when conditions are met.
 
 **Emit triggers** (per the table below):
 
 | Type | When emits |
 |---|---|
 | `convention` | Phase 3 architecture or code-quality reviewer reports ≥3 instances of same pattern in changed code. Threshold tuning lives in the reviewer-agent spawn prompt. |
-| `decision` | Spec.md records a non-trivial approach choice with `## Considered Alternatives` section. Mirrors that decision to L2 for cross-session recall. (Note: when /plan ships, /plan emits the decision directly; inline-task path only.) |
+| `decision` | Spec.md records a non-trivial approach choice with `## Considered Alternatives` section. Mirrors that decision to L2 for cross-session recall. (Note: when /geniro:plan ships, /geniro:plan emits the decision directly; inline-task path only.) |
 
 **Trust default: `verified`** — entries are grounded in Phase 2 code and Phase 3 reviewer findings (test-validated on entry).
 
@@ -501,7 +501,7 @@ These files were used once by the orchestrator or subagents during the run; they
 **Durable artifacts — PRESERVE** (T1.5 task-bound durable):
 
 ```
-<task-dir>/spec.md         # /geniro:plan canonical output — needed for /review spec-compliance
+<task-dir>/spec.md         # /geniro:plan canonical output — needed for /geniro:review spec-compliance
 <task-dir>/state.md        # frontmatter + ## Tool log + ## Adjustments — needed for Adjustment Routing
 <task-dir>/plan-*.md       # versioned plans from /geniro:plan iterations
 <task-dir>/milestone-*.md  # /geniro:plan Big-mode milestone splits
@@ -517,7 +517,7 @@ The `.geniro/` deletion guard hook allows targeted `rm -f` under `<task-dir>` (p
 
 ## Phase 3 — Adjustment Routing (Big / Medium / Small)
 
-Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` invocation. All adjustments route back through `/implement` itself with the original spec + adjustment description as new $ARGUMENTS.
+Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` invocation. All adjustments route back through `/geniro:implement` itself with the original spec + adjustment description as new $ARGUMENTS.
 
 ### Big — changes to data model, API contract, new endpoints
 
@@ -537,7 +537,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 2. Apply the edit inline, re-run test suite. State.md updates `## Tool log` with the side-effect.
 3. Re-enter Phase 3 self-review (single round usually sufficient).
 
-**Soft limits.** Big tweaks: after 2 rounds, suggest starting a new /implement session — fresh context provides clean separation. Medium/Small tweaks: after 3 rounds, surface a message recommending the user re-spec via `/geniro:plan`.
+**Soft limits.** Big tweaks: after 2 rounds, suggest starting a new /geniro:implement session — fresh context provides clean separation. Medium/Small tweaks: after 3 rounds, surface a message recommending the user re-spec via `/geniro:plan`.
 
 **Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). Pre-ship steps (Update Docs, Extract Learnings, Suggest Improvements) run once on first Ship entry and are NOT repeated on tweak rounds unless the tweak materially changes the docs/learnings/improvement surface.
 

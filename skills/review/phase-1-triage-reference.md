@@ -39,10 +39,10 @@ Collect these signals before deciding:
 | `CURRENT_TOPLEVEL` | `git rev-parse --show-toplevel` |
 | `IN_WORKTREE` | `CURRENT_TOPLEVEL` is registered in `git worktree list --porcelain` AND is NOT the porcelain `bare` row or the main worktree row. Porcelain registry is the source of truth; the `.claude/worktrees/<slug>/` path convention is a sanity check, NOT the primary signal. |
 | `PROTECTED_BRANCH` | `CURRENT_BRANCH ∈ {main, master, develop, trunk}` (per-project override via `.geniro/safety.json`) |
-| `EXISTING_REVIEW_STATE` | Glob `.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` ⇒ "prior /review run on this branch" |
-| `REVIEW_HANDOFF` | Alias for `EXISTING_REVIEW_STATE` — re-running /review means the user is in fix-up or follow-up review mode |
-| `DEBUG_HANDOFF` | Path `.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "/debug just authored repro tests for this branch" |
-| `IMPLEMENT_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` ⇒ "active or completed /implement run on this branch" |
+| `EXISTING_REVIEW_STATE` | Glob `.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` ⇒ "prior /geniro:review run on this branch" |
+| `REVIEW_HANDOFF` | Alias for `EXISTING_REVIEW_STATE` — re-running /geniro:review means the user is in fix-up or follow-up review mode |
+| `DEBUG_HANDOFF` | Path `.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "/geniro:debug just authored repro tests for this branch" |
+| `IMPLEMENT_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` ⇒ "active or completed /geniro:implement run on this branch" |
 | `TARGET_PR_NUMBER` | If `$ARGUMENTS` carries a PR ref: extract `<N>`. Else null. |
 | `TARGET_WORKTREE_NAME` | If `TARGET_PR_NUMBER` is set: `pr-<N>-review`. Else null (no target). |
 | `IN_TARGET_WORKTREE` | `IN_WORKTREE == true` AND `CURRENT_TOPLEVEL` basename matches `TARGET_WORKTREE_NAME`. Only meaningful when `TARGET_WORKTREE_NAME` is non-null. |
@@ -78,7 +78,7 @@ Decision tree (first match wins; evaluate top-down):
    AND IN_WORKTREE == true
    AND IN_TARGET_WORKTREE == false
    AND no continuing-work signals match
-   ⇒ User is in some other worktree but launched /review for an unrelated PR.
+   ⇒ User is in some other worktree but launched /geniro:review for an unrelated PR.
       Fire 3-option AUQ (header: "Worktree mismatch"):
         A) "Continue here in '<dir>'" — recommended if user explicitly cd'd here
         B) "Exit to repo root and create new worktree '<TARGET_WORKTREE_NAME>'" —
@@ -141,9 +141,9 @@ approvals:
     timestamp: <ISO-8601>
 ```
 
-On compaction-resume or Round 2+ re-runs of /review on the same branch, Step 0 reads `approvals[]` and re-applies the prior answer without re-prompting.
+On compaction-resume or Round 2+ re-runs of /geniro:review on the same branch, Step 0 reads `approvals[]` and re-applies the prior answer without re-prompting.
 
-Workflow status transitions (e.g., "Move <issue_id> to In Review?") are NOT part of Step 0 — /review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture) per §3.5; they are not user-prompted in Step 0. Workflow status mutation belongs to `/geniro:implement` only — Step 0c (kickoff) and Phase 3 Ship (completion); `/geniro:plan`, `/geniro:debug`, `/geniro:refactor`, and `/geniro:review` are all read-only tracker consumers.
+Workflow status transitions (e.g., "Move <issue_id> to In Review?") are NOT part of Step 0 — /geniro:review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture) per §3.5; they are not user-prompted in Step 0. Workflow status mutation belongs to `/geniro:implement` only — Step 0c (kickoff) and Phase 3 Ship (completion); `/geniro:plan`, `/geniro:debug`, `/geniro:refactor`, and `/geniro:review` are all read-only tracker consumers.
 
 ### 0d — Execution after AUQ
 
@@ -195,7 +195,7 @@ There is **NO `--incoming` flag**. Explicit override into INCOMING is via the an
 
 ### 1.1 Existing PR review ingest (formal reviews + inline bot comments)
 
-The thread-state fetch above reads thread STATE (`isResolved`/`isOutdated`/`path`/`line`) for dedup only — it never reads comment BODIES. Automated reviewers (CodeRabbit, Greptile, Sourcery, and other bots) post findings as review-thread comments; a real incident had /review declare a PR "CLEAN — ship-ready" while CodeRabbit had already flagged a Major bug in scope. Fetch those bodies so they reach the LLM reviewers as prior-context.
+The thread-state fetch above reads thread STATE (`isResolved`/`isOutdated`/`path`/`line`) for dedup only — it never reads comment BODIES. Automated reviewers (CodeRabbit, Greptile, Sourcery, and other bots) post findings as review-thread comments; a real incident had /geniro:review declare a PR "CLEAN — ship-ready" while CodeRabbit had already flagged a Major bug in scope. Fetch those bodies so they reach the LLM reviewers as prior-context.
 
 Two distinct surfaces carry prior findings: (a) the top-level **formal review** (`reviews(){ state body author }` — APPROVED / CHANGES_REQUESTED / COMMENTED with a summary body, posted by humans AND bots), and (b) **inline review-thread comments** (anchored to `path:line`, mostly bots). A real incident had a run address only the failing-CI commit and inline comments while a teammate's posted formal review — carrying two advisory findings beyond the inline ones — went unread. Read BOTH so neither surface is silently dropped.
 
@@ -252,9 +252,9 @@ If `gh` is unavailable or the PR cannot be fetched, report the error and stop �
 
 ## 3.5. Workflow integrations (issue-tracker fetch)
 
-Mirrors the Workflow-integration plumbing pattern in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` (§"Phase 1: $ARGUMENTS semantic-parse table") — read `.geniro/workflow/*.md` integrations, apply argument-detection regex, attempt MCP fetch when backend available. Read-only from /review's perspective; status/comment updates remain in /implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
+Mirrors the Workflow-integration plumbing pattern in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` (§"Phase 1: $ARGUMENTS semantic-parse table") — read `.geniro/workflow/*.md` integrations, apply argument-detection regex, attempt MCP fetch when backend available. Read-only from /geniro:review's perspective; status/comment updates remain in /geniro:implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
 
-Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not configured by /setup). Other inputs (files / diff range / branch / PR ref) ALL eligible — tracker IDs surface in `$ARGUMENTS` independently of PR-ref-driven flow.
+Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not configured by /geniro:setup). Other inputs (files / diff range / branch / PR ref) ALL eligible — tracker IDs surface in `$ARGUMENTS` independently of PR-ref-driven flow.
 
 ### 3.5.1 Detection
 

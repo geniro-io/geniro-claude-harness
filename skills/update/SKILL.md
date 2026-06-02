@@ -17,7 +17,7 @@ argument-hint: "[--dry-run]"
 
 ## Loop invariants
 
-1. `/update` does NOT spawn subagents.
+1. `/geniro:update` does NOT spawn subagents.
 2. Args validated before exec — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 3. Permission before side-effect — the pre-update AUQ (§Phase 1 Step 3) is the explicit gate.
 4. Bounded structured results — hash diffs truncated at ~2000 chars; per migration step at ~500 chars.
@@ -27,7 +27,7 @@ argument-hint: "[--dry-run]"
 
 ## Budgets — quality-first
 
-`/update` has **zero Class-A hard kill caps**. Class-B gates: 4-retry network backoff, hash-diff truncation, per-migration-step truncation. NOT capped: migration walk step count, hash-check file count, total update duration.
+`/geniro:update` has **zero Class-A hard kill caps**. Class-B gates: 4-retry network backoff, hash-diff truncation, per-migration-step truncation. NOT capped: migration walk step count, hash-check file count, total update duration.
 
 ## ACI surface per phase
 
@@ -39,7 +39,7 @@ argument-hint: "[--dry-run]"
 | `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
-External sends: not in `/update` ACI ever.
+External sends: not in `/geniro:update` ACI ever.
 
 ## Termination case → state mapping
 
@@ -73,7 +73,7 @@ fi
 
 ### Step 2 — Resolve `$CLAUDE_USER_DIR`, `$PRIMARY_ROOT`, and snapshot user content
 
-Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A before the snapshot. The snapshot must capture user-authored content in the primary worktree — not whichever worktree the orchestrator currently sits in. `/update` is typically run from `main`, but the safe contract is to resolve explicitly so a session running in a linked worktree compares the right tree.
+Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A before the snapshot. The snapshot must capture user-authored content in the primary worktree — not whichever worktree the orchestrator currently sits in. `/geniro:update` is typically run from `main`, but the safe contract is to resolve explicitly so a session running in a linked worktree compares the right tree.
 
 ```bash
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -257,7 +257,7 @@ cp "$PLUGIN_PATH/hooks/geniro-statusline.js" "$CLAUDE_USER_DIR/hooks/geniro-stat
 fi
 ```
 
-Skip if file doesn't exist (user didn't run `/setup` or has no `statusLine` settings entry). The plugin's bundled `settings.json` already exposes the statusline via `${CLAUDE_PLUGIN_ROOT}`.
+Skip if file doesn't exist (user didn't run `/geniro:setup` or has no `statusLine` settings entry). The plugin's bundled `settings.json` already exposes the statusline via `${CLAUDE_PLUGIN_ROOT}`.
 
 Transition to Phase 4.
 
@@ -293,7 +293,7 @@ If MIGRATION.md is present but malformed (cannot parse the heading structure), s
 
 ## Done — Final report
 
-`/update` always emits the restart warning — a version transition leaves in-memory skill bodies pointing at the old version until the session restarts. The `/geniro:setup` re-run recommendation is **conditional**: `/setup`'s only work `/update` has not already done is regenerate the project CLAUDE.md (its `.geniro/` migration sweep re-walks the same MIGRATION.md entries Phase 4 just walked), so recommend it only when the run leaves setup-relevant work.
+`/geniro:update` always emits the restart warning — a version transition leaves in-memory skill bodies pointing at the old version until the session restarts. The `/geniro:setup` re-run recommendation is **conditional**: `/geniro:setup`'s only work `/geniro:update` has not already done is regenerate the project CLAUDE.md (its `.geniro/` migration sweep re-walks the same MIGRATION.md entries Phase 4 just walked), so recommend it only when the run leaves setup-relevant work.
 
 Recommend `/geniro:setup` (append the re-setup section below) when ANY of these hold:
 
@@ -332,8 +332,8 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | not read | not written | `/setup re-run` handles CLAUDE.md refresh; `/update` only emits a recommendation if user-project CLAUDE.md may be stale |
-| L2 learnings.jsonl | not read | not written | `/update` is operational, not knowledge-producing |
+| L1 CLAUDE.md | not read | not written | `/geniro:setup re-run` handles CLAUDE.md refresh; `/geniro:update` only emits a recommendation if user-project CLAUDE.md may be stale |
+| L2 learnings.jsonl | not read | not written | `/geniro:update` is operational, not knowledge-producing |
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
 | `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |

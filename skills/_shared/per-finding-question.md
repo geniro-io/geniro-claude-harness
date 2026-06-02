@@ -30,7 +30,7 @@ Used by:
 
 - **`options[]`** — one per enumerated path (from the finding's `Options:` field for PRODUCT-DECISION resolution gates; from the calling skill's escalation menu for refactor-style escalation gates — see `/geniro:refactor` Phase 3 escalation for the 4-fixed-option menu):
  - **`label`**: 1-5 words — the action name (e.g. `"Move to utils"`, `"Keep as-is"`, `"Run /geniro:implement"`).
- - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/refactor` escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
+ - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/geniro:refactor` escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
  - **`preview`**: full finding body, formatted as:
 
  ````
@@ -96,7 +96,7 @@ Used by:
 - `/geniro:debug` Phase 2 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
 - `/geniro:debug` Phase 2 escape hatch (Repro infeasible — alternative regression-guard picker when the bug is non-deterministic)
 
-Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/<slug>/state.md` instead of the reviewer-agent output.
+Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/geniro:debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/<slug>/state.md` instead of the reviewer-agent output.
 
 ### Required AUQ shape
 
@@ -170,7 +170,7 @@ The `(Recommended)` suffix on an AskUserQuestion option is load-bearing — user
 
 ### When `(Recommended)` MUST NOT be applied
 
-- **Override-of-prior-finding rule.** When the orchestrator's AUQ option contradicts, downgrades, or proposes-to-ignore a prior `/review` CRITICAL or HIGH finding — read from `<task-dir>/planning/*/review-feedback.md` or `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` — that option MUST NOT carry `(Recommended)`. The conservative path (verify the orchestrator's interpretation first; spawn skeptic to mirror-check; escalate to `/geniro:debug`) is the Recommended default instead. The orchestrator's interpretation of "this CRITICAL is stale / no-op / unused" is, by definition, an unverified claim until the skeptic mirror-check or an empirical re-run confirms it.
+- **Override-of-prior-finding rule.** When the orchestrator's AUQ option contradicts, downgrades, or proposes-to-ignore a prior `/geniro:review` CRITICAL or HIGH finding — read from `<task-dir>/planning/*/review-feedback.md` or `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` — that option MUST NOT carry `(Recommended)`. The conservative path (verify the orchestrator's interpretation first; spawn skeptic to mirror-check; escalate to `/geniro:debug`) is the Recommended default instead. The orchestrator's interpretation of "this CRITICAL is stale / no-op / unused" is, by definition, an unverified claim until the skeptic mirror-check or an empirical re-run confirms it.
 - **Orchestrator-authored-hypothesis rule.** When the orchestrator wrote BOTH the hypothesis AND the option set (i.e. the user did not propose the change in `$ARGUMENTS`; the orchestrator decided mid-pipeline that the change-shape should shift — e.g. "I'll downgrade this CRITICAL to a comment-only cleanup"), the orchestrator's preferred option MUST NOT carry `(Recommended)`. The Recommended default is whichever option keeps the original change shape intact, or "Stop and let me describe the change" if no original shape applies.
 - **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option MUST NOT carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:debug` adversarial mode — the adversarial-tester-agent authors an attempted-removal RED test verifying the guard's necessity) OR "Keep the guard for now".
 

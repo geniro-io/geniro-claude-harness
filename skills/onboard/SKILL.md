@@ -9,7 +9,7 @@ argument-hint: "[optional: --focus area1,area2 --depth N]"
 
 # Onboard: Rapid Codebase Orientation
 
-2-phase loop (Discover → Map) mirroring `/implement`, `/refactor`, `/debug`. Generates a structured map that serves as a reference for the session. Useful for: new developers, new sessions after long gaps, understanding unfamiliar repos, or onboarding to an unfamiliar domain.
+2-phase loop (Discover → Map) mirroring `/geniro:implement`, `/geniro:refactor`, `/geniro:debug`. Generates a structured map that serves as a reference for the session. Useful for: new developers, new sessions after long gaps, understanding unfamiliar repos, or onboarding to an unfamiliar domain.
 
 Section-reference convention: local refs like Phase X are within this SKILL.md.
 
@@ -57,7 +57,7 @@ Terminal states: `done`, `map-truncated`, `aborted`, `routed`. The SessionStart 
 
 ## Loop invariants
 
-The 10 canonical loop invariants from `/geniro:implement` § Loop invariants apply throughout /onboard. Three skill-specific notes:
+The 10 canonical loop invariants from `/geniro:implement` § Loop invariants apply throughout /geniro:onboard. Three skill-specific notes:
 
 1. **Invariant #4 (bounded structured tool results)** — repo-scan output (file list, directory tree) is bounded; long lists truncated with marker.
 2. **Invariant #7 (errors → structured observations)** — permission errors during scan, missing access become structured `## Errors` body section entries.
@@ -67,16 +67,16 @@ The 10 canonical loop invariants from `/geniro:implement` § Loop invariants app
 
 ## Quality-first budgets
 
-Quality-first framing: /onboard has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
+Quality-first framing: /geniro:onboard has **NO Class-A hard kill caps**. All limits are **escalation gates that surface to user**.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
 | Repo-size scan cap | 50 files (default) OR user-configured expansion | §1.3 Step 1 | AUQ — "Apply --focus" / "Expand scan (specify cap)" / "Truncate at top 50" / "Abort". **User picks; persists to state.md `approvals[]` (category `expand_scope`).** |
 
 **Architecture constraints (design intent, not budget):**
-- No parallel agent spawns — /onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+- No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**Claude Code internals** (not under /onboard control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
+**Claude Code internals** (not under /geniro:onboard control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
 
 **Explicitly NOT capped:** wall-time per run (big monorepo onboard may take 30+ minutes legitimately); total Read/Grep/Glob calls (scans many files); total cost per run (deferred to a future release).
 
@@ -194,7 +194,7 @@ After map ships, route user via `AskUserQuestion`:
 - **Options:**
 - **"Plan a feature"** — description: "Run `/geniro:plan <feature>` to draft an approved spec (spec.md you approve before code)"
 - **"Investigate specifics"** — description: "Run `/geniro:investigate <question>` to dig deeper into a subsystem"
-- **"Implement a change"** — description: "Run `/geniro:implement` to design and build (consumes a spec.md from /plan OR inline-task mode)"
+- **"Implement a change"** — description: "Run `/geniro:implement` to design and build (consumes a spec.md from /geniro:plan OR inline-task mode)"
 - **"Review feature backlog"** — description: "Read `_FEATURES.md` (manual backlog) or run `/geniro:plan` to author one"
 
 ### 2.5 Cleanup
@@ -274,7 +274,7 @@ Mirrors structure.
 
 **Phase 1 (Discover):**
 - Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`).
-- Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /onboard is a solo orchestrator skill).
+- Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
 - Allowed: Read / Write (for `_CODEBASE_MAP.md` only — scope to `.geniro/planning/**` via existing safety hooks).
@@ -296,9 +296,9 @@ Existing safety hooks apply across all phases (file-protection / git-guardrail /
 | "The repo has 5000 files but I'll just scan everything — better safe than sorry." | Mass-scan violates. The ≤50-file default cap exists for tokens + speed. Fire the AUQ — user picks `--focus`, expansion, or truncation. Don't silently broad-scan. |
 | "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
 | "Add a wall-time kill cap so long-running discovery aborts cleanly." | Class-A hard caps abort legitimate complex discovery mid-stride. quality-first — no Class-A caps. ≤50-file gate escalates to user via AUQ. User has agency. |
-| "/onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
-| "Defer compaction-survival to downstream skills — /onboard is mostly scan." | The contract IS /onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
-| "Audit trail isn't needed for local /onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. the SessionStart re-injects on compaction; without log, post-mortem requires re-running the scan from scratch. |
+| "/geniro:onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
+| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
+| "Audit trail isn't needed for local /geniro:onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. the SessionStart re-injects on compaction; without log, post-mortem requires re-running the scan from scratch. |
 
 ## CODEBASE_MAP.md format example
 
@@ -448,7 +448,7 @@ For each onboarding, confirm:
 - Need to explain architecture to someone else
 
 **Don't use:**
-- Quick bug fix in familiar code → use `/geniro:implement` (consumes a spec.md from /plan OR inline-task mode)
+- Quick bug fix in familiar code → use `/geniro:implement` (consumes a spec.md from /geniro:plan OR inline-task mode)
 - Bug with unclear root cause → use `/geniro:debug`
 - Need full implementation guidance → use `/geniro:implement`
 - Just need to answer a specific question → ask directly OR run `/geniro:investigate <question>`

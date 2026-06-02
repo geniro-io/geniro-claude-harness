@@ -15,7 +15,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
 | **T1 — TASK ephemeral** | Transient subagent outputs / scratch (no frontmatter) | Created mid-run; deleted at Phase Ship | cwd-relative | path-scoped via `<task-dir>` |
-| **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/review` spec-compliance, `/implement` Adjustment Routing, `/debug`, `/refactor`) | Created at Phase 0; **survives Phase Ship** | cwd-relative | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
+| **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/geniro:review` spec-compliance, `/geniro:implement` Adjustment Routing, `/geniro:debug`, `/geniro:refactor`) | Created at Phase 0; **survives Phase Ship** | cwd-relative | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
 | **T2 — HANDOFF** | Inter-skill data hand-off | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
@@ -42,9 +42,9 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 
 | Path root | Layout | Producer category |
 |---|---|---|
-| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md`) | **Task-bound skills** producing durable artifacts — `/implement`, `/plan` |
-| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/debug`, `/refactor`, `/onboard`, `/investigate` |
-| `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — `/setup` |
+| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
+| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate` |
+| `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — `/geniro:setup` |
 
 ### T2
 
@@ -57,7 +57,7 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 - `.geniro/actions/` — CRUD (workflow actions)
 - `.geniro/workflow/` — CRUD (integration config)
 - `.geniro/planning/_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`, `_focus-<area>.md` — CRUD global registries (`_` prefix = visual cue for persistent-global)
-- `.geniro/docs/` — CRUD (`/setup` spin-out targets — `hooks.md`, `mcp.md`, `agent-runtime.md`)
+- `.geniro/docs/` — CRUD (`/geniro:setup` spin-out targets — `hooks.md`, `mcp.md`, `agent-runtime.md`)
 
 ---
 
@@ -172,13 +172,13 @@ open_questions:
 
 **Producer responsibilities:**
 - Initialize `open_questions: []` in the handoff frontmatter. NEVER use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
-- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `resolution`) are optional. `related_hypotheses` is the `/debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
+- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
 - **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich `AskUserQuestion` preview per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust. Producer-side context is cheaper to author once than to reconstruct downstream.
 - When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
 
 **Consumer responsibilities:**
-- Before any mutating action that depends on the handoff (Edit/Write in /implement; `gh api POST /reviews` in /review's draft-post path; status transitions in /implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, fire an AUQ batch chained across the unresolved entries (cap-extension when >4), persist each answer back to the producer's file via `atomic_state_write`, then proceed.
+- Before any mutating action that depends on the handoff (Edit/Write in /geniro:implement; `gh api POST /reviews` in /geniro:review's draft-post path; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, fire an AUQ batch chained across the unresolved entries (cap-extension when >4), persist each answer back to the producer's file via `atomic_state_write`, then proceed.
 - A consumer that finds `unresolved` entries and ships anyway is a contract violation.
 
 **Free-text body fallback:** the body section `## Open Questions` MAY mirror the frontmatter as a human-readable view (Markdown bullet list with `id` anchors), but the frontmatter is the source of truth. Validators check the frontmatter only; the body is informational.
@@ -190,13 +190,13 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 - MUST be documented in the producing skill's SKILL.md / reference-file frontmatter example block.
 - The validator silently passes them through — only required-field presence and enum values are checked.
 
-**`/review` producer-specific fields:**
+**`/geniro:review` producer-specific fields:**
 
 - `spawn_dims_declared: [<dim-slug>, ...]` — declared parallel-spawn list, written at Phase 2 entry before the batch fires. Consumed by Phase 4 §4.0 verification gate (declared-vs-actual diff).
 - `spawn_dims_count: <int>` — denormalized length of `spawn_dims_declared`.
 - `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Consumed by Phase 2 to merge into the spawn batch.
 
-**`/debug` producer-specific `authored_tests` array (T2 handoff only):**
+**`/geniro:debug` producer-specific `authored_tests` array (T2 handoff only):**
 
 Carries every F→P reproduction test authored during the debug run as the machine-readable source-of-truth for downstream consumers. The body `**Reproduction test:**` line (scientific mode) and `**Test file:**` lines (adversarial mode) remain as a human-readable mirror; consumers prefer this frontmatter array and fall back to body parse only for legacy handoffs (m7-v1).
 
@@ -222,7 +222,7 @@ authored_tests:
 **Consumer responsibilities:**
 - Read `authored_tests[]` before falling back to body-string parsing. The shared consumer protocol at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` codifies the prefer-frontmatter / fallback-to-body order.
 - Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
-- The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only Edit/Write blocker for /implement Phase 1.
+- The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only Edit/Write blocker for /geniro:implement Phase 1.
 
 ---
 
@@ -237,7 +237,7 @@ authored_tests:
 
 ## Concrete examples
 
-### T1.5 — task-bound (`/implement`)
+### T1.5 — task-bound (`/geniro:implement`)
 
 ```yaml
 ---
@@ -256,7 +256,7 @@ non-resumable-actions: []
 - implement started at 14:30:00Z
 ```
 
-### T1.5 — session-bound (`/debug`)
+### T1.5 — session-bound (`/geniro:debug`)
 
 ```yaml
 ---
@@ -272,7 +272,7 @@ geniro_kind: debug-state
 ---
 ```
 
-### T1.5 — singleton (`/setup`)
+### T1.5 — singleton (`/geniro:setup`)
 
 ```yaml
 ---

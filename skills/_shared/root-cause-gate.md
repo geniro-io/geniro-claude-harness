@@ -7,8 +7,8 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 ## When this fires
 
 Used by:
-- `/geniro:plan` — when the spec/plan authoring surfaces a proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/implement`.
-- `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup and Phase 4 judge (i.e., wasn't dropped earlier) and is about to be persisted to the handoff for a downstream fixer (/review is a Reporter and applies no fixes; the gate records the disposition the handoff carries forward)
+- `/geniro:plan` — when the spec/plan authoring surfaces a proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /geniro:plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/geniro:implement`.
+- `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup and Phase 4 judge (i.e., wasn't dropped earlier) and is about to be persisted to the handoff for a downstream fixer (/geniro:review is a Reporter and applies no fixes; the gate records the disposition the handoff carries forward)
 
 Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step.
 
@@ -60,7 +60,7 @@ After the gate resolves:
 
 ## Why this exists
 
-Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard). Extending that discipline beyond `/geniro:debug` is necessary because the reviewer-agent and /plan's orchestrator-side spec-authoring classify findings/designs by structural signals (does the change touch the surface where the defect is observed, or does it touch the layer where causation originates?) but cannot judge user intent. Two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
+Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard). Extending that discipline beyond `/geniro:debug` is necessary because the reviewer-agent and /geniro:plan's orchestrator-side spec-authoring classify findings/designs by structural signals (does the change touch the surface where the defect is observed, or does it touch the layer where causation originates?) but cannot judge user intent. Two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
 
 - intentional deferral (root cause is being addressed in a separate work stream; patch the surface for now)
 - accidental shortcut (author didn't realize the real bug sits elsewhere; patch will mask the defect until it re-emerges through a different surface)
