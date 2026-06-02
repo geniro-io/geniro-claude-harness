@@ -63,6 +63,12 @@ SessionStart hook re-establishes context across `compact|resume|startup`. `clear
 - All subagents declare `model: inherit`; spawn sites OMIT `model=`. The orchestrator's session tier (Opus / Sonnet / Haiku) propagates to every spawn.
 - Every side-effect (commit, push, PR creation) writes to `non-resumable-actions[]` before executing.
 
+**Ship consent (separate from side-effect logging).** Logging a side-effect to `non-resumable-actions[]` records that it happened; it does not authorize it. Commit / push / PR-create are outward-facing actions that each require their own confirmation gate (`/implement` Ship-mode AUQ). An approval scoped to one decision does not satisfy a different one: a `/review` action-gate pick ("/implement findings") authorizes applying the fixes, never the downstream commit/push. A push to a feature branch that already has an open PR is outward-facing (CI re-runs, reviewers see new commits), so it is gated like a shared-branch push when the run was entered via a handoff.
+
+**Handoffs carry work, not authority.** A `/review` → `/implement` (or `/debug` → `/implement`) handoff transfers findings and unresolved `open_questions[]` — restrictions and to-dos — never ship authorization. The consumer applies its own gates; it is not pre-authorized by the producer's action-gate pick. See `skills/_shared/reporter-boundary.md` §2.
+
+**Shortcut-judgment does not suspend a skill's contract.** A continuation run ("I already explored this in the /review I just ran") may not skip a skill's mandated parallel spawns (Phase-1 knowledge-retrieval + codebase-explorer) or gates (Ship-mode AUQ) on a "pure ceremony / context already held" rationalization. The spawns and gates fire regardless of inherited context; a continuation that skips them inherits the upstream run's blind spots. Enforced by `skills/_shared/reporter-boundary.md` and each skill's own gates.
+
 ---
 
 ## Subagent model selection

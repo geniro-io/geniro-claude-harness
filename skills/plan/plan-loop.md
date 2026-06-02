@@ -393,9 +393,35 @@ If any check fails:
  - **Re-revise** — kick a fresh round-1 cycle (rare; usually indicates schema misunderstanding).
  - **Abort** — terminal `aborted` + `## Termination reason: phase-7-validator-hard-fail`.
 
-### 7.4 No transition to Phase 8 if validator hard-fails
+### 7.4 No transition to Phase 7.5 if validator hard-fails
 
-The validator is a gate, not advisory. Phase 8 user-approve MUST see a validator-clean spec.md (or one where hard-fails were explicitly accepted by the user via path A). Protects from the «user approves blind» failure mode.
+The validator is a gate, not advisory. Phase 7.5 spec challenge and the Phase 8 user-approve MUST see a validator-clean spec.md (or one where hard-fails were explicitly accepted by the user via path A). Protects from the «user approves blind» failure mode. On a clean (or user-accepted) validator pass, transition `phase: spec-challenge` before Phase 7.5 entry.
+
+---
+
+## Phase 7.5 — Spec challenge
+
+State.md `phase: spec-challenge` during this phase. Entered after the Phase 7 validator passes (or its hard-fails were user-accepted) and before the Phase 8 approval AUQ. At entry the spec is: full text on disk, validator-clean, uncommitted, `lifecycle: draft`.
+
+Surface a one-line plain-English note before invoking: "Challenging the spec before you approve it...".
+
+### 7.5.1 Invoke the challenge helper
+
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the tier detected in Phase 1.2>`.
+
+The helper runs VERIFY (one verifier per `file:line`-cited claim) + generate-ALTERNATIVES + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
+
+This fires on every plan regardless of effort tier — no Trivial skip. Cost stays bounded because the helper verifies only `file:line`-cited claims, of which a Trivial spec has few.
+
+### 7.5.2 Verdict handling
+
+- **keep** (clean) — surface a one-line advisory note (top challenge observation, if any) and transition `phase: user-approve` to Phase 8.
+- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`Write` mechanism (§6.1; idempotent regeneration, `Write` not `Edit`), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 path-A/B/C AUQ. The human then approves a hardened spec.
+- **re-plan** (the approach itself is refuted) — re-enter approach selection. Transition `phase: approaches` and re-run Phase 4 (re-run Phase 3 first if the refutation invalidates a clarifying answer), inlining the challenge's evidence into the §4.1 approach synthesis and the §4.2 stress-test `PRE_INLINED_CONTEXT`.
+
+### 7.5.3 Advisory + fail-open
+
+The spec challenge hardens the spec but never hard-blocks the Phase 8 human approval gate — same posture as the Phase 4.2 stress-test critic. If the helper or its agent spawns fail, log a `## Errors` entry ("spec-challenge unavailable") via `atomic_state_write` and transition `phase: user-approve` to Phase 8 on the un-challenged spec. The user still gets the final say at the Phase 8 AUQ.
 
 ---
 
@@ -511,6 +537,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present.
 - [ ] Phase 6 did NOT auto-commit.
 - [ ] Phase 7 mechanical validator ran the full check set defined in `validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
+- [ ] Phase 7.5 spec challenge ran on every plan (no Trivial skip) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).
 - [ ] Phase 8 schema-rich AUQ fired with fields inline; user picked one of 3 options; max 3 user-revision rounds respected.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
 - [ ] Phase 9 hand-off AUQ fired with 2 options; pick persisted to `approvals[]`.

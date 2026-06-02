@@ -154,7 +154,7 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 
 1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). For CRITICAL / HIGH / MEDIUM findings, confirm the Phase 4.2 verifier passed before firing the AUQ: the `Validation:` field MUST be `confirmed` or `clarified`. A `Validation: refuted` finding should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. A missing `Validation:` on a CRITICAL/HIGH/MEDIUM finding (legacy handoff per §2 back-compat) is treated as `confirmed` — proceed with the AUQ but surface the one-line warning.
 2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. Set `header: "Open decision"`. Render the `question` text with finding's severity / `path:lines` / short-title / decision-type / `why-matters` line per spec's Source-field map; render each option's `label`+`description` from finding's `options:` sub-list bullets; render each option's `preview` with finding body (Evidence / Suggested-fix / Confidence / Origin). Do NOT collapse rendering to label + 1-line description.
-3. Update finding line in the state file: replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag.
+3. Update the finding line in the state file via `atomic_state_write` (never a raw `Edit`/`Write` — the handoff is a canonical state path and raw writes trip the `enforce-state-helper` hook): replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag.
 
 When more than 4 PRODUCT-DECISION findings exist OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`: chain `AskUserQuestion` calls per cap-extension pattern.
 
@@ -178,10 +178,10 @@ AskUserQuestion(
   options=[
     {
       "label": "/implement findings",          # append " (Recommended)" when CRITICAL>=1 OR HIGH>=2
-      "description": "Exit /review. Run `/geniro:implement <handoff-path>` next — handoff pre-loads findings from the state file."
+      "description": "Exit /review. You then run `/geniro:implement <handoff-path>` — it applies the fixes and asks before committing or pushing (a branch with an open PR prompts before that push; picking this routes the findings, it does not authorize a push)."
     },
     {
-      "label": "Post Draft PR review",         # OMIT this option entirely when pr-ref:none OR zero unposted findings remain
+      "label": "Post Draft PR review",         # present when pr-ref non-none AND >=1 finding of any severity (incl. LOW/deferred) unposted; OMIT only when pr-ref:none OR no findings at all OR all already [POSTED-TO-PR]
       "description": "Post findings as a PENDING review on <pr-ref> (private to you, no notifications fire until you click Submit on github.com)."
     },
     {
@@ -206,14 +206,14 @@ After the user picks, surface ONE follow-up chat line stating the chosen next co
 
 **Options (≤4 per AUQ cap):**
 
-- **/implement findings (Recommended when CRITICAL/HIGH count >0)** — exit /review, suggest the next command `/geniro:implement.geniro/state/handoff/from-review-<branch>.md`. Pre-load findings from the state file.
-- **Post Draft PR review** — present ONLY when state file's `pr-ref:` is non-`none` AND at least one finding remains unposted (no `[POSTED-TO-PR]` tag from prior run). On selection, drill into granularity sub-question (Step 2 below) before any `gh api` call. Posting is an external write to a public surface — the skill never posts without explicit approval; picking this option IS the approval.
+- **/implement findings (Recommended when CRITICAL/HIGH count >0)** — exit /review, suggest the next command `/geniro:implement .geniro/state/handoff/from-review-<branch>.md`. /implement pre-loads the findings, applies the fixes, and asks before committing or pushing — choosing this routes the work, it does not pre-authorize a ship.
+- **Post Draft PR review** — present whenever state file's `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag from prior run). LOW / deferred awareness findings count as postable — an all-LOW review still offers this option. On selection, drill into granularity sub-question (Step 2 below) before any `gh api` call. Posting is an external write to a public surface — the skill never posts without explicit approval; picking this option IS the approval.
 - **Continue rounds (re-review)** — when round ≥3 fires Round-N escalation gate; otherwise loops back to Phase 1 increment round counter.
 - **Skip — keep findings on disk** — terminal exit; user can resume later.
 
-When `pr-ref: none` OR zero unposted findings, "Post" is omitted. The Action gate is mutually exclusive — user chooses ONE path.
+"Post" is omitted only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]` — findings of any severity (including LOW / deferred / sub-threshold) count as postable, so an all-LOW review still presents the option. The Action gate is mutually exclusive — user chooses ONE path.
 
-**Persist user pick to `approvals[]`** with category `action_gate`.
+**Persist user pick to `approvals[]`** with category `action_gate`, written via `atomic_state_write` (never a raw `Edit`/`Write` on the handoff — that trips the `enforce-state-helper` hook).
 
 Do NOT auto-invoke /implement — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel.
 
@@ -227,7 +227,7 @@ When round ≥3 AND user picks "Continue rounds", fire a secondary AUQ:
 - **Escalate to user — structured handoff** — terminal `escalated` state; emits one structured `open_questions[]` frontmatter entry per unresolved next-step (`source: round-N-escalation`, `status: unresolved`), AND writes a chat-surface summary. Downstream consumers gate on the entries per the `open_questions[]` contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`.
 - **Abort** — terminal `aborted` state; `## Termination reason: repeated-failure: round-limit-3`.
 
-Persist user pick to `approvals[]` with category `round_n_escalation`.
+Persist user pick to `approvals[]` with category `round_n_escalation`, written via `atomic_state_write`.
 
 ---
 
@@ -245,7 +245,7 @@ Fires when `## Authored Tests` section is non-empty. Firing order conditional pe
 
 Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
 
-Persist user pick to `approvals[]` with category `failing_tests_commit_policy`.
+Persist user pick to `approvals[]` with category `failing_tests_commit_policy`, written via `atomic_state_write`.
 
 ---
 
@@ -287,7 +287,7 @@ This guard exists because posting a draft PR review with unresolved ambiguity, m
 
 ### 7.1 Step 1.5 — Resolved-thread dedup (input-side filter)
 
-Before showing eligible findings to the user, exclude findings whose `path:lines` overlaps an entry in the state file's `resolved-threads-snapshot:`. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required.
+The post-drill's eligible-finding set is every unposted finding across BOTH `## Findings` (kept CRITICAL / HIGH / MEDIUM) and `## Deferred — sub-threshold` (LOW awareness items) — once the user has chosen to post, severity no longer gates postability. Before showing eligible findings to the user, exclude findings whose `path:lines` overlaps an entry in the state file's `resolved-threads-snapshot:`. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required.
 
 For each matching finding, append `[ALREADY-RESOLVED-ON-PR]` to its tag list and add `reason: already-resolved-on-pr` annotation when moving to `## Filtered`. The Step 2 granularity AUQ and Step 3 per-finding gate count only non-excluded findings.
 
@@ -297,7 +297,7 @@ When Step 1.5 empties the post set, fall back to Skip semantics — do not call 
 
 Chain a follow-up `AskUserQuestion` with header "Post mode":
 
-- **Question:** "Send all kept findings in a single batched review, or pick which ones to post?"
+- **Question:** "Send all unposted findings (including LOW / deferred awareness items) in a single batched review, or pick which ones to post?"
 - **Options:**
 - "Send all (Recommended)" — single batched review event minimizes per-finding AUQ calls and dodges secondary rate limits with a single POST.
 - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include.
