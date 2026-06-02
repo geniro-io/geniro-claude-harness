@@ -80,6 +80,36 @@ grep -n "typeof\|instanceof" file.js | grep -v "if\|assert"
 - Check async functions for `await` without error context
 - Identify callbacks not checking `err` parameter
 
+### 5.5. Silent Failure & Dangerous Fallback
+
+Distinct from §5 (errors caught but not propagated): here the error path RUNS and returns a plausible-looking value, so the failure is invisible to the caller and downstream code proceeds on bad data.
+
+- **Masking defaults** — returning `[]` / `null` / `0` / a default object on the error branch where the caller cannot distinguish "no data" from "the operation failed". A downstream filter / count / sort then treats the failure as legitimately empty.
+- **Swallowing fallback handlers** — `.catch(() => [])` / `.catch(() => {})` / `.catch(() => null)` on a Promise; a `try/except` whose handler returns a fallback without logging or re-raising.
+- **Catch-all that drops the exception** — bare `except: pass` (Python), `catch (e) {}` that neither logs nor rethrows, `rescue => e` with an empty body, `recover()` (Go) that discards the panic.
+- **Lost or suppressed stack traces** — re-throwing a new error without chaining the original (`throw new Error("failed")` dropping `cause`), logging only `err.message` without the trace, catching and re-raising a different type that loses the original.
+- **Missing timeouts** — a `fetch` / HTTP client / DB query / socket read with no timeout, so a hung dependency stalls the caller indefinitely instead of failing fast.
+- **Missing rollback / cleanup on partial failure** — a multi-step write (transaction, file move, batch insert) that fails midway and leaves the system in a half-applied state because no rollback / compensating action runs.
+
+**How to detect:**
+```bash
+# Swallowing fallback handlers
+grep -nE "\.catch\(\s*\(\s*\)?\s*=>\s*(\[\]|null|\{\}|undefined)" file.js
+# Catch-all that drops the exception
+grep -nE "except\s*:\s*pass|except\s+Exception\s*:\s*pass" file.py
+grep -nE "catch\s*\([^)]*\)\s*\{\s*\}" file.js
+# Default-on-error returns inside catch/except
+grep -nA3 "catch\|except" file.js | grep -nE "return\s*(\[\]|null|0|\{\})"
+# Network/IO calls — check for an accompanying timeout option
+grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | grep -v "timeout\|signal"
+```
+
+**Red flags:**
+- An error branch returns the same shape as success, so the caller has no way to detect the failure
+- `.catch` / `except` body that neither logs, rethrows, nor records the failure
+- A network or IO call with no timeout in a request-handling path
+- A transaction or multi-step mutation with a failure path but no rollback
+
 ### 6. Logic Errors
 - Inverted conditionals (`if (!condition)` when should be `if (condition)`)
 - Wrong operator used (`&&` instead of `||`, `+` instead of `*`)
@@ -213,6 +243,8 @@ This criteria works across languages:
 - [ ] Async state updates are synchronized
 - [ ] Type comparisons are correct (=== for strict)
 - [ ] All errors are caught and handled
+- [ ] No masking defaults or swallowing fallbacks hide a failure from the caller
+- [ ] Network/IO calls have timeouts; multi-step writes have rollback on partial failure
 - [ ] Logic flows are correct (no inverted conditions)
 - [ ] Resources are cleaned up (files, listeners, timers)
 - [ ] Edge cases handled (empty, single item, max values)
@@ -222,6 +254,6 @@ This criteria works across languages:
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
 
 - **CRITICAL** — Unbounded recursion on user input; auth-bypass via missing role check; SQL injection in a dynamic query; deadlock with a documented trigger; data-corruption write with no compensating action; infinite loop reachable from a public entry point.
-- **HIGH** — Race condition with a specific reachable scenario (e.g., two concurrent writes to the same row without a transaction); off-by-one in pagination when item count equals page size; null-dereference on a non-edge-case path; unhandled error path that leaks state or aborts a request mid-write.
-- **MEDIUM** — Edge-case bug with low likelihood and a cited reachable scenario; incorrect-but-mitigated behavior where a downstream layer compensates; pre-existing bug surfaced by this PR's changes that does not make the bug worse.
+- **HIGH** — Race condition with a specific reachable scenario (e.g., two concurrent writes to the same row without a transaction); off-by-one in pagination when item count equals page size; null-dereference on a non-edge-case path; unhandled error path that leaks state or aborts a request mid-write; a masking default that hides a failure on a path where a downstream consumer acts on the fallback as if it were real data (e.g., `.catch(() => [])` feeding a count / filter / dispatch); a missing rollback that leaves a multi-step write half-applied.
+- **MEDIUM** — Edge-case bug with low likelihood and a cited reachable scenario; incorrect-but-mitigated behavior where a downstream layer compensates; pre-existing bug surfaced by this PR's changes that does not make the bug worse; a swallowed error / dropped stack trace that only degrades diagnosability (failure still surfaces elsewhere); a missing timeout on a network/IO call where a hang is reachable but not on the hot path.
 - **LOW** — Defensive-coding suggestions without a demonstrated defect ("add a null check here even though the caller always passes a value"); style suggestions on bug-adjacent code; documentation or PR-description nits about a bug area.

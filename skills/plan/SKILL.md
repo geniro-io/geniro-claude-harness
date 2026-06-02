@@ -4,7 +4,7 @@ description: "Use to turn a vague idea or feature request into an approved spec.
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: opus
-argument-hint: "<topic-string-or-design-doc-path>"
+argument-hint: "<topic-string-or-design-doc-path> [--prd]"
 ---
 
 # /geniro:plan — Spec-first planning
@@ -40,7 +40,7 @@ The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Pha
 ## Phase structure
 
 ```
-mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → spec-challenge → user-approve → handoff → done
+mode-detect → [problem-discovery: --prd only] → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → spec-challenge → user-approve → handoff → done
 ```
 
 Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve.
@@ -51,7 +51,8 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 | Phase | Purpose | Plan-loop section |
 |---|---|---|
-| 0 | Mode detect | §"Phase 0 — Mode detect" |
+| 0 | Mode detect (also detects the opt-in `--prd` flag) | §"Phase 0 — Mode detect" |
+| 0.5 | Problem discovery (opt-in — fires only with `--prd`: problem-first interview before explore, feeds the spec's optional `## Problem & Evidence` section) | §"Phase 0.5 — Problem discovery" |
 | 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
 | 3 | Clarifying questions (≤5 total — independent ones batched into one AUQ, dependent ones sequenced; each option carries `preview`) | §"Phase 3 — Clarifying questions" |
@@ -212,7 +213,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Approve plan in groups / Phase 6 Write / Phase 7 Validate / Phase 7.5 Spec challenge / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
+2. **TodoWrite checklist.** Add: Phase 0 Mode detect / Problem discovery (--prd only) / Phase 1 Explore / Phase 2 Visual Companion (UI-conditional) / Phase 3 Clarify / Phase 4 Approaches / Phase 5 Approve plan in groups / Phase 6 Write / Phase 7 Validate / Phase 7.5 Spec challenge / Phase 8 User approve / Phase 9 Hand-off. Mark Phase 0 in_progress; update each as it completes. The problem-discovery item is marked completed-skipped when `--prd` was not passed; Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
 
 3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` end-to-end.
 

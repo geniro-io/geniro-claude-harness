@@ -62,7 +62,7 @@ Apply throughout all 3 phases:
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Paths absolute; slugs match the rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.
 3. **Permission before side-effect.** Any tool call mutating external state (`git push`, `gh pr create`, posted PR comment) is preceded by AUQ approval or recorded approval (persisted via schema).
 4. **Bounded and structured tool results.** Reviewer-agent output capped at ~4000 chars per dimension; longer truncated with marker. Bash output >8000 chars summarized before downstream use.
-5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds in Phase 2, 3 rounds in Phase 3) surface to user via `AskUserQuestion` at exhaustion — never silent abort, never infinite loop.
+5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds in Phase 2, 3 rounds in Phase 3) surface to user via `AskUserQuestion` at exhaustion — and earlier when the loop is not converging (no forward progress across two checkpoints, the same failure recurring, or cost/scope drift past the expected effort tier per the §PHASE 2 Step 6 trigger list). Never silent abort, never infinite loop, never spend the full retry budget against an unmoving wall.
 6. **Final answer grounded in observations.** Phase 3 Ship result text MUST quote actual tool output (push ref, PR URL, commit SHA) — never "git push succeeded" without evidence. Self-review reads `## Tool log` entries before claiming clean state.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Failed `gh pr create`, denied permission, hook-blocked Write, subagent timeout, non-zero Bash exit becomes a structured observation entry — never silently skipped.
 8. **Investigation reads delegated to subagents.** Phase 1 inline-Reads only L4 instructions (3 files), L3 semantic snapshot (2 files), spec.md body, and state.md. `.claude/rules/*.md` bodies, exemplar source files, L2 learnings entries, and prior plans are spawned out to Knowledge-Retrieval + Codebase-Explorer subagents and read back as condensed reports. Inline-reading the rest is the documented context-bloat regression. The two primary Phase 1 subagent spawns are the plugin-defined `knowledge-retrieval-agent` and `codebase-explorer-agent` (implementation-specific — takes a spec.md, produces REUSE/EXTEND/NO-ANALOGUE inventory). For ad-hoc cross-file research inside Phase 2 (per-step "trace this flow" / "find all sites that call this helper" queries that aren't covered by Codebase-Explorer's Phase 1 inventory), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -81,7 +81,7 @@ Apply throughout all 3 phases:
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Fix-loop retries per phase | 3 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. |
+| Fix-loop retries per phase | 3 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. Fires early (before 3) when the loop is not converging — see §PHASE 2 Step 6 early-escalation triggers. |
 | Reviewer output size | ~4K chars per dim | invariant #4 | Truncation with marker, NOT abort. |
 
 **Architecture constraints (design intent, not budget):**
@@ -528,14 +528,21 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
 
 4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, OUTPUT_PATH `<task-dir>/.tr-out.md`, and `MAX_FAILURES_REPORTED: 15`. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. OMIT `model=`. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
-5. **In-phase fix loop on test failure.** Up to 3 retries (full pseudo-code + token-cost analysis: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, exit on `ALL_GREEN`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. Retry exhaust → escalate-AUQ.
+5. **In-phase fix loop on test failure.** Up to 3 retries (full pseudo-code + token-cost analysis: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, exit on `ALL_GREEN`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. Retry exhaust OR an early-escalation trigger (see below) → escalate-AUQ before the 3-retry budget is spent — a loop that is not converging burns the user's tokens on the same wall.
 
-6. **Escalation on retry exhaust or INFRA_ERROR.** Fire AUQ (header: `"Test failure"`):
+6. **Escalation on retry exhaust, `INFRA_ERROR`, or a not-converging signal.** Fire AUQ (header: `"Test failure"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
    - B) Accept failing tests as documented limitation — state.md `phase: self-review`, append `## Accepted Failures` block
    - C) Abort — state.md `phase: aborted` (terminal)
 
    Empty answer = upstream bug, fall back to plain text and re-ask. NEVER auto-default.
+
+   **Early-escalation triggers (derived from state.md `## Errors` + `## Tool log` history — no new state surface).** Fire the same AUQ before retries exhaust when any of these holds, because each is a signal the loop has stalled rather than progressed:
+   - **No forward progress between two checkpoints.** Two consecutive retry checkpoints produce no new passing tests AND no forward diff progress (the changed-files set and failing-test set are unchanged across the pair). The fix edits are not moving the suite.
+   - **Retry storm — the same failure recurring.** An identical failing test name OR an identical error message / stack-trace recurs across retry attempts (compare the current test-runner output against the prior retry's failing-test list still in context). Re-hitting the same wall means the current approach cannot clear it.
+   - **Cost / scope drift.** The run has far exceeded the expected effort tier (the codebase-explorer `change_scope` from Phase 1 — e.g. a `trivial`/`small` task now spanning many files and edit batches). The work is larger than the spec scoped for, so the user should decide whether to continue, re-plan, or hand off.
+
+   When an early trigger fires, state the plain-English reason in the AUQ question text (e.g. "the same test keeps failing across retries" / "this is turning out much larger than expected") so the user knows why the gate opened early — never surface the raw signal name.
 
 **State.md update on phase exit.** `phase: self-review` (happy path) or `phase: phase-2-escalated` (if escalation fires). On `aborted`, write `## Termination reason: repeated-failure: phase-2 retry-limit (<N> failing tests)`.
 
@@ -591,12 +598,14 @@ PHASE 2 (sequential, single-context):
 
 3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns; if clean AND no authored adversarial tests still fail, exit to Ship; otherwise apply fixes inline (no further agent spawns), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the failing reviewer dims (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
 
-4. **Escalation on round-3 exhaust.** AUQ (header: `"Resolve findings"`):
+4. **Escalation on round-3 exhaust or a not-converging signal.** AUQ (header: `"Resolve findings"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
    - B) Accept findings, ship anyway — state.md `phase: ship`, append `## Accepted Findings` block
    - C) Abort — state.md `phase: aborted` (terminal)
 
    Empty answer = upstream bug, fall back to plain text and re-ask. NEVER auto-default.
+
+   The Phase 2 early-escalation triggers (§PHASE 2 Step 6) apply to this fix loop too, read from the same state.md `## Errors` + `## Tool log` history: fire this AUQ before round 3 exhausts when two consecutive rounds make no forward progress (same findings survive, no new tests pass, diff unchanged), when an identical finding or identical failing test/stack-trace recurs round-over-round (a fix that does not stick), or when the run has drifted far past the expected effort tier. State the plain-English reason in the AUQ question text — never the raw signal name.
 
 ### Ship sub-step
 

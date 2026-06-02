@@ -404,20 +404,22 @@ At Phase 3 exit:
 - **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
 - **NOT emitted :** `diagnosis` (/geniro:debug owns); `convention` (/geniro:implement self-review owns); `decision` (/geniro:plan owns).
 
-**L4 promotion suggestion:** when a `discovery` or `pitfall` entry is emitted, surface a one-line suggestion in Phase 3 final report:
+**Offer to capture a recurring pattern as a project rule:** when an emitted `discovery` or `pitfall` carries `recurrence_count >= 3` (this exact pattern has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen entries do not warrant a rule.
 
+1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `refactor.md`, `code-style.md`) for the entry's keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
+2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring entry summary and recurrence count in the description. Options (plain-English labels):
+   - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
+   - **Refine, then save as a rule** — same hand-off; the user reshapes the wording before saving.
+   - **Merge into an existing rule** — same hand-off; the user folds it into a related rule.
+   - **Don't save** — decline; nothing is written.
+3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the entry context (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
+4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:
+
+```bash
+emit_rejection_if_signal \
+"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule" \
+"Capture recurring pattern as project rule" "<picked label>"
 ```
-[learnings] <Discovery|Pitfall> recorded: "<one-line summary>". Recorded to L2.
-→ Consider /geniro:instructions edit <scope>.md to promote as a refactor-rule.
-```
-
-Scope hint follows the entry context:
-- `discovery` (pattern extracted) → suggest `code-style.md`
-- `discovery` (architectural insight) → suggest `global.md`
-- `pitfall` (refactor-specific footgun) → suggest `refactor.md`
-- Other → generic "appropriate scope"
-
-The line is informational (no AUQ, no auto-edit). User remains source-of-truth for L4 curation. Fully automatic L2→L4 promotion deferred to a future release.
 
 ### 3.6 Suggest improvements (project scope only, routes)
 
@@ -517,7 +519,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "I'll hardcode `model='sonnet'` at the reviewer-agent spawn site to cap cost — the user might not realize Opus is expensive" | Forbidden. Plugin subagents inherit the orchestrator tier per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user chose Opus at session start with full knowledge of cost; overriding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that is the canonical knob. |
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 | "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Class-A hard caps abort legitimate complex refactors mid-stride. The skill is quality-first — no Class-A caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
-| "Auto-promote L2 discoveries to L4 rules when refactor completes." | Phase 3 §3.5 surfaces a suggestion line; do NOT auto-promote. User remains source-of-truth for L4 curation. Auto-promotion creates noise + drift. |
+| "Auto-promote a recorded discovery into a project rule when refactor completes." | Phase 3 §3.5 offers to capture it via `/geniro:instructions create` and only when the same pattern has recurred (`recurrence_count >= 3`) — do NOT auto-write the rule. The user authors and curates project rules; auto-promotion creates noise + drift. |
 | "Bypass `git guardrail` hooks if a needed `git stash` / `git checkout -- .` step blocks." | The hooks fail-closed for a reason. `git checkout -- .` (revert path) is explicitly permitted per § ACI per-phase. Other git mutations stay blocked. If a specific guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
 | "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
 | "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
@@ -547,7 +549,7 @@ Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level
 - [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → verify-fix AUQ
 - [ ] MEDIUM findings noted in completion summary; proceeded
 - [ ] Completion summary presented in chat
-- [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields; L4 promotion suggestion surfaced
+- [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
 - [ ] Improvements suggested per routes
 - [ ] Cleanup completed
 - [ ] No `git commit` / `git push` / `gh pr create` — diff stays uncommitted (user or /geniro:implement ships)

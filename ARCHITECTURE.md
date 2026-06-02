@@ -123,7 +123,7 @@ Reporter-only (never applies fixes, never mutates tracker status — that is `/p
 - Phase 1 STALL gate: 5 inconclusive steps → 8-component AUQ.
 - Phase 2 fix-loop gate: max 2 fix attempts; on third → AUQ.
 - Adversarial Mode (verify-changes) is a co-equal parallel workflow; delegates RED-phase test authoring to `adversarial-tester-agent`.
-- Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`; L4 promotion suggestion fires on recurrence.
+- Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`; on `recurrence_count >= 3` (after a dedupe check against existing project rules) fires an AskUserQuestion offering to capture the recurring diagnosis as a project rule via `/geniro:instructions create` (user-curated, no auto-write; declines logged via `emit-rejection.sh`).
 - T2 handoff carries a structured `authored_tests[]` frontmatter array (m7-v2+) alongside `open_questions[]`. Each entry pins the path + intent + F→P status of every reproduction test the run produced, so `/implement` Phase 1 Step 12 can extract, verify, and surface relocation suggestions for tests that exist in the debug source worktree but not the consumer's worktree. The handoff body's `**Reproduction test:**` (scientific) / `**Test file:**` (adversarial) lines remain as human-readable mirrors. Schema-version `m7-v1` legacy handoffs fall back to body-string parsing via `_shared/debug-handoff.md`.
 - Reporter-only: NEVER ships code (no `git push` / `gh pr create`). The reproduction test is the only on-disk deliverable; the handoff file is the channel.
 
@@ -206,7 +206,7 @@ Three additional L2 entry types + score-based query ranking.
 - `discarded_hypothesis`: emitted by `/debug` Phase 1; sliding-window cap 5 per scope.
 - `user_rejected_suggestion`: emitted by `emit-rejection.sh` after qualifying AUQ resolution.
 - `retry_failure_sequence`: emitted when retries >=2 in `/implement`, `/debug`, `/refactor`.
-- Score-based ranking: recency × trust × access-count. Stale entries (score < 0.1, age > 180d, access_count == 0) auto-archived at SessionStart.
+- Score-based ranking: recency × trust × access-count × recurrence. A learning's `recurrence_count` (incremented on each dedup-key re-emit by `emit-learning.sh`; absent treated as 1) folds in as a log-dampened factor `1 + ln(max(n,1))`, so absent/1 has no effect. Stale entries (score < 0.1, age > 180d, access_count == 0) auto-archived at SessionStart.
 
 ---
 

@@ -5,7 +5,8 @@
 #
 # Walks .geniro/knowledge/learnings.jsonl and flips `deprecated: true`
 # on entries matching all three criteria simultaneously:
-#   - score < 0.1 (same scoring formula as query-learnings --score-min)
+#   - score < 0.1 (recency_decay × trust_weight × access_weight ×
+#       recurrence_weight — same scoring formula as query-learnings --score-min)
 #   - age > 180 days
 #   - access_count == 0 (never queried)
 #
@@ -71,6 +72,12 @@ archive_stale_learnings() {
       end;
     def access_weight($n):
       1.0 + (($n + 1) | log10);
+    # Dampened recurrence factor — identical to query-learnings --score-min so
+    # archival never reaps an entry the ranker would keep. A count of 1 (or an
+    # absent field, treated as 1) yields ln(1)=0 → factor 1.0, so pre-field and
+    # never-repeated entries score exactly as before this factor was added.
+    def recurrence_weight($n):
+      1.0 + (([$n, 1] | max) | log);
 
     fromjson?
     | . as $entry
@@ -79,7 +86,8 @@ archive_stale_learnings() {
     | (recency_decay($age_days; $tau_days)) as $rd
     | ((.trust // "inferred") | trust_weight) as $tw
     | (access_weight(.access_count // 0)) as $aw
-    | ($rd * $tw * $aw) as $score
+    | (recurrence_weight(.recurrence_count // 1)) as $rw
+    | ($rd * $tw * $aw * $rw) as $score
     | ((.deprecated // false) == false
        and $score < 0.1
        and ($age_days != null and $age_days > 180)

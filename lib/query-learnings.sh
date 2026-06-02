@@ -8,8 +8,9 @@
 #                   [--score-min N] [--include-superseded]
 #                   [--include-deprecated] [--include-archive] [--limit N]
 #   → emits matching JSONL entries to stdout, one per line.
-#     When --score-min N is set: filters by recency × trust × access score
-#     >= N, AND sorts result DESC by score (most relevant first).
+#     When --score-min N is set: filters by recency × trust × access ×
+#     recurrence score >= N, AND sorts result DESC by score (most relevant
+#     first).
 #
 #   record_access <dedup_key>
 #   → in-place increment access_count of entry matching dedup_key. Used
@@ -164,9 +165,10 @@ query_learnings() {
   fi
 
   # Scoring pass: when --score-min is set, compute per-entry score
-  # = recency_decay × trust_weight × access_weight, filter by threshold,
-  # AND sort DESC by score (most relevant first). When unset, behavior is
-  # unchanged — append-order with --limit applied via tail (recent N).
+  # = recency_decay × trust_weight × access_weight × recurrence_weight,
+  # filter by threshold, AND sort DESC by score (most relevant first). When
+  # unset, behavior is unchanged — append-order with --limit applied via
+  # tail (recent N).
   if [ -n "$score_min" ]; then
     local now tau
     now=$(date -u +%s)
@@ -183,6 +185,13 @@ query_learnings() {
         end;
       def access_weight($n):
         1.0 + (($n + 1) | log10);
+      # Dampened recurrence factor: 1 + ln(recurrence_count). A count of 1
+      # (or an absent field, treated as 1) yields ln(1)=0 → factor 1.0, so
+      # pre-field entries and never-repeated entries score exactly as before.
+      # ln growth keeps a high count strengthening but not dominating: 2 → ~1.69,
+      # 5 → ~2.61, 20 → ~4.0. Clamp the floor at 1 to guard a stray 0.
+      def recurrence_weight($n):
+        1.0 + (([$n, 1] | max) | log);
 
       map(
         . as $entry
@@ -191,7 +200,8 @@ query_learnings() {
         | (recency_decay($age_days; $tau_days)) as $rd
         | ((.trust // "inferred") | trust_weight) as $tw
         | (access_weight(.access_count // 0)) as $aw
-        | $entry + {_score: ($rd * $tw * $aw)}
+        | (recurrence_weight(.recurrence_count // 1)) as $rw
+        | $entry + {_score: ($rd * $tw * $aw * $rw)}
       )
       | map(select(._score >= $smin))
       | sort_by(._score) | reverse

@@ -31,7 +31,7 @@ resume if its hypothesis thread depends on prior findings).
 | `--tag TAG` | (any) | Entries whose `tags` array contains `TAG`. |
 | `--scope SCOPE` | (any) | Match `scope` exactly. Use `--scope global` for global entries. |
 | `--min-trust LEVEL` | (any) | Only entries with trust ≥ LEVEL. Levels (high→low): `verified`, `retrieved`, `inferred`. Entries with no `trust` field are treated as `inferred`. |
-| `--score-min N` | (no scoring) | Compute per-entry score = recency_decay × trust_weight × access_weight; include only entries with score ≥ N AND sort result DESC by score. See §Score formula below. |
+| `--score-min N` | (no scoring) | Compute per-entry score = recency_decay × trust_weight × access_weight × recurrence_weight; include only entries with score ≥ N AND sort result DESC by score. See §Score formula below. |
 | `--include-superseded` | excluded | Include entries whose `dedup_key` appears as `supersedes` in a later entry. Useful for audit / history. |
 | `--include-deprecated` | excluded | Include entries with `deprecated: true`. |
 | `--include-archive` | excluded | Also read `.geniro/knowledge/archive/learnings-*.jsonl` for cold history. |
@@ -53,14 +53,17 @@ Each filter is logically AND-ed.
 When `--score-min N` is active:
 
 ```
-score = recency_decay × trust_weight × access_weight
+score = recency_decay × trust_weight × access_weight × recurrence_weight
 
-recency_decay = exp(-Δdays / τ), τ = 90 days (env: GENIRO_DECAY_TAU_DAYS)
-trust_weight = { verified: 1.0, retrieved: 0.66, inferred: 0.33 }
-access_weight = 1.0 + log10(1 + access_count)
+recency_decay    = exp(-Δdays / τ), τ = 90 days (env: GENIRO_DECAY_TAU_DAYS)
+trust_weight     = { verified: 1.0, retrieved: 0.66, inferred: 0.33 }
+access_weight    = 1.0 + log10(1 + access_count)
+recurrence_weight = 1.0 + ln(max(recurrence_count, 1))
 ```
 
-Defaults: missing `ts` or unparseable → `recency_decay = 0.5` (mid-range); missing `trust` → `inferred`; missing `access_count` → 0. `_score` is internal — stripped before output.
+Defaults: missing `ts` or unparseable → `recency_decay = 0.5` (mid-range); missing `trust` → `inferred`; missing `access_count` → 0; missing `recurrence_count` → 1. `_score` is internal — stripped before output.
+
+**Recurrence is dampened on purpose.** `recurrence_count` (how many times a learning has recurred — see `emit-learning.md`) feeds the score through a natural-log curve, so a frequently-repeated learning ranks higher without swamping recency and trust: count 1 → factor 1.0, 2 → ~1.69, 5 → ~2.61, 20 → ~4.0. A count of 1 (or an absent field, treated as 1) yields factor 1.0, i.e. no change — entries written before this field existed score exactly as they did before.
 
 **Threshold guidance (callers pick their own):**
 - `--score-min 0.5` — high-signal only (recently-emitted verified entries)

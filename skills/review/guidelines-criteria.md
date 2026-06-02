@@ -104,6 +104,31 @@ grep -B2 "^function\|^class" file.js | grep -c "/\*\*"
 - TODO comments without issue reference
 - No function parameter/return documentation
 
+### 4.5. Comment Accuracy & Comment-Rot
+
+A comment that lies is worse than no comment — the reader trusts it and reasons from a false premise. Three shapes, all documentation-class (LOW/MEDIUM per the Severity Tagging section below):
+
+- **Contradicts the code** — the comment describes behavior the code no longer has ("returns null on miss" above a function that now throws; "sorted ascending" above a descending sort).
+- **Stale reference** — names a renamed symbol, a moved path, or a removed flag/parameter ("see `oldHelper()`" when it was renamed; "set `--legacy` to enable" when the flag was deleted; a doc-comment `@param` for an argument the signature dropped).
+- **Low-value restatement** — the comment merely re-states the line it sits on, adding no intent or rationale (`i++ // increment i`). Distinct from §4's "comments that state the obvious" only in emphasis; route the finding through whichever phrasing fits.
+
+**How to detect:**
+```bash
+# Doc-comment params vs actual signature (TS/JS)
+grep -nE "@param\s+\w+" file.js
+# References to symbols/flags that may no longer exist — verify each against current code
+grep -nE "see |@see |use the |pass --|set --" file.js
+# Restatement comments
+grep -nE "//\s*(increment|decrement|set |return |loop |add one)" file.js
+```
+
+Do not flag from the comment alone — read the code the comment describes and confirm the mismatch before emitting. A comment about a `why` (business reason, edge-case rationale) that still holds is correct even when terse.
+
+**Red flags:**
+- Comment states behavior the adjacent code does not exhibit
+- Comment references a symbol / path / flag that grep cannot find in the current tree
+- Doc-comment `@param` / `@returns` that no longer matches the signature
+
 ### 5. Code Duplication
 - Copy-pasted code blocks (>5 lines repeated)
 - Similar logic in multiple functions
@@ -249,6 +274,7 @@ Works across all languages/frameworks:
 - [ ] Class names represent their purpose
 - [ ] Code formatting consistent
 - [ ] Complex logic has explanatory comments
+- [ ] Comments match the code they describe (no stale references or contradictions)
 - [ ] Public APIs documented
 - [ ] No significant code duplication
 - [ ] Imports are necessary and used
@@ -263,4 +289,4 @@ Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibrat
 - **CRITICAL** — never emitted by this dim (style/convention findings cannot be CRITICAL).
 - **HIGH** — never emitted by this dim.
 - **MEDIUM** — Convention drift on a tooling-load-bearing field (e.g., missing `risk_class:` in a `.geniro/actions/*.md` that the action runner requires; missing `name:` in a SKILL.md frontmatter that the loader rejects; missing `paths:` in a `review-extra/<slug>.md` that the dispatcher needs). The drift must demonstrably break or degrade a tool that consumes the field. Documentation gaps, comment wording, naming polish, formatting, and style suggestions are NOT MEDIUM — they are LOW.
-- **LOW** — Style / formatting / naming polish; documentation gaps; comment wording; convention drift on optional fields; mismatched-but-non-load-bearing rule violations.
+- **LOW** — Style / formatting / naming polish; documentation gaps; comment wording; comment-rot (stale references, contradictory or low-value comments) on ordinary code; convention drift on optional fields; mismatched-but-non-load-bearing rule violations. Comment-rot rises to MEDIUM only when the inaccurate comment is a load-bearing doc that a tool or generated API surface consumes (e.g., a stale `@param` in a doc-comment that a docs generator publishes) — same load-bearing test as the MEDIUM tier above.

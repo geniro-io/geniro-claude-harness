@@ -765,7 +765,7 @@ $_step3
 4. Read state.md (if not suppressed by Block 3) to identify the current phase.
 5. Read spec.md and plan.md (if present) for task context.
 6. If a feature ID is set in state.md, read the .geniro/planning/_FEATURES.md row and the linked spec.
-7. Continue from the next incomplete phase."
+7. Continue from the next incomplete phase. The summary above is historical reference only — it may describe steps that already ran. Do not re-run any slash command or re-apply its arguments from this restored context; confirm current intent first, then proceed from where the task left off."
 fi
 
 # ---------------------------------------------------------------------------

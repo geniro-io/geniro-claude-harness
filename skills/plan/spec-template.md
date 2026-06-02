@@ -132,13 +132,42 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 Body sections beyond the 10 (allowed):
 - `## Considered Alternatives` — captured from Phase 4 Always present if Phase 4 ran with ≥2 approaches.
 - `## Milestones` — captured from Phase 5 milestone-mode. Present only if milestone-mode was picked.
+- `## Problem & Evidence` — captured from the Phase 0.5 problem-discovery interview. **Optional** — present only when `/geniro:plan --prd` ran (`prd_mode: true`); absent on every normal spec. The Phase 7 validator treats it as allowed-optional, so a normal spec without it still passes the schema check.
 
 ## Per-section content guidance
 
-**Section 1 (Objective):** ONE sentence. NOT a problem statement, NOT a user story, NOT a title — a declarative goal. Examples:
+**Section 1 (Objective):** ONE sentence. NOT a problem statement, NOT a user story, NOT a title — a declarative goal. The problem framing belongs in the optional `## Problem & Evidence` section (PRD-mode), never in section 1. Examples:
 - ✅ "Add OAuth login to the customer portal."
-- ❌ "We need OAuth because users keep complaining about password resets." (problem statement, not objective)
+- ❌ "We need OAuth because users keep complaining about password resets." (problem statement, not objective — belongs in `## Problem & Evidence`)
 - ❌ "As a customer, I want to login with OAuth." (user story, not objective)
+
+## Problem & Evidence (optional — PRD-mode only)
+
+Present only when `/geniro:plan --prd` ran. Carries the problem framing from the Phase 0.5 problem-discovery interview — kept separate from section 1 (Objective) so the Objective stays a clean declarative goal while the problem, evidence, and prioritization live here. Omit the whole section on a normal (non-PRD) spec; the Phase 7 validator's `schema_completeness` check allows its absence and allows its presence.
+
+Layout:
+
+```markdown
+## Problem & Evidence
+
+**Problem:** <one-sentence pain statement — the problem, not the feature>
+
+**Evidence:** <what proves the problem is real — a metric, support-ticket count, recorded session, or quote. Use "none yet — unvalidated" honestly if no evidence exists; do not invent it.>
+
+**Target user & job-to-be-done:** <who has the problem> — <the job they are trying to get done>
+
+**Hypothesis:** If <X>, then <metric Y> moves by <Z>.
+
+**Success metrics:** <1-3 metrics that confirm the problem is solved — these also seed section 9 Validation and section 11 Done Condition>
+
+**Prioritization (MoSCoW):**
+- Must: <...>
+- Should: <...>
+- Could: <...>
+- Won't (this round): <... — seeds section 3 Scope — Excluded>
+```
+
+The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3 (Scope — Excluded); the success metrics seed section 9 (Validation) and section 11 (Done Condition).
 
 **Section 6 (Steps):** Each step cites ≥1 file:line reference unless it's a meta-step (e.g., "Step 1: Create new branch"). Phase 7 validator check #3 enforces this.
 

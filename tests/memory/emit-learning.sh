@@ -271,6 +271,37 @@ else
   fail "caller supersedes overwritten — got '$last_super'"
 fi
 
+# Dedup: re-emit identical to a superseding entry is a no-op (does NOT inflate
+# recurrence_count). The no-op comparison excludes ts, recurrence_count, AND
+# supersedes — without the supersedes exclusion the prior superseding entry
+# (which carries supersedes) and an identical fresh re-emit (no supersedes at
+# compare time) would differ, appending a duplicate and falsely climbing
+# recurrence_count (2→3→4...).
+new_sandbox
+echo '{"producer":"/debug","scope":"src/foo","summary":"A","tags":["bug"],"dedup_key":"k3"}' | emit_learning
+echo '{"producer":"/debug","scope":"src/foo","summary":"B","tags":["bug"],"dedup_key":"k3"}' | emit_learning
+n_after_super=$(log_line_count)
+rc_after_super=$(tail -n 1 "$SANDBOX_DIR/.geniro/knowledge/learnings.jsonl" | jq -r .recurrence_count)
+# Re-emit content IDENTICAL to the superseding entry B.
+echo '{"producer":"/debug","scope":"src/foo","summary":"B","tags":["bug"],"dedup_key":"k3"}' | emit_learning
+n_after_reemit=$(log_line_count)
+rc_after_reemit=$(tail -n 1 "$SANDBOX_DIR/.geniro/knowledge/learnings.jsonl" | jq -r .recurrence_count)
+if [ "$n_after_super" -eq 2 ] && [ "$rc_after_super" = "2" ]; then
+  pass "superseding entry lands at recurrence_count=2 (2 lines)"
+else
+  fail "expected 2 lines + rc=2 after supersede; got lines=$n_after_super rc=$rc_after_super"
+fi
+if [ "$n_after_reemit" -eq "$n_after_super" ]; then
+  pass "re-emit identical to superseding entry is no-op (line count unchanged)"
+else
+  fail "re-emit of superseding content appended a duplicate; lines $n_after_super → $n_after_reemit"
+fi
+if [ "$rc_after_reemit" = "2" ]; then
+  pass "recurrence_count stays at 2 on identical re-emit (no false inflation)"
+else
+  fail "recurrence_count inflated on identical re-emit — want 2 got '$rc_after_reemit'"
+fi
+
 # Oversize: serialized entry > 4096 → rc=68.
 new_sandbox
 big=$(printf 'x%.0s' {1..5000})

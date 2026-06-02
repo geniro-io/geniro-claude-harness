@@ -18,6 +18,8 @@ State.md `phase: mode-detect` during this phase. Light cost — a single design-
 
 ### 0.1 $ARGUMENTS resolution
 
+**`--prd` flag detection (opt-in).** If `$ARGUMENTS` contains the token `--prd`, note that the flag was passed and strip the token before passing the remaining text to mode detection. state.md does not exist yet at this point — it is created in §0.3 — so do NOT write frontmatter here; instead carry the flag forward and write `prd_mode: true` into the INITIAL state.md frontmatter at the §0.3 creation step. `prd_mode` turns on the Phase 0.5 problem-discovery interview and the spec's optional `## Problem & Evidence` body section. When `--prd` is absent, `prd_mode` stays unset and the loop runs exactly as it does today — no behavior change.
+
 Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged. Returns:
 
 - **IDEA(topic)** — free-form text; proceeds to Phase 1 with topic as initial context.
@@ -49,12 +51,68 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
-4. **Transition.** `phase: explore` via `atomic_state_write`.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+4. **Transition.** Branch on the `--prd` flag from §0.1: when it was present, set `phase: problem-discovery` via `atomic_state_write` and proceed to Phase 0.5; otherwise set `phase: explore` and proceed to Phase 1. Phase 0.5 itself sets `phase: explore` on completion (§0.5.4), so a `--prd` run flows through problem-discovery then rejoins the normal loop at Phase 1.
 
 ### 0.4 Cancel handling
 
 If state.md already created when user cancels (e.g., deep cancel via Other): write `phase: aborted` + `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_write` before exit.
+
+---
+
+## Phase 0.5 — Problem discovery (opt-in, fires only on `--prd`)
+
+State.md `phase: problem-discovery` during this phase. **Fires only when `prd_mode: true`** (set in Phase 0.1 from a `--prd` flag in `$ARGUMENTS`). When `prd_mode` is unset, skip this phase entirely — the loop transitions Phase 0 → Phase 1 unchanged.
+
+This phase runs a problem-first discovery interview BEFORE explore and clarify, so the eventual spec is grounded in a validated problem rather than a presumed solution. It reuses the Phase 3 batched-AUQ pattern (independent questions batched into one call, ≤4 per call; chain a second call past the cap rather than drop a question — the 4-option-per-call tool limit applies here too).
+
+### 0.5.1 Interview dimensions
+
+Ask one question per dimension. These are independent, so batch them — two calls of ≤4 questions each (the six dimensions exceed the 4-per-call cap, so chain a second call per the cap-extension rule):
+
+| Dimension | What it captures | Why it's load-bearing |
+|---|---|---|
+| Problem statement | The problem in one sentence, framed as the pain — not a feature ("users abandon checkout at the address step", not "add address autocomplete"). | A solution chosen before the problem is named bakes in the wrong assumption. |
+| Evidence | What proves the problem is real — a metric, a support-ticket count, a recorded session, a quote. | Distinguishes a real problem from a guessed one; an unevidenced problem routes to "gather evidence first". |
+| Target user + job-to-be-done | Who has the problem and the job they are trying to get done. | Scopes the solution to a user and a job, not "everyone, vaguely". |
+| Hypothesis | A testable "if we do X, then metric Y moves by Z" statement. | Makes success falsifiable — the spec can be validated against it. |
+| Success metrics | The 1-3 metrics that confirm the problem is solved. | Feeds spec section 9 (Validation) and section 11 (Done Condition). |
+| Prioritization | Rough MoSCoW split (Must / Should / Could / Won't) of the candidate scope. | Pre-sorts scope before Phase 5; the Must set seeds section 2 (Scope — Included), the Won't set seeds section 3 (Scope — Excluded). |
+
+Each option carries a `preview` field with concrete consequence content (≤6 lines) per the Phase 3 shape — empty options waste user attention. Offer a free-text "Other" path on every question; for the open-ended dimensions (problem statement, evidence, hypothesis) the user will usually type rather than pick a canned option, so the canned options are illustrative anchors, not an exhaustive menu. When the user has no evidence, capture that honestly: record "evidence: none yet" and surface a one-line note that the problem is unvalidated — do not invent evidence.
+
+### 0.5.2 Persistence
+
+Append one entry to state.md frontmatter `approvals[]` per answered question via `atomic_state_write`, category `prd_<dim>` (e.g., `prd_problem_statement`, `prd_evidence`, `prd_target_user`, `prd_hypothesis`, `prd_success_metrics`, `prd_prioritization`). Same entry shape as Phase 3 (category / prompt / options / picked / at / asked_in_phase). Persisting here is non-negotiable: a context reset mid-plan would otherwise lose the entire problem framing, and the SessionStart re-injector renders `approvals[]` so a resumed session re-reads the answers and skips re-asking.
+
+Also append a `## Problem Framing` body section to state.md capturing the synthesized free-text answers (problem / evidence / user + job / hypothesis / metrics / MoSCoW), so Phase 6 can copy it into the spec without re-deriving from `approvals[]`:
+
+```markdown
+## Problem Framing
+- problem: <one-sentence pain statement>
+- evidence: <metric / ticket count / quote, OR "none yet — unvalidated">
+- target_user: <who> — job: <job-to-be-done>
+- hypothesis: if <X> then <metric Y> moves by <Z>
+- success_metrics: <1-3 metrics>
+- moscow:
+    must: [...]
+    should: [...]
+    could: [...]
+    wont: [...]
+```
+
+### 0.5.3 Feed-forward
+
+The problem framing feeds two downstream sites:
+
+- **Phase 1 explore** — inline the `## Problem Framing` body into research-agent prompts under a `## Problem Framing` section, so research targets the named problem and its evidence rather than a presumed solution.
+- **Phase 3 clarify + Phase 5 section authoring** — the Must/Should set seeds section 2 (Scope — Included); the Won't set seeds section 3 (Scope — Excluded); the success metrics seed section 9 (Validation) and section 11 (Done Condition); the problem statement and evidence populate the spec's optional `## Problem & Evidence` body section (Phase 6).
+
+Section 1 (Objective) stays a single declarative goal sentence — NOT the problem statement (the validator's `single_objective` check enforces this). The problem framing lives in the separate `## Problem & Evidence` section; the Objective is the solution-goal derived from it.
+
+### 0.5.4 Transition
+
+After the interview persists, transition `phase: explore` and proceed to Phase 1 normally. Phase 1 now carries the problem framing as added context. All subsequent phases run unchanged except for the two feed-forward sites above and the Phase 6 `## Problem & Evidence` write.
 
 ---
 
@@ -346,7 +404,9 @@ State.md `phase: write-spec` during this phase.
 
 Path: `.geniro/planning/<task-slug>/spec.md`.
 
-Content: schema (10 sections) + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode).
+Content: schema (10 sections) + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode, optional `## Problem & Evidence` from Phase 0.5 when `prd_mode: true`).
+
+**`## Problem & Evidence` (PRD-mode only):** when `prd_mode: true`, copy state.md `## Problem Framing` (populated by Phase 0.5) into the spec's `## Problem & Evidence` body section per the layout in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` § Problem & Evidence. The section's success metrics also seed section 1 (Objective) phrasing and section 11 (Done Condition). Omit the section entirely when `prd_mode` is unset — a normal spec carries only the standard sections, and the Phase 7 validator treats `## Problem & Evidence` as allowed-optional (never required).
 
 **Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §workflow_refs).
 
@@ -540,6 +600,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 
 - [ ] Phase 0 mode detection ran via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`; mode is IDEA or DESIGN_DOC; CODE_REFERENCE errored with corrective hint.
 - [ ] state.md created at `.geniro/planning/<slug>/state.md` via `atomic_state_write` with frontmatter.
+- [ ] Phase 0.5 problem-discovery interview ran ONLY when `--prd` was passed (`prd_mode: true`); six dimensions captured (problem / evidence / target user + job / hypothesis / success metrics / MoSCoW), each persisted to `approvals[]` (`prd_<dim>`) + synthesized to state.md `## Problem Framing`; skipped silently when `--prd` absent (no behavior change).
 - [ ] Phase 1 loaded L4 + L3 + L2 (full tier); per-spawn Echo contract entries persisted to `## Tool log`.
 - [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs` (skipped when no tracker reference).
 - [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
@@ -548,7 +609,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); critique verdicts carried into the AUQ preview + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
 - [ ] Phase 5 grouped the fixed 10-section schema into 3 dependency-ordered clusters (Goal & scope / Approach & steps / Safety & done); authored cluster-by-cluster in order, each gated by ONE batched AUQ (one question per section); each option carried an ADR-style `preview` (Decision → Why → How → optional diagram → example); each section pick persisted to `approvals[]` category `section_<id>` (no `cluster_<id>` category introduced).
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
-- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present.
+- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present; `## Problem & Evidence` written from state.md `## Problem Framing` ONLY when `prd_mode: true` (omitted on normal specs).
 - [ ] Phase 6 did NOT auto-commit.
 - [ ] Phase 7 mechanical validator ran the full check set defined in `validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 7.5 spec challenge ran on every plan (no Trivial skip) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).

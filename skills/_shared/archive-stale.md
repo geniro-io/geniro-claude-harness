@@ -28,7 +28,7 @@ An entry becomes a stale candidate iff:
 
 1. **score < 0.1** — using the same scoring formula as `query-learnings --score-min`:
  ```
- score = recency_decay × trust_weight × access_weight
+ score = recency_decay × trust_weight × access_weight × recurrence_weight
  ```
 2. **age > 180 days** — measured from entry's `ts` field.
 3. **access_count == 0** — entry has never been returned by a query that called `record_access`.

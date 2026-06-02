@@ -141,7 +141,7 @@ On Phase 1 entry, in order:
 
 1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` per Echo contract.
 2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)`. Fingerprint drift check fires if applicable.
-3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per "debug session start" trigger. Top-K=5 default, filter superseded + deprecated. Skipped if $ARGUMENTS too generic to infer tags. Result count IS the recurrence signal used by the promotion-to-rule suggestion.
+3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per "debug session start" trigger. Top-K=5 default, filter superseded + deprecated. Skipped if $ARGUMENTS too generic to infer tags. A matching prior diagnosis primes Phase 1 hypotheses; the recurrence signal that drives the Phase 3 rule-capture offer is the emitted entry's `recurrence_count`, incremented by `emit-learning` each time the same root cause re-emits.
 **surfacing convention:** when results include `discarded_hypothesis` entries, display them with a distinct label so the orchestrator can skip dead-ends faster:
 ```
 Past investigations in this scope ruled out:
@@ -430,7 +430,7 @@ Only after the summary above is visible AND persisted, `AskUserQuestion` with he
 
 Do NOT auto-invoke the next skill — surface the suggestion only. State file IS the handoff channel. You do NOT apply the patch yourself.
 
-### 3.3 Emit learnings + promotion-to-rule suggestion
+### 3.3 Emit learnings + offer to capture a recurring diagnosis as a rule
 
 At Phase 3 exit:
 
@@ -439,20 +439,22 @@ At Phase 3 exit:
 - **`discarded_hypothesis`** (fires per-rejection during Phase 1) — every rejected hypothesis emits one entry with required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See §1.5 for the payload schema and emit logic.
 - **NOT emitted :** `pitfall` (/geniro:refactor + /geniro:review own), `convention` (/geniro:implement self-review owns), `decision` (/geniro:plan owns), `discovery` (/geniro:refactor + /geniro:onboard + /geniro:investigate own).
 
-- **L4 promotion suggestion:** when the prior-knowledge query returned **≥1 matching prior diagnosis** (recurrence signal), surface a one-line suggestion in the Phase 3 final report:
+- **Offer to capture a recurring diagnosis as a project rule:** when the emitted diagnosis carries `recurrence_count >= 3` (this exact root cause has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen diagnoses do not warrant a rule.
 
+  1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `debug.md`, `code-style.md`) for the diagnosis's root-cause keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
+  2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring diagnosis summary and recurrence count in the description. Options (plain-English labels):
+     - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
+     - **Refine, then save as a rule** — same hand-off; the user reshapes the wording before saving.
+     - **Merge into an existing rule** — same hand-off; the user folds it into a related rule.
+     - **Don't save** — decline; nothing is written.
+  3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the diagnosis category (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
+  4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:
+
+```bash
+emit_rejection_if_signal \
+"/geniro:debug" "debug/<scope>" "promote_diagnosis_to_rule" \
+"Capture recurring diagnosis as project rule" "<picked label>"
 ```
-[learnings] Diagnosis recorded: "<one-line summary>". Recurrence detected (<n> prior matching entries). Recorded to L2.
-→ Consider /geniro:instructions edit <scope>.md to promote as a debug-rule.
-```
-
-Scope hint follows the diagnosis category:
-- Style/convention root causes → suggest `code-style.md`
-- Workflow/process root causes → suggest `debug.md`
-- Architecture/global root causes → suggest `global.md`
-- Other → generic "appropriate scope"
-
-Suggestion fires only when recurrence is detected — single-occurrence diagnoses not warrant L4 promotion (user remains source-of-truth for L4 curation). The line is informational (no AUQ, no auto-edit). Fully automatic L2→L4 promotion deferred to a future release.
 
 ### 3.4 Suggest improvements (project scope only, routes)
 
@@ -657,7 +659,7 @@ For each debug session, confirm the checklist for the mode that ran.
 - [ ] Findings summary presented to user in chat AND persisted to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` via `atomic_state_write` before the escalation question
 - [ ] Escalation decision made via AskUserQuestion with options referencing the state file by path
 - [ ] All experimental edits to non-test source reverted before handoff
-- [ ] L2 emit fired with `diagnosis` type + `ext.{symptom, root_cause, fix}`; L4 promotion suggestion surfaced when recurrence detected
+- [ ] L2 emit fired with `diagnosis` type + `ext.{symptom, root_cause, fix}`; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
 - [ ] Cleanup completed
 
 ### Adversarial Mode

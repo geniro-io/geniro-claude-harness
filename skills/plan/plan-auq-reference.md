@@ -30,6 +30,7 @@ non-resumable-actions: []
 approvals: []
 task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
+prd_mode: true                               # optional, present only when --prd was passed (Phase 0.1)
 ---
 
 # State: <topic>
@@ -46,7 +47,7 @@ mode: <IDEA|DESIGN_DOC>
 ## Open Questions
 ```
 
-After all 10 sections approved in Phase 5, `## Workflow Refs` (populated by Phase 1.4) and `## UI Preview` (populated by Phase 2 when triggered) appear as additional body sections. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `user-approve` → `handoff` → `done`).
+After all 10 sections approved in Phase 5, `## Workflow Refs` (populated by Phase 1.4), `## UI Preview` (populated by Phase 2 when triggered), and `## Problem Framing` (populated by Phase 0.5 when `--prd` was passed) appear as additional body sections. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise.
 
 ---
 
