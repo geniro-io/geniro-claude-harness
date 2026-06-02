@@ -25,7 +25,7 @@ echo '<json-object>' | emit_learning
 ```
 
 - **Input:** a single JSON object on stdin (one entry per call).
-- **Output:** none on success. JSONL line is appended to the log file.
+- **Output:** none on success. JSONL line is appended to the log file. The helper does NOT echo the written entry or its computed `recurrence_count`. A caller that needs the post-write `recurrence_count` (e.g. to fire a `recurrence_count >= 3` rule-capture gate) reads it back via `query-learnings` after the emit — filter by the entry's `dedup_key` and pass `--include-superseded`, then read `recurrence_count` from the matched entry.
 - **Side effects:**
  - Appends to `.geniro/knowledge/learnings.jsonl` (created if absent).
  - May append to `.geniro/knowledge/.redaction-log.jsonl` (via `redact_secrets`).
@@ -60,7 +60,7 @@ The helper rejects entries missing any of these with rc=64.
 - `body` — sanitized via `redact_secrets`.
 - `ext` — every string-valued path inside (including inside arrays) is sanitized via `redact_secrets`. Path labels in the audit log use dotted notation (e.g. `ext.symptom`, `ext.options.0`).
 - `supersedes` — if the caller provides it, it's preserved verbatim. Otherwise the helper may auto-inject it (see Dedup).
-- `recurrence_count` — how many times this learning has recurred. Defaults to `1` on a fresh emit. On a dedup match (different content under an existing `dedup_key`), the helper carries forward the prior entry's value and increments by 1, so a learning re-observed N times ends at `recurrence_count: N`. Callers normally leave this unset and let the helper manage it. Entries written before this field existed have it absent — `query-learnings` treats absent as `1`, so legacy entries score and rank exactly as they did before the field was added.
+- `recurrence_count` — how many times this learning has recurred. Defaults to `1` on a fresh emit. On a dedup match (different content under an existing `dedup_key`), the helper carries forward the prior entry's value and increments by 1, so a learning re-observed N times ends at `recurrence_count: N`. Callers normally leave this unset and let the helper manage it. The helper does not echo the resulting value — a caller that needs to read the post-write count (e.g. to gate a `recurrence_count >= 3` rule-capture offer) re-queries via `query-learnings --include-superseded` filtered by `dedup_key` after the emit. Entries written before this field existed have it absent — `query-learnings` treats absent as `1`, so legacy entries score and rank exactly as they did before the field was added.
 - `type`, `trust`, `links`, `deprecated` — passed through unchanged.
 
 Unknown fields are also passed through — the schema is open.

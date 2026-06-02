@@ -166,7 +166,7 @@ Phase 2 makes no new helper calls at entry; per-Edit `.claude/rules/*.md` JIT lo
 
 ### L4 — Custom instructions (procedural)
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); its §Echo contract requires one observable line per file. Both are mandatory.
 
 **Phase boundaries:**
 - Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style` (3 files). `refresh` re-Reads every file and re-emits the Echo lines; the procedure is identical to initial-load. The mode name signals compaction-survival intent.
@@ -460,7 +460,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
        - **Decide and surface** — Case A (all PRESENT, debug-source-branch matches) → one-line acknowledgment in the Phase 1 context summary. Case B1 (any MISSING) → surface the suggest-only relocation block from `_shared/debug-handoff.md` §Step 4; the user runs `git checkout <debug-source-branch> -- <paths>` or `cp` themselves — never auto-execute cross-branch git operations. Case B2 (all PRESENT but branches differ) → one-line "tests carried over" note. Case C (legacy fields missing) → degraded suggestion without explicit checkout command.
        - **Persist** to state.md as `Authored-tests:` (comma-separated relative paths on a single line) plus, when sourced from m7-v2+ frontmatter, `Authored-tests-intent:` (parallel comma-separated intents) and `Debug-source-branch:` / `Debug-source-worktree:`. Phase 2 reads these to prime TodoWrite decomposition — each authored test becomes a pre-existing acceptance gate, surfacing in the relevant todo's description so the production-fix work cannot ship without those tests going GREEN.
        - Authored-tests extraction is informational, NOT a gate — do NOT block transition to `phase: implement` on missing files. The user retains agency to either run the suggested commands, re-author tests in the current branch, or accept the divergence.
-    10. After authored-tests handling, proceed to step 13.
+    10. After authored-tests handling, proceed to step 12.5.
 
    /geniro:implement is the consumer; the contract per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 forbids proceeding with Edit/Write while any `unresolved` entry remains. A consumer that ships anyway violates the contract — the producer surfaced the ambiguity precisely so it gets resolved BEFORE code changes.
 

@@ -414,7 +414,7 @@ emit_rejection_if_signal \
 "<recommended ship-mode label>" "<picked label>" "<recommended label>"
 ```
 
-`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever option carries the `(Recommended)` suffix per ship-mode AUQ rules (typically «Open draft PR» by default; «Commit + push» when user has just selected «Post findings as Draft PR review» from a chained AUQ). Helper detects rejection signals and emits L2 entry — acceptance is a no-op. Future /geniro:implement Phase 1 surface «user consistently picks X over Y» pattern hint.
+`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever option carries the `(Recommended)` suffix per ship-mode AUQ rules (typically "Open draft PR" by default; "Commit + push" when user has just selected "Post findings as Draft PR review" from a chained AUQ). Helper detects rejection signals and emits L2 entry — acceptance is a no-op. Future /geniro:implement Phase 1 surface "user consistently picks X over Y" pattern hint.
 
 **Step 4 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 

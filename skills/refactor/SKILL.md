@@ -1,6 +1,6 @@
 ---
 name: geniro:refactor
-description: "Use when restructuring code for better organization or reducing tech debt while guaranteeing zero behavior change. 3-phase loop (Plan → Apply → Verify) mirroring /geniro:implement. Adopts canonical effort-scaling tier rubric (Trivial / Small / Medium / Big). NEVER ships code — diff is the deliverable, working tree is the channel. For behavioral changes use /geniro:implement; for performance optimizations use /geniro:review --simplify."
+description: "Use when restructuring code for better organization or reducing tech debt with zero behavior change. 3-phase loop (Plan → Apply → Verify); never ships — the diff is the deliverable. For behavioral changes use /geniro:implement; for performance use /geniro:review --simplify."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
@@ -119,8 +119,7 @@ On Phase 1 entry, in order:
 1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.
 2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.
 3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` to find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.
-4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict.
-Echo lines from the loader are mandatory per its §Echo contract.
+4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict. Echo lines from each loader are mandatory per its §Echo contract.
 5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). Read-only — /geniro:refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 6. **Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /geniro:refactor applies changes in place on the current branch, so if that branch is behind the default branch, offer to update it before scope discovery and baseline validation run against stale code. Skipped silently when the branch is already current.
 
@@ -138,7 +137,7 @@ Echo lines from the loader are mandatory per its §Echo contract.
 
 ### 1.3 Tier classification (canonical effort-scaling)
 
-**Adopt canonical effort-scaling.md rubric**. /geniro:refactor no longer overrides the canonical. Apply effort-scaling Step 1 (hard signals) → Step 2 (5-dim score) → Step 3 (tier behavior). Refactor-specific hard signals apply orthogonally — they escalate OUT of /geniro:refactor entirely.
+**Apply the canonical effort-scaling rubric** from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`: Step 1 (hard signals) → Step 2 (5-dim score) → Step 3 (tier behavior). Refactor-specific hard signals apply orthogonally — they escalate OUT of /geniro:refactor entirely.
 
 #### 1.3.1 Apply canonical effort-scaling
 
@@ -172,7 +171,7 @@ These 4 refactor-specific signals are orthogonal to the canonical effort-scaling
 
 Skipped for Trivial and Small per Step 3.
 
-The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn (subagent rationalization; sequential refactoring is exactly the failure mode the Google/MIT 2025 study predicts for multi-agent variants, arXiv 2512.08296: −70% accuracy on sequential reasoning). For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
+The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn. Sequential per-step refactoring needs continuous state across steps, which a spawned subagent loses; running inline preserves the per-step regression-skip predicate. For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
 
 **Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 — full smell taxonomy + change-impact scoring + escalation rules. The orchestrator reads this file once at entry and applies the rubric inline.
 
@@ -208,7 +207,7 @@ Skipped for Trivial and Small. The orchestrator gathers evidence on detected sme
 
 For each smell detected in §1.4, the orchestrator weighs three signals inline:
 
-1. **Convention alignment** — is this «smell» actually the repo's chosen pattern? Cross-check with CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs (when present) and CLAUDE.md.
+1. **Convention alignment** — is this "smell" actually the repo's chosen pattern? Cross-check with CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs (when present) and CLAUDE.md.
 2. **Over-engineering** — would fixing this smell introduce more complexity than it removes? Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` mental check.
 3. **Intentional pattern** — does the flagged pattern exist deliberately in 3+ other files? Quick Grep pass over similar paths confirms.
 
@@ -257,7 +256,7 @@ On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refacto
 
 ### 2.2 Per-step execution (orchestrator-inline)
 
-The orchestrator executes the approved plan inline, one step at a time — no subagent spawn. Sequential refactoring with per-step regression is exactly the failure mode the Google/MIT 2025 study predicts for multi-agent variants (arXiv 2512.08296: -70% accuracy on sequential reasoning); orchestrator-inline preserves state continuity and halves test runs via the skip predicate.
+The orchestrator executes the approved plan inline, one step at a time — no subagent spawn. Sequential per-step refactoring needs continuous state across steps, which a spawned subagent loses; running inline preserves state continuity and halves test runs via the per-step regression-skip predicate.
 
 **Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 3 — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. The orchestrator applies this verbatim inline.
 
@@ -312,7 +311,7 @@ If regression failed: fire AUQ "Regression" — "Revert all changes" / "Show me 
 
 If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
-**L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED per orchestrator-inline Blocked Step Protocol, regardless of whether overall ratio triggered escalation), call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale from state.md ## Plan steps row>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when regression green AND <30% blocked; escalated when fired AND user picked «Keep what worked» or «Force-continue»; aborted on reverted/aborted state. Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
+**L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED per orchestrator-inline Blocked Step Protocol, regardless of whether overall ratio triggered escalation), call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale from state.md ## Plan steps row>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when regression green AND <30% blocked; escalated when fired AND user picked "Keep what worked" or "Force-continue"; aborted on reverted/aborted state. Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
 
 ---
 
@@ -391,7 +390,7 @@ Output the markdown block directly in chat. No persistence to a handoff file —
 - [file path]: [one-line summary]
 
 ### Deferred
-- [P3 item or user-rejected HIGH step]
+- [low-priority item deferred, or a HIGH-risk step you declined]
 
 ### Next steps
 [The diff is in your working tree. Commit it yourself, or run `/geniro:implement` to ship with a review gate.]
@@ -406,7 +405,9 @@ At Phase 3 exit:
 - **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
 - **NOT emitted :** `diagnosis` (/geniro:debug owns); `convention` (/geniro:implement self-review owns); `decision` (/geniro:plan owns).
 
-**Offer to capture a recurring pattern as a project rule:** when an emitted `discovery` or `pitfall` carries `recurrence_count >= 3` (this exact pattern has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen entries do not warrant a rule.
+**Read back the recurrence count.** `emit-learning` returns nothing on success — it does not echo the entry's `recurrence_count`. To obtain it, after the emit re-query via `query-learnings --include-superseded` filtered by the just-written entry's `dedup_key`, and read `recurrence_count` from the matching record.
+
+**Offer to capture a recurring pattern as a project rule:** when the read-back `recurrence_count >= 3` (this exact pattern has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen entries do not warrant a rule.
 
 1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `refactor.md`, `code-style.md`) for the entry's keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
 2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring entry summary and recurrence count in the description. Options (plain-English labels):

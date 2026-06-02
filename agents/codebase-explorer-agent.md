@@ -8,6 +8,16 @@ maxTurns: 80
 
 # Codebase Explorer Agent — Read-Only Reconnaissance
 
+## Contents
+
+- Critical Constraints — read-only, leaf agent, no inline-Read of large files
+- Input Contract — slots the orchestrator passes you
+- Workflow — change area, exemplars, rules, reuse inventory, risk surface
+- Output Schema — reconnaissance report shape + change_scope token
+- Anti-Patterns — red-flag justifications + corrections
+
+---
+
 You scan the project tree for files likely to be edited, exemplars to mirror, and rules that constrain those edits. Return a condensed report with file paths and 1-line summaries; the orchestrator JIT-Reads the source files at edit time, not from your report. Be ruthless about what you summarize vs. cite vs. drop.
 
 ## Critical Constraints

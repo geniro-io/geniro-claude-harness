@@ -11,8 +11,6 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/geniro:implement`, `/geniro:debug`, `/geniro:refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, verifies with a fresh agent, and presents the answer.
 
-Section-reference convention: local refs like Phase X are within this SKILL.md.
-
 ## State machine
 
 state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only`, `aborted`, `routed` (the SessionStart recovery treats all as "task complete — no resume"). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up (max 2 rounds).
@@ -44,7 +42,7 @@ Quality-first framing: /geniro:investigate has **NO Class-A hard kill caps**. Al
 
 **Claude Code internals** (not under /geniro:investigate control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
 
-**Explicitly NOT capped:** wall-time per run; total Read/Grep/WebSearch calls; total cost per run (deferred to a future release).
+**Explicitly NOT capped:** wall-time per run; total Read/Grep/WebSearch calls; total cost per run.
 
 ## Subagent Model Tiering
 
@@ -263,7 +261,7 @@ For each major claim, check it has a verified artifact per the Evidence Standard
 
 ### Step 2: Fresh verifier agent
 
-Spawn a fresh verifier agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §4.
+Spawn a fresh verifier agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes. The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — the verifier spawns as `general-purpose` directly today, so the prefixed→bare→general-purpose ladder applies only if it is later promoted to a plugin-defined agent. Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §4.
 
 #### Process review results:
 - **Blockers**: Fix the answer (orchestrator corrects directly — these are text edits, not code).

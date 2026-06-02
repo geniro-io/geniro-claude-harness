@@ -47,7 +47,7 @@ External sends: not in `/geniro:update` ACI ever.
 |---|---|
 | Network error after 4 retries | `aborted: network error during plugin marketplace update after 4 retries` |
 | Update succeeded but registry missing entry | `aborted: registry missing geniro-claude-plugin entry — see ~/.claude/plugins/installed_plugins.json` |
-| Hash-check failed | `aborted: plugin integrity check failed — manifest hash mismatch on <file>` |
+| Hash-check failed | `aborted: plugin integrity check failed — missing file(s) or manifest hash mismatch on <file>` |
 | User-content tampering detected | AUQ surfaces; user picks Continue or Abort |
 | MIGRATION.md walked successfully | `done` |
 | MIGRATION.md walked, user aborted mid-walk | `aborted: user aborted migration walk at step <N>` |
@@ -75,18 +75,12 @@ fi
 
 Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A before the snapshot. The snapshot must capture user-authored content in the primary worktree — not whichever worktree the orchestrator currently sits in. `/geniro:update` is typically run from `main`, but the safe contract is to resolve explicitly so a session running in a linked worktree compares the right tree.
 
+Resolve `PRIMARY_ROOT` by running the Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (single-sourced there — do not inline a copy). Then snapshot:
+
 ```bash
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
-
-# Resolve the primary worktree once; downstream snapshot/diff steps reuse it.
-TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"
-PRIMARY="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
-if [ -z "$TOPLEVEL" ] || [ -z "$PRIMARY" ] || [ "$TOPLEVEL" = "$PRIMARY" ]; then
-  PRIMARY_ROOT="."
-else
-  PRIMARY_ROOT="$PRIMARY"
-fi
+# PRIMARY_ROOT is set by the Mode A resolver run above.
 
 # Snapshot user-content sha256 + mtime for survival verification
 USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
@@ -107,7 +101,7 @@ Use `AskUserQuestion`:
 
 On `Cancel` → terminate with `info: update cancelled by user`. On `Confirm update` → transition to Phase 2.
 
-If `--dry-run` was passed in `$ARGUMENTS`, **skip the AUQ entirely** and instead read MIGRATION.md from the current install path (no marketplace fetch); print "what would happen" and exit. `--dry-run` does NOT modify any files.
+If `--dry-run` was passed in `$ARGUMENTS`, **skip the AUQ entirely** and instead read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` (the currently-installed copy, before any marketplace fetch — `$PLUGIN_PATH` is not set until Phase 2 Step 2, which dry-run skips); print "what would happen" and exit. `--dry-run` does NOT modify any files.
 
 ## Phase 2 — Update
 
@@ -211,17 +205,10 @@ If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
 
 ### Step 2 — User-content survival check
 
-Re-resolve `$PRIMARY_ROOT` via the same Mode A snippet used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless; `$USER_SNAPSHOT` stashed by Phase 1 carries forward via the orchestrator's state, not the shell.
+Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless; `$USER_SNAPSHOT` stashed by Phase 1 carries forward via the orchestrator's state, not the shell.
 
 ```bash
-TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"
-PRIMARY="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
-if [ -z "$TOPLEVEL" ] || [ -z "$PRIMARY" ] || [ "$TOPLEVEL" = "$PRIMARY" ]; then
-  PRIMARY_ROOT="."
-else
-  PRIMARY_ROOT="$PRIMARY"
-fi
-
+# PRIMARY_ROOT is set by the Mode A resolver run above.
 CURRENT_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
 | xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null)
@@ -289,7 +276,7 @@ After last entry: terminate and emit final report.
 
 If MIGRATION.md is present but malformed (cannot parse the heading structure), skip Phase 4 with one warning line: `[warn] MIGRATION.md present but malformed — proceeding without walk`.
 
-**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. Entries without `Auto-fix:` (marked `Auto-fix: manual-only`) require user action; the agent prints the manual steps instead.
+**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. Entries without `Auto-fix:` (marked `Auto-fix: manual-only`) require user action — print the manual steps instead.
 
 ## Done — Final report
 
@@ -344,6 +331,7 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 |---|---|
 | "My recalled experience says the MIGRATION.md version headings don't match the package version, so I'll range-filter or read only the newest block." | A recalled learning does not override the walk-all consumption contract. The version heading is not a selection gate — walk EVERY entry across ALL sections (Phase 4) and let each read-only auto-detect decide relevance. The current skill body and the MIGRATION.md preamble are authoritative over any prior-session recollection. |
 
-## Cross-references
+## REFERENCE
 
-- 4-retry exponential-backoff (2s/4s/8s/16s) — see §Phase 2 Step 1
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — Phase 1 Step 0 rules load.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — Mode A resolver for `PRIMARY_ROOT` (Phase 1 Step 2, Phase 3 Step 2).

@@ -1,8 +1,3 @@
----
-name: architecture-vocabulary
-description: "Canonical vocabulary for module-design discussions across skills. Defines depth, seam, adapter, leverage, locality so refactor / review --simplify / investigate / implement reason in shared terms."
----
-
 # Canonical: Architecture Vocabulary
 
 Single source of truth for design vocabulary. Skills cite this file rather than redefining terms inline so that "deepen this module" means the same thing in every skill.

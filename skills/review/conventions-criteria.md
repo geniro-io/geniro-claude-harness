@@ -256,7 +256,7 @@ Style findings on legacy code are noise. Use the diff context pre-inlined by the
 - **[NEW]** — code in lines added or modified by the diff. The diff introduces a pattern that diverges from the modal. Prioritized in the report.
 - **[PRE-EXISTING]** — finding lives on an unchanged line, surfaced because the reviewer read the file while sampling. The file was already an outlier before this change. Demoted to MEDIUM at most. Informational only.
 
-Reviewers should never block a PR on [PRE-EXISTING] convention drift. If pre-existing drift dominates the file, surface it as a single informational note rather than a per-line flood. The Phase 4 judge demotes [PRE-EXISTING] findings — just tag accurately.
+Reviewers should never block a PR on [PRE-EXISTING] convention drift. If pre-existing drift dominates the file, surface it as a single informational note rather than a per-line flood. The Phase 3 §3.3 KEEP/FILTER judgment demotes [PRE-EXISTING] findings — just tag accurately.
 
 ## Common False Positives
 
@@ -290,9 +290,9 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, siblings in flight on same targe
 - Same code kind (helper-placement, naming style, import grouping) introduced with different conventions across parallel PRs — emerging-pattern split, neither has merged yet.
 - Sibling PR establishes a new convention (e.g., adopts a new error-handling library) while current PR uses the pre-existing convention — coordination needed on which becomes the modal once both merge.
 
-Apply the 80% modal threshold AT THE MERGE-STATE LEVEL — peer PRs in flight don't yet contribute to the merged modal. A valid finding shape: «PR #N (peer) introduces convention X for <code kind>; current diff uses convention Y. Neither has merged yet — modal not established. Coordinate on which becomes the convention before either ships». Severity HIGH when current PR's pattern is uniquely novel AND peer's pattern matches existing minority precedent; MEDIUM otherwise.
+Apply the 80% modal threshold AT THE MERGE-STATE LEVEL — peer PRs in flight don't yet contribute to the merged modal. A valid finding shape: "PR #N (peer) introduces convention X for <code kind>; current diff uses convention Y. Neither has merged yet — modal not established. Coordinate on which becomes the convention before either ships". Severity HIGH when current PR's pattern is uniquely novel AND peer's pattern matches existing minority precedent; MEDIUM otherwise.
 
-Do NOT apply the modal threshold to peer PRs as if they were merged siblings — that would inflate the denominator with unmerged code. The signal is «two-way coordination needed», not «modal violation».
+Do NOT apply the modal threshold to peer PRs as if they were merged siblings — that would inflate the denominator with unmerged code. The signal is "two-way coordination needed", not "modal violation".
 
 ## Review Checklist
 

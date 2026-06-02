@@ -31,12 +31,14 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
 
 - **Path:** `.geniro/state/tdd/state-<slug>.md`. Slug computed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules. Never write to a non-scoped path; sibling slugs belong to parallel pipelines on other branches and must not collide.
 - **Format:** Markdown with sections (NOT JSON). JSON corrupts on partial write — half a `{...}` is unparseable, while half a Markdown file is still readable. The within-skill-state-handoff convention is Markdown for exactly this reason.
-- **Required headers** (at the TOP of the file, before any other content, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Producer contract):
+- **Required frontmatter fields** (inside the `---` fence that opens on line 1, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Producer contract):
 
-  ```
-  Branch: <git branch --show-current OR detached-<short-sha>>
-  Worktree: <git rev-parse --show-toplevel>
-  Timestamp: <ISO-8601 UTC, e.g., 2026-05-10T14:32:00Z>
+  ```yaml
+  ---
+  branch: <git branch --show-current OR detached-<short-sha>>
+  worktree: <git rev-parse --show-toplevel>
+  timestamp: <ISO-8601 UTC, e.g., 2026-05-10T14:32:00Z>
+  ---
   ```
 
 - **Required body section `## phase`** with one of: `RED` / `GREEN` / `REFACTOR` / `IDLE`. Phase transitions are linear: `IDLE → RED → GREEN → REFACTOR → IDLE` (REFACTOR is optional; valid to skip from `GREEN → IDLE`).
@@ -84,7 +86,7 @@ REFACTOR is optional but strongly preferred. Skip with explicit IDLE; do not lea
 The PreToolUse hook `enforce-tdd-order.sh` reads `.geniro/state/tdd/state-<slug>.md` on every `Edit` and `Write` call. Logic:
 
 - If state file does not exist OR `## phase` is `IDLE` → exit 0 (no gating; TDD cycle not active).
-- If `## phase` is `RED` AND the Edit|Write target file does NOT match `*test*` / `*.spec.*` / `*_test.go` / `tests/**` → exit 2 with stderr message: `Edit|Write to production file '<path>' blocked: TDD cycle is in RED phase, target test file must change first. See ${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md.`
+- If `## phase` is `RED` AND the Edit|Write target file does NOT match `*test*` / `*.spec.*` / `*_test.go` / `tests/**` → exit 2 with a stderr block that opens `[tdd-order] TDD cycle in RED phase — author the failing test BEFORE production code.`, points at this file, echoes the state-file path and the blocked target path, and notes the bypass (`add "tdd-order" to .geniro/safety.json allow_patterns`).
 - If `## phase` is `GREEN` or `REFACTOR` → exit 0 (production-code edits are expected in these phases).
 
 The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user without retry. The hook is read-only — it never writes the state file; only the orchestrator writes (per § State file contract single-writer).
@@ -104,7 +106,7 @@ The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user 
 
 A consumer skill correctly applies the TDD cycle when:
 
-- [ ] State file `.geniro/state/tdd/state-<slug>.md` exists with Branch:/Worktree:/Timestamp: headers and `## phase` + `## target` sections.
+- [ ] State file `.geniro/state/tdd/state-<slug>.md` exists with `branch:` / `worktree:` / `timestamp:` frontmatter fields and `## phase` + `## target` sections.
 - [ ] RED phase wrote an Evidence Block showing exit code != 0 with a real assertion-failure signature.
 - [ ] GREEN phase wrote an Evidence Block showing exit code == 0 for the new test AND the full suite.
 - [ ] REFACTOR phase (if entered) ran the full test suite, not just the cycle's test.

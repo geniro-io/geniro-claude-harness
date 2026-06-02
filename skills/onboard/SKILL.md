@@ -149,15 +149,21 @@ State.md update: `phase: discover` → `phase: map`. `## Scope` body section cap
 
 State.md `phase: map`. Builds `_CODEBASE_MAP.md` (underscore-prefixed) with the 8-section template + optional `--focus` concentration.
 
-### 2.1 Build `_CODEBASE_MAP.md`
+### 2.1 Compose the codebase map content
 
 Canonical path: `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md`. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees.
 
-Use the 8-section template from §Outputs above. Apply `--focus` concentration per the rule in §Outputs (sections 3 / 4 / 6 / 7 concentrate on focus areas; 1 / 2 / 5 / 8 stay full-scope).
+Compose the map content in-context using the 8-section template from §Outputs above — do not write it to disk yet. Apply `--focus` concentration per the rule in §Outputs (sections 3 / 4 / 6 / 7 concentrate on focus areas; 1 / 2 / 5 / 8 stay full-scope). §2.2 persists the composed content through the `update-semantic` helper.
 
-### 2.2 Update project snapshot via `update-semantic`
+### 2.2 Persist the codebase map via `update-semantic`
 
-After `_CODEBASE_MAP.md` write, call `update-semantic --file codebase-map --replace "<previous-content>" "<new-content>"` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.md`. The helper handles bounded auto-incremental updates and lock-guarding via `.codebase-map.lock`. For a full regen (first onboard or major architectural shift), pass the full new content.
+Persist the composed map through `update-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.md` — that helper IS the write mechanism, holding the `.codebase-map.lock` for an atomic lock-guarded write. Do NOT write `_CODEBASE_MAP.md` with the `Write` tool directly: `.geniro/planning/_*.md` is a guarded persistent path and a direct write trips the state-helper enforcement hook and double-writes the file.
+
+The helper writes one line per call (append-only or single-line prefix replacement — never whole-file):
+- **First onboard** (no prior map) — emit each composed map line with `update-semantic --file codebase-map --append "<line>"`. Append creates the file if it is missing.
+- **Incremental re-run** (prior map exists) — for a changed entry use `update-semantic --file codebase-map --replace "<line-prefix>" "<new-line>"` (matches the first line starting with `<line-prefix>`); for a new entry use `--append "<line>"`.
+
+On rc=11 (lock held by another writer) defer and retry at phase end per the helper's defer-and-retry pattern.
 
 ### 2.3 Emit `discovery` learning
 
@@ -274,32 +280,16 @@ Mirrors structure.
 - Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
-- Allowed: Read / Write (for `_CODEBASE_MAP.md` only — scope to `.geniro/planning/**` via existing safety hooks).
-- Allowed: `update-semantic` and `emit-learning` helper invocations.
-- Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`.
+- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `emit-learning` helper invocations.
+- Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
 Existing safety hooks apply across all phases (file-protection / git-guardrail / `.geniro/` deletion guard).
 
 ---
 
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
-| "I need more detail on this module" | The codebase map captures architecture, not implementation. Keep it under 1000 lines. |
-| "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
-| "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
-| "The repo has 5000 files but I'll just scan everything — better safe than sorry." | Mass-scan violates. The ≤50-file default cap exists for tokens + speed. Fire the AUQ — user picks `--focus`, expansion, or truncation. Don't silently broad-scan. |
-| "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
-| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Class-A hard caps abort legitimate complex discovery mid-stride. quality-first — no Class-A caps. ≤50-file gate escalates to user via AUQ. User has agency. |
-| "/geniro:onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
-| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
-| "Audit trail isn't needed for local /geniro:onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. the SessionStart re-injects on compaction; without log, post-mortem requires re-running the scan from scratch. |
-
 ## CODEBASE_MAP.md format example
 
-```markdown
+````markdown
 # Codebase Map: [Project Name]
 
 **Generated:** [date]
@@ -413,7 +403,7 @@ Express App (index.ts)
 | No rate limiting | DDoS risk | Add nginx upstream |
 | Migrations run on startup | Risk of conflicts | Plan migration strategy |
 | No type safety on DB queries | Runtime errors | Consider Prisma migration |
-```
+````
 
 ---
 
@@ -427,7 +417,7 @@ For each onboarding, confirm:
 - [ ] At least 3 critical paths traced and documented
 - [ ] Architecture Patterns identified and listed
 - [ ] Conventions and defaults recorded
-- [ ] Known Issues and Tech Debt noted
+- [ ] Tech Debt & Notes section completed
 - [ ] Entry Points listed (how to run, test, deploy)
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use `--focus` for large repos)
 - [ ] L3 `_CODEBASE_MAP.md` updated via `update-semantic`
@@ -482,3 +472,20 @@ For each onboarding, confirm:
 → Understand current schema and relationships
 → Use map to plan where new feature fits
 → Trace existing data flow patterns
+
+---
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
+| "I need more detail on this module" | The codebase map captures architecture, not implementation. Keep it under 1000 lines. |
+| "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
+| "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
+| "The repo has 5000 files but I'll just scan everything — better safe than sorry." | Mass-scan violates the bounded-scan contract. The ≤50-file default cap exists for tokens + speed. Fire the AUQ — user picks `--focus`, expansion, or truncation. Don't silently broad-scan. |
+| "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
+| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Class-A hard caps abort legitimate complex discovery mid-stride. Quality-first — no Class-A caps. The ≤50-file gate escalates to the user via AUQ. User has agency. |
+| "/geniro:onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
+| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
+| "Audit trail isn't needed for local /geniro:onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. The SessionStart hook re-injects on compaction; without the log, post-mortem requires re-running the scan from scratch. |

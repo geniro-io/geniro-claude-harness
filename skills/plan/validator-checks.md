@@ -30,7 +30,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 **Heuristic:** bullet-count in each section.
 
-**Fix hint on fail:** "Either section 2 OR section 3 has zero bullets and no «none with rationale» note. Add bullets, OR explicitly state «none — open scope» with a one-line rationale in section 3."
+**Fix hint on fail:** "Either section 2 OR section 3 has zero bullets and no "none with rationale" note. Add bullets, OR explicitly state "none — open scope" with a one-line rationale in section 3."
 
 ### 3. `source_materials`
 
@@ -43,15 +43,15 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** parse `## Tool log` YAML entries, count Agent + status:ok; for section 6, regex match `<path>:<line>` or `<path>:<line>-<line>` pattern.
 
-**Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit «scope-bound, no exploration needed» entry to ## Tool log."
+**Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit "scope-bound, no exploration needed" entry to ## Tool log."
 
 ### 4. `allowed_tools`
 
-**Rule:** frontmatter `tools_required` field is a non-empty list (if spec section 7 «Tools Required» is non-empty body) OR field is `null` (if section 7 body is "none").
+**Rule:** frontmatter `tools_required` field is a non-empty list (if spec section 7 "Tools Required" is non-empty body) OR field is `null` (if section 7 body is "none").
 
 **Heuristic:** field presence + body alignment.
 
-**Fix hint on fail:** "Section 7 says «<body>» but frontmatter tools_required is <value>. Sync them: empty body ↔ null field; non-empty body ↔ matching list."
+**Fix hint on fail:** "Section 7 says '<body>' but frontmatter tools_required is <value>. Sync them: empty body ↔ null field; non-empty body ↔ matching list."
 
 ### 5. `forbidden_actions`
 
@@ -59,7 +59,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** keyword scan, then field-presence check.
 
-**Fix hint on fail:** "Sensitive keyword detected in objective/scope, but forbidden_actions is null. Add at least one explicit «do NOT …» rule (e.g., «do NOT bypass auth middleware»)."
+**Fix hint on fail:** "Sensitive keyword detected in objective/scope, but forbidden_actions is null. Add at least one explicit 'do NOT …' rule (e.g., 'do NOT bypass auth middleware')."
 
 ### 6. `budget`
 
@@ -83,15 +83,15 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** body-non-empty + keyword/regex match.
 
-**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., «manual: navigate to /login, click OAuth button, verify redirect»)."
+**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., 'manual: navigate to /login, click OAuth button, verify redirect')."
 
 ### 9. `stopping_condition`
 
-**Rule:** section 11 (Done Condition) has body content matching pattern «<observable signal>» (e.g., «all 5 acceptance tests green», «PR approved by stakeholder X», «feature ships behind flag AND telemetry shows ≥1 successful use»).
+**Rule:** section 11 (Done Condition) has body content matching pattern "<observable signal>" (e.g., "all 5 acceptance tests green", "PR approved by stakeholder X", "feature ships behind flag AND telemetry shows ≥1 successful use").
 
 **Heuristic:** regex match against a small ontology of observable-signal phrases: `\b(tests? (pass|green))\b`, `\b(PR (approved|merged))\b`, `\b(telemetry|metric|log)\s+shows\b`, `\b(shipped|released)\s+to\b`, `\b(observable|verified|confirmed)\b`.
 
-**Fix hint on fail:** "Section 11 (Done Condition) doesn't match an observable-signal phrase. Rewrite as a concrete completion criterion (e.g., «<observable signal> AND <verification>»)."
+**Fix hint on fail:** "Section 11 (Done Condition) doesn't match an observable-signal phrase. Rewrite as a concrete completion criterion (e.g., '<observable signal> AND <verification>')."
 
 ---
 
@@ -103,7 +103,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** regex.
 
-**Fix hint on fail:** "Found placeholder token «<token>» at line <N>. Replace with actual content OR remove the line."
+**Fix hint on fail:** "Found placeholder token '<token>' at line <N>. Replace with actual content OR remove the line."
 
 ### 11. `contradiction_heuristic`
 
@@ -111,7 +111,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** tokenize bullets, set-intersection check.
 
-**Fix hint on fail:** "Token «<token>» appears in both Included (section 2) and Excluded (section 3). Pick one — a thing cannot be both in and out of scope."
+**Fix hint on fail:** "Token '<token>' appears in both Included (section 2) and Excluded (section 3). Pick one — a thing cannot be both in and out of scope."
 
 ### 12. `scope_creep_marker`
 
@@ -127,7 +127,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** parse all `## ` top-level headers; compare to the canonical list (11 required + 3 allowed-optional). A header outside that set fails; a missing optional section does not.
 
-**Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: «<canonical-header>». Got: «<actual>»."
+**Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: '<canonical-header>'. Got: '<actual>'."
 
 ### 14. `workflow_refs_consistency`
 

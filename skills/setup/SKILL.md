@@ -82,6 +82,8 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 
 **Resolve `PRIMARY_ROOT`** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. `/geniro:setup` writes to `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (singleton — main worktree only, even when invoked from a linked worktree).
 
+`PROJECT_ROOT` is the current project root — the worktree `/geniro:setup` was invoked from (the cwd). `CLAUDE.md`, `.geniro/instructions/`, and `.geniro/workflow/` are written to `PROJECT_ROOT`; only the singleton state file goes to `PRIMARY_ROOT`. When invoked from a linked worktree the two diverge, so keep them distinct.
+
 ## Phase 1: Detect
 
 ### 1.1 Mode detect and state-file rehydration
@@ -252,7 +254,7 @@ E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package ma
 
 ### 2.4 Optional integrations — issue tracker
 
-Use `AskUserQuestion` header "Tracker" — recommended default reflects `$ISSUE_TRACKER` detected in:
+Use `AskUserQuestion` header "Tracker". The recommended default is whichever tracker Phase 1 detected (else Skip) — e.g. `.github/ISSUE_TEMPLATE/` signals GitHub Issues, a `.gitlab/` directory signals GitLab Issues, a Linear ID or URL in recent commit messages signals Linear.
 
 - Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates.
 - On selection, install `.geniro/workflow/<tracker>.md` from template (or stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
@@ -324,7 +326,7 @@ Generated CLAUDE.md sections:
 - `<PROJECT_ROOT>/CLAUDE.md` — project-specific content only. No section markers — CLAUDE.md is user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts).
 - `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in.
 - `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
-- `<PROJECT_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`).
+- `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 
 All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files? Options: yes / show preview first / edit").
 
@@ -372,7 +374,7 @@ Transition to Phase 4.
 
 ```
 Agent(subagent_type=<resolved-rung>, # via _shared/spawn-agent.md ladder
-model="sonnet",
+model="sonnet", # hardcode carve-out: read-only tool budget (no Write/Edit) IS the safety floor, per _shared/model-tiering.md
 tools=["Read", "Bash", "Glob", "Grep"], # NO Write/Edit per §ACI
 prompt="""
 Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.

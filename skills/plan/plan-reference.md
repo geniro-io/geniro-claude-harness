@@ -19,7 +19,7 @@ The Phase 0 DESIGN_DOC AUQ has 2 options (per `plan-loop.md`):
 - **Start fresh with this as context** (Recommended) — the prior doc is inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. Phase 5 uses the 11-section schema unconditionally — the prior doc is context, not template.
 - **Cancel** — exit without writing state.md.
 
-If the user really wants to surgically edit an existing design doc bypassing Phase 1-4, the correct path is to open the doc directly in an editor + manually update sections + re-run `/geniro:plan` only when ready to re-emit. /geniro:plan does NOT have an in-loop «edit existing sections» mode.
+If the user really wants to surgically edit an existing design doc bypassing Phase 1-4, the correct path is to open the doc directly in an editor + manually update sections + re-run `/geniro:plan` only when ready to re-emit. /geniro:plan does NOT have an in-loop "edit existing sections" mode.
 
 ---
 
@@ -29,18 +29,18 @@ Phase 5 cluster AUQ (`plan-loop.md` §5.2) requires every `Approve` option to ca
 
 | Section | Example shape (drop into the `preview` after the section body) |
 |---|---|
-| 1. Objective | One-line user-visible behavior statement: «User clicks X → sees Y within Z seconds» |
+| 1. Objective | One-line user-visible behavior statement: "User clicks X → sees Y within Z seconds" |
 | 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) |
-| 4. Assumptions | Concrete invariants: «`USER.tz` always populated» — cite `file:line` where the invariant is guaranteed |
-| 5. Risks | Specific failure scenario + observable symptom: «Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate» |
+| 4. Assumptions | Concrete invariants: "`USER.tz` always populated" — cite `file:line` where the invariant is guaranteed |
+| 5. Risks | Specific failure scenario + observable symptom: "Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate" |
 | 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) OR ASCII data-flow |
-| 7. Tools Required | Concrete CLI / MCP list: «`mcp__linear__update_issue`, `pnpm test`, `gh pr view`» |
+| 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" |
 | 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /geniro:implement will ask the user mid-run |
 | 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch |
 | 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
-| 11. Done Condition | Observable signal phrase: «all 5 acceptance tests green AND telemetry shows ≥1 successful event insert» |
+| 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |
 
-The example closes out each section's `preview`, below the DECISION/WHY/HOW lines — the orchestrator does NOT render section bodies to chat AND THEN open the AUQ. Each cluster fires ONE AUQ call with one question per section, the content already in each option's `preview`. The chat says one short cluster lead-in («Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each.»). Removes the «I already see the plan» redundancy.
+The example closes out each section's `preview`, below the DECISION/WHY/HOW lines — the orchestrator does NOT render section bodies to chat AND THEN open the AUQ. Each cluster fires ONE AUQ call with one question per section, the content already in each option's `preview`. The chat says one short cluster lead-in ("Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each."). Removes the "I already see the plan" redundancy.
 
 ---
 
@@ -70,7 +70,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 - **User wants to plan WITHOUT writing a spec.md** — not supported. The committed spec.md IS the durable artifact downstream skills consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. If the user insists, run /geniro:plan, pick "Stop — keep spec for later" at Phase 9 (terminal `done`, spec sits on disk but not committed). The three detection markers must still be present per Phase 6 contract.
 
-- **`mode=CODE_REFERENCE`** — error and exit per Phase 0 (design-doc-detect helper returns CODE_REFERENCE → /geniro:plan emits error: «code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?»). Do NOT fall back to `mode=IDEA` — silent misclassification of code references is the failure mode `design-doc-detect.md` Anti-rationalization warns against.
+- **`mode=CODE_REFERENCE`** — error and exit per Phase 0 (design-doc-detect helper returns CODE_REFERENCE → /geniro:plan emits error: "code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?"). Do NOT fall back to `mode=IDEA` — silent misclassification of code references is the failure mode `design-doc-detect.md` Anti-rationalization warns against.
 
 - **Compaction mid-Phase-5** — handled by the SessionStart re-injection of state.md `approvals[]` and `## Tool log`. The model re-reads `approvals[]` and skips already-answered AUQs; Phase 6 idempotent re-entry regenerates spec.md from persisted approvals.
 
@@ -90,7 +90,7 @@ Shared rules consumed by this skill:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — Recommended-label policy for the Phase 4 approach AUQ + multi-select picker schema for Phase 5 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns a haiku description agent, runs the textual-preview revision loop (max 3 rounds), returns approved description to state.md `## UI Preview`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns the UI description agent (OMIT `model=`; inherits the orchestrator tier per ui-preview-gate.md), runs the textual-preview revision loop (max 3 rounds), returns approved description to state.md `## UI Preview`.
 - `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — state.md write helper.
 - `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` — state.md validator for resume.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — L4 directive doc (Phase 1 entry refresh).

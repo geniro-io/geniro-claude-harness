@@ -339,6 +339,10 @@ _render_non_resumable_block() {
         "  - slack-notify-sent (channel: \(.channel // "?"), ts: \(.ts // "?"), completed: \($c))"
       elif $a == "release-tagged" then
         "  - release-tagged (tag: \(.tag // "?"), completed: \($c))"
+      elif $a == "git-commit" then
+        "  - git-commit (commit-sha: \(.["commit-sha"] // "?"), completed: \($c))"
+      elif $a == "pr-review-comment-batch" then
+        "  - pr-review-comment-batch (pr: \(.["pr-ref"] // "?"), finding-count: \(.["finding-count"] // "?"), completed: \($c))"
       else
         "  - \($a) (completed: \($c))"
       end

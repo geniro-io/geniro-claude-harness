@@ -179,7 +179,7 @@ For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO requi
 
 If multi-scope, proceed to **Batch Mode**. Otherwise proceed to the resolved command section.
 
-## Phase 2: Mode dispatch (single-scope)
+## Phase 2: Execute (Mode dispatch, single-scope)
 
 Branch to the matching `## — Mode: <op>` section (`list` / `create` / `edit` / `validate` / `delete`).
 
@@ -412,11 +412,11 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | Scope | Real phase enum | Example subsection names |
 |---|---|---|
 | `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
-| `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| phase-8-escalated \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
+| `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
 | `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
-| `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| debug-handoff \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
+| `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
 | `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
-| `onboard` | `discover \| map \| map-truncated \| discover-escalated \| done \| aborted \| routed` | `After discover`, `Before map` |
+| `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | `After discover`, `Before map` |
 | `investigate` | `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | `After classify`, `After investigate`, `Before present` |
 
 Free-form subsections raise `LOW` warning. Subsections referencing dropped phase names (e.g., `After Phase 4 (Implement)`) raise `MEDIUM`.

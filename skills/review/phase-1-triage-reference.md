@@ -12,7 +12,6 @@ State.md `phase: triage` during this phase.
 - §3 PR-ref input parsing
 - §3.5 Workflow integrations (issue-tracker fetch)
 - §4 Peer-PR scout (PR-ref input only)
-- §5 Git workspace decision
 - §6 L4 instructions load
 - §7 Step 0.5 — Round-N counter
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
@@ -336,12 +335,6 @@ Read-only — never writes files, never mutates git state. Latency ~1-3s base + 
 
 ---
 
-## 5. Git workspace decision
-
-Moved to §0 above (Step 0 — Workspace setup). §0 runs FIRST in Phase 1 — before input mode detect, scope resolution, PR-ref parsing, workflow integrations, and peer-PR scout — so the rest of Phase 1 operates on the correct working tree.
-
----
-
 ## 6. L4 instructions load
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `review.md`, and `code-style.md` (3 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
@@ -412,7 +405,7 @@ Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After tr
 
 If user declines (empty answer), default to Standard. `--tdd`/`--standard` flag (when present) always overrides this AUQ. Persist to `approvals[]` with category `tdd_mode_choice`.
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode flips, edge cases, F→P contract scope, and rollback notes.
+See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode flips, edge cases, and F→P contract scope.
 
 ---
 

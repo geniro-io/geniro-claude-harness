@@ -27,7 +27,7 @@ The natural-language signals are **anchored** — bare keywords are not enough. 
 
 ## Phase I — Incoming Mode Steps (runs INSTEAD of SKILL.md Phase 5/6 when mode=INCOMING)
 
-The first 4 phases (Phase 1 triage, Phase 2 reviewer spawns, Phase 3 relevance filter, Phase 4 judge pass) are SKIPPED in Incoming mode — the diff is already reviewed by another human, the deliverable is responses, not new findings. Phase 4.3 (adversarial F→P) machinery is reused only for Step I-3 below. Steps:
+Phases 1-4 (Phase 1 triage, Phase 2 reviewer spawns, Phase 3 relevance filter + §3.3 KEEP/FILTER judgment, Phase 4 stratification) are SKIPPED in Incoming mode — the diff is already reviewed by another human, the deliverable is responses, not new findings. Phase 4.3 (adversarial F→P) machinery is reused only for Step I-3 below. Steps:
 
 ### Step I-1 — Fetch reviewer feedback
 
@@ -96,8 +96,7 @@ For `Push back` decisions, the thread is NOT auto-resolved by the skill — reso
 Incoming mode SKIPS:
 
 - SKILL.md Phase 2 reviewer spawns (no new findings being authored)
-- SKILL.md Phase 3 relevance filter (no findings to filter)
-- SKILL.md Phase 4 judge pass (no findings to judge)
+- SKILL.md Phase 3 relevance filter + §3.3 KEEP/FILTER judgment (no findings to filter or judge)
 - SKILL.md Phase 4.2 per-finding verifier (no findings to verify)
 - SKILL.md Phase 5 state file (Incoming uses `.geniro/state/review-feedback/<slug>-incoming.md` instead)
 - SKILL.md Phase 6 (Action gate, Failing tests gate, PR-comment posting — all replaced by Step I-4 per-comment AUQ)

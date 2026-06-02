@@ -33,7 +33,7 @@ present ──┬── (happy: flows to done)
                              └── done (user picks "save findings" → save-routing AUQ executes → done)
 ```
 
-Terminal states: `done`, `present-summary-only`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context.
+Terminal states: `done`, `present-summary-only`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context. `present-loop` is a sub-state of `present`, not a top-level phase: during dive-deeper rounds the persisted `phase:` value stays `present` (which is why the `phase:` enum below has no `present-loop` member).
 
 ---
 
@@ -133,7 +133,7 @@ SCOPE_HINT: {{path globs / module names / file lists derived from the user's tar
 PRE_INLINED_CONTEXT:
 {{paste verbatim contents of orchestrator-identified relevant files with absolute paths as section headers; the agent does NOT re-Glob}}
 
-OUTPUT_PATH: {{absolute path under <task-dir> — e.g., /Users/.../planning/<task-slug>/.research-codebase.md}}
+OUTPUT_PATH: {{absolute path under the investigate state dir — e.g., .geniro/state/investigate/<slug>/.research-out.md}}
 
 THOROUGHNESS: medium
 

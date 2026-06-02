@@ -178,7 +178,7 @@ The spec's section 11 (Done Condition) names an observable signal that defines c
 
 **Skip when not -schema mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only when `geniro_kind: design-doc` frontmatter is present.
 
-**schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check c check #9 (`stopping_condition`) — the spec validator that ensured section 11 has a concrete observable signal.
+**schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check the /geniro:plan validator check #9 (`stopping_condition`) — the spec validator that ensured section 11 has a concrete observable signal.
 
 **How to detect:**
 - Parse section 11 body. Extract the observable signal (regex match against ontology: `\b(tests? (pass|green))\b`, `\b(PR (approved|merged))\b`, `\b(telemetry|metric|log)\s+shows\b`, `\b(shipped|released)\s+to\b`, `\b(observable|verified|confirmed)\b`).

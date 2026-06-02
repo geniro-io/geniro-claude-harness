@@ -237,7 +237,7 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for API-
 - Same database column / table modified by both PRs (column added in A, removed in B; type changed in both with different types).
 - Same shared module imported and mutated by both PRs (concurrent edits to the same lookup table / config object).
 
-A valid finding shape: «PR #N (peer) modifies `<symbol>` at `<file:line>`; current diff also modifies the same symbol with incompatible <shape | type | side-effect> — coordinate ordering / merge resolution before shipping both». Severity HIGH when shipping both causes runtime breakage; MEDIUM when it's a stale-state coordination concern.
+A valid finding shape: "PR #N (peer) modifies `<symbol>` at `<file:line>`; current diff also modifies the same symbol with incompatible <shape | type | side-effect> — coordinate ordering / merge resolution before shipping both". Severity HIGH when shipping both causes runtime breakage; MEDIUM when it's a stale-state coordination concern.
 
 ## Stack-Agnostic Patterns
 

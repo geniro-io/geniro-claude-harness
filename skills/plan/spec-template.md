@@ -140,7 +140,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 The schema has exactly 11 numbered headers (`## 1` … `## 11`); downstream consumers and the validator key off header text, not ordinal count.
 
 Body sections beyond the 11 (allowed):
-- `## Considered Alternatives` — captured from Phase 4 Always present if Phase 4 ran with ≥2 approaches.
+- `## Considered Alternatives` — captured from Phase 4. Always present if Phase 4 ran with ≥2 approaches.
 - `## Milestones` — captured from Phase 5 milestone-mode. Present only if milestone-mode was picked.
 - `## Problem & Evidence` — captured from the Phase 0.5 problem-discovery interview. **Optional** — present only when `/geniro:plan --prd` ran (`prd_mode: true`); absent on every normal spec. The Phase 7 validator treats it as allowed-optional, so a normal spec without it still passes the schema check.
 
@@ -183,14 +183,14 @@ The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3
 
 **Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not yet auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 Step 12). Use "none" if /geniro:implement may run autonomously start-to-finish.
 
-**Section 10 (Rollback-Recovery):** «none — pure additive» is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is «none» — it auto-fails if body is empty.
+**Section 10 (Rollback-Recovery):** "none — pure additive" is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is "none" — it auto-fails if body is empty.
 
-**Sections 4, 5, 10 for Trivial tasks:** may have body content «none — task scope precludes» with brief rationale. Headers MUST exist; bodies MAY be «none with rationale».
+**Sections 4, 5, 10 for Trivial tasks:** may have body content "none — task scope precludes" with brief rationale. Headers MUST exist; bodies MAY be "none with rationale".
 
 ## Milestone-mode
 
 If Phase 5 milestone-mode was picked, Phase 6 emits:
-- `spec.md` — top-level with section 6 «Steps» listing milestone names (not raw steps) + a body section `## Milestones` indexing the sibling files.
+- `spec.md` — top-level with section 6 "Steps" listing milestone names (not raw steps) + a body section `## Milestones` indexing the sibling files.
 - `milestone-1.md`, `milestone-2.md`, …, each with its own 11-section schema scoped to the milestone.
 
 Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md.

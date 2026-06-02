@@ -52,7 +52,7 @@ If any criterion fails → use **Knowledge** (`learnings.jsonl`) instead. Most a
 
 ### Where to write
 
-- Look for an existing `docs/adr/`, `docs/decisions/`, or `doc/adrs/` directory (per `/geniro:setup` Phase 1.6 detection).
+- Look for an existing `docs/adr/`, `docs/decisions/`, or `doc/adrs/` directory (per `/geniro:setup` Phase 1 detect-output step §1.6).
 - If none exists, propose creating `docs/adr/` only after user confirms via `AskUserQuestion`.
 - Filename: `NNNN-<short-slug>.md` where NNNN is the next sequential number (zero-padded). Use Glob to find the highest existing NNNN.
 

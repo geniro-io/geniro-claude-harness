@@ -291,7 +291,7 @@ Surface any `status: failed` entries by their plain-English dim name (e.g., "PR 
 
 ### 2.4 `--simplify` flag weighting
 
-When `$ARGUMENTS` contains `--simplify` (semantic parse — matches `simplify`, `--simplify`, `simplify mode`), Phase 2 prepends deep-simplify criteria onto 5 of the built-in dimensions:
+When `$ARGUMENTS` contains `--simplify` (semantic parse — matches `simplify`, `--simplify`, `simplify mode`), Phase 2 prepends simplify criteria onto 5 of the built-in dimensions:
 
 - **architecture** reviewer — Reuse criteria (existing abstractions, duplicate logic, premature abstraction).
 - **conventions** reviewer — repo-modal-pattern aggressive mode (lower ≥80% siblings threshold to ≥60%).
@@ -319,7 +319,7 @@ Run the project's validation suite in parallel with reviewer agents:
 source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Build Check" "<validation_cmd>"
 ```
 
-Feed pass/fail into Phase 4 judge. Failing build is automatically a CRITICAL finding — tag `[NEW]` if the base branch build passes, `[PRE-EXISTING]` if already broken.
+Feed pass/fail into the Phase 3 §3.3 KEEP/FILTER judgment. Failing build is automatically a CRITICAL finding — tag `[NEW]` if the base branch build passes, `[PRE-EXISTING]` if already broken.
 
 ---
 
@@ -343,6 +343,8 @@ Mechanical findings (Phase 1.5) and LLM findings may overlap (e.g., lint says "u
 ### 3.3 KEEP/FILTER judgment
 
 After dedup, the orchestrator synthesizes per finding: weighs convention-alignment, over-engineering, and pattern-frequency evidence against severity and judges KEEP / FILTER. CRITICAL findings with `safety_override=true` are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4. FILTERED appear in the report's `## Filtered` section with reason annotation.
+
+**Intent reconciliation** runs here as part of the per-finding judgment: a finding a reviewer tagged `[ALIGNS-WITH-PLAN]` (or `[DIVERGES-FROM-PLAN]` where the plan authorized the divergence) is demoted to decision-type `[INTENT-CHECK]` rather than kept as a bug. `[PRE-EXISTING]` convention/build findings are demoted the same way. Cite the plan frontmatter or section that authorizes the divergence on the demoted finding so the user can re-elevate.
 
 No external agent to fail — dedup and judgment run in orchestrator's main context.
 
@@ -440,7 +442,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per row. `<
 
 **`step0_status:` producer-side initialization contract.** When writing each PRODUCT-DECISION finding into `## Findings`, also write `step0_status: pending` as the last sub-field of its body block (schema at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema"). This is the runtime sentinel §3 flips to `resolved` (or `wontfix`) after the per-finding AUQ pick lands, and the §7.0 Pre-Post guard re-reads to fail-close before posting. Omit the field entirely for non-PRODUCT-DECISION findings — its presence is the marker that §3 owes them an AUQ.
 
-Write the full handoff frontmatter + body skeleton from the template at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.6 "Handoff file template" (the `atomic_state_write` heredoc block). Each finding under `## Findings` renders as the multi-line per-finding body block (NOT a one-liner) per §"Per-finding body schema" in that same reference — Phase 4 judge preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
+Write the full handoff frontmatter + body skeleton from the template at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.6 "Handoff file template" (the `atomic_state_write` heredoc block). Each finding under `## Findings` renders as the multi-line per-finding body block (NOT a one-liner) per §"Per-finding body schema" in that same reference — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
 
 ### 5.2 Old state-file fallback
 
@@ -591,9 +593,9 @@ Code review is complete when:
 - [ ] Phase 2 spawn list includes `regressions` (8th always-fire dim) — declared in state.md `spawn_dims_declared[]` before parallel batch
 - [ ] Phase 4.2 per-finding verifier spawned for EVERY §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, no severity-scaling); refuted findings demoted to `## Filtered` before §4.3 F→P gate
 - [ ] Phase 2 spec-compliance reviewer spawned when PLAN CONTEXT non-`none` AND (input was a PR ref OR risk-tier:high)
-- [ ] Phase 2 `--simplify` flag prepended deep-simplify criteria to (architecture / conventions / guidelines / bugs / optimizations) dimensions when present
+- [ ] Phase 2 `--simplify` flag prepended simplify criteria to (architecture / conventions / guidelines / bugs / optimizations) dimensions when present
 - [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding
-- [ ] Phase 4 judge validation complete; Step 0 intent reconciliation applied (plan-authorized divergences demoted to `[INTENT-CHECK]`)
+- [ ] Phase 3 §3.3 KEEP/FILTER judgment complete; intent reconciliation applied (plan-authorized divergences demoted to `[INTENT-CHECK]`)
 - [ ] Phase 4.1 multi-signal threshold gate applied (convergence ≥2 OR Evidence-Block + confidence ≥60 OR criteria-pre-resolved marker OR confidence ≥80 fallback; high-tier relaxes signal 4 to ≥70; MEDIUM additionally requires signal #2 / Evidence-Block per Loop Invariant #6)
 - [ ] Phase 4.3 test-gate evaluated (skipped when no eligible findings or user declines); user approval persisted to `approvals[]`
 - [ ] TDD mode only: Phase 4.3 Step 2 AUQ rendered with `(Recommended)` suffix on "Author tests…" (gate itself fired exactly as in Standard mode); Phase 6 Step 3.5 post-set filter applied

@@ -29,7 +29,7 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
   How do you want to handle them?
   ```
 
-  Pull the digest from each finding's persisted body fields (severity / `File:` / finding-title / `Why this matters:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 — the same fields PRODUCT-DECISION findings persist. If more than 6 MEDIUMs exist, show the first 6 and append `… and N more — pick "Pick which to include" to see the full list`.
+  Pull the digest from each finding's persisted body fields (severity / `File:` / finding-title / `Why this matters:`) per the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema" — the same fields PRODUCT-DECISION findings persist. If more than 6 MEDIUMs exist, show the first 6 and append `… and N more — pick "Pick which to include" to see the full list`.
 
 - **`options[]`** (3 single-select):
   - `label`: `"Include all in fix loop"` — `description`: `"Treat MEDIUMs equivalently to CRITICAL/HIGH for this fix round — every MEDIUM is fed to the fixer agent."`
@@ -54,7 +54,7 @@ Promoted MEDIUMs lose their MEDIUM tag in the fix-loop pool — the fixer agent 
 
 ## Persisted-fields requirement
 
-For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/geniro:implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/geniro:review` Phase 5) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
+For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/geniro:implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/geniro:review` Phase 5) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema". This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
 
 ## Why this exists
 

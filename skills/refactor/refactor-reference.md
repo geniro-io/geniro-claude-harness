@@ -16,23 +16,22 @@ state.md `phase:` enum transitions:
 
 ```
 [entry] → plan ──┬── apply ──┬── verify ──┬── done
-│ │ │
-│ │ └── verify-summary-only (terminal — see verify-escalated branch)
-│ │
-│ └── apply-escalated ──┬── verify (keep what worked → partial-application note)
-│ ├── reverted (terminal — "Revert all changes")
-│ └── aborted (terminal)
-│
-└── plan-escalated ──┬── plan (user supplies missing context)
-├── aborted (terminal)
-└── routed (terminal — hard signal "Escalate")
+                 │           │            └── verify-summary-only (terminal — see verify-escalated branch)
+                 │           │
+                 │           └── apply-escalated ──┬── verify (keep what worked → partial-application note)
+                 │                                 ├── reverted (terminal — "Revert all changes")
+                 │                                 └── aborted (terminal)
+                 │
+                 └── plan-escalated ──┬── plan (user supplies missing context)
+                                      ├── aborted (terminal)
+                                      └── routed (terminal — hard signal "Escalate")
 
 verify ──┬── (happy: → done above)
-│
-└── verify-escalated ──┬── apply ("Run /geniro:implement" on PRODUCT-DECISION → exit /geniro:refactor)
-├── reverted (terminal — "Revert this refactor")
-├── verify-summary-only (terminal — "Document and ship as-is" → deferred-decision note)
-└── adr-documented (terminal — "Document as ADR")
+         │
+         └── verify-escalated ──┬── apply ("Run /geniro:implement" on PRODUCT-DECISION → exit /geniro:refactor)
+                                ├── reverted (terminal — "Revert this refactor")
+                                ├── verify-summary-only (terminal — "Document and ship as-is" → deferred-decision note)
+                                └── adr-documented (terminal — "Document as ADR")
 ```
 
 **Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. The SessionStart recovery treats all six as "task complete — no resume needed".

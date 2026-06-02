@@ -101,7 +101,7 @@ If the orchestrator's tools cannot produce evidence for a hypothesis (no DB acce
 
 ## Universal Rule: All Choice Questions Use AskUserQuestion
 
-Every user-facing choice in this skill — including ad-hoc gates NOT explicitly enumerated below — MUST go through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The enumerated gates are examples, not an exhaustive list. If you're about to type `(A)... or (B)...` in chat, stop and call the tool instead.
+Every user-facing choice in this skill — including ad-hoc gates not explicitly enumerated below — goes through the `AskUserQuestion` tool. Inlining `(A)... or (B)...` in chat skips the structured-answer record the resume hook reads back, so the choice is lost on compaction. The enumerated gates are examples, not an exhaustive list. If you're about to type `(A)... or (B)...` in chat, stop and call the tool instead.
 
 ---
 
@@ -313,7 +313,7 @@ Persist to state.md `## Proposed Fix` body section.
 
 **Verify the proposed fix — monkey-patch in the test by default; production-source edits are an explicit escape hatch.** Apply the patch locally as a monkey-patch inside the authored test file (mock, fixture, test-local shim, or a throwaway helper imported only by the test). Re-run the authored test ≥2× post-fix and confirm the failure DISAPPEARS both times. If the bug genuinely cannot be verified without editing production source (hard-to-mock chain — DI container, framework hook, native module, generated code), list every touched production file under "Verification edits to revert:" in the findings, confirm each is reverted before escalation, and re-run `git diff` to prove the working tree contains only the reproduction test.
 
-**Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate:
+**Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored):
 - `header: "Repro infeasible"`
 - `question`: best-guess root-cause `path:lines` (or "unknown" if not isolated) + hypothesis title
 - Options: regression-guard alternatives — "Add runtime assertion" / "Author fuzz seed" / "Add monitor/alert" / "Skip regression guard" (description carries one-line trade-off)
@@ -442,6 +442,7 @@ At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnos
 
 - **Offer to capture a recurring diagnosis as a project rule:** when the emitted diagnosis carries `recurrence_count >= 3` (this exact root cause has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen diagnoses do not warrant a rule.
 
+  0. **Read back the recurrence count.** `emit-learning` appends silently and echoes nothing, so the count is not available from the emit return. Re-query to read it: `query-learnings --type diagnosis --include-superseded` filtered to the just-written `dedup_key`, and read `recurrence_count` off the matched entry. Gate the steps below on that value — skip the offer entirely if it is below 3.
   1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `debug.md`, `code-style.md`) for the diagnosis's root-cause keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
   2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring diagnosis summary and recurrence count in the description. Options (plain-English labels):
      - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
@@ -621,7 +622,7 @@ T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for 
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per Evidence Standard kind 1-5 (file:line snippet, captured command output, log line, query result, user-provided artifact). |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | Inconclusive-by-default is a fabrication shortcut. Run the §1.5 missing-data gate first — `AskUserQuestion` asking the user to supply the specific artifact. Only mark inconclusive if user confirms they cannot supply it. |
 | "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at §3.5 Cleanup and leave no regression guard. §2.4 mandates the reproduction be authored as a unit/integration test in the project's framework. Escape hatch (Reproduction Decision) is opt-in for genuinely non-reproducible cases only. |
-| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The canonical gate at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate makes the tool mandatory for ANY choice question. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
+| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The Universal Rule above makes the tool mandatory for ANY choice question — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 | "I'll name the reproduction test after the confirmed hypothesis number from `## Hypotheses`" | state.md gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. §2.4 mandates: describe the bug behavior, not the thread-local label. |
 | "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskUserQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
 | "Bypass `git guardrail` hooks if a needed `git bisect` step blocks." | Hooks fail for a reason. `git bisect` is permitted (read-only investigation per § ACI per-phase). If a specific guardrail blocks legitimate debug work, the path is `.geniro/safety.json` allow_patterns, not `--no-verify`. |
@@ -649,7 +650,7 @@ For each debug session, confirm the checklist for the mode that ran.
 
 - [ ] Bug reproduced consistently with clear steps
 - [ ] feedback loop built: command + expected output + captured artifact recorded in state.md `## Feedback Loop`; re-run cost ≤30s preferred; 3-run determinism check passed
-- [ ] L4 / L3 / L2 layers loaded at Phase 1 entry
+- [ ] Custom instructions, project snapshot, and past learnings loaded at the start of investigation
 - [ ] All hypotheses recorded in state.md `## Hypotheses`
 - [ ] Each hypothesis has a test plan and result citing artifact per Evidence Standard
 - [ ] Root cause identified and confirmed (not guessed), tagged `[ROOT-CAUSE]`

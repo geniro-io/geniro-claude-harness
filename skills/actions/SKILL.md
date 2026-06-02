@@ -22,15 +22,13 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 | `delete` | remove, rm, drop | Remove an action file (with confirmation) |
 | `validate` | check, lint | Lint frontmatter and body against the rule set |
 
-If `$ARGUMENTS` is empty, default to `list`.
-
 ## What is a custom action?
 
 A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `name`, `description`, `risk_class`, and a body containing a numbered `## Steps` section. The orchestrator (Geniro) reads the body and follows the steps. Actions are NOT auto-registered as slash commands — they live as plain `.md` files (not as `<slug>/SKILL.md` subfolders) precisely so Claude Code does not pick them up as their own slash commands. They are only reachable through `/geniro:actions run <name>`.
 
 ## Loop invariants
 
-1. One result per subagent call — `/geniro:actions` does NOT spawn subagents in CRUD modes.
+1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
 2. Args validated before exec — every Write preceded by frontmatter validation; every `run` preceded by AUQ-gate matching `risk_class`.
 3. Permission before side-effect — `risk_class: medium|high` gates execution via AUQ; `risk_class: low` skips the gate but respects per-step tool-allowlist if declared.
 4. Bounded structured results — `list` truncates per-action body display at 200 chars.
@@ -48,8 +46,8 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
 | `execute` (list) | `Read`, `Glob`, `Bash(ls...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
-| `execute` (create) | `Read`, `Write`, `Bash(mkdir -p .geniro/actions/, grep, echo >> .gitignore)`, `AskUserQuestion` | `mcp__github__*`, network egress, `Agent` |
-| `execute` (edit) | `Read`, `Edit`, `Bash(stat, mv)`, `AskUserQuestion` | `mcp__*`, network egress |
+| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p .geniro/actions/, grep, echo >> .gitignore)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
+| `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
 | `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
 | `execute` (run) | **Intersection of /geniro:actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
 | `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
@@ -252,7 +250,7 @@ On `Edit before writing`: capture specific changes via `AskUserQuestion` (free-t
 
 ### Step 5 — Write the file
 
-Use the Write tool to write `.geniro/actions/<name>.md`. Frontmatter MUST include `created: <YYYY-MM-DD>` (today) and `created-by: geniro:actions`. The body MUST NOT contain any `{{placeholder}}` strings.
+Route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/actions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook. Apply the §Caller-side mtime check before the write (`create` is the initial-write branch — target absent at read time and write time, so no conflict; `edit-in-place` catches concurrent modification). Frontmatter must include `created: <YYYY-MM-DD>` (today) and `created-by: geniro:actions`. The body must not contain any `{{placeholder}}` strings.
 
 ### Step 6 — Validation gate
 
@@ -344,7 +342,7 @@ emit_rejection_if_signal \
 "Run action <slug>" "<picked label>" "<recommended label>"
 ```
 
-`<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (picks containing `Cancel`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /geniro:actions runs of the same slug surface «user rejected this action N times». This is distinct from approvals[], which is intentionally skipped in run mode.
+`<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (picks containing `Cancel`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /geniro:actions runs of the same slug surface "user rejected this action N times". This is distinct from approvals[], which is intentionally skipped in run mode.
 
 ### Phase 5.4: Execute inline (tool-scope intersection)
 
@@ -505,7 +503,7 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 | L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |
 | Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD ; NOT part memory model |
 
-Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivially (file-on-disk Block 1).
+Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivially because they are files on disk.
 
 ## Anti-rationalization
 
@@ -527,9 +525,9 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 
 ## Cross-references
 
-- PERSISTENT (CRUD) — `.geniro/actions/` tier; optimistic mtime check
+- PERSISTENT (CRUD) — `.geniro/actions/` tier; write via `atomic_state_write` with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
-- Block 1 — file-on-disk compaction-survival channel
+- Compaction survival — actions are files on disk, so they persist across compaction
 - §Loop invariants — 7 loop invariants
 - §Budgets — quality-first budgets
 - §ACI surface per phase — per-phase ACI

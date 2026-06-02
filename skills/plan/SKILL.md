@@ -9,6 +9,20 @@ argument-hint: "<topic-string-or-design-doc-path> [--prd]"
 
 # /geniro:plan — Spec-first planning
 
+## Contents
+
+- When to use / When NOT to use
+- Phase structure
+- Loop invariants
+- Budgets — quality-first framing
+- State persistence
+- Memory I/O
+- ACI per-phase tool surface
+- Task execution entry
+- Anti-rationalization
+
+---
+
 Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and the always-on Phase 7.5 spec-challenge; Phase 2 Visual Companion is UI-conditional — fires only when the UI trigger matches) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`. It applies the loop verbatim.
 
 **Output:**
@@ -45,7 +59,7 @@ mode-detect → [problem-discovery: --prd only] → explore → [visual-companio
 
 Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve.
 
-**Terminal states:** `done`, `aborted`. the SessionStart treats both as «planning complete or cancelled — no resume needed».
+**Terminal states:** `done`, `aborted`. the SessionStart treats both as "planning complete or cancelled — no resume needed".
 
 **Phase contracts** are defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`:
 
@@ -77,7 +91,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 3. **Permission before side-effect.** Phase 6 `Write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — enforced by the plan-mode mutation guard (frontmatter `allowed-tools` minus `Edit`; PreToolUse Bash guard allows `Write` only under `.geniro/planning/**` or `.geniro/state/**`).
 4. **Bounded and structured tool results.** Phase 1 research-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 5. **Escalation gates, not silent abort.** Phase 7 validator 3-round → AUQ. Phase 8 user-revision 3-round → AUQ. Phase 3 ≤5 questions → consolidation forced. NO Class-A hard kill caps.
-6. **Final answer grounded in observations.** Phase 5 section content MUST cite Phase 1 explore findings (`file:line` references) — not generic prose. Phase 7 validator includes a «citations present» check.
+6. **Final answer grounded in observations.** Phase 5 section content MUST cite Phase 1 explore findings (`file:line` references) — not generic prose. Phase 7 validator includes a "citations present" check.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
@@ -87,7 +101,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 
 ## Budgets — quality-first framing
 
-This skill has **NO hard kill caps**. All limits are **escalation gates that surface to user**, not abort triggers. User tokens unlimited — no «task aborted: budget exhausted» failure modes.
+This skill has **NO hard kill caps**. All limits are **escalation gates that surface to user**, not abort triggers. User tokens unlimited — no "task aborted: budget exhausted" failure modes.
 
 **Quality gates (Class-B — escalate to user, do not abort):**
 
@@ -212,13 +226,13 @@ Do NOT reintroduce these anti-patterns:
 | "I'll author all 11 sections, then fire 3 cluster AUQs at the end." | Two failure modes to avoid. (a) Rendering section bodies to chat then re-asking — the user has already read the content; the AUQ has nothing new to inspect. (b) Authoring all 11 sections before the first gate — cross-section issues surface only after the user has read the whole plan, too late to cheaply correct. The correct middle path is cluster-batched authoring in dependency order: author a cluster's sections → ONE batched AUQ with the content carried in the option `preview` fields → on approve, author the next cluster. Cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. |
 | "Cluster AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the sections." | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Each option's `preview` carries the section's ADR digest — Decision (what it commits to) → Why (rationale grounded in a Phase 1 finding + the chosen approach) → How (how /geniro:implement realizes it) — plus an ASCII diagram where it aids comprehension (esp. section 6 Steps) and the section's concrete example. The chat is a one-line cluster lead-in; the AUQ `preview` IS the rendered content. |
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /geniro:implement when the rendered UI doesn't match). |
-| "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections from prose — structurally-lossy. «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
+| "Phase 0 Refine path saves three phases of re-work — keep it." | Refine re-derived sections from prose — structurally-lossy. "Start fresh with doc as context" is honest and produces a schema-clean spec.md. |
 | "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects." | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "Plan-mode mutation guard is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field + PreToolUse Bash guard are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
 | "5 clarifying questions is too few for complex tasks." | Phase 3 ≤5 is a quality-first signal. >5 means Phase 1 underspecified OR the task is too vague. Force consolidation — better questions, not more questions. |
-| "11-section spec.md schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be «none with rationale» for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
-| "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | 3-round escalation cap. On round 3, AUQ surfaces to user with «accept as-is» option. User has agency at all times. |
+| "11-section spec.md schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
+| "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | 3-round escalation cap. On round 3, AUQ surfaces to user with "accept as-is" option. User has agency at all times. |
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
 | "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly." | Class-A hard caps forbidden by Class-B gates only (Phase 3 ≤5, Phase 7 3-round, Phase 8 3-round) — all escalate to user, not abort. |
 | "Auto-default empty AUQ answer to the Recommended option." | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |

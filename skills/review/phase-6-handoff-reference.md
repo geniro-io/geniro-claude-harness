@@ -40,7 +40,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 **Firing order:**
 
 1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — open questions gate downstream action by definition. Full procedure: §2.5 below.
-2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
+2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip.
 4. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
 - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
@@ -214,7 +214,7 @@ open_questions:                       # MUST be present; MAY be empty []
 EOF
 ```
 
-Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — Phase 4 judge preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
+Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
 
 ---
 
@@ -265,7 +265,7 @@ Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 Step 12) treat a m
 
 ## 3. Step 0 — Open-decision gate (per-finding, Always-WAIT)
 
-Before recommending which skill to run, surface every `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; orchestrator NEVER picks on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
+Before recommending which skill to run, surface every `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment to the user — they pick the resolution path; orchestrator NEVER picks on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
 
 **For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
@@ -277,7 +277,7 @@ When more than 4 PRODUCT-DECISION findings exist OR a single finding's `Options:
 
 Always-WAIT in every mode. If empty answer returns, fall back to plain text and re-ask — never default to the reviewer's synthesis.
 
-Skip entirely when zero PRODUCT-DECISION findings remain after Phase 4 judge.
+Skip entirely when zero PRODUCT-DECISION findings remain after the Phase 3 §3.3 KEEP/FILTER judgment.
 
 ---
 

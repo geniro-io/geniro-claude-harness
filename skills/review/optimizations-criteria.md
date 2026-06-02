@@ -244,7 +244,7 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for para
 - Sibling PR moves a hot-path resource (e.g., replaces ORM with raw SQL) while current PR also touches the same path — coordination needed on which optimization wins.
 - Sibling PR introduces a new bulk-operation helper that current PR's per-row loop should use — surfaces reuse opportunity before merge.
 
-A valid finding shape: «PR #N (peer) optimizes `<path>` at `<file:line>` via <mechanism>; current diff touches the same path with different / overlapping approach — coordinate optimization strategy before shipping both». Severity MEDIUM (optimization findings cap at HIGH per Severity Guidelines).
+A valid finding shape: "PR #N (peer) optimizes `<path>` at `<file:line>` via <mechanism>; current diff touches the same path with different / overlapping approach — coordinate optimization strategy before shipping both". Severity MEDIUM (optimization findings cap at HIGH per Severity Guidelines).
 
 ## Review Checklist
 

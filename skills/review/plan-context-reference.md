@@ -147,7 +147,7 @@ When a reviewer encounters a finding like "missing backfill for old timeline row
 When a reviewer encounters a finding that contradicts a marker (e.g., the plan says "use COALESCE" but the code uses raw NULL), it must:
 
 - Tag the finding `[DIVERGES-FROM-PLAN-D-XX]`
-- The Phase 4 judge Step 0 reconciliation will then verify and either keep as a bug or auto-demote to `[INTENT-CHECK]`.
+- The Phase 3 §3.3 KEEP/FILTER intent reconciliation will then verify and either keep as a bug or auto-demote to `[INTENT-CHECK]`.
 
 ---
 
@@ -172,7 +172,7 @@ The four canonical decision-type values, shared with `agents/reviewer-agent.md`:
 - `[FIX-NOW]` — Mechanical correction, obvious target, low risk (e.g., test title vs assertion mismatch, typo, broken cross-reference).
 - `[TESTABLE]` — Defense-in-depth or edge case worth a test before action (e.g., empty-string guard, boundary case).
 - `[PRODUCT-DECISION]` — Multiple valid resolution paths; needs human triage (e.g., snapshot vs live-fetch trade-off, COALESCE vs CHECK vs catch+log).
-- `[INTENT-CHECK]` — Looks like a divergence from explicit plan; verify against spec before treating as bug. Auto-applied by Phase 4 Step 0 when a reviewer tagged `[ALIGNS-WITH-PLAN]` or `[DIVERGES-FROM-PLAN]` AND the plan authorized the divergence.
+- `[INTENT-CHECK]` — Looks like a divergence from explicit plan; verify against spec before treating as bug. Auto-applied by the Phase 3 §3.3 KEEP/FILTER intent reconciliation when a reviewer tagged `[ALIGNS-WITH-PLAN]` or `[DIVERGES-FROM-PLAN]` AND the plan authorized the divergence.
 
 ---
 
@@ -214,7 +214,7 @@ Three reviewer findings come back:
 - Finding 2 — no plan reference. Untagged, regular review path.
 - Finding 3 — spec-compliance finding with section 11 anchor, severity HIGH (per spec-compliance-criteria.md Severity Tagging).
 
-**Phase 4 Step 0 reconciliation (judge):**
+**Phase 3 §3.3 KEEP/FILTER intent reconciliation:**
 
 - Finding 1 — already `[ALIGNS-WITH-PLAN]`, exits the bug pipeline; appears in the report as `[INTENT-CHECK]` with the frontmatter citation (`forbidden_actions[0]`), not in CRITICAL/HIGH.
 - Finding 2 — no plan tag, normal severity scoring → `[TESTABLE]` or regular bug-severity per rubric.
