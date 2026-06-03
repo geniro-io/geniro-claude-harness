@@ -24,7 +24,7 @@ state.md `phase:` enum transitions:
                  │
                  └── plan-escalated ──┬── plan (user supplies missing context)
                                       ├── aborted (terminal)
-                                      └── routed (terminal — hard signal "Escalate")
+                                      └── routed (terminal — hard signal "Escalate"; also reached directly from plan when no tests exist, §1.2)
 
 verify ──┬── (happy: → done above)
          │

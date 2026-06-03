@@ -355,11 +355,11 @@ question: "Where should /geniro:implement land its edits?"
 multiSelect: false
 options:
   - label: "New feature branch (Recommended)"
-    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If BRANCH_FORMAT_RULE is set, the slug MUST conform to that pattern before this option creates the branch."
+    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
   - label: "Current branch"
     description: "Pre-flight only; no git mutation. Echo 'Continuing on <branch> at <toplevel>.'"
   - label: "Git worktree"
-    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same BRANCH_FORMAT_RULE conformance as 'New feature branch'."
+    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same branch-name-format conformance as 'New feature branch'."
 ```
 
 **No-ticket-ID sub-flow.** When BRANCH_FORMAT_RULE requires a ticket prefix AND `TICKET_ID_IN_SCOPE` is empty, the agent cannot derive a conformant slug. Chain a sub-AUQ BEFORE Question 1 fires (or BEFORE the worktree command runs if Question 1 has already resolved to "New feature branch" / "Git worktree"):

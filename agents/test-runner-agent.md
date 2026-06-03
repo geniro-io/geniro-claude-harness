@@ -75,7 +75,7 @@ If the runner crashed before producing a summary (segfault, infrastructure error
 
 ### Step 3 — Write the report
 
-Emit to OUTPUT_PATH using the schema below. Echo the log file path in your final assistant message so the orchestrator knows where to find the raw output if it needs to investigate beyond the report.
+Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'EOF' ... EOF` — your tools include Bash, not the Write tool), using the schema below. Echo the log file path in your final assistant message so the orchestrator knows where to find the raw output if it needs to investigate beyond the report.
 
 ## Output Schema
 

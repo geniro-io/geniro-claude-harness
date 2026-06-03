@@ -198,7 +198,7 @@ Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-sim
 
 ### 1.6 Detect output
 
-All-results land in state frontmatter `detected:` block. Phase log captures one summary line:
+All-results land in state frontmatter `detected:` block. The default branch is captured via `git symbolic-ref --short refs/remotes/origin/HEAD` (fallback `git branch --show-current`) into `default_branch_candidates`, surfaced in the Phase 5 report as `Default branch: <branch> (auto-detected)`. Phase log captures one summary line:
 
 ```
 [<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=11, evidence_count=14

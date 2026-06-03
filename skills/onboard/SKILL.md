@@ -76,7 +76,7 @@ Quality-first framing: /geniro:onboard has **NO hard kill caps**. All limits are
 
 **Claude Code internals** (not under /geniro:onboard control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
 
-**Explicitly NOT capped:** wall-time per run (big monorepo onboard may take 30+ minutes legitimately); total Read/Grep/Glob calls (scans many files); total cost per run (deferred to a future release).
+**Explicitly NOT capped:** wall-time per run (big monorepo onboard may take 30+ minutes legitimately); total Read/Grep/Glob calls (scans many files); total cost per run.
 
 ---
 

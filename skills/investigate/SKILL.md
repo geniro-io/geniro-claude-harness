@@ -54,16 +54,11 @@ Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codeb
 
 ## Evidence Standard
 
-A claim is evidence-backed ONLY when it cites one of these artifact kinds:
+A claim is evidence-backed ONLY when it cites a canonical artifact kind. Kinds 1-5 follow the canonical Evidence Standard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`): kind 1 = captured command output, kind 2 = file:line + verified snippet, kind 3 = log line / stack trace, kind 4 = datastore query result, kind 5 = user-provided artifact. /geniro:investigate adds one kind for its external-research mode:
 
 | # | Kind | Example |
 |---|---|---|
-| 1 | File:line + verified snippet (orchestrator re-read confirms text matches) | `src/auth.ts:42-58` snippet pasted |
-| 2 | Captured command output (grep / test run / build / git command output) | `git log --oneline... → 3 commits, latest abc123` |
-| 3 | Log line or stack trace from the running system | `ERROR 2026-04-01... NullPointerException at...` |
-| 4 | Query result against the actual datastore | `SELECT count(*) FROM users WHERE... → 17 rows` |
-| 5 | User-provided artifact (screenshot, log paste, data dump, config snippet) | user pastes failing request body |
-| 6 | External documented fact (WebFetch/WebSearch source URL + verbatim quote) | `https://docs.example.com/api → 'rate limit is 100 req/min'` |
+| 6 | External documented fact (WebFetch / WebSearch source URL + verbatim quote) | `https://docs.example.com/api → 'rate limit is 100 req/min'` |
 
 Reasoning, paraphrased agent claims, "looks consistent", convergent agent self-reports, and "I inferred from context" are NOT evidence. They are hypotheses that still need verification.
 
@@ -156,7 +151,7 @@ The 5-step just-in-time retrieval cadence:
 1. **Infer** — extract specific tags, file-paths, and symbols from $ARGUMENTS. Don't broad-scan.
 2. **Search** — apply skip criteria from Step 2; spawn only the literal classified set from Step 1.
 3. **Read most-relevant** — agents pre-inline relevant file content via orchestrator (Phase 2 §A/§B/§C spawn templates) — agents don't broad-Glob themselves.
-4. **Return concise** — agents output structured findings (Evidence Standard kind 1-5 only); no narrative drift.
+4. **Return concise** — agents output structured findings (Evidence Standard kinds 1-6 only); no narrative drift.
 5. **Store exact refs** — every claim cites file:line / commit-hash / URL with verbatim snippet, not paraphrase.
 
 Step 5 closes the L2 emit auto-step — the "exact refs" are what get persisted in the Phase 3 `discovery` emit's `ext.{area, insight}` fields.
@@ -181,11 +176,11 @@ The Codebase Analyst spawn IS `codebase-research-agent` per `${CLAUDE_PLUGIN_ROO
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
-Read-only research agent — the plugin `codebase-research-agent` (tools: Read / Glob / Grep / Bash; writes its findings report to OUTPUT_PATH via Bash, no Edit/Write elsewhere). Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 1 + Relevance) + `Gaps` report. Full spawn template (acceptance criteria, pre-inlined-files convention, investigation strategy, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent A).
+Read-only research agent — the plugin `codebase-research-agent` (tools: Read / Glob / Grep / Bash; writes its findings report to OUTPUT_PATH via Bash, no Edit/Write elsewhere). Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 2 + Relevance) + `Gaps` report. Full spawn template (acceptance criteria, pre-inlined-files convention, investigation strategy, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent A).
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
-Read-only research agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, plus a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`). Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 2 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent B).
+Read-only research agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, plus a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`). Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent B).
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 

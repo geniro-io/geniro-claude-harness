@@ -161,6 +161,9 @@ Applies to UI code across frameworks: React/JSX with Tailwind, styled-components
 
 ## Severity Guidelines
 
-- **CRITICAL**: WCAG AA contrast failures, `focus-visible` removed without replacement, keyboard-inaccessible interactive elements, hardcoded raw colors in a strict-token project.
-- **HIGH**: Missing state coverage on interactive surfaces, arbitrary spacing values in a scaled project, exemplar drift, missing responsive handling on multi-column layouts, reinvented primitives.
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1. The design dim specializes the canonical tiers to UI/accessibility signals — it MAY add dim-specific HIGH/MEDIUM signals but does not introduce a design-only CRITICAL category (§1 forbids loosening the rubric).
+
+- **CRITICAL**: only via the canonical compliance inclusion — an accessibility failure that is a regulatory violation (e.g. WCAG AA contrast failure or keyboard-inaccessible interactive element in a project with legal accessibility requirements).
+- **HIGH**: WCAG AA contrast failures, `focus-visible` removed without replacement, keyboard-inaccessible interactive elements, hardcoded raw colors in a strict-token project (visible user-facing regressions); missing state coverage on interactive surfaces, arbitrary spacing values in a scaled project, exemplar drift, missing responsive handling on multi-column layouts, reinvented primitives.
 - **MEDIUM**: Hierarchy and density issues, single missing state on a non-critical element, hover-only secondary actions, minor typography drift, informational findings on greenfield projects.
+- **LOW**: Cosmetic polish, subjective aesthetic preferences, minor visual nitpicks, design-token naming suggestions.

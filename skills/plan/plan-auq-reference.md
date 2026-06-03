@@ -47,7 +47,7 @@ prd_mode: true                               # optional, present only when --prd
 ## Open Questions
 ```
 
-After all 11 sections approved in Phase 5, `## Workflow Refs` (populated by Phase 1.4), `## UI Preview` (populated by Phase 2 when triggered), and `## Problem Framing` (populated by Phase 0.5 when `--prd` was passed) appear as additional body sections. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise.
+After all 11 sections approved in Phase 5, `## Workflow Refs` (populated by Phase 1.4), `## UI Preview` (populated by Phase 2 when triggered), and `## Problem Framing` (populated by Phase 0.5 when `--prd` was passed) appear as additional body sections. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `spec-challenge` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise.
 
 ---
 
@@ -299,4 +299,4 @@ options:
 
 On Approve pick: spec.md `lifecycle: draft` → `approved` flip; `git commit` fires (NOT in Phase 6); `non-resumable-actions[]` updated with the commit SHA; transition to Phase 9.
 
-On Revision pick: max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, escalation AUQ "Phase 8 exhausted" fires with options "Accept as-is" / "Re-revise (kick fresh cycle)" / "Abort".
+On Revision pick: max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, escalation AUQ "Revision limit reached" fires with options "Accept as-is" / "Re-revise (kick fresh cycle)" / "Abort".

@@ -95,7 +95,7 @@ List which signals match. Estimate change scope as one of `trivial` / `small` / 
 
 ## Output Schema
 
-Write to OUTPUT_PATH using exactly this structure:
+Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'EOF' ... EOF` — your tools include Bash, not the Write tool), using exactly this structure:
 
 ```markdown
 ## Codebase Exploration Report — spec "<spec.title>"

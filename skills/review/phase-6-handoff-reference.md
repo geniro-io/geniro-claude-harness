@@ -178,6 +178,10 @@ open_questions:                       # MUST be present; MAY be empty []
 ## Deferred — sub-threshold
 <list, surfaced for user awareness>
 
+## Filtered
+<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<list, or empty>
+
 ## Authored Tests
 <!-- Populated only when the test-confirmation gate authored tests; lists each AI-authored test file by path. Empty otherwise. The Failing-tests gate fires when this section is non-empty. -->
 <list of test file paths, or empty>

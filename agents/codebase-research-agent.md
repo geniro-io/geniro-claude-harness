@@ -90,7 +90,7 @@ Gaps are useful — they tell the orchestrator what to ask the user OR what addi
 
 ## Output Schema
 
-Write to OUTPUT_PATH using exactly this structure. On the missing-slot terminal (a required Input Contract slot absent), emit the `## Errors` stub shape below INSTEAD of the normal sections, then exit.
+Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'EOF' ... EOF` — your tools include Bash, not the Write tool), using exactly this structure. On the missing-slot terminal (a required Input Contract slot absent), emit the `## Errors` stub shape below INSTEAD of the normal sections, then exit.
 
 ```markdown
 ## Codebase Research Report

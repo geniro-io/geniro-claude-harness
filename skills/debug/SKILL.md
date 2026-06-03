@@ -510,7 +510,7 @@ Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff
 
 ### A2. Diff resolution
 
-**Delegates to /geniro:review Phase 1 multi-form parser.** See `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 1 — do NOT duplicate the parser here.
+**Diff resolution follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`** for the default scope + base-branch resolution; the supported explicit input shapes are enumerated below (self-contained — no cross-skill parser dependency).
 
 **Default when no explicit range:** scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` — anchor on the current cwd's worktree + currently-checked-out branch. Resolve the base branch per scope-anchor rule #3 (`git symbolic-ref --short refs/remotes/origin/HEAD`). Compute `git diff <base>...HEAD`. If on the base branch, fall back to `HEAD~1..HEAD`.
 

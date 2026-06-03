@@ -81,7 +81,7 @@ Glob `<TASK_PLANNING_ROOT>/plan-*.md` (versioned plans from prior runs of the sa
 
 ## Output Schema
 
-Write to OUTPUT_PATH using exactly this structure:
+Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'EOF' ... EOF` — your tools include Bash, not the Write tool), using exactly this structure:
 
 ```markdown
 ## Knowledge Retrieval Report — task "<TASK_DESCRIPTION>"

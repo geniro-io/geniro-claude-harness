@@ -106,6 +106,22 @@ Every user-facing choice in this skill MUST go through the `AskUserQuestion` too
 
 ---
 
+## Memory I/O Schedule
+
+| Phase | Helper | Direction | MODE |
+|---|---|---|---|
+| Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` |
+| Phase 1 entry | `load-semantic` | read L3 | `refresh` |
+| Phase 1 entry | `query-learnings` | read L2 | n/a |
+| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
+| Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes scope decisions |
+| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
+| Phase 3 exit | `emit-learning` | write L2 | n/a (emit types: `discovery` with `ext.{area, insight}` OR `pitfall` with `ext.{trap, mitigation}`) |
+
+`update-semantic` writes to `_CODEBASE_MAP.md` for move/rename refactors (bounded auto-incremental write). Not applicable when refactor adds modules (would be a behavioral change → escalate to `/geniro:implement`).
+
+---
+
 ## Phase 1 — Plan
 
 state.md `phase: plan`. Light by cost vs Phase 2 — a scope-discovery batch (Read + Grep) + 1 baseline validation run + orchestrator-inline smell detection (Medium+) + orchestrator-inline smell evidence (Medium+) + orchestrator plan-build.
@@ -482,22 +498,6 @@ T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categor
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
 
 **Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard. Runtime denies stay enforced.
-
----
-
-## Memory I/O Schedule
-
-| Phase | Helper | Direction | MODE |
-|---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` |
-| Phase 1 entry | `load-semantic` | read L3 | `refresh` |
-| Phase 1 entry | `query-learnings` | read L2 | n/a |
-| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
-| Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes scope decisions |
-| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
-| Phase 3 exit | `emit-learning` | write L2 | n/a (emit types: `discovery` with `ext.{area, insight}` OR `pitfall` with `ext.{trap, mitigation}`) |
-
-`update-semantic` writes to `_CODEBASE_MAP.md` for move/rename refactors (bounded auto-incremental write). Not applicable when refactor adds modules (would be a behavioral change → escalate to `/geniro:implement`).
 
 ---
 

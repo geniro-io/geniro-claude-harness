@@ -293,6 +293,7 @@ Compute `<lookup>` from input: if already a valid kebab slug, `<lookup> = <input
 - **Question:** "Action `<lookup>` exists in the main worktree at `<PRIMARY_ROOT>/.geniro/actions/<lookup>.md`. Use it?"
 - **Options:** `Use the main-worktree copy` / `Cancel`
 - **Source = main-worktree, sub-command = `delete` or `edit`:** skip the gate here; Step 4 handles the refuse-and-surface.
+- **Source = main-worktree, sub-command = `validate`:** return `(<resolved-path>, <resolved-slug>, main-worktree)` without AUQ — `validate` is read-only.
 
 #### Step 3 — Free-text matching path
 

@@ -145,7 +145,7 @@ BRANCH: [from `git branch --show-current`]
 Verify with `pwd && git branch --show-current` on your first Bash call; abort if either differs.
 
 # Acceptance criteria (self-check before writing OUTPUT_PATH)
-- Every finding cites at least one file:line + verified snippet (Evidence Standard kind 1) OR captured grep/command output (kind 2). Reasoning-only findings are rejected.
+- Every finding cites at least one file:line + verified snippet (Evidence Standard kind 2) OR captured grep/command output (kind 1). Reasoning-only findings are rejected.
 - "Files examined" list precedes the findings block, with line counts per file.
 - "Gaps" section is present (may be empty) — never silently drop a sub-question.
 """)
@@ -166,7 +166,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
 ### Acceptance criteria (self-check before reporting completion)
-- Every Finding cites a commit hash + commit-message excerpt or diff snippet (Evidence Standard kind 2 — captured command output). No paraphrased "the commit said".
+- Every Finding cites a commit hash + commit-message excerpt or diff snippet (Evidence Standard kind 1 — captured command output). No paraphrased "the commit said".
 - Timeline is chronological with explicit dates from `git log --format`.
 - "Patterns" section is present (may be empty if no trend is supported by ≥3 commits).
 
@@ -270,7 +270,7 @@ BRANCH: [from `git branch --show-current`]
 ### Verification checklist
 1. **Spot-check Phase 2 Step 2 re-verify**: Phase 2 Step 2 already had the orchestrator re-verify cited claims. Pick 2-3 load-bearing claims at random; re-Read their cited file:lines and confirm the snippet still matches. If a sample fails, that's a Phase 2 Step 2 gap — flag it as a blocker, not a single-claim correction.
 2. **Completeness**: Does the answer fully address the question? Any obvious gaps?
-3. **Honesty**: Is every load-bearing claim backed by an artifact (Evidence Standard kinds 1-5)? Are unverified claims listed in "Open questions" rather than smuggled in with caveats?
+3. **Honesty**: Is every load-bearing claim backed by an artifact (Evidence Standard kinds 1-6)? Are unverified claims listed in "Open questions" rather than smuggled in with caveats?
 4. **Clarity**: Would someone unfamiliar with this code understand the answer?
 5. **Over-claims**: Does the answer claim certainty where evidence is actually weak?
 6. **Missing context**: Is there important context the answer should mention but doesn't?

@@ -191,9 +191,10 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 - Quote style (single vs double)
 - Pure aesthetic naming preferences (`userList` vs `users` when both are clear)
 
+Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference and/or explicit-rule citation per the recipe at §What to Check.
+
 **Other dimensions — defer:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → `guidelines-criteria.md`
-- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → owned here (emit with modal inference and/or explicit-rule citation per the recipe at §What to Check).
 - Module-scale organization, utils sprawl, circular imports, file-structure inconsistency at module scale → `architecture-criteria.md`
 - Findings that match repo patterns and should be silenced → handled by orchestrator-side Phase 3 dedup + KEEP/FILTER (SKILL.md Phase 3)
 - Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md`
@@ -298,3 +299,5 @@ Do NOT apply the modal threshold to peer PRs as if they were merged siblings —
 - **HIGH**: clear ≥80% modal violation in [NEW] code that introduces a pattern the repo uses nowhere else (zero-shot novel), or crosses a 100%-respected module/layer boundary.
 - **MEDIUM**: ≥80% modal violation in [NEW] code where the introduced pattern exists in 1–2 other places (minority but not novel); any [PRE-EXISTING] finding regardless of frequency.
 - **LOW**: not emitted. N<3 siblings or modal frequency below 80% means no finding at all — these conditions suppress the finding rather than producing a low-severity one.
+
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1 (the conventions dim tightens it — caps at HIGH, suppresses LOW; see §6).

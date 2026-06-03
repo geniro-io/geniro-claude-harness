@@ -41,14 +41,19 @@ Every producer of a within-skill state file MUST:
 
 1. Compute the slug per `## Slug rules`.
 2. Write to the slug-scoped path: `.geniro/state/<skill>/<slug>/state.md` (subdir-per-slug layout for all four — debug, refactor, onboard, investigate — all session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
-3. Carry `branch:` / `worktree:` / `timestamp:` as YAML frontmatter fields inside the `---` fence (this state.md is a frontmatter-bearing T1.5 file per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`). The frontmatter starts on line 1 with `---`:
+3. Write the full T1.5 frontmatter field set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` (common-base `producer` / `schema-version` / `branch` / `timestamp` + tier-specific `phase` / `status` / `non-resumable-actions`), plus the `worktree:` field this helper adds for pwd-change detection. `branch:` / `worktree:` / `timestamp:` are the slug-collision-relevant subset this helper governs; the rest satisfy `validate_state_file` (which returns exit 4 on a missing `producer` / `schema-version` and exit 5 on a missing `phase` / `status` / `non-resumable-actions`). The frontmatter starts on line 1 with `---`:
 
 ```yaml
 ---
 tier: T1.5
+producer: <skill>            # debug | refactor | onboard | investigate
+schema-version: 1
 branch: <git branch --show-current OR detached-<short-sha>>
 worktree: <git rev-parse --show-toplevel>
 timestamp: <ISO-8601 UTC, e.g., 2026-05-07T14:32:00Z>
+phase: <skill phase enum>
+status: <in-progress | done | failed>
+non-resumable-actions: []
 ---
 ```
 
@@ -122,7 +127,7 @@ The `2>/dev/null || true` discipline applies — these are best-effort.
 
 ## Definition of Done
 
-- [ ] Producer writes `branch:` / `worktree:` / `timestamp:` as frontmatter fields inside the `---` fence (frontmatter starts on line 1)
+- [ ] Producer writes the full T1.5 frontmatter field set inside the `---` fence — common-base `producer` / `schema-version` / `branch` / `timestamp` + tier-specific `phase` / `status` / `non-resumable-actions` (per state-tier-spec.md), plus this helper's `worktree:` — with the frontmatter starting on line 1
 - [ ] Producer writes to slug-scoped path; never to a non-scoped path
 - [ ] Consumer reads slug-scoped path first, older path as fallback (Case D)
 - [ ] Consumer fires Case-C AUQ on branch mismatch; never auto-executes git operations
