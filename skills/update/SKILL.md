@@ -35,7 +35,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project
 |---|---|---|
 | `pre-check` | `Read`, `Bash` (`cat`, `grep`, `python3 -c "json.load"`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent`, all `mcp__*` |
 | `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update`, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
-| `post-check` | `Read`, `Bash` (`sha256sum`, `stat`, `cp` for statusline refresh), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
+| `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
 | `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
@@ -85,8 +85,11 @@ REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
 # Snapshot user-content sha256 + mtime for survival verification
 USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
-| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null) || true
-# The snapshot is best-effort (a benign trailing find/xargs status must not read as failure); survival is verified by the Phase 3 Step 2 diff, not this exit code.
+| while IFS= read -r f; do
+    h=$({ sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null; } | cut -d' ' -f1)
+    printf '%s %s %s\n' "$h" "$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null)" "$f"
+  done) || true
+# The snapshot is best-effort (a benign trailing find/read status must not read as failure); survival is verified by the Phase 3 Step 2 diff, not this exit code.
 # Persist the snapshot to a temp file — each Bash call runs in a fresh shell, so the shell variable does not survive to Phase 3 Step 2. The temp file is the carry-forward channel.
 printf '%s\n' "$USER_SNAPSHOT" > /tmp/geniro-user-snapshot.txt
 ```
@@ -180,7 +183,7 @@ Transition to Phase 3.
 
 ### Step 1 — Plugin file hash-check (sanity mode)
 
-If the new plugin publishes `$PLUGIN_PATH/.claude-plugin/manifest.sha256`, verify each file via `sha256sum -c`. Else (current state), sanity-check that key files exist:
+If the new plugin publishes `$PLUGIN_PATH/.claude-plugin/manifest.sha256`, verify each file via `sha256sum -c` (or `shasum -a 256 -c` on macOS, which ships no `sha256sum`). Else (current state), sanity-check that key files exist:
 
 ```bash
 HASH_FAIL=0
@@ -215,7 +218,10 @@ USER_SNAPSHOT=$(cat /tmp/geniro-user-snapshot.txt 2>/dev/null)
 
 CURRENT_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \
-| xargs -I{} sh -c 'echo "$(sha256sum "{}" | cut -d" " -f1) $(stat -c%Y "{}" 2>/dev/null || stat -f%m "{}" 2>/dev/null) {}"' 2>/dev/null)
+| while IFS= read -r f; do
+    h=$({ sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null; } | cut -d' ' -f1)
+    printf '%s %s %s\n' "$h" "$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null)" "$f"
+  done)
 
 if [ -z "$USER_SNAPSHOT" ]; then
 echo "[info] pre-update snapshot missing or empty — skipping tamper diff (cannot compare against a baseline that was never recorded)."

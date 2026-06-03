@@ -57,7 +57,7 @@ A `skills/foo/SKILL.md` covers ONLY what /foo does. Strip:
 ## Soft preferences (apply where reasonable)
 
 - Prefer short imperative sentences. "Read X." not "Claude should consider reading X."
-- Prefer concrete examples over abstract description, but cap at 1-2 examples per rule.
+- Prefer concrete examples over abstract description, but cap examples per rule — see `.claude/rules/skill-prose.md` § "Examples — diverse and canonical" for the count (single-sourced there to avoid drift).
 - Headings use sentence case, not Title Case.
 - Bullet lists prefer over prose for enumerable rules.
 - ASCII / Unicode box-drawing for diagrams; never embedded images.

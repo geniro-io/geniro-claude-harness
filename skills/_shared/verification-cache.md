@@ -35,7 +35,7 @@ Only the orchestrator writes the cache; sub-agents NEVER write to the cache file
 Writes go through tmpfile + atomic rename so a concurrent reader never sees a half-written record:
 
 ```bash
-tmpfile="$(mktemp -p "$(dirname "$cache_path")" .cache.XXXXXX)"
+tmpfile="$(mktemp "$(dirname "$cache_path")/.cache.XXXXXX")"  # path in the template — portable; GNU `mktemp -p DIR` is not (BSD/macOS `-p` differs)
 printf '%s\n' "$cache_record" > "$tmpfile"
 mv -f "$tmpfile" "$cache_path"
 ```

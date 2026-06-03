@@ -96,7 +96,7 @@ record_access "<dedup_key>"
 ```
 
 - Returns 0 on success or no-op (no log file, no matching entry).
-- Returns 1 on IO error.
+- Returns 1 on IO error, OR when the log contains a line `jq` cannot parse — the rewrite is refused so the malformed line is preserved (never-deletes invariant; the best-effort counter bump is skipped, matching the refuse-on-corruption guard in `archive-stale`).
 - Returns 64 if no key supplied.
 - Best-effort: no lock. Concurrent misses are acceptable (counter, not ledger). Uses POSIX `rename(2)` for atomicity.
 - Callers typically invoke after surfacing a query result they actually used. Example: `/geniro:debug` Phase 1 surfaces 3 entries, orchestrator cites entry `bbb00002` in hypothesis → call `record_access bbb00002`.

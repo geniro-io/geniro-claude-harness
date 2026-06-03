@@ -35,7 +35,9 @@ echo '<json-object>' | emit_learning
 **Return codes:**
 - `0` — entry appended, or no-op (identical duplicate).
 - `64` — required field missing, or invalid JSON on stdin.
+- `65` — could not create the `.geniro/knowledge/` parent directory (propagated from `atomic_state_append`).
 - `68` — serialized entry > 4096 bytes (POSIX atomic-append guarantee lost).
+- `69` — append write failed (disk full / permission denied; propagated from `atomic_state_append`).
 
 ## MODE contract
 

@@ -261,8 +261,10 @@ record_access() {
   [ -f "$log" ] || return 0
 
   local tmp="${log}.tmp.$$"
-  # Read raw and `fromjson?` per line so a single malformed line drops instead
-  # of aborting the rewrite (which would fail the whole counter bump).
+  # Read raw and `fromjson?` per line: a malformed line yields no output for that
+  # line rather than aborting jq. The post-jq count guard below then refuses the
+  # rewrite so the unparseable line is preserved (never-deletes invariant — the
+  # same guarantee archive-stale.sh enforces on this same file).
   jq -Rc --arg k "$key" '
     fromjson?
     | if (.dedup_key // "") == $k then
@@ -274,6 +276,18 @@ record_access() {
     rm -f "$tmp"
     return 1
   }
+
+  # Refuse the rewrite if `fromjson?` dropped any line (parsed count < input
+  # count) — losing an audit-trail entry to bump a best-effort counter is the
+  # wrong trade. awk (not grep -c) counts a final line lacking a trailing
+  # newline, matching how jq -Rc reads the log.
+  local raw_n parsed_n
+  raw_n=$(awk 'NF{c++} END{print c+0}' "$log" 2>/dev/null || echo 0)
+  parsed_n=$(awk 'NF{c++} END{print c+0}' "$tmp" 2>/dev/null || echo 0)
+  if [ "$raw_n" -ne "$parsed_n" ]; then
+    rm -f "$tmp"
+    return 1
+  fi
 
   # POSIX rename(2) — atomic on same filesystem.
   mv "$tmp" "$log" || {
