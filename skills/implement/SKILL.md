@@ -489,7 +489,7 @@ split it into separate milestone files before implementing. This run will
 proceed as a single pass with a step-by-step task list; splitting is cleaner.
 ```
 
-Milestone-mode is the canonical answer for truly Big tasks (separate worktrees, separate /geniro:implement runs). User may cancel and re-run via `/geniro:plan --milestones`; otherwise the run proceeds.
+Milestone-mode is the canonical answer for truly Big tasks (separate worktrees, separate /geniro:implement runs). User may cancel and re-run `/geniro:plan` on this task — /geniro:plan emits milestone files automatically when it classifies the task as Big; otherwise the run proceeds.
 
 ---
 

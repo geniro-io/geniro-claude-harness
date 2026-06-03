@@ -414,7 +414,7 @@ emit_rejection_if_signal \
 "<recommended ship-mode label>" "<picked label>" "<recommended label>"
 ```
 
-`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever option carries the `(Recommended)` suffix per ship-mode AUQ rules (typically "Open draft PR" by default; "Commit + push" when user has just selected "Post findings as Draft PR review" from a chained AUQ). Helper detects rejection signals and emits L2 entry — acceptance is a no-op. Future /geniro:implement Phase 1 surface "user consistently picks X over Y" pattern hint.
+`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever ship-mode option carries the `(Recommended)` suffix — "Open draft PR" by default. Helper detects rejection signals and emits L2 entry — acceptance is a no-op.
 
 **Step 4 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
@@ -471,7 +471,7 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 ### Suggest Improvements (project scope only)
 
-Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — it owns the routing table, decision logic, and presentation pattern. Skip findings already captured in L2 emit (Step 5); this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture.
+Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — it owns the routing table, decision logic, and presentation pattern. Skip findings already captured by the learnings-emit step; this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture.
 
 `AskUserQuestion` is always-WAIT here. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — submit a PR to the plugin repo OR edit your local plugin install directly.
 
