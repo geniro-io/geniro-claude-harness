@@ -37,21 +37,22 @@ jobs:
             exit 0
           fi
 
-          BUMP="none"
+          # Default to a patch bump: a push to main with commits always cuts a
+          # release, even when the messages carry no recognized semantic type
+          # (chore/docs/style/ci/test, merge commits, or non-conventional text).
+          # Recognized types only upgrade from there.
+          BUMP="patch"
           while IFS= read -r msg; do
-            # Check for breaking changes
+            # Breaking change → major; nothing outranks it, so stop scanning
             if echo "$msg" | grep -qiE '^[a-z]+(\(.+\))?!:|BREAKING CHANGE'; then
               BUMP="major"
               break
             fi
-            # feat = minor (only upgrade if not already major)
+            # feat → minor (upgrade unless a breaking change already set major)
             if echo "$msg" | grep -qE '^feat(\(.+\))?:'; then
               [ "$BUMP" != "major" ] && BUMP="minor"
             fi
-            # fix, perf, refactor = patch (only upgrade if still none)
-            if echo "$msg" | grep -qE '^(fix|perf|refactor)(\(.+\))?:'; then
-              [ "$BUMP" = "none" ] && BUMP="patch"
-            fi
+            # fix/perf/refactor and any unrecognized type stay at the patch default
           done <<< "$COMMITS"
 
           echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
@@ -87,7 +88,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .claude-plugin/plugin.json
-          git commit -m "chore(release): v${NEW_VERSION}"
+          # [skip ci] keeps this bot commit from re-triggering the workflow.
+          # Without it the patch default would treat the release commit as a
+          # bump-worthy push and loop indefinitely.
+          git commit -m "chore(release): v${NEW_VERSION} [skip ci]"
           git push
 
       - name: Create GitHub Release
