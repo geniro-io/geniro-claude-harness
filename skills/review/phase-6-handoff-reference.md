@@ -181,7 +181,7 @@ open_questions:                       # MUST be present; MAY be empty []
 <list, surfaced for user awareness>
 
 ## Filtered
-<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), not-actionable (real-but-unreachable per the §3.6 actionability bar in phase-4-verification-reference.md), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
 
 ## Authored Tests

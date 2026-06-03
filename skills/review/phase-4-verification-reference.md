@@ -8,6 +8,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — gets ONE fr
 - §2 — Input contract (what each verifier receives)
 - §3 — Output contract (verifier emits)
 - §3.5 — Resolve embedded "confirm / verify" asks
+- §3.6 — Actionability bar (reachable + behavior delta required for `confirmed`)
 - §4 — Spawn batch shape
 - §5 — Result aggregation and demotion rules
 - §6 — Anti-rationalization
@@ -31,7 +32,7 @@ Each verifier spawn receives ONLY:
 - 1-hop caller grep results — orchestrator runs `grep -rn "<symbol>" --include="*.<ext>"` for the cited symbol; pipe results capped at 50 lines.
 - 1-2 sibling test references for the same symbol — orchestrator greps test directories (`test/`, `tests/`, `__tests__/`, `spec/`); capped at 20 lines.
 
-When the finding's body asks the author to confirm something about ANOTHER file, symbol, or migration (a "confirm X" / "verify Y" claim), the orchestrator also includes the evidence needed to check it — the PR's changed-file list (`git diff --name-only <base>...HEAD`), `git log --oneline -- <cited-path>`, or the relevant grep — so the verifier can resolve the claim rather than pass it through. See §3.5.
+When the finding's body asks the author to confirm something about ANOTHER file, symbol, or migration (a "confirm X" / "verify Y" claim), the orchestrator also includes the evidence needed to check it — the PR's changed-file list (`git diff --name-only <base>...HEAD`), `git log --oneline -- <cited-path>`, or the relevant grep — so the verifier can resolve the claim rather than pass it through. See §3.5. When the finding's risk depends on a feature flag / gate / role / config branch, the orchestrator also includes the current config state (the flag's default value, the gate's condition) so the verifier can apply the §3.6 actionability bar.
 
 Each verifier does NOT receive:
 
@@ -57,8 +58,8 @@ evidence: "<exact quote from cited file:line OR caller chain that confirms/refut
 
 Field semantics:
 
-- `validation: confirmed` — the finding is correct as originally stated; original decision-type stands.
-- `validation: refuted` — the cited code does not exhibit the claimed defect; verifier read the file and disagrees.
+- `validation: confirmed` — the cited code exhibits the defect AND the defect is actionable (§3.6); original decision-type stands.
+- `validation: refuted` — EITHER the cited code does not exhibit the claimed defect (verifier read the file and disagrees), OR the defect exists but is not actionable (§3.6 — unreachable under current config, or a normal/safe pattern with no behavior delta).
 - `validation: clarified` — the finding is correct but the recommended action differs from the original reviewer's; verifier's `recommended_action` overrides.
 - `recommended_action` reuses the plugin's existing 4-way taxonomy (fix-now / testable / product-decision / intent-check) plus `drop` for refuted findings.
 - `confidence` 1-5 coarse scale: 1 = 'low — could be wrong', 5 = 'certain — direct evidence'.
@@ -75,6 +76,22 @@ Some findings — most often migration, regression, or scope findings — phrase
 - Only a genuinely unverifiable residue stays as a human-facing note — e.g. whether a migration was deployed to an environment independently, which is not recorded in git. Narrow the finding to just that residue and tag it `[INTENT-CHECK]`.
 
 The verifier never leaves a checkable "confirm X" in a finding that will be posted.
+
+---
+
+## 3.6 Actionability bar — a pattern is not a defect until it can change an outcome
+
+`confirmed` requires more than the defect existing in the code. There must be a concrete path, reachable under the CURRENT production configuration (feature flags, gates, env, role), where the change produces a wrong or different outcome than before the PR. A real code pattern that cannot change any outcome — because the gating flag is OFF, the branch is dead, or it merely describes the normal/safe shape of the code — is NOT a confirmed finding.
+
+This is the calibration `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` already demands ("hypothetical risk without a documented trigger" excluded from CRITICAL; "the edge case must be reachable" for MEDIUM) — the verifier is where it gets enforced, automatically, on every finding rather than only when a human asks.
+
+- For any finding whose risk depends on a flag / gate / role / config branch, the orchestrator includes the current config state in the verifier prompt (§2) and the verifier asks the decisive question: "with that gate in its CURRENT production state, can this change produce a different value or behavior than before the PR?"
+- When the pattern exists but no actionable path does, emit `validation: refuted`, `recommended_action: drop`, and an `evidence` line stating the reachability result (e.g. `flag useProposalV2 OFF in prod → the new V2 write block is unreachable; getRejectionHubspotValue(null)==='No'==pre-PR → zero delta`). The orchestrator files it under `## Filtered` with reason `not-actionable`.
+- Reason from the code and config, NOT from the finding's framing. A confident reviewer description of a real pattern is not evidence that the pattern is reachable.
+
+A non-actionable finding is always `refuted` (`not-actionable`), never `clarified` — `clarified` presupposes the finding is actionable and merely needs a different recommended action, so it must not be the escape hatch for a finding that should be dropped.
+
+The R310-class false positive — a real server-side pattern that is unreachable under the production flag state — is exactly what this bar refutes without the user having to prompt a re-check.
 
 ---
 
@@ -106,7 +123,7 @@ Critical: ALL verifier spawns fire in ONE assistant response, same assistant tur
 
 After all verifiers return, the orchestrator processes results:
 
-1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier`. Do NOT propagate to Phase 4.3 test-confirmation gate or Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged.
+1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier` (or `not-actionable` when the verifier refuted on the §3.6 actionability bar — the defect was real but unreachable / no behavior delta). Do NOT propagate to Phase 4.3 test-confirmation gate or Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged.
 2. **`validation: clarified`** — update the finding's `Decision Type:` to match the verifier's `recommended_action`. Append verifier `confidence` and `evidence` to the finding body. Keep finding in active set. When the verifier resolved an embedded "confirm X" ask (§3.5), replace that phrasing in the finding body with the verified result it returned — the posted finding states the fact, never the un-run check.
 3. **`validation: confirmed`** — append verifier `confidence` and `evidence` to the finding body. Keep finding in active set (decision-type unchanged).
 4. **State-file persistence** — write `validation`, `recommended_action`, `verification_confidence`, `verification_evidence` to the per-finding body schema in `phase-6-handoff-reference.md` (handoff schema bump from m6-v1 → m6-v2).
@@ -126,6 +143,7 @@ After all verifiers return, the orchestrator processes results:
 | "MEDIUM verification is overkill — these are paper cuts." | MEDIUMs that survive §4.1 carry an Evidence-Block per signal #2 (mandatory for MEDIUM) — they cite concrete code worth re-reading. The risk is the opposite of overkill: an unverified MEDIUM with `validation: refuted` (had the verifier run) propagates to `## Filtered` would-be entries on the PR. The verifier is the mechanism that distinguishes "the reviewer misread the code" from "the defect is real" at MEDIUM stake. Don't pre-judge which severities deserve grounding — let the verifier ground them. |
 | "The finding's `suggested-fix:` reads sensible — confirm without re-reading code." | The suggested-fix being sensible is independent of whether the defect exists. Verification reads the cited code AND the caller grep; the suggested-fix is not evidence of the defect. |
 | "The finding says 'confirm both migrations ship together' — that's the author's call, I'll pass it through." | If "ship together" means "both are in this PR's diff", that's checkable: read the changed-file list (§3.5). Resolve it and state the fact via `validation: clarified`. Only the part that isn't in git — did it deploy to an environment independently? — stays as a note. Leaving a checkable "confirm X" in a posted finding offloads your job onto the reader. |
+| "The cited pattern is real, so confirm it." | Existence is not actionability (§3.6). Ask: with the gating flag / gate / role in its CURRENT production state, does this change produce a different outcome than before the PR? If the path is unreachable or the value equals pre-PR, it is noise — refute it (`not-actionable`). A real-but-unreachable finding posted to the PR is the false positive this bar exists to kill. |
 
 ---
 

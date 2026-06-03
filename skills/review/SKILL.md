@@ -205,7 +205,7 @@ Secret scan is a pure-regex pass — cannot fail.
 
 State.md `phase: llm-spawn`.
 
-### 2.1 Dimension grid (11 built-in dimensions + N custom)
+### 2.1 Dimension grid (12 built-in dimensions + N custom)
 
 | # | Dimension | Spawn rule (MANDATORY) |
 |---|---|---|
@@ -215,17 +215,18 @@ State.md `phase: llm-spawn`.
 | 4 | tests | Always fires — no exception |
 | 5 | optimizations | Always fires — no exception |
 | 6 | guidelines | Always fires — no exception |
-| 7 | conventions | Always fires — no exception. Owns repo-modal-pattern findings exclusively |
+| 7 | conventions | Always fires — no exception. Owns repo-modal-pattern findings exclusively (explicit authored rules belong to rules-compliance, #12) |
 | 8 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` |
 | 9 | design | Fires when UI globs match changed files (see §2.5 UI-file detection rule) |
 | 10 | pr-metadata | Fires when `pr-ref:` is non-none |
 | 11 | spec-compliance | Fires when PLAN CONTEXT is non-none AND (`pr-ref:` non-none OR risk-tier:high) |
+| 12 | rules-compliance | Fires when the repo contains any authored rule file (see §2.8 rules-file detection rule). Checks the diff against the project's own rule files (Cursor / Claude / AGENTS / etc.), citing the exact rule. Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md` |
 | +N | custom:* | Fires per user-authored `.geniro/instructions/review-extra/<slug>.md`, discovered in Phase 1.5 |
 
 **Spawn-batch size.** Phase 2 spawns a reviewer-agent for every row whose trigger fires — trimming the set silently drops a coverage dimension the user expects:
 
 - 8 always-rows (bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions) fire on every run.
-- 3 conditional rows (design, pr-metadata, spec-compliance) fire when their trigger column is satisfied.
+- 4 conditional rows (design, pr-metadata, spec-compliance, rules-compliance) fire when their trigger column is satisfied.
 - N custom rows fire per the spawn-specs already discovered in Phase 1.5 §1.5.4 (zero discovery work at Phase 2 entry — read the count from state.md frontmatter `custom_reviewers`).
 
 Total batch size = always-fire + triggered conditional + custom rows. Trimming this set silently is the documented anti-pattern — see §Anti-rationalization. Post-spawn verification in Phase 4 §4.0 catches drift.
@@ -238,23 +239,25 @@ Total batch size = always-fire + triggered conditional + custom rows. Trimming t
 
 Before firing the parallel `Agent(...)` batch, the orchestrator computes the declared spawn list and writes it to state.md via `atomic_state_write`:
 
+The example below is one illustrative run — the actual declared set is whatever the §2.1 grid resolves for THIS run (the conditional rows fire per their triggers), never a fixed list copied verbatim:
+
 ```yaml
 # frontmatter update
-spawn_dims_declared: [bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, custom:manifest-incident-patterns]
-spawn_dims_count: 11
+spawn_dims_declared: [bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, rules-compliance, custom:manifest-incident-patterns]
+spawn_dims_count: 12
 ```
 
 Plus a `## Tool log` entry:
 
 ```
-[Phase 2 spawn declaration] dim_list=[bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, custom:manifest-incident-patterns]; count=11; triggers={pr-ref: <ref-or-none>, plan-context: <path-or-none>, linear-task: <id-or-none>, custom-reviewers-discovered: <N>}
+[Phase 2 spawn declaration] dim_list=[bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, rules-compliance, custom:manifest-incident-patterns]; count=12; triggers={pr-ref: <ref-or-none>, plan-context: <path-or-none>, linear-task: <id-or-none>, rule-files: <yes-or-none>, custom-reviewers-discovered: <N>}
 ```
 
 This is observability for the Phase 4 §4.0 verification gate — declared-vs-actual is one grep away.
 
 ### 2.3 Spawn invocation
 
-Before firing the parallel batch, narrate the spawn to the user — read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`guidelines` -> "code quality", `pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit a one-line status:
+Before firing the parallel batch, narrate the spawn to the user — read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`guidelines` -> "code quality", `pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance", `rules-compliance` -> "rules compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit a one-line status:
 
 > Spawning <N> reviewers: <comma-separated plain-English list>.
 
@@ -287,6 +290,7 @@ Surface any `status: failed` entries by their plain-English dim name (e.g., "PR 
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional per §2.5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/pr-metadata-criteria.md` (conditional)
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/spec-compliance-criteria.md` (conditional per §2.6)
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md` (conditional per §2.8)
 - Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (≤10 per project)
 
 ### 2.4 `--simplify` flag weighting
@@ -320,6 +324,10 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Build Check"
 ```
 
 Feed pass/fail into the Phase 3 §3.3 KEEP/FILTER judgment. Failing build is automatically a CRITICAL finding — tag `[NEW]` if the base branch build passes, `[PRE-EXISTING]` if already broken.
+
+### 2.8 Rules-file detection rule (rules-compliance dim trigger)
+
+Fires when the repo contains at least one authored rule file — any of `CLAUDE.md` (root or nested), `.claude/rules/**/*.md`, `.cursor/rules/**/*.mdc`, `.cursorrules`, `.windsurfrules`, `.windsurf/rules/**`, `.github/copilot-instructions.md`, `AGENTS.md`, `.agents.md`. Detect via Glob at Phase 2 entry; skip the dimension when none exist — a repo with no authored rules has nothing for this dimension to check, so it never bloats the always-fire set. The reviewer discovers the files, parses their path-scopes (`.mdc` `globs:`, `.claude/rules` `paths:`), and checks the diff against each in-scope rule per `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md`.
 
 ---
 

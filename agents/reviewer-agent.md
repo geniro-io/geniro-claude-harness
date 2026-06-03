@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits a structured validation result (confirmed/refuted/clarified) for a single CRITICAL/HIGH/MEDIUM survivor finding."
+description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions / design / pr-metadata / spec-compliance / rules-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits a structured validation result (confirmed/refuted/clarified) for a single CRITICAL/HIGH/MEDIUM survivor finding."
 tools: [Read, Glob, Grep, Bash]
 model: inherit
 maxTurns: 100
@@ -53,7 +53,7 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 
 The orchestrating skill passes you:
 
-1. **Dimension**: Which review dimension you own. Always-fire built-ins (8): bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions. Conditional built-ins: design, pr-metadata, spec-compliance. /implement Phase 3 self-review also spawns code-quality (always-fire there, not a /review conditional). Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
+1. **Dimension**: Which review dimension you own. Always-fire built-ins (8): bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions. Conditional built-ins: design, pr-metadata, spec-compliance, rules-compliance. /implement Phase 3 self-review also spawns code-quality (always-fire there, not a /review conditional). Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
 2. **Criteria**: Content of the corresponding criteria file (e.g., `bugs-criteria.md`)
 3. **Changed files**: List of files to review, with their diffs or full content
 4. **Project context**: Brief description of the project's stack and conventions
@@ -192,14 +192,16 @@ evidence: "<literal quote from cited file:line or caller chain>"
 ```
 
 Field semantics:
-- `validation: confirmed` — finding is correct as originally stated
-- `validation: refuted` — cited code does NOT exhibit the claimed defect; quote the contradicting line
+- `validation: confirmed` — the cited code exhibits the defect AND the defect is ACTIONABLE (see actionability bar below). Both halves required.
+- `validation: refuted` — EITHER the cited code does NOT exhibit the claimed defect (quote the contradicting line), OR the defect exists but is not actionable. Set `recommended_action: drop`.
 - `validation: clarified` — finding is correct but recommended action differs; `recommended_action` overrides original decision-type
 - `confidence` — 1 (uncertain) to 5 (direct evidence in quoted code)
 - `evidence` — MUST be a literal quote from the cited file or caller chain. "I agree" or paraphrases are insufficient.
-- `recommended_action: drop` — Verify-finding mode only. Emit when `validation: refuted` — the verifier read the cited code and judged the finding incorrect. The orchestrator demotes refuted findings to `## Filtered`; never appears as a standard finding `Decision Type:` tag.
+- `recommended_action: drop` — Verify-finding mode only. Emit when `validation: refuted` — the verifier read the cited code and judged the finding incorrect OR not actionable. The orchestrator demotes refuted findings to `## Filtered`; never appears as a standard finding `Decision Type:` tag.
 
-Re-read the cited code before answering. Confirmation without empirical re-read is rationalization theater; sycophancy is the documented multi-judge failure mode.
+**Actionability bar — a pattern is not a defect until it can change an outcome.** `confirmed` requires more than the pattern existing: there must be a concrete path, reachable under the CURRENT production configuration (feature flags, gates, env, role), where this change produces a wrong or different outcome than before the PR. A real code pattern that cannot change any outcome — because the gating flag is OFF, the branch is dead, or it merely describes the normal/safe shape of the code — is NOT confirmed. When the pattern exists but no actionable path does, emit `validation: refuted`, `recommended_action: drop`, and an `evidence` line stating the reachability result (e.g. "flag `useProposalV2` OFF in prod → new write block unreachable; `getRejectionHubspotValue(null)==='No'`==pre-PR → zero delta"). Ask the decisive question explicitly for any finding whose risk depends on a flag/gate/role/config branch: "with that gate in its CURRENT production state, can this change produce a different value or behavior than before the PR?" Reason from the code and config, not from the finding's framing.
+
+Re-read the cited code before answering. Confirmation without empirical re-read is rationalization theater; sycophancy is the documented multi-judge failure mode. Confirming a real-but-unreachable pattern as actionable is the same failure at the actionability layer.
 
 ### Severity levels
 

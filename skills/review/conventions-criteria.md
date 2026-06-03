@@ -24,7 +24,7 @@ Per Allamanis et al. NATURALIZE and Microsoft IntelliCode: structural convention
 
 For every pattern category checked, follow this recipe before emitting any finding:
 
-1. **Read explicit conventions first.** Check `CLAUDE.md`, `.claude/rules/`, `AGENTS.md`, `CONTRIBUTING.md`, ADRs at `docs/adr/` or `docs/decisions/`. Explicit rules override modal inference — when an explicit rule exists for the pattern, emit a finding citing the rule; do not duplicate with a modal-inferred finding.
+1. **Explicit authored rules belong to `rules-compliance`.** Compliance with the repo's authored rule files (`CLAUDE.md`, `.claude/rules/`, `.cursor/rules/`, `.cursorrules`, `AGENTS.md`, etc.) is owned by the `rules-compliance` dimension (`${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md`). This dimension owns repo-MODAL patterns — what the surrounding code actually does, inferred by sampling siblings. When an explicit rule and a modal pattern coincide, let `rules-compliance` cite the rule; do not duplicate it here. Still read `CONTRIBUTING.md` + ADRs at `docs/adr/` or `docs/decisions/` for modal context that isn't a hard rule.
 2. **Identify the file kind.** Component file? Service? Test? Schema? Migration? Hook? The kind determines which siblings are relevant.
 3. **Glob siblings of the same kind.** Same directory first; then analogous directories if the immediate parent has fewer than 3 siblings (`src/components/Button.tsx` → also check `src/ui/`, `packages/*/components/`).
 4. **Compute the modal frequency.** For each pattern category, count each variant across siblings.
@@ -191,7 +191,7 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 - Quote style (single vs double)
 - Pure aesthetic naming preferences (`userList` vs `users` when both are clear)
 
-Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference and/or explicit-rule citation per the recipe at §What to Check.
+Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) defer to `rules-compliance` per §What to Check step 1.
 
 **Other dimensions — defer:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → `guidelines-criteria.md`
@@ -279,7 +279,7 @@ Do NOT apply the modal threshold to peer PRs as if they were merged siblings —
 
 ## Review Checklist
 
-- [ ] Read explicit convention sources (CLAUDE.md,.claude/rules/, AGENTS.md, ADRs) before sampling
+- [ ] Explicit authored rules deferred to `rules-compliance`; this dim sampled repo-modal patterns (read CONTRIBUTING.md + ADRs for modal context)
 - [ ] Step 0 sibling glob run for every changed file; N≥3 confirmed before judging
 - [ ] 80% modal threshold applied per category; ambiguous splits skipped
 - [ ] Sibling-file consistency: helpers placed where ≥80% of siblings put them
