@@ -33,7 +33,7 @@ BRANCH: [from `git branch --show-current`]
 …plus one trailing verify-instruction line inside the prompt body:
 
 ```
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 ```
 
 The two slots are pre-populated text; the verify line tells the subagent to confirm its inherited cwd matches the orchestrator's expectation before doing anything. A mismatch is a hard abort, not a warning — the subagent reports back and the orchestrator decides.

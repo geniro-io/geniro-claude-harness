@@ -187,7 +187,7 @@ If the new plugin publishes `$PLUGIN_PATH/.claude-plugin/manifest.sha256`, verif
 
 ```bash
 HASH_FAIL=0
-MISSING=
+MISSING=()
 for f in \
 "$PLUGIN_PATH/skills/_shared/load-custom-instructions.md" \
 "$PLUGIN_PATH/skills/_shared/spawn-agent.md" \
@@ -202,7 +202,7 @@ done
 
 If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
 
-- **Question:** `WARNING: integrity check failed — <list of missing files>. Continue?`
+- **Question:** `WARNING: integrity check failed — ${MISSING[*]}. Continue?`
 - **Options:**
 - `Abort` — Exit without continuing; investigate (Recommended)
 - `Continue anyway (not recommended)` — Proceed with possibly broken install

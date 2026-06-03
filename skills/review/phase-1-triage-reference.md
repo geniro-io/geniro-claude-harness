@@ -121,7 +121,7 @@ Decision tree (first match wins; evaluate top-down):
 
 **The workspace decision is never silent when the tree calls for an AUQ.** Cases 4, 5b, and 6 MUST fire their `AskUserQuestion` and WAIT — creating or switching a worktree without asking is the failure this step exists to prevent. A long autonomous / heavy-effort / workflow run does not relax this; the AUQ binds inside every wrapper per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`. Because /geniro:review is read-only, neither option in the 5b / 6 worktree AUQ is pre-selected (no `(Recommended)` marker): a worktree gives full file context for a deep review but is never the forced default — the user picks per run, or sets it once via the `worktree` / `no-worktree` modifier.
 
-**Inline modifier overrides** (parsed from `$ARGUMENTS`; modifiers ALWAYS win over auto-detection):
+**Inline modifier overrides** (parsed from `$ARGUMENTS`; a modifier overrides auto-detection — an explicit modifier is direct user intent and outranks any inferred signal):
 
 | Modifier in $ARGUMENTS | Effect |
 |---|---|

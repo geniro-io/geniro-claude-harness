@@ -53,7 +53,7 @@ expect_allow() {
   if [ "$actual" = "0" ]; then pass "$label"; else fail "$label (expected exit=0, got exit=$actual)"; fi
 }
 
-cd "$TMPDIR_BASE"
+cd "$TMPDIR_BASE" || exit 1
 
 # ===== sec-eval-exec =====
 expect_block "py eval blocked" "$(run_write /tmp/x.py 'r = eval(user_input)')"
@@ -118,10 +118,10 @@ expect_allow "empty content → allow" "$(jq -nc '{tool_input: {file_path: "/tmp
 # ===== safety.json bypass =====
 mkdir -p "$TMPDIR_BASE/proj-bypass/.geniro"
 echo '{"allow_patterns": ["sec-eval-exec"]}' > "$TMPDIR_BASE/proj-bypass/.geniro/safety.json"
-cd "$TMPDIR_BASE/proj-bypass"
+cd "$TMPDIR_BASE/proj-bypass" || exit 1
 expect_allow "safety.json bypass: sec-eval-exec allowed" "$(run_write /tmp/x.py 'r = eval(s)')"
 expect_block "safety.json bypass: unrelated pattern still blocks" "$(run_write /tmp/x.py 'pickle.loads(buf)')"
-cd "$TMPDIR_BASE"
+cd "$TMPDIR_BASE" || exit 1
 
 # ===== Multiple patterns in one file: first hit blocks =====
 expect_block "multiple hits: first blocks" "$(run_write /tmp/x.py "$(printf 'r = eval(s)\npickle.loads(buf)')")"

@@ -277,7 +277,7 @@ Collect these signals before deciding:
 | `REVIEW_HANDOFF` | Path `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` exists ⇒ "review just produced findings for this branch" |
 | `DEBUG_HANDOFF` | Path `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "debug just authored repro tests for this branch" |
 | `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
-| `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `skills/plan/spec-template.md` §Frontmatter). Empty list when field absent. |
+| `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §Frontmatter). Empty list when field absent. |
 | `BRANCH_FORMAT_RULE` | Read `<PRIMARY_ROOT>/.geniro/instructions/global.md` directly here at Step 0a. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 will re-Read the same file with full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. Without this signal, Step 0c authorizes branch names that violate project rules and the agent has to rename after the fact. |
 | `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. Cross-checked against `BRANCH_FORMAT_RULE` at Step 0c to decide whether the no-ticket-ID sub-flow fires. |
 | `CONCURRENT_ACTIVITY` | Set when another agent/session may be mutating this working tree: `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. Signals a contested shared working tree where in-place work risks an external reset/rename orphaning a commit. |
@@ -444,7 +444,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 8. **Read subagent outputs.** Read `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`. The codebase-explorer's `change_scope` field gates Phase 3 adversarial-tester spawn (`trivial` → skip). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
 9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
-11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Pre-Ship Visual Verification.
+11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule). Gates Pre-Ship Visual Verification.
 12. **Persist review/debug handoffs AND gate on unresolved open questions.** For every `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
     1. Read the handoff file with the `Read` tool (or Bash `cat`).
     2. Persist the body under state.md `## Inputs from <producer>` body section.
@@ -663,8 +663,6 @@ When no ship-mode modifier is present, the ship-mode AUQ fires. Conflicting modi
 ---
 
 ## Anti-rationalization
-
-These patterns must NOT be reintroduced:
 
 | Your reasoning | Why it's wrong |
 |---|---|

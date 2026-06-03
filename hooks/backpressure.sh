@@ -23,6 +23,11 @@ run_silent() {
     local tmp_file
     tmp_file=$(mktemp) || { echo "backpressure: mktemp failed" >&2; return 1; }
     local output_cap="${GENIRO_BACKPRESSURE_CAP:-150}"
+    # A non-numeric or <1 cap would make `head -"$output_cap"` diverge across platforms:
+    # GNU `head -0` prints nothing and exits 0, but BSD/macOS `head -0` errors. Fall back
+    # to the documented default so the suppress branch behaves identically on both.
+    case "$output_cap" in ''|*[!0-9]*) output_cap=150 ;; esac
+    [ "$output_cap" -lt 1 ] && output_cap=150
 
     # Run command in a subshell, capture all output. The subshell is load-bearing:
     # this function is often sourced into the caller's shell, and a wrapped command

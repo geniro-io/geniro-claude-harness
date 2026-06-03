@@ -54,7 +54,7 @@ The invariants apply unchanged:
 
 ## Budgets — Quality-First
 
-This skill has no hard kill caps. Runs at opus by default (deep hypothesis-driven investigation) per `skills/_shared/model-tiering.md`.
+This skill has no hard kill caps. Runs at opus by default (deep hypothesis-driven investigation) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
 **Quality gates (escalate to user, do not abort):**
 

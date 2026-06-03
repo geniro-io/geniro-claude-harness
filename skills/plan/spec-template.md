@@ -43,20 +43,20 @@ workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / A
     issue_id: CI-300
     url: https://linear.app/...
 budget: # goal-state block — start
-max_files_to_edit: <int|null>
-max_lines_changed: <int|null>
-time_budget: <duration|null> # e.g., "4h", "1d", or null for unbounded
+  max_files_to_edit: <int|null>
+  max_lines_changed: <int|null>
+  time_budget: <duration|null> # e.g., "4h", "1d", or null for unbounded
 checkpoints: # list of {step_anchor, name} pairs
-- step_anchor: step-3
-name: "DB migration applied"
-- step_anchor: step-7
-name: "Tests green"
+  - step_anchor: step-3
+    name: "DB migration applied"
+  - step_anchor: step-7
+    name: "Tests green"
 forbidden_actions: # list of explicit "don't do this" rules
-- "do NOT modify production database schema directly — use migrations only"
-- "do NOT bypass auth middleware"
+  - "do NOT modify production database schema directly — use migrations only"
+  - "do NOT bypass auth middleware"
 approval_required_for: # advisory: step_anchors flagged for a user-approval pause — goal-state documentation only (the enforced /geniro:implement Edit/Write gate is the handoff open_questions[] check, not a step-anchor match)
-- step-3
-- step-9
+  - step-3
+  - step-9
 tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in env — goal-state end
 ---
 ```

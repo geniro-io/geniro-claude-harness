@@ -214,8 +214,6 @@ grep -n "Object\|Function" file.ts
 - Missing input validation in API routes
 - Type-unsafe casts or assertions
 
-> **Note:** "Consistency with Codebase / Convention Guard" findings route exclusively to the `conventions` dimension (statistical N-file modal inference, ≥80% siblings threshold). See conventions-criteria.md.
-
 ## Output Format
 
 Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.

@@ -77,7 +77,7 @@ This skill has no hard kill caps. Same model as other skills.
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (reviewer-agent, custom reviewers), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (registration ladder: `geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with body inlined). Cache the resolved rung for the rest of the session.
 
-Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt MUST satisfy the six pre-inlined fields.
+Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies the six pre-inlined fields, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
 | Spawn | Tier | When |
 |---|---|---|
@@ -102,7 +102,7 @@ Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standa
 
 ## Universal Rule: All Choice Questions Use AskUserQuestion
 
-Every user-facing choice in this skill MUST go through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The enumerated gates are examples, not an exhaustive list.
+Route every user-facing choice in this skill through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — a plain-text choice bypasses the approvals persistence the structured tool records. The enumerated gates are examples, not an exhaustive list.
 
 ---
 

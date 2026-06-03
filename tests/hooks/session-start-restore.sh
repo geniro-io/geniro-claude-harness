@@ -136,7 +136,7 @@ echo "$ac" | grep -q "Active task detected at startup" \
 # ---------------------------------------------------------------------------
 
 sandbox="$TMPDIR_BASE/cold-$$"
-mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
 out=$(run_hook startup "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
@@ -213,7 +213,7 @@ echo "$ac" | grep -q "Helpers not installed" \
 # ---------------------------------------------------------------------------
 
 sandbox="$TMPDIR_BASE/tier2-$$"
-mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "feature/y" 2>/dev/null
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "feature/y" 2>/dev/null || exit 1
 # Put state.md in a task-dir that does NOT match slug "feature-y" — Tier-1 must miss,
 # Tier-2 frontmatter `branch:` grep must find it.
 mkdir -p .geniro/planning/different-name

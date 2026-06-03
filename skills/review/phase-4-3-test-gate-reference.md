@@ -21,7 +21,7 @@ State.md `phase: stratify` during Phase 4.3 (which is a sub-phase of Phase 4 str
 
 Reduce false positives by asking the user whether to spawn `adversarial-tester-agent` to author failing tests that confirm review findings. Tests that fail today on independent orchestrator re-run (F→P-confirmed) tag the corresponding finding `[CONFIRMED-BY-TEST]` and stay in the report. Tests that pass today (agent's `discarded-cannot-repro` signal) demote the finding to `## Filtered` with `[CHALLENGED-BY-TEST]` — finding stays visible, deprioritized but not deleted.
 
-**The skill MUST NEVER spawn the agent without explicit user approval.** The gate IS the load-bearing safety property; inline gates degrade to "this counts as approval".
+**Spawn the agent only after explicit user approval.** The gate is the load-bearing safety property; an inline gate degrades to "this counts as approval".
 
 ---
 
@@ -62,7 +62,7 @@ Use `AskUserQuestion` (do NOT print options as plain text). When the state-file 
 
 If user picks **"Skip"**, proceed to Phase 5 (no spawn, no state changes, no caveats).
 
-If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — decision: <type>`; each option's `preview` carries the finding's full body (Evidence / Suggested-fix / Confidence / Origin) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop. AUQ has a 4-option cap; when more than 4 eligible findings exist, batch across multiple chained questions (≤4 per call) — never drop or merge options. Aggregate selections across all calls. If user deselects all, treat as "Skip".
+If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — <decision-type in plain English>` (e.g. "automatic fix" / "can be verified with a test" — never the raw taxonomy token, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § plain-English decision-type); each option's `preview` carries the finding's full body (Evidence / Suggested-fix / Confidence / Origin) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop. AUQ has a 4-option cap; when more than 4 eligible findings exist, batch across multiple chained questions (≤4 per call) — never drop or merge options. Aggregate selections across all calls. If user deselects all, treat as "Skip".
 
 Persist user pick to `approvals[]` with category `test_gate_choice`.
 
@@ -88,7 +88,7 @@ OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review-findings-adversarial.md
 Authoring scope: assert on observable business behavior — return values, thrown error shapes, mutated state, side effects at out-of-process boundaries (network/db/queue/file/email/third-party). Do NOT author interaction-style assertions on internal same-process collaborators (`toHaveBeenCalledWith` and equivalents).
 
 For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in downstream processing).
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 

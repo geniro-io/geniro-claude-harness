@@ -309,7 +309,7 @@ The flag biases existing reviewers' attention; it does not add new dimensions, c
 
 ### 2.5 UI-file detection rule (design dim trigger)
 
-A file is a UI file if path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`. Design dimension skipped when no changed file matches.
+A file is a UI file per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule. Design dimension skipped when no changed file matches.
 
 ### 2.6 Spec-compliance detection rule
 
