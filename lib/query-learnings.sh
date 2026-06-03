@@ -21,7 +21,7 @@
 # Exit codes:
 #   0 — query ran (may have zero matches), or record_access succeeded /
 #       no-op (no log file, no matching entry)
-#  64 — unknown flag / bad argument
+#  64 — query_learnings unknown flag / bad argument, OR record_access missing dedup_key
 #   1 — record_access IO error
 
 if [ -z "${_QL_DEPS_LOADED:-}" ]; then
@@ -75,6 +75,15 @@ query_learnings() {
     # silent empty result instead of the documented rc=64.
     if ! printf '%s' "$score_min" | grep -Eq '^[0-9]+(\.[0-9]+)?$|^\.[0-9]+$'; then
       echo "query_learnings: --score-min must be a non-negative number (got '$score_min')" >&2
+      return 64
+    fi
+  fi
+
+  if [ -n "$limit" ]; then
+    # Guard before the value reaches head/tail -n; BSD and GNU reject a
+    # non-integer differently, so validate here for a single clear message.
+    if ! printf '%s' "$limit" | grep -Eq '^[0-9]+$'; then
+      echo "query_learnings: --limit must be a non-negative integer (got '$limit')" >&2
       return 64
     fi
   fi

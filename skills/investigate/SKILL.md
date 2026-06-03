@@ -95,10 +95,10 @@ Classify into one of. The "Agents needed" column is the literal spawn set — 1,
 | **Commit archaeology** | "When/who/why did this line change?" answerable purely from git log/blame. | Git only |
 | **External docs lookup** | "What does library X's Y API do?" / "What changed in framework Z between versions?" — answer is external, no project specifics needed. | Internet only |
 | **How (current state)** | How does X work today? Trace execution + evolution. | Codebase + Git |
-| **How (forward-looking)** | How CAN we do X / connect X to Y / integrate W? Requires evidence from current code (what's already there to build on), git (what's been tried before), and internet (external interfaces, library capabilities). Skip Internet ONLY when both X and Y are fully internal — rare edge case, e.g. "connect table A to table B inside our own DB". | Codebase + Git + Internet |
+| **How (forward-looking)** | How CAN X be done / connect X to Y / integrate W? Requires evidence from current code (what's already there to build on), git (what's been tried before), and internet (external interfaces, library capabilities). Skip Internet ONLY when both X and Y are fully internal — rare edge case, e.g. "connect table A to table B inside the same DB". | Codebase + Git + Internet |
 | **Why** | Why was X chosen? Design rationale requires current code patterns + history + industry context. | Codebase + Git + Internet |
-| **What-if** | What happens if we change X? Impact in our code + external compatibility. | Codebase + Internet |
-| **Compare** | Compare approaches for X (ours vs alternatives). | Codebase + Internet |
+| **What-if** | What happens if X changes? Impact in the codebase + external compatibility. | Codebase + Internet |
+| **Compare** | Compare approaches for X (the project's approach vs alternatives). | Codebase + Internet |
 | **Risk** | What are the risks of X? Evidence needed from all three. | Codebase + Git + Internet |
 
 ### Step 1.5: External-lookup routing (Internet-only → consider /deep-research)
@@ -121,7 +121,7 @@ From the question, extract:
 - **Skip criteria** — apply ONLY to prune agents the Phase 1 Step 1 row already includes. They never *add* agents beyond the table's literal set (the table wins). Each criterion is testable against the question text:
 - **Skip Codebase** when the question is answerable purely from git log/blame ("when did X change?", "who wrote Y?") or purely from external docs ("what does library Z's API do?") — and the classified row does not include Codebase.
 - **Skip Git** when the question is about current code behavior only and does not ask about history, evolution, rationale, or recent changes — and the classified row does not include Git.
-- **Skip Internet** when the question is fully internal — our code, our patterns, our commits — and does not reference external libraries, frameworks, standards, best practices, alternatives, or security advisories — and the classified row does not include Internet.
+- **Skip Internet** when the question is fully internal — the project's code, patterns, and commits — and does not reference external libraries, frameworks, standards, best practices, alternatives, or security advisories — and the classified row does not include Internet.
 
 ### Step 2.5: Glossary-mismatch check (WAIT if mismatch found)
 

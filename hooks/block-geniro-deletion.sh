@@ -124,6 +124,11 @@ if has_rm_recursive; then
   # each token so `'.geniro/x/'`, `".geniro/x/"`, and `.geniro/x/` all evaluate
   # the same. This is best-effort tokenization (not a full shell parser); it's
   # sufficient to catch the realistic multi-arg `rm` form.
+  # Disable globbing so a token like `.geniro/*` is word-split on whitespace but
+  # NOT expanded against the cwd — expansion would replace it with real paths and
+  # bypass the segment checks below. `set -f` is POSIX and behaves identically on
+  # bash 3.2 (macOS) and GNU bash.
+  set -f
   # shellcheck disable=SC2086
   for raw in $COMMAND; do
     # Trim surrounding single/double quotes
@@ -175,6 +180,7 @@ if has_rm_recursive; then
       esac
     fi
   done
+  set +f
 fi
 
 # 3. find ... .geniro ... -delete  (any flavor of find-delete that touches .geniro)

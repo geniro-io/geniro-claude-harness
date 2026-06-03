@@ -34,6 +34,8 @@ if [ -z "${_EL_DEPS_LOADED:-}" ]; then
   source "$_el_script_dir/redact-secrets.sh"
   # shellcheck disable=SC1091
   source "$_el_script_dir/atomic-state-write.sh"
+  # shellcheck disable=SC1091
+  source "$_el_script_dir/hash.sh"
   _EL_DEPS_LOADED=1
 fi
 
@@ -103,7 +105,7 @@ emit_learning() {
   if [ -z "$dedup_key" ]; then
     local norm
     norm=$(_el_normalize "$summary")
-    dedup_key=$(printf '%s|%s|%s' "$producer" "$scope" "$norm" | sha256sum | cut -c1-12)
+    dedup_key=$(printf '%s|%s|%s' "$producer" "$scope" "$norm" | _geniro_sha256 | cut -c1-12)
   fi
 
   # Auto-inject ts if absent.

@@ -58,6 +58,12 @@ archive_stale_learnings() {
   local now tau
   now=$(date -u +%s)
   tau="${GENIRO_DECAY_TAU_DAYS:-90}"
+  # Validate tau up front — a non-numeric value otherwise reaches `--argjson`
+  # below and surfaces only as an opaque "jq failed" error.
+  if ! printf '%s' "$tau" | grep -Eq '^[0-9]+(\.[0-9]+)?$'; then
+    echo "archive-stale: GENIRO_DECAY_TAU_DAYS must be a non-negative number (got '$tau')" >&2
+    return 2
+  fi
 
   # Compute score per entry, identify stale candidates, optionally write.
   # Stale criterion AND-ed: score < 0.1 AND age > 180d AND access_count == 0
@@ -131,6 +137,25 @@ archive_stale_learnings() {
     echo "" >&2
     echo "Run without --dry-run to flip deprecated:true on these entries." >&2
     return 0
+  fi
+
+  # Guard the destructive rewrite: jq's `fromjson?` silently DROPS any line it
+  # cannot parse, so a malformed line would vanish from the rewritten log —
+  # violating the never-deletes / audit-trail-preserved invariant. Refuse the
+  # rewrite when the parsed-object count differs from the non-blank input lines.
+  local raw_lines parsed_lines
+  # Count non-blank records the way jq -Rc reads them: awk processes a final line
+  # even without a trailing newline (grep -c does not), so a valid log that simply
+  # lacks a trailing \n is not mistaken for a corrupt one.
+  raw_lines=$(awk 'NF{c++} END{print c+0}' "$log" 2>/dev/null || echo 0)
+  if [ -z "$processed" ]; then
+    parsed_lines=0
+  else
+    parsed_lines=$(printf '%s\n' "$processed" | jq -s 'length' 2>/dev/null || echo 0)
+  fi
+  if [ "$raw_lines" -ne "$parsed_lines" ]; then
+    echo "archive-stale: $((raw_lines - parsed_lines)) malformed line(s) in $log — refusing to rewrite (would lose the audit trail). Fix or remove the malformed entries, then re-run." >&2
+    return 2
   fi
 
   # Real run: write processed content back (with _is_stale stripped).

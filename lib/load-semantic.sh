@@ -22,6 +22,8 @@ if [ -z "${_LS_DEPS_LOADED:-}" ]; then
   source "$_ls_script_dir/repo-root.sh"
   # shellcheck disable=SC1091
   source "$_ls_script_dir/atomic-state-write.sh"
+  # shellcheck disable=SC1091
+  source "$_ls_script_dir/hash.sh"
   _LS_DEPS_LOADED=1
 fi
 
@@ -43,11 +45,15 @@ _LS_DEFAULT_FINGERPRINT_FILES=(
   "go.mod"
 )
 
-# Hash one file; emit `sha256:<hex>` or empty if missing.
+# Hash one file; emit `sha256:<hex>` or empty if missing / no hasher.
 _ls_hash_file() {
-  local path="$1"
+  local path="$1" h
   if [ -f "$path" ]; then
-    printf 'sha256:%s' "$(sha256sum "$path" | awk '{print $1}')"
+    h="$(_geniro_sha256 "$path" 2>/dev/null | awk '{print $1}')"
+    # Emit the prefix only with a real digest. A degraded host with no hasher
+    # otherwise yields a bogus `sha256:` (empty) that reads as a fingerprint
+    # change on every load — false drift. Empty hash is skipped downstream.
+    [ -n "$h" ] && printf 'sha256:%s' "$h"
   fi
 }
 

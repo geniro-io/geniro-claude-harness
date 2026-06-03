@@ -42,6 +42,19 @@ if ! command -v _geniro_repo_root >/dev/null 2>&1; then
 fi
 GENIRO_ROOT="$(_geniro_repo_root)"
 
+# Portable SHA-256 resolver. Stock macOS ships `shasum` but not `sha256sum`;
+# a bare `sha256sum` would fail silently and yield empty slug suffixes / hash
+# markers. Source the canonical helper, falling back to an inline definition
+# so the hook stays self-contained on vendored installs.
+_geniro_hash_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/hash.sh"
+if [ -f "$_geniro_hash_helper" ]; then
+  # shellcheck source=/dev/null
+  source "$_geniro_hash_helper" 2>/dev/null || true
+fi
+if ! command -v _geniro_sha256 >/dev/null 2>&1; then
+  _geniro_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+fi
+
 # Find the nearest .geniro/safety.json walking up from cwd. Mirrors
 # file-protection.sh / block-dangerous-git.sh so the auto-archive opt-out is
 # honored regardless of cwd depth (a single cwd-relative check misses the
@@ -76,7 +89,7 @@ fi
 
 slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
 if [ "${#slug}" -gt 60 ]; then
-  _suffix="$(printf '%s' "$slug" | sha256sum | head -c 8)"
+  _suffix="$(printf '%s' "$slug" | _geniro_sha256 | head -c 8)"
   slug="$(printf '%s' "$slug" | head -c 52)-${_suffix}"
 fi
 
@@ -667,7 +680,7 @@ fi
 #   - safety.json memory.auto_archive_stale != false (default-on, opt-out)
 #   - mkdir-lock acquired (multi-tab race protection)
 #
-# All checks are dirt-cheap (wc, sha256sum, mkdir). archive-stale itself
+# All checks are dirt-cheap (wc, _geniro_sha256, mkdir). archive-stale itself
 # is ~50-200ms for 5000 entries — fits within SessionStart latency budget.
 # Skipped silently when nothing to do; surfaces summary block only when
 # entries were actually flipped.
@@ -698,7 +711,7 @@ if [ -f "$_learnings_log" ]; then
     _hash_marker="$GENIRO_ROOT/.geniro/knowledge/.archive-stale.hash"
     _lock_dir="$GENIRO_ROOT/.geniro/knowledge/.archive-stale.lock"
 
-    _current_hash=$(sha256sum "$_learnings_log" 2>/dev/null | cut -d' ' -f1)
+    _current_hash=$(_geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1)
     _last_hash=$(cat "$_hash_marker" 2>/dev/null)
 
     if [ -n "$_current_hash" ] && [ "$_current_hash" != "$_last_hash" ]; then
@@ -717,7 +730,7 @@ if [ -f "$_learnings_log" ]; then
         _archive_output=$(bash "${CLAUDE_PLUGIN_ROOT:-.}/lib/archive-stale.sh" 2>&1)
 
         # Update hash marker (capture POST-archive state).
-        sha256sum "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
+        _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
 
         # Release lock.
         rmdir "$_lock_dir" 2>/dev/null

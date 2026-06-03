@@ -14,7 +14,10 @@
 #
 # Behavior:
 #   - Detects rejection signal:
-#     * If $picked matches /(cancel|no|skip|reject|abort)/i → explicit_*
+#     * 'cancel' / 'abort' / 'reject' / 'skip' anywhere in $picked (substring,
+#       case-insensitive) → explicit_*. 'no' is matched EXACTLY (no/no./no,/no!)
+#       or as a don't / do-not prefix — NOT any substring containing "no" (so
+#       "now", "notes", "anonymous" do not false-trigger).
 #     * Else if $recommended supplied AND $picked != $recommended →
 #       picked_non_recommended
 #     * Else → no signal, no-op (rc=0)
@@ -73,7 +76,7 @@ emit_rejection_if_signal() {
   # Compose tags. Generic auq-rejection + per-category.
   local tags_json
   tags_json=$(jq -nc --arg cat "$auq_category" \
-    '["auq-rejection", $cat]')
+    '["auq-rejection", $cat]') || return 1
 
   # Compose summary with picked option.
   local summary="user picked '${picked}' over '${recommended:-<no recommendation>}' for '${suggestion}'"

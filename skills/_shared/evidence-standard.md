@@ -53,11 +53,12 @@ A passing-test claim adds one requirement on top of kind 1: the tail must show a
 
 The `Stop` hook (`require-evidence-on-completion.sh`) scans final responses for these tokens. Do NOT use them without an attached Evidence Block in the same message:
 
-- `"should"`, `"probably"`, `"seems to"` — uncertainty without verification.
 - `"Great!"`, `"Perfect!"`, `"Done!"` — performative success without proof.
 - `"ready to ship"`, `"all tests pass"`, `"validation complete"`, `"shipped"` — completion claims without proof.
 
 Replace with the captured Evidence Block + a one-line summary that cites the exit code and tail.
+
+Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, but the hook does NOT scan them — they produced too many false positives on benign sentences ("Should I run tests?"). Treat them as authoring guidance, not an enforced gate.
 
 ## Stop hook reliability disclaimer
 

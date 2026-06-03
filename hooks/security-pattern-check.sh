@@ -39,6 +39,14 @@ if [ -z "$CONTENT" ]; then
   exit 0
 fi
 
+# This scan is implemented in Perl (PCRE). If perl is absent the scan cannot run;
+# say so and exit 0 rather than silently passing every edit — otherwise a
+# perl-less host looks "clean" when the guard is actually inert.
+if ! command -v perl >/dev/null 2>&1; then
+  echo "[security-pattern-check] perl not found — security scan skipped on this host." >&2
+  exit 0
+fi
+
 # Lowercased extension (no leading dot). Filenames without a dot get the
 # whole filename as ext — fine, won't match the ext-list filter.
 filename="${FILE_PATH##*/}"
@@ -114,7 +122,9 @@ check() {
   if is_allowed "$id"; then return 0; fi
   if ! ext_matches "$exts"; then return 0; fi
   local matched=""
-  matched=$(printf '%s' "$CONTENT" | RX="$regex" perl -ne 'if (/$ENV{RX}/) { printf "%d:%s", $., $_; exit 0 }' 2>/dev/null | head -1 || true)
+  # Echo only the matched construct ($&), not the whole source line ($_): the
+  # full line can carry an adjacent secret, and this string is printed to stderr.
+  matched=$(printf '%s' "$CONTENT" | RX="$regex" perl -ne 'if (/$ENV{RX}/) { my $m = $&; $m = substr($m,0,160) if length($m) > 160; printf "%d:%s", $., $m; exit 0 }' 2>/dev/null | head -1 || true)
   if [ -n "$matched" ]; then
     block "$id" "$desc" "$matched"
   fi
@@ -175,7 +185,7 @@ check "sec-weak-crypto" "js jsx ts tsx mjs cjs" \
   "createHash\\s*\\(\\s*[\"'](md5|sha1)[\"']"
 
 check "sec-weak-crypto" "py pyw" \
-  "hashlib.md5() / hashlib.sha1() — broken for security (pass usedforsecurity=False for non-security checksums)" \
+  "hashlib.md5() / hashlib.sha1() — broken for security (SHA-256+ for auth/integrity; for a non-security checksum, justify inline and bypass via allow_patterns)" \
   '\bhashlib\.(md5|sha1)\s*\('
 
 # No pattern matched — allow.

@@ -22,7 +22,8 @@ Exit codes:
 - `64` — bad / missing flags.
 - `68` — append line exceeds 4096 bytes.
 - `69` — append IO failure.
-- `71` — atomic write of replacement failed.
+- `70` — `awk` failed during `--replace` (a real runtime error, distinct from a clean no-match which is rc=0).
+- `71` — atomic write of replacement failed (also returned if `mktemp` fails while staging a `--replace`).
 
 ## MODE contract
 

@@ -63,7 +63,10 @@ fi
 new_sandbox
 echo '{"producer":"/debug","scope":"src/foo","summary":"  Stale CLOSURE  ","tags":["bug"]}' | emit_learning
 dk=$(read_log | jq -r .dedup_key)
-expected=$(printf '/debug|src/foo|stale closure' | sha256sum | cut -c1-12)
+# Golden literal, not a recompute: asserting against a fixed value catches a
+# broken/substituted hasher, whereas re-running the lib's own pipeline would
+# match itself tautologically. Value = sha256('/debug|src/foo|stale closure')[:12].
+expected="b65f5ddd668b"
 if [ "$dk" = "$expected" ]; then
   pass "auto-computed dedup_key normalizes summary (lowercase+trim+collapse)"
 else

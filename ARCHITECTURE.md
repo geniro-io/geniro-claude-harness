@@ -12,7 +12,7 @@ Every state write uses `atomic_state_write` (tmp + fsync + rename + fsync-dir); 
 
 | Tier | Purpose | Path pattern |
 |------|---------|-------------|
-| T1 Task — ephemeral | Transient working artifacts; targeted `rm -f` at Phase Ship | `planning/<task-dir>/.{kr,ce,tr,adversarial}-out.md` (subagent OUTPUT_PATH reports), `planning/<task-dir>/notes.md`, visual-verify artifacts |
+| T1 Task — ephemeral | Transient working artifacts; targeted `rm -f` at Phase Ship | `planning/<task-dir>/.{kr,ce,tr,adversarial,research}-out.md` (subagent OUTPUT_PATH reports), `planning/<task-dir>/.research-<facet>.md` (per-facet `/plan` research), `planning/<task-dir>/notes.md`, visual-verify artifacts |
 | T1.5 Task — durable | Survives Phase Ship; design artifacts the user may want to keep | `planning/<task-dir>/{spec,state}.md`, `planning/<task-dir>/plan-*.md`, `planning/<task-dir>/milestone-*.md`, `state/<skill>/<slug>/state.md`, `state/setup/state.md` singleton |
 | T2 Handoff | Inter-skill; carries structured `open_questions[]` for safety-gated consumer transitions | `state/handoff/from-<producer>-<branch>.md` |
 | T3 Persistent | CRUD / append-only | `instructions/`, `actions/`, `workflow/`, `planning/_*.md`, `knowledge/learnings.jsonl` |

@@ -157,13 +157,8 @@ On Phase 1 entry, in order:
 
 #### 1.3.1 Apply canonical effort-scaling
 
-1. **Step 1 (canonical 9 hard signals from effort-scaling.md):** new entity/table/migration, new API endpoint/route, auth/permissions/role changes, new module/subsystem, 3+ modules coordinated, OCP violation, new async/queue/background, new external integration/env vars, ambiguous intent. Any present → **Big tier**, skip to Step 3.
-2. **Step 2 (canonical 5-dim score 0-10):** Task type / Cross-boundary scope / Reversibility / Edit scatter / Pattern availability. Score sum:
-- **0** → Trivial (must ALSO be 1-2 files, single module, unambiguous intent — otherwise round up to Small)
-- **1-3** → Small
-- **4-6** → Medium
-- **7+** → Big
-3. **Step 3 (refactor-specific tier behavior):**
+1. **Steps 1-2 (canonical):** run the hard-escalation-signal check (Step 1) and the 5-dimension 0-10 score → tier band (Step 2) exactly as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`. Any hard signal forces Big; otherwise the score band sets the tier (Trivial / Small / Medium / Big). effort-scaling.md is the single source — do not restate the signals or bands here.
+2. **Step 3 (refactor-specific tier behavior):**
 
 | Tier | Refactor behavior |
 |---|---|

@@ -41,8 +41,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
   ---
   ```
 
-- **Required body section `## phase`** with one of: `RED` / `GREEN` / `REFACTOR` / `IDLE`. Phase transitions are linear: `IDLE → RED → GREEN → REFACTOR → IDLE` (REFACTOR is optional; valid to skip from `GREEN → IDLE`).
-- **Required body section `## target`** with the absolute file path the cycle is targeting (the production file under change, NOT the test file). The hook compares Edit|Write paths against this target.
+- **Required body section `## phase`** with one of: `RED` / `GREEN` / `REFACTOR` / `IDLE`. Phase transitions are linear: `IDLE → RED → GREEN → REFACTOR → IDLE` (REFACTOR is optional; valid to skip from `GREEN → IDLE`). This is the only section the hook reads — it gates Edit|Write by phase, then by test-file name pattern (see RED phase below); it does not track or compare a per-cycle target path.
 - **Atomic write:** orchestrator writes via `mktemp` + `mv -f` (POSIX-atomic — `mv` within the same filesystem is one inode swap). Direct `>` redirect is forbidden — a partial write during compaction leaves the file unreadable mid-cycle. Sample shell:
 
   ```bash
@@ -59,7 +58,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
 2. **Run the test command** (project-specific, captured from CLAUDE.md). Capture stdout/stderr + exit code verbatim.
 3. **Verify exit code != 0 AND the failure signature matches the behavior under test.** A test that fails with `ImportError: no module named X` does not prove the new behavior is uncovered — it proves the test file is malformed. The signature must be a real assertion failure (`AssertionError`, `expected X got Y`, or equivalent).
 4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` schema: command, exit code, last 3 lines of output. Reasoning-from-the-diff is forbidden — the captured run is the only proof.
-5. **Update state file:** `## phase\nRED` and `## target\n<absolute path of production file under change>`. Use the atomic-write procedure above.
+5. **Update state file:** set `## phase` to `RED`. Use the atomic-write procedure above.
 
 If exit code is 0 (test passes on current code), REJECT the RED step — the test is testing existing behavior, not the new behavior. Re-author the test with a tighter assertion before proceeding.
 
@@ -86,7 +85,7 @@ REFACTOR is optional but strongly preferred. Skip with explicit IDLE; do not lea
 The PreToolUse hook `enforce-tdd-order.sh` reads `.geniro/state/tdd/state-<slug>.md` on every `Edit` and `Write` call. Logic:
 
 - If state file does not exist OR `## phase` is `IDLE` → exit 0 (no gating; TDD cycle not active).
-- If `## phase` is `RED` AND the Edit|Write target file does NOT match `*test*` / `*.spec.*` / `*_test.go` / `tests/**` → exit 2 with a stderr block that opens `[tdd-order] TDD cycle in RED phase — author the failing test BEFORE production code.`, points at this file, echoes the state-file path and the blocked target path, and notes the bypass (`add "tdd-order" to .geniro/safety.json allow_patterns`).
+- If `## phase` is `RED` AND the Edit|Write target file does NOT match a test convention (`tests/**` / `test/**` / `__tests__/**` directories; `*.spec.*`; `*_test.go`; or a `test_*` / `test-*` / `*_test.*` / `*-test.*` / `*.test.*` filename) → exit 2 with a stderr block that opens `[tdd-order] TDD cycle in RED phase — author the failing test BEFORE production code.`, points at this file, echoes the state-file path and the blocked target path, and notes the bypass (`add "tdd-order" to .geniro/safety.json allow_patterns`).
 - If `## phase` is `GREEN` or `REFACTOR` → exit 0 (production-code edits are expected in these phases).
 
 The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user without retry. The hook is read-only — it never writes the state file; only the orchestrator writes (per § State file contract single-writer).
@@ -106,7 +105,7 @@ The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user 
 
 A consumer skill correctly applies the TDD cycle when:
 
-- [ ] State file `.geniro/state/tdd/state-<slug>.md` exists with `branch:` / `worktree:` / `timestamp:` frontmatter fields and `## phase` + `## target` sections.
+- [ ] State file `.geniro/state/tdd/state-<slug>.md` exists with `branch:` / `worktree:` / `timestamp:` frontmatter fields and a `## phase` section.
 - [ ] RED phase wrote an Evidence Block showing exit code != 0 with a real assertion-failure signature.
 - [ ] GREEN phase wrote an Evidence Block showing exit code == 0 for the new test AND the full suite.
 - [ ] REFACTOR phase (if entered) ran the full test suite, not just the cycle's test.

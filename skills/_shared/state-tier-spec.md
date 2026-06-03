@@ -31,7 +31,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | **T2 — HANDOFF** | Inter-skill data hand-off | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
-**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter (subagent reports — `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`; ad-hoc scratch `notes.md`; screenshots `playwright-verify.png`). They never pass through `validate_state_file`. T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships. The Phase-Ship cleanup contract `rm -f`s ONLY the T1 ephemeral list; T1.5 durable files persist for skill chains.
+**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter (subagent reports — `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `.research-out.md`, and per-facet `.research-<facet>.md` from `/plan`; ad-hoc scratch `notes.md`; screenshots `playwright-verify.png`). They never pass through `validate_state_file`. T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships. The Phase-Ship cleanup contract `rm -f`s ONLY the T1 ephemeral list; T1.5 durable files persist for skill chains.
 
 ---
 
