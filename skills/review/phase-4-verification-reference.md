@@ -7,6 +7,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — gets ONE fr
 - §1 — When this fires
 - §2 — Input contract (what each verifier receives)
 - §3 — Output contract (verifier emits)
+- §3.5 — Resolve embedded "confirm / verify" asks
 - §4 — Spawn batch shape
 - §5 — Result aggregation and demotion rules
 - §6 — Anti-rationalization
@@ -29,6 +30,8 @@ Each verifier spawn receives ONLY:
 - The cited code slice — orchestrator reads the file at finding `file:line ± 30` lines and inlines into the prompt.
 - 1-hop caller grep results — orchestrator runs `grep -rn "<symbol>" --include="*.<ext>"` for the cited symbol; pipe results capped at 50 lines.
 - 1-2 sibling test references for the same symbol — orchestrator greps test directories (`test/`, `tests/`, `__tests__/`, `spec/`); capped at 20 lines.
+
+When the finding's body asks the author to confirm something about ANOTHER file, symbol, or migration (a "confirm X" / "verify Y" claim), the orchestrator also includes the evidence needed to check it — the PR's changed-file list (`git diff --name-only <base>...HEAD`), `git log --oneline -- <cited-path>`, or the relevant grep — so the verifier can resolve the claim rather than pass it through. See §3.5.
 
 Each verifier does NOT receive:
 
@@ -63,6 +66,18 @@ Field semantics:
 
 ---
 
+## 3.5 Resolve embedded "confirm / verify" asks
+
+Some findings — most often migration, regression, or scope findings — phrase part of their body as a request for the author to confirm something: "confirm both migrations ship in the same PR", "verify this symbol has no other callers", "make sure the dropped column isn't read elsewhere". When that something is checkable from evidence the reporter can reach (the diff, the changed-file list, git history, a grep), the verifier resolves it rather than letting the "confirm X" reach the PR. Pushing a verifiable check onto the reader is the offloading failure `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4 prevents.
+
+- The orchestrator supplies the needed evidence in the verifier prompt (§2): the PR changed-file list, `git log` for the cited path, or the caller grep already gathered.
+- The verifier checks the claim and rewrites the finding body to state the verified fact — e.g. "Both migrations are in this PR's diff; combining the add and drop is safe" or "Migration X is NOT in this diff — the drop is unsafe against an older revision" — emitted as `validation: clarified` so the orchestrator replaces the "confirm X" phrasing with the resolved result.
+- Only a genuinely unverifiable residue stays as a human-facing note — e.g. whether a migration was deployed to an environment independently, which is not recorded in git. Narrow the finding to just that residue and tag it `[INTENT-CHECK]`.
+
+The verifier never leaves a checkable "confirm X" in a finding that will be posted.
+
+---
+
 ## 4. Spawn batch shape
 
 Orchestrator-side (in /geniro:review Phase 4.2):
@@ -92,7 +107,7 @@ Critical: ALL verifier spawns fire in ONE assistant response, same assistant tur
 After all verifiers return, the orchestrator processes results:
 
 1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier`. Do NOT propagate to Phase 4.3 test-confirmation gate or Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged.
-2. **`validation: clarified`** — update the finding's `Decision Type:` to match the verifier's `recommended_action`. Append verifier `confidence` and `evidence` to the finding body. Keep finding in active set.
+2. **`validation: clarified`** — update the finding's `Decision Type:` to match the verifier's `recommended_action`. Append verifier `confidence` and `evidence` to the finding body. Keep finding in active set. When the verifier resolved an embedded "confirm X" ask (§3.5), replace that phrasing in the finding body with the verified result it returned — the posted finding states the fact, never the un-run check.
 3. **`validation: confirmed`** — append verifier `confidence` and `evidence` to the finding body. Keep finding in active set (decision-type unchanged).
 4. **State-file persistence** — write `validation`, `recommended_action`, `verification_confidence`, `verification_evidence` to the per-finding body schema in `phase-6-handoff-reference.md` (handoff schema bump from m6-v1 → m6-v2).
 
@@ -110,6 +125,7 @@ After all verifiers return, the orchestrator processes results:
 | "CRITICAL findings are reliable by definition — skip verification for CRITICALs." | CRITICALs can be admitted under §4.1 signals #1 (convergence) / #3 (criteria pre-resolved) / #4 (confidence ≥80) without an explicit Evidence-Block — a convergent CRITICAL with weak quoting is exactly the case empirical reproduction catches. Skipping verification for CRITICALs because they "look right" is sycophancy at maximum stake: a confirmed-without-evidence CRITICAL lands on the PR, gates `/geniro:implement` Phase 1, and surfaces to the user as load-bearing. Verify every survivor. |
 | "MEDIUM verification is overkill — these are paper cuts." | MEDIUMs that survive §4.1 carry an Evidence-Block per signal #2 (mandatory for MEDIUM) — they cite concrete code worth re-reading. The risk is the opposite of overkill: an unverified MEDIUM with `validation: refuted` (had the verifier run) propagates to `## Filtered` would-be entries on the PR. The verifier is the mechanism that distinguishes "the reviewer misread the code" from "the defect is real" at MEDIUM stake. Don't pre-judge which severities deserve grounding — let the verifier ground them. |
 | "The finding's `suggested-fix:` reads sensible — confirm without re-reading code." | The suggested-fix being sensible is independent of whether the defect exists. Verification reads the cited code AND the caller grep; the suggested-fix is not evidence of the defect. |
+| "The finding says 'confirm both migrations ship together' — that's the author's call, I'll pass it through." | If "ship together" means "both are in this PR's diff", that's checkable: read the changed-file list (§3.5). Resolve it and state the fact via `validation: clarified`. Only the part that isn't in git — did it deploy to an environment independently? — stays as a note. Leaving a checkable "confirm X" in a posted finding offloads your job onto the reader. |
 
 ---
 

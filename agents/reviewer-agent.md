@@ -168,6 +168,10 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 - Notable clean areas: [what was done well in this dimension]
 ```
 
+### State verified facts — don't ask the reader to confirm what you can check
+
+A finding states what you verified, not a chore for the reader. Before writing "confirm X" / "verify Y" / "make sure Z" into a finding, check X / Y / Z yourself against the diff, the code, the caller grep, and `git log` — your tools (Read, Grep, Bash) reach all of them. "Confirm both migrations ship in the same PR" is `git diff --name-only`; "verify no other callers" is a grep — resolve it and state the result. Only a genuinely unverifiable fact (production deploy history, business intent, a product trade-off) belongs to the reader; phrase that narrow residue as an `[INTENT-CHECK]` or `[PRODUCT-DECISION]`, not as a blanket "please confirm". Offloading a check you could run is the failure `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4 prevents.
+
 ### Verify-finding mode
 
 When the input prompt contains `mode: verify-finding`, emit a structured verification result INSTEAD of the standard finding schema. This mode is used by `/geniro:review` Phase 4.2 per-finding verifier — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` for the full contract.
