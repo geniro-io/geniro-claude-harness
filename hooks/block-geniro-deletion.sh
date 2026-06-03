@@ -15,6 +15,10 @@
 # Blocked by default:
 #   - rm -rf .geniro / .geniro/                    (whole tree)
 #   - rm -rf .geniro/<single-segment>              (e.g. .geniro/instructions/)
+#   - shell-equivalent forms of the above that the segment gate would otherwise
+#     miss: trailing glob (.geniro/instructions/* , .geniro/*), doubled slashes
+#     (.geniro//instructions/), parent-escape (.geniro/instructions/..), and a
+#     dotted state DIRECTORY name (.geniro/state/review.bak/)
 #   - find <path-with-.geniro> ... -delete         (bulk find-delete)
 #   - git worktree remove                          (worktrees often hold un-routed state)
 #
@@ -134,7 +138,14 @@ if has_rm_recursive; then
     # Trim surrounding single/double quotes
     arg="${raw#\"}"; arg="${arg%\"}"
     arg="${arg#\'}"; arg="${arg%\'}"
-    # Strip a trailing slash for segment-counting, but remember it was there.
+
+    # Remember whether the arg explicitly named a directory (trailing slash) — a
+    # dotted DIRECTORY name (.geniro/state/review.bak/) must not be mistaken for a
+    # file by the extension carve-out below.
+    had_trailing_slash=0
+    case "$arg" in */) had_trailing_slash=1 ;; esac
+
+    # Strip a trailing slash for segment-counting.
     stripped="${arg%/}"
 
     # Only inspect args that are .geniro/-rooted paths (allow optional leading ./).
@@ -150,6 +161,33 @@ if has_rm_recursive; then
 
     # Normalize: drop leading "./" so segment counts are stable.
     norm="${stripped#./}"
+
+    # Normalize to the path the shell actually deletes, so equivalent forms count
+    # at the same depth instead of slipping the segment gate:
+    #  - squeeze repeated slashes: .geniro//instructions == .geniro/instructions
+    #  - drop a trailing glob '*' segment: the shell expands .geniro/instructions/*
+    #    to every entry in the PARENT — the same loss as .geniro/instructions/.
+    while [ "$norm" != "${norm//\/\//\/}" ]; do norm="${norm//\/\//\/}"; done
+    if [ "${norm##*/}" = "*" ]; then norm="${norm%/*}"; fi
+
+    # After dropping a trailing glob, a bare `.geniro` means "delete everything in
+    # .geniro" (rm -rf .geniro/*) — the whole-tree loss spelled with a glob.
+    if [ "$norm" = ".geniro" ]; then
+      if ! is_allowed "rm-geniro-tree"; then
+        block "rm-geniro-tree" "rm -rf .geniro/* expands to every entry under .geniro/ — the same loss as rm -rf .geniro/. Use \`rm -f <single-file>\` for individual deletes."
+      fi
+      continue
+    fi
+
+    # A `..` segment escapes upward (.geniro/instructions/.. resolves to .geniro/),
+    # so it can wipe a protected parent. Reject rather than resolve it.
+    case "/$norm/" in
+      */../*)
+        if ! is_allowed "rm-geniro-subdir"; then
+          block "rm-geniro-subdir" "rm -rf on a .geniro/ path containing '..' ($arg) can escape upward and wipe a protected parent. Use an explicit path without '..'."
+        fi
+        ;;
+    esac
 
     # Count path segments (number of '/' + 1).
     slashes="${norm//[!\/]/}"
@@ -168,8 +206,10 @@ if has_rm_recursive; then
       case "$norm" in
         .geniro/state/*)
           last_seg="${norm##*/}"
-          # If last segment contains a dot followed by alphanumerics, treat as a file.
-          if [[ "$last_seg" == *.* ]] && [[ "$last_seg" =~ \.[a-zA-Z0-9]+$ ]]; then
+          # Treat as a real FILE (allow) only if the last segment has a dot+ext
+          # AND the arg did not end in a slash. A trailing slash means it is a
+          # directory — even a dotted one like review.bak/ — so it must be gated.
+          if [ "$had_trailing_slash" -eq 0 ] && [[ "$last_seg" == *.* ]] && [[ "$last_seg" =~ \.[a-zA-Z0-9]+$ ]]; then
             : # file delete (e.g. .geniro/state/review-findings-state.md) — allow
           else
             if ! is_allowed "rm-geniro-state-subdir"; then

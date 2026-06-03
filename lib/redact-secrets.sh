@@ -159,6 +159,12 @@ redact_secrets() {
     local n r repl
     while IFS=$'\t' read -r n r repl; do
       [ -z "$n" ] && continue
+      # Skip a user pattern whose regex is empty or whose regex/replacement
+      # contains a control byte we use internally (\002 sed delimiter, \001
+      # multiline newline stand-in). Such a byte would corrupt the s/// command,
+      # and the failed sed could blank the whole payload.
+      [ -z "$r" ] && continue
+      case "$r$repl" in *$'\001'*|*$'\002'*) continue ;; esac
       names+=("$n")
       regexes+=("$r")
       replacements+=("$repl")
@@ -166,7 +172,7 @@ redact_secrets() {
     done < <(jq -r '.redaction.additional_patterns[]? | [.name, .regex, .replacement] | @tsv' "$sj" 2>/dev/null)
   fi
 
-  local i name regex replacement ml matches total
+  local i name regex replacement ml matches total new delim=$'\002'
   for i in "${!names[@]}"; do
     name="${names[$i]}"
     regex="${regexes[$i]}"
@@ -197,10 +203,16 @@ redact_secrets() {
       total=$((total + ${#m}))
     done <<< "$matches"
 
+    # Control-char (\002) sed delimiter so a user pattern containing `|` can't
+    # break the s/// command. Guard the assignment: if sed exits non-zero
+    # (malformed user regex), keep the prior input rather than blanking it.
     if [ "$ml" = "1" ]; then
-      input=$(printf '%s' "$input" | tr '\n' '\001' | sed -E "s|$regex|$replacement|g" | tr '\001' '\n')
+      new=$(printf '%s' "$input" | tr '\n' '\001' \
+        | sed -E "s${delim}${regex}${delim}${replacement}${delim}g") \
+        && input=$(printf '%s' "$new" | tr '\001' '\n')
     else
-      input=$(printf '%s' "$input" | sed -E "s|$regex|$replacement|g")
+      new=$(printf '%s' "$input" | sed -E "s${delim}${regex}${delim}${replacement}${delim}g") \
+        && input="$new"
     fi
 
     if [ "$total" -gt 0 ] && _red_audit_enabled; then

@@ -1,6 +1,6 @@
 # Test-First Gate
 
-Canonical AskUserQuestion gate fired by skills before dispatching code-writing agents. Always-WAIT in Medium/Big scope; auto-defaults to "Author failing test first" in Small.
+Canonical AskUserQuestion gate fired by skills before dispatching code-writing agents. Always-WAIT — the user's pick is the contract in every mode and lane that fires it.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the AUQ shape or the result-handling table.
 
@@ -12,7 +12,7 @@ Skipping the gate is the documented anti-pattern in the superpowers `test-driven
 
 ## When this fires
 
-- `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change constitution requires existing tests to lock the behavior; if none exists, the gate fires before Phase 2 per-step execution begins).
+- `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change guarantee requires existing tests to lock the behavior; if none exists, the gate fires before Phase 2 per-step execution begins).
 
 The gate does NOT fire in:
 - `/geniro:implement` — Phase 2 decomposes the work via TodoWrite into sequential todos (one in-progress at a time) followed by Phase 3's reviewer pipeline (`tests` dimension covers test-first behaviour); a per-todo Test-First check would be redundant against that dimension.
@@ -57,9 +57,9 @@ When the user picks "Test exists & failing", the orchestrator MUST verify the na
 |---|---|
 | "This is a one-line bugfix, TDD is overkill." | If the bug recurred, it's because no test caught it. RED locks the bug into the regression suite — one line of test, one line of fix, permanent coverage. The "overkill" framing inverts the cost: the test is cheap, the recurrence is expensive. |
 | "I'll write the test after the production code, in the same commit." | The state file enforces order; the agent will hit exit 2 from `enforce-tdd-order.sh` on production-file Edit before a test exists per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § Hook enforcement. Same-commit grouping doesn't satisfy the discipline; same-message ordering does. |
-| "Auto-mode means the gate should auto-default to whatever's fastest." | TDD-skip is not a gray area — it's an explicit user opt-out with a justification trail. Auto-defaulting to "Skip TDD" is forbidden. The Small-scope auto-default is "Author failing test first" — the recommended, safe path. |
+| "Auto-mode means the gate should auto-default to whatever's fastest." | TDD-skip is not a gray area — it's an explicit user opt-out with a justification trail. Fire the AUQ and let the user pick; auto-defaulting to any option — even the safe Recommended one — substitutes the orchestrator's guess for context only the user has. |
 | "The user said 'just fix it' — that means skip the gate." | "Just fix it" is a velocity hint, not a discipline waiver. The user is asking for less ceremony, not for less correctness. Default to "Author failing test first"; if the user reads the AUQ and picks "Skip TDD (justify)", THAT is the explicit opt-out. |
-| "I'll fire the gate but auto-pick the Recommended option silently." | That's auto-defaulting to a non-skip option, which is allowed in the Small-scope auto exception above — but only when scope qualifies AND auto-mode is active. In every other case, fire the AUQ; the user's pick is the contract, not the orchestrator's inference of it. |
+| "I'll fire the gate but auto-pick the Recommended option silently." | Auto-picking even the Recommended option is still auto-defaulting — it swaps the user's pick for the orchestrator's inference. Fire the AUQ; the user's choice is the contract. An empty answer is an upstream bug → plain-text re-ask, never a silent pick. |
 
 ## Definition of Done
 

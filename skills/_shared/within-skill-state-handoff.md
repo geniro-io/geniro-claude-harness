@@ -37,7 +37,7 @@ When `git` is unavailable or the project isn't a git repo, the fallback chain pr
 
 ## Producer contract
 
-Every producer of a within-skill state file MUST:
+Every producer of a within-skill state file must:
 
 1. Compute the slug per `## Slug rules`.
 2. Write to the slug-scoped path: `.geniro/state/<skill>/<slug>/state.md` (subdir-per-slug layout for all four — debug, refactor, onboard, investigate — all session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
@@ -61,7 +61,7 @@ The frontmatter `branch:` field is the source of truth on resume — even if two
 
 ## Consumer contract
 
-On skill start (or resume after compaction), every consumer MUST:
+On skill start (or resume after compaction), every consumer must:
 
 1. Compute current branch + slug per `## Slug rules`.
 2. Try to read `.geniro/state/<skill>/<slug>/state.md` (primary path; subdir-per-slug layout for debug, refactor, onboard, investigate alike).
@@ -75,7 +75,7 @@ On skill start (or resume after compaction), every consumer MUST:
 
 ## Mismatch handling
 
-Four cases — consumers MUST handle all four:
+Four cases — consumers must handle all four:
 
 **Case A — Headers match current branch + worktree.** Proceed silently with the resume. No user-visible message needed.
 

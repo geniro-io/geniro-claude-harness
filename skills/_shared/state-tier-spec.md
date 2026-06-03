@@ -75,7 +75,7 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 
 ### Tier-exempt — TDD-cycle state file
 
-- `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; the PreToolUse hook `enforce-tdd-order.sh` reads it; sub-agents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase and a target path so the hook can gate `Edit`/`Write` at the right moment — it is not a frontmatter-bearing durable artifact and is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
+- `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; the PreToolUse hook `enforce-tdd-order.sh` reads it; subagents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase and a target path so the hook can gate `Edit`/`Write` at the right moment — it is not a frontmatter-bearing durable artifact and is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
 
 ---
 
@@ -128,7 +128,9 @@ approvals:
 
 ### T2 required `open_questions` array
 
-Producers that surface ambiguous-how-to-fix decisions or scope questions write them as structured entries. Consumers (downstream skills) MUST gate on `status: unresolved` before taking any mutating action — code edits, posting to external systems, status transitions, etc.
+Producers that surface a genuine judgment call — a scope or decision question whose answer changes what the producer posts or does — write it as a structured entry. Consumers (downstream skills) gate on `status: unresolved` before any mutating action — code edits, posting to external systems, status transitions, etc. — so the skill never acts on a question the user has not yet answered.
+
+A producer records a question here ONLY when it cannot determine the answer itself and the answer changes what the producer posts or does. It does NOT record a checkable claim (verify it instead, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4) and it does NOT record a pure "how should X be fixed?" question — a finding carries its own recommended action, and the downstream fixer resolves fix specifics when it fixes.
 
 ```yaml
 open_questions:
@@ -180,6 +182,7 @@ open_questions:
       option_id: B
       rationale: "Spec.md is explicit; honoring it preserves the project's PR-scope hygiene. The smoke-test data gap is recoverable via a follow-up seeder PR."
     related_findings: [F1, F4]                      # optional — finding IDs this question gates (cross-reference into ## Findings body)
+    related_hypotheses: [H2]                         # optional — /geniro:debug equivalent: Hypothesis IDs this question gates
     status: unresolved                              # enum: unresolved | resolved | wontfix
     resolution:                                     # populated when status moves out of `unresolved`
       picked: "Split — revert api seeders to a separate PR"
@@ -189,14 +192,14 @@ open_questions:
 ```
 
 **Producer responsibilities:**
-- Initialize `open_questions: []` in the handoff frontmatter. NEVER use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
+- Initialize `open_questions: []` in the handoff frontmatter; never use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
 - Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
 - **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich `AskUserQuestion` preview per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust. Producer-side context is cheaper to author once than to reconstruct downstream.
 - When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
 
 **Consumer responsibilities:**
-- Before any mutating action that depends on the handoff (Edit/Write in /geniro:implement; `gh api POST /reviews` in /geniro:review's draft-post path; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, fire an AUQ batch chained across the unresolved entries (cap-extension when >4), persist each answer back to the producer's file via `atomic_state_write`, then proceed.
+- Before any mutating action that depends on the handoff (Edit/Write in /geniro:implement; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, fire an AUQ batch chained across the unresolved entries (cap-extension when >4), persist each answer back to the producer's file via `atomic_state_write`, then proceed.
 - A consumer that finds `unresolved` entries and ships anyway is a contract violation.
 
 **Free-text body fallback:** the body section `## Open Questions` MAY mirror the frontmatter as a human-readable view (Markdown bullet list with `id` anchors), but the frontmatter is the source of truth. Validators check the frontmatter only; the body is informational.
@@ -216,7 +219,7 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 
 **`/geniro:debug` producer-specific `authored_tests` array (T2 handoff only):**
 
-Carries every F→P reproduction test authored during the debug run as the machine-readable source-of-truth for downstream consumers. The body `**Reproduction test:**` line (scientific mode) and `**Test file:**` lines (adversarial mode) remain as a human-readable mirror; consumers prefer this frontmatter array and fall back to body parse only for legacy handoffs (m7-v1).
+Carries every F→P reproduction test authored during the debug run as the machine-readable source-of-truth for downstream consumers. The body `**Reproduction test:**` line (scientific mode) and `**Test file:**` lines (adversarial mode) remain as a human-readable mirror; consumers prefer this frontmatter array and fall back to body parse only for legacy handoffs that predate it (those without an `authored_tests` frontmatter array).
 
 ```yaml
 authored_tests:

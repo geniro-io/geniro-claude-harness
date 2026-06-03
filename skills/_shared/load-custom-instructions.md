@@ -27,7 +27,7 @@ A natural-language "Load X" directive does not reliably trigger the Read tool �
 
 Three modes:
 
-1. **`MODE: initial-load` — the physically-first action of every consumer skill that ingests instructions.** Runs once at skill start, BEFORE any phase work. Default label is `**Step 0 — Load custom instructions.**`. When the "Step 0" label is already used for a different purpose in the consumer (e.g. `implement`'s pre-existing "Step 0 — Complexity Gate (Lane Selection)"), use a distinct first-action label instead — e.g. `**Load custom instructions (first action — runs before any Phase 1 step).**`. The rule is "physically first action", not "labeled Step 0".
+1. **`MODE: initial-load` — the physically-first action of every consumer skill that ingests instructions.** Runs once at skill start, BEFORE any phase work. Default label is `**Step 0 — Load custom instructions.**`. When the "Step 0" label is already used for a different purpose in the consumer (e.g. a consumer whose Step 0 is a complexity gate), use a distinct first-action label instead — e.g. `**Load custom instructions (first action — runs before any Phase 1 step).**`. The rule is "physically first action", not "labeled Step 0".
 2. **`MODE: refresh` — phase-boundary re-read.** Runs at each refresh site the consumer prescribes. Compaction between the initial load and the current phase may have silently dropped the rules; the explicit re-Read is the only durable mitigation.
 3. **NOT invoked for** surgical single-rule extraction — that's a different contract from load-and-apply.
 
@@ -122,7 +122,7 @@ The loader applies these as:
 - **Constraints → hard gates.** Evaluated at the boundary of the phase named in each subsection, or globally if not phase-scoped.
 - **Additional Steps → extra steps inserted at the named phase boundary.** If the per-skill file declares an Additional Step for a phase that doesn't exist in the consumer (e.g. `debug` has no PHASE 1 — it has step 1 / Observe), apply where it fits and skip the rest.
 
-Consumer SKILL.md files MUST NOT duplicate this Rules/Steps/Constraints semantics in their own text. That phrase migrates entirely into this helper; consumer call sites say only "Apply this helper, echo per contract" — nothing more.
+Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantics in their own text. That phrase migrates entirely into this helper; consumer call sites say only "Apply this helper, echo per contract" — nothing more.
 
 ## Anti-rationalization
 
@@ -148,5 +148,5 @@ Consumer SKILL.md files MUST NOT duplicate this Rules/Steps/Constraints semantic
 - [ ] Every Read emits exactly one echo line per §Echo contract (cwd success / primary-worktree success / not-found)
 - [ ] File-not-found (after fallback) triggers the "No `<name>` found — skipping." echo, not an error
 - [ ] `LOAD_TIER` decides whether per-skill and `code-style.md` are part of the load set
-- [ ] Consumer SKILL.md files do NOT duplicate the producer-side Rules/Constraints/Steps semantics — that lives here only
-- [ ] Refresh sites use "since the previous load" wording (NOT "since Phase 1")
+- [ ] Consumer SKILL.md files do not duplicate the producer-side Rules/Constraints/Steps semantics — that lives here only
+- [ ] Refresh sites use "since the previous load" wording (not "since Phase 1")

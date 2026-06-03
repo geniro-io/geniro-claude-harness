@@ -55,7 +55,7 @@ The spec enumerates files, modules, endpoints, entities, or surfaces that the ch
 **schema cite:** section 2 (Scope — Included). Each bullet there is a scoped item the diff must touch. Section 4 (Assumptions) often contains conditional scope ("assuming the auth middleware is in place, …") — cross-check.
 
 **How to detect:**
-- Extract scoped items from PLAN CONTEXT: -schema mode, parse section 2 bullets; in fallback mode, scan for explicit file paths, module names, table names, endpoint paths, "must include X", "add Y to Z", bulleted "the following will change:" lists.
+- Extract scoped items from PLAN CONTEXT: schema-aware mode, parse section 2 bullets; in fallback mode, scan for explicit file paths, module names, table names, endpoint paths, "must include X", "add Y to Z", bulleted "the following will change:" lists.
 - For each scoped item, check the changed-files list in `DIFF CONTEXT` for a corresponding entry (path match, basename match, or a file under the named module).
 - If a scoped item has no matching changed file, flag it.
 
@@ -176,7 +176,7 @@ The plan names an operational concern that requires observability — a rollout 
 
 The spec's section 11 (Done Condition) names an observable signal that defines completion (e.g., "all 5 acceptance tests green", "PR approved by stakeholder X", "feature ships behind flag AND telemetry shows ≥1 successful use"). The diff must achieve, or visibly progress towards, that signal — not just touch the named files.
 
-**Skip when not -schema mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only when `geniro_kind: design-doc` frontmatter is present.
+**Skip when not schema-aware mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only when `geniro_kind: design-doc` frontmatter is present.
 
 **schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check the /geniro:plan validator check #9 (`stopping_condition`) — the spec validator that ensured section 11 has a concrete observable signal.
 
@@ -193,7 +193,7 @@ The spec's section 11 (Done Condition) names an observable signal that defines c
 
 The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field enumerates tools the change needs (e.g., specific CLI binaries, infra services, MCP connectors). The diff or local environment must show all listed tools are actually available — a spec promising "requires `kubectl` + `helm`" but landing in a repo without either ships broken.
 
-**Skip when not -schema mode.** (No section 7 anchor.)
+**Skip when not schema-aware mode.** (No section 7 anchor.)
 
 **schema cite:** section 7 (Tools Required) — tool listing. Frontmatter `tools_required: [list]` — may also enumerate.
 

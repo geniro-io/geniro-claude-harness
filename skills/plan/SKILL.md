@@ -1,6 +1,6 @@
 ---
 name: geniro:plan
-description: "Use to turn a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
+description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: inherit
@@ -59,7 +59,7 @@ mode-detect → [problem-discovery: --prd only] → explore → [visual-companio
 
 Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve.
 
-**Terminal states:** `done`, `aborted`. the SessionStart treats both as "planning complete or cancelled — no resume needed".
+**Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed".
 
 **Phase contracts** are defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`:
 
@@ -91,7 +91,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 3. **Permission before side-effect.** Phase 6 `Write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — enforced by the plan-mode mutation guard (frontmatter `allowed-tools` minus `Edit`; PreToolUse Bash guard allows `Write` only under `.geniro/planning/**` or `.geniro/state/**`).
 4. **Bounded and structured tool results.** Phase 1 research-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 5. **Escalation gates, not silent abort.** Phase 7 validator 3-round → AUQ. Phase 8 user-revision 3-round → AUQ. Phase 3 ≤5 questions → consolidation forced. NO Class-A hard kill caps.
-6. **Final answer grounded in observations.** Phase 5 section content MUST cite Phase 1 explore findings (`file:line` references) — not generic prose. Phase 7 validator includes a "citations present" check.
+6. **Final answer grounded in observations.** Phase 5 section content cites Phase 1 explore findings (`file:line` references), not generic prose — the Phase 7 validator includes a "citations present" check that fails an uncited section.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
@@ -101,7 +101,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 
 ## Budgets — quality-first framing
 
-This skill has **NO hard kill caps**. All limits are **escalation gates that surface to user**, not abort triggers. User tokens unlimited — no "task aborted: budget exhausted" failure modes.
+This skill has no hard kill caps. All limits are escalation gates that surface to the user, not abort triggers. User tokens are unlimited — no "task aborted: budget exhausted" failure modes.
 
 **Quality gates (Class-B — escalate to user, do not abort):**
 

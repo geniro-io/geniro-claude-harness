@@ -25,7 +25,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 You refactor. You validate behavior preservation. You do NOT commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
-The constitutional rule (zero behavior change) is enforced per-step via the orchestrator-inline regression test gate AND post-execution via the final regression run. PRODUCT-DECISION findings always escalate because picking one resolution path is itself a behavior change.
+The zero-behavior-change guarantee is enforced per-step via the orchestrator-inline regression test gate AND post-execution via the final regression run. PRODUCT-DECISION findings always escalate because picking one resolution path is itself a behavior change.
 
 ---
 
@@ -52,7 +52,7 @@ The canonical loop invariants apply, with four skill-specific notes:
 
 ## Budgets — Quality-First
 
-This skill has **NO hard kill caps**. Same model as other skills.
+This skill has no hard kill caps. Same model as other skills.
 **Quality gates (escalate to user, do not abort):**
 
 | Gate | Cap | Where | Past threshold |
@@ -77,7 +77,7 @@ This skill has **NO hard kill caps**. Same model as other skills.
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (reviewer-agent, custom reviewers), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (registration ladder: `geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with body inlined). Cache the resolved rung for the rest of the session.
 
-Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt MUST satisfy the six pre-inlined fields.
+Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies the six pre-inlined fields, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
 | Spawn | Tier | When |
 |---|---|---|
@@ -102,7 +102,7 @@ Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standa
 
 ## Universal Rule: All Choice Questions Use AskUserQuestion
 
-Every user-facing choice in this skill MUST go through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The enumerated gates are examples, not an exhaustive list.
+Route every user-facing choice in this skill through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — a plain-text choice bypasses the approvals persistence the structured tool records. The enumerated gates are examples, not an exhaustive list.
 
 ---
 
@@ -255,7 +255,7 @@ state.md transitions: `plan` → `apply` once approval complete. `## Plan` body 
 
 ## Phase 2 — Apply
 
-state.md `phase: apply`. The orchestrator executes the approved plan, one step at a time, with per-step validation. The zero-behavior-change constitutional rule is enforced via the per-step regression test pass.
+state.md `phase: apply`. The orchestrator executes the approved plan, one step at a time, with per-step validation. The zero-behavior-change guarantee is enforced via the per-step regression test pass.
 
 ### 2.1 Refresh custom instructions on entry
 
@@ -312,7 +312,7 @@ Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `
 
 ### 2.4 Final regression run + Evidence Block
 
-After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change invariant held.
+After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change guarantee held.
 
 If regression failed: fire AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git checkout -- .` after explicit user confirmation. state.md → `phase: reverted` (terminal).
 
@@ -346,7 +346,7 @@ Full spawn template (acceptance criteria, pre-inlined `code-style.md`, focus are
 
 **PRODUCT-DECISION findings → escalate (always wait for the user, every tier):**
 
-A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor guarantees zero behavior change. Picking one is a behavior change, contradicting the constitution. Phase 3 ESCALATES PRODUCT-DECISION to `/geniro:implement`; does NOT gate-and-fix in-skill.
+A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor guarantees zero behavior change. Picking one is a behavior change, contradicting the zero-behavior-change guarantee. Phase 3 ESCALATES PRODUCT-DECISION to `/geniro:implement`; does NOT gate-and-fix in-skill.
 
 Surface every PRODUCT-DECISION finding via `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`). 4 fixed options (ADR-eligibility determines whether 4th option included):
 
@@ -505,11 +505,11 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "This smell is too small to fix" | If the plan says fix it, fix it. Small smells compound. |
 | "I'll batch multiple transformations" | One atomic transformation at a time. Always. The per-step regression gate exists to catch behavior drift on the smallest possible unit. |
 | "Tests are passing so I'll skip the blocked step protocol" | The protocol exists for the NEXT failure. Follow it — Phase 2 §2.2 Blocked Step Protocol applies to ALL transformations regardless of prior-step success. |
-| "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. The zero-behavior-change constitution is non-negotiable. |
+| "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. The zero-behavior-change guarantee is non-negotiable. |
 | "This duplication needs a new shared helper" | Run the Existing Abstraction Audit first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`. If a utility / service / hook already exists nearby that could absorb this duplication via a small extension, prefer extending it. Only create a new shared helper when no analogue exists OR when extending the existing one would require adding a parameter or conditional that complicates it (Rule of Three). |
 | "All detected smells are real issues" | Generic smell categories flag intentional repo patterns. Without filtering against THIS repo's conventions via Phase 1 §1.5 smell evidence + KEEP/FILTER synthesis matrix, you'll refactor code that was designed that way on purpose. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
-| "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change constitution applies even when the in-scope behavior is buggy. |
+| "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change guarantee applies even when the in-scope behavior is buggy. |
 | "I'll hardcode `model='sonnet'` at the reviewer-agent spawn site to cap cost — the user might not realize Opus is expensive" | Forbidden. Plugin subagents inherit the orchestrator tier per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user chose Opus at session start with full knowledge of cost; overriding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that is the canonical knob. |
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 | "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Hard kill caps abort legitimate complex refactors mid-stride. The skill is quality-first — no hard kill caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
@@ -539,7 +539,7 @@ Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level
 - [ ] Final regression run captured as Evidence Block
 - [ ] Diff sanity check ran
 - [ ] Independent reviewer + custom reviewers ran (Medium+ only)
-- [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT) — refactor's zero-behavior-change constitution means multi-path findings are NOT fixed in-skill
+- [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT) — refactor's zero-behavior-change guarantee means multi-path findings are NOT fixed in-skill
 - [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → "Findings remain" AUQ
 - [ ] MEDIUM findings noted in completion summary; proceeded
 - [ ] Completion summary presented in chat

@@ -102,7 +102,10 @@ fi
 
 # 5. Credential / secret files
 if ! is_allowed "write-credentials"; then
-  if echo "$FILE_PATH_LOWER" | grep -qE 'credentials\.|secrets\.'; then
+  # Anchor to a path-segment boundary so a file literally named credentials.*
+  # or secrets.* is blocked, without false-positiving on names that merely
+  # contain the substring (e.g. the plugin's own lib/redact-secrets.sh).
+  if echo "$FILE_PATH_LOWER" | grep -qE '(^|/)(credentials|secrets)\.'; then
     block "write-credentials" "credentials/secrets file"
   fi
 fi

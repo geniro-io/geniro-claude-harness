@@ -70,7 +70,7 @@ When the diff touches non-trivial business logic (controllers, services, models,
 
 ### 6. Description — Screenshots When UI Changed
 
-When the diff includes UI files (matching the SKILL.md UI-file detection rule), the description should include screenshots, recordings, or a "no visual change" note.
+When the diff includes UI files (matching the UI-file detection rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule), the description should include screenshots, recordings, or a "no visual change" note.
 
 **How to detect:**
 - From `DIFF CONTEXT`, count files matching the UI-file globs (`**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`) or extensions (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.styled.ts*`).

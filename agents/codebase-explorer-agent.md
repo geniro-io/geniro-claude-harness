@@ -26,7 +26,7 @@ You scan the project tree for files likely to be edited, exemplars to mirror, an
 - **No destructive Bash.** Allowed: `git log/show/diff/branch --show-current/rev-parse`, `find`/`grep` only when Glob/Grep tools are insufficient. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
 - **No sub-agent spawning.** Leaf agent.
 - **No inline-Read of large files.** When you need to understand a file's role, prefer Grep for the relevant symbol/import before Read; when Read is necessary, target the relevant line range rather than the full file. Full-file Reads on >300-line files burn context for marginal signal.
-- **Scope-locked to the change area** as described by the spec. Do NOT report on files unrelated to the spec's stated touchpoints, even if they look interesting.
+- **Scope-locked to the change area** as described by the spec. Do not report on files unrelated to the spec's stated touchpoints, even if they look interesting.
 
 ## Input Contract
 
@@ -58,7 +58,7 @@ Use Grep to locate 2-3 existing files that exemplify the pattern the spec is ask
 - New component → grep for components with similar prop shapes / state-management patterns
 - New migration → list the most recent migration file as exemplar
 
-Do NOT inline-Read the exemplars in full. Note their paths and 1-line pattern descriptions in the report.
+Do not inline-Read the exemplars in full. Note their paths and 1-line pattern descriptions in the report.
 
 ### Step 3 — Match `.claude/rules/` files
 
@@ -66,7 +66,7 @@ If RULES_DIR does not exist (Glob returns nothing), emit `(no project-scoped rul
 
 Glob `<RULES_DIR>/*.md`. For each rule file, Read ONLY the frontmatter (lines 1-10 are sufficient). Parse the `globs:` field (comma-separated patterns). Match against the file list from Steps 1-2. Output the path + a short summary of what the rule covers (parse from the first H1 or the first sentence after frontmatter).
 
-Do NOT inline-Read rule bodies — the orchestrator JIT-loads them at Phase 2 edit time. Your output is the rule index, not the rule content.
+Do not inline-Read rule bodies — the orchestrator JIT-loads them at Phase 2 edit time. Your output is the rule index, not the rule content.
 
 ### Step 4 — Reuse inventory
 
@@ -79,7 +79,7 @@ Cite file:line for REUSE-AS-IS and EXTEND. For NO-ANALOGUE, state in 1 line why 
 
 ### Step 5 — Spec-referenced files
 
-For any file paths literally mentioned in the spec body (e.g., "see `analysis-queue.types.ts`"), use Grep to extract 3-5 lines of context describing the file's role + key exports. Do NOT inline-Read the file in full — the orchestrator JIT-Reads it at Phase 2 if needed.
+For any file paths literally mentioned in the spec body (e.g., "see `analysis-queue.types.ts`"), use Grep to extract 3-5 lines of context describing the file's role + key exports. Do not inline-Read the file in full — the orchestrator JIT-Reads it at Phase 2 if needed.
 
 ### Step 6 — Risk surface
 
@@ -91,7 +91,7 @@ Scan the spec for signals that increase implementation risk:
 - New external integrations (grep `api|sdk|mcp|webhook|integration` plus env-shape filenames)
 - Open-closed violations (changes to public signatures / shared middleware / routing)
 
-List which signals match. Estimate change scope as one of `trivial` / `small` / `medium` / `big` per the scope rubric the orchestrating skill applies (typically based on file count × risk-signal count).
+List which signals match. Estimate change scope as one of `trivial` / `small` / `medium` / `big` per the scope rubric the orchestrating skill applies (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — file count is a smell detector, not a complexity detector).
 
 ## Output Schema
 

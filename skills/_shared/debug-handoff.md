@@ -2,7 +2,7 @@
 
 **Status:** Authoritative for consuming `/geniro:debug` T2 handoff files.
 
-When `/geniro:debug` ran earlier in the same project, it left T2 hand-off files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode — canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode — canonical) — and authored regression tests at the project's normal test paths. Consumer skills MUST detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations).
+When `/geniro:debug` ran earlier in the same project, it left T2 hand-off files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode — canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode — canonical) — and authored regression tests at the project's normal test paths. Consumer skills detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations) — an implementation about to start cannot run a regression test absent from its working tree.
 
 ## Step 1: Scan
 

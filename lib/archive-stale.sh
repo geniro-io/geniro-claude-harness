@@ -60,7 +60,7 @@ archive_stale_learnings() {
   tau="${GENIRO_DECAY_TAU_DAYS:-90}"
   # Validate tau up front — a non-numeric value otherwise reaches `--argjson`
   # below and surfaces only as an opaque "jq failed" error.
-  if ! printf '%s' "$tau" | grep -Eq '^[0-9]+(\.[0-9]+)?$'; then
+  if ! printf '%s' "$tau" | grep -Eq '^([0-9]+(\.[0-9]+)?|\.[0-9]+)$'; then
     echo "archive-stale: GENIRO_DECAY_TAU_DAYS must be a non-negative number (got '$tau')" >&2
     return 2
   fi

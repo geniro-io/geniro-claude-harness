@@ -19,7 +19,7 @@
 | T1 `approvals[]` frontmatter | Task-scoped record of every AUQ resolution; survives compaction but deleted on Ship | One task |
 | L2 `user_rejected_suggestion` (via this helper) | Cross-session pattern signal — "user typically rejects X" | Forever (or until pruned) |
 
-The two layers complement: `approvals[]` stays the authoritative within-task record; L2 captures **only** rejection-signal subset for future-session pattern matching. Acceptance (picked == recommended, no explicit-no signal) is NOT recorded to L2 — no rejection signal to learn from.
+The two layers complement: `approvals[]` stays the authoritative within-task record; L2 captures **only** rejection-signal subset for future-session pattern matching. Acceptance (picked == recommended, no explicit-no signal) is not recorded to L2 — no rejection signal to learn from.
 
 ## API
 
@@ -33,7 +33,7 @@ emit_rejection_if_signal \
 **Args:**
 - `<producer>` — emitting skill ID (e.g., `/geniro:plan`)
 - `<scope>` — file/module/topic context (or `global`)
-- `<auq_category>` — approvals[] category (e.g., `approach_choice`, `ship_mode_default`, `risk_class_high`)
+- `<auq_category>` — approvals[] category (e.g., `approach_choice`, `ship_mode`, `risk_class_high`)
 - `<suggestion>` — what the user was offered (one line)
 - `<picked>` — what the user picked (label of selected option)
 - `[recommended]` — optional; the option marked `(Recommended)` if any
@@ -64,7 +64,7 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 | /geniro:implement | Phase 3 ship-mode AUQ | producer=/geniro:implement, scope=<branch-or-topic>, auq_category=ship_mode, suggestion=<offered ship mode>, picked=<user's choice>, recommended=<recommended ship mode> |
 | /geniro:actions | run-mode risk-class confirm AUQ | producer=/geniro:actions, scope=actions/<slug>, auq_category=risk_class_<low\|medium\|high>, suggestion=Run <slug> action, picked=<user's choice>, recommended=Run |
 
-**Optional:** any skill with an AUQ that has a clear "yes/no" or "recommended/alternative" semantic can invoke this helper. Skills with only-informational AUQs (e.g., section-by-section confirm) should NOT invoke — no rejection signal there.
+**Optional:** any skill with an AUQ that has a clear "yes/no" or "recommended/alternative" semantic can invoke this helper. Skills with only-informational AUQs (e.g., section-by-section confirm) should not invoke — no rejection signal there.
 
 ## Read-side protocol
 
@@ -73,9 +73,9 @@ Skills that **read** these L2 entries (to surface "user previously rejected X" h
 1. Call `query-learnings --type user_rejected_suggestion --tag auq-rejection [--tag <category>] --scope <current>` at Phase 1 of relevant skill.
 2. Surface result count to user in pre-AUQ display:
    ```
-   Info: User previously rejected <suggestion> in <scope> on <ts>.
+   User previously rejected <suggestion> in <scope> (<relative-time>).
    ```
-3. Use surfaced info to re-rank or omit the rejected option from current AUQ — but do NOT silently skip the AUQ entirely. Pattern is informational, not gating.
+3. Use surfaced info to re-rank or omit the rejected option from current AUQ — but do not silently skip the AUQ entirely. Pattern is informational, not gating.
 
 Suggested read sites:
 - /geniro:plan Phase 4 (before showing approach AUQ)

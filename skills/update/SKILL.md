@@ -41,7 +41,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project
 
 External sends: not in `/geniro:update` ACI ever.
 
-## Termination case → state mapping
+## Termination case → message
 
 | Cause | Message |
 |---|---|
@@ -187,7 +187,7 @@ If the new plugin publishes `$PLUGIN_PATH/.claude-plugin/manifest.sha256`, verif
 
 ```bash
 HASH_FAIL=0
-MISSING=
+MISSING=()
 for f in \
 "$PLUGIN_PATH/skills/_shared/load-custom-instructions.md" \
 "$PLUGIN_PATH/skills/_shared/spawn-agent.md" \
@@ -202,10 +202,10 @@ done
 
 If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
 
-- **Question:** `WARNING: integrity check failed — <list of missing files>. Continue?`
+- **Question:** `WARNING: integrity check failed — ${MISSING[*]}. Continue?`
 - **Options:**
 - `Abort` — Exit without continuing; investigate (Recommended)
-- `Continue anyway (NOT recommended)` — Proceed with possibly broken install
+- `Continue anyway (not recommended)` — Proceed with possibly broken install
 
 ### Step 2 — User-content survival check
 
@@ -233,7 +233,7 @@ fi
 
 If diff non-empty, AUQ:
 
-- **Question:** `WARNING: user content under .geniro/instructions/ or .geniro/actions/ changed during update. Files affected: <list>. The plugin update should NOT touch user-authored content.`
+- **Question:** `WARNING: user content under .geniro/instructions/ or .geniro/actions/ changed during update. Files affected: <list>. The plugin update should not touch user-authored content.`
 - **Options:**
 - `Show diff and continue (review later)` — Print diff, then continue to the migration walk
 - `Abort — preserve current state` — Exit; investigate manually (Recommended)
@@ -333,7 +333,7 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | not read | not written | `/geniro:setup re-run` handles CLAUDE.md refresh; `/geniro:update` only emits a recommendation if user-project CLAUDE.md may be stale |
+| CLAUDE.md (project context) | not read | not written | `/geniro:setup re-run` handles CLAUDE.md refresh; `/geniro:update` only emits a recommendation if user-project CLAUDE.md may be stale |
 | L2 learnings.jsonl | not read | not written | `/geniro:update` is operational, not knowledge-producing |
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
@@ -344,6 +344,10 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 | Your reasoning | Why it's wrong |
 |---|---|
 | "My recalled experience says the MIGRATION.md version headings don't match the package version, so I'll range-filter or read only the newest block." | A recalled learning does not override the walk-all consumption contract. The version heading is not a selection gate — walk EVERY entry across ALL sections (Phase 4) and let each read-only auto-detect decide relevance. The current skill body and the MIGRATION.md preamble are authoritative over any prior-session recollection. |
+| "The version-confirm AUQ is a formality — I'll just run the update." | That AUQ is the one explicit permission gate before a mutating marketplace + plugin update touches the install. Skipping it removes the user's only chance to cancel before the network fetch and registry write. Fire it unless `--dry-run`. |
+| "I ran the Auto-fix command, so the migration entry is resolved." | Auto-fix can apply partially. Re-run the entry's `Auto-detect:` after fixing; only an empty result confirms resolution. Reporting "fixed" without the re-detect can leave the user on a half-migrated install. |
+| "A file is missing from the hash-check but the update likely worked — continue." | A missing key file means a broken install, not a benign blip. Fire the Cancel-as-recommended AUQ and let the user decide; auto-continuing ships a plugin that may fail mid-skill later. |
+| "The user-content survival diff shows changes, but they're probably benign." | The update must never touch `.geniro/instructions/` or `.geniro/actions/`. Any diff is either a plugin bug or tampering — surface it via the AUQ; never auto-dismiss content the user authored. |
 
 ## REFERENCE
 

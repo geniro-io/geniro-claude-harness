@@ -43,20 +43,20 @@ workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / A
     issue_id: CI-300
     url: https://linear.app/...
 budget: # goal-state block — start
-max_files_to_edit: <int|null>
-max_lines_changed: <int|null>
-time_budget: <duration|null> # e.g., "4h", "1d", or null for unbounded
+  max_files_to_edit: <int|null>
+  max_lines_changed: <int|null>
+  time_budget: <duration|null> # e.g., "4h", "1d", or null for unbounded
 checkpoints: # list of {step_anchor, name} pairs
-- step_anchor: step-3
-name: "DB migration applied"
-- step_anchor: step-7
-name: "Tests green"
+  - step_anchor: step-3
+    name: "DB migration applied"
+  - step_anchor: step-7
+    name: "Tests green"
 forbidden_actions: # list of explicit "don't do this" rules
-- "do NOT modify production database schema directly — use migrations only"
-- "do NOT bypass auth middleware"
+  - "do NOT modify production database schema directly — use migrations only"
+  - "do NOT bypass auth middleware"
 approval_required_for: # advisory: step_anchors flagged for a user-approval pause — goal-state documentation only (the enforced /geniro:implement Edit/Write gate is the handoff open_questions[] check, not a step-anchor match)
-- step-3
-- step-9
+  - step-3
+  - step-9
 tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in env — goal-state end
 ---
 ```
@@ -80,7 +80,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 
 **Schema-version compatibility:** `geniro_schema_version: m5-v1` (legacy, no `workflow_refs`) and `m5-v2` (this template) are both valid downstream. Readers accept both; strict validators (e.g., `validator-checks.md` check #14) verify the field shape only on `m5-v2`.
 
-**`status:` namespace note.** reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
+**`status:` namespace note.** The state-tier schema reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
 
 ## Body — 11 sections
 

@@ -61,8 +61,6 @@ geniro_schema_version: m9-v1
 task_slug: <slug>
 worktree: <abs-path>
 question_type: <one of the types in the Phase 1 Step 1 classification table>
-agents_spawned: []
-dive_deeper_rounds: 0
 ---
 
 ## Scope
@@ -192,7 +190,7 @@ For each relevant discovery, one block matching:
 **Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions; bulleted]
 
 Do NOT speculate about intent beyond what commit messages state.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -237,7 +235,7 @@ For each relevant discovery, one block matching:
 **Disagreements:** [where sources conflict, if applicable]
 
 Report facts with sources. Flag opinions as opinions.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 
@@ -283,7 +281,7 @@ For each issue found, one block matching:
 - Suggested fix: [text]
 
 If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
 

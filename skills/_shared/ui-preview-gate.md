@@ -2,9 +2,15 @@
 
 A pre-approval procedure that produces a textual description of how the UI will look after a change, lets the user critique or rewrite it in their own words, and only then returns control to the caller's approval flow. Callers invoke this when a change touches UI files so the user shapes visual intent BEFORE any code is written.
 
+## UI-file detection rule
+
+Canonical definition, shared across `/geniro:review` (design dimension + PR-metadata screenshot check), `/geniro:implement` (Pre-Ship Visual Verification gate), and this preview gate. Defined here once so no skill body owns it — cross-skill coordination lives in `_shared/`.
+
+A file is a UI file if its path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR its extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`. A UI-gated step is skipped when no changed/affected file matches.
+
 ## When to run
 
-Skip entirely unless at least one file in the predicted affected-files list matches the UI-file detection rule in `skills/review/SKILL.md` §UI-file detection rule (the globs for `components/pages/app/views/ui` directories plus JSX/TSX/Vue/Svelte/CSS/SCSS/styled extensions). Callers must check this condition before entering the procedure — do NOT re-check here.
+Skip entirely unless at least one file in the predicted affected-files list matches the §UI-file detection rule above. Callers must check this condition before entering the procedure — do NOT re-check here.
 
 ## Procedure
 

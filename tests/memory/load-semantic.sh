@@ -9,7 +9,7 @@ trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
 SANDBOX_DIR=""
 new_sandbox() {
-  SANDBOX_DIR="$TMPDIR_BASE/$(date +%s%N)-$RANDOM"
+  SANDBOX_DIR="$(mktemp -d "$TMPDIR_BASE/sandbox.XXXXXXXXXX")"
   mkdir -p "$SANDBOX_DIR/.geniro/planning"
   cd "$SANDBOX_DIR" || return 1
   git init -q

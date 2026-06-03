@@ -54,7 +54,7 @@ The invariants apply unchanged:
 
 ## Budgets — Quality-First
 
-This skill has **NO hard kill caps**. Runs at opus by default (deep hypothesis-driven investigation) per `skills/_shared/model-tiering.md`.
+This skill has no hard kill caps. Runs at opus by default (deep hypothesis-driven investigation) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
 **Quality gates (escalate to user, do not abort):**
 
@@ -518,7 +518,7 @@ Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff
 
 ### A3. Skip conditions
 
-Mirror canonical skip-matrix at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Adversarial mode is SKIPPED and the skill reports `"no adversarial pass — <reason>"` when:
+Adversarial mode is SKIPPED and the skill reports `"no adversarial pass — <reason>"` when:
 
 - Empty diff (nothing to test).
 - Diff contains zero production-code files (docs / config / lock / generated only).
@@ -531,11 +531,11 @@ Runs the **RED phase** of the canonical cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_
 1. **Resolve the diff** (A2). Pre-inline full diff + changed-file contents for the spawn prompt.
 2. **Detect the project test framework.** Read CLAUDE.md Essential Commands + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract test command, naming convention, and 1-2 exemplar test files closest to changed code.
 3. **Spawn `adversarial-tester-agent`** to AUTHOR RED tests — see Spawn Template (A5). The agent writes failing tests against today's code; no fix is authored.
-4. **Independently verify RED.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`, extract authored test file paths from frontmatter `authored_tests[]` (preferred) or fall back to body `**Test file:**` lines for legacy m7-v1 handoffs. Run the project test command **once per authored test** (single independent re-run — the agent already ran a 3× flake check per its Step 5). Tests that do not fail deterministically are deleted from disk AND removed from the body report AND pruned from the frontmatter `authored_tests[]` array — re-emit the handoff file via `atomic_state_write` so the consumer (/geniro:implement Phase 1 Step 12) sees the kept set only. **Re-emit contract:** the only delta is the pruned `authored_tests[]` entries plus the corresponding `**Test file:**` body lines. Preserve every other frontmatter key (`tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `open_questions`) and every other body section (Adversarial Findings summary, hypothesis details, Discarded / Inconclusive, etc.) byte-for-byte from the agent's original write — this is a surgical patch, not a rewrite. Mirror the producer-preserving pattern used by Phase 1 Step 12 sub-bullet 6 of `/geniro:implement` (Preserve `id`, `source`, `question`, `related_findings` on resolution writes). This is the orchestrator-side RED-verification per `tdd-cycle.md` § RED phase Step 3.
+4. **Independently verify RED.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`, extract authored test file paths from frontmatter `authored_tests[]` (preferred) or fall back to body `**Test file:**` lines for legacy m7-v1 handoffs. Run the project test command **once per authored test** (single independent re-run — the agent already ran a 3× flake check per its Step 5). Tests that do not fail deterministically are deleted from disk AND removed from the body report AND pruned from the frontmatter `authored_tests[]` array — re-emit the handoff file via `atomic_state_write` so the consumer (/geniro:implement Phase 1 Step 12) sees the kept set only. **Re-emit contract:** the only delta is the pruned `authored_tests[]` entries plus the corresponding `**Test file:**` body lines. Preserve every other frontmatter key (`tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `open_questions`) and every other body section (Adversarial Findings summary, hypothesis details, Discarded / Inconclusive, etc.) byte-for-byte from the agent's original write — this is a surgical patch, not a rewrite. Mirror `/geniro:implement`'s producer-preserving resolution-write pattern (preserve `id`, `source`, `question`, `related_findings` when writing a resolution). This is the orchestrator-side RED-verification per `tdd-cycle.md` § RED phase Step 3.
 5. **Present Adversarial Findings** (A6 template).
 6. **Escalate fix authoring** — reuse escalation AUQ (Trivial / Non-trivial / Cannot-verify / Leave-it-to-me) with findings file path referencing `from-debug-adversarial-<branch>.md` instead of `from-debug-<branch>.md`. The authored test file paths inside are the escalation targets. The receiving skill writes the fix and runs GREEN verification (`tdd-cycle.md` § GREEN phase). If zero red tests survived re-verification, SKIP entirely — report `"no bugs found in scanned diff"` and go directly to Cleanup; terminal state `adversarial-aborted` with `## Termination reason: no-bugs-found-in-diff`.
 
-state.md `## Authored Tests` body section tracks each authored test path + status (kept / discarded).
+state.md `## Authored Tests` body section tracks each authored test per the column set in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` (# / Path / Targeted source / Category / Confidence / F→P status).
 
 ### A5. Spawn template
 

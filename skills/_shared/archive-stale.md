@@ -33,7 +33,7 @@ Or direct invocation:
 
 **Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so archival mutations target the canonical L2 log. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
 
-## Criteria (ALL must hold)
+## Criteria (all must hold)
 
 An entry becomes a stale candidate iff:
 
@@ -42,7 +42,7 @@ An entry becomes a stale candidate iff:
 3. **access_count == 0** — entry has never been returned by a query that called `record_access`.
 4. **not already deprecated** — `(.deprecated // false) == false`. Already-deprecated entries are skipped so re-runs report 0 candidates (idempotency).
 
-The four-way AND ensures conservative bias — high-trust recent OR frequently-accessed entries are protected even if individually old.
+The four-way AND ensures conservative bias — high-trust recent or frequently-accessed entries are protected even if individually old.
 
 ## Output
 

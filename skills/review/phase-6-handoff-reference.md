@@ -35,11 +35,11 @@ This skill confirms: /geniro:review does NOT apply fixes. Phase 6 hand-off messa
 
 ## 2. Gate chain — fire each as a separate AUQ
 
-Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a different thing AND MUST be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
+Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a different thing and must be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
 
 **Firing order:**
 
-1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — open questions gate downstream action by definition. Full procedure: §2.5 below.
+1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip.
 4. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
@@ -54,7 +54,9 @@ Sequential: do not fire gate N+1 until gate N's answer is collected.
 
 This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gates — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`.
 
-**Why it runs first.** Open questions surface ambiguous-how-to-fix decisions (e.g., "API seeder additions in-scope or split into a separate PR?"). Resolving them changes what the Action gate is actually choosing between. Letting Action gate fire first means the user picks "/geniro:implement findings" without realizing 4 questions still gate the implementation.
+**Why it runs first.** An open question here is one whose answer changes what the Action gate is choosing between (e.g., "API seeder additions in-scope or split into a separate PR?" — the answer changes which findings get posted). Letting Action gate fire first means the user picks "/geniro:implement findings" without realizing those questions still gate the implementation.
+
+**What this gate does NOT ask.** /geniro:review records an open question ONLY when it cannot determine the answer itself and the answer changes what it posts — a genuine scope or judgment call. It does NOT record (so never surfaces here) a "how should X be fixed?" question: a reporter doesn't decide fixes, a finding carries its own recommended action, and /geniro:implement resolves fix specifics when it fixes. It also does not pose anything it could verify itself — a checkable claim is verified into a finding, not recorded as a question (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4).
 
 **Procedure:**
 
@@ -100,7 +102,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 5. When >4 unresolved entries, chain into a second AUQ batch per the AskUserQuestion cap-extension pattern.
 
-6. After the last unresolved entry resolves, ALL `open_questions[].status` MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
+6. After the last entry resolves, every `open_questions[]` entry MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
 
 ---
 
@@ -179,7 +181,7 @@ open_questions:                       # MUST be present; MAY be empty []
 <list, surfaced for user awareness>
 
 ## Filtered
-<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), not-actionable (real-but-unreachable per the §3.6 actionability bar in phase-4-verification-reference.md), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
 
 ## Authored Tests
@@ -387,7 +389,7 @@ When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to 
 
 Before any of the Post-drill steps below fire, re-read state.md and verify THREE invariants. If any fails, abort the Post drill — never post to GitHub with unresolved ambiguity, missing user picks, or refuted findings baked in.
 
-**Invariant A — `open_questions[]` empty of `unresolved`.** The §2.5 Pre-gate runs first in Phase 6 and should leave `open_questions[]` with zero `unresolved` entries by the time Action gate fires.
+**Invariant A — no `open_questions[]` left `unresolved`.** The §2.5 Pre-gate runs first in Phase 6 and should leave zero entries with `status: unresolved` by the time Action gate fires.
 
 **Invariant B — every PRODUCT-DECISION finding has `step0_status: resolved` (or `wontfix`).** The §3 Step 0 per-finding gate runs after §2.5 and flips each PRODUCT-DECISION finding's `step0_status: pending` → `resolved` once the user's AUQ pick lands. A finding still at `pending` here means §3 never fired for it — and §7.5 would route it to `comments[]` by `File:` sentinel alone, with either AUQ chip label (`"Open question"` from §2.5 or `"Open decision"` from §3) potentially leaking into the comment body as if it were a tag.
 

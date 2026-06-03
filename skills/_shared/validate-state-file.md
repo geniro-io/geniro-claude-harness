@@ -84,7 +84,7 @@ The 7 steps validated, in order:
 
 ## Recovery AUQ template
 
-When `validate_state_file` returns non-zero, the calling skill MUST open an `AskUserQuestion`:
+When `validate_state_file` returns non-zero, the calling skill must open an `AskUserQuestion`:
 
 ```
 Q: state.md failed validation — <error from stderr>.
@@ -94,7 +94,7 @@ Options:
   - "Delete and restart"      — Drop the state file; skill re-runs from spec.
                                 Loses in-flight state.
   - "Open in editor"          — Pause skill; you fix the file manually; re-run validation.
-  - "Update worktree path"    — Only if error is code 8 (worktree path stale).
+  - "Update worktree path"    — Only when the saved worktree path is stale (the worktree no longer exists at that location).
   - "Skip validation (emergency)" — Continue regardless. Risk: silent corruption.
 ```
 

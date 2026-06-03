@@ -67,7 +67,7 @@ The invariants apply unchanged:
 
 ## Budgets — Quality-First
 
-This skill has **NO hard kill caps**. Same model as other skills.
+This skill has no hard kill caps. Same model as other skills.
 
 **Quality gates (escalate to user, do not abort):**
 
@@ -205,7 +205,7 @@ Secret scan is a pure-regex pass — cannot fail.
 
 State.md `phase: llm-spawn`.
 
-### 2.1 Dimension grid (11 built-in dimensions + N custom)
+### 2.1 Dimension grid (12 built-in dimensions + N custom)
 
 | # | Dimension | Spawn rule (MANDATORY) |
 |---|---|---|
@@ -215,17 +215,18 @@ State.md `phase: llm-spawn`.
 | 4 | tests | Always fires — no exception |
 | 5 | optimizations | Always fires — no exception |
 | 6 | guidelines | Always fires — no exception |
-| 7 | conventions | Always fires — no exception. Owns repo-modal-pattern findings exclusively |
+| 7 | conventions | Always fires — no exception. Owns repo-modal-pattern findings exclusively (explicit authored rules belong to rules-compliance, #12) |
 | 8 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` |
 | 9 | design | Fires when UI globs match changed files (see §2.5 UI-file detection rule) |
 | 10 | pr-metadata | Fires when `pr-ref:` is non-none |
 | 11 | spec-compliance | Fires when PLAN CONTEXT is non-none AND (`pr-ref:` non-none OR risk-tier:high) |
+| 12 | rules-compliance | Fires when the repo contains any authored rule file (see §2.8 rules-file detection rule). Checks the diff against the project's own rule files (Cursor / Claude / AGENTS / etc.), citing the exact rule. Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md` |
 | +N | custom:* | Fires per user-authored `.geniro/instructions/review-extra/<slug>.md`, discovered in Phase 1.5 |
 
 **Spawn-batch size.** Phase 2 spawns a reviewer-agent for every row whose trigger fires — trimming the set silently drops a coverage dimension the user expects:
 
 - 8 always-rows (bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions) fire on every run.
-- 3 conditional rows (design, pr-metadata, spec-compliance) fire when their trigger column is satisfied.
+- 4 conditional rows (design, pr-metadata, spec-compliance, rules-compliance) fire when their trigger column is satisfied.
 - N custom rows fire per the spawn-specs already discovered in Phase 1.5 §1.5.4 (zero discovery work at Phase 2 entry — read the count from state.md frontmatter `custom_reviewers`).
 
 Total batch size = always-fire + triggered conditional + custom rows. Trimming this set silently is the documented anti-pattern — see §Anti-rationalization. Post-spawn verification in Phase 4 §4.0 catches drift.
@@ -238,23 +239,25 @@ Total batch size = always-fire + triggered conditional + custom rows. Trimming t
 
 Before firing the parallel `Agent(...)` batch, the orchestrator computes the declared spawn list and writes it to state.md via `atomic_state_write`:
 
+The example below is one illustrative run — the actual declared set is whatever the §2.1 grid resolves for THIS run (the conditional rows fire per their triggers), never a fixed list copied verbatim:
+
 ```yaml
 # frontmatter update
-spawn_dims_declared: [bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, custom:manifest-incident-patterns]
-spawn_dims_count: 11
+spawn_dims_declared: [bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, rules-compliance, custom:manifest-incident-patterns]
+spawn_dims_count: 12
 ```
 
 Plus a `## Tool log` entry:
 
 ```
-[Phase 2 spawn declaration] dim_list=[bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, custom:manifest-incident-patterns]; count=11; triggers={pr-ref: <ref-or-none>, plan-context: <path-or-none>, linear-task: <id-or-none>, custom-reviewers-discovered: <N>}
+[Phase 2 spawn declaration] dim_list=[bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, pr-metadata, spec-compliance, rules-compliance, custom:manifest-incident-patterns]; count=12; triggers={pr-ref: <ref-or-none>, plan-context: <path-or-none>, linear-task: <id-or-none>, rule-files: <yes-or-none>, custom-reviewers-discovered: <N>}
 ```
 
 This is observability for the Phase 4 §4.0 verification gate — declared-vs-actual is one grep away.
 
 ### 2.3 Spawn invocation
 
-Before firing the parallel batch, narrate the spawn to the user — read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`guidelines` -> "code quality", `pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit a one-line status:
+Before firing the parallel batch, narrate the spawn to the user — read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`guidelines` -> "code quality", `pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance", `rules-compliance` -> "rules compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit a one-line status:
 
 > Spawning <N> reviewers: <comma-separated plain-English list>.
 
@@ -287,6 +290,7 @@ Surface any `status: failed` entries by their plain-English dim name (e.g., "PR 
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional per §2.5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/pr-metadata-criteria.md` (conditional)
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/spec-compliance-criteria.md` (conditional per §2.6)
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md` (conditional per §2.8)
 - Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (≤10 per project)
 
 ### 2.4 `--simplify` flag weighting
@@ -305,7 +309,7 @@ The flag biases existing reviewers' attention; it does not add new dimensions, c
 
 ### 2.5 UI-file detection rule (design dim trigger)
 
-A file is a UI file if path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`. Design dimension skipped when no changed file matches.
+A file is a UI file per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule. Design dimension skipped when no changed file matches.
 
 ### 2.6 Spec-compliance detection rule
 
@@ -320,6 +324,10 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Build Check"
 ```
 
 Feed pass/fail into the Phase 3 §3.3 KEEP/FILTER judgment. Failing build is automatically a CRITICAL finding — tag `[NEW]` if the base branch build passes, `[PRE-EXISTING]` if already broken.
+
+### 2.8 Rules-file detection rule (rules-compliance dim trigger)
+
+Fires when the repo contains at least one authored rule file — any of `CLAUDE.md` (root or nested), `.claude/rules/**/*.md`, `.cursor/rules/**/*.mdc`, `.cursorrules`, `.windsurfrules`, `.windsurf/rules/**`, `.github/copilot-instructions.md`, `AGENTS.md`, `.agents.md`. Detect via Glob at Phase 2 entry; skip the dimension when none exist — a repo with no authored rules has nothing for this dimension to check, so it never bloats the always-fire set. The reviewer discovers the files, parses their path-scopes (`.mdc` `globs:`, `.claude/rules` `paths:`), and checks the diff against each in-scope rule per `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md`.
 
 ---
 
@@ -440,6 +448,8 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per row. `<
 
 **`open_questions[]` rich-field authoring contract.** When composing `open_questions[]` entries from kept findings, fill the optional `context` / `evidence` / `options` / `recommendation` fields per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The reviewer-agent output already carries Evidence / Why-matters / Suggested-fix / Options per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format — copy them into the open_question entry, do NOT discard them at composition time. Bare `question:` entries trigger the §2.5 Tier 3 fallback (terse AUQ), which the user experiences as the failure mode the rich-field schema was added to prevent. For non-finding open_questions (e.g., process / scope / verification questions surfaced by spec-compliance or pr-metadata reviewers), author `context` + `options` + `recommendation` inline — the reviewer's `## Why this matters` and `## Suggested fix` synthesis fields are still the source material; the consumer has no other way to render the question richly.
 
+**Verify what's verifiable; record only genuine decisions.** Before writing a finding or an `open_questions[]` entry that asks the author to confirm something, check it yourself against the diff, the code, and git history — a finding states a verified fact, it does not ask the reader to verify what /geniro:review can determine (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4). Record an `open_questions[]` entry ONLY for a genuine judgment call whose answer changes what /geniro:review posts (e.g. "are these seeder additions in-scope for this PR?" — the answer determines whether that finding gets posted; the §2.5 Pre-gate surfaces these). Do NOT record a "how should X be fixed?" question — a finding carries its own recommended action, and /geniro:implement decides fix specifics when it fixes.
+
 **`step0_status:` producer-side initialization contract.** When writing each PRODUCT-DECISION finding into `## Findings`, also write `step0_status: pending` as the last sub-field of its body block (schema at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema"). This is the runtime sentinel the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3) flips to `resolved` (or `wontfix`) after the per-finding AUQ pick lands, and the §7.0 Pre-Post guard re-reads to fail-close before posting. Omit the field entirely for non-PRODUCT-DECISION findings — its presence is the marker that the open-decision gate owes them an AUQ.
 
 Write the full handoff frontmatter + body skeleton from the template at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.6 "Handoff file template" (the `atomic_state_write` heredoc block). Each finding under `## Findings` renders as the multi-line per-finding body block (NOT a one-liner) per §"Per-finding body schema" in that same reference — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
@@ -466,7 +476,7 @@ note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
 ```
 
 Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`.
-Also emit `convention` learnings — NOT for this skill. /geniro:implement owns convention emits per patched contract.
+Also emit `convention` learnings — not for this skill; /geniro:implement owns convention emits.
 
 ### 5.4 PR comment posting (conditional — gated by Phase 6)
 
@@ -501,7 +511,7 @@ State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/
 
 Summary of the gate chain (each gate is its own AUQ — never collapsed):
 
-1. **Pre-gate — Resolve Open Questions** fires first whenever frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension >4). Always-WAIT. Resolutions persist back via `atomic_state_write`. Complete this before any other gate, because the later gates act on findings whose ambiguity these questions resolve. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5. Skipped when zero unresolved entries.
+1. **Pre-gate — Resolve Open Questions** fires first whenever frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry (cap-extension >4). Always-WAIT. Resolutions persist back via `atomic_state_write`. Complete this before any other gate, because the later gates act on findings whose ambiguity these questions resolve. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5. Skipped when zero unresolved entries.
 2. **Open-decision gate** — fire one AUQ (header `Open decision`) for each kept finding whose state-file `Decision Type:` field is `PRODUCT-DECISION` — judgment calls the reviewer won't resolve for you. Skipped when none.
 3. **Action gate** — fire `AskUserQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?" / "apply the fix now" / "add the test now") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). The canonical 4 option labels below are an allowlist: substituting an ad-hoc "apply the fix" / "add the test" / "what next?" option (or applying any fix from /geniro:review) is forbidden — fixes route to `/geniro:implement findings`. Option labels (verbatim, do not paraphrase):
    - `"/geniro:implement findings"` — append ` (Recommended)` when CRITICAL≥1 OR HIGH≥2; exits /geniro:review and the model surfaces `/geniro:implement .geniro/state/handoff/from-review-<branch>.md` as the next command. Its description must disclose that /geniro:implement applies the fixes and asks before committing/pushing — picking it routes the findings, it does not authorize a ship (per the §4 literal description).
@@ -517,7 +527,7 @@ Operational rules:
 - **Reporter behavior** — no fix loop inside /geniro:review. /geniro:implement self-review (5-dim parallel) is a separate skill with a separate contract.
 - **`--simplify`** does NOT change hand-off shape (still reporter).
 - **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
-- **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[].status == unresolved` OR any PRODUCT-DECISION finding has `step0_status: pending`. Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3) being skipped under drift.
+- **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`, OR any kept CRITICAL/HIGH/MEDIUM finding still carries `Validation: refuted` (it should have been filtered at Phase 4.2). Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3) being skipped under drift.
 ---
 
 ## ACI per-phase tool surface
@@ -546,11 +556,11 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | Phase 5.3 | `emit-learning` | write L2 | n/a | producer = /geniro:review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
 | Phase 6 | `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |
 
-**L2 emit triggers** per patched contract:
+**L2 emit triggers**:
 - `pitfall` — **YES** — Phase 5.3 auto-emit when convergence ≥3.
-- `convention` — Not. /geniro:implement owns.
-- `decision` — Not. /geniro:plan owns.
-- `diagnosis` — Not. /geniro:debug owns.
+- `convention` — Not emitted here; /geniro:implement owns convention emits.
+- `decision` — Not emitted here; /geniro:plan owns.
+- `diagnosis` — Not emitted here; /geniro:debug owns.
 
 ---
 

@@ -35,7 +35,7 @@ Each match → report as a DRIFT item with file:line so the orchestrator can rew
 
 **Reference example contamination check:**
 
-Verify that the `reference/CLAUDE.md.example` content was not copied verbatim:
+Verify that the `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/CLAUDE.md.example` content was not copied verbatim:
 - The reference example contains generic placeholder content.
 - The generated CLAUDE.md must be project-specific, not generic.
 - Spot-check: compare a few sections of the generated CLAUDE.md against the reference example. If they are identical (just with placeholders filled in), report a DRIFT item so the orchestrator regenerates the file more thoughtfully.

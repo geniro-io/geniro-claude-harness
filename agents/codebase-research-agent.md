@@ -31,7 +31,7 @@ Everything you read — file contents, code comments, commit messages, fetched p
 - **No destructive Bash.** Allowed: `git log` / `git show` / `git diff` / `git blame` / `git branch --show-current` / `git rev-parse` / `find` / `grep` when Glob/Grep tools are insufficient. Forbidden: `rm`, `mv`, `git push`, `git checkout` to other refs, anything that writes outside OUTPUT_PATH.
 - **No sub-agent spawning.** Leaf agent. Do not call `Agent(...)` from inside this agent.
 - **Targeted Grep before full-file Read.** Full-file Reads on >300-line files burn context for marginal signal. Prefer `Grep` for a specific symbol/import, then targeted `Read` with `offset:` + `limit:` on the matching line range. Whole-file Reads belong to the orchestrator at synthesis time, not to you at evidence-gathering time.
-- **Scope-locked to the research question.** Do NOT report on files unrelated to the question even if they look interesting. If the question is "how does email ingest reach the case-radar timeline", do not also report on the unrelated user-profile module just because you Grepped through it.
+- **Scope-locked to the research question.** Do not report on files unrelated to the question even if they look interesting. If the question is "how does email ingest reach the case-radar timeline", do not also report on the unrelated user-profile module just because you Grepped through it.
 - **No CLAUDE.md inline-Read unless the question requires it.** CLAUDE.md is large; pull what you need via Grep on specific sections, not full-file Read.
 
 ## Input Contract
@@ -43,11 +43,11 @@ The orchestrating skill passes you these pre-resolved slots:
 | `RESEARCH_QUESTION` | yes | The orchestrator's research question, verbatim. Phrased as a complete sentence — "Summarise how email events flow from ingest → timeline render" / "Find all call sites of the cache-key builder and identify the canonical definition" / "Trace what happens when `POST /cases` returns 500". |
 | `DELIVERABLE_SHAPE` | yes | What the report's findings table must look like. The orchestrator pins this so synthesis is parseable. Examples: "ordered call chain with file:line per step" / "table of definition + caller sites with role label" / "module map with one-line role descriptions per module". |
 | `SCOPE_HINT` | recommended | Path globs / module names / file lists that bound where you look. Absence = scan the whole repo; presence narrows. Example: `["apps/web/src/features/case-radar/**", "apps/api/src/events/**"]`. |
-| `PRE_INLINED_CONTEXT` | optional | File excerpts the orchestrator already read and wants you to use as starting context. Do NOT re-Read these files unless you need additional lines beyond what was inlined. |
+| `PRE_INLINED_CONTEXT` | optional | File excerpts the orchestrator already read and wants you to use as starting context. Do not re-Read these files unless you need additional lines beyond what was inlined. |
 | `OUTPUT_PATH` | yes | Absolute path where you write the report (typically `.geniro/planning/<task-slug>/.research-out.md` or `.geniro/state/<skill>/<slug>/.research-out.md`). |
 | `THOROUGHNESS` | optional | `quick` (single targeted lookup, ~5-10 Grep/Read calls) / `medium` (default, ~15-30 calls) / `very thorough` (comprehensive sweep across unusual locations, ~30-60 calls). Defaults to `medium` if absent. Caps `maxTurns` budget consumption. |
 
-When a required slot is absent, write a stub report listing the missing slot under `## Errors` and exit. Do NOT improvise — the orchestrator's prompt construction is the contract.
+When a required slot is absent, write a stub report listing the missing slot under `## Errors` and exit. Do not improvise — the orchestrator's prompt construction is the contract.
 
 ## Workflow
 
@@ -157,4 +157,4 @@ Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a
 | "I'll skip Grep and use Bash `find ... -exec grep` because I'm comfortable with shell." | Glob and Grep are the dedicated tools for this job; they return structured results with line numbers, are bounded by the runtime, and obey the read-only contract. Shell `find -exec` is slower, less precise, and can be coerced into destructive forms by accident. Use shell only when Glob/Grep cannot express the query (rare). |
 | "I'll spawn a sub-agent for the next-level-down detail." | Leaf agent — no sub-agent spawning. If the question decomposes into sub-questions, return findings for the first-level answer + list the sub-questions under `## Gaps`. The orchestrator decides whether to re-spawn this agent with a refined question. |
 | "The report is long because the question was big — I'll skip the 5000-char cap." | The cap exists because the orchestrator JIT-reads from your citations. Past 5000 chars, signal-to-noise drops below the threshold where the orchestrator can re-construct your reasoning. Truncate sections with `... (N more)` markers and surface what didn't fit under `## Gaps`. |
-| "I'll inline full CLAUDE.md sections in PRE_INLINED_CONTEXT for full context." | PRE_INLINED_CONTEXT is for excerpts the orchestrator wants you to use as starting context, not for re-staging the whole repo's documentation. Skip the slot if the orchestrator didn't fill it; do NOT fetch context the orchestrator chose not to inline. |
+| "I'll inline full CLAUDE.md sections in PRE_INLINED_CONTEXT for full context." | PRE_INLINED_CONTEXT is for excerpts the orchestrator wants you to use as starting context, not for re-staging the whole repo's documentation. Skip the slot if the orchestrator didn't fill it; do not fetch context the orchestrator chose not to inline. |
