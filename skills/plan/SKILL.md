@@ -3,7 +3,7 @@ name: geniro:plan
 description: "Use to turn a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
-model: opus
+model: inherit
 argument-hint: "<topic-string-or-design-doc-path> [--prd]"
 ---
 

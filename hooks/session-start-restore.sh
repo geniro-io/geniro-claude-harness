@@ -79,7 +79,10 @@ if [ "$SOURCE" = "clear" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Branch + slug resolution (state-tier-spec.md §Slug rule)
+# Branch + slug resolution — canonical rule lives in
+# within-skill-state-handoff.md §Slug rules (state-tier-spec.md §Slug rule
+# delegates to it). The truncation MUST match the producers byte-for-byte, or
+# the Tier-1 direct-path match below cannot find the file they wrote.
 # ---------------------------------------------------------------------------
 
 branch="$(git branch --show-current 2>/dev/null || true)"
@@ -88,10 +91,13 @@ if [ -z "${branch:-}" ]; then
 fi
 
 slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
-if [ "${#slug}" -gt 60 ]; then
-  _suffix="$(printf '%s' "$slug" | _geniro_sha256 | head -c 8)"
-  slug="$(printf '%s' "$slug" | head -c 52)-${_suffix}"
-fi
+# First 60 chars, then strip a dash the cut may have left at the boundary —
+# identical to within-skill-state-handoff.md §Slug rules and the sibling
+# enforce-tdd-order.sh hook. A divergent form (e.g. a head-c-52 + hash suffix)
+# computes a slug no producer ever writes, so Tier 1 misses on EVERY >60-char
+# branch and silently forces the slower Tier-2 branch-frontmatter fallback.
+slug="${slug:0:60}"
+slug="${slug%-}"
 
 # ---------------------------------------------------------------------------
 # Active T1.5 state-file resolution

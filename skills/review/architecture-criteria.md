@@ -31,7 +31,7 @@ grep -c "^import\|^require\|^from" file.js
 grep -rn "import.*from\|require(" src/ | awk -F: '{print $1, $0}' > /tmp/deps.txt
 # Step 2: For each file, check if any of its imports also import it back
 for file in $(grep -rl "import\|require" src/); do
-deps=$(grep "import\|require" "$file" | grep -oP "from ['\"]\./(.*?)['\"]" | sed "s/from ['\"]\.\\///;s/['\"]//g")
+deps=$(grep "import\|require" "$file" | grep -oE "from ['\"]\./[^'\"]+['\"]" | sed "s/from ['\"]\.\\///;s/['\"]//g")  # -oE (portable ERE), not -oP (PCRE) — BSD/macOS grep lacks -P and the snippet exits rc=2
 for dep in $deps; do
 grep -q "$(basename "$file".js)\|$(basename "$file".ts)" "src/$dep"* 2>/dev/null && echo "CIRCULAR: $file <-> src/$dep"
 done
