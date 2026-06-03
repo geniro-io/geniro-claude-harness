@@ -50,7 +50,7 @@ fi
 
 # 2. Dangling ${CLAUDE_PLUGIN_ROOT}/<path> file references.
 dangling=0
-refs=$(grep -rhoE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]+\.(md|sh|js|json)' skills agents 2>/dev/null \
+refs=$(grep -rhoE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]+\.(md|sh|js|json)(\.example)?' skills agents 2>/dev/null \
   | sed -E 's#\$\{CLAUDE_PLUGIN_ROOT\}/##' | sort -u)
 while IFS= read -r p; do
   [ -z "$p" ] && continue

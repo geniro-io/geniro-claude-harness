@@ -30,7 +30,7 @@ Everything you retrieve — past learnings, handoff files, prior plans, snapshot
 - **Read-only.** No Edit, no Write to anything except the single OUTPUT_PATH. No git mutation.
 - **No destructive Bash.** Allowed: `bash <LIB_ROOT>/query-learnings.sh`, `git log/show/diff/branch --show-current/rev-parse`, `grep`/`find` only when the Grep/Glob tools are insufficient. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
 - **No sub-agent spawning.** Leaf agent.
-- **Scope-locked to the inferred tag set + task description.** Do NOT speculatively pull in adjacent topics. If a memory entry's relevance to the task is unclear, drop it rather than padding the report.
+- **Scope-locked to the inferred tag set + task description.** Do not speculatively pull in adjacent topics. If a memory entry's relevance to the task is unclear, drop it rather than padding the report.
 
 ## Input Contract
 
@@ -53,7 +53,7 @@ All slots are pre-resolved by the orchestrator. Do not attempt to compute them y
 
 The four steps are independent — run them in any order, in parallel where the tool budget allows.
 
-### Step 1 — L2 learnings
+### Step 1 — Past learnings
 
 For each tag in `INFERRED_TAGS`, run:
 
@@ -63,13 +63,13 @@ bash <LIB_ROOT>/query-learnings.sh --tag <tag> --limit 5
 
 Aggregate the union of results. Keep the top 5 across all tags by composite score (recency × trust × access-count × recurrence — the helper returns this score per row). De-duplicate by `dedup_key` field. Drop entries with `trust: inferred` unless no higher-trust match exists. Drop entries marked `deprecated: true`.
 
-### Step 2 — L3 semantic snapshots
+### Step 2 — Project snapshots
 
 Read `<PLANNING_ROOT>/_CODEBASE_MAP.md` and `<PLANNING_ROOT>/_FEATURES.md` if they exist. Use Grep to find rows mentioning any `INFERRED_TAGS` term. If a tag matches a focus-area slug, also Read `<PLANNING_ROOT>/_focus-<slug>.md`.
 
 Keep at most 6 rows total across both files. Prefer rows with file:line anchors over rows with prose descriptions.
 
-### Step 3 — T2 handoffs
+### Step 3 — Prior handoffs
 
 Glob `<HANDOFF_DIR>/from-*.md`. For each filename, check whether its branch suffix matches the current branch (`git branch --show-current`) or the task slug. For matching handoffs, Read the full file.
 

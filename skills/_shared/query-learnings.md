@@ -138,7 +138,7 @@ query_learnings --scope src/legacy/old.ts --include-archive --limit 20
 - **No fuzzy match.** `--scope` and `--type` are exact. Callers that want substring search should pipe through `jq 'select(.scope | test("..."))'`.
 - **No date-range filter.** There is no `--since`/`--until` flag. Callers can pipe through `jq 'select(.ts >= "2026-01-01")'`.
 - **Archive enumeration is glob-based.** All files matching `learnings-*.jsonl` under `.geniro/knowledge/archive/` are loaded; broken or partial archives can crash jq's slurp. Helper swallows jq errors and returns empty.
-- **Supersede filter is position-based, not `ts`-based.** Spec says "last-write-wins by ts"; impl orders by file position. They agree as long as `emit_learning` is the only writer (it appends in temporal order). A back-dated hand-injected entry with an older `ts` placed at the end of the file would still be treated as the latest. skill integration should re-evaluate.
+- **Supersede filter is position-based, not `ts`-based.** Spec says "last-write-wins by ts"; impl orders by file position. They agree as long as `emit_learning` is the only writer (it appends in temporal order). A back-dated hand-injected entry with an older `ts` placed at the end of the file would still be treated as the latest.
 - **O(n²) at scale.** The position-aware supersede filter runs `index()` per entry against the suffix of the array. Measured: 500 entries → 60ms, 1000 → 200ms, **5000 → 4.2s**. A user hitting this size has already crossed the auto-archive threshold (`GENIRO_AUTO_ARCHIVE_THRESHOLD`, see archive-stale.md) and been nudged to archive. A precomputed-superseded-set rewrite would restore O(n); deferred until a real performance complaint arrives.
 
 ## Test coverage

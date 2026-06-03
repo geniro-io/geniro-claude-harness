@@ -338,7 +338,7 @@ Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per
 
 User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`, each carrying its §4.2 `Stress-test:` verdict line + evidence; an approach demoted for a blocking risk records `Why not recommended: <blocking risk + file:line>`.
 
-** L2 emit on rejection signal:** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
+**L2 emit on rejection signal:** After appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 
 ```bash
 emit_rejection_if_signal \
@@ -412,7 +412,7 @@ Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills
 
 ### 5.3 Milestone-mode
 
-Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (Big tier with score 9+ or >15 steps). AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode fires only at Big tier; not Small/Medium/Trivial.
+Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (the Big-tier milestone threshold). AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode fires only at Big tier; not Small/Medium/Trivial.
 
 ---
 
@@ -430,7 +430,7 @@ Content: schema (11 sections) + frontmatter with goal block + optional `workflow
 
 **Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §workflow_refs).
 
-Frontmatter MUST carry `geniro_schema_version: m5-v2` when `workflow_refs:` is present. For pure inline-task /geniro:plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
+Set `geniro_schema_version: m5-v2` whenever `workflow_refs:` is present — the Phase 7 validator only shape-checks `workflow_refs` on m5-v2, so an m5-v1 spec carrying the field would escape validation. For pure inline-task /geniro:plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
 
 Use the `Write` tool. `/geniro:plan` writes only spec/state artifacts under `.geniro/planning/**` and `.geniro/state/**`; the skill's frontmatter `allowed-tools` omits `Edit`, so the only write surface is `Write` to those planning paths.
 

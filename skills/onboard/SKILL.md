@@ -65,7 +65,7 @@ The canonical loop invariants from `/geniro:implement` § Loop invariants apply 
 
 ## Quality-first budgets
 
-Quality-first framing: /geniro:onboard has **NO hard kill caps**. All limits are **escalation gates that surface to user**.
+Quality-first framing: /geniro:onboard has no hard kill caps. All limits are escalation gates that surface to the user.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -286,7 +286,7 @@ Existing safety hooks apply across all phases (file-protection / git-guardrail /
 
 ---
 
-## CODEBASE_MAP.md format example
+## _CODEBASE_MAP.md format example
 
 ````markdown
 # Codebase Map: [Project Name]

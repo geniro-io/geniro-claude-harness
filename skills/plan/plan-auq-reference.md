@@ -239,7 +239,7 @@ Empty AUQ options (`Approve / Revise / Skip` text only) degrade trust ("the skil
 
 ### 4.2 Milestone-mode AUQ (Big tasks only)
 
-Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (Big tier with score 9+ or >15 steps):
+Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (the Big-tier milestone threshold):
 
 ```yaml
 header: "Milestone slicing"

@@ -61,8 +61,6 @@ geniro_schema_version: m9-v1
 task_slug: <slug>
 worktree: <abs-path>
 question_type: <one of the types in the Phase 1 Step 1 classification table>
-agents_spawned: []
-dive_deeper_rounds: 0
 ---
 
 ## Scope

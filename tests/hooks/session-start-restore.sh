@@ -37,7 +37,7 @@ run_hook() {
 
 # Build a sandbox with a valid state.md under branch `feature/x`.
 new_sandbox() {
-  local d="$TMPDIR_BASE/$(date +%s%N)-$RANDOM"
+  local d; d="$(mktemp -d "$TMPDIR_BASE/sandbox.XXXXXXXXXX")"
   mkdir -p "$d"
   cd "$d" || return 1
   git init -q

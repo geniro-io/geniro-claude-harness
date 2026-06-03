@@ -327,7 +327,7 @@ Skip for files / diff range / branch. Mechanism:
 - `file_overlap`: integer count of intersecting changed files.
 - `linear_bonus`: +2 if sibling's PR title OR body contains a Linear ID matching `linear-parent-ref` OR appearing in `linear-sibling-task-ids:` from (parent epic OR sibling sub-task linkage). Bonus is additive: PR can earn +2 for parent-match AND +2 for sibling-sub-task-match (total +4).
 - `total_score = file_overlap + linear_bonus`.
-- Keep **top-10** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When is skipped (no workflow), `linear_bonus` is always 0 and this reduces to pure file-overlap top-10.
+- Keep **top-10** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When workflow integration is skipped (no workflow file), `linear_bonus` is always 0 and this reduces to pure file-overlap top-10.
 - For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (~200 lines per sibling — bounds total context against the higher sibling count).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**5000 chars** — drop lowest-`total_score` sibling first if exceeded.
 - Pre-inline into reviewer prompts: architecture, design, **bugs, conventions, optimizations, spec-compliance, regressions** (expanded from architecture + design only). Skipped for tests + security + guidelines + pr-metadata (orthogonal or target-PR-specific).

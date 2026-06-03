@@ -28,7 +28,7 @@ Example: task "Add rate-limiting to the upload endpoint" → `rate-limiting-uplo
 
 ## Branch-format-rule conformance
 
-When `BRANCH_FORMAT_RULE` is set (extracted from `.geniro/instructions/global.md` — e.g. a required `<type>/<ticket>-<desc>` shape, a ticket-prefix requirement, or a regex), the slug MUST conform to that pattern BEFORE it is used to create a branch:
+When `BRANCH_FORMAT_RULE` is set (extracted from `.geniro/instructions/global.md` — e.g. a required `<type>/<ticket>-<desc>` shape, a ticket-prefix requirement, or a regex), the slug must conform to that pattern before it is used to create a branch:
 
 - Compose the required components around the normalized slug (e.g. `feat/proj-123-rate-limiting-upload-endpoint`).
 - If the rule requires a ticket ID and none is in scope, surface the gap to the user rather than inventing one.

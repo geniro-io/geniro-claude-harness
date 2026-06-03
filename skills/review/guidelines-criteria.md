@@ -66,7 +66,7 @@ grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
 
 ### 3. Code Formatting & Style
 - Inconsistent indentation (tabs vs spaces mixed)
-- Line length exceeding standard (>100 chars)
+- Line length exceeding the project's configured limit (e.g. >120 chars)
 - Missing blank lines between logical sections
 - Inconsistent brace placement
 - Inconsistent spacing around operators
@@ -76,7 +76,7 @@ grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
 # Check indentation consistency
 head -20 file.js | cat -A | grep -E "^\s" | cut -c1-5 | sort | uniq -c
 # Check line length
-awk 'length > 100 {print NR": length=" length}' file.js
+awk 'length > 120 {print NR": length=" length}' file.js
 # Check brace style consistency
 grep -n "{\|}" file.js | head -10
 ```

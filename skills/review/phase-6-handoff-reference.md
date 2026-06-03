@@ -35,7 +35,7 @@ This skill confirms: /geniro:review does NOT apply fixes. Phase 6 hand-off messa
 
 ## 2. Gate chain — fire each as a separate AUQ
 
-Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a different thing AND MUST be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
+Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a different thing and must be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
 
 **Firing order:**
 

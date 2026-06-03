@@ -67,7 +67,7 @@ The invariants apply unchanged:
 
 ## Budgets — Quality-First
 
-This skill has **NO hard kill caps**. Same model as other skills.
+This skill has no hard kill caps. Same model as other skills.
 
 **Quality gates (escalate to user, do not abort):**
 
@@ -476,7 +476,7 @@ note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
 ```
 
 Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`.
-Also emit `convention` learnings — NOT for this skill. /geniro:implement owns convention emits per patched contract.
+Also emit `convention` learnings — not for this skill; /geniro:implement owns convention emits.
 
 ### 5.4 PR comment posting (conditional — gated by Phase 6)
 
@@ -527,7 +527,7 @@ Operational rules:
 - **Reporter behavior** — no fix loop inside /geniro:review. /geniro:implement self-review (5-dim parallel) is a separate skill with a separate contract.
 - **`--simplify`** does NOT change hand-off shape (still reporter).
 - **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
-- **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`. Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3) being skipped under drift.
+- **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`, OR any kept CRITICAL/HIGH/MEDIUM finding still carries `Validation: refuted` (it should have been filtered at Phase 4.2). Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3) being skipped under drift.
 ---
 
 ## ACI per-phase tool surface
@@ -556,11 +556,11 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | Phase 5.3 | `emit-learning` | write L2 | n/a | producer = /geniro:review; type = `pitfall`; trust = `verified` | append to `learnings.jsonl` |
 | Phase 6 | `atomic_state_write` | write T2 | n/a | state file path; updated `approvals[]` | whole-file rewrite |
 
-**L2 emit triggers** per patched contract:
+**L2 emit triggers**:
 - `pitfall` — **YES** — Phase 5.3 auto-emit when convergence ≥3.
-- `convention` — Not. /geniro:implement owns.
-- `decision` — Not. /geniro:plan owns.
-- `diagnosis` — Not. /geniro:debug owns.
+- `convention` — Not emitted here; /geniro:implement owns convention emits.
+- `decision` — Not emitted here; /geniro:plan owns.
+- `diagnosis` — Not emitted here; /geniro:debug owns.
 
 ---
 

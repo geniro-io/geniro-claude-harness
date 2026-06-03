@@ -84,7 +84,7 @@ The 7 steps validated, in order:
 
 ## Recovery AUQ template
 
-When `validate_state_file` returns non-zero, the calling skill MUST open an `AskUserQuestion`:
+When `validate_state_file` returns non-zero, the calling skill must open an `AskUserQuestion`:
 
 ```
 Q: state.md failed validation — <error from stderr>.

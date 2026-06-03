@@ -1,6 +1,6 @@
 ---
 name: geniro:plan
-description: "Use to turn a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
+description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: inherit
@@ -59,7 +59,7 @@ mode-detect → [problem-discovery: --prd only] → explore → [visual-companio
 
 Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve.
 
-**Terminal states:** `done`, `aborted`. the SessionStart treats both as "planning complete or cancelled — no resume needed".
+**Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed".
 
 **Phase contracts** are defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`:
 
@@ -101,7 +101,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 
 ## Budgets — quality-first framing
 
-This skill has **NO hard kill caps**. All limits are **escalation gates that surface to user**, not abort triggers. User tokens unlimited — no "task aborted: budget exhausted" failure modes.
+This skill has no hard kill caps. All limits are escalation gates that surface to the user, not abort triggers. User tokens are unlimited — no "task aborted: budget exhausted" failure modes.
 
 **Quality gates (Class-B — escalate to user, do not abort):**
 

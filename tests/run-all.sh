@@ -37,6 +37,10 @@ done < <(find tests -name '*.sh' -type f | sort)
 echo "========================================================"
 echo "Suites run:    $total"
 echo "Suites failed: $failed"
+if [ "$total" -eq 0 ]; then
+  echo "No test suites discovered under tests/ — check the runner's working directory." >&2
+  exit 1
+fi
 if [ "$failed" -gt 0 ]; then
   printf '  FAILED: %s\n' "${failed_list[@]}" >&2
   exit 1

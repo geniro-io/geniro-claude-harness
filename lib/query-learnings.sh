@@ -231,6 +231,11 @@ query_learnings() {
   fi
 
   if [ -n "$limit" ]; then
+    # --limit 0 means "no results". head -n 0 / tail -n 0 differ across platforms
+    # (GNU prints nothing, BSD errors), so handle 0 explicitly for portability.
+    if [ "$limit" -eq 0 ]; then
+      return 0
+    fi
     if [ -n "$score_min" ]; then
       # Score-sorted result: top N (head), since order is DESC by score.
       printf '%s\n' "$result" | head -n "$limit"

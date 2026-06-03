@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # block-dangerous-git.sh
 # PreToolUse hook for Bash - blocks destructive git operations
 #
@@ -32,8 +32,10 @@ fi
 # Also collapse newlines to spaces so multi-line commands (heredocs, line-continuation,
 # embedded \n) don't slip past line-oriented grep matching — a force-push on line 1
 # of a multi-line command must still trigger the block.
-# The force-push flag matchers below bound the span after `git push` with [^&;|]*
-# so a -f/--force from a separate command chained after `git push` (e.g. rm -f) does not false-positive.
+# The force-push / branch-delete / clean matchers below bound their match to the
+# span of the relevant git subcommand (up to the next &/;/| separator) so a flag
+# from a separate command chained after it (e.g. `git branch --list && gcc -DFOO`,
+# `git clean -n && tar -fd`) does not false-positive.
 PADDED=" ${COMMAND//$'\n'/ } "
 
 # Find the nearest .geniro/safety.json walking up from cwd
@@ -98,6 +100,10 @@ if ! is_allowed "force-push"; then
   if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]-[a-zA-Z]*f[a-zA-Z]*[[:space:]]'; then
     block "force-push" "git push with combined -f flag overwrites remote history"
   fi
+  # Plus-prefixed refspec (e.g. `git push origin +main`) forces the push with no flag.
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]][+][^[:space:]]+'; then
+    block "force-push" "git push with a +refspec (e.g. +main) force-overwrites remote history"
+  fi
 fi
 
 # 3. reset --hard
@@ -107,24 +113,22 @@ if ! is_allowed "reset-hard"; then
   fi
 fi
 
-# Helper: does the padded command invoke a given git subcommand?
-is_git_subcommand() {
-  local sub="$1"
-  echo "$PADDED" | grep -qE "git[[:space:]]+${sub}[[:space:]]"
-}
-
 # 4. branch -D / --delete --force
 if ! is_allowed "branch-delete-force"; then
-  if is_git_subcommand "branch"; then
+  # Extract the `git branch ...` span (up to the next &/;/| separator) and match
+  # flags only within it, so a -D/--force from a different command chained after
+  # `git branch` (e.g. `git branch --list && gcc -DFOO`) cannot false-positive.
+  BRANCH_SPAN=$(echo "$PADDED" | grep -oE 'git[[:space:]]+branch[^&;|]*' || true)
+  if [ -n "$BRANCH_SPAN" ]; then
     # Match -D whether standalone or combined into a short-flag cluster (-Df, -fD,
     # -rD, ...), mirroring the force-push combined-flag matcher. `-D` always means
     # force-delete in `git branch`; the lowercase `-d` (safe delete of a merged
     # branch) has no uppercase D and is intentionally not matched.
-    if echo "$PADDED" | grep -qE '[[:space:]]-[a-zA-Z]*D[a-zA-Z]*[[:space:]]'; then
+    if echo "$BRANCH_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*D[a-zA-Z]*([[:space:]]|$)'; then
       block "branch-delete-force" "git branch -D (including combined flags like -Df) force-deletes unmerged branches"
     fi
-    if echo "$PADDED" | grep -qE '[[:space:]]--delete[[:space:]]' && \
-       echo "$PADDED" | grep -qE '[[:space:]]--force[[:space:]]'; then
+    if echo "$BRANCH_SPAN" | grep -qE '[[:space:]]--delete([[:space:]]|$)' && \
+       echo "$BRANCH_SPAN" | grep -qE '[[:space:]]--force([[:space:]]|$)'; then
       block "branch-delete-force" "git branch --delete --force force-deletes unmerged branches"
     fi
   fi
@@ -132,17 +136,21 @@ fi
 
 # 5. clean -fd (and variants)
 if ! is_allowed "clean-fd"; then
-  if is_git_subcommand "clean"; then
+  # Extract the `git clean ...` span and match flags only within it, so flags from
+  # a different command chained after `git clean` (e.g. `git clean -n && tar -fd`)
+  # cannot false-positive.
+  CLEAN_SPAN=$(echo "$PADDED" | grep -oE 'git[[:space:]]+clean[^&;|]*' || true)
+  if [ -n "$CLEAN_SPAN" ]; then
     # Short flag containing BOTH f and d in any order: -fd, -df, -fdx, -ffd, -dfx
-    if echo "$PADDED" | grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*d[a-zA-Z]*[[:space:]]'; then
+    if echo "$CLEAN_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*d[a-zA-Z]*([[:space:]]|$)'; then
       block "clean-fd" "git clean -fd deletes untracked files and directories"
     fi
-    if echo "$PADDED" | grep -qE '[[:space:]]-[a-zA-Z]*d[a-zA-Z]*f[a-zA-Z]*[[:space:]]'; then
+    if echo "$CLEAN_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*d[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'; then
       block "clean-fd" "git clean -df deletes untracked files and directories"
     fi
     # Separate tokens: a standalone -f/--force AND a standalone -d (in either order)
-    if echo "$PADDED" | grep -qE '[[:space:]](-f|--force)[[:space:]]' && \
-       echo "$PADDED" | grep -qE '[[:space:]]-d[[:space:]]'; then
+    if echo "$CLEAN_SPAN" | grep -qE '[[:space:]](-f|--force)([[:space:]]|$)' && \
+       echo "$CLEAN_SPAN" | grep -qE '[[:space:]]-d([[:space:]]|$)'; then
       block "clean-fd" "git clean -f -d deletes untracked files and directories"
     fi
   fi

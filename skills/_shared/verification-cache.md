@@ -18,7 +18,7 @@ Cache record fields (minimum):
 
 ## Invalidation rules
 
-The cache MUST be discarded and the triad re-run when any of the following hold:
+The cache must be discarded and the triad re-run when any of the following hold:
 
 - Any `Edit`, `Write`, or external file modification happened between cache-write and cache-read. The orchestrator detects this by tracking its own tool calls and by re-reading `git status --porcelain` / file mtimes against `mtime_ceiling` before honoring the cache.
 - The cache is older than the current phase boundary's intent. Cross-phase carry is allowed only when no mutation has happened since cache-write; a phase-boundary crossing alone does NOT invalidate, but any mutation inside the new phase does.

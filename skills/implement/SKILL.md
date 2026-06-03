@@ -75,7 +75,7 @@ Apply throughout all 3 phases:
 
 ## Budgets — quality-first framing
 
-**NO hard kill caps.** No wall-time / tool-call / model-turn / cost ceilings. User tokens unlimited.
+No hard kill caps. No wall-time / tool-call / model-turn / cost ceilings. User tokens unlimited.
 
 **Quality gates (Class-B — escalate to user, do not abort):**
 

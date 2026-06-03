@@ -47,8 +47,8 @@ If the slug was provided on the command line (e.g., `/geniro:instructions create
 Refuse and re-ask if any of the following fail:
 
 - **Regex** — must match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter).
-- **No built-in collision** — must NOT match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
-- **No existing file** — `.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `.geniro/instructions/review-extra/{{slug}}.md` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it.` and stop.
+- **No built-in collision** — must not match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `rules-compliance`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
+- **No existing file** — `.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `.geniro/instructions/review-extra/{{slug}}.md` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it. and stop.
 
 On any validation failure, re-ask via `AskUserQuestion` with the error message included in the question text.
 

@@ -101,6 +101,23 @@ expect_block "subdir rm still blocked (not in allowlist)" "$(run_cmd 'rm -rf .ge
 mkdir -p "$TMPDIR_BASE/bypass/sub/deeper"
 cd "$TMPDIR_BASE/bypass/sub/deeper" || exit 1
 expect_allow "bypass honored from a nested subdir (walk-up)" "$(run_cmd 'rm -rf .geniro/')"
+
+# Each distinct guard honors its OWN bypass key (not just rm-geniro-tree).
+mkdir -p "$TMPDIR_BASE/bypass-find/.geniro"
+printf '%s\n' '{"allow_patterns":["find-geniro-delete"]}' > "$TMPDIR_BASE/bypass-find/.geniro/safety.json"
+cd "$TMPDIR_BASE/bypass-find" || exit 1
+expect_allow "find -delete allowed via find-geniro-delete bypass" "$(run_cmd "find .geniro -name '*.md' -delete")"
+
+mkdir -p "$TMPDIR_BASE/bypass-wt/.geniro"
+printf '%s\n' '{"allow_patterns":["worktree-remove-with-state"]}' > "$TMPDIR_BASE/bypass-wt/.geniro/safety.json"
+cd "$TMPDIR_BASE/bypass-wt" || exit 1
+expect_allow "git worktree remove allowed via worktree bypass" "$(run_cmd 'git worktree remove ../wt')"
+
+mkdir -p "$TMPDIR_BASE/bypass-add/.geniro"
+printf '%s\n' '{"allow_patterns":["git-add-force-geniro"]}' > "$TMPDIR_BASE/bypass-add/.geniro/safety.json"
+cd "$TMPDIR_BASE/bypass-add" || exit 1
+expect_allow "git add -f .geniro/ allowed via git-add-force bypass" "$(run_cmd 'git add -f .geniro/actions/foo.md')"
+
 cd "$TMPDIR_BASE" || exit 1
 # Malformed safety.json must fail safe — the guard still blocks.
 mkdir -p "$TMPDIR_BASE/badjson/.geniro"

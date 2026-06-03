@@ -28,7 +28,7 @@ The 10 canonical loop invariants from `/geniro:implement` § Loop invariants app
 
 ## Quality-first budgets
 
-Quality-first framing: /geniro:investigate has **NO hard kill caps** — all limits are escalation gates that surface to the user.
+Quality-first framing: /geniro:investigate has no hard kill caps — all limits are escalation gates that surface to the user.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Echo lines per mandatory.
 
 ### Step 1: Parse the question
 
-Classify into one of. The "Agents needed" column is the literal spawn set — 1, 2, or 3 agents.
+Classify the question into one of the types below. The "Agents needed" column is the literal spawn set — 1, 2, or 3 agents.
 
 | Type | Description | Agents needed |
 |---|---|---|

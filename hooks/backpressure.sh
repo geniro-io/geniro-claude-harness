@@ -59,9 +59,9 @@ run_silent() {
 
         # Filter output: remove passing test lines, keep failures and errors
         # Common noise patterns to strip:
-        grep -v -E "^(PASS |  ✓ |    ✓|  ●|^$|^\s*$)" "$tmp_file" | \
+        grep -v -E "^(PASS |  ✓ |    ✓|  ●|^$|^[[:space:]]*$)" "$tmp_file" | \
         grep -v -E "^(Test Suites:.*passed|Tests:.*passed|Snapshots:|Time:)" | \
-        grep -v -E "^(ok\s+)" | \
+        grep -v -E "^(ok[[:space:]]+)" | \
         head -"$output_cap"  # Cap output to prevent context flooding
 
         local total_lines

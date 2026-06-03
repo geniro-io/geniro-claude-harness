@@ -23,7 +23,7 @@ Concretely, when no target is supplied in `$ARGUMENTS`:
 
 When a skill orchestrator spawns subagents via the `Agent(...)` tool, cwd inheritance is silent: the subagent inherits the parent's working directory by default ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)), but nothing in the prompt tells the subagent which worktree or branch it should be operating in. If the inheritance ever drifts (Claude Code bugs, Bash-tool quirks, future architecture changes), the subagent has no way to detect it and silently reviews / edits / tests against the wrong tree.
 
-**Rule.** Every `Agent(...)` spawn-prompt template that performs codebase work (review, edit, test, diff) MUST include two slots populated by the orchestrator with the values resolved per `## The rule` above:
+**Rule.** Every `Agent(...)` spawn-prompt template that performs codebase work (review, edit, test, diff) must include two slots populated by the orchestrator with the values resolved per `## The rule` above:
 
 ```
 WORKTREE: [from `git rev-parse --show-toplevel`]

@@ -62,6 +62,12 @@ update_semantic() {
           echo "update_semantic: --append and --replace are mutually exclusive" >&2
           return 64
         fi
+        # Require the operand; a bare trailing `--append` makes `shift 2` fail to
+        # consume $1, so the while-loop spins on --append forever.
+        if [ "$#" -lt 2 ]; then
+          echo "update_semantic: --append requires <line>" >&2
+          return 64
+        fi
         op="append"
         arg1="$2"
         shift 2
@@ -69,6 +75,13 @@ update_semantic() {
       --replace)
         if [ -n "$op" ]; then
           echo "update_semantic: --append and --replace are mutually exclusive" >&2
+          return 64
+        fi
+        # Require both operands; without this guard a `--replace` missing an
+        # operand makes `shift 3` fail to consume $1, and the while-loop spins on
+        # --replace forever.
+        if [ "$#" -lt 3 ]; then
+          echo "update_semantic: --replace requires <old> <new>" >&2
           return 64
         fi
         op="replace"

@@ -10,7 +10,7 @@
 - §Batched-mode behavior — `/geniro:review` one-spawn-per-run rule
 - §Anti-rationalization
 
-Canonical rule for discovering and spawning user-authored custom review dimensions. Referenced from every skill that spawns the parallel reviewer batch: `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify.
+Canonical rule for discovering and spawning user-authored custom review dimensions. Referenced from every skill that spawns the parallel reviewer batch: `/geniro:review` (parallel-reviewer-spawn phase), `/geniro:implement` (self-review), `/geniro:refactor` (verify).
 
 ## When to invoke
 
@@ -67,7 +67,7 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 
 1. The frontmatter does not parse as YAML.
 2. The `slug:` field is missing OR does not match the filename without `.md`.
-3. The `slug:` value matches a built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`.
+3. The `slug:` value matches a built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `rules-compliance`.
 4. The `slug:` value does not match the regex `^[a-z][a-z0-9-]*$`.
 5. The `description:` field is missing OR empty.
 6. The `model:` field is present and is not in `{haiku, sonnet, opus, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)
@@ -88,7 +88,7 @@ For each VALID file:
 
 After Step 5 filtering, count the surviving reviewers:
 
-- If count > 10, ABORT the helper with a hard error. Print: `[load-custom-reviewers] hard cap exceeded — <N> active reviewers after path filter; limit is 10. Delete or scope down some files in .geniro/instructions/review-extra/`. The consumer skill MUST propagate this as a fatal error to the user — no review proceeds with >10 custom reviewers active.
+- If count > 10, abort the helper with a hard error. Print: `[load-custom-reviewers] hard cap exceeded — <N> active reviewers after path filter; limit is 10. Delete or scope down some files in .geniro/instructions/review-extra/`. The consumer skill MUST propagate this as a fatal error to the user — no review proceeds with >10 custom reviewers active.
 - If count > 6, print a soft warning: `[load-custom-reviewers] <N> custom reviewers active — 4-6 dimensions per parallel batch is the sweet spot; consider scoping some with paths: globs to reduce the per-run count.` Continue.
 
 ### Step 7: Build spawn-specs
@@ -127,13 +127,13 @@ User-explicit form (user declared `model: haiku|sonnet|opus` in custom-reviewer 
 
 The DIMENSION value uses the literal form `custom:<slug>` so that the reviewer-agent's output naturally carries the source — the agent emits findings under `## custom:<slug> Review — N findings` and the orchestrator's Phase 4 judge pass picks the source up directly from that header. No new finding-output fields are required.
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every custom-reviewer spawn site (same runtime-degradation ladder as the built-ins: prefixed → bare → general-purpose with body inlined). When the batch falls back to the next rung, ALL custom reviewers in that batch fall back together — do not mix ladder rungs (per `spawn-agent.md` §Parallel-spawn sites).
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every custom-reviewer spawn site (same runtime-degradation ladder as the built-ins: prefixed → bare → general-purpose with body inlined). When the batch falls back to the next rung, all custom reviewers in that batch fall back together — do not mix ladder rungs (per `spawn-agent.md` §Parallel-spawn sites).
 
 ## Batched-mode behavior (consumer: `/geniro:review` only)
 
 When `/geniro:review` is in Batched Mode (large diffs), the built-in reviewers fan out per-batch. Custom reviewers do NOT fan out per-batch — they spawn ONCE per review run regardless of batch count, each one seeing the full changed-files list.
 
-Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spawning would multiply identical `Agent()` calls; one-per-run is simpler and matches the per-PR rule already used for the pr-metadata reviewer. This applies only to `/geniro:review` Phase llm-spawn Step 3 (Batched Mode) — the other two consumer skills (`/geniro:implement` Phase self-review, `/geniro:refactor` Phase 3) run only the standard parallel batch.
+Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spawning would multiply identical `Agent()` calls; one-per-run is simpler and matches the per-PR rule already used for the pr-metadata reviewer. This applies only to `/geniro:review`'s parallel-reviewer-spawn phase, Batched Mode — the other two consumer skills (`/geniro:implement` self-review, `/geniro:refactor` verify) run only the standard parallel batch.
 
 ## Anti-rationalization
 

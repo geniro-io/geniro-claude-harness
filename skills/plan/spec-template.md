@@ -80,7 +80,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 
 **Schema-version compatibility:** `geniro_schema_version: m5-v1` (legacy, no `workflow_refs`) and `m5-v2` (this template) are both valid downstream. Readers accept both; strict validators (e.g., `validator-checks.md` check #14) verify the field shape only on `m5-v2`.
 
-**`status:` namespace note.** reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
+**`status:` namespace note.** The state-tier schema reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
 
 ## Body — 11 sections
 

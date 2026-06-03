@@ -330,7 +330,7 @@ Apply the following approved changes:
 
 Orchestrator runs these checks directly (no subagent). All must pass before Phase 5:
 
-1. **Line counts:** `wc -l` on each changed SKILL.md — must be under 500
+1. **Line counts:** `wc -l` on each changed SKILL.md — 500 lines is the target, 700 the hard ceiling (`.claude/rules/skill-structure.md` § File-size limits). Over 700 → move detail into a companion reference file before proceeding; 500-700 is a soft flag, not a blocker (line caps are guidelines — never trim load-bearing content to hit a number).
 2. **Outbound references:** Glob for every path/agent/skill name mentioned in changed files — all must exist
 3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
 4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
@@ -511,9 +511,9 @@ your existing validation infrastructure (validation gate + relevance-filter
 1. **Spawn an author agent** (`model: opus`, general-purpose) with:
    - The full Phase A interview transcript (pre-inlined)
    - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
-   - Constraints (pre-inlined): description rules from Phase 4 validator below + 300-line guidance from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md` § File-size guidance + reference depth ≤2 levels + edit-in-place principle
+   - Constraints (pre-inlined): description rules from Phase 4 validator below + the 500-line target / 700-line hard ceiling from `.claude/rules/skill-structure.md` § File-size limits + reference depth ≤1 hop + edit-in-place principle
    - 1-2 exemplar SKILL.md files closest in shape to the proposed skill (e.g., for a small command-style skill, point at `instructions/SKILL.md`; for a multi-phase pipeline, point at `refactor/SKILL.md`)
-   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description MUST be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. SKILL.md hard cap is <500 lines (matches the existing Phase 4 Step 3 check #1); aim for ≤300 lines and split overflow into companion reference files (e.g., `<name>-reference.md`) — the implement skill's `implement-reference.md` is the canonical example of this split."
+   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. SKILL.md targets 500 lines with a 700-line hard ceiling (per `.claude/rules/skill-structure.md`); split overflow into companion reference files (e.g., `<name>-reference.md`) rather than trimming load-bearing content — the implement skill's `implement-reference.md` is the canonical example of this split."
 
 2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the new description-format checks (see "Description-format validator" below).
 
@@ -603,4 +603,4 @@ If the user interjects mid-phase: corrections/context fold into the current phas
 - [ ] Phase B: Phase 4 Step 3 validation gate run including 6 description-format checks AND check #7 (README/CLAUDE.md/docs sync) for any new top-level skill
 - [ ] Phase C: Fresh review agent spawned; 8-item create-skill review checklist applied; blockers fixed (max 1 round)
 - [ ] Phase D: Phase 6 Summary + Commit & push offered
-- [ ] Created SKILL.md <500 lines hard cap (existing Phase 4 Step 3 check #1); ≤300 lines preferred OR overflow split to companion reference files
+- [ ] Created SKILL.md within the 500-line target / 700-line hard ceiling (Phase 4 Step 3 check #1); overflow split into companion reference files rather than trimmed

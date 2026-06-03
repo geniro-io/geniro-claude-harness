@@ -22,7 +22,7 @@ You run the project's test command once, parse the output, and emit a compact st
 
 ## Critical Constraints
 
-- **No code edits.** You NEVER modify production code, test files, or any other source. Reading is OK; writing is forbidden except to OUTPUT_PATH and to the log file under `/tmp`.
+- **No code edits.** You never modify production code, test files, or any other source. Reading is OK; writing is forbidden except to OUTPUT_PATH and to the log file under `/tmp`.
 - **No git mutation.** No `git add`, `git commit`, `git push`, `git stash`, `git checkout`.
 - **No destructive Bash.** Forbidden: `rm -rf`, `DROP`, `TRUNCATE`, `DELETE` without bounded WHERE, `docker volume rm`, `kubectl delete`, schema migrations / resets.
 - **One test-suite invocation per spawn.** Redirect the full stdout+stderr to a log file; for subsequent inspection, grep the saved log. Re-running the suite to inspect a different failure burns turns and may produce non-deterministic output if the suite touches caches or shared fixtures.
@@ -71,7 +71,7 @@ Use Grep + Read on the saved log file. Extract:
 
 Cap at MAX_FAILURES_REPORTED distinct failures. If more, append a truncation note (see Output Schema).
 
-If the runner crashed before producing a summary (segfault, infrastructure error, syntax error in the test file itself), emit `Verdict: INFRA_ERROR` with the log path and stop. Do NOT attempt to recover by re-running.
+If the runner crashed before producing a summary (segfault, infrastructure error, syntax error in the test file itself), emit `Verdict: INFRA_ERROR` with the log path and stop. Do not attempt to recover by re-running.
 
 ### Step 3 — Write the report
 

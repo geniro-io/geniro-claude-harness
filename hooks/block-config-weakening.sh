@@ -63,6 +63,11 @@ filename="${FILE_PATH##*/}"
 
 is_config_file() {
   local name="$1"
+  # Backup / disabled copies are never the live config — don't treat editing one
+  # as config-weakening (e.g. .eslintrc.bak, eslint.config.js.old, tsconfig~).
+  case "$name" in
+    *.bak|*.disabled|*.old|*.orig|*.save|*~) return 1 ;;
+  esac
   case "$name" in
     # ESLint
     .eslintrc|.eslintrc.*|eslint.config.*) return 0 ;;
