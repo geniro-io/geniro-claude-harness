@@ -189,7 +189,7 @@ else:
   escalate via AskUserQuestion (debug-handoff / accept-failure / abort)
 ```
 
-**Token cost.** Raw test stdout (~50K tokens per run) never enters the orchestrator's main context — only the structured report (~2-6K chars). A 3-retry loop saves up to ~140K tokens.
+**Token cost.** Raw test stdout (often tens of thousands of tokens) never enters the orchestrator's main context — only the compact structured report does, so the fix loop stays cheap.
 
 **Evidence requirement.** The Verdict block from `.tr-out.md` (Command / Exit code / Summary) attaches as the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Stop-hook scans for forbidden phrases (`"all tests pass"`, `"validation complete"`, `"ready to ship"`) without an attached Evidence Block.
 

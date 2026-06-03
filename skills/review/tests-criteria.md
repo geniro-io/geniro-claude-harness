@@ -286,7 +286,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 - Verify authorization checks are tested
 
 **Red flags:**
-- Payment logic with <10 test cases
+- Payment logic with no failure-scenario or boundary tests (only happy-path coverage)
 - Auth code with no failure scenario tests
 - Critical functions with 1-2 tests
 - No tests for recovery from failure states

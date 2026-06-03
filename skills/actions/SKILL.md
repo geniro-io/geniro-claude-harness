@@ -31,14 +31,14 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
 2. Args validated before exec — every Write preceded by frontmatter validation; every `run` preceded by AUQ-gate matching `risk_class`.
 3. Permission before side-effect — `risk_class: medium|high` gates execution via AUQ; `risk_class: low` skips the gate but respects per-step tool-allowlist if declared.
-4. Bounded structured results — `list` truncates per-action body display at 200 chars.
+4. Bounded structured results — `list` renders a frontmatter-only table; the `description` field is the only free text shown and is already capped at create-validation time, so no separate body truncation applies.
 5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
 6. Observations not assumed success — each step in `run` mode checks return status; failed step transitions to `failed` with step number captured.
 7. Errors as structured observations — surfaced inline in final message.
 
 ## Budgets — quality-first
 
-`/geniro:actions` has **zero hard kill caps**. Soft gates: 3-retry slug ambiguity → abort, body preview truncation at 200 chars, 3-retry on create-validation failure. Architecture constraints: stateless; one action runs at a time (assumed sequential).
+`/geniro:actions` has **zero hard kill caps**. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: stateless; one action runs at a time (assumed sequential).
 
 ## ACI surface per phase
 
@@ -121,13 +121,11 @@ Branch on resolved action: `list` → Phase 3 · `create` → Phase 4 · `run` �
 
 ### Step 1 — Scan directory
 
-Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/actions/*.md` (main) — when the same action slug appears in both, **local wins** (uncommitted local edits take precedence over the main-worktree copy). The list output tags each row with its source (`local` / `main-worktree`). Without this, list mode misses actions authored in the main worktree but absent from the current linked worktree.
+Build the registry index per Phase 5.0 Step 1 (dual-glob local + main-worktree, deduped by absolute path, `local` wins, each row source-tagged). The list output tags each row with its source (`local` / `main-worktree`). Without this, list mode misses actions authored in the main worktree but absent from the current linked worktree.
 
 ```bash
 ls -la ./.geniro/actions/*.md "$PRIMARY_ROOT"/.geniro/actions/*.md 2>/dev/null
 ```
-
-When cwd IS the main worktree, the two globs resolve to the same path — dedupe by absolute path before tagging.
 
 ### Step 2 — Present results
 
@@ -282,7 +280,7 @@ The resolver returns three named values: `<resolved-path>` (absolute or repo-rel
 
 Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the snippet sets a shell variable used by the dual-glob below.
 
-Glob `./.geniro/actions/*.md` for the local registry. If cwd is a linked worktree, also Glob `<PRIMARY_ROOT>/.geniro/actions/*.md`. Tag each entry with `<source>` (`local` or `main-worktree`). When the same slug exists in both, **local wins** — drop the main-worktree entry.
+Dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/actions/*.md` (main); tag each entry with `<source>` (`local` or `main-worktree`). When cwd IS the main worktree the two globs resolve to the same path — dedupe by absolute path before tagging. When the same slug exists in both, **local wins** — drop the main-worktree entry. This is the canonical registry build that Phase 3 (`list`) and Phase 8 (`validate`) reference.
 
 #### Step 2 — Exact-slug fast path (literal or normalized)
 
@@ -443,7 +441,7 @@ The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/actio
 
 ### Step 1 — Resolve scope
 
-Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When validating all actions (no `<slug>` provided), dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/actions/*.md` (main) — when the same action slug appears in both, **local wins** (uncommitted local edits take precedence). Tag each entry with `<source>` (`local` / `main-worktree`). Without this, validate run from a linked worktree misses primary-worktree actions and produces a false-pass.
+When validating all actions (no `<slug>` provided), build the registry per Phase 5.0 Step 1 (dual-glob local + main-worktree, deduped, `local` wins, source-tagged). Without this, validate run from a linked worktree misses primary-worktree actions and produces a false-pass.
 
 If `<slug>` provided: resolve via Phase 5.0 (Steps 1-3) to get `<resolved-path>` and `<source>`, then validate only that single file. Else validate the deduped union from the dual-glob above. Read-only; never mutates.
 

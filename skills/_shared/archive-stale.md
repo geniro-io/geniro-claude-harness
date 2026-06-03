@@ -37,10 +37,7 @@ Or direct invocation:
 
 An entry becomes a stale candidate iff:
 
-1. **score < 0.1** — using the same scoring formula as `query-learnings --score-min`:
- ```
- score = recency_decay × trust_weight × access_weight × recurrence_weight
- ```
+1. **score < 0.1** — using the same scoring formula as `query-learnings --score-min` (canonical definition in query-learnings.md §Score formula).
 2. **age > 180 days** — measured from entry's `ts` field.
 3. **access_count == 0** — entry has never been returned by a query that called `record_access`.
 4. **not already deprecated** — `(.deprecated // false) == false`. Already-deprecated entries are skipped so re-runs report 0 candidates (idempotency).

@@ -20,7 +20,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project
 1. `/geniro:update` does NOT spawn subagents.
 2. Args validated before exec — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 3. Permission before side-effect — the pre-update AUQ (§Phase 1 Step 3) is the explicit gate.
-4. Bounded structured results — hash diffs truncated at ~2000 chars; per migration step at ~500 chars.
+4. Bounded structured results — the migration-step AUQ truncates auto-detect output to its first ~10 lines; the full content diff is written to a log file rather than inlined.
 5. Hard escalation gates — 4-retry exponential-backoff (2s, 4s, 8s, 16s) on network errors; after 4 retries → abort.
 6. Observations not assumed success — shell exit codes checked at every step.
 7. Errors as structured observations — surfaced inline; no silent skips.

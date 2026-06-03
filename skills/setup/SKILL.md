@@ -36,7 +36,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 1. One result per subagent call — the verification subagent returns one structured report.
 2. Args validated before exec — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
 3. Permission before side-effect — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate.
-4. Bounded structured results — verification subagent output truncated at ~4K; over-long reports trigger AUQ.
+4. Bounded structured results — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
 5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | re-run`.
 6. Observations not assumed success — every Bash command in Detect requires explicit observation parse, no silent skips.
 7. Errors as structured observations — Detect failures written to `## Errors`, not swallowed.
@@ -50,7 +50,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 | Layer | Lever | Why |
 |---|---|---|
 | **Class-B escalation gates** | 3-retry validation loop → AUQ | Validation drift after 3 rounds means structural disagreement; surface to user |
-| | Verification report truncation at ~4K chars | Long reports inflate context without commensurate signal |
+| | Verification report truncation per the §4.1 subagent-prompt cap | Long reports inflate context without commensurate signal |
 | **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
 | **NOT capped** | Detect duration, Interview question count, total `Read`/`Bash`/`Glob` calls, total subagent spawns | Quality-first |
 
@@ -434,7 +434,7 @@ emit_learning <<'EOF'
 "test_runner": "jest",
 "ship_mode_default": "open-pr-draft",
 "reviewer_set": "full",
-"claude_md_loc": 67
+"claude_md_loc": 45
 }
 }
 EOF

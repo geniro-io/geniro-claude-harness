@@ -83,9 +83,9 @@ Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-f
 Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Each verifier receives ONLY its own claim plus, mirroring `phase-4-verification-reference.md` §2:
 
 - The single claim: source location (Section 6 step / Section 4 assumption / frontmatter field) + the literal asserted fact.
-- The cited code slice — read the file at the claim's `file:line ± 30` lines and inline it. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region (cap ~30 lines).
-- 1-hop caller grep — `grep -rn "<symbol>"` for the cited symbol, capped ~50 lines.
-- 1-2 sibling tests for the same symbol — grep `test/ tests/ __tests__/ spec/`, capped ~20 lines.
+- The cited code slice — read the file at the claim's `file:line` and inline it, using the slice cap in `phase-4-verification-reference.md` §2. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region within the same cap.
+- 1-hop caller grep — `grep -rn "<symbol>"` for the cited symbol, capped per §2.
+- 1-2 sibling tests for the same symbol — grep `test/ tests/ __tests__/ spec/`, capped per §2.
 
 Each verifier does NOT receive other claims, the orchestrator's reasoning, or which spec section the claim came from beyond what it needs — isolated context prevents anchoring and sycophancy (the documented multi-judge failure mode).
 
@@ -192,7 +192,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 - [ ] Helper runs on every spec regardless of `EFFORT_TIER` — no tier skip.
 - [ ] Stage A extracts claims from Section 6 citations, Section 4 assumptions, and frontmatter `budget`/`effort_tier`.
 - [ ] Stage B spawns exactly one verifier per cited claim, all in ONE assistant response, via the spawn-agent ladder with `model=` omitted.
-- [ ] Each verifier receives isolated context (cited slice ±30 lines + 1-hop caller grep ~50 lines + 1-2 sibling tests ~20 lines) and emits `validation / confidence / evidence` with a literal file:line quote.
+- [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `phase-4-verification-reference.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.
 - [ ] Stage C (ALTERNATIVES) runs in plan mode and is skipped in implement mode.
 - [ ] Stage D red-team findings are each anchored to a file:line or a §4 result and classified blocking / non-blocking.
 - [ ] Stage E verdict is MODE-correct (plan: keep / keep-with-modifications / re-plan; implement: clean / defects-found) and grounded per the evidence standard.

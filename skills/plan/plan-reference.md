@@ -56,7 +56,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 **Mutation responsibility:** only `/geniro:implement` MUTATES tracker state via MCP — Step 0c (kickoff: status-conditional "Move to In Progress?" / "Reopen?" prompts per the workflow file's `### On task start` block) and Phase 3 Ship (completion: status-conditional "Move to In Review?" / comment posting per `### On task completion`). `/geniro:plan` is a tracker reader — Phase 1.4 fetches issue context to inform planning, Phase 6 copies the cached payload into spec.md frontmatter; both are local-write only, never POST to tracker. `/geniro:review`, `/geniro:debug`, `/geniro:refactor` are also read-only consumers — they parse `workflow_refs[]` for priming context but never POST tracker updates.
 
-**Staleness:** downstream readers re-fetch when `fetched_at` is > 1 hour old (configurable later via `.geniro/safety.json`). Cached `title` / `suggested_branch` / `status` fields let /geniro:implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
+**Staleness:** downstream readers re-fetch per the `fetched_at` staleness window defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` (§`workflow_refs[]` per-entry shape). Cached `title` / `suggested_branch` / `status` fields let /geniro:implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
 
 **Graceful degrade:** workflow file lookup is cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When the file is absent from BOTH locations, Phase 7 check #14 returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
 
@@ -66,7 +66,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 - **Empty $ARGUMENTS** — Phase 0 fires an `AskUserQuestion` with 3 options ("New feature" / "Existing problem to solve" / "Cancel") followed by free-text capture. Non-empty answer → IDEA mode; "Cancel" → terminal without state.md.
 
-- **Topic spans multiple subsystems / very Big task** — the plan-loop completes normally (Phase 5 milestone-mode fires automatically when effort tier is Big + Steps count ≥10 or wall-time ≥1 day). The Phase 9 hand-off recommends `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs.
+- **Topic spans multiple subsystems / very Big task** — the plan-loop completes normally (Phase 5 milestone-mode fires automatically per the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — Big tier with score 9+ or >15 steps). The Phase 9 hand-off recommends `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs.
 
 - **User wants to plan WITHOUT writing a spec.md** — not supported. The committed spec.md IS the durable artifact downstream skills consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. If the user insists, run /geniro:plan, pick "Stop — keep spec for later" at Phase 9 (terminal `done`, spec sits on disk but not committed). The three detection markers must still be present per Phase 6 contract.
 

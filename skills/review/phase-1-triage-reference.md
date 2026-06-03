@@ -160,7 +160,7 @@ Do NOT use `EnterWorktree(name: ...)` — that path auto-creates with `worktree-
 |---|---|
 | User picks "Other" with custom text on the workspace AUQ | Treat as "Review in current location" semantically; no worktree mutation; echo custom text into state.md `## Workspace decision` body block. |
 | Multiple continuing signals match (review handoff AND debug handoff) | Both satisfy rule 2 or 3. Echo both signal names; behavior identical. |
-| Stale T2 handoff (older than 30 days) | Still triggers rule 2 / 3. Emit soft notice: `"Note: review handoff is N days old."` |
+| Stale T2 handoff (older than the current work) | Still triggers rule 2 / 3. Emit soft notice: `"Note: review handoff is N days old."` |
 | `IN_WORKTREE == true` AND `IN_TARGET_WORKTREE == true` but PR `headRefOid` mismatches current `HEAD` | Auto-continue per rule 1. Mismatch surfaces as warning in §3 PR-ref parsing, never blocks. User can re-run with `new-branch` modifier to force a fresh fetch. |
 
 After Step 0 settles, every subsequent Phase 1 step and downstream phases run from the new cwd. Cross-session writes (`.geniro/state/handoff/from-review-<branch>.md`, `learnings.jsonl`) auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown.
@@ -326,7 +326,7 @@ Skip for files / diff range / branch. Mechanism:
 - `linear_bonus`: +2 if sibling's PR title OR body contains a Linear ID matching `linear-parent-ref` OR appearing in `linear-sibling-task-ids:` from (parent epic OR sibling sub-task linkage). Bonus is additive: PR can earn +2 for parent-match AND +2 for sibling-sub-task-match (total +4).
 - `total_score = file_overlap + linear_bonus`.
 - Keep **top-10** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When is skipped (no workflow), `linear_bonus` is always 0 and this reduces to pure file-overlap top-10.
-- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (bounded to **200 lines** per sibling — tightened from 300 to compensate for higher count).
+- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (~200 lines per sibling — bounds total context against the higher sibling count).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**5000 chars** — drop lowest-`total_score` sibling first if exceeded.
 - Pre-inline into reviewer prompts: architecture, design, **bugs, conventions, optimizations, spec-compliance, regressions** (expanded from architecture + design only). Skipped for tests + security + guidelines + pr-metadata (orthogonal or target-PR-specific).
 

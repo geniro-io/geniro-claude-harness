@@ -74,7 +74,7 @@ slack    = 50-60% (retry / refinement iterations)
 maxTurns = ceil(floor × 1.5) + optional safety bump
 ```
 
-Document the formula in each agent's `## maxTurns rationale` section. Pure mechanical agents (test-runner) get tight caps; reasoning agents (reviewer, adversarial-tester) get generous caps. Values above ~150 signal "I gave up bounding" — re-examine the agent's scope before going higher.
+Document the rationale inline near the agent's frontmatter when the cap is non-obvious. Pure mechanical agents (test-runner) get tight caps; reasoning agents (reviewer, adversarial-tester) get generous caps. Values above ~150 signal "I gave up bounding" — re-examine the agent's scope before going higher.
 
 ## How skills reference this
 

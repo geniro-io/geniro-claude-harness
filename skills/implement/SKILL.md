@@ -429,7 +429,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 | Workflow file present but `### On task start` section missing | Question 2 omitted silently. |
 | User picks "Other" with custom text on Question 1 | Treat as "Current branch" semantically; no git mutation; echo custom text into state.md `## Workspace decision` body block. |
 | Multiple review/debug handoffs for current branch (review AND debug both produced findings) | Both signals satisfy rule 2 of 0b. Echo both signal names; behavior otherwise identical. |
-| Stale review/debug handoff (older than 30 days) | Still triggers rule 2. Emit soft notice: `"Note: review handoff is N days old. Re-run /geniro:review if you want fresh findings."` |
+| Stale review/debug handoff (older than the current work) | Still triggers rule 2. Emit soft notice: `"Note: review handoff is N days old. Re-run /geniro:review if you want fresh findings."` |
 | `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 5 fires (full AUQ); worktree-presence is incidental. |
 
 ### Steps (after Step 0 settles)
@@ -638,20 +638,10 @@ When ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` invoca
 
 ## Modifier handling (semantic, deterministic)
 
-Inline modifiers from Phase 1 `$ARGUMENTS` parse override AUQ defaults deterministically. Modifier scope groups: workspace (Step 0), adversarial-tester (Phase 3), ship mode (Ship sub-step).
+Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministically. Two tables own the rows at their point of use:
 
-| Modifier | Effect |
-|---|---|
-| `new-branch` / `new branch` | Step 0: force "New feature branch" path even if a "continuing" signal is detected. |
-| `current-branch` / `current branch` | Step 0: force auto-continue regardless of signals. |
-| `worktree` / `new-worktree` | Step 0: force worktree creation path. |
-| `no-worktree` / `here` | Step 0: force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
-| `--no-adversarial` | Phase 3 Round 1: disable adversarial-tester spawn (reviewer-agents only; custom dimensions still spawn). |
-| "don't push" / "no push" / "commit only" | Ship: commit succeeds, no push. State.md → `phase: ship-committed-only` (terminal). Skip ship-mode AUQ. |
-| "draft only" / "draft PR" / "open draft" | Ship: push + `gh pr create --draft`. State.md → `phase: done`. Skip ship-mode AUQ. |
-| "ready PR" / "ready-for-review" / "non-draft PR" | Ship: push + `gh pr create` (ready-for-review). State.md → `phase: done`. Skip ship-mode AUQ. |
-| "open PR" / "create PR" / "with PR" (no `draft` or `ready` qualifier) | Ship: fires the ship-mode AUQ so the recommended draft default is surfaced — does NOT skip the AUQ and does NOT silently pick ready-for-review. A bare "open PR" intent is ambiguous between draft and ready, so it routes through the gate. |
-| "stop after review" | Ship: exit Phase 3 BEFORE commit. Clean review status is the deliverable. State.md → `phase: self-review-only` (terminal). |
+- **Workspace + adversarial-tester modifiers** — §Step 0b "Inline modifier overrides".
+- **Ship-mode modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Inline modifiers from $ARGUMENTS".
 
 When no ship-mode modifier is present, the ship-mode AUQ fires. Conflicting modifiers (e.g., `new-branch` AND `current-branch`): last-occurrence wins (right-to-left scan); emit soft notice naming both detected variants.
 

@@ -16,7 +16,6 @@
 - Recovery AUQ template — what to ask the user on failure
 - YAML parsing strategy — shell-line-only, no `yq`
 - What this helper does NOT do — out-of-scope checks
-- Sidecar files for JSONL — optional unrealized convention
 
 ---
 
@@ -119,24 +118,5 @@ The `approvals:` array is checked only for key-presence (caller-side concern to 
 - **No semantic validation.** `producer: foo` is accepted regardless of whether `foo` is a real skill.
 - **No body schema check.** Body is free-form per per-skill conventions; `## Section` headers not enforced.
 - **No auto-repair.** Recovery is always user-driven via AUQ.
-- **No JSONL line validation.** JSONL files (`learnings.jsonl`) use line-by-line validation elsewhere — the JSONL itself has no frontmatter. An optional `<file>.meta.yaml` sidecar convention exists for carrying tier metadata (see below), but no helper currently emits or reads it; `emit-learning.sh` / `query-learnings.sh` operate directly on the JSONL.
+- **No JSONL line validation.** JSONL files (`learnings.jsonl`) use line-by-line validation elsewhere — the JSONL itself has no frontmatter. An optional `<file>.meta.yaml` sidecar convention exists for carrying tier metadata, but no helper currently emits or reads it (canonical shape: `state-tier-spec.md` §T3 append-only); `emit-learning.sh` / `query-learnings.sh` operate directly on the JSONL.
 
----
-
-## Sidecar files for JSONL (optional convention — no current producer/consumer)
-
-`learnings.jsonl` has no frontmatter (it's pure JSONL). A `<file>.meta.yaml` sidecar MAY carry tier metadata in a form this helper can validate. This is an unrealized convention: no helper in the codebase currently emits or reads the sidecar (`emit-learning.sh` / `query-learnings.sh` work on the JSONL directly). Document it as the intended shape if a future producer adopts it; treat the JSONL as self-sufficient until then. Sidecar shape:
-
-```yaml
----
-tier: T3
-producer: implement
-schema-version: 1
-branch: main
-timestamp: 2026-05-19T14:30:00Z
-concurrency: append-only
-schema-ref: "canonical L2 entry schema"
----
-```
-
-If a producer adopts the sidecar, call `validate_state_file` on it; the JSONL itself uses line-by-line parsing in the consumer (`query-learnings.sh`).

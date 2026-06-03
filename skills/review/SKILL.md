@@ -466,8 +466,6 @@ note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
 ```
 
 Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`.
-Threshold is fixed at convergence_count ≥3 (3 reviewers OR 2 reviewers + 1 mechanical check).
-
 Also emit `convention` learnings — NOT for this skill. /geniro:implement owns convention emits per patched contract.
 
 ### 5.4 PR comment posting (conditional — gated by Phase 6)

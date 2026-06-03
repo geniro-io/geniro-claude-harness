@@ -466,7 +466,7 @@ Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url`. Pass sna
 **Head-SHA freshness — re-fetch when authored tests were just pushed.** When Failing-tests gate fired BEFORE this step AND user picked "Commit + push", the local push advanced the PR's head past `pr-head-sha`. Re-fetch:
 
 ```bash
-gh pr view <pr-ref> --json headRefOid --jq.headRefOid
+gh pr view <pr-ref> --json headRefOid --jq '.headRefOid'
 ```
 
 Use the returned value as `commit_id`. Also overwrite state file's `pr-head-sha:` with the re-fetched value. Without this re-fetch, API rejects comments whose `path` is not present in `commit_id`'s tree with `Validation Failed: path could not be resolved`.

@@ -65,7 +65,7 @@ created-by: geniro:actions
 
 ## Authoring rules (applied during synthesis)
 
-- **Description** starts with "Use when …". A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions. Anthropic ships this pattern in `docx`/`xlsx`/`claude-api`; bare descriptions are the default. Keep total length ≤250 chars.
+- **Description** starts with "Use when …". A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions. Keep total length ≤250 chars.
 - **Steps** are numbered and concrete. Each step names the tool or shell command (e.g., "Run `gh pr view {{argument}} --json title,body`"), not vague verbs ("look at the PR").
 - **One-level deep**: if a step needs sub-detail, inline it; do NOT chain to another `.md` file. Claude's partial reads can miss content nested through references.
 - **Secrets**: never inline tokens. Reference env vars (e.g., `$SLACK_BOT_TOKEN`). The Geniro file-protection hook blocks `.env`/`*.key`/`*.pem` writes.

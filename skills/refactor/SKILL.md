@@ -243,11 +243,7 @@ KEEP smells enter plan-build. FILTERED smells are noted in state.md `## Filtered
 
 Orchestrator builds the plan from the smell-evidence inline output (Medium+) or directly from scope-files (Trivial/Small):
 
-1. **Classify risk per smell** (lookup):
-- 1-3 consumers → LOW
-- 4-9 consumers → MEDIUM
-- 10+ consumers → HIGH
-- Public API / module export / shared type change → HIGH (overrides consumer count)
+1. **Classify risk per smell** using the consumer-count table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 § "Step 2: Change Impact Scoring" (public API / module export / shared-type change is HIGH regardless of consumer count).
 2. **Order the plan**: safer transformations first (LOW → MEDIUM → HIGH). Within the same tier, group by file to minimize re-reads.
 3. **Mark HIGH-risk steps for user confirmation** (presented via `AskUserQuestion`).
 4. **Build the final plan** with: smells, ordered steps, risk per step, consumer counts, files that will change, what will NOT change (public APIs, DB schema, test behavior), `max_risk` (max across all step risks).
