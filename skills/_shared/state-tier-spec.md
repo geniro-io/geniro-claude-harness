@@ -45,6 +45,8 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | `.geniro/planning/<task-dir>/.ce-out.md` | codebase-explorer-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.tr-out.md` | test-runner-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.adversarial-out.md` | adversarial-tester-agent (subagent report) |
+| `.geniro/planning/<task-dir>/.research-out.md` | codebase-research-agent (subagent report) |
+| `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
 | `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
 | `.geniro/planning/<task-dir>/playwright-verify.png` | Pre-Ship Visual Verification screenshot |
 
@@ -314,7 +316,6 @@ schema-version: 1
 branch: feat/ci-277
 timestamp: 2026-05-26T13:30:00Z
 consumer: implement
-severity-summary: "1 CRITICAL, 7 HIGH, 5 MEDIUM"
 open_questions:
   - id: q1
     source: spec-compliance
