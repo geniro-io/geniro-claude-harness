@@ -2,6 +2,17 @@
 
 Design patterns, modularity, coupling, performance, scalability, and technical debt assessment.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## What to Check
 
 ### 1. Module Design & Coupling
@@ -68,8 +79,8 @@ A "semantic mutation" is a code change where a function / method / field / opera
 - A change to a primitive's behavior with multiple unnamed callers; PR description names only one caller
 
 **Output guidance:**
-- Severity HIGH when callers >= 4 OR symbol is a public API / module export / shared type.
-- Severity MEDIUM when callers 1-3 AND not a public API.
+- Severity HIGH when callers >= 10 OR symbol is a public API / module export / shared type.
+- Severity MEDIUM when callers 4-9 AND not a public API (callers 1-3 → LOW per the step 3 rubric above).
 - Severity CRITICAL when the semantic change is fail-closed (returns null / empty / throws on what previously succeeded) AND a downstream filter / sort / dispatch / digest relies on non-null / non-empty results — the change silently DROPS data from user-visible surfaces.
 - The fix is rarely "revert" — it's "name the affected callers in the PR description, add tests asserting new semantic at each non-trivial caller, and confirm whether each caller still satisfies its own contract under the new semantic."
 
@@ -86,6 +97,33 @@ When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code
 Severity HIGH when the untreated sibling loses or corrupts data; MEDIUM when it degrades gracefully. Anchor the finding at the edited path and name the unedited sibling `path:line`.
 
 This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence — Phase 3 dedup merges them and treats the agreement as a strong keep signal, so do not suppress your finding on the assumption another dimension will cover it.
+
+### 1.7. Type design — make illegal states unrepresentable
+
+When a type can hold a combination of values that the domain forbids, every consumer must defensively guard against the impossible case, and one missed guard is a latent bug. Strong types push invariant enforcement to construction time so the compiler — not scattered runtime checks — rejects illegal states. Flag a change that introduces or extends a type whose shape admits states the domain rules out.
+
+**Common shapes:**
+- **Invariant not expressed in the type** — two fields whose validity is coupled but typed independently (`status: string` + `error: string` where `error` is meaningful only when `status === "failed"`; a `start` / `end` pair with no construction-time ordering guarantee). Model as a discriminated union / sum type so the invalid combination cannot be built.
+- **Public mutable field breaking encapsulation** — an invariant-bearing field exposed as a public mutable property, so any caller can set it to a value that violates the invariant after construction. Make it private + validate on the setter, or immutable.
+- **Stringly-typed value where an enum/union fits** — a fixed finite set of states carried as a free `string` / `int` (e.g., `role: string` for a known `{admin, member, guest}` set), so the type permits the typo `"admni"` and forces a string-compare guard at every use site.
+- **Optional field that should be required by construction** — a field typed `T | null` / `Option<T>` / `?` only because of construction-order convenience, where the value is always present once the object is fully built; every reader then null-checks a value that is never actually null.
+- **Escape hatch bypassing the type's guarantee** — a cast / `as any` / `unwrap()` / `!` non-null assertion / reflection write that lets a caller route around the invariant the type was designed to enforce, re-admitting the illegal state through the back door.
+
+**How to detect:**
+1. From `DIFF CONTEXT`, find new or widened type / class / struct / interface declarations and their field types.
+2. For each, ask: is there a combination of these field values the domain forbids? Can a caller construct or mutate the object into that combination? Is a finite set of states carried as an unconstrained primitive?
+3. Check call sites for the symptom — repeated defensive guards (`if (x.status === "failed" && x.error)`, null-checks on a never-null field, string-equality switches over a stringly-typed value). Repeated guards across callers indicate the invariant belongs IN the type.
+4. Check for escape hatches added in the same diff that bypass an existing type guarantee (`as any`, `unwrap`, non-null `!`, public mutable field added to a previously-encapsulated type).
+5. Surface as: "Type `<name>` at `<file:line>` permits the illegal state `<combination>`; callers at `<file:line>` guard against it at runtime — model as `<discriminated union | enum | required field | private+validated>` so the invalid case cannot be constructed."
+
+**Red flags:**
+- Coupled fields typed independently, validated by convention at each use site rather than at construction
+- A known finite set carried as a free string / int
+- A field typed optional purely for construction order, null-checked everywhere despite never being null
+- A public mutable field on a type whose other invariants assume that field is controlled
+- An `as any` / cast / non-null assertion / `unwrap` added to route around a type's guarantee
+
+Severity MEDIUM when the unrepresentable-state risk is contained to one module and guarded today; HIGH when an escape hatch or public mutable field lets a cross-module caller construct the illegal state and a downstream consumer assumes the invariant holds. Per the CRITICAL tier in the Severity Guidelines below, this dimension does not emit CRITICAL on its own — if an illegal state actually corrupts data at runtime, that runtime defect is owned by the bugs dimension.
 
 ### 2. Abstraction & Interface Design
 - Missing abstraction layers (business logic tightly coupled to implementation)
@@ -227,7 +265,7 @@ grep -n "workaround\|temporary\|quick fix" file.js
 - Inconsistent patterns (old style mixed with new)
 - Comments saying "this is hacky but it works"
 - Code that duplicates existing patterns elsewhere — "elsewhere" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces helper `<name>` at `<file:line>` — current change reimplements it inline, consider reusing or coordinating"
-- **Linear parent-epic awareness** — when the `LINEAR CONTEXT:` slot shows a non-`none` parent + sibling sub-tasks AND `PEER-PR CONTEXT:` lists a sibling PR carrying one of those sub-task IDs, flag architectural divergence between parallel sub-tasks of the same epic. Valid finding shape: «Parent epic <ENG-100> distributes work across <current PR sub-task X> and <sibling PR #N sub-task Y>; the two PRs adopt incompatible <data model | API contract | layer boundary> for the shared epic surface — coordinate before either lands». Severity HIGH when the divergence creates a runtime contract collision; MEDIUM otherwise.
+- **Linear parent-epic awareness** — when the `LINEAR CONTEXT:` slot shows a non-`none` parent + sibling sub-tasks AND `PEER-PR CONTEXT:` lists a sibling PR carrying one of those sub-task IDs, flag architectural divergence between parallel sub-tasks of the same epic. Valid finding shape: "Parent epic <ENG-100> distributes work across <current PR sub-task X> and <sibling PR #N sub-task Y>; the two PRs adopt incompatible <data model | API contract | layer boundary> for the shared epic surface — coordinate before either lands". Severity HIGH when the divergence creates a runtime contract collision; MEDIUM otherwise.
 
 ### 8. Testing Architecture
 - Code designed to be difficult to test
@@ -252,23 +290,7 @@ grep -n "workaround\|temporary\|quick fix" file.js
 
 ## Output Format
 
-```json
-{
-"type": "architecture",
-"severity": "critical|high|medium",
-"title": "Brief architecture issue",
-"file": "path/to/file.js",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of architectural concern",
-"category": "coupling|abstraction|solid|organization|errorhandling|performance|debt|testing",
-"pattern_location": ["file.js:42", "other.js:15"],
-"current_design": "How it's currently structured",
-"impact": "Why this matters (maintainability, scalability, etc.)",
-"recommendation": "Proposed refactoring or improvement",
-"confidence": 85
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 
@@ -316,6 +338,7 @@ Works across languages/frameworks:
 
 - [ ] Module dependencies are acyclic
 - [ ] Each module has clear, single purpose
+- [ ] Types make illegal states unrepresentable (invariants enforced at construction, not by convention)
 - [ ] Abstractions properly hide implementation details
 - [ ] SOLID principles generally followed
 - [ ] Code organization is consistent
@@ -330,6 +353,6 @@ Works across languages/frameworks:
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
 
 - **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is the rare CRITICAL path, and even then the finding is logged under the bugs or optimizations dimension that owns the runtime defect.
-- **HIGH** — Caller-blast >5 surviving callers when a public API's contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path.
-- **MEDIUM** — Caller-blast 2-5 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail.
+- **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap (per §1.7) where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist.
+- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap (per §1.7) contained to one module and guarded by convention at each use site today.
 - **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; documentation or PR-description nits about an architectural area.

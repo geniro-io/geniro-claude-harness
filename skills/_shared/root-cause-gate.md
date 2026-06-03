@@ -10,7 +10,7 @@ Used by:
 - `/geniro:plan` — when the spec/plan authoring surfaces a proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /geniro:plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/geniro:implement`.
 - `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup and Phase 4 judge (i.e., wasn't dropped earlier) and is about to be persisted to the handoff for a downstream fixer (/geniro:review is a Reporter and applies no fixes; the gate records the disposition the handoff carries forward)
 
-Skip silently when zero `[SYMPTOM]` (or `[MIXED]`) classifications are present after the upstream filter step.
+Skip silently when zero `[SYMPTOM]` (or `MIXED`) classifications are present after the upstream filter step.
 
 ## Always-WAIT contract
 
@@ -29,7 +29,7 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
 - **`question`**: multi-line markdown — render the classification, the finding/design title, the location, the symptom, the suspected root cause, and one line of why-this-matters so the user can decide without drilling into the full report:
 
  ```
- Classification: [SYMPTOM] — proposed change patches a downstream effect, not the underlying cause.
+ Classification: surface symptom — proposed change patches a downstream effect, not the underlying cause.
 
  Finding/design: <title>
  Where: <file:line or design-section>
@@ -72,7 +72,7 @@ Always-WAIT routes the call to the only entity that holds that intent. The cost 
 | Your reasoning | Why it's wrong |
 |---|---|
 | "The symptom matches the bug, that's good enough" | Symptom-matching is correlation, not causation. Only confirmed cause (verified by code-trace, repro test, or hypothesis-confirmation artifact per `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard) justifies a fix. The reviewer/architect's `[SYMPTOM]` classification means causation is unconfirmed — fire the gate. |
-| "I'll just pick one of the two valid fixes" | If the architect classifies a design unit as `[MIXED]` (one path treats the symptom, another addresses the cause) and the user has not been asked, picking silently ships a product decision the user did not authorize. Symmetric with the multi-path fix gate in /geniro:debug (§2.2) and the `[PRODUCT-DECISION]` gate in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Fire the AUQ. |
+| "I'll just pick one of the two valid fixes" | If the architect classifies a design unit as `MIXED` (one path treats the symptom, another addresses the cause) and the user has not been asked, picking silently ships a product decision the user did not authorize. Symmetric with the multi-path fix gate in /geniro:debug (§2.2) and the `[PRODUCT-DECISION]` gate in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Fire the AUQ. |
 | "The classification looks wrong — it's clearly a root-cause fix, I'll skip the gate" | Skipping the gate based on your own re-classification is the same anti-pattern as auto-dropping a MEDIUM because "it didn't seem real" (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` § Why this exists). The agent's classification is the gate trigger; if it's wrong, the user picks "Confirmed root cause (proceed)" and the re-tag happens at result-handling — the audit trail records the override. |
 | "Only one [SYMPTOM] finding fired — the user will get annoyed by the question" | One AUQ call is the cost of preventing a real bug from shipping. The user is far more annoyed by a regression caused by an unconfirmed root cause than by a single decision prompt. |
 | "I'll batch every [SYMPTOM] finding into one multi-select" | Each symptom has its own root cause, its own user context, and its own correct disposition. Batching forces the user to over-generalize ("escalate all" or "proceed all") and loses the per-finding decision the gate exists to capture. Fire one AUQ per finding sequentially. |

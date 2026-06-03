@@ -128,9 +128,9 @@ The reviewer-agent emits `Confidence: XX%` (0-100). This is an advisory hint abo
 
 Documented limits of LLM-self-reported confidence:
 
-- "Overconfidence is Key" (arXiv 2405.02917): Claude family is the worst-case for verbalized calibration; "80%" is closer to 55-60% true-positive rate.
-- Greptile production data ("How to make LLMs shut up"): LLM self-rating "nearly random"; threshold filtering didn't work; replaced with embedding feedback.
-- "On Verbalized Confidence Scores" (arXiv 2412.14737): coarse-grained labels don't outperform percentages on calibration but are more robust to modal collapse.
+- Verbalized confidence is poorly calibrated for the Claude family — a self-rated '80%' tends to land closer to a 55-60% true-positive rate, so the number reads higher than the finding actually deserves.
+- In production code-review systems, LLM self-rating behaves nearly randomly; filtering on a confidence threshold did not reliably separate true from false findings.
+- Coarse-grained confidence labels do not calibrate better than raw percentages, but they resist collapsing toward a single modal value.
 
 Implication: do not invest energy in tuning the threshold value. The percentage is a UI hint; the multi-signal gate in §5 is what actually filters.
 
@@ -173,12 +173,12 @@ Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80)
 
 Rationale:
 
-- `convergence_count >= 2`: cross-dim convergence is a stronger signal than any single dim's self-rated confidence (k-review pattern; Mozilla AI Star Chamber; arXiv 2403.14274 +13.48% precision on vuln detection)
-- `Evidence-Block resolves` (with confidence ≥ 60 floor): code-grounded citation is the documented FP mitigation (arXiv 2411.03079); the floor screens low-conviction citations
+- `convergence_count >= 2`: when two or more independent dims flag the same finding, that agreement is a stronger signal than any single dim's self-rated confidence — multiple reviewers converging measurably lifts precision on real defects.
+- `Evidence-Block resolves` (with confidence ≥ 60 floor): a code-grounded citation is the strongest defense against false positives; the confidence floor screens out low-conviction citations.
 - Pre-resolved markers: explicit overrides preserve existing simplify P1/P2 / regressions-criteria signal-table semantics
 - Confidence >= 80: kept as a fallback path, no longer the primary gate
 
-The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor — CRITICAL, HIGH, AND MEDIUM (Anthropic's plugin pattern: "attempts to disprove each finding").
+The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor — CRITICAL, HIGH, AND MEDIUM: it actively attempts to disprove each finding rather than confirm it.
 
 ---
 
@@ -200,8 +200,3 @@ When a per-dim file specializes severity, it MUST cite §1 above as the canonica
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.1 — multi-signal Phase 4.1 gate consumer
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` — per-finding verifier (disproof step on every §4.1 survivor)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` — Cause taxonomy ([ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN])
-- "Overconfidence is Key", arXiv 2405.02917 — Claude verbalized-confidence calibration limits
-- "On Verbalized Confidence Scores", arXiv 2412.14737 — coarse-grained vs percentage calibration
-- "k-review precision uplift", arXiv 2403.14274 — convergence as a stronger signal than self-rating
-- "Code-grounded citation as FP mitigation", arXiv 2411.03079 — evidence as a filter signal
-- Greptile, "How to make LLMs shut up" — production data on self-rating threshold failure

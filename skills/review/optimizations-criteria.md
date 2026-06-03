@@ -2,6 +2,19 @@
 
 Concrete, measurable performance wins on the changed lines: skip ORM hydration on read-only paths, project columns, parallelize independent awaits, batch per-row writes, hygiene React re-renders, and ship the frontend bundle leanly.
 
+## Contents
+
+- Scope Boundary — Defers to `architecture-criteria.md`
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Cross-PR Hot-Path Work (peer-PR context)
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## Scope Boundary — Defers to `architecture-criteria.md`
 This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` (Performance & Scalability). Defer to that section; do not duplicate findings:
 
@@ -186,23 +199,7 @@ grep -nB2 -A1 "for\|while" file.ts | grep "\.set("
 
 ## Output Format
 
-```json
-{
-"type": "optimization",
-"severity": "high|medium|low",
-"title": "Brief optimization opportunity",
-"file": "path/to/file.ts",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of the opportunity",
-"category": "hydration|projection|react-render|bundle|async-parallel|bulk-ops",
-"code_snippet": "Relevant code lines",
-"evidence": "Why this is slower than necessary (round-trips, hydration cost, render count)",
-"impact": "Expected magnitude (e.g., N→1 round-trips, removes O(rows × columns) hydration)",
-"recommendation": "Concrete change (e.g., add.lean, batch via insertMany, wrap with React.memo)",
-"confidence": 80
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 
@@ -231,7 +228,7 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for para
 - Sibling PR moves a hot-path resource (e.g., replaces ORM with raw SQL) while current PR also touches the same path — coordination needed on which optimization wins.
 - Sibling PR introduces a new bulk-operation helper that current PR's per-row loop should use — surfaces reuse opportunity before merge.
 
-A valid finding shape: «PR #N (peer) optimizes `<path>` at `<file:line>` via <mechanism>; current diff touches the same path with different / overlapping approach — coordinate optimization strategy before shipping both». Severity MEDIUM (optimization findings cap at HIGH per Severity Guidelines).
+A valid finding shape: "PR #N (peer) optimizes `<path>` at `<file:line>` via <mechanism>; current diff touches the same path with different / overlapping approach — coordinate optimization strategy before shipping both". Severity MEDIUM (optimization findings cap at HIGH per Severity Guidelines).
 
 ## Review Checklist
 
@@ -252,3 +249,5 @@ A valid finding shape: «PR #N (peer) optimizes `<path>` at `<file:line>` via <m
 - **HIGH**: per-row INSERT/UPDATE in a loop on a path that processes >100 items; long-list render >1000 rows without virtualization; eager-import of a heavy lib (>100KB minified) used only behind a tab/modal
 - **MEDIUM**: missing `.lean` / `raw:true` / projection on hot-path read; sequential awaits on independent calls; missing route code-splitting; missing `React.memo` on demonstrably expensive child; long-list render 100–1000 rows without virtualization; image without modern format / `loading="lazy"` on hero
 - **LOW**: minor projection wins on cold paths; below-fold image without `loading="lazy"`; tree-shaking-hostile `import _ from 'lodash'` where only one helper is used
+
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1 (the optimizations dim specializes HIGH/MEDIUM to the measured thresholds above per §6).

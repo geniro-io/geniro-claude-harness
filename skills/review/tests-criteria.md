@@ -2,6 +2,20 @@
 
 Test coverage analysis, edge case handling, test quality, and critical path coverage assessment.
 
+## Contents
+
+- Test Design Philosophy (canonical)
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Litmus Test (The Deletion Test)
+- Test Deletions in the Diff (Inverse Deletion Test)
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## Test Design Philosophy (canonical)
 
 This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), the `adversarial-tester-agent` when authoring F→P tests (`/geniro:implement` Phase 3 self-review (Round 1), `/geniro:debug` Adversarial Mode), and the `/geniro:debug` reproduction-test author. Write the test according to these principles; review the test against them.
@@ -272,7 +286,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 - Verify authorization checks are tested
 
 **Red flags:**
-- Payment logic with <10 test cases
+- Payment logic with no failure-scenario or boundary tests (only happy-path coverage)
 - Auth code with no failure scenario tests
 - Critical functions with 1-2 tests
 - No tests for recovery from failure states
@@ -280,24 +294,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 
 ## Output Format
 
-```json
-{
-"type": "test",
-"severity": "critical|high|medium",
-"title": "Test coverage or quality issue",
-"file": "path/to/file.js",
-"test_file": "path/to/test.js",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of test gap",
-"category": "coverage|edge_cases|quality|async|integration|organization|mocking|critical_path",
-"missing_tests": ["null input", "empty array", "timeout scenario"],
-"current_coverage": "What's currently tested",
-"recommendation": "What tests to add",
-"impact": "Risk if this isn't tested",
-"confidence": 88
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

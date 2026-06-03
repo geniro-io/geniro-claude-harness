@@ -3,7 +3,7 @@ name: geniro:implement
 description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, EnterWorktree, ExitWorktree]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, EnterWorktree, ExitWorktree]
 argument-hint: "[task description | spec.md path | empty to resume | 'continue']"
 ---
 
@@ -23,28 +23,28 @@ You are an autonomous executor. You consume an externally-provided spec (or inli
 
 ## State machine
 
-State.md frontmatter `phase:` enum:
+State.md frontmatter `phase:` transitions (alignment-immune table; `from-phase → to-phase | trigger`):
 
-```
-[entry]
-└── analyze ──┬── implement ──┬── self-review ──┬── ship ──┬── done (terminal)
-│ │ │ ├── ship-committed-only (terminal — "don't push" / "no push" / "commit only" modifier)
-│ │ │ └── (non-resumable-actions[] update per side-effect)
-│ │ │
-│ │ └── self-review-only (terminal — "stop after review" modifier)
-│ │
-│ └── phase-2-escalated ──┬── debug-handoff (terminal)
-│ ├── self-review (user picked "accept failures")
-│ └── aborted (terminal)
-│
-└── (analyze surface failures inline; no additional escalation state)
+| From | To | Trigger |
+|---|---|---|
+| (entry) | analyze | Phase 1 start |
+| analyze | implement | spec parsed, handoffs resolved |
+| analyze | (analyze) | surface failures inline; no separate escalation state |
+| implement | self-review | Phase 2 todos done, tests green |
+| implement | phase-2-escalated | test fix-loop exhausted / not converging |
+| phase-2-escalated | debug-handoff | user picked "escalate to debug" (terminal) |
+| phase-2-escalated | self-review | user picked "accept failures" |
+| phase-2-escalated | aborted | user picked "abort" (terminal) |
+| self-review | ship | happy path — review clean |
+| self-review | self-review-only | "stop after review" modifier — exit before commit (terminal) |
+| self-review | phase-3-escalated | review fix-loop exhausted / not converging |
+| phase-3-escalated | debug-handoff | user picked "escalate to debug" (terminal) |
+| phase-3-escalated | ship | user picked "accept findings" → `## Accepted Findings` body block |
+| phase-3-escalated | aborted | user picked "abort" (terminal) |
+| ship | done | committed + pushed + PR (terminal) |
+| ship | ship-committed-only | "don't push" / "no push" / "commit only" modifier (terminal) |
 
-self-review ──┬── (happy: → ship)
-│
-└── phase-3-escalated ──┬── debug-handoff (terminal)
-├── ship (user picked "accept findings" → `## Accepted Findings` body block)
-└── aborted (terminal)
-```
+Each `git push` / `gh pr create` / posted comment appends to `non-resumable-actions[]` as it fires.
 
 **Terminal states**: `done`, `ship-committed-only`, `self-review-only`, `debug-handoff`, `aborted`.
 
@@ -62,7 +62,7 @@ Apply throughout all 3 phases:
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Paths absolute; slugs match the rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.
 3. **Permission before side-effect.** Any tool call mutating external state (`git push`, `gh pr create`, posted PR comment) is preceded by AUQ approval or recorded approval (persisted via schema).
 4. **Bounded and structured tool results.** Reviewer-agent output capped at ~4000 chars per dimension; longer truncated with marker. Bash output >8000 chars summarized before downstream use.
-5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds in Phase 2, 3 rounds in Phase 3) surface to user via `AskUserQuestion` at exhaustion — never silent abort, never infinite loop.
+5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds in Phase 2, 3 rounds in Phase 3) surface to user via `AskUserQuestion` at exhaustion — and earlier when the loop is not converging (no forward progress across two checkpoints, the same failure recurring, or cost/scope drift past the expected effort tier per the §PHASE 2 Step 6 trigger list). Never silent abort, never infinite loop, never spend the full retry budget against an unmoving wall.
 6. **Final answer grounded in observations.** Phase 3 Ship result text MUST quote actual tool output (push ref, PR URL, commit SHA) — never "git push succeeded" without evidence. Self-review reads `## Tool log` entries before claiming clean state.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Failed `gh pr create`, denied permission, hook-blocked Write, subagent timeout, non-zero Bash exit becomes a structured observation entry — never silently skipped.
 8. **Investigation reads delegated to subagents.** Phase 1 inline-Reads only L4 instructions (3 files), L3 semantic snapshot (2 files), spec.md body, and state.md. `.claude/rules/*.md` bodies, exemplar source files, L2 learnings entries, and prior plans are spawned out to Knowledge-Retrieval + Codebase-Explorer subagents and read back as condensed reports. Inline-reading the rest is the documented context-bloat regression. The two primary Phase 1 subagent spawns are the plugin-defined `knowledge-retrieval-agent` and `codebase-explorer-agent` (implementation-specific — takes a spec.md, produces REUSE/EXTEND/NO-ANALOGUE inventory). For ad-hoc cross-file research inside Phase 2 (per-step "trace this flow" / "find all sites that call this helper" queries that aren't covered by Codebase-Explorer's Phase 1 inventory), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -81,7 +81,7 @@ Apply throughout all 3 phases:
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Fix-loop retries per phase | 3 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. |
+| Fix-loop retries per phase | 3 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. Fires early (before 3) when the loop is not converging — see §PHASE 2 Step 6 early-escalation triggers. |
 | Reviewer output size | ~4K chars per dim | invariant #4 | Truncation with marker, NOT abort. |
 
 **Architecture constraints (design intent, not budget):**
@@ -110,7 +110,7 @@ Where `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch p
 
 ```yaml
 ---
-tier: T1
+tier: T1.5
 producer: implement
 schema-version: 1
 branch: <git-branch>
@@ -123,7 +123,7 @@ approvals: [] # appended after each one-time AUQ resolution
 ---
 ```
 
-**Write contract.** Every state.md mutation goes through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`). NEVER direct `Edit` or `Write` on canonical state paths — the State-helper enforcement hook will warn (and PR-final, hard-block).
+**Write contract.** Route every state.md mutation through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`) — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash. The State-helper enforcement hook warns on such a direct write (warn-mode initially; it flips to a hard-block in a future release).
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
@@ -166,11 +166,11 @@ Phase 2 makes no new helper calls at entry; per-Edit `.claude/rules/*.md` JIT lo
 
 ### L4 — Custom instructions (procedural)
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `<slug>.md`, and `code-style.md`; its §Echo contract requires one observable line per file. Both are mandatory.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); its §Echo contract requires one observable line per file. Both are mandatory.
 
 **Phase boundaries:**
 - Phase 1 entry — `MODE: refresh` — scope = `implement` + `global` + `code-style` (3 files). `refresh` re-Reads every file and re-emits the Echo lines; the procedure is identical to initial-load. The mode name signals compaction-survival intent.
-- Phase 3 entry — `MODE: refresh` ALWAYS — survives Phase 2 compaction. Cost: 1 extra helper read.
+- Phase 3 entry — `MODE: refresh` on every run, because the re-read survives any Phase 2 compaction. Cost: 1 extra helper read.
 
 The Echo contract survives compaction via the SessionStart hook re-injection.
 
@@ -280,7 +280,7 @@ Collect these signals before deciding:
 | `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `skills/plan/spec-template.md` §Frontmatter). Empty list when field absent. |
 | `BRANCH_FORMAT_RULE` | Read `<PRIMARY_ROOT>/.geniro/instructions/global.md` directly here at Step 0a. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 will re-Read the same file with full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. Without this signal, Step 0c authorizes branch names that violate project rules and the agent has to rename after the fact. |
 | `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. Cross-checked against `BRANCH_FORMAT_RULE` at Step 0c to decide whether the no-ticket-ID sub-flow fires. |
-| `CONCURRENT_ACTIVITY` | Set when another agent/session may be mutating this checkout: `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. Signals a contested shared checkout where in-place work risks an external reset/rename orphaning a commit. |
+| `CONCURRENT_ACTIVITY` | Set when another agent/session may be mutating this working tree: `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. Signals a contested shared working tree where in-place work risks an external reset/rename orphaning a commit. |
 
 #### 0b — Decide action
 
@@ -308,7 +308,7 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ When CONCURRENT_ACTIVITY is set, do NOT auto-continue in place — fire the full
       workspace AUQ (0c) with the recommendation flipped to "Git worktree (Recommended)"
       (an isolated worktree prevents a concurrent process from orphaning this run's commit
-      via an external reset/rename on the shared checkout). Otherwise AUTO-CONTINUE on
+      via an external reset/rename on the shared working tree). Otherwise AUTO-CONTINUE on
       current branch, NO workspace AUQ. Echo (translate <signal> to the plain-English reason per rule 2's mapping — never the raw token):
         "Continuing on '<branch>' — <plain-English reason>.
          Reverse with: re-run with 'new-branch' modifier in arguments."
@@ -326,12 +326,12 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ Fire the full workspace AUQ (0c). "New feature branch (Recommended)" stays default.
 
 6. IN_WORKTREE == false, PROTECTED_BRANCH == false, no continuing signals
-   ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already — unless CONCURRENT_ACTIVITY is set, in which case the recommendation is "Git worktree (Recommended)" so a concurrent process mutating the shared checkout cannot orphan this run's work.
+   ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already — unless CONCURRENT_ACTIVITY is set, in which case the recommendation is "Git worktree (Recommended)" so a concurrent process mutating the shared working tree cannot orphan this run's work.
 ```
 
 On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both skip the AUQ), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` right after the continue echo — offer to update a branch that is behind the default branch before Phase 1 begins. It skips silently when the branch is already current, and is skipped entirely on a compaction-resume (the branch was synced when the run first started).
 
-**Inline modifier overrides** (parsed from `$ARGUMENTS` per the Phase 1 semantic-parse table; modifiers ALWAYS win over auto-detection):
+**Inline modifier overrides** (parsed from `$ARGUMENTS` per the Phase 1 semantic-parse table; an explicit modifier wins over auto-detection, because the user's stated intent overrides an inferred signal):
 
 | Modifier in $ARGUMENTS | Effect |
 |---|---|
@@ -355,11 +355,11 @@ question: "Where should /geniro:implement land its edits?"
 multiSelect: false
 options:
   - label: "New feature branch (Recommended)"
-    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If BRANCH_FORMAT_RULE is set, the slug MUST conform to that pattern before this option creates the branch."
+    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
   - label: "Current branch"
     description: "Pre-flight only; no git mutation. Echo 'Continuing on <branch> at <toplevel>.'"
   - label: "Git worktree"
-    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same BRANCH_FORMAT_RULE conformance as 'New feature branch'."
+    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same branch-name-format conformance as 'New feature branch'."
 ```
 
 **No-ticket-ID sub-flow.** When BRANCH_FORMAT_RULE requires a ticket prefix AND `TICKET_ID_IN_SCOPE` is empty, the agent cannot derive a conformant slug. Chain a sub-AUQ BEFORE Question 1 fires (or BEFORE the worktree command runs if Question 1 has already resolved to "New feature branch" / "Git worktree"):
@@ -429,7 +429,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 | Workflow file present but `### On task start` section missing | Question 2 omitted silently. |
 | User picks "Other" with custom text on Question 1 | Treat as "Current branch" semantically; no git mutation; echo custom text into state.md `## Workspace decision` body block. |
 | Multiple review/debug handoffs for current branch (review AND debug both produced findings) | Both signals satisfy rule 2 of 0b. Echo both signal names; behavior otherwise identical. |
-| Stale review/debug handoff (older than 30 days) | Still triggers rule 2. Emit soft notice: `"Note: review handoff is N days old. Re-run /geniro:review if you want fresh findings."` |
+| Stale review/debug handoff (older than the current work) | Still triggers rule 2. Emit soft notice: `"Note: review handoff is N days old. Re-run /geniro:review if you want fresh findings."` |
 | `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 5 fires (full AUQ); worktree-presence is incidental. |
 
 ### Steps (after Step 0 settles)
@@ -444,14 +444,14 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 8. **Read subagent outputs.** Read `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`. The codebase-explorer's `change_scope` field gates Phase 3 adversarial-tester spawn (`trivial` → skip). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
 9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
-11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Phase 3 design-conventions injection and Pre-Ship Visual Verification.
+11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §UI-file detection rule). Gates Pre-Ship Visual Verification.
 12. **Persist review/debug handoffs AND gate on unresolved open questions.** For every `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
-    1. Read the file via `atomic_state_write`-safe Bash `cat` (NOT direct `Edit`/`Write`).
+    1. Read the handoff file with the `Read` tool (or Bash `cat`).
     2. Persist the body under state.md `## Inputs from <producer>` body section.
     3. Parse frontmatter `open_questions[]` per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
     4. Filter to entries with `status: unresolved`.
     5. **If the filtered list is non-empty, fire an AUQ batch BEFORE transitioning to `phase: implement`.** Chain one AUQ per unresolved entry (cap-extension when >4). Apply the 3-tier rendering procedure in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5 — Tier 1 uses producer-authored `context`/`evidence`/`options`/`recommendation` fields; Tier 2 cross-references `related_findings[]` into the handoff body's `## Findings` section; Tier 3 is the legacy bare-question synth fallback. Set `resolution.asked_in_phase: phase-1-step-12` and `resolution.resolved_by: implement` when persisting answers (vs §2.5's `phase-6-pre-gate` / `review`).
-    6. After each user pick, update the entry in the PRODUCER's handoff file via `atomic_state_write` (round-trip update): set `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-1-step-12`, `resolution.resolved_by: implement`. Preserve `id`, `source`, `question`, `related_findings`, `related_hypotheses`.
+    6. After each user pick, update the entry in the PRODUCER's handoff file via `atomic_state_write` (round-trip update): set `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-1-step-12`, `resolution.resolved_by: implement`. **`atomic_state_write` is a full-file overwrite, not a merge — supply the producer's ENTIRE original handoff content; the only delta is this entry's `status` + `resolution` sub-fields.** Preserve byte-for-byte every other frontmatter key (`tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `pr-ref`/`pr-body`/`resolved-threads-snapshot`, `linear-task-ref`/`linear-parent-ref`, `approvals`, `non-resumable-actions`, the other `open_questions[]` entries) and every body section (`## Findings`, `## Authored Tests`, etc.) — re-emit them unchanged, or a resolution write silently truncates load-bearing producer state a downstream re-review reads back. This is a surgical patch, not a rewrite. Within the resolved entry keep `id`, `source`, `question`, `related_findings`, `related_hypotheses` unchanged.
     7. Persist a parallel approval to state.md `approvals[]` with `category: review_handoff_resolution`, `picked: <chosen option>`, `at: <ISO-8601 UTC>`, `source_handoff: <producer>`, `question_id: <id>` for compaction-resume idempotency.
     8. After all entries are `resolved` or `wontfix`, proceed to sub-step 9.
     9. **Extract authored F→P tests when the handoff is from `/geniro:debug`.** Skip when `<producer>` is anything other than `debug` (e.g., `review`); fire only for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md`. Apply the canonical Scan/Extract/Verify/Decide protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md`:
@@ -460,7 +460,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
        - **Decide and surface** — Case A (all PRESENT, debug-source-branch matches) → one-line acknowledgment in the Phase 1 context summary. Case B1 (any MISSING) → surface the suggest-only relocation block from `_shared/debug-handoff.md` §Step 4; the user runs `git checkout <debug-source-branch> -- <paths>` or `cp` themselves — never auto-execute cross-branch git operations. Case B2 (all PRESENT but branches differ) → one-line "tests carried over" note. Case C (legacy fields missing) → degraded suggestion without explicit checkout command.
        - **Persist** to state.md as `Authored-tests:` (comma-separated relative paths on a single line) plus, when sourced from m7-v2+ frontmatter, `Authored-tests-intent:` (parallel comma-separated intents) and `Debug-source-branch:` / `Debug-source-worktree:`. Phase 2 reads these to prime TodoWrite decomposition — each authored test becomes a pre-existing acceptance gate, surfacing in the relevant todo's description so the production-fix work cannot ship without those tests going GREEN.
        - Authored-tests extraction is informational, NOT a gate — do NOT block transition to `phase: implement` on missing files. The user retains agency to either run the suggested commands, re-author tests in the current branch, or accept the divergence.
-    10. After authored-tests handling, proceed to step 13.
+    10. After authored-tests handling, proceed to step 12.5.
 
    /geniro:implement is the consumer; the contract per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 forbids proceeding with Edit/Write while any `unresolved` entry remains. A consumer that ships anyway violates the contract — the producer surfaced the ambiguity precisely so it gets resolved BEFORE code changes.
 
@@ -489,7 +489,7 @@ split it into separate milestone files before implementing. This run will
 proceed as a single pass with a step-by-step task list; splitting is cleaner.
 ```
 
-Milestone-mode is the canonical answer for truly Big tasks (separate worktrees, separate /geniro:implement runs). User may cancel and re-run via `/geniro:plan --milestones`; otherwise the run proceeds.
+Milestone-mode is the canonical answer for truly Big tasks (separate worktrees, separate /geniro:implement runs). User may cancel and re-run `/geniro:plan` on this task — /geniro:plan emits milestone files automatically when it classifies the task as Big; otherwise the run proceeds.
 
 ---
 
@@ -524,18 +524,25 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
 
    No parallel subagent fan-out for code edits. Single orchestrator owns context throughout Phase 2.
 
-   **Halt on unbidden working-tree mutation.** Between Edits, if the working tree changes in ways this run did not make — an Edit/Write repeatedly fails with "file changed since read", or files/tests this run never authored appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Workspace changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a checkout another process is mutating risks the commit being orphaned by an external reset.
+   **Halt on unbidden working-tree mutation.** Between Edits, if the working tree changes in ways this run did not make — an Edit/Write repeatedly fails with "file changed since read", or files/tests this run never authored appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Workspace changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a working tree another process is mutating risks the commit being orphaned by an external reset.
 
 4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, OUTPUT_PATH `<task-dir>/.tr-out.md`, and `MAX_FAILURES_REPORTED: 15`. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. OMIT `model=`. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
-5. **In-phase fix loop on test failure.** Up to 3 retries (full pseudo-code + token-cost analysis: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, exit on `ALL_GREEN`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. Retry exhaust → escalate-AUQ.
+5. **In-phase fix loop on test failure.** Up to 3 retries (full pseudo-code + token-cost analysis: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, exit on `ALL_GREEN`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. Retry exhaust OR an early-escalation trigger (see below) → escalate-AUQ before the 3-retry budget is spent — a loop that is not converging burns the user's tokens on the same wall.
 
-6. **Escalation on retry exhaust or INFRA_ERROR.** Fire AUQ (header: `"Test failure"`):
+6. **Escalation on retry exhaust, `INFRA_ERROR`, or a not-converging signal.** Fire AUQ (header: `"Test failure"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
    - B) Accept failing tests as documented limitation — state.md `phase: self-review`, append `## Accepted Failures` block
    - C) Abort — state.md `phase: aborted` (terminal)
 
    Empty answer = upstream bug, fall back to plain text and re-ask. NEVER auto-default.
+
+   **Early-escalation triggers (derived from state.md `## Errors` + `## Tool log` history — no new state surface).** Fire the same AUQ before retries exhaust when any of these holds, because each is a signal the loop has stalled rather than progressed:
+   - **No forward progress between two checkpoints.** Two consecutive retry checkpoints produce no new passing tests AND no forward diff progress (the changed-files set and failing-test set are unchanged across the pair). The fix edits are not moving the suite.
+   - **Retry storm — the same failure recurring.** An identical failing test name OR an identical error message / stack-trace recurs across retry attempts (compare the current test-runner output against the prior retry's failing-test list still in context). Re-hitting the same wall means the current approach cannot clear it.
+   - **Cost / scope drift.** The run has far exceeded the expected effort tier (the codebase-explorer `change_scope` from Phase 1 — e.g. a `trivial`/`small` task now spanning many files and edit batches). The work is larger than the spec scoped for, so the user should decide whether to continue, re-plan, or hand off.
+
+   When an early trigger fires, state the plain-English reason in the AUQ question text (e.g. "the same test keeps failing across retries" / "this is turning out much larger than expected") so the user knows why the gate opened early — never surface the raw signal name.
 
 **State.md update on phase exit.** `phase: self-review` (happy path) or `phase: phase-2-escalated` (if escalation fires). On `aborted`, write `## Termination reason: repeated-failure: phase-2 retry-limit (<N> failing tests)`.
 
@@ -591,12 +598,14 @@ PHASE 2 (sequential, single-context):
 
 3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns; if clean AND no authored adversarial tests still fail, exit to Ship; otherwise apply fixes inline (no further agent spawns), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the failing reviewer dims (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
 
-4. **Escalation on round-3 exhaust.** AUQ (header: `"Resolve findings"`):
+4. **Escalation on round-3 exhaust or a not-converging signal.** AUQ (header: `"Resolve findings"`):
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
    - B) Accept findings, ship anyway — state.md `phase: ship`, append `## Accepted Findings` block
    - C) Abort — state.md `phase: aborted` (terminal)
 
    Empty answer = upstream bug, fall back to plain text and re-ask. NEVER auto-default.
+
+   The Phase 2 early-escalation triggers (§PHASE 2 Step 6) apply to this fix loop too, read from the same state.md `## Errors` + `## Tool log` history: fire this AUQ before round 3 exhausts when two consecutive rounds make no forward progress (same findings survive, no new tests pass, diff unchanged), when an identical finding or identical failing test/stack-trace recurs round-over-round (a fix that does not stick), or when the run has drifted far past the expected effort tier. State the plain-English reason in the AUQ question text — never the raw signal name.
 
 ### Ship sub-step
 
@@ -629,20 +638,10 @@ When ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` invoca
 
 ## Modifier handling (semantic, deterministic)
 
-Inline modifiers from Phase 1 `$ARGUMENTS` parse override AUQ defaults deterministically. Modifier scope groups: workspace (Step 0), adversarial-tester (Phase 3), ship mode (Ship sub-step).
+Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministically. Two tables own the rows at their point of use:
 
-| Modifier | Effect |
-|---|---|
-| `new-branch` / `new branch` | Step 0: force "New feature branch" path even if a "continuing" signal is detected. |
-| `current-branch` / `current branch` | Step 0: force auto-continue regardless of signals. |
-| `worktree` / `new-worktree` | Step 0: force worktree creation path. |
-| `no-worktree` / `here` | Step 0: force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
-| `--no-adversarial` | Phase 3 Round 1: disable adversarial-tester spawn (reviewer-agents only; custom dimensions still spawn). |
-| "don't push" / "no push" / "commit only" | Ship: commit succeeds, no push. State.md → `phase: ship-committed-only` (terminal). Skip ship-mode AUQ. |
-| "draft only" / "draft PR" / "open draft" | Ship: push + `gh pr create --draft`. State.md → `phase: done`. Skip ship-mode AUQ. |
-| "ready PR" / "ready-for-review" / "non-draft PR" | Ship: push + `gh pr create` (ready-for-review). State.md → `phase: done`. Skip ship-mode AUQ. |
-| "open PR" / "create PR" / "with PR" (no `draft` or `ready` qualifier) | Ship: fires the ship-mode AUQ so the recommended draft default is surfaced — does NOT skip the AUQ and does NOT silently pick ready-for-review. A bare "open PR" intent is ambiguous between draft and ready, so it routes through the gate. |
-| "stop after review" | Ship: exit Phase 3 BEFORE commit. Clean review status is the deliverable. State.md → `phase: self-review-only` (terminal). |
+- **Workspace + adversarial-tester modifiers** — §Step 0b "Inline modifier overrides".
+- **Ship-mode modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Inline modifiers from $ARGUMENTS".
 
 When no ship-mode modifier is present, the ship-mode AUQ fires. Conflicting modifiers (e.g., `new-branch` AND `current-branch`): last-occurrence wins (right-to-left scan); emit soft notice naming both detected variants.
 
@@ -683,7 +682,7 @@ These patterns must NOT be reintroduced:
 | "/geniro:implement should fire a user-approval AUQ before Phase 3 adversarial-tester spawn, mirroring /geniro:review Phase 4.3." | /geniro:review needs the AUQ because its contract is read-only reporter — spawning a test author is a scope expansion past contract. /geniro:implement is already authorized to mutate code (Phase 2 IS the mutation phase). Phase 3 adversarial test authoring is symmetric to Phase 2 code authoring, NOT a new authority surface. Phase 8 spec.md approval covers it. Use `--no-adversarial` modifier for explicit opt-out. |
 | "Branch format requires a ticket prefix per global.md — I'll create the Linear / Jira / GitHub-Issues ticket so the slug conforms." | /geniro:implement never creates tracker artifacts. Per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` mutation-responsibility note: /geniro:implement mutates tracker state (status transitions at Step 0c kickoff + Phase 3 Ship completion) but does not create tickets, issues, epics, or sub-tasks. A branch-format rule that demands a ticket ID is satisfied by user-provided ID (Step 0c no-ticket-ID sub-flow option A), placeholder slug (option B), or cancellation (option C) — never by inventing an upstream artifact. Tracker creation is a human authoring action, not a code-execution side-effect; an agent-created ticket appears in the user's tracker without authorization and triggers downstream artifacts (notifications, dashboard rows, sprint-planning surface area) the user did not approve. |
 | "/geniro:implement should inline-Read every relevant .claude/rules/, exemplar, and prior plan for thoroughness." | Loop invariant #8. Phase 1 delegates investigation reads to Knowledge-Retrieval + Codebase-Explorer subagents; orchestrator inline-Reads only L4 (3 files), L3 (2 files), spec.md, and state.md. `.claude/rules/*.md` bodies and exemplar sources are JIT-loaded in Phase 2 only when an Edit target matches the rule's `paths:` glob (using the path list returned by Codebase-Explorer). Inline-reading the rest is the documented context-bloat regression. |
-| "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it does not write new files or tests you never created. Content appearing that this run did not author indicates a concurrent external process. Committing from a checkout another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Workspace changed" AUQ (Phase 2 guard) instead of rationalizing the mutation away. |
+| "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it does not write new files or tests you never created. Content appearing that this run did not author indicates a concurrent external process. Committing from a working tree another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Workspace changed" AUQ (Phase 2 guard) instead of rationalizing the mutation away. |
 
 ---
 

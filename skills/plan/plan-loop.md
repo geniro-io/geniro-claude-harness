@@ -4,11 +4,29 @@ Canonical phase pattern for `/geniro:plan`.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the loop logic.
 
+## Contents
+
+- HARD-GATE
+- Phase 0 — Mode detect
+- Phase 0.5 — Problem discovery (opt-in, `--prd`)
+- Phase 1 — Explore
+- Phase 2 — Visual Companion (UI-conditional)
+- Phase 3 — Clarifying questions
+- Phase 4 — Approaches
+- Phase 5 — Section approval
+- Phase 6 — Write spec.md
+- Phase 7 — Mechanical validator
+- Phase 7.5 — Spec challenge
+- Phase 8 — User approval
+- Phase 9 — Hand-off
+- Definition of Done
+- Anti-rationalization
+
 ---
 
 ## HARD-GATE
 
-> Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until the Phase 8 user-approve AUQ has been answered «Approve». The gate is binding for Phases 0–8. The Phase 9 hand-off is the only authorized release point.
+> Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until the Phase 8 user-approve AUQ has been answered "Approve". The gate is binding for Phases 0–8. The Phase 9 hand-off is the only authorized release point.
 
 ---
 
@@ -18,16 +36,18 @@ State.md `phase: mode-detect` during this phase. Light cost — a single design-
 
 ### 0.1 $ARGUMENTS resolution
 
+**`--prd` flag detection (opt-in).** If `$ARGUMENTS` contains the token `--prd`, note that the flag was passed and strip the token before passing the remaining text to mode detection. state.md does not exist yet at this point — it is created in §0.3 — so do NOT write frontmatter here; instead carry the flag forward and write `prd_mode: true` into the INITIAL state.md frontmatter at the §0.3 creation step. `prd_mode` turns on the Phase 0.5 problem-discovery interview and the spec's optional `## Problem & Evidence` body section. When `--prd` is absent, `prd_mode` stays unset and the loop runs exactly as it does today — no behavior change.
+
 Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged. Returns:
 
 - **IDEA(topic)** — free-form text; proceeds to Phase 1 with topic as initial context.
 - **DESIGN_DOC(path)** — existing design doc; flows to AUQ.
-- **CODE_REFERENCE(path)** — error per design-doc-detect.md per-consumer table: «code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?». Exit without writing state.md.
+- **CODE_REFERENCE(path)** — error per design-doc-detect.md per-consumer table: "code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?". Exit without writing state.md.
 - **None** (empty $ARGUMENTS) — fires empty-argument AUQ:
  - `header`: "Topic"
  - `question`: "What do you want to plan?"
  - `options[]` (single-select, 3 options + Other free-text): "New feature" / "Existing problem to solve" / "Cancel"
- - Non-empty answer (via a picked option OR free-text Other) → IDEA mode; «Cancel» → terminal without state.md.
+ - Non-empty answer (via a picked option OR free-text Other) → IDEA mode; "Cancel" → terminal without state.md.
  - Persist outcome to `approvals[]` with `category: disambiguate_arguments` .
 
 ### 0.2 DESIGN_DOC mode AUQ
@@ -36,10 +56,10 @@ Fire `AskUserQuestion` with:
 - `header`: "Existing design doc"
 - `question`: "Design doc already exists at `<path>`. What now?"
 - `options[]` (single-select, 2 options):
- - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run the full 10-phase loop (Phases 0–9; Phase 2 fires only when the UI trigger matches per §"Phase 2 — Visual Companion"); emit a new spec.md at a fresh task-dir.
+ - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run the full planning loop (Phases 0–9 plus the always-on Phase 7.5 spec-challenge; Phase 2 fires only when the UI trigger matches per §"Phase 2 — Visual Companion"); emit a new spec.md at a fresh task-dir.
  - **Cancel** — exit without writing state.md.
 
-**On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template; Phase 5 uses the 10-section schema unconditionally.
+**On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template; Phase 5 uses the 11-section schema unconditionally.
 
 **On "Cancel"** → exit immediately. Surface terminal message: "Cancelled before planning started".
 
@@ -49,12 +69,68 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
-4. **Transition.** `phase: explore` via `atomic_state_write`.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+4. **Transition.** Branch on the `--prd` flag from §0.1: when it was present, set `phase: problem-discovery` via `atomic_state_write` and proceed to Phase 0.5; otherwise set `phase: explore` and proceed to Phase 1. Phase 0.5 itself sets `phase: explore` on completion (§0.5.4), so a `--prd` run flows through problem-discovery then rejoins the normal loop at Phase 1.
 
 ### 0.4 Cancel handling
 
 If state.md already created when user cancels (e.g., deep cancel via Other): write `phase: aborted` + `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_write` before exit.
+
+---
+
+## Phase 0.5 — Problem discovery (opt-in, fires only on `--prd`)
+
+State.md `phase: problem-discovery` during this phase. **Fires only when `prd_mode: true`** (set in Phase 0.1 from a `--prd` flag in `$ARGUMENTS`). When `prd_mode` is unset, skip this phase entirely — the loop transitions Phase 0 → Phase 1 unchanged.
+
+This phase runs a problem-first discovery interview BEFORE explore and clarify, so the eventual spec is grounded in a validated problem rather than a presumed solution. It reuses the Phase 3 batched-AUQ pattern (independent questions batched into one call, ≤4 per call; chain a second call past the cap rather than drop a question — the 4-option-per-call tool limit applies here too).
+
+### 0.5.1 Interview dimensions
+
+Ask one question per dimension. These are independent, so batch them — two calls of ≤4 questions each (the six dimensions exceed the 4-per-call cap, so chain a second call per the cap-extension rule):
+
+| Dimension | What it captures | Why it's load-bearing |
+|---|---|---|
+| Problem statement | The problem in one sentence, framed as the pain — not a feature ("users abandon checkout at the address step", not "add address autocomplete"). | A solution chosen before the problem is named bakes in the wrong assumption. |
+| Evidence | What proves the problem is real — a metric, a support-ticket count, a recorded session, a quote. | Distinguishes a real problem from a guessed one; an unevidenced problem routes to "gather evidence first". |
+| Target user + job-to-be-done | Who has the problem and the job they are trying to get done. | Scopes the solution to a user and a job, not "everyone, vaguely". |
+| Hypothesis | A testable "if we do X, then metric Y moves by Z" statement. | Makes success falsifiable — the spec can be validated against it. |
+| Success metrics | The 1-3 metrics that confirm the problem is solved. | Feeds spec section 9 (Validation) and section 11 (Done Condition). |
+| Prioritization | Rough MoSCoW split (Must / Should / Could / Won't) of the candidate scope. | Pre-sorts scope before Phase 5; the Must set seeds section 2 (Scope — Included), the Won't set seeds section 3 (Scope — Excluded). |
+
+Each option carries a `preview` field with concrete consequence content (≤6 lines) per the Phase 3 shape — empty options waste user attention. Offer a free-text "Other" path on every question; for the open-ended dimensions (problem statement, evidence, hypothesis) the user will usually type rather than pick a canned option, so the canned options are illustrative anchors, not an exhaustive menu. When the user has no evidence, capture that honestly: record "evidence: none yet" and surface a one-line note that the problem is unvalidated — do not invent evidence.
+
+### 0.5.2 Persistence
+
+Append one entry to state.md frontmatter `approvals[]` per answered question via `atomic_state_write`, category `prd_<dim>` (e.g., `prd_problem_statement`, `prd_evidence`, `prd_target_user`, `prd_hypothesis`, `prd_success_metrics`, `prd_prioritization`). Same entry shape as Phase 3 (category / prompt / options / picked / at / asked_in_phase). Persisting here is non-negotiable: a context reset mid-plan would otherwise lose the entire problem framing, and the SessionStart re-injector renders `approvals[]` so a resumed session re-reads the answers and skips re-asking.
+
+Also append a `## Problem Framing` body section to state.md capturing the synthesized free-text answers (problem / evidence / user + job / hypothesis / metrics / MoSCoW), so Phase 6 can copy it into the spec without re-deriving from `approvals[]`:
+
+```markdown
+## Problem Framing
+- problem: <one-sentence pain statement>
+- evidence: <metric / ticket count / quote, OR "none yet — unvalidated">
+- target_user: <who> — job: <job-to-be-done>
+- hypothesis: if <X> then <metric Y> moves by <Z>
+- success_metrics: <1-3 metrics>
+- moscow:
+    must: [...]
+    should: [...]
+    could: [...]
+    wont: [...]
+```
+
+### 0.5.3 Feed-forward
+
+The problem framing feeds two downstream sites:
+
+- **Phase 1 explore** — inline the `## Problem Framing` body into research-agent prompts under a `## Problem Framing` section, so research targets the named problem and its evidence rather than a presumed solution.
+- **Phase 3 clarify + Phase 5 section authoring** — the Must/Should set seeds section 2 (Scope — Included); the Won't set seeds section 3 (Scope — Excluded); the success metrics seed section 9 (Validation) and section 11 (Done Condition); the problem statement and evidence populate the spec's optional `## Problem & Evidence` body section (Phase 6).
+
+Section 1 (Objective) stays a single declarative goal sentence — NOT the problem statement (the validator's `single_objective` check enforces this). The problem framing lives in the separate `## Problem & Evidence` section; the Objective is the solution-goal derived from it.
+
+### 0.5.4 Transition
+
+After the interview persists, transition `phase: explore` and proceed to Phase 1 normally. Phase 1 now carries the problem framing as added context. All subsequent phases run unchanged except for the two feed-forward sites above and the Phase 6 `## Problem & Evidence` write.
 
 ---
 
@@ -84,6 +160,7 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 | Tier | Spawns |
 |---|---|
 | Trivial (single-file config tweak, typo fix, rename) | 1 agent OR 0 if obviously scope-bound |
+| Small (localized change, 1-2 files) | 1-2 agents (existing-impl; integration-surface only if it spans a boundary) |
 | Medium (feature addition touching 2-5 files) | 2 agents (existing-impl + integration-surface) |
 | Big (subsystem-level change ≥10 files) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
 
@@ -108,7 +185,7 @@ Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` 
  - src/middleware/session.ts:88-101
 ```
 
-Phase 7 validator (check #3) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
+Phase 7 validator (check #3) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Small ≥1; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
 
 ### 1.4 Workflow refs fetch (tracker linkage)
 
@@ -193,7 +270,7 @@ Model identifies up to 5 highest-leverage ambiguities from:
 - L2 query-learnings ("prior decision favored Approach X — does it apply here?")
 - L4 code-style rules
 
-Questions MUST be grounded in Phase 1 findings. Generic «what tech stack?» questions are forbidden — the model can answer those from L3 `_project.md`.
+Questions MUST be grounded in Phase 1 findings. Generic "what tech stack?" questions are forbidden — the model can answer those from L3 `_project.md`.
 
 ### 3.2 AUQ shape — batch independent, sequence dependent
 
@@ -232,12 +309,13 @@ Effort-tier-scaled (tier already detected in Phase 1.2 — the critic cost lands
 | Tier | Stress-test spawns |
 |---|---|
 | Trivial | Skipped — single narrow approach, no ranking risk |
+| Small | Skipped — too narrow to warrant a critic; if Phase 4 produced ≥2 genuinely competing approaches, treat as Medium (1 comparative critic) |
 | Medium | 1 `codebase-research-agent` — stress-tests all approaches comparatively in one spawn |
 | Big | 1 `codebase-research-agent` per approach (2-3 in parallel) — each independently challenges its assigned approach |
 
 Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research, all in a single assistant response (parallel-spawn rule), OMIT `model=`, apply the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration ladder. Per-spawn slots:
 
-- `RESEARCH_QUESTION`: "Stress-test approach «<name>» against this codebase: find blockers, hidden coupling, convention conflicts, and prior rejected attempts that would make it fail or cost more than its stated effort estimate." (Medium tier: enumerate all approaches in one question.)
+- `RESEARCH_QUESTION`: "Stress-test approach '<name>' against this codebase: find blockers, hidden coupling, convention conflicts, and prior rejected attempts that would make it fail or cost more than its stated effort estimate." (Medium tier: enumerate all approaches in one question.)
 - `DELIVERABLE_SHAPE`: `"table of [{approach, risk, evidence file:line, severity: blocking|major|minor}]"`
 - `SCOPE_HINT`: path globs from the approach's touched surface (Phase 1 echo entries).
 - `PRE_INLINED_CONTEXT`: the §4.1 approach list + relevant Phase 1 `query-learnings` entries — especially any prior `user_rejected_suggestion` for this topic-area, which is itself a blocking signal.
@@ -270,7 +348,7 @@ emit_rejection_if_signal \
 
 Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op.
 
-**Read side:** Phase 1 query-learnings on /geniro:plan entry already runs once. Extend its consumers to surface entries with `type=user_rejected_suggestion AND tags includes 'approach_choice'` matching the current topic — display as «User previously rejected <suggestion> on <ts>» so the orchestrator can re-rank or omit the rejected approach from AUQ.
+**Read side:** Phase 1 query-learnings on /geniro:plan entry already runs once. Extend its consumers to surface entries with `type=user_rejected_suggestion AND tags includes 'approach_choice'` matching the current topic — display as "User previously rejected <suggestion> on <ts>" so the orchestrator can re-rank or omit the rejected approach from AUQ.
 
 Example body:
 
@@ -294,7 +372,7 @@ State.md `phase: section-approve` during this phase.
 
 ### 5.1 Section template
 
-Use the **fixed 10-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md`:
+Use the **fixed 11-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md`:
 
 1. Objective
 2. Scope — Included
@@ -306,15 +384,15 @@ Use the **fixed 10-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/pl
 8. Approval Points
 9. Validation
 10. Rollback-Recovery
-11. Done Condition (header «## 11.» — schema counts 10 sections starting at ## 1; this is section #10 by count)
+11. Done Condition
 
-Every spec.md has exactly the same 10 sections — schema-stable downstream consumers.
+Every spec.md has exactly the same 11 sections — schema-stable downstream consumers.
 
-For Trivial tasks, sections 4 / 5 / 10 may have body content «none — task scope precludes» with brief rationale. Headers MUST exist; bodies MAY be «none with rationale».
+For Trivial tasks, sections 4 / 5 / 10 may have body content "none — task scope precludes" with brief rationale. Headers MUST exist; bodies MAY be "none with rationale".
 
 ### 5.2 Cluster approval — incremental authoring in dependency order
 
-Group the 10-section schema into 3 dependency-ordered clusters, authored and gated in order. Each cluster fires ONE batched `AskUserQuestion` call carrying one question per section (within the 4-question-per-call cap):
+Group the 11-section schema into 3 dependency-ordered clusters, authored and gated in order. Each cluster fires ONE batched `AskUserQuestion` call carrying one question per section (within the 4-question-per-call cap):
 
 | Cluster | Plain-English name | Sections |
 |---|---|---|
@@ -322,9 +400,9 @@ Group the 10-section schema into 3 dependency-ordered clusters, authored and gat
 | 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required |
 | 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition |
 
-Author cluster N's sections → fire the cluster's batched AUQ → on approve, author cluster N+1. Cluster 1 (Goal & scope) is approved before cluster 2 is authored, so each cluster is grounded in the prior cluster's approved content; this keeps cross-section issues catchable while preserving dependency order. **Do NOT author all 10 sections before the first gate**, and **do NOT render section bodies to chat before the AUQ** — the content lives in the option `preview` fields.
+Author cluster N's sections → fire the cluster's batched AUQ → on approve, author cluster N+1. Cluster 1 (Goal & scope) is approved before cluster 2 is authored, so each cluster is grounded in the prior cluster's approved content; this keeps cross-section issues catchable while preserving dependency order. **Do NOT author all 11 sections before the first gate**, and **do NOT render section bodies to chat before the AUQ** — the content lives in the option `preview` fields.
 
-Per cluster: (1) author the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate; (2) print a one-line chat companion (e.g., `"Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each."`); (3) fire ONE batched AUQ with one question per section, each question's three options (Approve — Recommended / Revise — I'll describe / Skip — accept as-is) carrying an ADR-style `preview` (Decision → Why → How → optional ASCII diagram → concrete example); (4) persist each section pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`) — the cluster is a presentation grouping only, no `cluster_<id>` category; (5) on approve, author the next cluster.
+Per cluster: (1) author the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate; (2) print a one-line chat lead-in (e.g., `"Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each."`); (3) fire ONE batched AUQ with one question per section, each question's three options (Approve — Recommended / Revise — I'll describe / Skip — accept as-is) carrying an ADR-style `preview` (Decision → Why → How → optional ASCII diagram → concrete example); (4) persist each section pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`) — the cluster is a presentation grouping only, no `cluster_<id>` category; (5) on approve, author the next cluster.
 
 For any section marked "Revise", re-author it AND any sections in the same cluster that depend on it, then re-fire the cluster's batched AUQ. Max 3 revision rounds per cluster.
 
@@ -334,7 +412,7 @@ Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills
 
 ### 5.3 Milestone-mode
 
-Fires BEFORE Phase 6 entry when effort tier is Big AND section 6 "Steps" has ≥10 discrete steps OR estimated wall-time ≥1 day. AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement milestone 1`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode does NOT fire for Medium/Trivial.
+Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (Big tier with score 9+ or >15 steps). AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode fires only at Big tier; not Small/Medium/Trivial.
 
 ---
 
@@ -346,7 +424,9 @@ State.md `phase: write-spec` during this phase.
 
 Path: `.geniro/planning/<task-slug>/spec.md`.
 
-Content: schema (10 sections) + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode).
+Content: schema (11 sections) + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode, optional `## Problem & Evidence` from Phase 0.5 when `prd_mode: true`).
+
+**`## Problem & Evidence` (PRD-mode only):** when `prd_mode: true`, copy state.md `## Problem Framing` (populated by Phase 0.5) into the spec's `## Problem & Evidence` body section per the layout in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` § Problem & Evidence. The section's success metrics also seed section 1 (Objective) phrasing and section 11 (Done Condition). Omit the section entirely when `prd_mode` is unset — a normal spec carries only the standard sections, and the Phase 7 validator treats `## Problem & Evidence` as allowed-optional (never required).
 
 **Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §workflow_refs).
 
@@ -366,9 +446,7 @@ After writing spec.md, append a `## Tool log` entry to state.md via `atomic_stat
 
 ### 6.2 NO auto-commit
 
-`git commit` does NOT fire at Phase 6 exit. It is deferred to Phase 8 post-approval to avoid polluting git history with per-revision commits.
-
-The `git commit` is deferred to Phase 8 post-approval. At Phase 6 exit, spec.md sits unstaged on disk; state.md `phase: validate` written before Phase 7 entry.
+`git commit` does NOT fire at Phase 6 exit — it is deferred to Phase 8 post-approval to avoid per-revision commits polluting git history. At Phase 6 exit, spec.md sits unstaged on disk; state.md `phase: validate` is written before Phase 7 entry.
 
 ### 6.3 Milestone-mode write fan-out
 
@@ -409,7 +487,7 @@ If any check fails:
 
 ### 7.4 No transition to Phase 7.5 if validator hard-fails
 
-The validator is a gate, not advisory. Phase 7.5 spec challenge and the Phase 8 user-approve MUST see a validator-clean spec.md (or one where hard-fails were explicitly accepted by the user via path A). Protects from the «user approves blind» failure mode. On a clean (or user-accepted) validator pass, transition `phase: spec-challenge` before Phase 7.5 entry.
+The validator is a gate, not advisory. Phase 7.5 spec challenge and the Phase 8 user-approve MUST see a validator-clean spec.md (or one where hard-fails were explicitly accepted by the user via the §7.3 Accept-as-is option). Protects from the "user approves blind" failure mode. On a clean (or user-accepted) validator pass, transition `phase: spec-challenge` before Phase 7.5 entry.
 
 ---
 
@@ -430,7 +508,7 @@ This fires on every plan regardless of effort tier — no Trivial skip. Cost sta
 ### 7.5.2 Verdict handling
 
 - **keep** (clean) — surface a one-line advisory note (top challenge observation, if any) and transition `phase: user-approve` to Phase 8.
-- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`Write` mechanism (§6.1; idempotent regeneration, `Write` not `Edit`), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 path-A/B/C AUQ. The human then approves a hardened spec.
+- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`Write` mechanism (§6.1; idempotent regeneration, `Write` not `Edit`), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 accept-as-is / re-revise / abort AUQ. The human then approves a hardened spec.
 - **re-plan** (the approach itself is refuted) — re-enter approach selection. Transition `phase: approaches` and re-run Phase 4 (re-run Phase 3 first if the refutation invalidates a clarifying answer), inlining the challenge's evidence into the §4.1 approach synthesis and the §4.2 stress-test `PRE_INLINED_CONTEXT`.
 
 ### 7.5.3 Advisory + fail-open
@@ -540,15 +618,16 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 
 - [ ] Phase 0 mode detection ran via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`; mode is IDEA or DESIGN_DOC; CODE_REFERENCE errored with corrective hint.
 - [ ] state.md created at `.geniro/planning/<slug>/state.md` via `atomic_state_write` with frontmatter.
+- [ ] Phase 0.5 problem-discovery interview ran ONLY when `--prd` was passed (`prd_mode: true`); six dimensions captured (problem / evidence / target user + job / hypothesis / success metrics / MoSCoW), each persisted to `approvals[]` (`prd_<dim>`) + synthesized to state.md `## Problem Framing`; skipped silently when `--prd` absent (no behavior change).
 - [ ] Phase 1 loaded L4 + L3 + L2 (full tier); per-spawn Echo contract entries persisted to `## Tool log`.
 - [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs` (skipped when no tracker reference).
 - [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
 - [ ] Phase 3 batched independent clarifying questions into one `AskUserQuestion` call (≤4 per call, dependent questions fired sequentially), ≤5 questions total; each option carried a `preview` field; each answer persisted to `approvals[]`.
 - [ ] Phase 4 presented 2-3 approaches with Recommended first; each option carried a `preview` (ASCII sketch + code identifier + tradeoff); pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
 - [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); critique verdicts carried into the AUQ preview + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
-- [ ] Phase 5 grouped the fixed 10-section schema into 3 dependency-ordered clusters (Goal & scope / Approach & steps / Safety & done); authored cluster-by-cluster in order, each gated by ONE batched AUQ (one question per section); each option carried an ADR-style `preview` (Decision → Why → How → optional diagram → example); each section pick persisted to `approvals[]` category `section_<id>` (no `cluster_<id>` category introduced).
+- [ ] Phase 5 grouped the fixed 11-section schema into 3 dependency-ordered clusters (Goal & scope / Approach & steps / Safety & done); authored cluster-by-cluster in order, each gated by ONE batched AUQ (one question per section); each option carried an ADR-style `preview` (Decision → Why → How → optional diagram → example); each section pick persisted to `approvals[]` category `section_<id>` (no `cluster_<id>` category introduced).
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
-- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present.
+- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present; `## Problem & Evidence` written from state.md `## Problem Framing` ONLY when `prd_mode: true` (omitted on normal specs).
 - [ ] Phase 6 did NOT auto-commit.
 - [ ] Phase 7 mechanical validator ran the full check set defined in `validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 7.5 spec challenge ran on every plan (no Trivial skip) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).
@@ -564,9 +643,9 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "This task is too simple to need a design" | "Simple" projects are where unexamined assumptions cause the most wasted work. Design can be short (Phase 5 Trivial = sections 4 / 5 / 10 with body «none with rationale»); presenting and approving is mandatory. HARD-GATE applies to EVERY task. |
+| "This task is too simple to need a design" | "Simple" projects are where unexamined assumptions cause the most wasted work. Design can be short (Phase 5 Trivial = sections 4 / 5 / 10 with body "none with rationale"); presenting and approving is mandatory. HARD-GATE applies to EVERY task. |
 | "I'll skip Phase 8 user re-review, my Phase 7 validator is enough" | Validator catches mechanical defects (placeholders / contradictions / scope creep); user catches intent defects (wrong abstraction / missing constraint). Different defect classes; both required. |
-| "I'll author all 10 sections, then fire 3 cluster AUQs at the end" | Two failure modes to avoid. (a) Rendering section bodies to chat then re-asking — the user has already read the content; the AUQ has nothing new to inspect (the M5-v1 redundancy). (b) Authoring all 10 sections before the first gate — cross-section issues surface only after the user has read the whole plan, too late to cheaply correct. The correct middle path is cluster-batched authoring in dependency order: author a cluster's sections → ONE batched AUQ with the content carried in the option `preview` fields → on approve, author the next cluster. Cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. |
+| "I'll author all 11 sections, then fire 3 cluster AUQs at the end" | Two failure modes to avoid. (a) Rendering section bodies to chat then re-asking — the user has already read the content; the AUQ has nothing new to inspect. (b) Authoring all 11 sections before the first gate — cross-section issues surface only after the user has read the whole plan, too late to cheaply correct. The correct middle path is cluster-batched authoring in dependency order: author a cluster's sections → ONE batched AUQ with the content carried in the option `preview` fields → on approve, author the next cluster. Cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. |
 | "Cluster AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the sections" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Each option's `preview` carries the section's ADR digest — Decision (what it commits to) → Why (rationale grounded in a Phase 1 finding + the chosen approach) → How (how /geniro:implement realizes it) — plus an ASCII diagram where it aids comprehension (esp. section 6 Steps) and the section's concrete example. The chat is a one-line cluster lead-in; the AUQ `preview` IS the rendered content. |
 | "I'll write the design doc with only the YAML frontmatter — that's enough" | Defense in depth requires all three markers (path + HTML comment + frontmatter). See `design-doc-detect.md` § Why defense in depth — each marker survives a different user action. |
 | "Phase 4 — 4 or 5 approaches gives the user more choice" | More than 3 indicates Phase 3 didn't narrow scope; loop back to Phase 3 with a tighter scope-boundary question. |
@@ -574,8 +653,8 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Metaswarm anti-pattern. Compaction mid-Phase-5 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |
 | "I'll `Write` outside `.geniro/planning/**` to save a step — /geniro:plan can touch source directly" | /geniro:plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended `Write` target is the planning task-dir; writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
-| "Phase 0 Refine path saves three phases of re-work — keep it" | Refine re-derives sections from prose — structurally-lossy. Downstream consumers parse a malformed spec.md. «Start fresh with doc as context» is honest and produces a schema-clean spec.md. |
-| "Hand-off menu should keep `/features add` for backlog discipline" | A «backlog» IS a spec.md saved on disk. No separate skill needed. |
+| "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work" | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |
+| "Hand-off menu should add a separate backlog-capture step for backlog discipline" | A backlog IS a spec.md saved on disk. No separate step needed — picking "Stop — keep spec for later" at Phase 9 leaves the committed spec on disk as the backlog entry. |
 | "Auto-default empty AUQ answer to the Recommended option" | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
 | "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /geniro:plan has bounded gates (Phase 3 ≤5 questions, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4" | Hooks fail for a reason. Investigate root cause, not bypass. CLAUDE.md-level prohibition; honors it. |

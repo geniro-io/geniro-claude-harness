@@ -2,7 +2,18 @@
 
 **Status:** Authoritative for these task-local state files: `.geniro/state/refactor/<slug>/state.md`, `.geniro/state/debug/<slug>/state.md`, `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md`.
 
-Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the headers every producer embeds, and the mismatch UX every consumer surfaces on resume.
+Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the frontmatter fields every producer writes, and the mismatch UX every consumer surfaces on resume.
+
+## Contents
+
+- §Why this exists — the same-pwd-different-branch collision
+- §Slug rules — how the task slug is derived
+- §Producer contract — frontmatter fields every writer writes
+- §Consumer contract — how a resume reads the state file
+- §Mismatch handling — Case A/B/C/D resume UX
+- §Cleanup contract — when the state file is removed
+- §Anti-rationalization
+- §Definition of Done
 
 ## Why this exists
 
@@ -30,15 +41,23 @@ Every producer of a within-skill state file MUST:
 
 1. Compute the slug per `## Slug rules`.
 2. Write to the slug-scoped path: `.geniro/state/<skill>/<slug>/state.md` (subdir-per-slug layout for all four — debug, refactor, onboard, investigate — all session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
-3. Embed these three headers at the TOP of the file, before any other content:
+3. Write the full T1.5 frontmatter field set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` (common-base `producer` / `schema-version` / `branch` / `timestamp` + tier-specific `phase` / `status` / `non-resumable-actions`), plus the `worktree:` field this helper adds for pwd-change detection. `branch:` / `worktree:` / `timestamp:` are the slug-collision-relevant subset this helper governs; the rest satisfy `validate_state_file` (which returns exit 4 on a missing `producer` / `schema-version` and exit 5 on a missing `phase` / `status` / `non-resumable-actions`). The frontmatter starts on line 1 with `---`:
 
-```
-Branch: <git branch --show-current OR detached-<short-sha>>
-Worktree: <git rev-parse --show-toplevel>
-Timestamp: <ISO-8601 UTC, e.g., 2026-05-07T14:32:00Z>
+```yaml
+---
+tier: T1.5
+producer: <skill>            # debug | refactor | onboard | investigate
+schema-version: 1
+branch: <git branch --show-current OR detached-<short-sha>>
+worktree: <git rev-parse --show-toplevel>
+timestamp: <ISO-8601 UTC, e.g., 2026-05-07T14:32:00Z>
+phase: <skill phase enum>
+status: <in-progress | done | failed>
+non-resumable-actions: []
+---
 ```
 
-The `Branch:` header is the source of truth on resume — even if two branch names slugify identically after truncation (rare but possible at >60 chars), the header is unambiguous. The `Worktree:` header detects the rare case where `pwd` changed without a branch change. The `Timestamp:` aids stale-state diagnosis.
+The frontmatter `branch:` field is the source of truth on resume — even if two branch names slugify identically after truncation (rare but possible at >60 chars), the field is unambiguous. The `worktree:` field detects the rare case where `pwd` changed without a branch change. The `timestamp:` aids stale-state diagnosis. Plain-text `Branch:`/`Worktree:`/`Timestamp:` headers before the fence would push the `---` off line 1 and fail `validate_state_file` (exit 2 when line 1 is not `---`) and the SessionStart restore-hook frontmatter parser.
 
 ## Consumer contract
 
@@ -46,7 +65,7 @@ On skill start (or resume after compaction), every consumer MUST:
 
 1. Compute current branch + slug per `## Slug rules`.
 2. Try to read `.geniro/state/<skill>/<slug>/state.md` (primary path; subdir-per-slug layout for debug, refactor, onboard, investigate alike).
-3. If the primary path exists, parse `Branch:` and `Worktree:` headers and run `## Mismatch handling` Case A/B/C.
+3. If the primary path exists, read the frontmatter `branch:` and `worktree:` fields and run `## Mismatch handling` Case A/B/C.
 4. If the primary path does NOT exist BUT an older path exists at any of these locations, enter Case D (migration). Try in this order:
  - `.geniro/<skill>/state-<slug>.md` (slug-scoped, older directory layout)
  - `.geniro/<skill>-state.md` or `.geniro/<skill>/state.md` (non-scoped)
@@ -71,11 +90,11 @@ Four cases — consumers MUST handle all four:
  2. **"Discard and start fresh on <current-branch>"** — delete the conflicting state file; begin a new pipeline scoped to current branch.
  3. **"Continue anyway"** — proceed; changes will land on `<current-branch>` regardless of what the state file claims. WARN that downstream cross-references in the state file (e.g., `changed-files:`) may be wrong.
 
-**Case D — Non-scoped state file at an older path.** Surface a one-line migration note: `Old state file at <path>; scoping to current branch slug.` Then either (a) read it as if Case A/B/C using its embedded `branch:` field if present, or (b) treat as Case C if the file lacks branch headers. After successful resume, the producer rewrites at the slug-scoped path on the next checkpoint, and the old file becomes orphaned (cleaned at next pipeline-end).
+**Case D — Non-scoped state file at an older path.** Surface a one-line migration note: `Old state file at <path>; scoping to current branch slug.` Then either (a) read it as if Case A/B/C using its frontmatter `branch:` field if present, or (b) treat as Case C if the file lacks a `branch:` field. After successful resume, the producer rewrites at the slug-scoped path on the next checkpoint, and the old file becomes orphaned (cleaned at next pipeline-end).
 
 ## Cleanup contract
 
-When a skill completes its pipeline, it MUST delete its slug-scoped state file at `.geniro/state/<skill>/<slug>/state.md`. The slug is recomputed from the current branch at cleanup time, so the deletion targets the file the skill itself wrote — no need to grep `Branch:` headers. Skills MUST NOT glob and bulk-delete `.geniro/state/<skill>/*/state.md` — sibling slugs belong to parallel pipelines on other branches still in flight.
+When a skill completes its pipeline, it MUST delete its slug-scoped state file at `.geniro/state/<skill>/<slug>/state.md`. The slug is recomputed from the current branch at cleanup time, so the deletion targets the file the skill itself wrote — no need to grep the frontmatter `branch:` field. Skills MUST NOT glob and bulk-delete `.geniro/state/<skill>/*/state.md` — sibling slugs belong to parallel pipelines on other branches still in flight.
 
 **Old path cleanup.** Producer skills MUST also `rm -f` older paths on cleanup, in case stale files persist. Paths to clear per skill:
 
@@ -108,7 +127,7 @@ The `2>/dev/null || true` discipline applies — these are best-effort.
 
 ## Definition of Done
 
-- [ ] Producer writes Branch:/Worktree:/Timestamp: headers at the top of every state file
+- [ ] Producer writes the full T1.5 frontmatter field set inside the `---` fence — common-base `producer` / `schema-version` / `branch` / `timestamp` + tier-specific `phase` / `status` / `non-resumable-actions` (per state-tier-spec.md), plus this helper's `worktree:` — with the frontmatter starting on line 1
 - [ ] Producer writes to slug-scoped path; never to a non-scoped path
 - [ ] Consumer reads slug-scoped path first, older path as fallback (Case D)
 - [ ] Consumer fires Case-C AUQ on branch mismatch; never auto-executes git operations

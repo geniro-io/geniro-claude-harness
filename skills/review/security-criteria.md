@@ -2,6 +2,17 @@
 
 OWASP-aligned security analysis: injection attacks, authentication/authorization, secrets management, crypto, input validation, and data exposure.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## What to Check
 
 ### 1. Injection Vulnerabilities
@@ -216,23 +227,7 @@ Emit HIGH severity by default. When the suppression carries a documented justifi
 
 ## Output Format
 
-```json
-{
-"type": "security",
-"severity": "critical|high|medium",
-"title": "Brief vulnerability title",
-"file": "path/to/file.js",
-"line_start": 42,
-"line_end": 48,
-"description": "Detailed description of security risk",
-"code_snippet": "Vulnerable code",
-"vulnerability_type": "injection|auth|secrets|crypto|validation|exposure|headers|dependencies",
-"owasp_category": "A01|A02|A03|A04|A05|A06|A07|A08|A09|A10",
-"impact": "What attacker can do with this vulnerability",
-"recommendation": "How to fix it securely",
-"confidence": 90
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 

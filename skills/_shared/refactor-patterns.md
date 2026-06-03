@@ -7,6 +7,18 @@ description: "Smell taxonomy, change-impact scoring, and atomic per-step executi
 
 Smell detection + change-impact scoring + per-step execution protocol for `/geniro:refactor`. The orchestrator reads this file in Phase 1 (smell detection) and Phase 2 (per-step execution) and applies the patterns inline.
 
+## Contents
+
+- Core Principle — the behavior-preservation invariant
+- Data Safety Rule — never destroy local data or volumes
+- Phase 1: Code Smell Detection — smell taxonomy + change-impact scoring
+- Phase 2: Refactoring Plan — plan-line schema
+- Phase 3: Atomic Application & Verification — per-step execution + Blocked Step Protocol
+- Phase 4: Structured Reporting — completion-summary schema
+- Guardrails — what to avoid without approval, and what to do every step
+- When to Stop the Session & Report Back — terminal conditions
+- Git Operations — no version control from this protocol
+
 ## Core Principle
 
 **If you cannot prove behavior is preserved through tests, you must stop and ask for a safety net.** Never make transformations that cannot be validated.
@@ -137,7 +149,7 @@ For each transformation in `## Plan steps`:
 
 2. **Pre-condition check** — required only when one of the following holds: (a) this is the FIRST transformation in the plan (no `last_post_check` recorded yet), OR (b) `last_post_check` is unset OR `last_post_check == REVERTED` (the previous step entered the Blocked Step Protocol and was reverted — the revert touched the working tree but no post-condition was successfully recorded, so the baseline must be re-verified before the next transformation), OR (c) anything other than this skill's transformations has touched the working tree since the last post-check (e.g., user interrupt that the session routed back). For step 2..N when `last_post_check == PASS`, **skip the pre-condition test** — the post-condition of the previous step already verified the same baseline (no edits intervene between consecutive transformations in this strictly-sequential atomic protocol). Skipping eliminates ~50% of test runs in the typical N-step plan (2N → N+1).
 
- **Test command selection:** if CLAUDE.md's Essential Commands section defines `<test_cmd_affected>` (an incremental command that targets only tests affected by the current diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`), use it for the per-step pre-check and per-step post-check below — these are tight per-step gates, not regression gates. /geniro:refactor Phase 1 Step 6 (final) baseline and Phase 2.4 final regression run keep `<test_cmd>` (full suite). If `<test_cmd_affected>` is not defined in CLAUDE.md, fall back to `<test_cmd>` (current behavior).
+ **Test command selection:** if CLAUDE.md's Essential Commands section defines `<test_cmd_affected>` (an incremental command that targets only tests affected by the current diff — e.g., `npm test -- --findRelatedTests <files>`, `vitest --changed`, `pytest --testmon`, `nx affected:test`), use it for the per-step pre-check and per-step post-check below — these are tight per-step gates, not regression gates. /geniro:refactor's Phase 1 baseline validation (§1.2) and Phase 2.4 final regression run keep `<test_cmd>` (full suite). If `<test_cmd_affected>` is not defined in CLAUDE.md, fall back to `<test_cmd>` (current behavior).
 
  When the pre-condition IS required, run tests via backpressure to preserve context:
  ```bash
@@ -224,23 +236,23 @@ Next Steps:
 
 ---
 
-## Guardrails (Always Enforce)
+## Guardrails
 
-**Never do this without explicit request:**
-- Change public interfaces (method signatures, API contracts)
-- Alter business logic (unless you add tests proving the change)
-- Touch authentication, cryptography, or payment code (requires owner review)
-- Remove code flagged as "unused" without confirming no hidden references
-- Rewrite SQL/data logic without validating output equivalence and performance
-- Modify test files themselves (document what you would change, ask for approval)
+Avoid these without an explicit request — each widens blast radius beyond a zero-behavior-change refactor:
+- Change public interfaces (method signatures, API contracts) — callers break silently.
+- Alter business logic (unless you add tests proving the change) — that is a feature change, not a refactor.
+- Touch authentication, cryptography, or payment code — requires owner review.
+- Remove code flagged as "unused" without confirming no hidden references — dynamic dispatch and reflection hide call sites from Grep.
+- Rewrite SQL/data logic without validating output equivalence and performance.
+- Modify test files themselves — document what you would change and ask for approval instead.
 
-**Always do this:**
-- Run tests before and after every transformation (subject to skip predicate Step 2)
-- Keep changes scoped to 1-2 files per transformation
-- Report plainly if tests failed or were not run (no "should pass" language)
-- Preserve existing code style and formatting
-- Document mechanical transformations for easy review
-- Score change impact before proposing transformations
+Do these on every transformation:
+- Run tests before and after every transformation (subject to skip predicate Step 2).
+- Keep changes scoped to 1-2 files per transformation.
+- Report plainly if tests failed or were not run (no "should pass" language).
+- Preserve existing code style and formatting.
+- Document mechanical transformations for easy review.
+- Score change impact before proposing transformations.
 
 ## When to Stop the Session & Report Back
 
@@ -253,7 +265,7 @@ Stop the entire refactoring session when:
 - Requested change contradicts guardrails
 - Codebase has no test infrastructure
 
-**Note:** If a single transformation fails after 3 attempts, use the **Blocked Step Protocol** (Phase 3) — revert that step and continue to the next. Do NOT stop the session for per-step failures.
+If a single transformation fails after 3 attempts, use the **Blocked Step Protocol** (Phase 3) — revert that step and continue to the next. A per-step failure reverts that step, not the whole session.
 
 ## Git Operations
 

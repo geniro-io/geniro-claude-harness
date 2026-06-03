@@ -6,6 +6,17 @@
 
 **MODE contract:** formatting helper — **no MODE parameter, compaction-immune.** Behavior is derived from `load-*` outputs at call time; refreshes cascade from the load-side and need no signaling here.
 
+## Contents
+
+- §What this helper does — and what it doesn't
+- §API — invocation signature
+- §Flag reference
+- §Output formats — soft-notice vs hard-conflict AUQ
+- §Conflict-resolution flow — the canonical skill pattern
+- §Exit codes
+- §Known limitations
+- §Test coverage
+
 ## What this helper does — and what it doesn't
 
 **It does:**

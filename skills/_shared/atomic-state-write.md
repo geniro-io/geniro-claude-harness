@@ -1,5 +1,17 @@
 # atomic-state-write — procedure spec
 
+## Contents
+
+- §When to use — tier → helper table
+- §API — `atomic_state_write` / `atomic_state_append` signatures + exit codes
+- §Caller-side mtime check — optimistic-concurrency for T3 CRUD files
+- §Known limitations — symlinks, append race
+- §What this helper does NOT do — validation, locking, rollback, retry
+- §Why per-write atomic — rationale
+- §Portability notes — Linux vs macOS sync
+- §NFS safety — tmp-filename uniqueness
+- §Bypass — power-user allowlist opt-out
+
 **Helper for atomic state-file writes.** Skills source this from Bash to write `.geniro/` state files without partial-write corruption.
 
 - **Library:** `lib/atomic-state-write.sh`
@@ -67,6 +79,8 @@ EOF
 - Uses tmp filename `<target>.tmp.<pid>.<hostname>` to avoid NFS collisions.
 - Cleans up tmp on failure.
 
+**Empty stdin is a deliberate no-op.** When stdin is empty (zero bytes), the helper writes nothing, leaves `<target>` untouched, and returns 0. This guards against a failed upstream pipe (e.g. a generator that errored before producing output) silently truncating an existing state file to zero bytes. The rc=0 is indistinguishable from a successful write, so a caller that genuinely wants an empty file must `echo ""` (or `truncate -s 0 <target>`) directly rather than piping empty content through this helper.
+
 ### `atomic_state_append <target>`
 
 Reads one line from stdin, appends with POSIX `O_APPEND` semantics.
@@ -81,6 +95,8 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 **Constraints:**
 - Line length ≤ 4096 bytes (POSIX `PIPE_BUF` atomicity guarantee).
 - One line per invocation. Multi-line appends must call repeatedly.
+
+**Empty stdin is a deliberate no-op.** When stdin is empty (zero bytes), the helper appends nothing, leaves `<target>` untouched, and returns 0 — the same guard `atomic_state_write` applies, so a failed upstream pipe can never inject a blank line into the JSONL log.
 
 **Exit codes:**
 
@@ -151,6 +167,7 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 - **No locking.** T1 path-scoping and T3 mtime check are the concurrency model. No `flock`, no `.lock` files.
 - **No rollback / backup.** Atomicity guarantees no partial writes; recovery is via skill re-run (T1/T2) or `git checkout` (T3 user content).
 - **No retry on transient errors.** Caller decides.
+- **No empty-file write via empty stdin.** Empty stdin is a deliberate no-op (returns 0, leaves the target untouched) to keep a failed upstream pipe from truncating an existing state file. To write a genuinely empty file, `echo ""` or `truncate -s 0` the target directly.
 
 ---
 

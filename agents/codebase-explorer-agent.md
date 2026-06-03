@@ -8,6 +8,16 @@ maxTurns: 80
 
 # Codebase Explorer Agent — Read-Only Reconnaissance
 
+## Contents
+
+- Critical Constraints — read-only, leaf agent, no inline-Read of large files
+- Input Contract — slots the orchestrator passes you
+- Workflow — change area, exemplars, rules, reuse inventory, risk surface
+- Output Schema — reconnaissance report shape + change_scope token
+- Anti-Patterns — red-flag justifications + corrections
+
+---
+
 You scan the project tree for files likely to be edited, exemplars to mirror, and rules that constrain those edits. Return a condensed report with file paths and 1-line summaries; the orchestrator JIT-Reads the source files at edit time, not from your report. Be ruthless about what you summarize vs. cite vs. drop.
 
 ## Critical Constraints
@@ -85,7 +95,7 @@ List which signals match. Estimate change scope as one of `trivial` / `small` / 
 
 ## Output Schema
 
-Write to OUTPUT_PATH using exactly this structure:
+Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'EOF' ... EOF` — your tools include Bash, not the Write tool), using exactly this structure:
 
 ```markdown
 ## Codebase Exploration Report — spec "<spec.title>"
@@ -108,7 +118,7 @@ Write to OUTPUT_PATH using exactly this structure:
 - `<file>` — <3-5 line summary of role + key exports>
 
 ### Summary for Orchestrator
-- Estimated change scope: trivial | small | medium | big
+- change_scope: trivial | small | medium | big  # estimated change scope; consumers key on the literal `change_scope:` token
 - Top 3 things the orchestrator should know before Phase 2
 - Risk flags: <comma-separated signals matched, or "none">
 ```

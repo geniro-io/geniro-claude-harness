@@ -9,7 +9,7 @@
 # sees a partial file.
 #
 # Modes:
-#   warn   — print to stderr, allow the call (default during M1 migration)
+#   warn   — print to stderr, allow the call (current default)
 #   block  — print to stderr, exit 2 (after all skills migrate)
 #
 # Per-project bypass:
@@ -21,8 +21,8 @@
 
 set -euo pipefail
 
-# Flip this to "block" once all skills migrate to atomic_state_write.
-# Per M1 §Migration plan PR-final.
+# Flip this to "block" once all skills migrate to atomic_state_write
+# (see ARCHITECTURE.md §State Files).
 MODE="warn"
 
 # Consume stdin — REQUIRED first step for Claude Code hooks.
@@ -58,8 +58,9 @@ case " $ALLOWED " in
   *" enforce-state-helper "*) exit 0 ;;
 esac
 
-# Check if the path is a canonical state-file path per M1 §Path inventory.
-# Match relative or absolute paths — the leading `.*` makes both work.
+# Check if the path is a canonical state-file path (ARCHITECTURE.md §State Files).
+# The (^|/) prefix in the patterns below matches both relative (.geniro/...) and
+# absolute (/x/.geniro/...) forms.
 matches_state_path() {
   local p="$1"
   # Exclusions — files under .geniro/ that are NOT frontmatter-bearing state
@@ -70,12 +71,13 @@ matches_state_path() {
   #                            file before mv), generic .tmp suffix
   #   *.swp       — vim swap files
   #   *~          — emacs backup files
-  #   T1 ephemeral subagent outputs (v3) — deterministically transient prose
+  #   T1 ephemeral subagent outputs — deterministically transient prose
   #   reports / screenshots, no frontmatter, deleted at Phase Ship:
-  #     .kr-out.md, .ce-out.md, .tr-out.md, .adversarial-out.md
+  #     .kr-out.md, .ce-out.md, .tr-out.md, .adversarial-out.md, .research-out.md
+  #     .research-<facet>.md (per-facet research outputs from /plan Phase 1)
   #     notes.md (ad-hoc scratch under <task-dir>/)
   #     playwright-verify.png (pre-Ship visual verification screenshot)
-  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|/\.(kr|ce|tr|adversarial)-out\.md$|/notes\.md$|/playwright-verify\.png$'; then
+  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|/\.(kr|ce|tr|adversarial|research)-out\.md$|/\.research-[^/]+\.md$|/notes\.md$|/playwright-verify\.png$'; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.

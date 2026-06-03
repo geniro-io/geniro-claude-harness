@@ -16,7 +16,7 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 ## When this applies
 
-Every Agent() spawn MUST satisfy the checklist — bare-prompt spawns are forbidden.
+Satisfy the checklist on every Agent() spawn. A bare-prompt spawn forces the agent to re-discover everything from scratch, which is exactly the rediscovery / wrong-schema / unwanted-mutation set of failures listed above.
 
 ### Codebase research — use `codebase-research-agent`
 
@@ -49,7 +49,7 @@ Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-re
 
 ## Required pre-inlined context
 
-Every Agent() prompt MUST include all six fields. Missing any one is a defect.
+Include all six fields in every Agent() prompt — a missing field is the gap that produces the rediscovery, wrong-schema, or unwanted-mutation failure described in §Why this exists.
 
 **(1) Task scope.** Exactly what the agent must produce — single deliverable, no expansion. Phrase as "Produce <X>" not "Investigate <Y>". Scope-creep prevention: if the orchestrator would accept two different deliverables from the same prompt, the scope is under-specified. Cross-reference `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for in-agent scope guards.
 

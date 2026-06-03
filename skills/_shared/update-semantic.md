@@ -22,7 +22,8 @@ Exit codes:
 - `64` — bad / missing flags.
 - `68` — append line exceeds 4096 bytes.
 - `69` — append IO failure.
-- `71` — atomic write of replacement failed.
+- `70` — `awk` failed during `--replace` (a real runtime error, distinct from a clean no-match which is rc=0).
+- `71` — atomic write of replacement failed (also returned if `mktemp` fails while staging a `--replace`).
 
 ## MODE contract
 
@@ -41,7 +42,7 @@ event.
 ## Lock semantics
 
 - **Acquire:** `(set -C; :>lock_path) 2>/dev/null` — POSIX-portable O_EXCL create. The shell with `noclobber` set refuses to write to an existing file.
-- **Release:** explicit `rm -f` on success/error paths inside the helper. The function does NOT install a signal trap — if the process is killed mid-write the lock leaks and a stale lock will surface as rc=11 on the next call. **Manual recovery:** delete the lock file. Documented as a known limitation; future PRs may add a stale-lock heuristic (lock-file age + PID check).
+- **Release:** explicit `rm -f` on success/error paths inside the helper. The function does NOT install a signal trap — if the process is killed mid-write the lock leaks and a stale lock will surface as rc=11 on the next call. **Manual recovery:** delete the lock file.
 - **Different files have independent locks.** A `_CODEBASE_MAP.md` write does not block a `_FEATURES.md` write.
 
 ## Replace semantics
@@ -91,7 +92,7 @@ For high-concurrency contention scenarios, callers can implement bounded retry w
 
 ## Known limitations
 
-- **Stale-lock recovery is manual.** A killed writer leaves the lock file. Future enhancement: stale-lock detection via age + PID.
+- **Stale-lock recovery is manual.** A killed writer leaves the lock file.
 - **No batch ops.** One line per call. Callers needing multiple writes loop.
 - **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. Acceptable per the spec's "single-line replacement; no mass rewrites" guarantee.
 

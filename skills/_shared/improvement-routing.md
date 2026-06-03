@@ -1,5 +1,13 @@
 # Improvement Routing (canonical)
 
+## Contents
+
+- §Routing table — improvement type → target file
+- §Decision logic when target is ambiguous
+- §ADR target — when to use it (sparingly)
+- §Why code rules go to `.claude/rules/`, not CLAUDE.md
+- §Presentation — how to surface the routed suggestion
+
 When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, classify it by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
 
 ## Routing table
@@ -44,7 +52,7 @@ If any criterion fails → use **Knowledge** (`learnings.jsonl`) instead. Most a
 
 ### Where to write
 
-- Look for an existing `docs/adr/`, `docs/decisions/`, or `doc/adrs/` directory (per `/geniro:setup` Phase 1.6 detection).
+- Look for an existing `docs/adr/`, `docs/decisions/`, or `doc/adrs/` directory (per `/geniro:setup` Phase 1 detect-output step §1.6).
 - If none exists, propose creating `docs/adr/` only after user confirms via `AskUserQuestion`.
 - Filename: `NNNN-<short-slug>.md` where NNNN is the next sequential number (zero-padded). Use Glob to find the highest existing NNNN.
 

@@ -2,6 +2,22 @@
 
 Statistical pattern inference across siblings. Flags deviations from the modal pattern when no explicit rule exists. Treats code as a language: sample N siblings, compute frequency per pattern category, take the mode, flag the diff only when one variant is dominant.
 
+## Contents
+
+- Methodology — Modal Pattern Inference
+- What to Check
+- What This Dimension Does NOT Cover
+- How to Detect — Worked Example
+- Output Format
+- [NEW] vs [PRE-EXISTING] Tagging
+- Common False Positives
+- Stack-Agnostic Patterns
+- Cross-PR Convention Drift (peer-PR context)
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## Methodology — Modal Pattern Inference
 
 Per Allamanis et al. NATURALIZE and Microsoft IntelliCode: structural conventions emerge from repetition. Codify them by sampling.
@@ -175,9 +191,10 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 - Quote style (single vs double)
 - Pure aesthetic naming preferences (`userList` vs `users` when both are clear)
 
+Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference and/or explicit-rule citation per the recipe at §What to Check.
+
 **Other dimensions — defer:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → `guidelines-criteria.md`
-- Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) → owned here (emit with modal inference and/or explicit-rule citation per the recipe at §What to Check).
 - Module-scale organization, utils sprawl, circular imports, file-structure inconsistency at module scale → `architecture-criteria.md`
 - Findings that match repo patterns and should be silenced → handled by orchestrator-side Phase 3 dedup + KEEP/FILTER (SKILL.md Phase 3)
 - Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md`
@@ -211,27 +228,9 @@ Counter-example: 4 of 7 siblings use named exports, 3 use default. 57% — ambig
 
 ## Output Format
 
-```json
-{
-"type": "conventions",
-"severity": "high|medium",
-"title": "Convention drift in <file>",
-"file": "path/to/file.tsx",
-"line_start": 42,
-"line_end": 48,
-"description": "What the diff does and what the modal pattern is",
-"category": "sibling-consistency|mixing-of-kinds|declaration-order|naming-style|import-grouping|error-handling|class-construction|module-boundary",
-"current": "Current pattern in the diff",
-"modal_pattern": "What ≥80% of N≥3 siblings do",
-"evidence_paths": ["src/components/Avatar.tsx", "src/components/Badge.tsx", "src/components/Card.tsx"],
-"modal_frequency": "6/7",
-"tag": "[NEW]|[PRE-EXISTING]",
-"recommendation": "Match the modal pattern:...",
-"confidence": 85
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
-The `evidence_paths` field is **mandatory**. Every finding MUST cite the supporting sample paths or it is not emitted. A finding without evidence paths is bikeshedding — the threshold is structural, not opinion.
+Every finding must cite the supporting sample paths in its evidence, or it is not emitted. A finding without evidence paths is bikeshedding — the threshold is structural, not opinion.
 
 ## [NEW] vs [PRE-EXISTING] Tagging
 
@@ -240,7 +239,7 @@ Style findings on legacy code are noise. Use the diff context pre-inlined by the
 - **[NEW]** — code in lines added or modified by the diff. The diff introduces a pattern that diverges from the modal. Prioritized in the report.
 - **[PRE-EXISTING]** — finding lives on an unchanged line, surfaced because the reviewer read the file while sampling. The file was already an outlier before this change. Demoted to MEDIUM at most. Informational only.
 
-Reviewers should never block a PR on [PRE-EXISTING] convention drift. If pre-existing drift dominates the file, surface it as a single informational note rather than a per-line flood. The Phase 4 judge demotes [PRE-EXISTING] findings — just tag accurately.
+Reviewers should never block a PR on [PRE-EXISTING] convention drift. If pre-existing drift dominates the file, surface it as a single informational note rather than a per-line flood. The Phase 3 §3.3 KEEP/FILTER judgment demotes [PRE-EXISTING] findings — just tag accurately.
 
 ## Common False Positives
 
@@ -274,9 +273,9 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, siblings in flight on same targe
 - Same code kind (helper-placement, naming style, import grouping) introduced with different conventions across parallel PRs — emerging-pattern split, neither has merged yet.
 - Sibling PR establishes a new convention (e.g., adopts a new error-handling library) while current PR uses the pre-existing convention — coordination needed on which becomes the modal once both merge.
 
-Apply the 80% modal threshold AT THE MERGE-STATE LEVEL — peer PRs in flight don't yet contribute to the merged modal. A valid finding shape: «PR #N (peer) introduces convention X for <code kind>; current diff uses convention Y. Neither has merged yet — modal not established. Coordinate on which becomes the convention before either ships». Severity HIGH when current PR's pattern is uniquely novel AND peer's pattern matches existing minority precedent; MEDIUM otherwise.
+Apply the 80% modal threshold AT THE MERGE-STATE LEVEL — peer PRs in flight don't yet contribute to the merged modal. A valid finding shape: "PR #N (peer) introduces convention X for <code kind>; current diff uses convention Y. Neither has merged yet — modal not established. Coordinate on which becomes the convention before either ships". Severity HIGH when current PR's pattern is uniquely novel AND peer's pattern matches existing minority precedent; MEDIUM otherwise.
 
-Do NOT apply the modal threshold to peer PRs as if they were merged siblings — that would inflate the denominator with unmerged code. The signal is «two-way coordination needed», not «modal violation».
+Do NOT apply the modal threshold to peer PRs as if they were merged siblings — that would inflate the denominator with unmerged code. The signal is "two-way coordination needed", not "modal violation".
 
 ## Review Checklist
 
@@ -300,3 +299,5 @@ Do NOT apply the modal threshold to peer PRs as if they were merged siblings —
 - **HIGH**: clear ≥80% modal violation in [NEW] code that introduces a pattern the repo uses nowhere else (zero-shot novel), or crosses a 100%-respected module/layer boundary.
 - **MEDIUM**: ≥80% modal violation in [NEW] code where the introduced pattern exists in 1–2 other places (minority but not novel); any [PRE-EXISTING] finding regardless of frequency.
 - **LOW**: not emitted. N<3 siblings or modal frequency below 80% means no finding at all — these conditions suppress the finding rather than producing a low-severity one.
+
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1 (the conventions dim tightens it — caps at HIGH, suppresses LOW; see §6).

@@ -4,6 +4,17 @@ Detailed contract for `/geniro:review` Phase 4.3 (Test-Confirmation Gate). SKILL
 
 State.md `phase: stratify` during Phase 4.3 (which is a sub-phase of Phase 4 stratification).
 
+## Contents
+
+- §1 — Purpose
+- §2 — Step 1: Filter findings by decision-type
+- §3 — Step 2: User-approval gate (mandatory before any agent spawn)
+- §4 — Step 3: Spawn the adversarial-tester-agent
+- §5 — Step 4: Independent re-verification by the orchestrator
+- §6 — Step 5: Demote-don't-delete logic
+- §7 — Step 6: Fail-open
+- §8 — Why Phase 4.3 exists
+
 ---
 
 ## 1. Purpose
@@ -116,7 +127,7 @@ For each eligible finding, correlate to the agent's report by matching its `Targ
 | `### Inconclusive` (flaky / framework limitation) | Keep finding unchanged in its severity section. No tag. (The signal is "agent could not decide", not "finding is wrong".) |
 | No matching hypothesis at all | Keep finding unchanged. Agent did not attempt this finding (likely deprioritized below the hard cap of 10 authored tests). Orchestrator does NOT infer either way. |
 
-The demote-don't-delete rule is non-negotiable: a green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test fails for the wrong reason ([PoC-Gym, arXiv 2602.04165](https://arxiv.org/html/2602.04165v1)). Preserving the finding in `## Filtered` lets the user re-elevate.
+The demote-don't-delete rule is non-negotiable: a green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test passes for the wrong reason. None of those three is reliable enough to delete a finding on. Preserving the finding in `## Filtered` lets the user re-elevate.
 
 ---
 

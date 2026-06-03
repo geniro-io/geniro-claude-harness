@@ -2,6 +2,17 @@
 
 This project uses Linear for issue tracking. Skills read this file at runtime to adapt their behavior.
 
+## Contents
+
+- Argument Detection
+- Fetching Issue Context
+- Status Transitions
+- AI-Disclosure Prefix on Authored Comments
+- Commit Message Format
+- PR Description
+- Implement Skill Behavior
+- MCP Setup
+
 ## Argument Detection
 
 When parsing `$ARGUMENTS`, check for Linear references **before** treating input as a plain description:

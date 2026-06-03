@@ -8,8 +8,9 @@
 #                   [--score-min N] [--include-superseded]
 #                   [--include-deprecated] [--include-archive] [--limit N]
 #   → emits matching JSONL entries to stdout, one per line.
-#     When --score-min N is set: filters by recency × trust × access score
-#     >= N, AND sorts result DESC by score (most relevant first).
+#     When --score-min N is set: filters by recency × trust × access ×
+#     recurrence score >= N, AND sorts result DESC by score (most relevant
+#     first).
 #
 #   record_access <dedup_key>
 #   → in-place increment access_count of entry matching dedup_key. Used
@@ -20,7 +21,7 @@
 # Exit codes:
 #   0 — query ran (may have zero matches), or record_access succeeded /
 #       no-op (no log file, no matching entry)
-#  64 — unknown flag / bad argument
+#  64 — query_learnings unknown flag / bad argument, OR record_access missing dedup_key
 #   1 — record_access IO error
 
 if [ -z "${_QL_DEPS_LOADED:-}" ]; then
@@ -74,6 +75,15 @@ query_learnings() {
     # silent empty result instead of the documented rc=64.
     if ! printf '%s' "$score_min" | grep -Eq '^[0-9]+(\.[0-9]+)?$|^\.[0-9]+$'; then
       echo "query_learnings: --score-min must be a non-negative number (got '$score_min')" >&2
+      return 64
+    fi
+  fi
+
+  if [ -n "$limit" ]; then
+    # Guard before the value reaches head/tail -n; BSD and GNU reject a
+    # non-integer differently, so validate here for a single clear message.
+    if ! printf '%s' "$limit" | grep -Eq '^[0-9]+$'; then
+      echo "query_learnings: --limit must be a non-negative integer (got '$limit')" >&2
       return 64
     fi
   fi
@@ -164,9 +174,10 @@ query_learnings() {
   fi
 
   # Scoring pass: when --score-min is set, compute per-entry score
-  # = recency_decay × trust_weight × access_weight, filter by threshold,
-  # AND sort DESC by score (most relevant first). When unset, behavior is
-  # unchanged — append-order with --limit applied via tail (recent N).
+  # = recency_decay × trust_weight × access_weight × recurrence_weight,
+  # filter by threshold, AND sort DESC by score (most relevant first). When
+  # unset, behavior is unchanged — append-order with --limit applied via
+  # tail (recent N).
   if [ -n "$score_min" ]; then
     local now tau
     now=$(date -u +%s)
@@ -183,6 +194,13 @@ query_learnings() {
         end;
       def access_weight($n):
         1.0 + (($n + 1) | log10);
+      # Dampened recurrence factor: 1 + ln(recurrence_count). A count of 1
+      # (or an absent field, treated as 1) yields ln(1)=0 → factor 1.0, so
+      # pre-field entries and never-repeated entries score exactly as before.
+      # ln growth keeps a high count strengthening but not dominating: 2 → ~1.69,
+      # 5 → ~2.61, 20 → ~4.0. Clamp the floor at 1 to guard a stray 0.
+      def recurrence_weight($n):
+        1.0 + (([$n, 1] | max) | log);
 
       map(
         . as $entry
@@ -191,7 +209,8 @@ query_learnings() {
         | (recency_decay($age_days; $tau_days)) as $rd
         | ((.trust // "inferred") | trust_weight) as $tw
         | (access_weight(.access_count // 0)) as $aw
-        | $entry + {_score: ($rd * $tw * $aw)}
+        | (recurrence_weight(.recurrence_count // 1)) as $rw
+        | $entry + {_score: ($rd * $tw * $aw * $rw)}
       )
       | map(select(._score >= $smin))
       | sort_by(._score) | reverse
@@ -242,8 +261,10 @@ record_access() {
   [ -f "$log" ] || return 0
 
   local tmp="${log}.tmp.$$"
-  # Read raw and `fromjson?` per line so a single malformed line drops instead
-  # of aborting the rewrite (which would fail the whole counter bump).
+  # Read raw and `fromjson?` per line: a malformed line yields no output for that
+  # line rather than aborting jq. The post-jq count guard below then refuses the
+  # rewrite so the unparseable line is preserved (never-deletes invariant — the
+  # same guarantee archive-stale.sh enforces on this same file).
   jq -Rc --arg k "$key" '
     fromjson?
     | if (.dedup_key // "") == $k then
@@ -255,6 +276,18 @@ record_access() {
     rm -f "$tmp"
     return 1
   }
+
+  # Refuse the rewrite if `fromjson?` dropped any line (parsed count < input
+  # count) — losing an audit-trail entry to bump a best-effort counter is the
+  # wrong trade. awk (not grep -c) counts a final line lacking a trailing
+  # newline, matching how jq -Rc reads the log.
+  local raw_n parsed_n
+  raw_n=$(awk 'NF{c++} END{print c+0}' "$log" 2>/dev/null || echo 0)
+  parsed_n=$(awk 'NF{c++} END{print c+0}' "$tmp" 2>/dev/null || echo 0)
+  if [ "$raw_n" -ne "$parsed_n" ]; then
+    rm -f "$tmp"
+    return 1
+  fi
 
   # POSIX rename(2) — atomic on same filesystem.
   mv "$tmp" "$log" || {

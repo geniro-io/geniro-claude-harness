@@ -274,7 +274,7 @@ expect_rc "$TMPDIR/cksum-bad.md" 7 "checksum mismatch"
 # advanced the fence counter past 2, silently dropping content after it.
 # Steps: build body, compute sha256, write file with that checksum, validate.
 body_15b=$'\n## Section A\nFirst part.\n\n---\n\n## Section B\nAfter the rule.\n'
-cksum_15b=$(printf '%s' "$body_15b" | sha256sum | awk '{print $1}')
+cksum_15b=$(printf '%s' "$body_15b" | _geniro_sha256 | awk '{print $1}')
 {
   cat <<EOF
 ---
@@ -331,7 +331,7 @@ expect_rc "$TMPDIR/empty-branch.md" 4 "empty 'branch:' value rejected as missing
 # causing false-positive checksum-mismatch for byte-exact producers
 # (e.g., `printf '%s'`, Python, jq pipelines).
 body_15e="one line no terminator"
-cksum_15e=$(printf '%s' "$body_15e" | sha256sum | awk '{print $1}')
+cksum_15e=$(printf '%s' "$body_15e" | _geniro_sha256 | awk '{print $1}')
 {
   cat <<EOF
 ---

@@ -1,6 +1,17 @@
 # Plan Context Reference
 
-How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions dimensions. Schema-aware loader that parses the spec's 10-section `spec.md` format when present, falling back to prose detection when no frontmatter is found.
+How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions dimensions. Schema-aware loader that parses the spec's 11-section `spec.md` format when present, falling back to prose detection when no frontmatter is found.
+
+## Contents
+
+- §1 — Accepted Input Forms
+- §2 — Detection — schema vs prose
+- §3 — Structured-section parser
+- §4 — Prose mode (fallback)
+- §5 — Decision-Marker Convention
+- §6 — Cap Rationale
+- §7 — Decision Type values (canonical)
+- §8 — Worked Example
 
 ---
 
@@ -28,7 +39,7 @@ geniro_kind: design-doc
 geniro_schema_version: m5-v1   # or m5-v2 — both accepted
 ```
 
-→ switch to **structured-section parser**. Both `m5-v1` and `m5-v2` carry the same 10-section body schema; `m5-v2` additionally exposes `workflow_refs[]` in frontmatter (`/geniro:plan` Impl-10 onward writes m5-v2 by default when a tracker reference is fetched). Downstream readers MUST accept either version.
+→ switch to **structured-section parser**. Both `m5-v1` and `m5-v2` carry the same 11-section body schema; `m5-v2` additionally exposes `workflow_refs[]` in frontmatter (`/geniro:plan` writes m5-v2 by default when a tracker reference is fetched). Downstream readers MUST accept either version.
 
 If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` → fall back to **prose mode**.
 
@@ -36,7 +47,7 @@ If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR 
 
 ## 3. Structured-section parser
 
-When frontmatter detected, parse the 10 named sections. Section-header format is rigid (`## 1. Objective` through `## 11. Done Condition`) — the spec template emits 11 numeric headers.
+When frontmatter detected, parse the 11 named sections. Section-header format is rigid (`## 1. Objective` through `## 11. Done Condition`) — the spec template emits 11 numeric headers.
 
 Sections expected:
 
@@ -114,7 +125,7 @@ When no sources resolve, the entire field collapses to:
 PLAN CONTEXT: none
 ```
 
-In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` prose fallback). Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
+In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` prose fallback). Emit a structured `open_questions[]` entry with `id: spec-compliance-prose-fallback`, `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
 
 ---
 
@@ -136,7 +147,7 @@ When a reviewer encounters a finding like "missing backfill for old timeline row
 When a reviewer encounters a finding that contradicts a marker (e.g., the plan says "use COALESCE" but the code uses raw NULL), it must:
 
 - Tag the finding `[DIVERGES-FROM-PLAN-D-XX]`
-- The Phase 4 judge Step 0 reconciliation will then verify and either keep as a bug or auto-demote to `[INTENT-CHECK]`.
+- The Phase 3 §3.3 KEEP/FILTER intent reconciliation will then verify and either keep as a bug or auto-demote to `[INTENT-CHECK]`.
 
 ---
 
@@ -161,7 +172,7 @@ The four canonical decision-type values, shared with `agents/reviewer-agent.md`:
 - `[FIX-NOW]` — Mechanical correction, obvious target, low risk (e.g., test title vs assertion mismatch, typo, broken cross-reference).
 - `[TESTABLE]` — Defense-in-depth or edge case worth a test before action (e.g., empty-string guard, boundary case).
 - `[PRODUCT-DECISION]` — Multiple valid resolution paths; needs human triage (e.g., snapshot vs live-fetch trade-off, COALESCE vs CHECK vs catch+log).
-- `[INTENT-CHECK]` — Looks like a divergence from explicit plan; verify against spec before treating as bug. Auto-applied by Phase 4 Step 0 when a reviewer tagged `[ALIGNS-WITH-PLAN]` or `[DIVERGES-FROM-PLAN]` AND the plan authorized the divergence.
+- `[INTENT-CHECK]` — Looks like a divergence from explicit plan; verify against spec before treating as bug. Auto-applied by the Phase 3 §3.3 KEEP/FILTER intent reconciliation when a reviewer tagged `[ALIGNS-WITH-PLAN]` or `[DIVERGES-FROM-PLAN]` AND the plan authorized the divergence.
 
 ---
 
@@ -203,7 +214,7 @@ Three reviewer findings come back:
 - Finding 2 — no plan reference. Untagged, regular review path.
 - Finding 3 — spec-compliance finding with section 11 anchor, severity HIGH (per spec-compliance-criteria.md Severity Tagging).
 
-**Phase 4 Step 0 reconciliation (judge):**
+**Phase 3 §3.3 KEEP/FILTER intent reconciliation:**
 
 - Finding 1 — already `[ALIGNS-WITH-PLAN]`, exits the bug pipeline; appears in the report as `[INTENT-CHECK]` with the frontmatter citation (`forbidden_actions[0]`), not in CRITICAL/HIGH.
 - Finding 2 — no plan tag, normal severity scoring → `[TESTABLE]` or regular bug-severity per rubric.

@@ -135,7 +135,13 @@ update_semantic() {
         rc=0
       else
         local tmp rewritten
-        tmp=$(mktemp)
+        tmp=$(mktemp) || {
+          rm -f "$lock_path"
+          echo "update_semantic: mktemp failed" >&2
+          return 71
+        }
+        # END exits 3 (not awk's own fatal-error code 2) for a clean no-match,
+        # so a genuine awk runtime failure is not mistaken for "nothing matched".
         rewritten=$(awk -v p="$arg1" -v r="$arg2" '
           BEGIN { replaced = 0 }
           {
@@ -146,7 +152,7 @@ update_semantic() {
               print
             }
           }
-          END { exit (replaced ? 0 : 2) }
+          END { exit (replaced ? 0 : 3) }
         ' "$target_path" > "$tmp"; echo $?)
         local awk_rc="$rewritten"
         if [ "$awk_rc" -eq 0 ]; then
@@ -155,9 +161,14 @@ update_semantic() {
             rc=71
             echo "update_semantic: atomic write of replacement failed" >&2
           fi
-        else
+        elif [ "$awk_rc" -eq 3 ]; then
           # No match — content unchanged. Surface a notice but don't error.
           echo "update_semantic: --replace prefix '$arg1' did not match any line in $target_md (no-op)" >&2
+        else
+          # awk itself failed — do NOT commit the (possibly partial) tmp and do
+          # NOT mistake the failure for a clean no-match.
+          rc=70
+          echo "update_semantic: awk failed during replace (rc=$awk_rc)" >&2
         fi
         rm -f "$tmp"
       fi

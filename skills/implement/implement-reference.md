@@ -4,6 +4,20 @@ This file contains templates, examples, and detailed procedures referenced by SK
 
 **Scope:** `/geniro:implement` is a 3-phase autonomous loop (Analyze → Implement → Self-review-and-Ship).
 
+## Contents
+
+- Phase 1: $ARGUMENTS semantic-parse table
+- Phase 1: Spec discovery walk-list
+- Phase 1: Subagent spawn template
+- Phase 2: test-runner-agent spawn template
+- Phase 2: Implement — error-handling
+- Phase 3: Self-review reviewer-agent template
+- Phase 3: Adversarial-tester spawn template
+- Phase 3: Bounded fix loop
+- Phase 3 — Ship sub-step
+- Phase 3 — Adjustment Routing (Big / Medium / Small)
+- Definition of Done
+
 ---
 
 ## Phase 1: $ARGUMENTS semantic-parse table
@@ -175,7 +189,7 @@ else:
   escalate via AskUserQuestion (debug-handoff / accept-failure / abort)
 ```
 
-**Token cost.** Raw test stdout (~50K tokens per run) never enters the orchestrator's main context — only the structured report (~2-6K chars). A 3-retry loop saves up to ~140K tokens.
+**Token cost.** Raw test stdout (often tens of thousands of tokens) never enters the orchestrator's main context — only the compact structured report does, so the fix loop stays cheap.
 
 **Evidence requirement.** The Verdict block from `.tr-out.md` (Command / Exit code / Summary) attaches as the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Stop-hook scans for forbidden phrases (`"all tests pass"`, `"validation complete"`, `"ready to ship"`) without an attached Evidence Block.
 
@@ -400,7 +414,7 @@ emit_rejection_if_signal \
 "<recommended ship-mode label>" "<picked label>" "<recommended label>"
 ```
 
-`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever option carries the `(Recommended)` suffix per ship-mode AUQ rules (typically «Open draft PR» by default; «Commit + push» when user has just selected «Post findings as Draft PR review» from a chained AUQ). Helper detects rejection signals and emits L2 entry — acceptance is a no-op. Future /geniro:implement Phase 1 surface «user consistently picks X over Y» pattern hint.
+`<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever ship-mode option carries the `(Recommended)` suffix — "Open draft PR" by default. Helper detects rejection signals and emits L2 entry — acceptance is a no-op.
 
 **Step 4 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
@@ -457,7 +471,7 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 ### Suggest Improvements (project scope only)
 
-Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — it owns the routing table, decision logic, and presentation pattern. Skip findings already captured in L2 emit (Step 5); this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture.
+Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — it owns the routing table, decision logic, and presentation pattern. Skip findings already captured by the learnings-emit step; this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture.
 
 `AskUserQuestion` is always-WAIT here. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — submit a PR to the plugin repo OR edit your local plugin install directly.
 

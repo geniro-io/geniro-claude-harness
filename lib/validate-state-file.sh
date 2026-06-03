@@ -24,8 +24,22 @@ readonly _VSF_SCHEMA_VERSION_MISMATCH=6
 readonly _VSF_CHECKSUM_MISMATCH=7
 readonly _VSF_WORKTREE_NOT_FOUND=8
 readonly _VSF_BAD_TIER_VALUE=9
+readonly _VSF_NO_TARGET=64        # EX_USAGE — caller passed no target path
 
 readonly _VSF_SUPPORTED_SCHEMA_VERSION=1
+
+# Portable SHA-256 (canonical: lib/hash.sh). Source it if reachable; an inline
+# fallback keeps this validator self-contained for vendored installs that ship
+# without lib/hash.sh. Stock macOS has `shasum` but not `sha256sum`.
+if ! command -v _geniro_sha256 >/dev/null 2>&1; then
+  _vsf_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || _vsf_script_dir="."
+  if [ -f "$_vsf_script_dir/hash.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$_vsf_script_dir/hash.sh"
+  else
+    _geniro_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+  fi
+fi
 
 # Extract frontmatter block (everything between line-1 `---` and next `---`).
 # Prints frontmatter body to stdout; returns non-zero if no closing fence found.
@@ -99,7 +113,7 @@ validate_state_file() {
   local target="$1"
   if [ -z "$target" ]; then
     echo "validate_state_file: target path required" >&2
-    return 64
+    return "$_VSF_NO_TARGET"
   fi
 
   # Step 1: file exists.
@@ -197,8 +211,11 @@ validate_state_file() {
   if _vsf_fm_has_key "$fm" checksum; then
     local declared actual
     declared="$(_vsf_fm_get_value "$fm" checksum)"
-    actual="$(_vsf_extract_body "$target" | sha256sum | awk '{print $1}')"
-    if [ "$declared" != "$actual" ]; then
+    actual="$(_vsf_extract_body "$target" | _geniro_sha256 | awk '{print $1}')"
+    if [ -z "$actual" ]; then
+      # No hasher on this host — skip rather than report a false mismatch.
+      echo "validate_state_file: $target — checksum tool unavailable, skipping checksum check" >&2
+    elif [ "$declared" != "$actual" ]; then
       echo "validate_state_file: $target — checksum mismatch (declared '$declared', computed '$actual')" >&2
       return "$_VSF_CHECKSUM_MISMATCH"
     fi

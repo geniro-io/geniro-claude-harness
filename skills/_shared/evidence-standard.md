@@ -53,15 +53,16 @@ A passing-test claim adds one requirement on top of kind 1: the tail must show a
 
 The `Stop` hook (`require-evidence-on-completion.sh`) scans final responses for these tokens. Do NOT use them without an attached Evidence Block in the same message:
 
-- `"should"`, `"probably"`, `"seems to"` — uncertainty without verification.
 - `"Great!"`, `"Perfect!"`, `"Done!"` — performative success without proof.
 - `"ready to ship"`, `"all tests pass"`, `"validation complete"`, `"shipped"` — completion claims without proof.
 
 Replace with the captured Evidence Block + a one-line summary that cites the exit code and tail.
 
+Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, but the hook does NOT scan them — they produced too many false positives on benign sentences ("Should I run tests?"). Treat them as authoring guidance, not an enforced gate.
+
 ## Stop hook reliability disclaimer
 
-Stop hooks fire approximately 50–80% of the time per multi-framework data; ECC migrated AWAY from Stop hooks for enforcement after observing the same gap. Treat `require-evidence-on-completion.sh` as a soft reminder layer, not as the enforcement gate. PreToolUse `Edit|Write` is enforced by `enforce-tdd-order.sh`, which reads the state file at `.geniro/state/tdd/state-<slug>.md` per the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`. THAT pair (hook + state file) is the authoritative TDD-order enforcement; the Stop hook is warn-only. Analogously, the Evidence Standard's true enforcement is the per-skill consumption — every reviewer-agent finding requires an Evidence Block at emit-time, and orchestrators independently re-run validation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` rather than trusting prior PASS reports.
+Stop hooks fire only approximately 50–80% of the time, so treat `require-evidence-on-completion.sh` as a soft reminder layer, not as the enforcement gate. PreToolUse `Edit|Write` is enforced by `enforce-tdd-order.sh`, which reads the state file at `.geniro/state/tdd/state-<slug>.md` per the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`. THAT pair (hook + state file) is the authoritative TDD-order enforcement; the Stop hook is warn-only. Analogously, the Evidence Standard's true enforcement is the per-skill consumption — every reviewer-agent finding requires an Evidence Block at emit-time, and orchestrators independently re-run validation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` rather than trusting prior PASS reports.
 
 ## Anti-rationalization
 

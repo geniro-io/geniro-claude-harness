@@ -3,7 +3,7 @@
 ## Contents
 
 - Custom Reviewer Authoring (review-extra) — body shape, severity-default, paths scoping, model choice, count caps.
-- Command: create — review-extra variant — the slug-bearing flow:
+- Mode: create — review-extra variant — the slug-bearing flow:
   - Step 1: Resolve the slug
   - Step 2: Validate the slug
   - Step 3: Check count caps
@@ -18,7 +18,7 @@
 
 Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-11). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer.
 
-See `SKILL.md` for the load-bearing rules referenced below: validation rules (Command: validate, Step 2 "review-extra files"), file structure (File Structure: review-extra), count caps cross-references.
+See `SKILL.md` for the load-bearing rules referenced below: validation rules (`## — Mode: validate`, `### Step 2 — Lint rule set` — the `review-extra/<slug>.md` row in the per-scope table), file structure (`## File Structure: review-extra`), count caps cross-references.
 
 ## Custom Reviewer Authoring (review-extra)
 
@@ -33,7 +33,7 @@ Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a diffe
 - **Pick `model:` to match check depth.** Use `haiku` for narrow pattern matchers (regex-like checks). Use `sonnet` (default) for most semantic checks. Reserve `opus` for deep architectural concerns where Sonnet would miss the intent.
 - **Sweet-spot count is 4-6 custom reviewers.** The skill warns when you'd create the 7th (i.e., exceed the sweet spot) and hard-refuses at the 11th (see "Count caps" below). Too many narrow reviewers fragment attention; consolidate when two reviewers' criteria overlap.
 
-## Command: create — review-extra variant
+## Mode: create — review-extra variant
 
 When the resolved scope is `review-extra`, follow this slug-bearing flow instead of the singleton-file `create` flow in SKILL.md. The output is a single file at `.geniro/instructions/review-extra/<slug>.md` declaring one custom reviewer.
 
@@ -72,7 +72,7 @@ On "Cancel", stop without writing.
 ```
 Hard cap reached: 10 custom reviewers maximum.
 
-Existing slugs in.geniro/instructions/review-extra/:
+Existing slugs in .geniro/instructions/review-extra/:
 - {{slug-1}}
 - {{slug-2}}
 ...
@@ -143,7 +143,7 @@ Explain the body shape before asking. Use `AskUserQuestion` with no options (fre
 
 ### Step 10: Write the file
 
-Assemble the frontmatter (omitting fields the user skipped) and write to `.geniro/instructions/review-extra/{{slug}}.md`. Use the Write tool.
+Assemble the frontmatter (omitting fields the user skipped) and route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
 
 Example output for the `sql-bindings` walk-through:
 

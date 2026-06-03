@@ -104,10 +104,13 @@ is_test_file() {
     *_test.go) return 0 ;;
   esac
 
-  # Filename contains "test" (e.g., test_foo.py, foo.test.ts, test-foo.js)
+  # Filename follows a test-naming convention (anchored, so production files
+  # that merely contain the substring "test" — latest_config.py, contestant.ts,
+  # testimonials.tsx — are NOT mistaken for tests during RED). Tests laid out
+  # under a test/ or __tests__/ directory are already matched above.
   local base="${lp##*/}"
   case "$base" in
-    *test*) return 0 ;;
+    test_*|test-*|*-test.*|*_test.*|*.test.*) return 0 ;;
   esac
 
   return 1

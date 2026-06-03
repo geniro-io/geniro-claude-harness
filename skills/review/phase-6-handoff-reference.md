@@ -11,6 +11,7 @@ State.md `phase: action-gate` during this phase.
 - §1 — Reporter behavior (no fix loop)
 - §2 — Gate chain (firing order)
 - §2.5 — Pre-gate: resolve open questions (Invariant A)
+- §2.6 — Handoff file template (written in Phase 5.1)
 - §3 — Step 0: open-decision per PRODUCT-DECISION finding (Invariant B initial flip)
 - §4 — Action gate (consolidated decision)
 - §5 — Round-N escalation
@@ -39,7 +40,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 **Firing order:**
 
 1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per unresolved entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — open questions gate downstream action by definition. Full procedure: §2.5 below.
-2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge. Skipped when zero PRODUCT-DECISION findings remain.
+2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip.
 4. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
 - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
@@ -101,6 +102,130 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 6. After the last unresolved entry resolves, ALL `open_questions[].status` MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
 
+---
+
+## 2.6 Handoff file template (written in Phase 5.1)
+
+Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write` — never a direct Edit/Write on the canonical state path (the `enforce-state-helper` hook warn-flags direct writes initially and flips to a hard-block in a future release). `<PRIMARY_ROOT>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+
+The canonical handoff is a one-shot producer→consumer artifact; /geniro:review extends it with `phase:` / `status:` / `round:` / `approvals[]` so a compaction mid-run can recover. The file behaves as a handoff AT REST (after Phase 5 persist) and as a working state file DURING THE RUN.
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
+atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
+---
+tier: T2
+producer: review
+schema-version: 1
+branch: <git-branch>
+timestamp: <ISO-8601 UTC>
+consumer: implement
+geniro_kind: state-handoff
+geniro_schema_version: m6-v2
+task_slug: review-<branch>
+phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
+status: <in-progress|done|failed>
+mode: <standard|tdd>
+round: <int>
+risk-tier: <standard|high>
+pr-ref: <owner/repo#num|null>
+pr-url: <https://...|null>
+pr-head-sha: <40-char SHA|null>
+pr-title: <verbatim title|null>
+pr-body: <verbatim body|null>
+plan-context-ref: <abs-path|null>
+linear-task-ref: <ENG-123|null>
+linear-parent-ref: <ENG-100|null>
+simplify-mode: <true|false>
+resolved-threads-snapshot: [<path:line entries|null>]
+approvals: []
+non-resumable-actions: []
+open_questions:                       # MUST be present; MAY be empty []
+  - id: q1                            # short stable anchor
+    source: <reviewer-dim or producer-step>
+    question: <verbatim question text>
+    related_findings: [F1, F4]        # optional — finding IDs this question gates
+    status: unresolved                # enum: unresolved | resolved | wontfix
+    resolution:                       # populated when status moves out of `unresolved`
+      picked: <chosen option>
+      at: <ISO-8601 UTC>
+      asked_in_phase: <phase name>
+      resolved_by: <skill that ran the resolution AUQ>
+---
+
+# Review: <topic / branch>
+
+## Summary
+- Branch: <branch>
+- Mode: <standard|tdd>
+- Round: <N>
+- Risk-tier: <standard|high>
+- Dimensions spawned: [<list>]
+- Mechanical pre-pass: [lint:N, schema:M, secrets:K]
+- Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
+
+## Findings
+
+### CRITICAL
+<list>
+
+### HIGH
+<list>
+
+### MEDIUM
+<list>
+
+## Deferred — sub-threshold
+<list, surfaced for user awareness>
+
+## Filtered
+<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<list, or empty>
+
+## Authored Tests
+<!-- Populated only when the test-confirmation gate authored tests; lists each AI-authored test file by path. Empty otherwise. The Failing-tests gate fires when this section is non-empty. -->
+<list of test file paths, or empty>
+
+## Tool log
+<reviewer spawns + side-effects>
+
+## Errors
+<failed spawns, gh fail-open, mechanical-prepass failures>
+
+## Open Questions
+<!-- Human-readable mirror of frontmatter `open_questions[]`. Frontmatter is source of truth. -->
+
+### q1 — <source>: <one-line summary>
+**Status:** unresolved
+**Question:** <verbatim question>
+**Related findings:** F1, F4
+**Why this gates downstream action:** <one sentence — e.g., "drives whether to revert api seeders or update spec.forbidden_actions">
+
+### q2 — ...
+
+<!-- If open_questions[] is empty, this section reads: "No open questions — handoff is unconditionally actionable." -->
+
+## Resolved Questions
+<!-- Populated when downstream consumer (or /geniro:review's §2.5 Pre-gate) resolves an entry; mirrors frontmatter `open_questions[].resolution`. -->
+
+### q1 — <source>: <one-line summary>
+**Picked:** <chosen option>
+**At:** <ISO-8601 UTC>
+**Resolved by:** <skill — review | implement | manual>
+**Phase:** <phase that ran the resolution AUQ>
+
+## Termination reason
+<rendered per §9 — only on aborted | escalated state>
+
+## Persisted approvals
+<rendered from approvals[] frontmatter for user-readability>
+EOF
+```
+
+Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
+
+---
+
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding under the handoff's `## Findings` body renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff:
 
 ```markdown
@@ -120,7 +245,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
   OR (command-based form): `Command:` / `Exit code:` / `Tail (last 3 lines):`
 - **Validation:** `confirmed | refuted | clarified` [every kept finding — CRITICAL / HIGH / MEDIUM; emitted by Phase 4.2 per-finding verifier; ABSENT on LOW (which never enters Phase 4.2)]
 - **Recommended-action:** `fix-now | testable | product-decision | intent-check | drop` [every kept finding — verifier override; when `Validation: clarified`, this field supersedes the original `Decision Type:` for downstream routing]
-- **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [every kept finding — Greptile-style 1-5 scale, distinct from the LLM `Confidence: NN%` field above]
+- **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [every kept finding — coarse 1-5 scale, distinct from the LLM `Confidence: NN%` field above]
 - **Verification-evidence:** `"<literal quote from cited file:line or caller chain>"` [every kept finding — verifier's grounding citation, distinct from the reviewer's `Evidence:` codeblock above]
 - **Options:** [PRODUCT-DECISION only — omit for other types]
   - `<option-id>`: `<short label>` — `<one-line trade-off>`
@@ -148,7 +273,7 @@ Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 Step 12) treat a m
 
 ## 3. Step 0 — Open-decision gate (per-finding, Always-WAIT)
 
-Before recommending which skill to run, surface every `Decision Type: PRODUCT-DECISION` finding kept by Phase 4 judge to the user — they pick the resolution path; orchestrator NEVER picks on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
+Before recommending which skill to run, surface every `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment to the user — they pick the resolution path; orchestrator NEVER picks on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
 
 **For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
@@ -160,7 +285,7 @@ When more than 4 PRODUCT-DECISION findings exist OR a single finding's `Options:
 
 Always-WAIT in every mode. If empty answer returns, fall back to plain text and re-ask — never default to the reviewer's synthesis.
 
-Skip entirely when zero PRODUCT-DECISION findings remain after Phase 4 judge.
+Skip entirely when zero PRODUCT-DECISION findings remain after the Phase 3 §3.3 KEEP/FILTER judgment.
 
 ---
 
@@ -341,7 +466,7 @@ Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url`. Pass sna
 **Head-SHA freshness — re-fetch when authored tests were just pushed.** When Failing-tests gate fired BEFORE this step AND user picked "Commit + push", the local push advanced the PR's head past `pr-head-sha`. Re-fetch:
 
 ```bash
-gh pr view <pr-ref> --json headRefOid --jq.headRefOid
+gh pr view <pr-ref> --json headRefOid --jq '.headRefOid'
 ```
 
 Use the returned value as `commit_id`. Also overwrite state file's `pr-head-sha:` with the re-fetched value. Without this re-fetch, API rejects comments whose `path` is not present in `commit_id`'s tree with `Validation Failed: path could not be resolved`.

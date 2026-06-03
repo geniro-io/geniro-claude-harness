@@ -9,7 +9,7 @@ The default plugin `.gitignore` keeps `.geniro/*` out of git (only `workflow/`, 
 - **(a) Writes lost on worktree removal.** When `/geniro:implement`'s workspace-setup question (Step 0) picks the Git-worktree option, `EnterWorktree` switches the session into `.claude/worktrees/<dir>/` — every cwd-relative `.geniro/<x>` write lands in the worktree's gitignored tree and is destroyed when the user removes the worktree at session end.
 - **(b) Authored content invisible to fresh linked worktrees.** Even when the worktree is fresh and persistent, the primary worktree's authored content (`.geniro/instructions/<scope>.md`, `.geniro/workflow/<kind>.md`, `.geniro/actions/<slug>.md`) is NOT propagated by `git worktree add` because those paths are gitignored at the project level (negation is a default; project-side `.git/info/exclude` may override). The main repo's `.geniro/<x>` never receives the write, and the linked worktree never sees the read.
 
-This affects every artifact designed to outlive the current task. Task-local state (planning/<task-dir>/* — explicitly cleaned at Phase 3 ship-cleanup) is unaffected and stays cwd-relative.
+This affects every artifact designed to outlive the current task. Task-local state (planning/<task-dir>/* — transient scratch like notes.md is cleaned at Phase 3 ship-cleanup; durable design artifacts like spec.md/state.md survive Ship) is unaffected and stays cwd-relative.
 
 ## The resolver
 
@@ -54,7 +54,7 @@ These are intended to outlive any single task. The resolver applies to both read
 |---|---|---|---|
 | `.geniro/knowledge/learnings.jsonl` | `/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate` | every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
 | `.geniro/state/handoff/from-debug-<branch>.md` | `/geniro:debug` Phase 3 | `/geniro:implement` Phase 1 Step 12 | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
-| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/geniro:debug` adversarial mode | `/geniro:implement` Phase 1 Step 1 | same handoff |
+| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/geniro:debug` adversarial mode | `/geniro:implement` Phase 1 Step 12 | same handoff |
 | `.geniro/state/handoff/from-review-<branch>.md` | `/geniro:review` | `/geniro:implement` Phase 1 Step 12 (the handoff-persist step that gates on unresolved open questions) | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on rerun |
 | `.geniro/planning/_FEATURES.md` | manual or `/geniro:plan` | `/geniro:implement` (binding), `/geniro:plan` | persistent registry |
 | `.geniro/planning/_CODEBASE_MAP.md` | `/geniro:onboard` | every skill that consults the map (`/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` |
@@ -67,7 +67,7 @@ These are intended to outlive any single task. The resolver applies to both read
 
 These are intentionally ephemeral with the current task. Promoting them to the resolver would introduce false durability where none is wanted.
 
-- `.geniro/planning/<task-dir>/*` — spec.md, plan-*.md, state.md, concerns.md, notes.md, milestone-*.md. Removed at `/geniro:implement` Phase 3 ship-cleanup.
+- `.geniro/planning/<task-dir>/*` — transient scratch (notes.md, the `.kr-out.md`/`.ce-out.md`/`.tr-out.md` subagent outputs) is removed at `/geniro:implement` Phase 3 ship-cleanup; the durable design artifacts (spec.md, state.md, plan-*.md, milestone-*.md) survive Ship per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` so the user retains them for audit or re-runs. Both classes stay cwd-relative — neither is cross-session.
 - `.geniro/state/refactor/<slug>/state.md`, `.geniro/state/debug/<slug>/state.md`, `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md` — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
 
 If a within-skill state file is later promoted to cross-session use, add it to the cross-session table above.

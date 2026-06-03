@@ -6,6 +6,12 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 **Hard-fail handling:** see `plan-loop.md` — 3 auto-revision rounds, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
 
+## Contents
+
+- good-goal criteria: 1 `single_objective` / 2 `bounded_scope` / 3 `source_materials` / 4 `allowed_tools` / 5 `forbidden_actions` / 6 `budget` / 7 `checkpoints` / 8 `validation_method` / 9 `stopping_condition`
+- Additional checks: 10 `placeholder_scan` / 11 `contradiction_heuristic` / 12 `scope_creep_marker` / 13 `schema_completeness` / 14 `workflow_refs_consistency`
+- Check API contract
+
 ---
 
 ## good-goal criteria
@@ -24,12 +30,13 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 **Heuristic:** bullet-count in each section.
 
-**Fix hint on fail:** "Either section 2 OR section 3 has zero bullets and no «none with rationale» note. Add bullets, OR explicitly state «none — open scope» with a one-line rationale in section 3."
+**Fix hint on fail:** "Either section 2 OR section 3 has zero bullets and no "none with rationale" note. Add bullets, OR explicitly state "none — open scope" with a one-line rationale in section 3."
 
 ### 3. `source_materials`
 
 **Rule:** state.md `## Tool log` body has ≥1 Agent entry with `status: ok` per effort tier:
 - Trivial: ≥1 (OR explicit "scope-bound, no exploration needed" note)
+- Small: ≥1
 - Medium: ≥2
 - Big: ≥3
 
@@ -37,15 +44,15 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** parse `## Tool log` YAML entries, count Agent + status:ok; for section 6, regex match `<path>:<line>` or `<path>:<line>-<line>` pattern.
 
-**Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit «scope-bound, no exploration needed» entry to ## Tool log."
+**Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit "scope-bound, no exploration needed" entry to ## Tool log."
 
 ### 4. `allowed_tools`
 
-**Rule:** frontmatter `tools_required` field is a non-empty list (if spec section 7 «Tools Required» is non-empty body) OR field is `null` (if section 7 body is "none").
+**Rule:** frontmatter `tools_required` field is a non-empty list (if spec section 7 "Tools Required" is non-empty body) OR field is `null` (if section 7 body is "none").
 
 **Heuristic:** field presence + body alignment.
 
-**Fix hint on fail:** "Section 7 says «<body>» but frontmatter tools_required is <value>. Sync them: empty body ↔ null field; non-empty body ↔ matching list."
+**Fix hint on fail:** "Section 7 says '<body>' but frontmatter tools_required is <value>. Sync them: empty body ↔ null field; non-empty body ↔ matching list."
 
 ### 5. `forbidden_actions`
 
@@ -53,7 +60,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** keyword scan, then field-presence check.
 
-**Fix hint on fail:** "Sensitive keyword detected in objective/scope, but forbidden_actions is null. Add at least one explicit «do NOT …» rule (e.g., «do NOT bypass auth middleware»)."
+**Fix hint on fail:** "Sensitive keyword detected in objective/scope, but forbidden_actions is null. Add at least one explicit 'do NOT …' rule (e.g., 'do NOT bypass auth middleware')."
 
 ### 6. `budget`
 
@@ -77,15 +84,15 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** body-non-empty + keyword/regex match.
 
-**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., «manual: navigate to /login, click OAuth button, verify redirect»)."
+**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., 'manual: navigate to /login, click OAuth button, verify redirect')."
 
 ### 9. `stopping_condition`
 
-**Rule:** section 11 (Done Condition) has body content matching pattern «<observable signal>» (e.g., «all 5 acceptance tests green», «PR approved by stakeholder X», «feature ships behind flag AND telemetry shows ≥1 successful use»).
+**Rule:** section 11 (Done Condition) has body content matching pattern "<observable signal>" (e.g., "all 5 acceptance tests green", "PR approved by stakeholder X", "feature ships behind flag AND telemetry shows ≥1 successful use").
 
 **Heuristic:** regex match against a small ontology of observable-signal phrases: `\b(tests? (pass|green))\b`, `\b(PR (approved|merged))\b`, `\b(telemetry|metric|log)\s+shows\b`, `\b(shipped|released)\s+to\b`, `\b(observable|verified|confirmed)\b`.
 
-**Fix hint on fail:** "Section 11 (Done Condition) doesn't match an observable-signal phrase. Rewrite as a concrete completion criterion (e.g., «<observable signal> AND <verification>»)."
+**Fix hint on fail:** "Section 11 (Done Condition) doesn't match an observable-signal phrase. Rewrite as a concrete completion criterion (e.g., '<observable signal> AND <verification>')."
 
 ---
 
@@ -97,7 +104,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** regex.
 
-**Fix hint on fail:** "Found placeholder token «<token>» at line <N>. Replace with actual content OR remove the line."
+**Fix hint on fail:** "Found placeholder token '<token>' at line <N>. Replace with actual content OR remove the line."
 
 ### 11. `contradiction_heuristic`
 
@@ -105,7 +112,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Heuristic:** tokenize bullets, set-intersection check.
 
-**Fix hint on fail:** "Token «<token>» appears in both Included (section 2) and Excluded (section 3). Pick one — a thing cannot be both in and out of scope."
+**Fix hint on fail:** "Token '<token>' appears in both Included (section 2) and Excluded (section 3). Pick one — a thing cannot be both in and out of scope."
 
 ### 12. `scope_creep_marker`
 
@@ -117,11 +124,11 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ### 13. `schema_completeness`
 
-**Rule:** all 10 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 10 + the optional body sections `## Considered Alternatives` and `## Milestones`.
+**Rule:** all 11 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 11 + the optional body sections `## Considered Alternatives`, `## Milestones`, and `## Problem & Evidence`. The three optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); a normal spec omits it and still passes.
 
-**Heuristic:** parse all `## ` top-level headers; compare to the canonical list.
+**Heuristic:** parse all `## ` top-level headers; compare to the canonical list (11 required + 3 allowed-optional). A header outside that set fails; a missing optional section does not.
 
-**Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: «<canonical-header>». Got: «<actual>»."
+**Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: '<canonical-header>'. Got: '<actual>'."
 
 ### 14. `workflow_refs_consistency`
 
@@ -137,8 +144,6 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ---
 
-## Implementation note (— deferred)
+## Check API contract
 
-Whether these checks live as a dedicated Python script OR as inline orchestrator-side logic is deferred to implementation. Tentative: inline initially (since the orchestrator already parses spec.md and state.md anyway); promote to a script if complexity grows beyond ~150 lines.
-
-The check API contract (`(check_id, status, finding_text, fix_hint)`) is fixed regardless of implementation surface.
+The check API contract (`(check_id, status, finding_text, fix_hint)`) is fixed regardless of how the checks are executed — inline orchestrator-side logic (the default, since the orchestrator already parses spec.md and state.md) or a dedicated script.

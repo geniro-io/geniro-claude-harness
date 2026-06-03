@@ -4,6 +4,15 @@ Quality checks for the **PR's own title and description** (not the code diff). T
 
 This dimension fires only when input is a PR ref (`pr-ref != none`); it is skipped for local files, branches, or diff ranges. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, not as inline comments.
 
+## Contents
+
+- What to Check
+- Common False Positives
+- Severity Tagging
+- Output Anchor
+
+---
+
 ## What to Check
 
 ### 1. Title — Imperative Verb Opener

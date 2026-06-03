@@ -1,8 +1,3 @@
----
-name: architecture-vocabulary
-description: "Canonical vocabulary for module-design discussions across skills. Defines depth, seam, adapter, leverage, locality so refactor / review --simplify / investigate / implement reason in shared terms."
----
-
 # Canonical: Architecture Vocabulary
 
 Single source of truth for design vocabulary. Skills cite this file rather than redefining terms inline so that "deepen this module" means the same thing in every skill.
@@ -42,13 +37,10 @@ Each consumer cites this file rather than redefining vocabulary:
 
 ### Per-skill use
 
-| Skill | Where it cites this file |
+| Skill / file | Where it cites this file |
 |---|---|
-| `/geniro:refactor` | Phase 1 orchestrator-inline smell detection ("deepening opportunities" lens) |
-| `/geniro:review --simplify` | `simplify-criteria.md` Pass A (Reuse & Duplication — Existing Abstraction Audit asks "could deepening absorb this duplication?") |
-| `/geniro:investigate` | synthesis templates ("Why" and "Compare" answer formats) |
-| `/geniro:plan` | orchestrator-side spec-authoring prompts + spec template's "Modules & Interfaces" subsection |
-| `/geniro:instructions` "Writing Effective Instructions" | Reference when authoring rules about module design |
+| `/geniro:refactor` | Phase 1 Deepening Opportunities lens (`${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`) — vocabulary grounding before smell detection; the procedure body in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` reads it first too |
+| `/geniro:review` (tests dim) | `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` — "narrow seams over wide seams" when a behavior is hard to test through the public interface |
 
 ## Anti-rationalization
 

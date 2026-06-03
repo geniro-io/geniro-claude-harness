@@ -10,7 +10,7 @@ Skip entirely unless at least one file in the predicted affected-files list matc
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent for the description (a transform of spec/plan into a structured description). OMIT `model=` so the subagent inherits the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. A hardcoded cross-tier spawn (e.g. `model="haiku"`) returns an immediate empty result when the orchestrator runs a context-window beta the target tier doesn't support — a 1M-context Opus/Sonnet session cannot spawn a Haiku child, since Haiku 4.5 has no 1M-context variant and rejects the inherited context configuration, surfacing as `Done (0 tool uses · 0 tokens)`. Apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` if the spawn still returns nothing, and satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
+Spawn a general-purpose subagent for the description (a transform of spec/plan into a structured description). OMIT `model=` so it inherits the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — a hardcoded cross-tier spawn can return an immediate empty result, so apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` if the spawn returns nothing. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
 
 ```
 Agent(disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
@@ -84,6 +84,6 @@ Write the approved description to the caller-designated path (e.g., `<task-dir>/
 | "The plan already describes the UI, skip the preview" | Plans describe files and steps. They do not describe what the user will see. The preview gate surfaces visual intent BEFORE code is written — that is its whole job. |
 | "No UI files matched — skip" | Correct — skip. The gate is conditional by design, enforced by the caller. |
 | "The user will approve anyway — skip" | Preview is cheap. Rebuilding UI after approval is expensive. Never skip when the rule matches. |
-| "I'll describe the UI myself as the orchestrator" | Delegate to the haiku agent. Orchestrator tokens are the most expensive resource. |
+| "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (OMIT `model=` so it inherits the orchestrator's tier per the procedure above). Orchestrator tokens are the most expensive resource. |
 | "3 revision rounds isn't enough, keep looping" | If 3 rounds did not converge, the real issue is plan-level, not preview-level. Route to plan adjustment. |
 | "I'll tack on a 'also note X' after the approved description" | Rewrite the description in full via another revision round. Appended notes rot and get missed by implementation agents. |

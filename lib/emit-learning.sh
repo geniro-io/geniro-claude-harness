@@ -10,7 +10,7 @@
 #   → writes one JSONL line to .geniro/knowledge/learnings.jsonl
 #
 # Required JSON fields: producer, scope, summary, tags
-# Optional fields:      ts, body, dedup_key, supersedes, deprecated, type, ext, trust, links
+# Optional fields:      ts, body, dedup_key, supersedes, deprecated, type, ext, trust, links, recurrence_count
 #
 # Pipeline:
 #   1. Validate required fields.
@@ -18,10 +18,12 @@
 #   3. Auto-inject ts (UTC ISO-8601) if absent.
 #   4. Sanitize summary, body, and every string-valued path inside ext via
 #      redact_secrets.
-#   5. Scan the last 200 entries for matching dedup_key:
+#   5. Default recurrence_count to 1 if absent.
+#   6. Scan the last 200 entries for matching dedup_key:
 #        - identical content (excluding ts) → no-op return 0
-#        - different content → inject supersedes=<old_key>, append
-#        - no match → append fresh
+#        - different content → inject supersedes=<old_key>, carry forward
+#          prior recurrence_count + 1, append
+#        - no match → append fresh (recurrence_count = 1)
 
 # Helper sourcing — idempotent.
 if [ -z "${_EL_DEPS_LOADED:-}" ]; then
@@ -32,6 +34,8 @@ if [ -z "${_EL_DEPS_LOADED:-}" ]; then
   source "$_el_script_dir/redact-secrets.sh"
   # shellcheck disable=SC1091
   source "$_el_script_dir/atomic-state-write.sh"
+  # shellcheck disable=SC1091
+  source "$_el_script_dir/hash.sh"
   _EL_DEPS_LOADED=1
 fi
 
@@ -101,7 +105,7 @@ emit_learning() {
   if [ -z "$dedup_key" ]; then
     local norm
     norm=$(_el_normalize "$summary")
-    dedup_key=$(printf '%s|%s|%s' "$producer" "$scope" "$norm" | sha256sum | cut -c1-12)
+    dedup_key=$(printf '%s|%s|%s' "$producer" "$scope" "$norm" | _geniro_sha256 | cut -c1-12)
   fi
 
   # Auto-inject ts if absent.
@@ -121,13 +125,17 @@ emit_learning() {
 
   # Rebuild the entry with normalized fields. We use jq to apply the
   # changes atomically; this also drops the auto-computed fields if the
-  # caller pre-populated them.
+  # caller pre-populated them. `recurrence_count` defaults to 1 on a fresh
+  # emit; the dedup branch below carries forward + increments the prior
+  # entry's value when a re-emit matches an existing dedup_key. Entries
+  # written before this field existed have it absent — readers treat
+  # absent as 1, so the default preserves backward-compatible scoring.
   local rebuilt
   rebuilt=$(printf '%s' "$input" | jq -c \
     --arg ts "$ts" \
     --arg dk "$dedup_key" \
     --arg sum "$summary_sanitized" \
-    '. + {ts:$ts, dedup_key:$dk, summary:$sum}')
+    '. + {ts:$ts, dedup_key:$dk, summary:$sum, recurrence_count:(.recurrence_count // 1)}')
 
   if [ -n "$body" ]; then
     rebuilt=$(printf '%s' "$rebuilt" | jq -c --arg b "$body_sanitized" '.body = $b')
@@ -164,10 +172,18 @@ emit_learning() {
       | tail -n 1)
 
     if [ -n "$last_match" ]; then
-      # Compare excluding ts. If equal, this is a no-op write.
+      # Compare excluding ts, recurrence_count, and supersedes. All three are
+      # derived: ts is auto-injected per write, recurrence_count is a re-emit
+      # counter that always differs between a prior entry (carried-forward
+      # value) and a fresh-default new entry, and supersedes is auto-injected
+      # only on the prior superseding entry — a fresh re-emit of that same
+      # content has no supersedes at compare time. Excluding all three makes an
+      # identical re-emit of a superseding entry compare equal (correct no-op:
+      # no duplicate line, no false recurrence_count increment), while
+      # genuinely different content still differs.
       local prior_norm new_norm
-      prior_norm=$(printf '%s' "$last_match" | jq -cS 'del(.ts)')
-      new_norm=$(printf '%s' "$rebuilt" | jq -cS 'del(.ts)')
+      prior_norm=$(printf '%s' "$last_match" | jq -cS 'del(.ts, .recurrence_count, .supersedes)')
+      new_norm=$(printf '%s' "$rebuilt" | jq -cS 'del(.ts, .recurrence_count, .supersedes)')
       if [ "$prior_norm" = "$new_norm" ]; then
         return 0
       fi
@@ -178,6 +194,12 @@ emit_learning() {
       if [ -z "$existing_super" ]; then
         rebuilt=$(printf '%s' "$rebuilt" | jq -c --arg k "$dedup_key" '.supersedes = $k')
       fi
+      # Carry forward the prior entry's recurrence_count and increment by 1
+      # on this superseding entry. Absent on the prior entry (pre-field
+      # writes) counts as 1, so a first re-emit lands at 2.
+      local prior_rc
+      prior_rc=$(printf '%s' "$last_match" | jq -r '.recurrence_count // 1')
+      rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson prc "$prior_rc" '.recurrence_count = ($prc + 1)')
     fi
   fi
 

@@ -2,7 +2,19 @@
 
 Completeness audit of the diff **against the plan / spec** — what the spec promised but the diff omits. The diff's code quality (correctness, security, architecture, tests, optimizations, guidelines, conventions, design) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF completeness only. The spec is the source of truth; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored.
 
-This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `skills/review/plan-context-reference.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
+This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
+
+## Contents
+
+- schema-aware mode
+- LINEAR CONTEXT supplement (workflow integration)
+- What to Check
+- Common False Positives
+- Severity Tagging
+- Cross-PR Scope Split (peer-PR context)
+- Output Anchor
+
+---
 
 ## schema-aware mode
 
@@ -166,7 +178,7 @@ The spec's section 11 (Done Condition) names an observable signal that defines c
 
 **Skip when not -schema mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only when `geniro_kind: design-doc` frontmatter is present.
 
-**schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check c check #9 (`stopping_condition`) — the spec validator that ensured section 11 has a concrete observable signal.
+**schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check the /geniro:plan validator check #9 (`stopping_condition`) — the spec validator that ensured section 11 has a concrete observable signal.
 
 **How to detect:**
 - Parse section 11 body. Extract the observable signal (regex match against ontology: `\b(tests? (pass|green))\b`, `\b(PR (approved|merged))\b`, `\b(telemetry|metric|log)\s+shows\b`, `\b(shipped|released)\s+to\b`, `\b(observable|verified|confirmed)\b`).

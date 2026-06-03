@@ -28,7 +28,9 @@ if [ -z "$MSG" ]; then
   if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
     # Walk the JSONL file from the bottom; pick the last assistant turn's text content.
     # Each line is one event; assistant turns have type=="assistant" and message.content[].type=="text".
-    MSG=$(tac "$TRANSCRIPT_PATH" 2>/dev/null \
+    # `tac` is GNU-only; stock macOS has `tail -r`. Fall back so the transcript
+    # path is not silently disabled on macOS (which would defeat this warning).
+    MSG=$({ tac "$TRANSCRIPT_PATH" 2>/dev/null || tail -r "$TRANSCRIPT_PATH" 2>/dev/null; } \
       | jq -r 'select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' 2>/dev/null \
       | head -1 || echo "")
   fi

@@ -2,6 +2,17 @@
 
 Visual and interaction quality for UI changes: tokens, spacing, typography, states, responsive, contrast, a11y polish, and exemplar conformance.
 
+## Contents
+
+- What to Check
+- Output Format
+- Common False Positives
+- Stack-Agnostic Patterns
+- Review Checklist
+- Severity Guidelines
+
+---
+
 ## What to Check
 
 ### 1. Token Conformance
@@ -118,22 +129,7 @@ diff /tmp/exemplar.txt /tmp/new.txt
 
 ## Output Format
 
-```json
-{
-"type": "design",
-"severity": "critical|high|medium",
-"title": "Visual or interaction quality issue",
-"file": "path/to/Component.tsx",
-"line_start": 42,
-"line_end": 48,
-"description": "Description of the design violation",
-"category": "tokens|spacing|typography|variants|states|responsive|contrast|a11y|exemplar-drift|hierarchy",
-"current": "Current markup/class/style",
-"expected": "Expected pattern per design system",
-"recommendation": "How to fix it",
-"confidence": 88
-}
-```
+Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 ## Common False Positives
 
@@ -165,6 +161,9 @@ Applies to UI code across frameworks: React/JSX with Tailwind, styled-components
 
 ## Severity Guidelines
 
-- **CRITICAL**: WCAG AA contrast failures, `focus-visible` removed without replacement, keyboard-inaccessible interactive elements, hardcoded raw colors in a strict-token project.
-- **HIGH**: Missing state coverage on interactive surfaces, arbitrary spacing values in a scaled project, exemplar drift, missing responsive handling on multi-column layouts, reinvented primitives.
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1. The design dim specializes the canonical tiers to UI/accessibility signals — it MAY add dim-specific HIGH/MEDIUM signals but does not introduce a design-only CRITICAL category (§1 forbids loosening the rubric).
+
+- **CRITICAL**: only via the canonical compliance inclusion — an accessibility failure that is a regulatory violation (e.g. WCAG AA contrast failure or keyboard-inaccessible interactive element in a project with legal accessibility requirements).
+- **HIGH**: WCAG AA contrast failures, `focus-visible` removed without replacement, keyboard-inaccessible interactive elements, hardcoded raw colors in a strict-token project (visible user-facing regressions); missing state coverage on interactive surfaces, arbitrary spacing values in a scaled project, exemplar drift, missing responsive handling on multi-column layouts, reinvented primitives.
 - **MEDIUM**: Hierarchy and density issues, single missing state on a non-critical element, hover-only secondary actions, minor typography drift, informational findings on greenfield projects.
+- **LOW**: Cosmetic polish, subjective aesthetic preferences, minor visual nitpicks, design-token naming suggestions.

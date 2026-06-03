@@ -4,9 +4,20 @@ Incoming mode is a `/geniro:review` variant that processes reviewer feedback ON 
 
 This file is the single source of truth for Incoming-mode procedure. SKILL.md cites this file; the per-step body lives here so SKILL.md stays under the line cap.
 
+## Contents
+
+- Activation paths
+- Phase I — Incoming Mode Steps
+- Skipped phases
+- Edge cases
+- Anti-rationalization
+- Definition of Done
+
+---
+
 ## Activation paths
 
-There is **NO `--incoming` flag**. Mode resolution follows the natural-language signal pattern (mirrors `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` adversarial-mode signal anchoring) — the Phase 1 Step 0 mode-detection block in SKILL.md routes:
+There is **NO `--incoming` flag**. Mode resolution follows the natural-language signal pattern — bare keywords are not enough; a request only routes to Incoming when an explicit handling phrase is paired with a PR-ref anchor (detailed below). The Phase 1 Step 0 mode-detection block in SKILL.md routes:
 
 - PR ref alone (`#1234` / PR URL) WITH unresolved review threads → fire `AskUserQuestion` (`Outgoing` / `Incoming`).
 - Anchored natural-language signals that explicitly request incoming-handling → route to Incoming directly (skip the AUQ): `process review on #N`, `respond to review #N`, `incoming review #N`.
@@ -16,7 +27,7 @@ The natural-language signals are **anchored** — bare keywords are not enough. 
 
 ## Phase I — Incoming Mode Steps (runs INSTEAD of SKILL.md Phase 5/6 when mode=INCOMING)
 
-The first 4 phases (Phase 1 triage, Phase 2 reviewer spawns, Phase 3 relevance filter, Phase 4 judge pass) are SKIPPED in Incoming mode — the diff is already reviewed by another human, the deliverable is responses, not new findings. Phase 4.3 (adversarial F→P) machinery is reused only for Step I-3 below. Steps:
+Phases 1-4 (Phase 1 triage, Phase 2 reviewer spawns, Phase 3 relevance filter + §3.3 KEEP/FILTER judgment, Phase 4 stratification) are SKIPPED in Incoming mode — the diff is already reviewed by another human, the deliverable is responses, not new findings. Phase 4.3 (adversarial F→P) machinery is reused only for Step I-3 below. Steps:
 
 ### Step I-1 — Fetch reviewer feedback
 
@@ -56,7 +67,7 @@ Fire `AskUserQuestion` per comment per the canonical Single-finding-gate shape a
 
 **Header:** `"Comment N of M"`. **Single-select** options:
 
-- **`"Apply"`** — comment is actionable; dispatch to `/geniro:implement` with precise diff scope. Build the handoff: pre-load the comment body, file:line range, and any reviewer-cited expected behavior into the T2 hand-off `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per Surface the slash-command suggestion `Run /geniro:implement "<comment short title> [from review-feedback]"` in the chat output — do NOT auto-invoke; the user runs the slash command themselves.
+- **`"Apply"`** — comment is actionable; dispatch to `/geniro:implement` with precise diff scope. Build the handoff: pre-load the comment body, file:line range, and any reviewer-cited expected behavior into the hand-off file `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per the producer contract. Then surface the slash-command suggestion `Run /geniro:implement "<comment short title> [from review-feedback]"` in the chat output — do NOT auto-invoke; the user runs the slash command themselves.
 
 - **`"Push back"`** — draft a `mcp__github__add_reply_to_pull_request_comment` reply explaining why the reviewer's claim is incorrect. Reply MUST cite codebase evidence (file:line snippet, test result from Step I-3, or a captured command output). **Forbidden phrases (verbatim from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Forbidden phrases):**
 - `"you're absolutely right"`
@@ -85,8 +96,7 @@ For `Push back` decisions, the thread is NOT auto-resolved by the skill — reso
 Incoming mode SKIPS:
 
 - SKILL.md Phase 2 reviewer spawns (no new findings being authored)
-- SKILL.md Phase 3 relevance filter (no findings to filter)
-- SKILL.md Phase 4 judge pass (no findings to judge)
+- SKILL.md Phase 3 relevance filter + §3.3 KEEP/FILTER judgment (no findings to filter or judge)
 - SKILL.md Phase 4.2 per-finding verifier (no findings to verify)
 - SKILL.md Phase 5 state file (Incoming uses `.geniro/state/review-feedback/<slug>-incoming.md` instead)
 - SKILL.md Phase 6 (Action gate, Failing tests gate, PR-comment posting — all replaced by Step I-4 per-comment AUQ)

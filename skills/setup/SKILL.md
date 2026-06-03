@@ -1,6 +1,6 @@
 ---
 name: geniro:setup
-description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, generates a project-specific CLAUDE.md (stack, commands, conventions, domain — no plugin info), and validates the result. Re-run mode runs a migration sweep for breaking changes. Singleton bootstrap."
+description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, generates a project-specific CLAUDE.md (stack, commands, conventions, domain), and validates it. Re-run mode runs a migration sweep. Singleton bootstrap."
 context: main
 model: opus
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
@@ -25,19 +25,18 @@ CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 ## Subagent Model Tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn passes `model=` explicitly.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — one of the two documented hardcode carve-outs (`model=sonnet`, justified inline at §4.1 by its read-only tool floor).
 
 | Spawn | Tier | Why |
 |---|---|---|
-| Verification agent (validate generated CLAUDE.md against codebase) | `sonnet` | Reads files, checks claims — reasoning but bounded |
-| Conflict resolution agent (re-run mode, merge existing CLAUDE.md with generated content) | `sonnet` | Pattern-matching merge with judgment calls |
+| Verification subagent (validate generated CLAUDE.md against codebase) | `sonnet` | Reads files, checks claims — reasoning but bounded |
 
 ## Loop invariants
 
-1. One result per subagent call — Verification and Conflict-resolver each return one structured report.
+1. One result per subagent call — the verification subagent returns one structured report.
 2. Args validated before exec — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
 3. Permission before side-effect — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate.
-4. Bounded structured results — verification subagent output truncated at ~4K; over-long reports trigger AUQ.
+4. Bounded structured results — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
 5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | re-run`.
 6. Observations not assumed success — every Bash command in Detect requires explicit observation parse, no silent skips.
 7. Errors as structured observations — Detect failures written to `## Errors`, not swallowed.
@@ -46,12 +45,12 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` 
 
 ## Budgets — quality-first
 
-`/geniro:setup` has **zero Class-A hard kill caps**. Aborting mid-bootstrap leaves the project in a half-configured state.
+`/geniro:setup` has **zero hard kill caps**. Aborting mid-bootstrap leaves the project in a half-configured state.
 
 | Layer | Lever | Why |
 |---|---|---|
 | **Class-B escalation gates** | 3-retry validation loop → AUQ | Validation drift after 3 rounds means structural disagreement; surface to user |
-| | Verification report truncation at ~4K chars | Long reports inflate context without commensurate signal |
+| | Verification report truncation per the §4.1 subagent-prompt cap | Long reports inflate context without commensurate signal |
 | **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
 | **NOT capped** | Detect duration, Interview question count, total `Read`/`Bash`/`Glob` calls, total subagent spawns | Quality-first |
 
@@ -83,6 +82,8 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 
 **Resolve `PRIMARY_ROOT`** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. `/geniro:setup` writes to `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (singleton — main worktree only, even when invoked from a linked worktree).
 
+`PROJECT_ROOT` is the current project root — the worktree `/geniro:setup` was invoked from (the cwd). `CLAUDE.md`, `.geniro/instructions/`, and `.geniro/workflow/` are written to `PROJECT_ROOT`; only the singleton state file goes to `PRIMARY_ROOT`. When invoked from a linked worktree the two diverge, so keep them distinct.
+
 ## Phase 1: Detect
 
 ### 1.1 Mode detect and state-file rehydration
@@ -91,15 +92,15 @@ Deterministic resolution (no AUQ):
 
 ```
 if exists(<PRIMARY_ROOT>/.geniro/state/setup/state.md):
-rehydrate via ${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh
-if frontmatter.phase != "done":
-resume from frontmatter.phase
-else:
-mode = re-run (a prior /geniro:setup completed; user is re-invoking)
+    rehydrate via ${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh
+    if frontmatter.phase != "done":
+        resume from frontmatter.phase
+    else:
+        mode = re-run (a prior /geniro:setup completed; user is re-invoking)
 elif exists(CLAUDE.md):
-mode = re-run (no state file, but a prior CLAUDE.md exists — merge into it rather than overwrite)
+    mode = re-run (no state file, but a prior CLAUDE.md exists — merge into it rather than overwrite)
 else:
-mode = init
+    mode = init
 ```
 
 Write `mode: init | re-run` to state frontmatter; persists across the run.
@@ -176,7 +177,7 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/marketplace.json` (or `plugin.json`). Extract the canonical 11-skill list:
+The canonical 11-skill list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries.)
 
 ```yaml
 skill_inventory:
@@ -193,11 +194,11 @@ skill_inventory:
 - {slug: update, purpose: "Plugin update + integrity check"}
 ```
 
-If marketplace.json read fails, fallback to the hardcoded list above. Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) out of generated CLAUDE.md — they no longer exist as live skills, so listing them points the user at commands that do not run.
+Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) out of generated CLAUDE.md — they no longer exist as live skills, so listing them points the user at commands that do not run.
 
 ### 1.6 Detect output
 
-All-results land in state frontmatter `detected:` block. Phase log captures one summary line:
+All-results land in state frontmatter `detected:` block. The default branch is captured via `git symbolic-ref --short refs/remotes/origin/HEAD` (fallback `git branch --show-current`) into `default_branch_candidates`, surfaced in the Phase 5 report as `Default branch: <branch> (auto-detected)`. Phase log captures one summary line:
 
 ```
 [<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=11, evidence_count=14
@@ -253,9 +254,9 @@ E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package ma
 
 ### 2.4 Optional integrations — issue tracker
 
-Use `AskUserQuestion` header "Tracker" — recommended default reflects `$ISSUE_TRACKER` detected in:
+Use `AskUserQuestion` header "Tracker". The recommended default is whichever tracker Phase 1 detected (else Skip) — e.g. `.github/ISSUE_TEMPLATE/` signals GitHub Issues, a `.gitlab/` directory signals GitLab Issues, a Linear ID or URL in recent commit messages signals Linear.
 
-- Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) preserved verbatim from current skill — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates.
+- Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates.
 - On selection, install `.geniro/workflow/<tracker>.md` from template (or stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
 
 Store as `$ISSUE_TRACKER_CHOICE` for Phase 3.
@@ -325,7 +326,7 @@ Generated CLAUDE.md sections:
 - `<PROJECT_ROOT>/CLAUDE.md` — project-specific content only. No section markers — CLAUDE.md is user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts).
 - `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in.
 - `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
-- `<PROJECT_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`).
+- `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 
 All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files? Options: yes / show preview first / edit").
 
@@ -354,7 +355,7 @@ grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.genir
 fi
 ```
 
-### 3.6 Install StatusLine (preserved from current skill)
+### 3.6 Install statusline
 
 Copy statusline script to stable location and configure user settings:
 
@@ -372,25 +373,30 @@ Transition to Phase 4.
 ### 4.1 Verification subagent spawn
 
 ```
-Agent(subagent_type=<resolved-rung>, # via _shared/spawn-agent.md ladder
-model="sonnet",
+Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the spawn-agent.md ladder applies only if promoted to a plugin-defined agent
+model="sonnet", # hardcode carve-out: read-only tool budget (no Write/Edit) IS the safety floor, per _shared/model-tiering.md
 tools=["Read", "Bash", "Glob", "Grep"], # NO Write/Edit per §ACI
 prompt="""
 Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
 
-Checklist:
+First, Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md and run every check it
+defines (cross-language contamination, template artifact, reference-example contamination) — that
+file is the single source for the contamination + template-residue criteria, with a per-language
+wrong-token table that catches stack drift this inline list cannot.
+
+Then run these additional checks:
 1. Every command in the `## Commands` section runs locally (try `bash -n` syntax check; do not execute).
 2. Every claimed file path in `## Tech Stack` exists.
 3. No geniro-specific content: no skill tables, no path rules about `~`, no hooks summary, no MCP tables, no `/geniro:update` instructions. CLAUDE.md is project-only.
-4. Template variable residue grep: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`, `customize this`, `replace with`, `fill in`.
-5. Stack contamination check: ONLY the detected language/framework appears; no wrong-language commands or code blocks; no multi-framework lists.
-6. No `<!-- geniro-setup-managed -->` or `<!-- geniro-setup-end -->` markers (legacy — CLAUDE.md is user-owned).
+4. Template variable residue grep: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`.
+5. No `<!-- geniro-setup-managed -->` or `<!-- geniro-setup-end -->` markers (legacy — CLAUDE.md is user-owned).
 
 Output a markdown report:
 ## PASS items (one per line)
 ## DRIFT items (one per line with file:line)
 
-Tools allowed: Read, Bash (read-only), Glob, Grep. Do NOT mutate any file.
+Tools allowed: Read, Bash (read-only), Glob, Grep. Do NOT mutate any file — report DRIFT items;
+the orchestrator regenerates affected sections.
 Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT).
 
 Anchor: stay within current cwd; verify with `pwd && git branch --show-current` on first Bash call.
@@ -405,7 +411,7 @@ Anchor: stay within current cwd; verify with `pwd && git branch --show-current` 
 | 1 | Spawn subagent. If `DRIFT items` empty → transition to Phase Done. Else → regenerate affected sections (jump back to Phase 3 for those sections only). |
 | 2 | Re-spawn subagent. Same logic. |
 | 3 | Re-spawn subagent. Same logic. |
-| 4 | **AUQ escalation:** `accept-with-warnings (proceed to done, drift documented in ## Open Questions) | abort (transition to failed) | re-run from Detect`. |
+| 4 | **AUQ escalation:** `Accept with warnings (finish setup; remaining issues noted for next run) | Abort setup | Start over from the beginning (re-detect the codebase)`. |
 
 `## Open Questions` accumulates DRIFT items across rounds — survives compaction.
 
@@ -428,7 +434,7 @@ emit_learning <<'EOF'
 "test_runner": "jest",
 "ship_mode_default": "open-pr-draft",
 "reviewer_set": "full",
-"claude_md_loc": 67
+"claude_md_loc": 45
 }
 }
 EOF
@@ -510,7 +516,7 @@ producer: setup
 schema-version: 1
 branch: <git-branch> # may be empty if not a git repo
 timestamp: 2026-05-19T14:32:00Z # last-updated ISO-8601 UTC
-phase: detect # init|detect|interview|generate|validate|done|failed
+phase: detect # detect|interview|generate|validate|done|failed
 status: in-progress # in-progress|done|failed
 non-resumable-actions: [] # typically empty (/geniro:setup ships no external sends)
 approvals: [] # no preference questions; AUQ-only for detection confirm + onboard prompt
@@ -550,7 +556,7 @@ validate_rounds: 1
 
 ## Tool log # selective logging
 [14:02:00] Detect: read package.json (evidence #1), package-lock.json (#2),...
-[14:30:00] validate: spawn verification-agent → 0 drift items
+[14:30:00] validate: spawn verification subagent → 0 drift items
 
 ## Errors # Block 5b (only on failure)
 (empty)
@@ -581,7 +587,7 @@ validate_rounds: 1
 | "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md,.cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
 | "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
 | "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
-| "I already verified everything in my own checks, skip the verification agent" | You generated the files — you're blind to your own mistakes. The independent agent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
+| "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
 | "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Plugin info lives in plugin files and is loaded automatically. Adding it to CLAUDE.md wastes tokens on every run. |
 | "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
 | "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
@@ -601,6 +607,7 @@ validate_rounds: 1
 ## Cross-references
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — the contamination + template-residue check set the §4.1 verification subagent reads and runs (single source for the per-language wrong-token table).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
 - §Loop invariants and §Budgets (this file) — 7 loop invariants and quality-first budgets.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.

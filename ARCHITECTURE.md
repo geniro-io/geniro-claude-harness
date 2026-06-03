@@ -12,7 +12,7 @@ Every state write uses `atomic_state_write` (tmp + fsync + rename + fsync-dir); 
 
 | Tier | Purpose | Path pattern |
 |------|---------|-------------|
-| T1 Task — ephemeral | Transient working artifacts; targeted `rm -f` at Phase Ship | `planning/<task-dir>/.{kr,ce,tr,adversarial}-out.md` (subagent OUTPUT_PATH reports), `planning/<task-dir>/notes.md`, visual-verify artifacts |
+| T1 Task — ephemeral | Transient working artifacts; targeted `rm -f` at Phase Ship | `planning/<task-dir>/.{kr,ce,tr,adversarial,research}-out.md` (subagent OUTPUT_PATH reports), `planning/<task-dir>/.research-<facet>.md` (per-facet `/plan` research), `planning/<task-dir>/notes.md`, visual-verify artifacts |
 | T1.5 Task — durable | Survives Phase Ship; design artifacts the user may want to keep | `planning/<task-dir>/{spec,state}.md`, `planning/<task-dir>/plan-*.md`, `planning/<task-dir>/milestone-*.md`, `state/<skill>/<slug>/state.md`, `state/setup/state.md` singleton |
 | T2 Handoff | Inter-skill; carries structured `open_questions[]` for safety-gated consumer transitions | `state/handoff/from-<producer>-<branch>.md` |
 | T3 Persistent | CRUD / append-only | `instructions/`, `actions/`, `workflow/`, `planning/_*.md`, `knowledge/learnings.jsonl` |
@@ -87,7 +87,7 @@ SessionStart hook re-establishes context across `compact|resume|startup`. `clear
 
 Renamed from /brainstorm; absorbs /decompose; produces canonical spec.md.
 
-- Fixed 10-section spec.md schema — downstream consumers (`/implement`, `/review`) depend on this exact structure.
+- Fixed 11-section spec.md schema — downstream consumers (`/implement`, `/review`) depend on this exact structure.
 - Frontmatter gains optional `workflow_refs[]` (m5-v2 schema) — tracker linkage (Linear / Jira / GitHub-Issues / Asana) persists from Phase 1 fetch through Phase 6 write. Per-entry shape: `{kind, issue_id, url, fetched_at, title?, suggested_branch?, status?, parent_ref?}`. Downstream readers accept both `m5-v1` (treat field as absent) and `m5-v2`.
 - Phase 2 Visual Companion fires only on UI trigger (Phase 1 surfaced UI files OR topic carries UI noun) — calls `_shared/ui-preview-gate.md` for a textual UI preview before any code is written; approved description feeds Phase 5 sections 6 + 9.
 - Phase 5 section approval is grouped into 3 dependency-ordered cluster gates (Goal & scope: sections 1-3 / Approach & steps: sections 4-7 / Safety & done: sections 8-11) instead of one AUQ per section. Each cluster is authored as a unit, then gated by ONE batched AskUserQuestion call carrying one question per section in the cluster (≤4 per the tool's 4-question cap). Every option carries an ADR-style `preview` — Decision (what) → Why (rationale, cites Phase 1 file:line + the Phase 4 approach) → How (implementation: concrete steps/identifiers) + ASCII diagram where it aids comprehension. Drops the per-run gate count from ~17 to ~6-7 while making each gate richer. Phase 3 batches independent clarifying questions into one call (≤4, chain past the cap); Phase 3 + Phase 4 options also carry `preview`.
@@ -123,7 +123,7 @@ Reporter-only (never applies fixes, never mutates tracker status — that is `/p
 - Phase 1 STALL gate: 5 inconclusive steps → 8-component AUQ.
 - Phase 2 fix-loop gate: max 2 fix attempts; on third → AUQ.
 - Adversarial Mode (verify-changes) is a co-equal parallel workflow; delegates RED-phase test authoring to `adversarial-tester-agent`.
-- Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`; L4 promotion suggestion fires on recurrence.
+- Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`; on `recurrence_count >= 3` (after a dedupe check against existing project rules) fires an AskUserQuestion offering to capture the recurring diagnosis as a project rule via `/geniro:instructions create` (user-curated, no auto-write; declines logged via `emit-rejection.sh`).
 - T2 handoff carries a structured `authored_tests[]` frontmatter array (m7-v2+) alongside `open_questions[]`. Each entry pins the path + intent + F→P status of every reproduction test the run produced, so `/implement` Phase 1 Step 12 can extract, verify, and surface relocation suggestions for tests that exist in the debug source worktree but not the consumer's worktree. The handoff body's `**Reproduction test:**` (scientific) / `**Test file:**` (adversarial) lines remain as human-readable mirrors. Schema-version `m7-v1` legacy handoffs fall back to body-string parsing via `_shared/debug-handoff.md`.
 - Reporter-only: NEVER ships code (no `git push` / `gh pr create`). The reproduction test is the only on-disk deliverable; the handoff file is the channel.
 
@@ -206,7 +206,7 @@ Three additional L2 entry types + score-based query ranking.
 - `discarded_hypothesis`: emitted by `/debug` Phase 1; sliding-window cap 5 per scope.
 - `user_rejected_suggestion`: emitted by `emit-rejection.sh` after qualifying AUQ resolution.
 - `retry_failure_sequence`: emitted when retries >=2 in `/implement`, `/debug`, `/refactor`.
-- Score-based ranking: recency × trust × access-count. Stale entries (score < 0.1, age > 180d, access_count == 0) auto-archived at SessionStart.
+- Score-based ranking: recency × trust × access-count × recurrence. A learning's `recurrence_count` (incremented on each dedup-key re-emit by `emit-learning.sh`; absent treated as 1) folds in as a log-dampened factor `1 + ln(max(n,1))`, so absent/1 has no effect. Stale entries (score < 0.1, age > 180d, access_count == 0) auto-archived at SessionStart.
 
 ---
 

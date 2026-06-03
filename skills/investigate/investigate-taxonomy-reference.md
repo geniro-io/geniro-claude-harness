@@ -7,7 +7,7 @@ Detail sections extracted from `skills/investigate/SKILL.md` to keep the main sk
 1. State machine — full ASCII diagram
 2. State file schema — frontmatter + body sections
 3. Phase 2 research-agent spawn templates (Codebase / Git / Internet)
-4. Phase 3 fresh reviewer-agent spawn template
+4. Phase 3 fresh verifier agent spawn template
 5. Answer-structure templates per question type (How / Why / What-if / Compare / Risk)
 6. Extended examples (Design Rationale, Impact Analysis, Forward-looking integration)
 
@@ -18,22 +18,22 @@ Detail sections extracted from `skills/investigate/SKILL.md` to keep the main sk
 ```
 [entry]
 └── classify ──┬── investigate ──┬── present ──┬── done
-│ │ └── present-summary-only (terminal — "Nothing — just wanted the answer" pick)
-│ │
-│ └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
-│ ├── present (user picks "drop unverified claims" → continue with gaps)
-│ └── aborted (terminal)
-│
-└── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
-├── aborted (terminal)
-└── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
+               │                 │            └── present-summary-only (terminal — "Nothing — just wanted the answer" pick)
+               │                 │
+               │                 └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
+               │                                             ├── present (user picks "drop unverified claims" → continue with gaps)
+               │                                             └── aborted (terminal)
+               │
+               └── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
+                                        ├── aborted (terminal)
+                                        └── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
 
 present ──┬── (happy: flows to done)
-└── present-loop ──┬── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
-└── done (user picks "save findings" → save-routing AUQ executes → done)
+          └── present-loop ──┬── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
+                             └── done (user picks "save findings" → save-routing AUQ executes → done)
 ```
 
-Terminal states: `done`, `present-summary-only`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context.
+Terminal states: `done`, `present-summary-only`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context. `present-loop` is a sub-state of `present`, not a top-level phase: during dive-deeper rounds the persisted `phase:` value stays `present` (which is why the `phase:` enum below has no `present-loop` member).
 
 ---
 
@@ -60,7 +60,7 @@ geniro_kind: investigate-state
 geniro_schema_version: m9-v1
 task_slug: <slug>
 worktree: <abs-path>
-question_type: <one of 9 types from Phase 1 Step 1 classification>
+question_type: <one of the types in the Phase 1 Step 1 classification table>
 agents_spawned: []
 dive_deeper_rounds: 0
 ---
@@ -83,8 +83,8 @@ dive_deeper_rounds: 0
 ## Draft Answer
 <pre-review version — preserved for compaction-resume>
 
-## Reviewer Findings
-<fresh-reviewer issue list>
+## Verifier Findings
+<fresh-verifier issue list>
 
 ## Final Answer
 <post-review version>
@@ -133,7 +133,7 @@ SCOPE_HINT: {{path globs / module names / file lists derived from the user's tar
 PRE_INLINED_CONTEXT:
 {{paste verbatim contents of orchestrator-identified relevant files with absolute paths as section headers; the agent does NOT re-Glob}}
 
-OUTPUT_PATH: {{absolute path under <task-dir> — e.g., /Users/.../planning/<task-slug>/.research-codebase.md}}
+OUTPUT_PATH: {{absolute path under the investigate state dir — e.g., .geniro/state/investigate/<slug>/.research-out.md}}
 
 THOROUGHNESS: medium
 
@@ -145,7 +145,7 @@ BRANCH: [from `git branch --show-current`]
 Verify with `pwd && git branch --show-current` on your first Bash call; abort if either differs.
 
 # Acceptance criteria (self-check before writing OUTPUT_PATH)
-- Every finding cites at least one file:line + verified snippet (Evidence Standard kind 1) OR captured grep/command output (kind 2). Reasoning-only findings are rejected.
+- Every finding cites at least one file:line + verified snippet (Evidence Standard kind 2) OR captured grep/command output (kind 1). Reasoning-only findings are rejected.
 - "Files examined" list precedes the findings block, with line counts per file.
 - "Gaps" section is present (may be empty) — never silently drop a sub-question.
 """)
@@ -166,7 +166,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
 ### Acceptance criteria (self-check before reporting completion)
-- Every Finding cites a commit hash + commit-message excerpt or diff snippet (Evidence Standard kind 2 — captured command output). No paraphrased "the commit said".
+- Every Finding cites a commit hash + commit-message excerpt or diff snippet (Evidence Standard kind 1 — captured command output). No paraphrased "the commit said".
 - Timeline is chronological with explicit dates from `git log --format`.
 - "Patterns" section is present (may be empty if no trend is supported by ≥3 commits).
 
@@ -209,7 +209,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 
 ### Acceptance criteria (self-check before reporting completion)
-- Every Finding has a Source URL (Evidence Standard kind: external documented fact). No "I recall…" without a URL.
+- Every Finding has a Source URL (Evidence Standard kind 6: external documented fact). No "I recall…" without a URL.
 - Reliability label is one of: official docs / widely-accepted / single source / opinion.
 - Consensus + Disagreements sections present (may be empty if N=1 source).
 
@@ -243,7 +243,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ---
 
-## 4. Phase 3 fresh reviewer-agent spawn template
+## 4. Phase 3 fresh verifier agent spawn template
 
 The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
 
@@ -262,7 +262,7 @@ BRANCH: [from `git branch --show-current`]
 - If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
 
 ### Pre-Inlined Files
-{{paste verbatim contents of every file cited in the draft answer's file:line references; reviewer re-Reads from these — does NOT re-Glob}}
+{{paste verbatim contents of every file cited in the draft answer's file:line references; the verifier re-Reads from these — does NOT re-Glob}}
 
 ### Draft answer
 {{full draft answer from Phase 3}}
@@ -270,7 +270,7 @@ BRANCH: [from `git branch --show-current`]
 ### Verification checklist
 1. **Spot-check Phase 2 Step 2 re-verify**: Phase 2 Step 2 already had the orchestrator re-verify cited claims. Pick 2-3 load-bearing claims at random; re-Read their cited file:lines and confirm the snippet still matches. If a sample fails, that's a Phase 2 Step 2 gap — flag it as a blocker, not a single-claim correction.
 2. **Completeness**: Does the answer fully address the question? Any obvious gaps?
-3. **Honesty**: Is every load-bearing claim backed by an artifact (Evidence Standard kinds 1-5)? Are unverified claims listed in "Open questions" rather than smuggled in with caveats?
+3. **Honesty**: Is every load-bearing claim backed by an artifact (Evidence Standard kinds 1-6)? Are unverified claims listed in "Open questions" rather than smuggled in with caveats?
 4. **Clarity**: Would someone unfamiliar with this code understand the answer?
 5. **Over-claims**: Does the answer claim certainty where evidence is actually weak?
 6. **Missing context**: Is there important context the answer should mention but doesn't?

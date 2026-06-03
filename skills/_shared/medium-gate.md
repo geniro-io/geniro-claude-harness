@@ -1,6 +1,6 @@
 # MEDIUM Inclusion Gate
 
-Canonical AskUserQuestion gate that fires at the top of any code-review fix loop when MEDIUM-severity findings exist. Replaces the older "Drop Medium" / "Skip MEDIUM" policy — auto-dropping MEDIUMs treats real bugs as advisory. See `ARCHITECTURE.md` §Operational Rules.
+Canonical AskUserQuestion gate that fires at the top of any code-review fix loop when MEDIUM-severity findings exist. Auto-dropping MEDIUMs treats real bugs as advisory, so the gate surfaces them for an explicit decision. See `ARCHITECTURE.md` §Operational Rules.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the gate logic.
 
@@ -29,7 +29,7 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
   How do you want to handle them?
   ```
 
-  Pull the digest from each finding's persisted body fields (severity / `File:` / finding-title / `Why this matters:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 — the same fields PRODUCT-DECISION findings persist. If more than 6 MEDIUMs exist, show the first 6 and append `… and N more — pick "Pick which to include" to see the full list`.
+  Pull the digest from each finding's persisted body fields (severity / `File:` / finding-title / `Why this matters:`) per the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema" — the same fields PRODUCT-DECISION findings persist. If more than 6 MEDIUMs exist, show the first 6 and append `… and N more — pick "Pick which to include" to see the full list`.
 
 - **`options[]`** (3 single-select):
   - `label`: `"Include all in fix loop"` — `description`: `"Treat MEDIUMs equivalently to CRITICAL/HIGH for this fix round — every MEDIUM is fed to the fixer agent."`
@@ -54,12 +54,12 @@ Promoted MEDIUMs lose their MEDIUM tag in the fix-loop pool — the fixer agent 
 
 ## Persisted-fields requirement
 
-For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/geniro:implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/geniro:review` Phase 5) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5. This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
+For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/geniro:implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/geniro:review` Phase 5) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema". This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
 
 ## Why this exists
 
 Auto-dropping MEDIUMs creates two failure modes:
 1. **Real bugs ship.** The reviewer-agent's MEDIUM definition is "Bug or deviation from standards impacting reliability/clarity" (`agents/reviewer-agent.md` §Output Format) — these are real issues, just not blocking. Dropping them silently means real bugs reach production with no audit trail.
-2. **Visibility lost.** The Ship summary previously showed only CRITICAL/HIGH counts — the user had no way to even see what was dropped. The Always-WAIT gate forces the count + digest to surface at the moment of decision.
+2. **Visibility lost.** A Ship summary that shows only CRITICAL/HIGH counts leaves the user with no way to see what was dropped. The Always-WAIT gate forces the count + digest to surface at the moment of decision.
 
 The cost is one AUQ call per fix-loop entry when MEDIUMs exist. Skipped silently when zero MEDIUMs — matches the PRODUCT-DECISION gate's skip-when-empty behavior.

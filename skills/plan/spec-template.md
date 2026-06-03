@@ -1,6 +1,16 @@
 # spec.md template — schema
 
-Canonical 10-section markdown template that Phase 6 fills in. One source of truth for schema.
+## Contents
+
+- Frontmatter
+- Body — 11 sections
+- Per-section content guidance
+- Problem & Evidence (optional — PRD-mode only)
+- Milestone-mode
+
+---
+
+Canonical 11-section markdown template that Phase 6 fills in. One source of truth for schema.
 
 **Status:** Authoritative. Phase 7 mechanical validator enforces this layout exactly. Every spec.md emitted by `/geniro:plan` conforms.
 
@@ -44,7 +54,7 @@ name: "Tests green"
 forbidden_actions: # list of explicit "don't do this" rules
 - "do NOT modify production database schema directly — use migrations only"
 - "do NOT bypass auth middleware"
-approval_required_for: # list of step_anchors that require user approval before /geniro:implement proceeds
+approval_required_for: # advisory: step_anchors flagged for a user-approval pause — goal-state documentation only (the enforced /geniro:implement Edit/Write gate is the handoff open_questions[] check, not a step-anchor match)
 - step-3
 - step-9
 tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in env — goal-state end
@@ -72,7 +82,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 
 **`status:` namespace note.** reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
 
-## Body — 10 sections
+## Body — 11 sections
 
 ```markdown
 <!-- geniro:design-doc -->
@@ -127,31 +137,60 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 <Single statement of the observable signal that the task is complete. E.g., "all 5 acceptance tests green AND PR approved" / "feature ships behind flag AND telemetry shows ≥1 successful use".>
 ```
 
-(Note: the schema has 11 numbered headers (`## 1` … `## 11`); downstream consumers and the validator key off header text, not ordinal count.)
+The schema has exactly 11 numbered headers (`## 1` … `## 11`); downstream consumers and the validator key off header text, not ordinal count.
 
-Body sections beyond the 10 (allowed):
-- `## Considered Alternatives` — captured from Phase 4 Always present if Phase 4 ran with ≥2 approaches.
+Body sections beyond the 11 (allowed):
+- `## Considered Alternatives` — captured from Phase 4. Always present if Phase 4 ran with ≥2 approaches.
 - `## Milestones` — captured from Phase 5 milestone-mode. Present only if milestone-mode was picked.
+- `## Problem & Evidence` — captured from the Phase 0.5 problem-discovery interview. **Optional** — present only when `/geniro:plan --prd` ran (`prd_mode: true`); absent on every normal spec. The Phase 7 validator treats it as allowed-optional, so a normal spec without it still passes the schema check.
 
 ## Per-section content guidance
 
-**Section 1 (Objective):** ONE sentence. NOT a problem statement, NOT a user story, NOT a title — a declarative goal. Examples:
+**Section 1 (Objective):** ONE sentence. NOT a problem statement, NOT a user story, NOT a title — a declarative goal. The problem framing belongs in the optional `## Problem & Evidence` section (PRD-mode), never in section 1. Examples:
 - ✅ "Add OAuth login to the customer portal."
-- ❌ "We need OAuth because users keep complaining about password resets." (problem statement, not objective)
+- ❌ "We need OAuth because users keep complaining about password resets." (problem statement, not objective — belongs in `## Problem & Evidence`)
 - ❌ "As a customer, I want to login with OAuth." (user story, not objective)
+
+## Problem & Evidence (optional — PRD-mode only)
+
+Present only when `/geniro:plan --prd` ran. Carries the problem framing from the Phase 0.5 problem-discovery interview — kept separate from section 1 (Objective) so the Objective stays a clean declarative goal while the problem, evidence, and prioritization live here. Omit the whole section on a normal (non-PRD) spec; the Phase 7 validator's `schema_completeness` check allows its absence and allows its presence.
+
+Layout:
+
+```markdown
+## Problem & Evidence
+
+**Problem:** <one-sentence pain statement — the problem, not the feature>
+
+**Evidence:** <what proves the problem is real — a metric, support-ticket count, recorded session, or quote. Use "none yet — unvalidated" honestly if no evidence exists; do not invent it.>
+
+**Target user & job-to-be-done:** <who has the problem> — <the job they are trying to get done>
+
+**Hypothesis:** If <X>, then <metric Y> moves by <Z>.
+
+**Success metrics:** <1-3 metrics that confirm the problem is solved — these also seed section 9 Validation and section 11 Done Condition>
+
+**Prioritization (MoSCoW):**
+- Must: <...>
+- Should: <...>
+- Could: <...>
+- Won't (this round): <... — seeds section 3 Scope — Excluded>
+```
+
+The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3 (Scope — Excluded); the success metrics seed section 9 (Validation) and section 11 (Done Condition).
 
 **Section 6 (Steps):** Each step cites ≥1 file:line reference unless it's a meta-step (e.g., "Step 1: Create new branch"). Phase 7 validator check #3 enforces this.
 
-**Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not yet auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 Step 12). Use "none" if /geniro:implement may run autonomously start-to-finish.
+**Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 Step 12). Use "none" if /geniro:implement may run autonomously start-to-finish.
 
-**Section 10 (Rollback-Recovery):** «none — pure additive» is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is «none» — it auto-fails if body is empty.
+**Section 10 (Rollback-Recovery):** "none — pure additive" is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is "none" — it auto-fails if body is empty.
 
-**Sections 4, 5, 10 for Trivial tasks:** may have body content «none — task scope precludes» with brief rationale. Headers MUST exist; bodies MAY be «none with rationale».
+**Sections 4, 5, 10 for Trivial tasks:** may have body content "none — task scope precludes" with brief rationale. Headers MUST exist; bodies MAY be "none with rationale".
 
 ## Milestone-mode
 
 If Phase 5 milestone-mode was picked, Phase 6 emits:
-- `spec.md` — top-level with section 6 «Steps» listing milestone names (not raw steps) + a body section `## Milestones` indexing the sibling files.
-- `milestone-1.md`, `milestone-2.md`, …, each with its own 10-section schema scoped to the milestone.
+- `spec.md` — top-level with section 6 "Steps" listing milestone names (not raw steps) + a body section `## Milestones` indexing the sibling files.
+- `milestone-1.md`, `milestone-2.md`, …, each with its own 11-section schema scoped to the milestone.
 
-Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md (— tentatively yes; deferred to implementation).
+Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md.

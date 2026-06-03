@@ -12,7 +12,7 @@ State.md `phase: triage` during this phase.
 - §3 PR-ref input parsing
 - §3.5 Workflow integrations (issue-tracker fetch)
 - §4 Peer-PR scout (PR-ref input only)
-- §5 Git workspace decision
+- §5 reserved — scope resolution is covered under §2 above
 - §6 L4 instructions load
 - §7 Step 0.5 — Round-N counter
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
@@ -160,7 +160,7 @@ Do NOT use `EnterWorktree(name: ...)` — that path auto-creates with `worktree-
 |---|---|
 | User picks "Other" with custom text on the workspace AUQ | Treat as "Review in current location" semantically; no worktree mutation; echo custom text into state.md `## Workspace decision` body block. |
 | Multiple continuing signals match (review handoff AND debug handoff) | Both satisfy rule 2 or 3. Echo both signal names; behavior identical. |
-| Stale T2 handoff (older than 30 days) | Still triggers rule 2 / 3. Emit soft notice: `"Note: review handoff is N days old."` |
+| Stale T2 handoff (older than the current work) | Still triggers rule 2 / 3. Emit soft notice: `"Note: review handoff is N days old."` |
 | `IN_WORKTREE == true` AND `IN_TARGET_WORKTREE == true` but PR `headRefOid` mismatches current `HEAD` | Auto-continue per rule 1. Mismatch surfaces as warning in §3 PR-ref parsing, never blocks. User can re-run with `new-branch` modifier to force a fresh fetch. |
 
 After Step 0 settles, every subsequent Phase 1 step and downstream phases run from the new cwd. Cross-session writes (`.geniro/state/handoff/from-review-<branch>.md`, `learnings.jsonl`) auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown.
@@ -252,7 +252,7 @@ If `gh` is unavailable or the PR cannot be fetched, report the error and stop �
 
 ## 3.5. Workflow integrations (issue-tracker fetch)
 
-Mirrors the Workflow-integration plumbing pattern in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` (§"Phase 1: $ARGUMENTS semantic-parse table") — read `.geniro/workflow/*.md` integrations, apply argument-detection regex, attempt MCP fetch when backend available. Read-only from /geniro:review's perspective; status/comment updates remain in /geniro:implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
+Read `.geniro/workflow/*.md` integrations, apply each file's argument-detection regex against `$ARGUMENTS` / `pr.title` / `pr.body`, and on a match fetch tracker context via the registered MCP server. Fail-open when the MCP server is unregistered: degrade to regex-only ID detection, surface a `## Caveats` one-liner, never block. Read-only from /geniro:review's perspective; status/comment updates remain in /geniro:implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
 
 Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not configured by /geniro:setup). Other inputs (files / diff range / branch / PR ref) ALL eligible — tracker IDs surface in `$ARGUMENTS` independently of PR-ref-driven flow.
 
@@ -326,7 +326,7 @@ Skip for files / diff range / branch. Mechanism:
 - `linear_bonus`: +2 if sibling's PR title OR body contains a Linear ID matching `linear-parent-ref` OR appearing in `linear-sibling-task-ids:` from (parent epic OR sibling sub-task linkage). Bonus is additive: PR can earn +2 for parent-match AND +2 for sibling-sub-task-match (total +4).
 - `total_score = file_overlap + linear_bonus`.
 - Keep **top-10** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When is skipped (no workflow), `linear_bonus` is always 0 and this reduces to pure file-overlap top-10.
-- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (bounded to **200 lines** per sibling — tightened from 300 to compensate for higher count).
+- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (~200 lines per sibling — bounds total context against the higher sibling count).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**5000 chars** — drop lowest-`total_score` sibling first if exceeded.
 - Pre-inline into reviewer prompts: architecture, design, **bugs, conventions, optimizations, spec-compliance, regressions** (expanded from architecture + design only). Skipped for tests + security + guidelines + pr-metadata (orthogonal or target-PR-specific).
 
@@ -336,9 +336,7 @@ Read-only — never writes files, never mutates git state. Latency ~1-3s base + 
 
 ---
 
-## 5. Git workspace decision
-
-Moved to §0 above (Step 0 — Workspace setup). §0 runs FIRST in Phase 1 — before input mode detect, scope resolution, PR-ref parsing, workflow integrations, and peer-PR scout — so the rest of Phase 1 operates on the correct working tree.
+(§5 reserved — scope resolution is covered under §2 above.)
 
 ---
 
@@ -365,7 +363,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 Per `plan-context-reference.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
-1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (10 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).
+1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (11 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).
 2. Else fall back to prose detection with ~3000-char cap.
 
 PLAN CONTEXT body inlined in spec-compliance reviewer spawn prompt only (Phase 2). Other dimensions don't see it.
@@ -383,7 +381,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 **Downstream knobs (4):**
 - Phase 4.1 severity threshold: standard ≥80; high ≥70.
-- Phase 4.2 verifier coverage: ALL HIGH-severity survivors verified (no tier-scaling — same coverage at standard and high tier).
+- Phase 4.2 verifier coverage: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) verified — no tier-scaling, no severity-scaling; same coverage at standard and high tier.
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
 
@@ -405,14 +403,14 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After triage, surface one `AskUserQuestion` (do NOT print options as plain text):
 
 - **Header:** "Review mode"
-- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings backed by an F→P-verified failing test)?"
+- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings that an auto-authored failing test can reproduce)?"
 - **Options:**
 - "Standard review (Recommended)" — current behavior; Phase 4.3 gate opt-in per-run; Phase 6 posts all kept findings.
 - "TDD review (auto-author failing tests for findings)" — Phase 4.3 gate's Recommended option flips to "Author tests…"; Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.
 
 If user declines (empty answer), default to Standard. `--tdd`/`--standard` flag (when present) always overrides this AUQ. Persist to `approvals[]` with category `tdd_mode_choice`.
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode flips, edge cases, F→P contract scope, and rollback notes.
+See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode flips, edge cases, and F→P contract scope.
 
 ---
 

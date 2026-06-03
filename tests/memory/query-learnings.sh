@@ -280,6 +280,43 @@ else
   fail "forward-pointing supersede semantics; got '$out'"
 fi
 
+# ---- record_access: counter bump + never-deletes guard ----
+
+# Bumps access_count on a matching entry; tolerates a log lacking a trailing newline
+# (awk counts the final unterminated record the same way jq -Rc reads it).
+new_sandbox
+printf '%s\n%s' \
+  '{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"ra1","access_count":0}' \
+  '{"ts":"2026-05-02T10:00:00Z","producer":"/d","scope":"s","summary":"b","tags":["x"],"dedup_key":"ra2","access_count":0}' \
+  > .geniro/knowledge/learnings.jsonl
+set +e; record_access ra1; rc=$?; set -e
+cnt=$(jq -Rc 'fromjson? | select(.dedup_key=="ra1") | .access_count' .geniro/knowledge/learnings.jsonl)
+lines=$(awk 'NF{c++} END{print c+0}' .geniro/knowledge/learnings.jsonl)
+if [ "$rc" -eq 0 ] && [ "$cnt" = "1" ] && [ "$lines" -eq 2 ]; then
+  pass "record_access bumps access_count and keeps both lines on a no-trailing-newline log"
+else
+  fail "record_access valid-log bump; rc=$rc cnt=$cnt lines=$lines (expect 0/1/2)"
+fi
+
+# A malformed line must NOT be silently dropped: jq fromjson? would skip it, so the
+# guard refuses the rewrite (rc 1) and leaves the log byte-for-byte — the same
+# never-deletes invariant archive-stale.sh enforces on this file.
+new_sandbox
+printf '%s\n%s\n%s\n' \
+  '{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"rb1","access_count":0}' \
+  'THIS LINE IS NOT JSON' \
+  '{"ts":"2026-05-03T10:00:00Z","producer":"/d","scope":"s","summary":"c","tags":["x"],"dedup_key":"rb3","access_count":0}' \
+  > .geniro/knowledge/learnings.jsonl
+before=$(cksum < .geniro/knowledge/learnings.jsonl)
+set +e; record_access rb1; rc=$?; set -e
+after=$(cksum < .geniro/knowledge/learnings.jsonl)
+lines=$(awk 'NF{c++} END{print c+0}' .geniro/knowledge/learnings.jsonl)
+if [ "$rc" -eq 1 ] && [ "$lines" -eq 3 ] && [ "$before" = "$after" ]; then
+  pass "record_access refuses to rewrite a log with a malformed line (never-deletes guard)"
+else
+  fail "record_access never-deletes guard; rc=$rc lines=$lines unchanged=$([ "$before" = "$after" ] && echo y || echo n) (expect 1/3/y)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

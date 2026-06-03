@@ -6,7 +6,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-TMPDIR_BASE="$(mktemp -d)"
+TMPDIR_BASE="$(cd "$(mktemp -d)" && pwd -P)"
 ORIGINAL_PWD="$PWD"
 trap 'cd "$ORIGINAL_PWD"; rm -rf "$TMPDIR_BASE"' EXIT
 

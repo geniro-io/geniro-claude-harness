@@ -37,7 +37,7 @@ Each verifier does NOT receive:
 - The orchestrator's prior reasoning.
 - Information about which dimension originated the finding (avoids anchoring on the originating reviewer's framing).
 
-Rationale: "Independent reviewer agents provide decisions WITHOUT seeing each other's outputs; a meta-reviewer integrates. Independence prevents anchoring." — MARS, arXiv 2509.20502.
+Rationale: independent verifiers that do not see each other's outputs cannot anchor on a shared framing — each re-reads the cited code cold and judges the finding on its own merits, which is what keeps the verification honest.
 
 ---
 
@@ -58,7 +58,7 @@ Field semantics:
 - `validation: refuted` — the cited code does not exhibit the claimed defect; verifier read the file and disagrees.
 - `validation: clarified` — the finding is correct but the recommended action differs from the original reviewer's; verifier's `recommended_action` overrides.
 - `recommended_action` reuses the plugin's existing 4-way taxonomy (fix-now / testable / product-decision / intent-check) plus `drop` for refuted findings.
-- `confidence` 1-5 (Greptile-style scale): 1 = "low — could be wrong", 5 = "certain — direct evidence".
+- `confidence` 1-5 coarse scale: 1 = 'low — could be wrong', 5 = 'certain — direct evidence'.
 - `evidence` must be a literal quote from the cited file or caller chain. "I agree" / "looks correct" / paraphrases are insufficient — refuse the output and re-prompt the verifier.
 
 ---
@@ -102,9 +102,9 @@ After all verifiers return, the orchestrator processes results:
 
 | Reasoning the verifier (or orchestrator) might generate | Why that's wrong |
 |---|---|
-| "The original reviewer is usually right — confirm to maintain coherence." | Sycophancy is the documented multi-judge failure mode (arXiv 2509.23055). Re-read the cited code; if the defect is not visible in the quote, mark refuted. Coherence is not a verification signal. |
+| "The original reviewer is usually right — confirm to maintain coherence." | Agreeing to stay coherent with the original reviewer is the documented multi-judge failure mode. Re-read the cited code; if the defect is not visible in the quote, mark refuted. Coherence is not a verification signal. |
 | "Skip the caller grep — the finding cites `file:line`, that's enough." | The cited `file:line` is the reviewer's claim. Without grepping callers, impact cannot be refuted or confirmed. Read the call sites before emitting. |
-| "Pass the full reviewer bundle to each verifier so they have full context." | Shared context anchors verifiers toward agreement (MARS, arXiv 2509.20502). Each verifier sees ONLY its finding plus cited slice plus caller grep. Independence is load-bearing. |
+| "Pass the full reviewer bundle to each verifier so they have full context." | Shared context anchors verifiers toward agreement — they read the original framing instead of the code. Each verifier sees ONLY its finding plus cited slice plus caller grep. Independence is load-bearing. |
 | "Verifier confidence:1 — silently demote severity to MEDIUM instead of refuting." | `confidence: 1` with no contradicting evidence means the verifier is uncertain; emit `validation: clarified, confidence: 1` and let the orchestrator decide. Silently demoting severity hides the uncertainty from the consumer. |
 | "All §4.1 survivors verified takes too many spawns — sample top-N instead." | The verifier explicitly drops tier-scaling AND severity-scaling. Parallel-spawn invariant: wall-time is ~max(spawn-time) regardless of N. Token cost is bounded by the §4.1 multi-signal gate, which is already tight (MEDIUM requires Evidence-Block + ≥60 confidence). If finding count is high, that signals tightening Phase 4.1, not under-verifying. Sampling reintroduces the failure mode the empirical-reproduction pass exists to eliminate. |
 | "CRITICAL findings are reliable by definition — skip verification for CRITICALs." | CRITICALs can be admitted under §4.1 signals #1 (convergence) / #3 (criteria pre-resolved) / #4 (confidence ≥80) without an explicit Evidence-Block — a convergent CRITICAL with weak quoting is exactly the case empirical reproduction catches. Skipping verification for CRITICALs because they "look right" is sycophancy at maximum stake: a confirmed-without-evidence CRITICAL lands on the PR, gates `/geniro:implement` Phase 1, and surfaces to the user as load-bearing. Verify every survivor. |
@@ -119,5 +119,3 @@ After all verifiers return, the orchestrator processes results:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — OMIT `model=` rule.
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` — handoff schema consumer.
 - `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` — base agent contract the verifier mode extends.
-- MARS: Multi-Agent Review System, arXiv 2509.20502 — independence prevents anchoring.
-- Sycophancy in multi-judge LLM systems, arXiv 2509.23055 — coherence is not a verification signal.

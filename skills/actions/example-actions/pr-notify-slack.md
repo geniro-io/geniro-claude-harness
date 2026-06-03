@@ -1,6 +1,6 @@
 ---
 name: pr-notify-slack
-description: "Use when a pull request is opened or updated and you want to post a structured summary to Slack #eng-reviews. Do NOT use for force-pushed branches or draft PRs."
+description: "Use when a pull request is opened or updated and you want to post a structured summary to Slack #eng-reviews. Skip for force-pushed branches and draft PRs."
 model: inherit
 allowed-tools: [Read, Bash(gh *), Bash(curl *), AskUserQuestion]
 argument-hint: "[pr_number]"
