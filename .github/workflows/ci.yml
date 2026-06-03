@@ -1,0 +1,57 @@
+name: CI
+
+# Runs the plugin's own shell test suites + ShellCheck on every PR and on
+# pushes to main. The release workflow tags its bump commit with [skip ci], so
+# this never runs on the bot's version-bump push.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Shell test suites
+    # Run on Linux (GNU coreutils) AND macOS (BSD coreutils) so the shell
+    # portability doctrine is enforced by CI, not just asserted. fail-fast off so
+    # one OS's failure still reports the other's result.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify jq is available
+        run: jq --version
+
+      # tests/run-all.sh discovers and runs every tests/**/*.sh suite, including
+      # tests/authoring/lint-skills.sh (the authoring-rule lint). It exits
+      # non-zero if any suite fails, so this step is the gate.
+      - name: Run shell test suites + authoring lint
+        run: bash tests/run-all.sh
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure shellcheck is installed
+        run: shellcheck --version || (sudo apt-get update && sudo apt-get install -y shellcheck)
+
+      # Error-severity is the gate: it is clean today and only fires on genuine
+      # correctness bugs (syntax errors, undefined behavior), never on stylistic
+      # nits — so it ships green and stays meaningful.
+      - name: ShellCheck (error severity — gating)
+        run: shellcheck --severity=error $(find lib hooks tests -name '*.sh' -type f)
+
+      # Warning-severity is advisory for now (the existing scripts carry a small
+      # backlog of style warnings). Surfaced in the log so the backlog is
+      # visible; mirrors the warn-before-block path the safety hooks use.
+      - name: ShellCheck (warning severity — advisory)
+        continue-on-error: true
+        run: shellcheck --severity=warning $(find lib hooks tests -name '*.sh' -type f)

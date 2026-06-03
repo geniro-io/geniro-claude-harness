@@ -93,7 +93,7 @@ Decision tree (first match wins; evaluate top-down):
        skip create. `EnterWorktree(path: ".claude/worktrees/<TARGET_WORKTREE_NAME>")`.
        NO AUQ.
    5b) Otherwise: fire 2-option AUQ (header: "Git workspace"):
-        A) "Create review worktree (Recommended)" — runs:
+        A) "Create review worktree" — runs:
              git fetch origin pull/<N>/head:<TARGET_WORKTREE_NAME>
              git worktree add .claude/worktrees/<TARGET_WORKTREE_NAME> <TARGET_WORKTREE_NAME>
              EnterWorktree(path: ".claude/worktrees/<TARGET_WORKTREE_NAME>")
@@ -104,7 +104,7 @@ Decision tree (first match wins; evaluate top-down):
    AND PROTECTED_BRANCH == true
    AND no continuing-work signals match
    ⇒ Fire 2-option AUQ (header: "Git workspace"):
-        A) "Create review worktree (Recommended)" — runs:
+        A) "Create review worktree" — runs:
              git worktree add .claude/worktrees/review-<short-slug> <CURRENT_BRANCH>
              EnterWorktree(...)
            Slug source: spec.title (if resolvable) / `$ARGUMENTS` first token / branch name. Per
@@ -118,6 +118,8 @@ Decision tree (first match wins; evaluate top-down):
    ⇒ NO workspace AUQ. Auto-continue on current branch — files-mode and diff-range mode
      operate on cwd-relative file paths; creating a worktree adds friction without value.
 ```
+
+**The workspace decision is never silent when the tree calls for an AUQ.** Cases 4, 5b, and 6 MUST fire their `AskUserQuestion` and WAIT — creating or switching a worktree without asking is the failure this step exists to prevent. A long autonomous / heavy-effort / workflow run does not relax this; the AUQ binds inside every wrapper per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`. Because /geniro:review is read-only, neither option in the 5b / 6 worktree AUQ is pre-selected (no `(Recommended)` marker): a worktree gives full file context for a deep review but is never the forced default — the user picks per run, or sets it once via the `worktree` / `no-worktree` modifier.
 
 **Inline modifier overrides** (parsed from `$ARGUMENTS`; modifiers ALWAYS win over auto-detection):
 
@@ -137,7 +139,7 @@ When the workspace AUQ fires, persist the answer to state.md `approvals[]`:
 ```yaml
 approvals:
   - category: review_workspace_setup
-    picked: "Create review worktree (Recommended)"
+    picked: "Create review worktree"
     timestamp: <ISO-8601>
 ```
 

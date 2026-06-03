@@ -14,6 +14,8 @@
 #
 # Pipeline:
 #   1. Validate required fields.
+#   1b. Reject obvious instruction-injection payloads in summary/body/ext
+#       (defense-in-depth — these get replayed into context by query_learnings).
 #   2. Compute dedup_key if absent: sha256(producer|scope|normalize(summary))[:12]
 #   3. Auto-inject ts (UTC ISO-8601) if absent.
 #   4. Sanitize summary, body, and every string-valued path inside ext via
@@ -98,6 +100,28 @@ emit_learning() {
       return 64
       ;;
   esac
+
+  # Reject instruction-injection payloads at write time. L2 learnings are
+  # re-loaded into orchestrator/subagent context by query_learnings, so a
+  # poisoned free-text field (e.g. one auto-emitted from a fetched page or a PR
+  # body) would be replayed verbatim. The read side is defended by
+  # skills/_shared/untrusted-content-defense.md; this closes the write side.
+  # The scan covers EVERY string value in the entry (`.. | strings`) so a payload
+  # cannot ride in via a non-canonical key (e.g. `entry`/`note`); the structured
+  # injection shapes never match control-plane tokens like producer/scope/tags,
+  # so scanning them is harmless. High-signal patterns only — the
+  # "<verb> <prev-reference> <instruction-noun>" shape and chat-template control
+  # tokens virtually never appear in genuine technical learnings, so false-reject
+  # risk is low, and a false reject only drops one best-effort learning (callers
+  # ignore emit_learning failures) — it never breaks a workflow. Shares the rc=64
+  # "input rejected" family.
+  local scan_text
+  scan_text=$(printf '%s' "$input" | jq -r '[.. | strings] | join("\n")' 2>/dev/null || printf '%s' "$summary")
+  if printf '%s' "$scan_text" | grep -qiE \
+'(ignore|disregard|forget|override)[[:space:]]+([a-z]+[[:space:]]+)?(previous|prior|earlier|preceding|above)[[:space:]]+([a-z]+[[:space:]]+)?(instruction|prompt|context|directive|rule|message)s?|(new|updated)[[:space:]]+(instruction|directive|rule)s?[[:space:]]*:|new[[:space:]]+system[[:space:]]+prompt|<\|(im_start|im_end|system|user|assistant)\|>|</?(system|assistant)[[:space:]]*>'; then
+    echo "emit_learning: refusing entry — contains instruction-injection patterns (defense-in-depth; see skills/_shared/untrusted-content-defense.md)" >&2
+    return 64
+  fi
 
   # Compute dedup_key if absent.
   local dedup_key

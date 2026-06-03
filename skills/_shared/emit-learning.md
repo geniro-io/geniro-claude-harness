@@ -7,6 +7,7 @@
 - §Required fields — what every entry must carry
 - §Optional fields the helper recognizes
 - §Sanitization — secret-redaction before write
+- §Injection rejection — write-time prompt-injection guard
 - §Dedup pipeline — supersede-chain handling
 - §4096-byte limit — the per-line atomicity cap
 - §Example callers
@@ -34,7 +35,7 @@ echo '<json-object>' | emit_learning
 
 **Return codes:**
 - `0` — entry appended, or no-op (identical duplicate).
-- `64` — required field missing, or invalid JSON on stdin.
+- `64` — required field missing, invalid JSON on stdin, or an instruction-injection payload was rejected (see §Injection rejection).
 - `65` — could not create the `.geniro/knowledge/` parent directory (propagated from `atomic_state_append`).
 - `68` — serialized entry > 4096 bytes (POSIX atomic-append guarantee lost).
 - `69` — append write failed (disk full / permission denied; propagated from `atomic_state_append`).
@@ -75,6 +76,17 @@ The helper calls `redact_secrets` on:
 - Every string-valued path inside `ext` (recursive — handles nested objects and arrays)
 
 Top-level non-string fields, `tags`, `producer`, `scope`, etc. are NOT sanitized — they are assumed to be control-plane metadata where secrets shouldn't appear and where sanitization would corrupt structure.
+
+## Injection rejection
+
+L2 entries are re-loaded into orchestrator and subagent context by `query-learnings`. A learning auto-emitted from untrusted text (a fetched page, a PR body, peer-PR content) could carry a prompt-injection payload that is then replayed verbatim into a later session. The read side is defended by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` (inlined into every subagent); this helper closes the **write** side as defense-in-depth.
+
+Before redaction and dedup, `emit_learning` scans **every string value in the entry** (`summary`, `body`, every string inside `ext`, and any non-canonical free-text key such as `entry`/`note`) for two high-signal injection shapes and rejects the entry with `rc=64` if either matches:
+
+- **Override phrasing** — `<verb> <previous-reference> <instruction-noun>`, e.g. "ignore previous instructions", "disregard the above context", "new directives:". Genuine technical learnings essentially never use this structure.
+- **Chat-template control tokens** — `<|im_start|>`, `<|system|>`, `</system>`, etc.
+
+The pattern set is deliberately narrow. A false reject only drops one best-effort learning — callers ignore `emit_learning` failures, so it never breaks a workflow — whereas a stored payload persists across sessions. If a legitimate learning needs one of these phrases, rephrase it. Control-plane tokens (`producer`/`scope`/`tags`/`type`/`trust`) are scanned too but never match the structured shapes, so scanning the whole entry is harmless and removes any "smuggle it into a non-standard key" bypass.
 
 ## Dedup pipeline
 
@@ -134,4 +146,4 @@ jq -nc \
 
 ## Test coverage
 
-`tests/memory/emit-learning.sh` exercises the required-fields contract, auto-injected ts and dedup_key, caller-supplied dedup_key, sanitization of summary / body / ext / nested-ext, the dedup pipeline (no-op vs supersede), oversized rejection, and invalid-JSON rejection.
+`tests/memory/emit-learning.sh` exercises the required-fields contract, auto-injected ts and dedup_key, caller-supplied dedup_key, sanitization of summary / body / ext / nested-ext, the dedup pipeline (no-op vs supersede), oversized rejection, invalid-JSON rejection, and injection rejection (override-phrasing + control-token payloads in summary / body / ext, plus a false-positive guard that a clean technical summary containing the word "ignore" is still accepted).

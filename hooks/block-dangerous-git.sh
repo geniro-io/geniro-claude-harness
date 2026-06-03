@@ -116,8 +116,12 @@ is_git_subcommand() {
 # 4. branch -D / --delete --force
 if ! is_allowed "branch-delete-force"; then
   if is_git_subcommand "branch"; then
-    if echo "$PADDED" | grep -qE '[[:space:]]-D[[:space:]]'; then
-      block "branch-delete-force" "git branch -D force-deletes unmerged branches"
+    # Match -D whether standalone or combined into a short-flag cluster (-Df, -fD,
+    # -rD, ...), mirroring the force-push combined-flag matcher. `-D` always means
+    # force-delete in `git branch`; the lowercase `-d` (safe delete of a merged
+    # branch) has no uppercase D and is intentionally not matched.
+    if echo "$PADDED" | grep -qE '[[:space:]]-[a-zA-Z]*D[a-zA-Z]*[[:space:]]'; then
+      block "branch-delete-force" "git branch -D (including combined flags like -Df) force-deletes unmerged branches"
     fi
     if echo "$PADDED" | grep -qE '[[:space:]]--delete[[:space:]]' && \
        echo "$PADDED" | grep -qE '[[:space:]]--force[[:space:]]'; then

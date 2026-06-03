@@ -182,6 +182,20 @@ Some skills/agents unlock additional capabilities when a companion MCP server is
 
 To check what's available in your environment, look for `mcp__plugin_playwright_playwright__*` tools in the agent's tool list at runtime.
 
+## Testing & CI
+
+Shell test suites live under `tests/` (one file per helper / hook). Run the whole set:
+
+```bash
+bash tests/run-all.sh
+```
+
+The runner discovers and executes every `tests/**/*.sh` suite — the `lib/` helpers, the safety hooks (including the data-loss guards `block-dangerous-git.sh` and `block-geniro-deletion.sh`), and `tests/authoring/lint-skills.sh` — and exits non-zero if any suite fails.
+
+`tests/authoring/lint-skills.sh` mechanizes the manual greps in `.claude/rules/skill-structure.md` §Pre-commit verification. It **hard-fails** (exit non-zero) on the zero-false-positive correctness checks — non-Latin (Cyrillic) text in `skills/`/`agents/`, dangling `${CLAUDE_PLUGIN_ROOT}/<path>` file references, and unknown `subagent_type` spawn names — and **warns only** (never blocks) on the guideline checks: SKILL.md over the 500-line target, anti-rationalization tables over 15 rows, and decaying `file.md:NNN` line-number cross-references (line caps are guidelines, not limits).
+
+`.github/workflows/ci.yml` runs `tests/run-all.sh` plus ShellCheck (error severity gating, warning severity advisory) on every pull request and on pushes to `main`. The release workflow tags its bump commit with `[skip ci]`, so CI never runs on the bot's version-bump push.
+
 ## Updating
 
 This plugin updates automatically via the Claude Code marketplace. To manually check:

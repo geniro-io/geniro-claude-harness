@@ -130,6 +130,12 @@ approvals:
 
 Producers that surface ambiguous-how-to-fix decisions or scope questions write them as structured entries. Consumers (downstream skills) MUST gate on `status: unresolved` before taking any mutating action — code edits, posting to external systems, status transitions, etc.
 
+**`gates_review` — producer self-gate vs downstream-only.** Two distinct gates act on this array, and `gates_review` (optional, default `true`) decides which:
+- `gates_review: true` — resolving the question changes what the **producing** reporter itself posts/does (e.g. "is this finding in scope for this PR?" determines whether it gets posted). The producer's own pre-gate resolves it during the producer's run, before the producer's action gate.
+- `gates_review: false` — a pure fix-path / downstream-resolution decision the producer does NOT act on (e.g. "how should the red CI build be resolved?"). The producer **records** it (status stays `unresolved`) and does NOT surface it as a blocking question — that would push a fix decision onto the user that the reporter isn't going to act on. The downstream consumer (the fixer, `/geniro:implement`) resolves it at its own gate, when the user is actually fixing.
+
+The default is `true` so legacy entries (no field) preserve the producer-resolves-it behavior. A producer sets `gates_review: false` only for a question whose answer does not change its own action — the `/geniro:review` red-CI fix-path case above. (Not every reporter uses the field: `/geniro:debug`'s questions are investigation-blocking — the producer must resolve them to finish its own run, so its Pre-gate gates on every `unresolved` entry and never marks one `false`. The field is for producers that have an action some questions don't affect, like `/geniro:review`'s posting.) **The downstream consumer gate is unaffected — it resolves ALL `unresolved` entries regardless of `gates_review`; the field only governs whether the PRODUCER surfaces the question in its own run.**
+
 ```yaml
 open_questions:
   - id: q1                                          # short stable anchor (used by AUQ chaining and resolution writes)
@@ -180,6 +186,7 @@ open_questions:
       option_id: B
       rationale: "Spec.md is explicit; honoring it preserves the project's PR-scope hygiene. The smoke-test data gap is recoverable via a follow-up seeder PR."
     related_findings: [F1, F4]                      # optional — finding IDs this question gates (cross-reference into ## Findings body)
+    gates_review: true                              # optional, default true — does resolving this change what the PRODUCING reporter posts/does?
     status: unresolved                              # enum: unresolved | resolved | wontfix
     resolution:                                     # populated when status moves out of `unresolved`
       picked: "Split — revert api seeders to a separate PR"
@@ -190,13 +197,14 @@ open_questions:
 
 **Producer responsibilities:**
 - Initialize `open_questions: []` in the handoff frontmatter. NEVER use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
-- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
+- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `gates_review`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
+- Set `gates_review: false` on any entry that is a pure fix-path / how-to-resolve decision the producer will not act on (the producer records it for the downstream fixer instead of surfacing it). Leave it absent (or `true`) only when resolving the question changes what the producer itself posts/does. A reporter surfacing a `gates_review: false` question to the user as a blocking prompt is the contract violation this field exists to prevent.
 - **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich `AskUserQuestion` preview per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust. Producer-side context is cheaper to author once than to reconstruct downstream.
 - When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
 
 **Consumer responsibilities:**
-- Before any mutating action that depends on the handoff (Edit/Write in /geniro:implement; `gh api POST /reviews` in /geniro:review's draft-post path; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, fire an AUQ batch chained across the unresolved entries (cap-extension when >4), persist each answer back to the producer's file via `atomic_state_write`, then proceed.
+- Before any mutating action that depends on the handoff (Edit/Write in /geniro:implement; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved` — **regardless of `gates_review`** — fire an AUQ batch chained across the unresolved entries (cap-extension when >4), persist each answer back to the producer's file via `atomic_state_write`, then proceed. The downstream consumer is the fixer, so it resolves the `gates_review: false` fix-path questions the producer deliberately left for it. (Exception: a producer's OWN action — e.g. `/geniro:review`'s `gh api POST /reviews` draft-post — gates only on `unresolved` entries with `gates_review != false`, since the fix-path questions don't change what gets posted; see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §7.0.)
 - A consumer that finds `unresolved` entries and ships anyway is a contract violation.
 
 **Free-text body fallback:** the body section `## Open Questions` MAY mirror the frontmatter as a human-readable view (Markdown bullet list with `id` anchors), but the frontmatter is the source of truth. Validators check the frontmatter only; the body is informational.
