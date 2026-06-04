@@ -118,9 +118,10 @@ function justify3(left, center, right, W) {
 // Reads only the tail of the transcript (last 256KB) so a multi-MB transcript
 // does not slow down every status-line render. Partial first line is skipped
 // by the per-line try/catch.
-function getSessionTheme(transcriptPath) {
+function getSessionInfo(transcriptPath) {
+  const out = { title: '', lastPrompt: '' };
   try {
-    if (!transcriptPath || !fs.existsSync(transcriptPath)) return '';
+    if (!transcriptPath || !fs.existsSync(transcriptPath)) return out;
     const fd = fs.openSync(transcriptPath, 'r');
     const size = fs.fstatSync(fd).size;
     const len = Math.min(size, 262144);
@@ -128,21 +129,19 @@ function getSessionTheme(transcriptPath) {
     fs.readSync(fd, buf, 0, len, size - len);
     fs.closeSync(fd);
     const lines = buf.toString('utf8').split('\n');
-    let title = '';
-    let prompt = '';
     for (let i = lines.length - 1; i >= 0; i--) {
       const ln = lines[i];
       if (!ln) continue;
-      if (!title && ln.indexOf('"ai-title"') !== -1) {
-        try { const o = JSON.parse(ln); if (o.type === 'ai-title' && o.aiTitle) title = o.aiTitle; } catch {}
+      if (!out.title && ln.indexOf('"ai-title"') !== -1) {
+        try { const o = JSON.parse(ln); if (o.type === 'ai-title' && o.aiTitle) out.title = o.aiTitle; } catch {}
       }
-      if (!prompt && ln.indexOf('"last-prompt"') !== -1) {
-        try { const o = JSON.parse(ln); if (o.type === 'last-prompt' && o.lastPrompt) prompt = o.lastPrompt; } catch {}
+      if (!out.lastPrompt && ln.indexOf('"last-prompt"') !== -1) {
+        try { const o = JSON.parse(ln); if (o.type === 'last-prompt' && o.lastPrompt) out.lastPrompt = o.lastPrompt; } catch {}
       }
-      if (title) break; // title wins; stop as soon as the most recent one is found
+      if (out.title && out.lastPrompt) break; // both found; stop at the most recent of each
     }
-    return title || prompt || '';
-  } catch { return ''; }
+  } catch {}
+  return out;
 }
 
 let input = '';
@@ -167,10 +166,11 @@ process.stdin.on('end', () => {
       }
     } catch {}
 
-    // Model (family colour) + reasoning effort (graded low→max; ultracode = xhigh)
+    // Model (family colour) + reasoning effort (graded low→max; ultracode = xhigh),
+    // set off by a spaced dash so the effort reads as a distinct chip.
     const effort = data.effort?.level;
     const modelSeg = COL(modelColor(model), model)
-      + (effort ? COL(effortColor(effort), '·' + effort) : '');
+      + (effort ? DIM('  —  ') + COL(effortColor(effort), effort) : '');
 
     // Context bar with the token count embedded inside it. A colored background
     // sweeps left→right with usage; the centered "usedk/totalk" label rides on
@@ -221,23 +221,13 @@ process.stdin.on('end', () => {
       } catch {}
     }
 
-    // Session theme — AI title (fallback: last prompt), distinct from the
-    // current todo task. Answers "what is this session about" at a glance.
-    const theme = getSessionTheme(data.transcript_path);
-
-    // Open PR for the current branch + review state
-    let prSeg = '';
-    const pr = data.pr;
-    if (pr?.number) {
-      const st = pr.review_state;
-      let icon = '';
-      let code = '2';
-      if (st === 'approved') { icon = ' ✓'; code = '1;32'; }
-      else if (st === 'changes_requested') { icon = ' ✗'; code = '1;31'; }
-      else if (st === 'pending') { icon = ' •'; code = '1;33'; }
-      else if (st === 'draft') { icon = ' ◌'; code = '38;5;245'; }
-      prSeg = COL(code, `PR#${pr.number}${icon}`);
-    }
+    // Session context from the transcript: the AI title (the session topic, line
+    // 1 centre) and the most recent user prompt (line 2 centre). The PR badge is
+    // intentionally not rendered — Claude Code already shows the PR in its own
+    // bottom row, so a second copy here would just duplicate it.
+    const info = getSessionInfo(data.transcript_path);
+    const topic = info.title || info.lastPrompt;
+    const lastMsg = (info.lastPrompt && info.lastPrompt !== topic) ? info.lastPrompt : '';
 
     // 5-hour rate-limit usage + reset countdown
     let rlSeg = '';
@@ -253,45 +243,38 @@ process.stdin.on('end', () => {
       rlSeg = COL(code, `5h ${p}%${eta}`);
     }
 
-    // Session cost + lines changed
+    // Session cost
     let costSeg = '';
     const cost = data.cost;
-    if (cost) {
-      const bits = [];
-      if (cost.total_cost_usd > 0) bits.push(DIM(`$${cost.total_cost_usd.toFixed(2)}`));
-      const add = cost.total_lines_added || 0;
-      const rem = cost.total_lines_removed || 0;
-      if (add || rem) bits.push(`${COL('32', `+${add}`)}${COL('31', `-${rem}`)}`);
-      if (bits.length) costSeg = bits.join(' ');
-    }
+    if (cost && cost.total_cost_usd > 0) costSeg = DIM(`$${cost.total_cost_usd.toFixed(2)}`);
 
     // Output — two rows, each justified across the terminal width:
-    //   line 1: [update · model·effort · task]  …  «session theme»  …  [PR]
-    //   line 2: [dir · context]  …  [5h limit · cost]
+    //   line 1: [model — effort · task]  …  «session topic»  …  [5h limit · cost · update]
+    //   line 2: [dir · context]  …  «last user message»
     // Claude Code exports COLUMNS before running the script (v2.1.153+). When it
     // is absent or the window is too narrow to justify, fall back to a plain
     // `│`-separated join so older clients and slim terminals still read cleanly.
     const dirname = path.basename(dir);
 
-    const l1left = [updateSeg, modelSeg, task ? `\x1b[1m${task}\x1b[0m` : '']
+    const l1left = [modelSeg, task ? `\x1b[1m${task}\x1b[0m` : '']
       .filter(Boolean).join(' │ ');
-    const l1center = (theme && theme !== task) ? DIM(clip(theme, 40)) : '';
-    const l1right = prSeg;
+    const l1center = (topic && topic !== task) ? DIM(clip(topic, 40)) : '';
+    const l1right = [rlSeg, costSeg, updateSeg].filter(Boolean).join(' │ ');
 
     const l2left = `${COL(DIR_COLOR, dirname)}${ctx}`;
-    const l2right = [rlSeg, costSeg].filter(Boolean).join(' │ ');
+    const l2center = lastMsg ? DIM(clip(lastMsg, 50)) : '';
 
     const W = parseInt(process.env.COLUMNS || '', 10);
     let out;
     if (W && W >= 40) {
-      // Justify to one column short of the edge: ambiguous-width glyphs (✓ ✗ ↻)
+      // Justify to one column short of the edge: ambiguous-width glyphs (↻ etc.)
       // can render double-width in emoji-presentation terminals, and a line
       // filled exactly to the edge would then wrap. The 1-col slack is invisible.
       const Wj = W - 1;
-      out = justify3(l1left, l1center, l1right, Wj) + '\n' + justify(l2left, l2right, Wj);
+      out = justify3(l1left, l1center, l1right, Wj) + '\n' + justify3(l2left, l2center, '', Wj);
     } else {
       const a = [l1left, l1center, l1right].filter(Boolean).join(' │ ');
-      const b = [l2left, l2right].filter(Boolean).join(' │ ');
+      const b = [l2left, l2center].filter(Boolean).join(' │ ');
       out = a + '\n' + b;
     }
     process.stdout.write(out);
