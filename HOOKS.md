@@ -28,7 +28,7 @@ The plugin ships 9 safety / lifecycle hooks, 1 sourced utility library, and 2 No
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); discards a state.md already in a terminal `phase:`/`status:` so a finished task is not surfaced as resumable; pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Also runs L2 auto-archive. Read-only on state.md; the only writes are `learnings.jsonl` (auto-archive flip) + `.archive-stale.{hash,lock}`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
-| [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | ANSI-colored status line (model • task • dir • context%) |
+| [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | Two-row width-justified status line (model·effort · task · session theme · PR / dir · context · 5h limit · cost) |
 | [`backpressure.sh`](hooks/backpressure.sh) | **NOT registered** — utility library | — | Sourced by skills (e.g. /refactor, /review) to compress verbose test/build output |
 
 ### file-protection.sh
@@ -123,10 +123,16 @@ Spawns a detached child process via `spawn(..., detached: true, stdio: 'ignore')
 
 **Wiring:** [`settings.json`](settings.json) `statusLine.command`. Not registered in `hooks.json` — `statusLine` is a separate Claude Code display feature, not a hook event.
 
-**Stdin (3s timeout):** JSON containing `model.display_name`, `workspace.current_dir`, `context_window.remaining_percentage`, `context_window.context_window_size`, `session_id`. Reads `~/.claude/cache/geniro-update-check.json` for the update banner and `~/.claude/todos/*.json` for the in-progress task. Renders an ANSI-colored bar:
+**Stdin (3s timeout):** JSON containing `model.display_name`, `effort.level`, `workspace.current_dir`, `context_window.remaining_percentage`, `context_window.context_window_size`, `session_id`, `transcript_path`, `pr.{number,review_state}`, `rate_limits.five_hour.{used_percentage,resets_at}`, `cost.{total_cost_usd,total_lines_added,total_lines_removed}`. Also reads `~/.claude/cache/geniro-update-check.json` for the update banner, `~/.claude/todos/*.json` for the in-progress task, and the tail (last 256KB) of `transcript_path` for the session theme (`ai-title`, fallback `last-prompt`).
 
-- Context %: green (<50%), yellow (50-65%), orange (65-80%), red blinking (>80%)
-- Format: `model | task | dir | context%`
+Renders a **two-row, width-justified** ANSI bar (uses the `COLUMNS` env var Claude Code exports, v2.1.153+):
+
+- **Line 1 (identity + intent):** `[⬆ update · model·effort · task]` left, `«session theme»` centered, `[PR#n + review-state]` right.
+- **Line 2 (location + resources):** `[dir · context bar]` left, `[5h rate-limit · cost +/-lines]` right.
+- Model shows the full name (`display_name`, e.g. `Opus 4.8 (1M context)`; reconstructed from `model.id` when the client sends a bare family word) in a bold family colour (Opus purple / Sonnet blue / Haiku green). Reasoning effort is graded low→max (gray→orange→red). Directory is teal.
+- Context %: green (<50%), yellow (50-65%), orange (65-80%), red blinking (>80%). PR icon + colour by review state (`✓` approved / `✗` changes-requested / `•` pending / `◌` draft). 5h limit: green (<70%), yellow (<90%), red (≥90%) + reset countdown.
+- Every segment except model/dir/context is conditional — it renders only when its field is present, so the bar stays compact on a fresh session.
+- Lines justify to one column short of the window edge (slack for ambiguous-width glyphs). When `COLUMNS` is absent or the window is < 40 cols, falls back to a plain `│`-separated two-row join.
 
 Always exits 0; falls back to the literal string `geniro` if JSON parse fails.
 
