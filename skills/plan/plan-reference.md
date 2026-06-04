@@ -5,7 +5,7 @@ Companion reference for less-common usage paths of `/geniro:plan`. The main flow
 ## Contents
 
 - DESIGN_DOC mode — no refine path
-- Concrete-example per section type (Phase 5 `preview` field substrate)
+- Concrete-example per section type (Phase 5 cluster chat-message substrate)
 - workflow_refs[] usage notes (m5-v2 schema)
 - Edge cases (empty $ARGUMENTS, milestone-mode, code-references, compaction, validator hard-fail, concurrent runs)
 - Cross-references (shared rules consumed)
@@ -25,9 +25,9 @@ If the user really wants to surgically edit an existing design doc bypassing Pha
 
 ## Concrete-example per section type
 
-Phase 5 cluster AUQ (`plan-loop.md` §5.2) requires every `Approve` option to carry an ADR-style digest (Decision → Why → How → optional ASCII diagram) PLUS one concrete example in its `preview` field. This table supplies the example that drops into each section's question `preview`, after the DECISION/WHY/HOW lines. The shape of "concrete example" depends on section type:
+Phase 5 cluster rendering (`plan-loop.md` §5.2) renders every section in a cluster's chat message with an ADR-style digest (Decision → Why → How → optional ASCII diagram) PLUS one concrete example. This table supplies the example that closes out each section in the message, after the Decision/Why/How lines. The shape of "concrete example" depends on section type:
 
-| Section | Example shape (drop into the `preview` after the section body) |
+| Section | Example shape (close out each section in the chat message, after the Decision/Why/How lines) |
 |---|---|
 | 1. Objective | One-line user-visible behavior statement: "User clicks X → sees Y within Z seconds" |
 | 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) |
@@ -40,7 +40,7 @@ Phase 5 cluster AUQ (`plan-loop.md` §5.2) requires every `Approve` option to ca
 | 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
 | 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |
 
-The example closes out each section's `preview`, below the DECISION/WHY/HOW lines — the orchestrator does NOT render section bodies to chat AND THEN open the AUQ. Each cluster fires ONE AUQ call with one question per section, the content already in each option's `preview`. The chat says one short cluster lead-in ("Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each."). Removes the "I already see the plan" redundancy.
+The example closes out each section in the chat message, below the Decision/Why/How lines. The orchestrator renders the whole cluster to a chat message FIRST, then fires ONE lean AUQ for the cluster (Approve all / Revise specific sections / Cancel). The chat message is the rendering surface — it has full width for code and diagrams the `AskUserQuestion` `preview` side-box cannot fit. See `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract".
 
 ---
 

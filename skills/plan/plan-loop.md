@@ -7,6 +7,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 ## Contents
 
 - HARD-GATE
+- Gate presentation contract
 - Phase 0 — Mode detect
 - Phase 0.5 — Problem discovery (opt-in, `--prd`)
 - Phase 1 — Explore
@@ -27,6 +28,20 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 ## HARD-GATE
 
 > Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until the Phase 8 user-approve AUQ has been answered "Approve". The gate is binding for Phases 0–8. The Phase 9 hand-off is the only authorized release point.
+
+---
+
+## Gate presentation contract
+
+Every gate that presents rich, multi-part content — Phase 0.5 problem-discovery, Phase 3 clarifying questions, Phase 4 approaches, Phase 5 section approval, Phase 8 final approval — follows a two-step shape: **render to chat first, then fire a lean question.**
+
+1. **Render the content to a chat message FIRST.** Write the full detail to chat: a heading per item, the Decision → Why → How digest, concrete code examples, and an ASCII diagram wherever it aids comprehension (especially section 6 Steps and Phase 4 data-flow). This message is where the user reads and understands the plan — it has full width and persists in scrollback.
+
+2. **Then fire a LEAN `AskUserQuestion`.** Options are short decision selectors (Approve / Revise / Cancel-style), each with a one-line `description`. The `preview` side-box is NOT the rendering surface — leave it empty, or use it for a one-line recap only.
+
+Why this shape: `AskUserQuestion` renders `preview` as a narrow monospace panel beside a vertical option list, so a Decision/Why/How digest, code, and diagrams crammed there are unreadable — the failure mode this contract exists to prevent. Rendering to chat gives the content full width; the lean question then captures only the decision.
+
+**One decision per logical unit.** Phase 5 fires ONE question per cluster (not one per section); Phase 4 fires ONE question for the approach choice; Phase 8 fires ONE question for the whole spec. Collapsing per-item questions into one-per-unit stops the gate from re-asking decisions the user already settled upstream (in clarify / approaches), which is the click-through fatigue this contract also prevents. Per-decision persistence granularity is unchanged — a unit-level approval still writes one `approvals[]` entry per item it covers (Phase 5 §5.2).
 
 ---
 
@@ -97,7 +112,7 @@ Ask one question per dimension. These are independent, so batch them — two cal
 | Success metrics | The 1-3 metrics that confirm the problem is solved. | Feeds spec section 9 (Validation) and section 11 (Done Condition). |
 | Prioritization | Rough MoSCoW split (Must / Should / Could / Won't) of the candidate scope. | Pre-sorts scope before Phase 5; the Must set seeds section 2 (Scope — Included), the Won't set seeds section 3 (Scope — Excluded). |
 
-Each option carries a `preview` field with concrete consequence content (≤6 lines) per the Phase 3 shape — empty options waste user attention. Offer a free-text "Other" path on every question; for the open-ended dimensions (problem statement, evidence, hypothesis) the user will usually type rather than pick a canned option, so the canned options are illustrative anchors, not an exhaustive menu. When the user has no evidence, capture that honestly: record "evidence: none yet" and surface a one-line note that the problem is unvalidated — do not invent evidence.
+Apply the Gate presentation contract: when a dimension needs framing the user can't act on from a one-line option (why the dimension is load-bearing, an example of a good answer), render that framing to a chat message first, then fire the batched AUQ with short option labels. Offer a free-text "Other" path on every question; for the open-ended dimensions (problem statement, evidence, hypothesis) the user will usually type rather than pick a canned option, so the canned options are illustrative anchors, not an exhaustive menu. When the user has no evidence, capture that honestly: record "evidence: none yet" and surface a one-line note that the problem is unvalidated — do not invent evidence.
 
 ### 0.5.2 Persistence
 
@@ -272,9 +287,11 @@ Model identifies up to 5 highest-leverage ambiguities from:
 
 Questions MUST be grounded in Phase 1 findings. Generic "what tech stack?" questions are forbidden — the model can answer those from L3 `_project.md`.
 
-### 3.2 AUQ shape — batch independent, sequence dependent
+### 3.2 AUQ shape — message-first, batch independent, sequence dependent
 
-Batch independent clarifying questions into ONE `AskUserQuestion` call (up to 4 questions per call). Fire questions sequentially only when one question's answer changes another's options (a genuine dependency) — batching independent questions cuts wall-time and click-through. Each question uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. **Every option carries a `preview` field** with concrete consequence content (code anchor / config diff / behavior trace, ≤6 lines per preview) — empty options waste user attention. The ≤5-total cap (§3.4) holds across calls; if more than 4 independent questions exist, chain a second call rather than dropping or merging any question. Full literal example with batched questions + preview content in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+Apply the Gate presentation contract. When an option's consequence needs more than its one-line `description` (a code anchor, config diff, or behavior trace), render those consequences to a chat message first — one short block per option per question — then fire the AUQ with short labels + one-line `description`s. When every option is self-explanatory in one line, the message step is unnecessary — fire the AUQ directly.
+
+Batch independent clarifying questions into ONE `AskUserQuestion` call (up to 4 questions per call). Fire questions sequentially only when one question's answer changes another's options (a genuine dependency) — batching independent questions cuts wall-time and click-through. Each question uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. The ≤5-total cap (§3.4) holds across calls; if more than 4 independent questions exist, chain a second call rather than dropping or merging any question. Full literal example with the chat message + batched AUQ in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 ### 3.3 Persistence
 
@@ -326,13 +343,19 @@ After the batch returns, fold the critiques into the ranking:
 
 - An approach carrying a `blocking` risk is never the `Recommended` option — demote it. If every approach carries a blocking risk, loop back to Phase 3 with a tighter scope question rather than recommend a non-viable plan.
 - `major` / `minor` risks annotate an approach but do not bar recommendation.
-- Each approach gains a one-line `Stress-test:` verdict (top risk + evidence file:line) carried into the §4.3 AUQ `preview` and the §4.4 `## Considered Alternatives` body.
+- Each approach gains a one-line `Stress-test:` verdict (top risk + evidence file:line) carried into the §4.3 chat message (per the Gate presentation contract) and the §4.4 `## Considered Alternatives` body.
 
-Append a `## Tool log` Echo entry per spawn (same shape as §1.3). Fail-open: if a critic spawn fails, log a `## Errors` entry and proceed to §4.3 on the model's own ranking, noting "stress-test unavailable" in the AUQ preview — the weighing is advisory, not a hard gate.
+Append a `## Tool log` Echo entry per spawn (same shape as §1.3). Fail-open: if a critic spawn fails, log a `## Errors` entry and proceed to §4.3 on the model's own ranking, noting "stress-test unavailable" on each approach in the §4.3 chat message — the weighing is advisory, not a hard gate.
 
-### 4.3 AUQ shape
+### 4.3 Present approaches — message-first
 
-Single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a blocking feasibility risk is never Recommended. Header "Approach"; each option carries an `description` (summary + trade-off, ≤2 lines) AND a `preview` field containing an ASCII data-flow / architecture sketch (5-10 lines) + key code identifier (new class/function/file name) + dominant tradeoff one-liner + the approach's `Stress-test:` verdict line from §4.2. Full literal example with preview content (Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §3.
+Apply the Gate presentation contract.
+
+1. **Render the approaches to a chat message.** For each of the 2-3 approaches: name, 2-3 sentence summary, an ASCII data-flow / architecture diagram (5-10 lines), the key code identifier (new class / function / file), the dominant trade-off, and the approach's `Stress-test:` verdict line from §4.2 (top risk + evidence `file:line`). Lead with the Recommended approach. When the §4.2 critic was unavailable, note "stress-test unavailable" on each approach.
+
+2. **Fire ONE lean AUQ.** Single-select; header "Approach"; one option per approach, `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). Option `label` = approach name; `description` = 1-line summary + trade-off; `preview` empty or a one-line recap. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a blocking feasibility risk is never Recommended.
+
+Full literal example (chat message + lean AUQ: Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §3.
 
 ### 4.4 Persistence
 
@@ -390,9 +413,9 @@ Every spec.md has exactly the same 11 sections — schema-stable downstream cons
 
 For Trivial tasks, sections 4 / 5 / 10 may have body content "none — task scope precludes" with brief rationale. Headers MUST exist; bodies MAY be "none with rationale".
 
-### 5.2 Cluster approval — incremental authoring in dependency order
+### 5.2 Cluster approval — message-first, one decision per cluster
 
-Group the 11-section schema into 3 dependency-ordered clusters, authored and gated in order. Each cluster fires ONE batched `AskUserQuestion` call carrying one question per section (within the 4-question-per-call cap):
+Group the 11-section schema into 3 dependency-ordered clusters, authored and gated in order:
 
 | Cluster | Plain-English name | Sections |
 |---|---|---|
@@ -400,15 +423,26 @@ Group the 11-section schema into 3 dependency-ordered clusters, authored and gat
 | 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required |
 | 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition |
 
-Author cluster N's sections → fire the cluster's batched AUQ → on approve, author cluster N+1. Cluster 1 (Goal & scope) is approved before cluster 2 is authored, so each cluster is grounded in the prior cluster's approved content; this keeps cross-section issues catchable while preserving dependency order. **Do NOT author all 11 sections before the first gate**, and **do NOT render section bodies to chat before the AUQ** — the content lives in the option `preview` fields.
+Author cluster N → render it → gate it → on approve, author cluster N+1. Cluster 1 (Goal & scope) is approved before cluster 2 is authored, so each cluster is grounded in the prior cluster's approved content; this keeps cross-section issues catchable while preserving dependency order. Do NOT author all 11 sections before the first gate.
 
-Per cluster: (1) author the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate; (2) print a one-line chat lead-in (e.g., `"Reviewing the plan's Goal & scope — 3 sections, focus an option to inspect each."`); (3) fire ONE batched AUQ with one question per section, each question's three options (Approve — Recommended / Revise — I'll describe / Skip — accept as-is) carrying an ADR-style `preview` (Decision → Why → How → optional ASCII diagram → concrete example); (4) persist each section pick to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`) — the cluster is a presentation grouping only, no `cluster_<id>` category; (5) on approve, author the next cluster.
+Per cluster, apply the Gate presentation contract:
 
-For any section marked "Revise", re-author it AND any sections in the same cluster that depend on it, then re-fire the cluster's batched AUQ. Max 3 revision rounds per cluster.
+1. **Author** the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate.
 
-**Tier-scaling.** For Trivial/Small tasks, sections 4 / 5 / 10 may be "none — task scope precludes". A "none with rationale" section does NOT get its own approval question — include it as a one-line note in the cluster's chat lead-in instead. At Trivial tier the clusters may collapse to 1-2 batched AUQs; the default 3-cluster grouping applies to Medium/Big.
+2. **Render the cluster to a chat message.** One sub-heading per section; under each, the Decision → Why (grounded in a Phase 1 finding `file:line` + the Phase 4 approach) → How (how /geniro:implement realizes it) digest, the section's concrete example (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete-example per section type"), and an ASCII diagram where it aids comprehension (especially section 6 Steps). A "none — task scope precludes" section is a one-line note here, not a rendered section.
 
-Concrete-example content per section type lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md`. Full cluster AUQ template + ADR preview shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.1.
+3. **Fire ONE lean AUQ for the cluster** — `header` = a ≤12-char chip of the cluster name ("Goal & scope" / "Approach" / "Safety"); options:
+   - **Approve all (N sections)** (Recommended) — accept every section in the cluster as rendered.
+   - **Revise specific sections** — opens a follow-up multi-select picker of the cluster's section names (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` multi-select schema). For each picked section, capture the revision (free-text), re-author it AND any same-cluster sections that depend on it, re-render the cluster message, re-fire this AUQ. Max 3 revision rounds per cluster.
+   - **Cancel planning** — terminal `aborted` + `## Termination reason: user-cancelled-at-phase-5`.
+
+4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). On "Approve all", append one entry per section in the cluster (`picked: approve`); on "Revise", record the revised sections distinctly (`picked: revised: <summary>`). The cluster is a presentation grouping only — no `cluster_<id>` category; per-section persistence granularity is unchanged, so compaction re-author (§6.4) and the SessionStart restore hook need no change.
+
+5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6.
+
+**Tier-scaling.** For Trivial/Small tasks, sections 4 / 5 / 10 may be "none — task scope precludes" — noted in the cluster message, never a separate decision. At Trivial tier the clusters may collapse to 1-2 gates; the default 3-cluster grouping applies to Medium/Big.
+
+Full chat-message template + lean-AUQ shape + the Revise picker in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.1.
 
 ### 5.3 Milestone-mode
 
@@ -521,13 +555,15 @@ The spec challenge hardens the spec but never hard-blocks the Phase 8 human appr
 
 State.md `phase: user-approve` during this phase.
 
-### 8.1 Approval AUQ — closure
+### 8.1 Approval gate — closure
 
-Phase 8 fires a **schema-rich AUQ** carrying fields inline in the question body.
+Phase 8 closes the loop with a final whole-spec approval. Apply the Gate presentation contract.
 
-### 8.2 AUQ shape
+### 8.2 Shape — message-first
 
-Header "Approve spec"; `question` body renders a multi-line schema digest (Objective from section 1 / Scope summary from sections 2-3 / Approval Points from section 8 / Risk class auto-computed from section 5 + section 7 / Rollback from section 10 / Done Condition from section 11 / touched-file glob count / approval-expiration notice). Options: "Approve — proceed to hand-off" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal question template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5.
+1. **Render the spec summary to a chat message** — Objective (section 1) / Scope summary (sections 2-3) / Approval Points (section 8) / Risk class auto-computed from section 5 + section 7 / Rollback (section 10) / Done Condition (section 11) / touched-file glob count / approval-expiration notice. Include the concrete examples already authored per section so the user reviews the real plan, not a label list.
+
+2. **Fire ONE lean AUQ** — header "Approve spec"; `question` a one-line recap pointing at the message above; options: "Approve — proceed to hand-off" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal message + AUQ template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5.
 
 ### 8.3 Revision-round escalation
 
@@ -622,16 +658,16 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 1 loaded L4 + L3 + L2 (full tier); per-spawn Echo contract entries persisted to `## Tool log`.
 - [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs` (skipped when no tracker reference).
 - [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
-- [ ] Phase 3 batched independent clarifying questions into one `AskUserQuestion` call (≤4 per call, dependent questions fired sequentially), ≤5 questions total; each option carried a `preview` field; each answer persisted to `approvals[]`.
-- [ ] Phase 4 presented 2-3 approaches with Recommended first; each option carried a `preview` (ASCII sketch + code identifier + tradeoff); pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
-- [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); critique verdicts carried into the AUQ preview + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
-- [ ] Phase 5 grouped the fixed 11-section schema into 3 dependency-ordered clusters (Goal & scope / Approach & steps / Safety & done); authored cluster-by-cluster in order, each gated by ONE batched AUQ (one question per section); each option carried an ADR-style `preview` (Decision → Why → How → optional diagram → example); each section pick persisted to `approvals[]` category `section_<id>` (no `cluster_<id>` category introduced).
+- [ ] Phase 3 rendered any non-trivial option consequences to a chat message, then batched independent clarifying questions into one `AskUserQuestion` call (≤4 per call, dependent questions fired sequentially), ≤5 questions total, with lean options; each answer persisted to `approvals[]`.
+- [ ] Phase 4 rendered the 2-3 approaches to a chat message (ASCII diagram + code identifier + trade-off + stress-test verdict), then fired ONE lean AUQ with Recommended first; pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
+- [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); critique verdicts carried into the Phase 4 chat message + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
+- [ ] Phase 5 grouped the fixed 11-section schema into 3 dependency-ordered clusters (Goal & scope / Approach & steps / Safety & done); authored cluster-by-cluster in order; rendered each cluster to a chat message (per-section Decision → Why → How → optional diagram → example), then gated it with ONE lean AUQ (Approve all / Revise specific sections → picker / Cancel); each section pick persisted to `approvals[]` category `section_<id>` (no `cluster_<id>` category introduced).
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
 - [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present; `## Problem & Evidence` written from state.md `## Problem Framing` ONLY when `prd_mode: true` (omitted on normal specs).
 - [ ] Phase 6 did NOT auto-commit.
 - [ ] Phase 7 mechanical validator ran the full check set defined in `validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 7.5 spec challenge ran on every plan (no Trivial skip) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).
-- [ ] Phase 8 schema-rich AUQ fired with fields inline; user picked one of 3 options; max 3 user-revision rounds respected.
+- [ ] Phase 8 rendered the spec summary to a chat message (fields + examples), then fired ONE lean AUQ; user picked one of 3 options; max 3 user-revision rounds respected.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
 - [ ] Phase 9 hand-off AUQ fired with 2 options; pick persisted to `approvals[]`.
 - [ ] HARD-GATE released only on Phase 8 "Approve".
@@ -645,8 +681,8 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 |---|---|
 | "This task is too simple to need a design" | "Simple" projects are where unexamined assumptions cause the most wasted work. Design can be short (Phase 5 Trivial = sections 4 / 5 / 10 with body "none with rationale"); presenting and approving is mandatory. HARD-GATE applies to EVERY task. |
 | "I'll skip Phase 8 user re-review, my Phase 7 validator is enough" | Validator catches mechanical defects (placeholders / contradictions / scope creep); user catches intent defects (wrong abstraction / missing constraint). Different defect classes; both required. |
-| "I'll author all 11 sections, then fire 3 cluster AUQs at the end" | Two failure modes to avoid. (a) Rendering section bodies to chat then re-asking — the user has already read the content; the AUQ has nothing new to inspect. (b) Authoring all 11 sections before the first gate — cross-section issues surface only after the user has read the whole plan, too late to cheaply correct. The correct middle path is cluster-batched authoring in dependency order: author a cluster's sections → ONE batched AUQ with the content carried in the option `preview` fields → on approve, author the next cluster. Cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. |
-| "Cluster AUQ options can be plain `Approve/Revise/Skip` text — the prior chat block already showed the sections" | Empty AUQ options waste user attention and degrade trust ("the skill is just clicking through"). Each option's `preview` carries the section's ADR digest — Decision (what it commits to) → Why (rationale grounded in a Phase 1 finding + the chosen approach) → How (how /geniro:implement realizes it) — plus an ASCII diagram where it aids comprehension (esp. section 6 Steps) and the section's concrete example. The chat is a one-line cluster lead-in; the AUQ `preview` IS the rendered content. |
+| "I'll cram the section ADR digest into the AUQ `preview` so each option is self-contained" | The `preview` side-box is a narrow monospace panel beside the option list — too small for a Decision/Why/How digest, code examples, and diagrams; the user squints at it per option. Render the cluster to a chat message (full width, persists in scrollback) per the Gate presentation contract, then keep the AUQ options lean. Cramming content into `preview` is the exact failure mode message-first exists to fix. |
+| "I'll author all 11 sections and fire one approval for the whole spec — fewer questions is strictly better" | Authoring everything before the first gate surfaces cross-section issues only after the user reads the whole plan — too late to cheaply correct. Author → render → gate ONE cluster, then the next; cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. One question per cluster (not per section, not per whole spec) is the chosen granularity — per-section `approvals[]` grain is preserved by the Revise-picker, so collapsing the questions loses no grain. |
 | "I'll write the design doc with only the YAML frontmatter — that's enough" | Defense in depth requires all three markers (path + HTML comment + frontmatter). See `design-doc-detect.md` § Why defense in depth — each marker survives a different user action. |
 | "Phase 4 — 4 or 5 approaches gives the user more choice" | More than 3 indicates Phase 3 didn't narrow scope; loop back to Phase 3 with a tighter scope-boundary question. |
 | "My §4.1 approaches are well-reasoned — the §4.2 stress-test is redundant overhead" | The model that authored the approaches shares their blind spots; ranking them in the same context re-confirms its own bias rather than testing it. An independent codebase-grounded critic catches blockers the author cannot see from generation context alone — hidden coupling, a previously-rejected shape in L2, a convention conflict — which is the load-bearing reason `Recommended` is set from evidence, not self-confidence. It is tier-scaled (skipped on Trivial) so the cost lands only where a wrong approach is expensive. |
