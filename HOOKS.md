@@ -133,7 +133,8 @@ Renders a **two-row, width-justified** ANSI bar (uses the `COLUMNS` env var Clau
 - Context %: green (<50%), yellow (50-65%), orange (65-80%), red blinking (>80%); token count rides inside the bar. 5h limit: green (<70%), yellow (<90%), red (≥90%) + reset countdown.
 - No PR badge — Claude Code already shows the open PR in its own bottom row, so a second copy here would just duplicate it.
 - Every segment except model/dir/context is conditional — it renders only when its field is present, so the bar stays compact on a fresh session.
-- Lines justify to one column short of the window edge (slack for ambiguous-width glyphs). When `COLUMNS` is absent or the window is < 40 cols, falls back to a plain `│`-separated two-row join.
+- Lines justify to two columns short of the window edge (margin for Claude Code's UI padding). `visLen` charges East-Asian-ambiguous glyphs (`— … ↻ │`) as double-width so fonts that draw them wide don't overflow and get the right segment truncated. When `COLUMNS` is absent or the window is < 40 cols, falls back to a plain `│`-separated two-row join.
+- `settings.json` sets `refreshInterval: 10`, so the bar also re-renders every 10s — the reset countdown and the latest-prompt segment stay current between assistant messages (the event-driven update only fires after each assistant turn).
 
 Always exits 0; falls back to the literal string `geniro` if JSON parse fails.
 

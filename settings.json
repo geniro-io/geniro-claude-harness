@@ -12,6 +12,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js\""
+    "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js\"",
+    "refreshInterval": 10
   }
 }

@@ -71,10 +71,16 @@ function fmtEta(sec) {
 }
 
 // ── alignment ───────────────────────────────────────────────────────────────
+// "East Asian Ambiguous" glyphs we actually render — em/en dash, ellipsis, the
+// reset arrow, the box-drawing separator. Some terminals/fonts draw these
+// double-width (an over-wide line then gets its right edge truncated by Claude
+// Code, e.g. "$137.81" → "$1…"). Charging them 2 is the safe direction: on a
+// terminal that draws them narrow the line just under-fills by a column or two
+// (a harmless right gap) instead of overflowing.
+const AMBIGUOUS_WIDE = new Set([0x2013, 0x2014, 0x2026, 0x21BB, 0x2502]);
+
 // Visible (terminal-column) width of a string: strip ANSI, count code points,
-// charging 2 columns for clearly wide glyphs (emoji, CJK, fullwidth). Dingbats
-// and box-drawing (✓ ✗ ↻ ░ █ │ ·) render single-width in monospace terminals,
-// so they are deliberately NOT charged 2 — alignment math must match render.
+// charging 2 columns for wide glyphs (emoji, CJK, fullwidth, ambiguous-wide).
 function visLen(s) {
   const plain = s.replace(/\x1b\[[0-9;]*m/g, '');
   let w = 0;
@@ -85,7 +91,8 @@ function visLen(s) {
       || (cp >= 0x2E80 && cp <= 0xA4CF)
       || (cp >= 0xAC00 && cp <= 0xD7A3)
       || (cp >= 0xF900 && cp <= 0xFAFF)
-      || (cp >= 0xFF00 && cp <= 0xFF60);
+      || (cp >= 0xFF00 && cp <= 0xFF60)
+      || AMBIGUOUS_WIDE.has(cp);
     w += wide ? 2 : 1;
   }
   return w;
@@ -267,10 +274,12 @@ process.stdin.on('end', () => {
     const W = parseInt(process.env.COLUMNS || '', 10);
     let out;
     if (W && W >= 40) {
-      // Justify to one column short of the edge: ambiguous-width glyphs (↻ etc.)
-      // can render double-width in emoji-presentation terminals, and a line
-      // filled exactly to the edge would then wrap. The 1-col slack is invisible.
-      const Wj = W - 1;
+      // Justify two columns short of the edge: Claude Code keeps a little
+      // horizontal padding around the status line, so filling to exactly COLUMNS
+      // would push the rightmost segment past the visible area and truncate it
+      // ("$137.81" → "$1…"). visLen already accounts for ambiguous-wide glyphs;
+      // this margin covers the UI chrome.
+      const Wj = W - 2;
       out = justify3(l1left, l1center, l1right, Wj) + '\n' + justify3(l2left, l2center, '', Wj);
     } else {
       const a = [l1left, l1center, l1right].filter(Boolean).join(' │ ');
