@@ -172,31 +172,34 @@ process.stdin.on('end', () => {
     const modelSeg = COL(modelColor(model), model)
       + (effort ? COL(effortColor(effort), '·' + effort) : '');
 
-    // Context window bar (10 segments, normalized to usable context)
+    // Context bar with the token count embedded inside it. A colored background
+    // sweeps left→right with usage; the centered "usedk/totalk" label rides on
+    // top (dark text over the filled span, gray over the empty span); the % sits
+    // just after. Normalized to usable context (auto-compact buffer reserved).
     const AUTO_COMPACT_BUFFER_PCT = 16.5;
     let ctx = '';
     if (remaining != null) {
       const usableRemaining = Math.max(0, ((remaining - AUTO_COMPACT_BUFFER_PCT) / (100 - AUTO_COMPACT_BUFFER_PCT)) * 100);
       const used = Math.max(0, Math.min(100, Math.round(100 - usableRemaining)));
-      const filled = Math.floor(used / 10);
-      const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-
-      // Token count (used / total)
       const ctxSize = data.context_window?.context_window_size;
       const usedTokens = ctxSize ? Math.round(ctxSize * used / 100) : null;
-      const tokenLabel = usedTokens != null && ctxSize
-        ? ` ${(usedTokens / 1000).toFixed(0)}k/${(ctxSize / 1000).toFixed(0)}k`
-        : '';
+      const k = (n) => `${Math.round(n / 1000)}k`;
+      const haveTokens = usedTokens != null && ctxSize;
+      const label = haveTokens ? `${k(usedTokens)}/${k(ctxSize)}` : `${used}%`;
 
-      if (used < 50) {
-        ctx = ` \x1b[32m${bar} ${used}%${tokenLabel}\x1b[0m`;
-      } else if (used < 65) {
-        ctx = ` \x1b[33m${bar} ${used}%${tokenLabel}\x1b[0m`;
-      } else if (used < 80) {
-        ctx = ` \x1b[38;5;208m${bar} ${used}%${tokenLabel}\x1b[0m`;
-      } else {
-        ctx = ` \x1b[5;31m💀 ${bar} ${used}%${tokenLabel}\x1b[0m`;
-      }
+      // Fill color by usage; blink the background past the danger line (>80%).
+      let fillBg = '48;5;34', fg = '38;5;34', blink = '';
+      if (used >= 80) { fillBg = '48;5;196'; fg = '38;5;196'; blink = '5;'; }
+      else if (used >= 65) { fillBg = '48;5;208'; fg = '38;5;208'; }
+      else if (used >= 50) { fillBg = '48;5;178'; fg = '38;5;178'; }
+
+      const W = Math.max(16, label.length + 2);
+      const filled = Math.max(0, Math.min(W, Math.round((used / 100) * W)));
+      const lpad = Math.floor((W - label.length) / 2);
+      const cells = ' '.repeat(lpad) + label + ' '.repeat(W - label.length - lpad);
+      const bar = `\x1b[${blink}${fillBg};38;5;232m${cells.slice(0, filled)}\x1b[0m`
+        + `\x1b[48;5;236;38;5;250m${cells.slice(filled)}\x1b[0m`;
+      ctx = haveTokens ? ` ${bar} ${COL(fg, used + '%')}` : ` ${bar}`;
     }
 
     // Current task from todos (in-progress activeForm)
