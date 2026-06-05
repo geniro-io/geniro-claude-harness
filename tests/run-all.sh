@@ -14,6 +14,16 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 SELF="$(basename "$0")"
 
+# jq is a hard dependency of the memory/state helpers and the hook tests (which
+# build tool-input JSON via jq). Fail fast with a clear message rather than
+# letting every suite fail opaquely with "jq: command not found" — or, worse,
+# letting a hook test feed empty stdin to a hook and silently invert its
+# block/allow expectation.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "tests/run-all.sh: jq is required to run the suite (memory/state helpers + hook tests depend on it)." >&2
+  exit 1
+fi
+
 total=0
 failed=0
 failed_list=()
