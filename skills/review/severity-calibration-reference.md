@@ -76,7 +76,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Real defects (those are MEDIUM+)
 - Cosmetic suggestions that hide a substantive problem (a "could be more readable" finding that masks a hidden bug is MEDIUM, not LOW)
 
-The plugin has no separate NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion". Per §5 below, LOW findings are written to `## Deferred — sub-threshold` for awareness; they do not reach the PR-comment surface in standard mode.
+The plugin has no separate NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion". Per §5 below, LOW findings are written to `## Deferred — sub-threshold` for awareness and do not reach the PR-comment surface in standard mode — with one exception: a LOW finding whose `Decision Type` is `PRODUCT-DECISION` is kept and surfaced regardless of severity (it names the user's call, not the reviewer's), per §5 Path B.
 
 ---
 
@@ -157,13 +157,17 @@ The orchestrator's Phase 4.1 KEEP/DEFER decision is governed by FOUR independent
 
 ```
 KEEP IF:
-  severity >= MEDIUM
-  AND (
-    convergence_count >= 2                                                # multi-dim agreement
-    OR (Evidence-Block present AND properly formatted AND confidence >= 60)  # code-grounded citation
-    OR (criteria-file-marked-pre-resolved, e.g. simplify P1/P2)           # explicit overrides
-    OR confidence >= 80                                                   # advisory fallback
+  # Path A — severity-gated (also admits to the Phase 4.2 verifier)
+  ( severity >= MEDIUM
+    AND (
+      convergence_count >= 2                                                # multi-dim agreement
+      OR (Evidence-Block present AND properly formatted AND confidence >= 60)  # code-grounded citation
+      OR (criteria-file-marked-pre-resolved, e.g. simplify P1/P2)           # explicit overrides
+      OR confidence >= 80                                                   # advisory fallback
+    )
   )
+  # Path B — decision-type orthogonal (any severity; skips the §4.2 verifier)
+  OR Decision Type == PRODUCT-DECISION    # the user's call, not the reviewer's — severity does not gate visibility
 ELSE DEFER to ## Deferred — sub-threshold (state.md body, NOT PR comment)
 ```
 
@@ -177,6 +181,7 @@ Rationale:
 - `Evidence-Block resolves` (with confidence ≥ 60 floor): a code-grounded citation is the strongest defense against false positives; the confidence floor screens out low-conviction citations.
 - Pre-resolved markers: explicit overrides preserve existing simplify P1/P2 / regressions-criteria signal-table semantics
 - Confidence >= 80: kept as a fallback path, no longer the primary gate
+- `Decision Type == PRODUCT-DECISION` (Path B): decision-type (who-decides) is orthogonal to severity (impact-if-wrong). A PRODUCT-DECISION is a call the reviewer cannot close, so the user must see it regardless of severity — mirroring `/geniro:refactor`'s always-WAIT PRODUCT-DECISION escalation. Path B keeps severity as scored (a LOW PRODUCT-DECISION stays LOW — admission by decision-type, NOT the severity inflation §2 forbids) and skips the §4.2 verifier (a trade-off is not a defect-to-confirm).
 
 The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor — CRITICAL, HIGH, AND MEDIUM: it actively attempts to disprove each finding rather than confirm it.
 

@@ -17,9 +17,9 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — gets ONE fr
 
 ## 1. When this fires
 
-After Phase 4.1 multi-signal threshold gate (`severity >= MEDIUM` AND any-of {convergence ≥2, Evidence-Block present + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback}; tier-relaxed at signal #4 to ≥70 for `risk-tier: high`). See `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5 for the full gate spec. Fires BEFORE Phase 4.3 test-confirmation gate and Phase 5 stratification.
+After the Phase 4.1 multi-signal threshold gate — Path A, severity-gated (`severity >= MEDIUM` AND any-of {convergence ≥2, Evidence-Block present + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback}; tier-relaxed at signal #4 to ≥70 for `risk-tier: high`). See `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5 for the full gate spec, including Path B (a LOW `PRODUCT-DECISION` admitted by decision-type, which skips this verifier). Fires BEFORE Phase 4.3 test-confirmation gate and Phase 5 stratification.
 
-Skip condition: ONLY when the Phase 4.1 surviving set is empty. Never skip based on tier or severity — every CRITICAL / HIGH / MEDIUM survivor gets a verifier.
+Skip condition: ONLY when the Path-A surviving set is empty (a Path-B-only LOW `PRODUCT-DECISION` is not a defect-to-confirm and is never verified). Never skip based on tier or severity — every CRITICAL / HIGH / MEDIUM survivor gets a verifier.
 
 ---
 
