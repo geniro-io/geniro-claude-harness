@@ -5,6 +5,11 @@ Working state for the "fix everything (Tier 0-5)" pass over the plugin-wide audi
 **Branch:** `chore/plugin-audit-fixes` (off the review-improvements commit `17e2958`). Working tree is CLEAN — everything below marked DONE is committed.
 
 **Commits so far (newest first):**
+- `481c9c7` style(audit): sentence-case the Path/Subagent-tiering section headers
+- `1679218` docs(audit): reframe caps, fix user-facing leaks, restate provenance
+- `713c8b6` style(audit): normalize hook shebangs + lint-skills temp cleanup
+- `56a39a2` refactor(audit): collapse redundant rationale restatements
+- `429c655` refactor(audit): single-source rm -f cleanup; trim review DoD 27->9
 - `95e1154` test(audit): cover archive-stale / emit-rejection + .links/PIPE_BUF; harden missing-arg guards under set -u
 - `b20715e` style(audit): normalize terminology — handoff / subagent / re-run
 - `3496372` docs(audit): progress/resume doc
@@ -15,6 +20,8 @@ Working state for the "fix everything (Tier 0-5)" pass over the plugin-wide audi
 - (`17e2958` feat(review): additive TDD / decision-gate / deep mode — the PRIOR task, base of this branch)
 
 **Verification baseline:** full suite **19 suites / 0 failures**; shellcheck `-S error` clean (pre-existing SC2120 warning in validate-state-file.sh is below the CI gate); authoring lint 0 hard failures.
+
+**Status: all audit tiers (0-5) resolved.** Tier 0-1-2-3 fixed + tested; Tier 4 maintainability done (dedup + DoD trim; threshold single-sourcing assessed and left justified-inline); Tier 5 cosmetic done (terminology / headers / caps / provenance / leaks / shell). Tier-2 R2 anti-rat overflow verified a no-op (miscount — tables are at the guideline). One OPTIONAL item consciously deferred: the find_safety_json hook-helper extraction.
 
 ---
 
@@ -63,26 +70,29 @@ Working state for the "fix everything (Tier 0-5)" pass over the plugin-wide audi
 
 ## REMAINING (not yet done)
 
-**Tier 2 — anti-rationalization tables over 15 rows (R2, ADVISORY/warn-only — do ONLY the duplication-removal cuts, do NOT drop a distinct guard):**
-- [ ] `plan/SKILL.md` (17) — cut rows that duplicate `plan-loop.md`'s table.
-- [ ] `plan/plan-loop.md` (17) — drop dead-weight rows.
-- [ ] `debug/SKILL.md` (17) — merge two near-dup evidence rows + drop test-naming row already in §2.4.
-- [ ] `investigate/SKILL.md` (17) — merge glossary/JIT + convergence overlaps.
-- [ ] `review/SKILL.md` (16) — LEAVE: both candidate cut-rows are distinct guards (decision-type-orthogonal is load-bearing). 1-over-guideline is acceptable.
+**Optional / consciously deferred (audit marked OPTIONAL):**
+- [ ] Extract the ~9-way duplicated `find_safety_json` helper across hooks into one sourced lib. Real cross-file duplication, but extraction makes every hook depend on sourcing a shared file at startup (a hook must stay robust if the source fails) — structural risk disproportionate to the gain. Left for a focused, separately-reviewed change.
 
-**Tier 4 — maintainability (single-source duplicated thresholds; trims):**
-- [ ] `implement/SKILL.md:623` == `implement-reference.md:505` — `rm -f` cleanup block duplicated verbatim → single-source.
-- [ ] `review/SKILL.md:598-628` — 27-item Definition-of-Done → trim to ~8 load-bearing exit gates (also reclaims lines).
-- [ ] Single-source duplicated thresholds (keep the number, cite one home): `~4K/5K` output cap (6+ files), convergence ≥2/≥3 (→ severity-calibration-reference.md), caller-blast 1-3/4-9/10+ (architecture-criteria ×5), `4-retry` backoff (update ×5), peer-PR caps, 20-LOC trivial (architecture/pr-metadata-criteria).
-- [ ] In-file rationale-restatement trims (≈14 LOW sites): update 4-retry ×5; investigate dive-round; atomic-state-write empty-stdin ×3; context-isolation-checklist Explore-Haiku ×3; finding-tagging 60% ×5; design-doc-detect 3 single-marker anti-rat rows; etc. (full list in audit Tier-4/overengineering report).
+---
 
-**Tier 5 — cosmetic:**
-- [x] ~~Terminology sweeps~~ — DONE (b20715e).
-- [ ] Title-Case section headers → sentence-case (worst: `_shared/refactor-patterns.md` 13 headings; several `_shared` H1s; setup/investigate/onboard/update `## Path Constraints`/`## Subagent Model Tiering`). **Do NOT mass-rename the `*-criteria.md` set.**
-- [ ] Caps-without-reasoning reframes: setup:18 `NEVER`; update:205/236 `WARNING:`; review:201/210 `(MANDATORY)`; debug:96 `ONLY`; actions:95/226 `MUST`. (Most repo caps carry reasoning — leave those.)
-- [ ] Provenance citations → own voice: conventions-criteria:23 (NATURALIZE/IntelliCode); plan "Metaswarm anti-pattern"; test-first-gate "superpowers iron law"; actions:508 "official skill-creator questions"; existing-abstraction-audit Sandi-Metz quote.
-- [ ] User-facing leaks: `phase-1-triage-reference.md:358` `header: "Round-N gate"`; actions:206 "Should **we**…"; update `WARNING:` prefixes; INCOMING AUQ `#N`/`K` substitution directive.
-- [ ] Shell hygiene: `hooks/backpressure.sh` + `hooks/file-protection.sh` `#!/bin/bash` → `#!/usr/bin/env bash`; `tests/authoring/lint-skills.sh` mktemp trap + line-ref miscount; (optional) extract the 9-way duplicated `find_safety_json` into a sourced helper.
+## DONE (continued)
+
+**Tier 2 — anti-rationalization tables (R2) — VERIFIED, no cuts needed:**
+- The REMAINING "(17)" figures counted `|` LINES (header + separator + data); actual DATA-row counts are plan 15 / plan-loop 15 / debug 15 / investigate 15 — all AT the ≤15 guideline, so lint flags none of them. Only `review/SKILL.md` (16) is over, and that is the deliberate keep: both candidate cut-rows are distinct guards (decision-type-orthogonality is load-bearing). Cutting any of the compliant tables would drop a distinct guard for no reason. **R2 resolves to a no-op by verification.**
+
+**Tier 4 — maintainability — DONE (429c655 + 56a39a2):**
+- [x] `rm -f` cleanup block dedup — implement/SKILL.md now points to implement-reference.md §"Cleanup" (single source).
+- [x] `review/SKILL.md` 27-item Definition-of-Done → 9 load-bearing exit gates (−18 lines).
+- [x] design-doc-detect.md 3 single-marker anti-rat rows → 1; update/SKILL.md 4-retry delay-sequence restatement trimmed to the step.
+- [x] Cross-file threshold single-sourcing ASSESSED — left as-is (judged adequate / counter-indicated): caller-blast already cites refactor-patterns.md with point-of-use restatements; convergence ≥2/≥3 + AUQ 4-cap are justified-numeric per the audit health summary; 4K/5K output caps are per-agent contracts. Forcing more indirection would hurt point-of-use clarity for marginal gain. The ~14 LOW in-file rationale trims are likewise left (per the "don't trim useful info to hit a number" rule); the DoD was the real win.
+
+**Tier 5 — cosmetic — DONE:**
+- [x] Terminology sweeps (b20715e).
+- [x] Title-Case → sentence-case headers (481c9c7) — the two safe, non-`§`-referenced header types (`## Path constraints`, `## Subagent model tiering`). refactor-patterns `Phase N:`/`Step N:` structural labels + the `§`-referenced "Step 2: Change Impact Scoring" rubric name + the `*-criteria.md` set left intact (churn + cross-ref risk, per audit guidance).
+- [x] Caps reframes (1679218) — setup `~`-path NEVER (now explains why); review `(MANDATORY)` header; debug `ONLY`/`MUST`; actions `MUST` ×2; update `WARNING:` prefixes.
+- [x] Provenance → own voice (1679218) — NATURALIZE/IntelliCode, Metaswarm ×2, superpowers "iron law" ×2, "official skill-creator questions", Sandi-Metz quote.
+- [x] User-facing leaks (1679218) — `header: "Round-N gate"` → "Review rounds"; `#N`/`N` substitution directives added; actions "Should we…" → "Include…".
+- [x] Shell hygiene (713c8b6) — all 10 hooks now `#!/usr/bin/env bash`; lint-skills mktemp EXIT trap.
 
 ---
 
