@@ -37,11 +37,14 @@ if [ -z "${_ER_DEPS_LOADED:-}" ]; then
 fi
 
 emit_rejection_if_signal() {
-  local producer="$1"
-  local scope="$2"
-  local auq_category="$3"
-  local suggestion="$4"
-  local picked="$5"
+  # Read every positional with a default so a caller running under `set -u`
+  # (most skill Bash blocks do) reaches the validation below and gets a clean
+  # rc=64 instead of an "unbound variable" abort on a short arg list.
+  local producer="${1:-}"
+  local scope="${2:-}"
+  local auq_category="${3:-}"
+  local suggestion="${4:-}"
+  local picked="${5:-}"
   local recommended="${6:-}"
 
   if [ -z "$producer" ] || [ -z "$scope" ] || [ -z "$auq_category" ] \

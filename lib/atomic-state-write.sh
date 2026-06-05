@@ -26,7 +26,7 @@ _atomic_state_sync_file() {
 }
 
 atomic_state_write() {
-  local target="$1"
+  local target="${1:-}"   # default so a zero-arg call under `set -u` reaches the guard
   if [ -z "$target" ]; then
     echo "atomic_state_write: target path required" >&2
     return 64
@@ -84,7 +84,7 @@ atomic_state_write() {
 }
 
 atomic_state_append() {
-  local target="$1"
+  local target="${1:-}"   # default so a zero-arg call under `set -u` reaches the guard
   if [ -z "$target" ]; then
     echo "atomic_state_append: target path required" >&2
     return 64

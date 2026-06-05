@@ -110,7 +110,7 @@ _vsf_fm_get_value() {
 }
 
 validate_state_file() {
-  local target="$1"
+  local target="${1:-}"   # default so a zero-arg call under `set -u` reaches the guard
   if [ -z "$target" ]; then
     echo "validate_state_file: target path required" >&2
     return "$_VSF_NO_TARGET"

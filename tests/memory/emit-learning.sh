@@ -404,6 +404,53 @@ else
   fail "clean 'ignore' summary should be accepted; rc=$rc lines=$(log_line_count)"
 fi
 
+# Sanitization: links.* strings. A credential-bearing URL in a link must be
+# redacted, mirroring the ext loop — without the links sanitization pass a
+# secret rides into the log unredacted (the other free-text paths all route
+# through redact_secrets, so links must too).
+new_sandbox
+jq -nc '{
+  producer:"/review", scope:"x", summary:"y", tags:["bug"],
+  links:{ pr:"https://api.example.com/hook?key=AKIAIOSFODNN7EXAMPLE" }
+}' | emit_learning
+lnk=$(read_log | jq -r '.links.pr')
+if echo "$lnk" | grep -q '\[REDACTED:aws-key\]'; then
+  pass "links.pr (credential-bearing URL) sanitization fires"
+else
+  fail "links.pr not sanitized: '$lnk'"
+fi
+
+# Sanitization also reaches links values nested inside an array.
+new_sandbox
+jq -nc '{
+  producer:"/review", scope:"x", summary:"y", tags:["bug"],
+  links:{ refs:["clean-ref", "token sk-ant-api03-leaked here"] }
+}' | emit_learning
+lnk=$(read_log | jq -r '.links.refs[1]')
+if echo "$lnk" | grep -q '\[REDACTED:api-key:anthropic\]'; then
+  pass "links.refs[1] (array element) sanitization fires"
+else
+  fail "links.refs[1] not sanitized: '$lnk'"
+fi
+
+# Oversize guard counts BYTES, not characters. A body of 1400 three-byte UTF-8
+# code points is ~1400 characters (the serialized line stays well under 4096
+# chars) but ~4200 bytes — over the PIPE_BUF atomicity limit. A char-count guard
+# would wrongly accept it; the byte guard rejects with rc=68. The multibyte
+# content is built from \x escapes so this test source stays ASCII-only.
+new_sandbox
+mb_body=$(printf '\xe2\x80\x94%.0s' $(seq 1 1400))   # 1400 x U+2014, 3 bytes each
+mb_bytes=$(printf '%s' "$mb_body" | wc -c | tr -d ' ')
+set +e
+jq -nc --arg b "$mb_body" '{producer:"/debug",scope:"x",summary:"y",tags:["bug"],body:$b}' | emit_learning 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 68 ] && [ "$mb_bytes" -gt 4096 ]; then
+  pass "multibyte oversize rejected by BYTE count (~1400 chars but ${mb_bytes} bytes > 4096 -> rc=68)"
+else
+  fail "multibyte oversize: expected rc=68 with bytes>4096; got rc=$rc bytes=$mb_bytes"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

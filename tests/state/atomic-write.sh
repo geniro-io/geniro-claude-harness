@@ -76,6 +76,18 @@ else
   fail "atomic_state_write — missing target (rc=$rc, expected 64)"
 fi
 
+# Test 4b: ZERO-arg call under `set -u` must still reach the guard (rc=64), not
+# abort on an "unbound variable" $1. Run in a subshell so an unfixed helper
+# fails this one assertion instead of crashing the whole suite.
+set +e
+rc=$(set -u; echo "x" | atomic_state_write >/dev/null 2>&1; echo $?)
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "atomic_state_write — zero-arg under set -u returns 64 (not an unbound crash)"
+else
+  fail "atomic_state_write — zero-arg under set -u (rc=$rc, expected 64)"
+fi
+
 # Test 5: no tmp file remains after successful write
 target="$TMPDIR/t5.md"
 atomic_state_write "$target" <<'EOF'
