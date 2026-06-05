@@ -44,7 +44,7 @@ Quality-first framing: /geniro:investigate has no hard kill caps — all limits 
 
 **Explicitly NOT capped:** wall-time per run; total Read/Grep/WebSearch calls; total cost per run.
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn site — the orchestrator's session tier propagates (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). The user's session-level `/model` choice is the canonical cost/depth knob; per-spawn hardcoding to `sonnet` is paternalistic and produces tier-mismatch UX.
 

@@ -13,7 +13,7 @@ argument-hint: "[optional: path to template directory]"
 
 **Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
 
-## Path Constraints
+## Path constraints
 
 **Don't use `~` in file paths passed to Read, Write, Edit, or Glob** — these tools don't expand `~`, so it creates a literal `~` directory instead of resolving to the home directory. Use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
 
@@ -23,7 +23,7 @@ Resolve the user's Claude config dir once, honoring `CLAUDE_CONFIG_DIR`:
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 ```
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — one of the two documented hardcode carve-outs (`model=sonnet`, justified inline at §4.1 by its read-only tool floor).
 
