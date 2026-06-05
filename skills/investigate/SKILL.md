@@ -19,7 +19,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 
 ## Loop invariants
 
-The 10 canonical loop invariants from `/geniro:implement` § Loop invariants apply, with three skill-specific notes:
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply (the invariant numbers below match that file), with three skill-specific notes:
 1. **Invariant #4 (bounded structured tool results)** — research-agent outputs (Codebase / Git / Internet) each capped at ~8K chars with truncation marker if exceeded.
 2. **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
 3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.

@@ -56,7 +56,7 @@ Each `git push` / `gh pr create` / posted comment appends to `non-resumable-acti
 
 ## Loop invariants
 
-Apply throughout all 3 phases:
+Apply throughout all 3 phases. Invariants 1-7 are the canonical agent-loop set (stated generically in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`, which `/geniro:onboard` and `/geniro:investigate` cite); 8-10 are implementation-specific:
 
 1. **One result per tool call.** Every Edit / Write / Bash / Agent spawn produces exactly one structured result. Failed spawn → result with `status: failed`; never absent.
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Paths absolute; slugs match the rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.
