@@ -60,6 +60,7 @@ done <<< "$refs"
 
 # 3. Unknown subagent_type spawn names.
 valid_agents="$(mktemp)"
+trap 'rm -f "$valid_agents"' EXIT
 { for f in agents/*.md; do basename "$f" .md; done; printf '%s\n' general-purpose Explore Plan statusline-setup; } \
   | sort -u > "$valid_agents"
 unknown=0

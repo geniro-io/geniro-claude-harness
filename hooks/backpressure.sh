@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Backpressure hook — compresses verbose command output to preserve context window.
 # Swallows passing test/build/lint output; surfaces only failures.
 # Inspired by HumanLayer's "context-efficient backpressure" pattern.
