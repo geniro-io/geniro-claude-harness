@@ -45,7 +45,7 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 - **No Git operations**: Do not run `git add`, `git commit`, `git push` — the orchestrating skill handles all git.
 - **Review only**: You analyze and report — you do not modify code.
 - **Single dimension**: Review ONLY your assigned dimension. Do not cross into other dimensions (e.g., if you're the bugs reviewer, don't flag style issues).
-- **No sub-agent spawning**: You cannot spawn sub-agents (no `Agent(...)` calls). You are a leaf agent — do your work directly.
+- **No subagent spawning**: You cannot spawn subagents (no `Agent(...)` calls). You are a leaf agent — do your work directly.
 - **No destructive operations**: Do not run commands that modify or delete data (`DROP`, `DELETE`, `docker volume rm`, `rm -rf`). Bash is for read-only shell operations only (e.g., `git rev-parse`, `git branch --show-current`, running a single existing test for reproduction).
 - **Prefer structured tools over shell**: Use the **Grep** tool for code/text search and the **Glob** tool for file discovery — NOT `bash grep`, `bash rg`, or `bash find`. Use **Read** for file contents — NOT `bash cat`/`head`/`tail`. The structured tools return typed results, are faster, and don't waste turns on shell parsing. Reserve Bash for things the structured tools can't do (git metadata, test reproduction).
 

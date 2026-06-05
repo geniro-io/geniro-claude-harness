@@ -98,7 +98,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ## 5. Step 4 — Independent re-verification by the orchestrator
 
-For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (single re-run; the agent already did 3× flake check). Cache invalidation rules governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` (single source of truth). Sub-agent PASS reports are inputs, not evidence; the orchestrator's independent re-run IS the gate.
+For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (single re-run; the agent already did 3× flake check). Cache invalidation rules governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` (single source of truth). Subagent PASS reports are inputs, not evidence; the orchestrator's independent re-run IS the gate.
 
 Use `backpressure.sh` to keep failing-test output from flooding context:
 

@@ -293,7 +293,7 @@ Critical constraints (enforced by agent frontmatter tools whitelist):
 - No production-source edits — test files only.
 - No git mutation.
 - No destructive Bash.
-- No sub-agent spawning (leaf agent).
+- No subagent spawning (leaf agent).
 
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs.
 """)

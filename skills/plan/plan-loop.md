@@ -19,7 +19,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 - Phase 7 — Mechanical validator
 - Phase 7.5 — Spec challenge
 - Phase 8 — User approval
-- Phase 9 — Hand-off
+- Phase 9 — Handoff
 - Definition of Done
 - Anti-rationalization
 
@@ -27,7 +27,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 ## HARD-GATE
 
-> Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until the Phase 8 user-approve AUQ has been answered "Approve". The gate is binding for Phases 0–8. The Phase 9 hand-off is the only authorized release point.
+> Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until the Phase 8 user-approve AUQ has been answered "Approve". The gate is binding for Phases 0–8. The Phase 9 handoff is the only authorized release point.
 
 ---
 
@@ -446,7 +446,7 @@ Full chat-message template + lean-AUQ shape + the Revise picker in `${CLAUDE_PLU
 
 ### 5.3 Milestone-mode
 
-Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (the Big-tier milestone threshold). AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Hand-off (Phase 9) then offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode fires only at Big tier; not Small/Medium/Trivial.
+Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (the Big-tier milestone threshold). AUQ header "Milestone slicing" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec". On slice pick, follow-up AUQ proposes 3-7 milestone names; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Persist to `approvals[]` with category `milestone_slice`. Handoff (Phase 9) then offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.2. Milestone-mode fires only at Big tier; not Small/Medium/Trivial.
 
 ---
 
@@ -563,12 +563,12 @@ Phase 8 closes the loop with a final whole-spec approval. Apply the Gate present
 
 1. **Render the spec summary to a chat message** — Objective (section 1) / Scope summary (sections 2-3) / Approval Points (section 8) / Risk class auto-computed from section 5 + section 7 / Rollback (section 10) / Done Condition (section 11) / touched-file glob count / approval-expiration notice. Include the concrete examples already authored per section so the user reviews the real plan, not a label list.
 
-2. **Fire ONE lean AUQ** — header "Approve spec"; `question` a one-line recap pointing at the message above; options: "Approve — proceed to hand-off" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal message + AUQ template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5.
+2. **Fire ONE lean AUQ** — header "Approve spec"; `question` a one-line recap pointing at the message above; options: "Approve — proceed to handoff" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal message + AUQ template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5.
 
 ### 8.3 Revision-round escalation
 
 Max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, fire escalation AUQ with header "Revision limit reached":
-- **Accept as-is** — final answer; proceed to hand-off.
+- **Accept as-is** — final answer; proceed to handoff.
 - **Re-revise (kick fresh cycle)** — full round-1 restart; rare.
 - **Abort** — terminal `aborted` + `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
 
@@ -613,11 +613,11 @@ Dedup + sanitization automatic. Skipped if Phase 4 had ≤1 approach or no trade
 
 ---
 
-## Phase 9 — Hand-off
+## Phase 9 — Handoff
 
 State.md `phase: handoff` during this phase.
 
-### 9.1 Hand-off menu
+### 9.1 Handoff menu
 
 Fire `AskUserQuestion` with header "Next step":
 
@@ -669,7 +669,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 - [ ] Phase 7.5 spec challenge ran on every plan (no Trivial skip) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).
 - [ ] Phase 8 rendered the spec summary to a chat message (fields + examples), then fired ONE lean AUQ; user picked one of 3 options; max 3 user-revision rounds respected.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
-- [ ] Phase 9 hand-off AUQ fired with 2 options; pick persisted to `approvals[]`.
+- [ ] Phase 9 handoff AUQ fired with 2 options; pick persisted to `approvals[]`.
 - [ ] HARD-GATE released only on Phase 8 "Approve".
 - [ ] Terminal state.md `phase: done` (or `aborted` with `## Termination reason` body line).
 
@@ -690,7 +690,7 @@ Both paths terminate in `done`. SessionStart recovery treats it as completed.
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Metaswarm anti-pattern. Compaction mid-Phase-5 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |
 | "I'll `Write` outside `.geniro/planning/**` to save a step — /geniro:plan can touch source directly" | /geniro:plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended `Write` target is the planning task-dir; writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
 | "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work" | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |
-| "Hand-off menu should add a separate backlog-capture step for backlog discipline" | A backlog IS a spec.md saved on disk. No separate step needed — picking "Stop — keep spec for later" at Phase 9 leaves the committed spec on disk as the backlog entry. |
+| "Handoff menu should add a separate backlog-capture step for backlog discipline" | A backlog IS a spec.md saved on disk. No separate step needed — picking "Stop — keep spec for later" at Phase 9 leaves the committed spec on disk as the backlog entry. |
 | "Auto-default empty AUQ answer to the Recommended option" | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
 | "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /geniro:plan has bounded gates (Phase 3 ≤5 questions, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4" | Hooks fail for a reason. Investigate root cause, not bypass. CLAUDE.md-level prohibition; honors it. |

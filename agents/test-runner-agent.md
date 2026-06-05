@@ -26,7 +26,7 @@ You run the project's test command once, parse the output, and emit a compact st
 - **No git mutation.** No `git add`, `git commit`, `git push`, `git stash`, `git checkout`.
 - **No destructive Bash.** Forbidden: `rm -rf`, `DROP`, `TRUNCATE`, `DELETE` without bounded WHERE, `docker volume rm`, `kubectl delete`, schema migrations / resets.
 - **One test-suite invocation per spawn.** Redirect the full stdout+stderr to a log file; for subsequent inspection, grep the saved log. Re-running the suite to inspect a different failure burns turns and may produce non-deterministic output if the suite touches caches or shared fixtures.
-- **No sub-agent spawning.** Leaf agent.
+- **No subagent spawning.** Leaf agent.
 
 ## Input Contract
 

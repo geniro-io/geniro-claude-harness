@@ -419,8 +419,8 @@ At Phase 3 exit:
 1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `refactor.md`, `code-style.md`) for the entry's keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
 2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring entry summary and recurrence count in the description. Options (plain-English labels):
    - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
-   - **Refine, then save as a rule** — same hand-off; the user reshapes the wording before saving.
-   - **Merge into an existing rule** — same hand-off; the user folds it into a related rule.
+   - **Refine, then save as a rule** — same handoff; the user reshapes the wording before saving.
+   - **Merge into an existing rule** — same handoff; the user folds it into a related rule.
    - **Don't save** — decline; nothing is written.
 3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the entry context (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
 4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:

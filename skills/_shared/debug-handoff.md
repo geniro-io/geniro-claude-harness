@@ -2,11 +2,11 @@
 
 **Status:** Authoritative for consuming `/geniro:debug` T2 handoff files.
 
-When `/geniro:debug` ran earlier in the same project, it left T2 hand-off files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode — canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode — canonical) — and authored regression tests at the project's normal test paths. Consumer skills detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations) — an implementation about to start cannot run a regression test absent from its working tree.
+When `/geniro:debug` ran earlier in the same project, it left T2 handoff files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode — canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode — canonical) — and authored regression tests at the project's normal test paths. Consumer skills detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations) — an implementation about to start cannot run a regression test absent from its working tree.
 
 ## Step 1: Scan
 
-Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the hand-off files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths and fallback paths; for each that exists, read fully.
+Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths and fallback paths; for each that exists, read fully.
 
 **Canonical paths (read first):**
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`

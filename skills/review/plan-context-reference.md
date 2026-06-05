@@ -20,7 +20,7 @@ How `/geniro:review` ingests and threads plan/spec intent through reviewers, the
 The orchestrator collects PLAN CONTEXT from up to four sources, in this **priority order**:
 
 1. **`--plan <path>` flag** (`$ARGUMENTS`) — explicit path to a spec.md / plan.md / design-doc file. Highest priority. Example: `review HEAD~5..HEAD --plan .geniro/planning/feat-auth/spec.md`.
-2. **PR body plan-reference** — when in PR mode, scan the PR body for a `geniro-plan: <path>` line (a convention emitted by `/geniro:plan` Phase 9 hand-off message). If found, treat as a pointer to the on-disk spec.md.
+2. **PR body plan-reference** — when in PR mode, scan the PR body for a `geniro-plan: <path>` line (a convention emitted by `/geniro:plan` Phase 9 handoff message). If found, treat as a pointer to the on-disk spec.md.
 3. **Auto-discovered spec.md** — walk `.geniro/planning/*/spec.md`. First match wins (most-recently-modified preferred).
 4. **Auto-discovered project files** — `docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`. Skipped silently if absent.
 5. **PR body as opaque prose** — when PR mode but no `geniro-plan:` reference found, fall back to `gh pr view <ref> --json body` content treated as prose.

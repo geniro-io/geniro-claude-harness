@@ -23,7 +23,7 @@ Use this skill to systematically debug complex issues. Replaces guessing with ev
 
 ## Your Role — Investigate, Don't Ship
 
-You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 hand-off is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
+You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 handoff is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
 
 ---
 
@@ -341,7 +341,7 @@ When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-
 
 ## Phase 3 — Ship
 
-state.md `phase: ship`. Findings hand-off to downstream skill OR user-handles. **No `git push` / `gh pr create`** — debug never ships code, only proposals + tests authored locally.
+state.md `phase: ship`. Findings handoff to downstream skill OR user-handles. **No `git push` / `gh pr create`** — debug never ships code, only proposals + tests authored locally.
 
 ### 3.0 Pre-gate — Resolve Open Questions
 
@@ -446,8 +446,8 @@ At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnos
   1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `debug.md`, `code-style.md`) for the diagnosis's root-cause keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
   2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring diagnosis summary and recurrence count in the description. Options (plain-English labels):
      - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
-     - **Refine, then save as a rule** — same hand-off; the user reshapes the wording before saving.
-     - **Merge into an existing rule** — same hand-off; the user folds it into a related rule.
+     - **Refine, then save as a rule** — same handoff; the user reshapes the wording before saving.
+     - **Merge into an existing rule** — same handoff; the user folds it into a related rule.
      - **Don't save** — decline; nothing is written.
   3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the diagnosis category (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
   4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:

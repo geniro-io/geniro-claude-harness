@@ -15,7 +15,7 @@ Comprehensive code review using parallel multi-agent analysis.
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` — Phase 1 input mode / scope / risk-tier / memory load.
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` — Phase 4.2 per-finding verifier contract (every CRITICAL/HIGH/MEDIUM survivor of §4.1).
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md` — Phase 4.3 test-confirmation gate.
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` — Phase 6 action-gate hand-off + Post drill.
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` — Phase 6 action-gate handoff + Post drill.
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` · `incoming-mode-reference.md` · `tdd-mode-reference.md` — PLAN CONTEXT load / INCOMING mode / `--tdd` semantics.
 
 ---
@@ -24,7 +24,7 @@ Comprehensive code review using parallel multi-agent analysis.
 
 You are a **coordinator**. You delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself — you read files only to gather context and verify agent findings.
 
-`/geniro:review` is a **Reporter** — it does not apply fixes. The Phase 6 hand-off message omits 'I'll fix these now' language, because that phrasing implies a fixer responsibility this skill does not have. Findings persist to a handoff file; downstream consumers (`/geniro:implement`, manual user action) apply fixes. The `--simplify` flag does NOT change this. Running `/geniro:review` under a dynamic `Workflow(...)` / ultracode does NOT relax it either — a workflow wrapper parallelizes the reviewer fan-out, not the Reporter contract; full boundary at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+`/geniro:review` is a **Reporter** — it does not apply fixes. The Phase 6 handoff message omits 'I'll fix these now' language, because that phrasing implies a fixer responsibility this skill does not have. Findings persist to a handoff file; downstream consumers (`/geniro:implement`, manual user action) apply fixes. The `--simplify` flag does NOT change this. Running `/geniro:review` under a dynamic `Workflow(...)` / ultracode does NOT relax it either — a workflow wrapper parallelizes the reviewer fan-out, not the Reporter contract; full boundary at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 ---
 
@@ -39,7 +39,7 @@ State.md `phase:` enum transitions:
 └── aborted ── (round-limit / safety / tool-unavailable)
 ```
 
-**Terminal states:** `done`, `aborted`. the SessionStart recovery treats both as "review complete / cancelled". `done` includes a Phase 6 hand-off line.
+**Terminal states:** `done`, `aborted`. the SessionStart recovery treats both as "review complete / cancelled". `done` includes a Phase 6 handoff line.
 
 **Non-terminal states:** `triage`, `mechanical-prepass`, `llm-spawn`, `filter`, `stratify`, `persist`, `action-gate`. the recovery rolls these back to phase-entry and re-runs from there (idempotent — `approvals[]` ensures Phase 6 AUQ skips already-answered).
 
@@ -56,7 +56,7 @@ The invariants apply unchanged:
 3. **Permission before side-effect.** Phase 6 "Post Draft PR" requires AUQ approval before posting to GitHub. The post is a single `gh api POST /repos/<owner>/<repo>/pulls/<number>/reviews` call per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §7.5 — `event` field omitted so the review is created in GitHub's PENDING state (private to the reviewer, no notifications fire). State.md writes via `atomic_state_write`.
 4. **Bounded and structured tool results.** Reviewer-agent output ≤4000 chars per dim; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 5. **Escalation gates, not silent abort.** Round-N ≥3 → Phase 6 escalation gate.
-6. **Final answer grounded in observations — at every kept severity.** The Phase 6 hand-off message cites the state.md path so the user can audit the source; every kept finding body at CRITICAL / HIGH / MEDIUM severity carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` that quotes the cited file or caller chain literally, because a severity claim without a literal quote is unverifiable. The Phase 4.2 per-finding verifier (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §3) formalizes this for every §4.1 survivor — empirical reproduction of the cited code is the load-bearing check that turns a reviewer's confidence score into grounded evidence.
+6. **Final answer grounded in observations — at every kept severity.** The Phase 6 handoff message cites the state.md path so the user can audit the source; every kept finding body at CRITICAL / HIGH / MEDIUM severity carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` that quotes the cited file or caller chain literally, because a severity claim without a literal quote is unverifiable. The Phase 4.2 per-finding verifier (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §3) formalizes this for every §4.1 survivor — empirical reproduction of the cited code is the load-bearing check that turns a reviewer's confidence score into grounded evidence.
 7. **Errors → structured observations.** Reviewer spawn failures → `## Errors` body section. `gh` fail-open NOT silent — log to `## Errors`.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 9. **Re-verify ambiguity gates at external-effect boundaries.** The Pre-gate (`phase-6-handoff-reference.md` §2.5), the open-decision gate (`phase-6-handoff-reference.md` §3 Step 0), and the Phase 4.2 per-finding verifier establish gate invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, and kept-finding `Validation:` respectively; the Pre-Post guard (`phase-6-handoff-reference.md` §7.0) re-reads ALL THREE before any `gh api POST /reviews` because mid-phase producer writes, parallel resolvers, or orchestrator drift can re-create unresolved ambiguity (or surface a `Validation: refuted` finding that bypassed the upstream filter) between the upstream gate and the external write. Never trust an upstream gate's invariant at a public-surface boundary.
@@ -307,7 +307,7 @@ When `$ARGUMENTS` contains `--simplify` (semantic parse — matches `simplify`, 
 
 Pre-pend body read from `${CLAUDE_PLUGIN_ROOT}/skills/review/simplify-criteria.md`.
 
-The flag biases existing reviewers' attention; it does not add new dimensions, change output schema, or alter the reporter-mode hand-off contract.
+The flag biases existing reviewers' attention; it does not add new dimensions, change output schema, or alter the reporter-mode handoff contract.
 
 ### 2.5 UI-file detection rule (design dim trigger)
 
@@ -512,7 +512,7 @@ If Phase 5 re-enters after compaction:
 
 ---
 
-## Phase 6 — Action Gate Hand-off
+## Phase 6 — Action Gate Handoff
 
 State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md`.
 
@@ -533,7 +533,7 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
 Operational rules:
 
 - **Reporter behavior** — no fix loop inside /geniro:review. /geniro:implement self-review (5-dim parallel) is a separate skill with a separate contract.
-- **`--simplify`** does NOT change hand-off shape (still reporter).
+- **`--simplify`** does NOT change handoff shape (still reporter).
 - **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
 - **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`, OR any kept CRITICAL/HIGH/MEDIUM finding still carries `Validation: refuted` (it should have been filtered at Phase 4.2). Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3) being skipped under drift.
 ---

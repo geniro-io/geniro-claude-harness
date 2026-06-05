@@ -1,6 +1,6 @@
-# Phase 6 Action-Gate Hand-off Reference
+# Phase 6 Action-Gate Handoff Reference
 
-Detailed contract for `/geniro:review` Phase 6 (Action Gate Hand-off). SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). SKILL.md retains a 2-3 line summary + a pointer here.
 
 State.md `phase: action-gate` during this phase.
 
@@ -25,7 +25,7 @@ State.md `phase: action-gate` during this phase.
 
 ## 1. Reporter behavior — no fix loop
 
-This skill confirms: /geniro:review does NOT apply fixes. Phase 6 hand-off message NEVER includes "I'll fix these now" language. The /geniro:implement option routes to /geniro:implement skill (manual or via Phase 6 hand-off line).
+This skill confirms: /geniro:review does NOT apply fixes. Phase 6 handoff message NEVER includes "I'll fix these now" language. The /geniro:implement option routes to /geniro:implement skill (manual or via Phase 6 handoff line).
 
 `--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention but the output is still a finding list for consumption by other skills.
 

@@ -67,7 +67,7 @@ Fire `AskUserQuestion` per comment per the canonical Single-finding-gate shape a
 
 **Header:** `"Comment N of M"`. **Single-select** options:
 
-- **`"Apply"`** — comment is actionable; dispatch to `/geniro:implement` with precise diff scope. Build the handoff: pre-load the comment body, file:line range, and any reviewer-cited expected behavior into the hand-off file `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per the producer contract. Then surface the slash-command suggestion `Run /geniro:implement "<comment short title> [from review-feedback]"` in the chat output — do NOT auto-invoke; the user runs the slash command themselves.
+- **`"Apply"`** — comment is actionable; dispatch to `/geniro:implement` with precise diff scope. Build the handoff: pre-load the comment body, file:line range, and any reviewer-cited expected behavior into the handoff file `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per the producer contract. Then surface the slash-command suggestion `Run /geniro:implement "<comment short title> [from review-feedback]"` in the chat output — do NOT auto-invoke; the user runs the slash command themselves.
 
 - **`"Push back"`** — draft a `mcp__github__add_reply_to_pull_request_comment` reply explaining why the reviewer's claim is incorrect. Reply MUST cite codebase evidence (file:line snippet, test result from Step I-3, or a captured command output). **Forbidden phrases (verbatim from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Forbidden phrases):**
 - `"you're absolutely right"`

@@ -6,7 +6,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 ## Why this exists
 
-LLM orchestrators and sub-agents reliably hallucinate success when not held to captured artifacts. Three observed failure modes:
+LLM orchestrators and subagents reliably hallucinate success when not held to captured artifacts. Three observed failure modes:
 
 - An agent claims "tests pass" without ever running `pytest` (or the project's test command) — the PASS is inferred from the diff, not from a green run.
 - An orchestrator carries a cached PASS across phases after Edit/Write mutations have invalidated it (the cache PASS no longer reflects the current tree).
@@ -16,7 +16,7 @@ Evidence Block schema + verification cache invalidation rules + per-skill consum
 
 ## When evidence is required
 
-- Any "done", "passing", "validated", "ready to ship", "shipped" claim by the orchestrator or any sub-agent.
+- Any "done", "passing", "validated", "ready to ship", "shipped" claim by the orchestrator or any subagent.
 - Every CRITICAL or HIGH finding emitted by reviewer agents (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`). MEDIUM findings should attach evidence when available; CRITICAL/HIGH without evidence are downgraded or dropped.
 - Every hypothesis confirmation in `/geniro:debug` (already enforced by the artifact-kind table in `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard).
 - Any cross-phase cache-PASS carry — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`.
@@ -71,7 +71,7 @@ Stop hooks fire only approximately 50–80% of the time, so treat `require-evide
 | "I ran the tests 5 minutes ago, the cache PASS still applies." | See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` — any `Edit` or `Write` between cache-write and cache-read invalidates the PASS. The cache is not a clock; it is a pre-mutation snapshot. |
 | "The build is obviously fine, I don't need to run it." | If you didn't run it in this message, you cannot claim it passes. Reasoning-from-the-diff is the exact failure mode the standard exists to prevent. |
 | "I'll cite an old log file as evidence." | Evidence must be captured in this message (or be a user-provided artifact in this turn). Stale artifacts don't count — the tree may have mutated since. |
-| "The agent reported PASS, I'll forward that as evidence." | Sub-agent PASS reports are inputs, not evidence. The orchestrator MUST attach the captured command output (or independently re-run per `verification-cache.md`) before forwarding the claim. |
+| "The agent reported PASS, I'll forward that as evidence." | Subagent PASS reports are inputs, not evidence. The orchestrator MUST attach the captured command output (or independently re-run per `verification-cache.md`) before forwarding the claim. |
 | "It's a CRITICAL finding but I'm confident — I'll skip the Evidence Block." | Reviewer-agent findings without an Evidence Block are downgraded or dropped at the relevance-filter step. Confidence does not substitute for artifact. |
 | "The test command exited 0, so the tests pass." | Exit 0 is not proof of a passing run — vitest, jest, and pytest exit 0 on "No test files found" / zero collected. A passing claim requires the observed count in the tail ("N passed"). A backgrounded run's exit code especially must be paired with the summary line; a clipped or empty summary is not a green. |
 

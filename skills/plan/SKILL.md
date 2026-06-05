@@ -1,6 +1,6 @@
 ---
 name: geniro:plan
-description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
+description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: inherit
@@ -30,7 +30,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6.
-- Phase 9 hand-off — 2-option menu (`/geniro:implement directly` / `Stop`).
+- Phase 9 handoff — 2-option menu (`/geniro:implement directly` / `Stop`).
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
@@ -76,7 +76,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open) | §"Phase 7.5 — Spec challenge" |
 | 8 | User approve (schema-rich AUQ + git commit) | §"Phase 8 — User approval" |
-| 9 | Hand-off (2 options: /geniro:implement / Stop) | §"Phase 9 — Hand-off" |
+| 9 | Handoff (2 options: /geniro:implement / Stop) | §"Phase 9 — Handoff" |
 
 Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema gap.
 
@@ -195,7 +195,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
 | Phase 7.5 (Spec challenge, always-on) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn — OMIT `model=`) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
-| Phase 9 (Hand-off) | AskUserQuestion / Read | All mutations |
+| Phase 9 (Handoff) | AskUserQuestion / Read | All mutations |
 
 **Mutation enforcement:** frontmatter `allowed-tools` excludes `Edit` (this skill never edits in place).
 
@@ -212,7 +212,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Detect mode / Problem discovery (--prd only) / Explore codebase / Visual companion / Clarify / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Hand-off. Mark the first item in_progress; update each as it completes. The problem-discovery item is marked completed-skipped when `--prd` was not passed; Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
+2. **TodoWrite checklist.** Add: Detect mode / Problem discovery (--prd only) / Explore codebase / Visual companion / Clarify / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The problem-discovery item is marked completed-skipped when `--prd` was not passed; Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
 
 3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` end-to-end.
 
