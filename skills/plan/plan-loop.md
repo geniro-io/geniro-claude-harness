@@ -53,6 +53,8 @@ State.md `phase: mode-detect` during this phase. Light cost — a single design-
 
 **`--prd` flag detection (opt-in).** If `$ARGUMENTS` contains the token `--prd`, note that the flag was passed and strip the token before passing the remaining text to mode detection. state.md does not exist yet at this point — it is created in §0.3 — so do NOT write frontmatter here; instead carry the flag forward and write `prd_mode: true` into the INITIAL state.md frontmatter at the §0.3 creation step. `prd_mode` turns on the Phase 0.5 problem-discovery interview and the spec's optional `## Problem & Evidence` body section. When `--prd` is absent, `prd_mode` stays unset and Phase 0.5 is skipped.
 
+**`--deep` flag detection (opt-in).** Semantic-parse `$ARGUMENTS` for `--deep` / `deep` / `deep mode` the same way; strip the token before mode detection. Carry it forward and write `deep-mode: true` into the §0.3 initial frontmatter (false/omitted when absent), and persist the activation to `approvals[]` category `deep_mode_choice`. `deep-mode` deepens Phase 4 (judge-panel approach search + 3× feasibility critics) and Phase 7.5 (3× claim verification) per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; it is orthogonal to `--prd` (both may be passed). When absent, those phases run their standard single-pass paths.
+
 Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged. Returns:
 
 - **IDEA(topic)** — free-form text; proceeds to Phase 1 with topic as initial context.
@@ -84,7 +86,7 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
 4. **Transition.** Branch on the `--prd` flag from §0.1: when it was present, set `phase: problem-discovery` via `atomic_state_write` and proceed to Phase 0.5; otherwise set `phase: explore` and proceed to Phase 1. Phase 0.5 itself sets `phase: explore` on completion (§0.5.4), so a `--prd` run flows through problem-discovery then rejoins the normal loop at Phase 1.
 
 ### 0.4 Cancel handling
@@ -308,6 +310,8 @@ If a 6th clarification arises, force consolidation OR proceed to Phase 4 with st
 ## Phase 4 — Approaches
 
 State.md `phase: approaches` during this phase.
+
+**Deep-mode branch (`deep-mode: true`).** Do NOT run the single-pass §4.1 synthesis + tier-scaled §4.2 critics below. Instead run the judge-panel approach search (3-4 diverse-lens generators → dedup → rank) and the 3× feasibility critics with majority vote, both inside an internal `Workflow(...)`, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md` §2-3. Fold the top 2-3 ranked candidates into the §4.3 chat message + AUQ exactly as standard mode does. Fail-safe to the single-pass path below if the workflow errors (deep-mode-reference §6). Everything below describes the standard single-pass path.
 
 ### 4.1 Approach generation
 
@@ -533,7 +537,7 @@ Surface a one-line plain-English note before invoking: "Challenging the spec bef
 
 ### 7.5.1 Invoke the challenge helper
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the tier detected in Phase 1.2>`.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the tier detected in Phase 1.2>`, DEEP: `<true when state.md deep-mode: true, else false>`.
 
 The helper runs VERIFY (one verifier per `file:line`-cited claim) + generate-ALTERNATIVES + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
 

@@ -1,10 +1,10 @@
 ---
 name: geniro:implement
-description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship."
+description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship. Optional --deep deepens two phases — a 3× self-review with 3-vote majority verification of findings, and a 3× fact-check of the spec's cited claims before editing (higher quality, higher cost)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, EnterWorktree, ExitWorktree]
-argument-hint: "[task description | spec.md path | empty to resume | 'continue']"
+argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep]"
 ---
 
 # Implement Skill — 3-Phase Autonomous Loop
@@ -120,8 +120,11 @@ phase: <state-machine-enum>
 status: in-progress
 non-resumable-actions: [] # appended after each git push / gh pr create / posted comment
 approvals: [] # appended after each one-time AUQ resolution
+deep-mode: <true|false>   # set by the --deep flag (Phase 1 parse); missing reads as false
 ---
 ```
+
+When `deep-mode: true`, Phase 1 (spec fact-check) and Phase 3 (self-review) run their deeper paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice`.
 
 **Write contract.** Route every state.md mutation through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`) — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash. The State-helper enforcement hook warns on such a direct write (warn-mode initially; it flips to a hard-block in a future release).
 
@@ -239,7 +242,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 | Phase | Allowed | Blocked |
 |---|---|---|
-| **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (`git status`, `gh pr view`, `git worktree add`, `git checkout -b`, and the Step 0 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent`, plus the read-only spec-claim verifier spawns fired by the Step 12.5 spec-challenge gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
+| **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (`git status`, `gh pr view`, `git worktree add`, `git checkout -b`, and the Step 0 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent`, plus the read-only spec-claim verifier spawns fired by the Step 12.5 spec-challenge gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md`; Workflow (`deep-mode: true` only — the internal 3× / 3-vote fan-out for the Phase 1 spec-check and Phase 3 self-review, OMIT `model=`) | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
 | **Phase 1 subagents** | Per agent frontmatter `tools:` whitelist — see `agents/knowledge-retrieval-agent.md` and `agents/codebase-explorer-agent.md` | Edit / Write (except their own OUTPUT_PATH); Agent (leaf agents, no nesting) |
 | **Phase 2 (Implement) inner loop** | Read / Grep / Glob / Edit / Write / Bash (incl. test runs); `test-runner-agent` spawn at end-of-phase | `git push`, `gh pr create`, `gh pr comment`, Phase 3 agent types |
 | **Phase 2 test-runner-agent** | Bash (one test-suite invocation), Read, Grep — enforced by `agents/test-runner-agent.md` frontmatter | Edit / Write on source code; git mutation; destructive Bash; Agent (leaf agent) |
@@ -340,6 +343,7 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 | `worktree` / `new-worktree` | Force worktree creation path. |
 | `no-worktree` / `here` | Force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
 | `--no-adversarial` | Disables Phase 3 adversarial-tester spawn for this run (skips the 6th slot in Round 1). |
+| `--deep` / `deep` | Sets `deep-mode: true` — deepens Phase 1 (3× spec fact-check) and Phase 3 (3× self-review passes + 3-vote finding verification) via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. Persist to `approvals[]` category `deep_mode_choice`. |
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
 
@@ -437,7 +441,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 1. **Semantic-parse `$ARGUMENTS`.** Apply the table in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: $ARGUMENTS semantic-parse table".
 2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Spec discovery walk-list"). If no spec.md / plan.md / DESIGN_DOC frontmatter found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` to state.md body).
 3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Persist outcome to state.md frontmatter `approvals[]` with `category: disambiguate_arguments`.
-4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`.
+4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`. When Step 1 parsed `--deep`, write `deep-mode: true` into the state.md frontmatter at creation and append `{category: deep_mode_choice, picked: deep, at: <ISO-8601 UTC>}` to `approvals[]` via `atomic_state_write` — the activation must be persisted, not just held in working memory, so a compaction-resume re-applies it (a parsed flag that is never written is the loading-≠-firing gap that silently drops deep mode on resume).
 5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); the §Echo contract requires one observable line per file. Both are mandatory.
 6. **Load project snapshot.** `load_semantic` with default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification to user.
 7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Subagent spawn template". Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — both agents declare `model: inherit`.
@@ -467,7 +471,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 12.5. **Spec challenge — fact-check the spec against the current code before editing.** This is the last gate before code edits begin: it confirms the spec's factual claims still hold against the live code the run is about to touch.
 
    - **Spec-driven mode only.** Run this step only when Step 2 resolved a real spec.md / plan.md / DESIGN_DOC. SKIP it in inline-task fallback mode — there is no written spec to fact-check, so emit a one-line note ("No spec file — skipping the spec fact-check") and proceed to step 13.
-   - **Invoke the helper.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: implement, SPEC_PATH: \<resolved spec path>, TASK_DIR: \<task-dir>, EFFORT_TIER: \<the codebase-explorer change_scope>. The helper runs VERIFY (one read-only verifier per file:line-cited claim) plus RED-TEAM and returns refuted claims plus blocking risks. RED-TEAM does NOT generate alternative approaches — the spec's design is approved and locked; it only stress-tests the locked approach for blocking risks.
+   - **Invoke the helper.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: implement, SPEC_PATH: \<resolved spec path>, TASK_DIR: \<task-dir>, EFFORT_TIER: \<the codebase-explorer change_scope>, DEEP: \<true when state.md deep-mode: true, else false>. The helper runs VERIFY (one read-only verifier per file:line-cited claim — 3 verifiers per claim with majority vote when DEEP) plus RED-TEAM and returns refuted claims plus blocking risks. RED-TEAM does NOT generate alternative approaches — the spec's design is approved and locked; it only stress-tests the locked approach for blocking risks.
    - **Boundary — verify facts, do not re-open the design.** The pass checks whether the spec's factual claims about the code still hold (does the "X exists at file:line" the spec relied on still match current code?). It does NOT re-litigate the approved design decision. The spec.md is the pre-approval (per the anti-rationalization row on per-Edit AUQs); this gate exists because the code may have drifted since the spec was approved, not to re-debate an approved approach. A clean fact-check preserves spec-driven autonomy — the gate adds friction only when a claim is refuted or a blocking risk surfaces.
    - **Gate — ask only when the fact-check finds a problem.** When the helper returns ≥1 refuted claim OR a blocking red-team risk, fire an AskUserQuestion with options "Proceed anyway" / "Fix the spec, then proceed" / "Abort — re-plan via /geniro:plan". When the pass is clean (no refuted claims, no blocking risk), emit a one-line advisory note ("Spec fact-check passed — N claims verified against current code") and proceed silently — matching the restraint of the other Phase 1 gates, which never ask when there is nothing to decide.
    - **Do not rewrite the spec.** The spec.md is the user's approved durable artifact authored by /geniro:plan; rewriting it from /geniro:implement would force a cross-producer schema lockstep. "Fix the spec, then proceed" hands the edit back to the user (or a fresh /geniro:plan run) — /geniro:implement does not edit the spec file itself.
@@ -585,6 +589,8 @@ PHASE 2 (sequential, single-context):
 ### Steps
 
 1. **Round 1 parallel spawn IS the Phase 3 review mechanism — reviewer-agents + 1 adversarial-tester-agent in the SAME assistant response.** Multiple `Agent(...)` tool uses in one message. An inline "self-review summary" the orchestrator writes from its own context does NOT satisfy Phase 3: it shares every assumption the implementer just made, so it cannot deliver the independent, anchoring-bias-free read the spawned reviewer-agents (fresh isolated contexts) exist to provide. The fresh parallel spawn fires regardless of how well the orchestrator believes it understands the change. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` at every spawn site (every agent declares `model: inherit`).
+
+   **Deep-mode branch (`deep-mode: true`).** Run Round 1 via the deep self-review `Workflow(...)` instead of the single parallel batch below — each reviewer dimension 3× (union + dedup per dim), then a 3-vote majority verification of each deduped finding, per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md` §3-4. Only majority-confirmed findings enter the fix loop; the `adversarial-tester-agent` stays a single spawn. Fail-safe to the standard single-pass batch below if the workflow errors (deep-mode-reference §7). Fix-loop rounds 2-3 run single-pass regardless. Everything below describes the standard single-pass Round 1.
 
    - **reviewer-agents** — one per dimension. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". Dimensions: `bugs` / `security` / `architecture` / `tests` / `code-quality`. The `architecture` dim covers docs-staleness AND spec-compliance. See reference.md §"The reviewer dimensions" for full criteria-file mapping.
 

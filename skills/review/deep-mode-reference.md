@@ -4,6 +4,8 @@ Deep mode (`--deep`, or the "Deep review" pick in the Phase 1 §11 chooser) rais
 
 Deep mode is an orthogonal axis to Standard/TDD: it sets the boolean `deep-mode: true` and composes with either posting mode (`--deep --tdd` is valid). It changes HOW MANY reviewer/verifier passes run and how their results aggregate — it does NOT change the Reporter boundary, the posted-set semantics, the action-gate options, or the `atomic_state_write` contract.
 
+**Cross-skill common contract.** The rules `/geniro:review`, `/geniro:plan`, and `/geniro:implement` share — the activation pattern, the mandatory Workflow mitigations, the fail-safe ladder, and the boundary-preservation rules — are canonicalized in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md`. This file keeps its review-specific layers (§2 recall, §3 precision) inline; where it overlaps the shared contract (§4 mitigations, §6 fail-safe, §9 anti-rationalization), the shared file is the canonical statement.
+
 ## Contents
 
 - §1 — Activation + state
