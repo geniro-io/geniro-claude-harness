@@ -445,7 +445,7 @@ If updates needed, delegate to a general-purpose subagent with `model="haiku"` c
 
 ### Extract Learnings
 
-Learning capture is an auto-step at the end of /geniro:implement. Phase 3 calls the L2 helper `emit-learning` when conditions are met.
+Learning capture is a Phase 3 ship sub-step (step 3 — after Commit, before the Ship-mode AUQ), so it isn't a postscript that gets dropped once the PR is open. Phase 3 calls the L2 helper `emit-learning` when conditions are met.
 
 **Emit triggers** (per the table below):
 

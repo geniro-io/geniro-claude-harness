@@ -609,7 +609,7 @@ echo '{
 }' | emit_learning
 ```
 
-Dedup + sanitization automatic. Skipped if Phase 4 had ≤1 approach or no trade-off rationale recorded.
+Dedup + sanitization automatic. Skipped if Phase 4 had ≤1 approach or no trade-off rationale recorded. After a successful emit, echo `Recorded learning: <summary>` to the user, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
 
 ---
 

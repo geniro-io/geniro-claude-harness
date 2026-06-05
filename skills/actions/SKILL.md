@@ -379,6 +379,8 @@ emit_learning <<'EOF'
 EOF
 ```
 
+After a successful emit, echo `Recorded learning: <summary>` to the user, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract" — the helper writes silently, so the echo is the only signal the run was recorded.
+
 Else: no emit (most action runs are not novel-discovery events).
 
 ## Phase 6: `edit` sub-command

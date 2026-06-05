@@ -417,7 +417,7 @@ Anchor: stay within current cwd; verify with `pwd && git branch --show-current` 
 
 ### 4.3 Emit learning on successful Validate
 
-On transition to DONE — emit one `discovery` learning row:
+On transition to DONE — emit one `discovery` learning row, then echo `Recorded learning: <summary>` to the user per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract":
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"

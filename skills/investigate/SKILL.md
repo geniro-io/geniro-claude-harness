@@ -312,7 +312,7 @@ If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` 
 
 ### Step 5: Record the answer as a learning (with trust label)
 
-Emit a minimal-scope `discovery` entry:
+Emit a minimal-scope `discovery` entry, then echo `Recorded learning: <summary>` to the user per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract":
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"

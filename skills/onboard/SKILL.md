@@ -168,7 +168,7 @@ On rc=11 (lock held by another writer) defer and retry at phase end per the help
 
 After `_CODEBASE_MAP.md` write:
 
-- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded).
+- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded). After a successful emit, echo `Recorded learning: <summary>` to the user, per that file's §"Caller contract".
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"

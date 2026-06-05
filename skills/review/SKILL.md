@@ -481,7 +481,7 @@ trust: verified
 note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
 ```
 
-Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`.
+Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`. After a successful emit, echo `Recorded learning: <summary>` while the report is being assembled (not after it's delivered), per that file's §"Caller contract".
 Also emit `convention` learnings — not for this skill; /geniro:implement owns convention emits.
 
 ### 5.4 PR comment posting (conditional — gated by Phase 6)
