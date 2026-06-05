@@ -26,7 +26,7 @@ _atomic_state_sync_file() {
 }
 
 atomic_state_write() {
-  local target="$1"
+  local target="${1:-}"   # default so a zero-arg call under `set -u` reaches the guard
   if [ -z "$target" ]; then
     echo "atomic_state_write: target path required" >&2
     return 64
@@ -84,7 +84,7 @@ atomic_state_write() {
 }
 
 atomic_state_append() {
-  local target="$1"
+  local target="${1:-}"   # default so a zero-arg call under `set -u` reaches the guard
   if [ -z "$target" ]; then
     echo "atomic_state_append: target path required" >&2
     return 64
@@ -107,10 +107,19 @@ atomic_state_append() {
     return 0
   fi
 
-  # POSIX-atomic append for writes ≤ PIPE_BUF (4096 on Linux).
-  # Shell `>>` opens with O_APPEND, so the kernel serializes concurrent writes.
-  if [ "${#content}" -gt 4096 ]; then
-    echo "atomic_state_append: content exceeds 4096 bytes (got ${#content}); atomicity not guaranteed" >&2
+  # 4096-byte sanity ceiling for the append. Shell `>>` opens O_APPEND, so the
+  # kernel serializes concurrent writes up to PIPE_BUF — but PIPE_BUF is
+  # platform-dependent (4096 on Linux, only 512 on macOS), so this cap bounds
+  # line length and is NOT a hard macOS atomicity guarantee (see
+  # atomic-state-write.md §Constraints). Reserve 2 bytes for the framing the
+  # append adds below (an optional leading `\n` + the trailing `\n`) so the
+  # bytes actually written stay within the ceiling. Count BYTES not characters
+  # — ${#content} counts characters, and multibyte content can exceed 4096
+  # bytes while under 4096 chars, silently skipping the guard.
+  local content_bytes
+  content_bytes=$(printf '%s' "$content" | wc -c | tr -d ' ')
+  if [ "$content_bytes" -gt 4094 ]; then
+    echo "atomic_state_append: content + framing exceeds 4096 bytes (content ${content_bytes}); atomicity not guaranteed" >&2
     return 68
   fi
 

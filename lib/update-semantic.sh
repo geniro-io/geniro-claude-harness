@@ -127,6 +127,11 @@ update_semantic() {
     return "$_US_LOCK_HELD"
   fi
 
+  # Release the lock on every function-return path (normal or early-error return)
+  # so a stale O_EXCL lock can't wedge all future L3 writes. RETURN is
+  # function-scoped, so it adds no trap to the caller's shell.
+  trap 'rm -f "$lock_path"' RETURN
+
   local rc=0
   case "$op" in
     append)

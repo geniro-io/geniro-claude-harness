@@ -28,7 +28,7 @@ A default, always-on adversarial pass that hardens a `spec.md` before it is acte
 
 Caller invokes:
 
-> Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: <plan|implement>`, `SPEC_PATH: <path to spec.md>`, `TASK_DIR: <planning task-dir>`, `EFFORT_TIER: <caller scope signal>`.
+> Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: <plan|implement>`, `SPEC_PATH: <path to spec.md>`, `TASK_DIR: <planning task-dir>`, `EFFORT_TIER: <caller scope signal>`, `DEEP: <true|false>`.
 
 | Slot | Meaning |
 |---|---|
@@ -36,6 +36,7 @@ Caller invokes:
 | `SPEC_PATH` | Path to the `spec.md` to challenge. |
 | `TASK_DIR` | Planning task-dir; scratch output lands at `<TASK_DIR>/.spec-challenge-out.md`. |
 | `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|medium\|big`). Context for the synthesis judge's risk calibration, NOT a gate. This pass is always-on. |
+| `DEEP` | `true` when the calling skill is in deep mode (`deep-mode: true`), else `false` / absent. When `true`, Stage B (§4) runs each cited claim through 3 independent verifiers with majority aggregation instead of 1 — the precision layer per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Orthogonal to `MODE`; raises verification reliability, not the claim set. Missing reads as `false`. |
 
 **Always-on, no tier skip.** The pass runs even on Trivial. "Always-on" does not mean "unbounded" — the cost is bounded by the spec's own cited-claim set (§3): one verifier per cited claim, scaling to claim count rather than every sentence. A Trivial spec cites few claims and gets a small batch; a Big spec cites many and gets a larger one. Tiering the SKIP decision was the rejected design — a Trivial spec with one wrong `file:line` is exactly the cheap-but-fatal case the pass catches. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, nothing more.
 
@@ -80,10 +81,10 @@ Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-f
 
 ### Input contract per verifier
 
-Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Each verifier receives ONLY its own claim plus, mirroring `phase-4-verification-reference.md` §2:
+Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Each verifier receives ONLY its own claim plus, mirroring `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §2:
 
 - The single claim: source location (Section 6 step / Section 4 assumption / frontmatter field) + the literal asserted fact.
-- The cited code slice — read the file at the claim's `file:line` and inline it, using the slice cap in `phase-4-verification-reference.md` §2. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region within the same cap.
+- The cited code slice — read the file at the claim's `file:line` and inline it, using the slice cap in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §2. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region within the same cap.
 - 1-hop caller grep — `grep -rn "<symbol>"` for the cited symbol, capped per §2.
 - 1-2 sibling tests for the same symbol — grep `test/ tests/ __tests__/ spec/`, capped per §2.
 
@@ -108,6 +109,18 @@ Compose the verifier prompt to reuse `agents/reviewer-agent.md` verify-finding m
 Spawn via the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:reviewer-agent` → bare → general-purpose-with-body). OMIT `model=` so verifiers inherit the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Send ALL verifier spawns in ONE assistant response — separate turns serialize execution and double wall-time; the parallel-spawn invariant applies here exactly as in `/geniro:review` Phase 4.2.
 
 Aggregate: any `refuted` claim is a defect; `clarified` is a soft defect (the spec's framing needs a fix); `confirmed` claims pass. Record each result in the scratch report.
+
+### Deep mode — 3× verify + majority (`DEEP: true`)
+
+When the caller passes `DEEP: true`, each cited claim gets **3 independent verifiers** instead of 1, run inside an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` (observe its §4 mandatory mitigations — raw JSON not schema, re-assert the read-only contract in every prompt, OMIT `model=`, path constants outside template literals). Each verifier receives the identical isolated input the single-pass verifier gets (its one claim + cited slice + caller grep + sibling tests); independence is load-bearing, so a verifier never sees the others' votes. Aggregate per claim by majority:
+
+- Tally the three dispositions across the parseable votes.
+- ≥2 `refuted` → the claim is a **hard defect** (`refuted`).
+- else ≥2 `clarified` → the claim is a **soft defect** (`clarified`) — the spec's framing needs a fix. Single-pass treats any `clarified` as a soft defect, so a `clarified` majority must surface one too: collapsing it into a pass would make deep mode WEAKER than single-pass, which the floor invariant (deep-mode.md §5) forbids.
+- else → the claim **passes** (`confirmed`).
+- A verifier whose raw output won't parse **abstains** — counts toward neither side; the ≥2 thresholds are over the parseable votes. If <2 parseable votes remain (≥2 abstained), quorum fails → run ONE fresh single-pass verifier for that claim and take its verdict (deep-mode.md §5 ladder).
+
+The verdict feeds §7 exactly as the single-pass result does — deep mode changes the vote count, not the downstream handling. If the workflow errors or agent registration fails, fail-safe to the single-pass batch above and note `Deep mode couldn't run the extra spec-check passes — fell back to a single pass.` in the scratch report (deep-mode.md §5).
 
 ## 5. Stage C — ALTERNATIVES (plan mode only)
 
@@ -192,10 +205,11 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 - [ ] Helper runs on every spec regardless of `EFFORT_TIER` — no tier skip.
 - [ ] Stage A extracts claims from Section 6 citations, Section 4 assumptions, and frontmatter `budget`/`effort_tier`.
 - [ ] Stage B spawns exactly one verifier per cited claim, all in ONE assistant response, via the spawn-agent ladder with `model=` omitted.
-- [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `phase-4-verification-reference.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.
+- [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.
 - [ ] Stage C (ALTERNATIVES) runs in plan mode and is skipped in implement mode.
 - [ ] Stage D red-team findings are each anchored to a file:line or a §4 result and classified blocking / non-blocking.
 - [ ] Stage E verdict is MODE-correct (plan: keep / keep-with-modifications / re-plan; implement: clean / defects-found) and grounded per the evidence standard.
 - [ ] plan mode folds keep-with-modifications fixes into the spec and the calling skill re-runs its validator; the helper does NOT approve.
 - [ ] implement mode never rewrites the spec; fires the proceed / fix / abort AUQ only on `defects-found`, stays silent on `clean`, and persists the pick to `approvals[]`.
 - [ ] One plain-English echo line per stage; a clean implement-mode pass surfaces only the proceeding line.
+- [ ] When `DEEP: true`, Stage B runs 3 verifiers per claim with majority aggregation (parse-fail = abstain; quorum <2 → single-pass fallback) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md`; `DEEP: false`/absent runs the single-pass batch unchanged.

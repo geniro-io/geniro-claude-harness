@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # enforce-state-helper.sh
 # PreToolUse hook for Write and Edit — nudges skills toward atomic-state-write.
 #

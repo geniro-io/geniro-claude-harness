@@ -33,12 +33,9 @@ Search generated files for phrases that belong in templates, not in production f
 
 Each match → report as a DRIFT item with file:line so the orchestrator can rewrite the section to be concrete and project-specific.
 
-**Reference example contamination check:**
+**Generic-placeholder check:**
 
-Verify that the `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/CLAUDE.md.example` content was not copied verbatim:
-- The reference example contains generic placeholder content.
-- The generated CLAUDE.md must be project-specific, not generic.
-- Spot-check: compare a few sections of the generated CLAUDE.md against the reference example. If they are identical (just with placeholders filled in), report a DRIFT item so the orchestrator regenerates the file more thoughtfully.
+The generated CLAUDE.md must be project-specific, not generic boilerplate. Generation builds from the detected project facts (not from a copied template), so scan the output for unfilled placeholder content — `<TODO>`, `<your-...>`, `example.com`, or stack/command names that don't match what was detected. Any generic-placeholder hit → report a DRIFT item so the orchestrator regenerates that section from the detected project facts.
 
 ---
 

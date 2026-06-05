@@ -105,7 +105,7 @@ The hard-conflict block is **plain text** intended for embedding into `AskUserQu
 2. Skill's LLM context inspects the three layers for semantic conflicts. (No automation — the LLM is the conflict detector.)
 3. If a soft conflict exists: skill calls `emit_conflict_notice` with the relevant facts, then continues using the precedence-winning value (typically L4).
 4. If the soft notice is being emitted and the L4 rule conflicts with both L3 AND L2 (suggesting L4 is genuinely stale), the skill upgrades to a hard conflict: `hard_conflict_block` + `AskUserQuestion`.
-5. After user resolves a hard conflict: skill auto-emits an L2 `type=convention` entry recording the resolution (via the `emit_learning` helper, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`) and may prompt the user to `/geniro:instructions edit global.md`.
+5. After user resolves a hard conflict: skill auto-emits an L2 `type=convention` entry recording the resolution (via the `emit_learning` helper, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`) — echo `Recorded learning: <summary>` after the emit, per that file's §"Caller contract" — and may prompt the user to `/geniro:instructions edit global.md`.
 
 ## Exit codes
 

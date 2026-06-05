@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # block-config-weakening.sh
 # PreToolUse hook for Edit|Write — blocks edits to an EXISTING lint / formatter /
 # type-checker config file.

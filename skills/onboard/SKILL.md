@@ -55,7 +55,7 @@ Terminal states: `done`, `map-truncated`, `aborted`, `routed`. The SessionStart 
 
 ## Loop invariants
 
-The canonical loop invariants from `/geniro:implement` § Loop invariants apply throughout /geniro:onboard. Three skill-specific notes:
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply throughout /geniro:onboard. Three skill-specific notes:
 
 1. **Bounded structured tool results** — repo-scan output (file list, directory tree) is bounded; long lists truncated with marker.
 2. **Errors → structured observations** — permission errors during scan, missing access become structured `## Errors` body section entries.
@@ -168,7 +168,7 @@ On rc=11 (lock held by another writer) defer and retry at phase end per the help
 
 After `_CODEBASE_MAP.md` write:
 
-- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded).
+- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded). After a successful emit, echo `Recorded learning: <summary>` to the user, per that file's §"Caller contract".
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"

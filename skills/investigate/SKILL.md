@@ -19,7 +19,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 
 ## Loop invariants
 
-The 10 canonical loop invariants from `/geniro:implement` § Loop invariants apply, with three skill-specific notes:
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply (the invariant numbers below match that file), with three skill-specific notes:
 1. **Invariant #4 (bounded structured tool results)** — research-agent outputs (Codebase / Git / Internet) each capped at ~8K chars with truncation marker if exceeded.
 2. **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
 3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -44,7 +44,7 @@ Quality-first framing: /geniro:investigate has no hard kill caps — all limits 
 
 **Explicitly NOT capped:** wall-time per run; total Read/Grep/WebSearch calls; total cost per run.
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn site — the orchestrator's session tier propagates (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). The user's session-level `/model` choice is the canonical cost/depth knob; per-spawn hardcoding to `sonnet` is paternalistic and produces tier-mismatch UX.
 
@@ -277,7 +277,7 @@ Present the synthesized, reviewed answer to the user. Include:
 ### Step 4: Save-routing AUQ
 
 Use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Follow-up" and question "Want to dig deeper?" with options:
-- "Dive deeper into [specific aspect]" — re-run with narrower scope; **max 2 dive-deeper rounds** (track in scratchpad). At limit, suggest fresh `/geniro:investigate` with refined question.
+- "Dive deeper into [specific aspect]" — re-run with narrower scope; **max 2 dive-deeper rounds** (persist the count to state.md frontmatter `dive_round:` via `atomic_state_write`, so a compaction-resume mid-dive doesn't silently reset it). At limit, suggest fresh `/geniro:investigate` with refined question.
 - "I have a follow-up question" — start a new investigation.
 - "Save key findings to memory" — persist important discoveries (see Step 4a for routing — learnings.jsonl, ADR, OR CLAUDE.md Domain Context).
 - "Done — answer is sufficient" — chains a second AUQ to route to next action.
@@ -298,7 +298,7 @@ Every save-routing Agent spawn below must satisfy the 6-field pre-inlined-contex
 
 Findings can route to multiple stores when they're load-bearing in different ways (e.g., a domain term that's also an ADR-worthy decision). Do NOT batch all findings into one save action — present them grouped by target so the user sees what goes where.
 
-If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). **Max 2 dive-deeper rounds** — track the count in your own scratchpad; if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
+If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). **Max 2 dive-deeper rounds** — persist the count to state.md frontmatter `dive_round:` via `atomic_state_write` (a scratchpad count resets on compaction-resume mid-dive); if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
 If user wants to save findings: follow Step 4a save-routing (above). Do NOT default everything to learnings.jsonl. Before writing to any store, check if an existing entry covers the topic — UPDATE rather than duplicate.
 
 If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` to route them to any follow-up action the investigation surfaced. Skip this second question if the user already indicated they are done with the topic entirely (terminal `present-summary-only`).
@@ -312,7 +312,7 @@ If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` 
 
 ### Step 5: Record the answer as a learning (with trust label)
 
-Emit a minimal-scope `discovery` entry:
+Emit a minimal-scope `discovery` entry, then echo `Recorded learning: <summary>` to the user per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract":
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"

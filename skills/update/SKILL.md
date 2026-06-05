@@ -11,7 +11,7 @@ argument-hint: "[--dry-run]"
 
 4-phase loop: **Pre-check → Update → Post-check → Migration**. Stateless.
 
-## Path Constraints
+## Path constraints
 
 Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project files) to Read, Write, Edit, and Glob — these tools do not expand `~`, so a literal `~` directory gets created. Honor `CLAUDE_CONFIG_DIR` and fall back to `$HOME/.claude` only inside Bash blocks where `$HOME` expands correctly.
 
@@ -21,7 +21,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project
 2. Args validated before exec — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 3. Permission before side-effect — the pre-update AUQ (§Phase 1 Step 3) is the explicit gate.
 4. Bounded structured results — the migration-step AUQ truncates auto-detect output to its first ~10 lines; the full content diff is written to a log file rather than inlined.
-5. Hard escalation gates — 4-retry exponential-backoff (2s, 4s, 8s, 16s) on network errors; after 4 retries → abort.
+5. Hard escalation gates — 4-retry exponential-backoff on network errors; abort after the 4th retry. (Step 1 owns the exact delays.)
 6. Observations not assumed success — shell exit codes checked at every step.
 7. Errors as structured observations — surfaced inline; no silent skips.
 
@@ -200,9 +200,9 @@ done
 || { MISSING+=("$PLUGIN_PATH/agents/ (empty or missing)"); HASH_FAIL=1; }
 ```
 
-If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
+If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended — a hash-check failure means the download may be corrupted or tampered, so default the user to Cancel):
 
-- **Question:** `WARNING: integrity check failed — ${MISSING[*]}. Continue?`
+- **Question:** `Integrity check failed — ${MISSING[*]}. Continue anyway?`
 - **Options:**
 - `Abort` — Exit without continuing; investigate (Recommended)
 - `Continue anyway (not recommended)` — Proceed with possibly broken install
@@ -233,7 +233,7 @@ fi
 
 If diff non-empty, AUQ:
 
-- **Question:** `WARNING: user content under .geniro/instructions/ or .geniro/actions/ changed during update. Files affected: <list>. The plugin update should not touch user-authored content.`
+- **Question:** `User content under .geniro/instructions/ or .geniro/actions/ changed during the update. Files affected: <list>. The plugin update should not touch user-authored content — review before continuing.`
 - **Options:**
 - `Show diff and continue (review later)` — Print diff, then continue to the migration walk
 - `Abort — preserve current state` — Exit; investigate manually (Recommended)

@@ -1,6 +1,6 @@
-# Phase 6 Action-Gate Hand-off Reference
+# Phase 6 Action-Gate Handoff Reference
 
-Detailed contract for `/geniro:review` Phase 6 (Action Gate Hand-off). SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). SKILL.md retains a 2-3 line summary + a pointer here.
 
 State.md `phase: action-gate` during this phase.
 
@@ -13,10 +13,11 @@ State.md `phase: action-gate` during this phase.
 - §2.5 — Pre-gate: resolve open questions (Invariant A)
 - §2.6 — Handoff file template (written in Phase 5.1)
 - §3 — Step 0: open-decision per PRODUCT-DECISION finding (Invariant B initial flip)
+- §3.5 — Finalize report (draft → final) before the handoff is offered
 - §4 — Action gate (consolidated decision)
 - §5 — Round-N escalation
 - §6 — Failing-tests gate
-- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with three invariants → 7.8 posting-failure semantics)
+- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with four invariants → 7.8 posting-failure semantics)
 - §8 — Empty-answer handling (universal)
 - §9 — Terminal state mapping
 
@@ -24,7 +25,7 @@ State.md `phase: action-gate` during this phase.
 
 ## 1. Reporter behavior — no fix loop
 
-This skill confirms: /geniro:review does NOT apply fixes. Phase 6 hand-off message NEVER includes "I'll fix these now" language. The /geniro:implement option routes to /geniro:implement skill (manual or via Phase 6 hand-off line).
+This skill confirms: /geniro:review does NOT apply fixes. Phase 6 handoff message NEVER includes "I'll fix these now" language. The /geniro:implement option routes to /geniro:implement skill (manual or via Phase 6 handoff line).
 
 `--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention but the output is still a finding list for consumption by other skills.
 
@@ -127,7 +128,9 @@ geniro_schema_version: m6-v2
 task_slug: review-<branch>
 phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
 status: <in-progress|done|failed>
+report_status: <draft|final>          # whole-report lifecycle — see state-tier-spec.md /geniro:review producer fields (missing reads as final)
 mode: <standard|tdd>
+deep-mode: <true|false>               # --deep fan-out (3x passes + 3-vote); missing reads as false
 round: <int>
 risk-tier: <standard|high>
 pr-ref: <owner/repo#num|null>
@@ -291,7 +294,24 @@ Skip entirely when zero PRODUCT-DECISION findings remain after the Phase 3 §3.3
 
 ---
 
+## 3.5 Finalize the report (draft → final)
+
+The handoff written in Phase 5.1 carries `report_status: draft`. After §2.5 (Pre-gate) and §3 (open-decision gate) clear, and BEFORE the §4 Action gate offers the handoff, flip it to `final`:
+
+1. Re-verify every `open_questions[]` entry is `{resolved, wontfix}` and every PRODUCT-DECISION finding is `step0_status: {resolved, wontfix}` — the same invariants §7.0 re-reads. If any is still `unresolved` / `pending`, loop back to the owning gate; do NOT finalize.
+2. Set frontmatter `report_status: final` via `atomic_state_write`.
+
+This is a re-verify-plus-one-field-flip, NOT a re-bake — the per-finding decisions already persisted in §3 step 3. The field exists so the §4 Action gate's handoff option and the §7.0 public-post guard can assert the report is no longer provisional: a report still at `draft` means a decision gate did not clear, and the handoff would route an un-finalized report. Keep this step — a future "simplification" pass that strips it silently re-opens the gap the user reported (the handoff offered before their decisions land).
+
+No AUQ fires here — finalize is silent. The user already answered the decision gates; a separate "finalize?" confirmation would be friction without new information.
+
+The report file existed on disk as `draft` throughout the decision window (Phase 5.1 wrote it for crash-recovery). Finalizing in place — rather than writing the file only after decisions — is deliberate: a mid-gate compaction must still recover the dearly-bought findings. "No file until the user decides" trades crash-recovery for a guarantee the `draft` marker already provides.
+
+---
+
 ## 4. Action gate (Always-WAIT)
+
+**Precondition — `report_status: final`.** The §3.5 finalize step runs immediately before this gate. If the report is still `draft`, a decision gate did not clear — loop back to §3.5 (which re-verifies and re-fires the owning gate); do NOT offer the handoff against a provisional report.
 
 The consolidated top-level decision. Use `AskUserQuestion` (do NOT print options as plain text) with header "Action". Mark the severity-recommended escalation option with " (Recommended)" in its label.
 
@@ -387,7 +407,7 @@ When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to 
 
 ### 7.0 Step 0 — Unresolved-ambiguity guard (fail-closed)
 
-Before any of the Post-drill steps below fire, re-read state.md and verify THREE invariants. If any fails, abort the Post drill — never post to GitHub with unresolved ambiguity, missing user picks, or refuted findings baked in.
+Before any of the Post-drill steps below fire, re-read state.md and verify FOUR invariants. If any fails, abort the Post drill — never post to GitHub with unresolved ambiguity, missing user picks, refuted findings baked in, or a provisional (un-finalized) report.
 
 **Invariant A — no `open_questions[]` left `unresolved`.** The §2.5 Pre-gate runs first in Phase 6 and should leave zero entries with `status: unresolved` by the time Action gate fires.
 
@@ -395,22 +415,25 @@ Before any of the Post-drill steps below fire, re-read state.md and verify THREE
 
 **Invariant C — every kept finding (CRITICAL / HIGH / MEDIUM) has `Validation: confirmed` or `Validation: clarified`.** The Phase 4.2 per-finding verifier should filter `validation: refuted` findings before they reach the handoff. Any kept finding in `## Findings` carrying `Validation: refuted` indicates a producer-side filter failure; posting it to GitHub would surface a finding the verifier already judged incorrect. This guard re-checks at the external-effect boundary as defense-in-depth — refuted should never reach Post. Missing `Validation:` on a CRITICAL / HIGH / MEDIUM finding (legacy handoff per §2 back-compat) is NOT a violation: treat as `confirmed` and proceed with the one-line warning. The guard rejects `refuted` and field-mismatch (non-enum values), not absence.
 
-This §7.0 check is the fail-closed second line of defense for ALL THREE invariants: if a producer wrote a new `open_questions[]` entry mid-phase, if `atomic_state_write` raced with a parallel resolver, if §3 was conflated with §2.5 / skipped under orchestrator drift, or if Phase 4.2's filter pass dropped a `refuted` entry from the filter list but left it in `## Findings`, the upstream gates' invariants might not hold. Verify defensively.
+**Invariant D — `report_status: final`.** The §3.5 finalize step flips the report from `draft` to `final` after the §2.5 Pre-gate and §3 open-decision gate clear. A report still at `draft` here means finalize never ran — a decision gate is open, or the flip was lost — and posting a provisional report to a public surface is the failure this guard prevents. Missing `report_status` reads as `final` (back-compat per the state-tier-spec single-source rule), so the guard rejects an explicit `draft`, not absence.
+
+This §7.0 check is the fail-closed second line of defense for ALL FOUR invariants: if a producer wrote a new `open_questions[]` entry mid-phase, if `atomic_state_write` raced with a parallel resolver, if §3 was conflated with §2.5 / skipped under orchestrator drift, if Phase 4.2's filter pass dropped a `refuted` entry from the filter list but left it in `## Findings`, or if §3.5 finalize was skipped under drift and left the report `draft`, the upstream gates' invariants might not hold. Verify defensively.
 
 **Procedure:**
 
 1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`. Read the `## Findings` body section and parse each finding's `Severity:`, `Decision Type:`, `step0_status:`, AND `Validation:` fields.
-2. Build three filter lists: (a) `open_questions[]` entries with `status: unresolved`; (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`; (c) findings with `Severity: CRITICAL | HIGH | MEDIUM` AND (`Validation: refuted` OR `Validation:` set to a non-enum value).
-3. If any of the three lists is non-empty:
+2. Build four filter lists: (a) `open_questions[]` entries with `status: unresolved`; (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`; (c) findings with `Severity: CRITICAL | HIGH | MEDIUM` AND (`Validation: refuted` OR `Validation:` set to a non-enum value); (d) frontmatter `report_status` explicitly set to `draft` (missing reads as `final` — not a violation).
+3. If any of the four lists is non-empty:
    - Surface a one-line chat warning naming the count of each non-empty list (e.g., `"Can't post yet: 2 open questions still need your answer + 1 finding needs a decision from you + 1 finding the verifier couldn't confirm."`) and the first 1-2 affected items.
    - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, the pending finding IDs, AND the refuted/invalid finding IDs.
    - Re-fire the §2.5 Pre-gate for any unresolved `open_questions[]` entries (if list (a) non-empty).
    - Re-fire the §3 Step 0 per-finding gate for any `step0_status: pending` PRODUCT-DECISION findings (if list (b) non-empty).
    - For list (c) refuted/invalid findings: do NOT auto-resolve. Refuted findings must be moved to `## Filtered` (with `reason: verifier-refuted`) by re-running Phase 4.2's filter pass — surface a chat instruction: `"Re-run /geniro:review to re-fire Phase 4.2 per-finding verification, OR manually move the refuted finding(s) to ## Filtered."` Then abort Phase 6 entirely (terminal state `aborted`, `## Termination reason: producer-schema-violation: refuted-finding-in-handoff`) — the user re-runs /geniro:review rather than racing a manual edit against a pending Post.
-   - After resolution loops for lists (a) + (b) complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds ALL THREE filtered lists empty.
-4. When step 3 finds all three filtered lists empty, proceed to §7.1.
+   - For list (d) (report still `draft`): re-run the §3.5 finalize step — it re-verifies lists (a) + (b) and flips `report_status: final`. If (a) / (b) are non-empty, finalize loops to their owning gates first.
+   - After resolution loops for lists (a) + (b) + (d) complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds ALL FOUR filtered lists empty.
+4. When step 3 finds all four filtered lists empty, proceed to §7.1.
 
-This guard exists because posting a draft PR review with unresolved ambiguity, missing user picks, or verifier-refuted findings buried in the body would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array, `step0_status:` sentinel, and `Validation:` field are designed to prevent. The three invariants are independent (different arrays, different gates, different producer phases) so the guard must check all three; checking only one or two leaves the remaining path(s) uncovered.
+This guard exists because posting a draft PR review with unresolved ambiguity, missing user picks, verifier-refuted findings buried in the body, or a report the user has not finished deciding would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array, `step0_status:` sentinel, `Validation:` field, and `report_status` lifecycle are designed to prevent. The four invariants are independent (different arrays, different gates, different producer phases) so the guard must check all four; checking only some leaves the remaining paths uncovered.
 
 ### 7.1 Step 1.5 — Resolved-thread dedup (input-side filter)
 
@@ -450,16 +473,11 @@ Post this finding to the PR as an inline comment, or skip?
 
 After loop completes (or user picked "Stop posting"), aggregated post set is the union of "Post" picks. If empty, treat as Skip and proceed without firing `gh api` POST.
 
-### 7.4 Step 3.5 — TDD-mode post-set filter
+### 7.4 Step 3.5 — Post-set (mode-independent)
 
-When state-file `mode:` is `tdd`, filter the post set so findings with `Decision Type: TESTABLE` lacking a `[CONFIRMED-BY-TEST]` tag are excluded (remain visible in local report; not posted to PR).
+The posted set is the same in Standard and TDD mode: every kept finding posts. TDD mode is purely additive — it authors failing tests for the testable findings and appends a `**Failing test:** \`<path>\`` line to each `[CONFIRMED-BY-TEST]` finding (per §7.6) — but it never removes a finding from the post set. There is no mode-dependent filter here.
 
-**Retained for posting in TDD mode:**
-- (a) any finding tagged `[CONFIRMED-BY-TEST]`, regardless of decision-type.
-- (b) any finding with `Decision Type: PRODUCT-DECISION` or `INTENT-CHECK` (no executable behavior to gate on).
-- (c) findings with `Decision Type: FIX-NOW` AND which match the "Runtime-behavior classification" rule's NON-runtime branch (typo-class — no runtime behavior to test against — per Phase 4.3).
-
-When the filter empties the post set, fall back to Skip semantics; surface "TDD mode: no F→P-confirmed findings — nothing drafted on PR" once in chat. In Standard mode, this step is a no-op.
+This step is retained as a no-op so the surrounding `§7.x` section numbers stay stable — removing it would renumber `§7.5` onward and break the cross-references that point at those sections.
 
 ### 7.5 Step 4 — Post via the GitHub reviews API
 

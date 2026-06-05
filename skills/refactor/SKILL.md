@@ -73,7 +73,7 @@ This skill has no hard kill caps. Same model as other skills.
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
 ---
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (reviewer-agent, custom reviewers), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (registration ladder: `geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with body inlined). Cache the resolved rung for the rest of the session.
 
@@ -212,7 +212,7 @@ Risk classification (LOW / MEDIUM / HIGH) and ordering happen in §1.6 (orchestr
 
 Anchor: stay within WORKTREE on BRANCH — orchestrator verifies with `pwd && git branch --show-current` once at entry; abort if either differs.
 
-### 1.5 Orchestrator-side smell evidence + KEEP/FILTER
+### 1.5 Orchestrator-side smell evidence — keep or filter each smell
 
 Skipped for Trivial and Small. The orchestrator gathers evidence on detected smells against repo conventions inline — no subagent spawn (folded under subagent rationalization; light reasoning that fits orchestrator's main context cleanly should not be spawned).
 
@@ -411,6 +411,7 @@ At Phase 3 exit:
 - **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /geniro:refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified`.
 - **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
 - **NOT emitted :** `diagnosis` (/geniro:debug owns); `convention` (/geniro:implement self-review owns); `decision` (/geniro:plan owns).
+- **Echo + ordering:** after a successful emit, echo `Recorded learning: <summary>` to the user, and fire the emit before declaring Phase 3 done — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". A silent emit trailing the phase's done declaration is the documented drop vector.
 
 **Read back the recurrence count.** `emit-learning` returns nothing on success — it does not echo the entry's `recurrence_count`. To obtain it, after the emit re-query via `query-learnings --include-superseded` filtered by the just-written entry's `dedup_key`, and read `recurrence_count` from the matching record.
 
@@ -419,8 +420,8 @@ At Phase 3 exit:
 1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `refactor.md`, `code-style.md`) for the entry's keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
 2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring entry summary and recurrence count in the description. Options (plain-English labels):
    - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
-   - **Refine, then save as a rule** — same hand-off; the user reshapes the wording before saving.
-   - **Merge into an existing rule** — same hand-off; the user folds it into a related rule.
+   - **Refine, then save as a rule** — same handoff; the user reshapes the wording before saving.
+   - **Merge into an existing rule** — same handoff; the user folds it into a related rule.
    - **Don't save** — decline; nothing is written.
 3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the entry context (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
 4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:
@@ -464,7 +465,7 @@ Cleanup is best-effort — failed commands silently OK.
 
 ## State file schema
 
-T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}; body sections (Scope / Baseline / Smells Detected / Filtered smells / Plan / Plan steps / Apply Summary / Accepted Blocks / Review Findings / Persisted approvals / Tool log / Errors / Open Questions / Termination reason). `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
+T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}. `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
 
 ---
 

@@ -66,7 +66,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 - **Empty $ARGUMENTS** — Phase 0 fires an `AskUserQuestion` with 3 options ("New feature" / "Existing problem to solve" / "Cancel") followed by free-text capture. Non-empty answer → IDEA mode; "Cancel" → terminal without state.md.
 
-- **Topic spans multiple subsystems / very Big task** — the plan-loop completes normally (Phase 5 milestone-mode fires automatically per the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — the Big-tier milestone threshold). The Phase 9 hand-off recommends `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs.
+- **Topic spans multiple subsystems / very Big task** — the plan-loop completes normally (Phase 5 milestone-mode fires automatically per the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — the Big-tier milestone threshold). The Phase 9 handoff recommends `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs.
 
 - **User wants to plan WITHOUT writing a spec.md** — not supported. The committed spec.md IS the durable artifact downstream skills consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. If the user insists, run /geniro:plan, pick "Stop — keep spec for later" at Phase 9 (terminal `done`, spec sits on disk but not committed). The three detection markers must still be present per Phase 6 contract.
 
@@ -86,7 +86,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 Shared rules consumed by this skill:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and always-on Phase 7.5 spec-challenge; Phase 2 Visual Companion fires only on UI trigger). The Phase 0 / empty-argument / Phase 9 hand-off AUQs are inlined directly in plan-loop.md.
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and always-on Phase 7.5 spec-challenge; Phase 2 Visual Companion fires only on UI trigger). The Phase 0 / empty-argument / Phase 9 handoff AUQs are inlined directly in plan-loop.md.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — Recommended-label policy for the Phase 4 approach AUQ + multi-select picker schema for Phase 5 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.

@@ -29,7 +29,7 @@ Everything you retrieve — past learnings, handoff files, prior plans, snapshot
 
 - **Read-only.** No Edit, no Write to anything except the single OUTPUT_PATH. No git mutation.
 - **No destructive Bash.** Allowed: `bash <LIB_ROOT>/query-learnings.sh`, `git log/show/diff/branch --show-current/rev-parse`, `grep`/`find` only when the Grep/Glob tools are insufficient. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
-- **No sub-agent spawning.** Leaf agent.
+- **No subagent spawning.** Leaf agent.
 - **Scope-locked to the inferred tag set + task description.** Do not speculatively pull in adjacent topics. If a memory entry's relevance to the task is unclear, drop it rather than padding the report.
 
 ## Input Contract

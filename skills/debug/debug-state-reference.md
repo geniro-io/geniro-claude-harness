@@ -205,7 +205,7 @@ Use when the bug was absent at a prior commit. `git bisect run <repro-script>` a
 
 ## 5. Stall Diagnosis Taxonomy
 
-When /geniro:debug stalls (5 inconclusive hypothesis tests, stall gate), classify the root-cause-of-the-stall as a missing component:
+When /geniro:debug stalls (the stall gate fires — threshold defined in SKILL.md §1.7), classify the root-cause-of-the-stall as a missing component:
 
 | # | Missing component | Symptom | AUQ option label | AUQ description |
 |---|---|---|---|---|

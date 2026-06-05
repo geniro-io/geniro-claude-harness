@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # file-protection.sh
 # PreToolUse hook for Write and Edit - blocks writes to sensitive files
 # Prevents accidental exposure of credentials and protected configurations.

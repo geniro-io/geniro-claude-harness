@@ -23,7 +23,7 @@ Use this skill to systematically debug complex issues. Replaces guessing with ev
 
 ## Your Role — Investigate, Don't Ship
 
-You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 hand-off is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
+You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 handoff is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
 
 ---
 
@@ -76,7 +76,7 @@ This skill has no hard kill caps. Runs at opus by default (deep hypothesis-drive
 
 ---
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — registration ladder (`geniro-claude-plugin:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined). Cache the resolved rung for the rest of the session.
 
@@ -93,7 +93,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — schema, forbidden phrases, and artifact kinds 1-5 are defined there. This skill applies that standard at every hypothesis-confirmation, fix-verification, and reproduction-test capture.
 
-**Debug-specific framing — hypothesis-confirmation artifact kinds.** A hypothesis is **confirmed** ONLY when its `Result:` field cites one of the artifact kinds 1-5 from the shared rule. Hypothesis-tracking is the most evidence-rigorous flow in the plugin: every entry in state.md § `## Hypotheses` Result MUST attach a captured artifact (kind 1: file:line + verified snippet; kind 2: captured command/test/build output; kind 3: log line / stack trace; kind 4: datastore query result; kind 5: user-provided artifact). Reasoning is correlation; only reproduction with a captured artifact confirms causation.
+**Debug-specific framing — hypothesis-confirmation artifact kinds.** A hypothesis is **confirmed** only when its `Result:` field cites one of the artifact kinds 1-5 from the shared rule. Hypothesis-tracking is the most evidence-rigorous flow in the plugin: every entry in state.md § `## Hypotheses` Result must attach a captured artifact (kind 1: file:line + verified snippet; kind 2: captured command/test/build output; kind 3: log line / stack trace; kind 4: datastore query result; kind 5: user-provided artifact). Reasoning is correlation; only reproduction with a captured artifact confirms causation.
 
 If the orchestrator's tools cannot produce evidence for a hypothesis (no DB access, no production logs, no credentials, no environment access), do NOT mark it inconclusive by default — use the missing-data gate in §1.5 to ask the user for the artifact.
 
@@ -341,7 +341,7 @@ When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-
 
 ## Phase 3 — Ship
 
-state.md `phase: ship`. Findings hand-off to downstream skill OR user-handles. **No `git push` / `gh pr create`** — debug never ships code, only proposals + tests authored locally.
+state.md `phase: ship`. Findings handoff to downstream skill OR user-handles. **No `git push` / `gh pr create`** — debug never ships code, only proposals + tests authored locally.
 
 ### 3.0 Pre-gate — Resolve Open Questions
 
@@ -432,10 +432,10 @@ Do NOT auto-invoke the next skill — surface the suggestion only. State file IS
 
 ### 3.3 Emit learnings + offer to capture a recurring diagnosis as a rule
 
-At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnosis rule offer. The other two `emit-learning` types fire earlier in their own phases — listed here together so the full debug emit surface is visible in one place:
+At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnosis rule offer. Sequence the emit before the phase is declared done — a diagnosis emit left trailing after the handoff is persisted and the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing). The visibility + ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". The other two `emit-learning` types fire earlier in their own phases — listed here together so the full debug emit surface is visible in one place:
 
 - **`emit-learning`** — called by /geniro:debug at three distinct points:
-- **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`.
+- **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. After a successful emit, echo `Recorded learning: <summary>` to the user — the helper writes silently, so the echo is the only in-session signal the diagnosis was captured.
 - **`discarded_hypothesis`** (fires per-rejection during Phase 1) — every rejected hypothesis emits one entry with required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See §1.5 for the payload schema and emit logic.
 - **`retry_failure_sequence`** (fires at Phase 2 exit, conditional on `fix_attempts >= 2`) — captures the failed fix-attempt chain with required `ext.{phase, attempts, resolution}`. Single-attempt exits do not emit. See §2.5 for the payload schema and emit logic.
 - **NOT emitted :** `pitfall` (/geniro:refactor + /geniro:review own), `convention` (/geniro:implement self-review owns), `decision` (/geniro:plan owns), `discovery` (/geniro:refactor + /geniro:onboard + /geniro:investigate own).
@@ -446,8 +446,8 @@ At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnos
   1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `debug.md`, `code-style.md`) for the diagnosis's root-cause keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
   2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring diagnosis summary and recurrence count in the description. Options (plain-English labels):
      - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
-     - **Refine, then save as a rule** — same hand-off; the user reshapes the wording before saving.
-     - **Merge into an existing rule** — same hand-off; the user folds it into a related rule.
+     - **Refine, then save as a rule** — same handoff; the user reshapes the wording before saving.
+     - **Merge into an existing rule** — same handoff; the user folds it into a related rule.
      - **Don't save** — decline; nothing is written.
   3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the diagnosis category (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
   4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:
@@ -486,7 +486,7 @@ rm -f ".geniro/state/debug/findings-state.md" 2>/dev/null
 rm -f ".geniro/state/debug/adversarial-tests.md" 2>/dev/null
 ```
 - **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. The reproduction test (authored at project's normal test path) STAYS on disk — it ships with the fix as the regression guard.
-- **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` MUST remain on disk as the escalation handoff channel — do NOT delete. Stays until next debug run overwrites it (single file per branch).
+- **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` must remain on disk as the escalation handoff channel, so do not delete it. Stays until next debug run overwrites it (single file per branch).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
 - **Adversarial mode:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` may remain as audit trail; authored test files stay on disk (unlike scientific-method experiments which get reverted).
 
@@ -522,7 +522,7 @@ Adversarial mode is SKIPPED and the skill reports `"no adversarial pass — <rea
 
 - Empty diff (nothing to test).
 - Diff contains zero production-code files (docs / config / lock / generated only).
-- Diff >50 changed files OR >1000 changed LOC → suggest `/geniro:review` for oversized diffs (the agent's 10-test hard cap wastes budget on diffs this large).
+- Diff >50 changed files OR >1000 changed LOC → suggest `/geniro:review` for oversized diffs (the agent's authored-test hard cap wastes budget on diffs this large).
 
 ### A4. RED-phase workflow
 
@@ -539,7 +539,7 @@ state.md `## Authored Tests` body section tracks each authored test per the colu
 
 ### A5. Spawn template
 
-Literal `Agent(subagent_type="adversarial-tester-agent", ...)` template — pre-inlined diff, framework detection, F→P invariant, hard cap (10 tests), scope anchor — in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §6 (A5 spawn template).
+Literal `Agent(subagent_type="adversarial-tester-agent", ...)` template — pre-inlined diff, framework detection, F→P invariant, authored-test hard cap, scope anchor — in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §6 (A5 spawn template).
 
 ### A6. Findings template
 
@@ -551,7 +551,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ## Stall Diagnosis Taxonomy
 
-When the §1.7 stall gate fires (5 inconclusive hypothesis tests), classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table + AUQ rendering + persistence rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §5.
+When the §1.7 stall gate fires, classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table + AUQ rendering + persistence rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §5.
 
 ---
 

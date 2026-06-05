@@ -665,6 +665,39 @@ echo "$ac" | grep -q "Active task detected" \
   || fail "escalated phase: should still resume — 'Active task detected' missing"
 
 # ---------------------------------------------------------------------------
+# 16. Malformed / empty stdin → graceful default (no crash, valid JSON, exit 0).
+#     jq parse failures fall back to source=compact with cwd unchanged; under
+#     `set -uo pipefail` the hook must never abort on garbage input.
+# ---------------------------------------------------------------------------
+
+sandbox="$TMPDIR_BASE/malformed-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+
+set +e
+out=$(printf 'not-json{{{' | CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK"); rc=$?
+set -e
+[ "$rc" -eq 0 ] \
+  && pass "malformed stdin: hook exits 0 (no crash)" \
+  || fail "malformed stdin: expected exit 0, got $rc"
+if [ -z "$out" ] || echo "$out" | jq . >/dev/null 2>&1; then
+  pass "malformed stdin: output is empty or valid JSON"
+else
+  fail "malformed stdin: output neither empty nor valid JSON — '$out'"
+fi
+
+set +e
+out=$(printf '' | CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK"); rc=$?
+set -e
+[ "$rc" -eq 0 ] \
+  && pass "empty stdin: hook exits 0 (no crash)" \
+  || fail "empty stdin: expected exit 0, got $rc"
+if [ -z "$out" ] || echo "$out" | jq . >/dev/null 2>&1; then
+  pass "empty stdin: output is empty or valid JSON"
+else
+  fail "empty stdin: output neither empty nor valid JSON — '$out'"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

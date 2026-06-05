@@ -81,7 +81,7 @@ Used by:
 
 ### Cap-extension for >4 options
 
-If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follow-up)`, chain a follow-up `AskUserQuestion` per the canonical cap-extension pattern (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 6 Open-Questions Pre-gate "Chain one AUQ per unresolved entry (cap-extension >4)"; full procedure at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.5). The body schema above applies identically to each chained call — preview content is the SAME body each time.
+If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follow-up)`, chain a follow-up `AskUserQuestion`: present at most 4 options per call, never drop or merge options across calls, and aggregate the selections from every call. The body schema above applies identically to each chained call — preview content is the SAME body each time. This `§ Cap-extension` is the canonical definition of the rule; consuming skills cite it rather than restating it.
 
 ## Multi-select pick loop (multiple findings per call)
 
@@ -164,7 +164,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 
 For skills running findings end-to-end in one invocation (`/geniro:review`), the orchestrator has the full reviewer-agent output in-memory and pulls Evidence / Why-matters / Suggested-fix / Confidence / Origin directly.
 
-For cross-skill consumers (`/geniro:implement` Phase 1 Step 12 "Persist review/debug handoffs"), findings arrive via the `<task-dir>/review-feedback.md` artifact (Phase 3 self-review intermediate) or `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 per-finding line schema for the persisted shape.
+For cross-skill consumers (`/geniro:implement` Phase 1 Step 12 "Persist review/debug handoffs"), findings arrive via the `<task-dir>/review-feedback.md` artifact (Phase 3 self-review intermediate) or `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. Those files MUST carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` for the persisted shape.
 
 For `/geniro:debug` Phase 2 / gates, body fields come from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` + `## Hypotheses` Result + `## Reproduction Test` Reproduction Decision sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
 

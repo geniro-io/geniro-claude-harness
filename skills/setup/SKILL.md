@@ -13,9 +13,9 @@ argument-hint: "[optional: path to template directory]"
 
 **Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
 
-## Path Constraints
+## Path constraints
 
-**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** Use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
+**Don't use `~` in file paths passed to Read, Write, Edit, or Glob** — these tools don't expand `~`, so it creates a literal `~` directory instead of resolving to the home directory. Use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
 
 Resolve the user's Claude config dir once, honoring `CLAUDE_CONFIG_DIR`:
 
@@ -23,7 +23,7 @@ Resolve the user's Claude config dir once, honoring `CLAUDE_CONFIG_DIR`:
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 ```
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — one of the two documented hardcode carve-outs (`model=sonnet`, justified inline at §4.1 by its read-only tool floor).
 
@@ -380,7 +380,7 @@ prompt="""
 Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
 
 First, Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md and run every check it
-defines (cross-language contamination, template artifact, reference-example contamination) — that
+defines (cross-language contamination, template artifact, generic-placeholder) — that
 file is the single source for the contamination + template-residue criteria, with a per-language
 wrong-token table that catches stack drift this inline list cannot.
 
@@ -417,7 +417,7 @@ Anchor: stay within current cwd; verify with `pwd && git branch --show-current` 
 
 ### 4.3 Emit learning on successful Validate
 
-On transition to DONE — emit one `discovery` learning row:
+On transition to DONE — emit one `discovery` learning row, then echo `Recorded learning: <summary>` to the user per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract":
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
@@ -501,7 +501,7 @@ update brought a new install path, but in-memory skill bodies still reference
 the old one. Restart and you're done.
 ```
 
-Only emitted when `mode == re-run` AND `/geniro:setup` detected a `plugin.json` version delta vs the version recorded in the prior state file. Fresh `init` runs never emit this.
+Only emitted when `mode == re-run` AND the current `.claude-plugin/plugin.json` version differs from the `plugin_version:` recorded in the prior state file. Init runs write `plugin_version` fresh and never emit this; a prior state file that predates the field (no `plugin_version:`) yields no computable delta, so no warning fires.
 
 ## State file schema
 
@@ -525,6 +525,7 @@ geniro_schema_version: m10a-v1
 worktree: /absolute/path # cross-check on rehydration
 mode: init # init | re-run
 template_dir: /Users/you/.claude/plugins/geniro-claude-plugin@.../abc123
+plugin_version: 2.21.1 # from .claude-plugin/plugin.json; the §5.4 restart-warning compares this against the current plugin.json version (missing on a pre-field state file → no delta computable → no warning)
 detected:
 stack: node/npm
 lang: node

@@ -29,7 +29,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 ## Loop invariants
 
 1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
-2. Args validated before exec — every Write preceded by frontmatter validation; every `run` preceded by AUQ-gate matching `risk_class`.
+2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written); every `run` preceded by an AUQ-gate matching `risk_class`.
 3. Permission before side-effect — `risk_class: medium|high` gates execution via AUQ; `risk_class: low` skips the gate but respects per-step tool-allowlist if declared.
 4. Bounded structured results — `list` renders a frontmatter-only table; the `description` field is the only free text shown and is already capped at create-validation time, so no separate body truncation applies.
 5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
@@ -92,7 +92,7 @@ If `$ARGUMENTS` is empty, default to `list`.
 
 The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`/`delete`/`validate`:
 
-- **`create`** — the next non-verb token MUST be a kebab-case slug (lowercase letters, digits, hyphens; ≤64 chars; not a reserved word; no leading/trailing hyphen).
+- **`create`** — the next non-verb token must be a kebab-case slug (lowercase letters, digits, hyphens; ≤64 chars; not a reserved word; no leading/trailing hyphen).
 - **`run`, `delete`, `validate`** — the non-verb remainder is treated as a **resolution input** that may be either an exact kebab slug (fast path) or a free-text description (routed through Phase 5.0).
 
 ### Ambiguity resolution
@@ -203,7 +203,7 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 **Q3 — Output / side-effects:** "What does it produce or change?"
 - `Reports back to chat only`, `Writes a file`, `Posts to an external system`, `Multiple side effects`
 
-**Q4 — Test cases (optional):** "Should we include a brief 'how to test it' note?"
+**Q4 — Test cases (optional):** "Include a brief 'how to test it' note?"
 - `Yes — add 1–2 test cases`, `Skip`
 
 **Q5 — Risk class:** "What is the risk class for this action?"
@@ -223,7 +223,7 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, then synthesize a concrete action body by filling in answers from Step 3:
 
 - Frontmatter `name` = the kebab-case slug.
-- Frontmatter `description` MUST start with "Use when" and reflect Q2's trigger context (≤250 chars).
+- Frontmatter `description` must start with "Use when" and reflect Q2's trigger context (≤250 chars).
 - Frontmatter `risk_class:` = Q5's answer (REQUIRED).
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
@@ -379,6 +379,8 @@ emit_learning <<'EOF'
 EOF
 ```
 
+After a successful emit, echo `Recorded learning: <summary>` to the user, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract" — the helper writes silently, so the echo is the only signal the run was recorded.
+
 Else: no emit (most action runs are not novel-discovery events).
 
 ## Phase 6: `edit` sub-command
@@ -505,7 +507,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 | "I'll just edit a core Geniro skill instead of creating a custom action" | No — core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
 | "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 6. Silent overwrite destroys committed work. |
 | "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
-| "The five interview questions are overkill for a small action" | No — they're the official skill-creator questions; even small actions need a clear purpose, trigger, output, and risk class documented in the file. |
+| "The five interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
 | "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
 | "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
 | "I'll skip the risk_class AUQ if the user already confirmed last week" | No — risk-class decisions are context-dependent. Re-ask each run. The approvals[] persistence applies to one-time decisions (e.g., $ARGUMENTS disambiguation), NOT runtime confirmations. |

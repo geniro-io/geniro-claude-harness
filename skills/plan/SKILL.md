@@ -1,10 +1,10 @@
 ---
 name: geniro:plan
-description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → hand-off. Skip for well-formed specs already authored — use /geniro:implement <path> directly."
+description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → clarify (≤5 questions) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly. Optional --deep deepens the analysis — a wider approach search plus a 3-vote majority verification of the spec's cited claims (higher quality, higher cost)."
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch]
 model: inherit
-argument-hint: "<topic-string-or-design-doc-path> [--prd]"
+argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep]"
 ---
 
 # /geniro:plan — Spec-first planning
@@ -30,7 +30,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6.
-- Phase 9 hand-off — 2-option menu (`/geniro:implement directly` / `Stop`).
+- Phase 9 handoff — 2-option menu (`/geniro:implement directly` / `Stop`).
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
@@ -65,18 +65,18 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 | Phase | Purpose | Plan-loop section |
 |---|---|---|
-| 0 | Mode detect (also detects the opt-in `--prd` flag) | §"Phase 0 — Mode detect" |
+| 0 | Mode detect (also detects the opt-in `--prd` and `--deep` flags) | §"Phase 0 — Mode detect" |
 | 0.5 | Problem discovery (opt-in — fires only with `--prd`: problem-first interview before explore, feeds the spec's optional `## Problem & Evidence` section) | §"Phase 0.5 — Problem discovery" |
 | 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
 | 3 | Clarifying questions (≤5 total — non-trivial option consequences rendered to a chat message first, independent ones batched into one lean AUQ, dependent ones sequenced) | §"Phase 3 — Clarifying questions" |
-| 4 | Approaches (2-3 rendered to a chat message with diagrams, then ONE lean AUQ with Recommended first) | §"Phase 4 — Approaches" |
+| 4 | Approaches (2-3 rendered to a chat message with diagrams, then ONE lean AUQ with Recommended first; `--deep`: judge-panel approach search + 3× feasibility critics with majority vote — `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`) | §"Phase 4 — Approaches" |
 | 5 | Cluster approval (fixed 11-section schema grouped into 3 dependency-ordered clusters; each cluster rendered to a chat message, then ONE lean AUQ — Approve all / Revise specific sections / Cancel; milestone-mode) | §"Phase 5 — Section approval" |
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
-| 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open) | §"Phase 7.5 — Spec challenge" |
+| 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open; `--deep`: 3× verify per cited claim with majority vote) | §"Phase 7.5 — Spec challenge" |
 | 8 | User approve (schema-rich AUQ + git commit) | §"Phase 8 — User approval" |
-| 9 | Hand-off (2 options: /geniro:implement / Stop) | §"Phase 9 — Hand-off" |
+| 9 | Handoff (2 options: /geniro:implement / Stop) | §"Phase 9 — Handoff" |
 
 Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema gap.
 
@@ -141,8 +141,11 @@ non-resumable-actions: []
 approvals: []
 task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
+deep-mode: <true|false>          # set by the --deep flag (Phase 0); missing reads as false
 ---
 ```
+
+When `deep-mode: true`, Phase 4 and Phase 7.5 run their deeper paths via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it.
 
 **Write contract.** Every state.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, never direct `Edit`/`Write` on canonical state paths — the State-helper enforcement hook warns now and flips to hard-block in a future release. The plan-mode mutation guard restricts Write tool to `.geniro/planning/**` OR `.geniro/state/**` while a /geniro:plan run is active.
 
@@ -190,11 +193,12 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) | All mutations |
 | Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn, OMIT `model=` — inherits orchestrator tier per `ui-preview-gate.md`) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
-| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / Write (state.md only via atomic_state_write) | Edit / mutating Bash |
+| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / Write (state.md only via atomic_state_write) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only — OMIT `model=`) | Edit / mutating Bash |
 | Phase 6 (Write spec) | Write (scoped to `.geniro/planning/**` by guard) / atomic_state_write (state.md) | Edit / mutating Bash |
 | Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
+| Phase 7.5 (Spec challenge, always-on) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn — OMIT `model=`) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
-| Phase 9 (Hand-off) | AskUserQuestion / Read | All mutations |
+| Phase 9 (Handoff) | AskUserQuestion / Read | All mutations |
 
 **Mutation enforcement:** frontmatter `allowed-tools` excludes `Edit` (this skill never edits in place).
 
@@ -211,7 +215,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Detect mode / Problem discovery (--prd only) / Explore codebase / Visual companion / Clarify / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Hand-off. Mark the first item in_progress; update each as it completes. The problem-discovery item is marked completed-skipped when `--prd` was not passed; Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
+2. **TodoWrite checklist.** Add: Detect mode / Problem discovery (--prd only) / Explore codebase / Visual companion / Clarify / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The problem-discovery item is marked completed-skipped when `--prd` was not passed; Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
 
 3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` end-to-end.
 
@@ -236,7 +240,7 @@ Do NOT reintroduce these anti-patterns:
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
 | "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly." | Class-A hard caps forbidden by Class-B gates only (Phase 3 ≤5, Phase 7 3-round, Phase 8 3-round) — all escalate to user, not abort. |
 | "Auto-default empty AUQ answer to the Recommended option." | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
-| "Skip persisting Phase 3 clarifying answers — they're trivial." | Metaswarm anti-pattern. Compaction mid-Phase-5 round 2 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |
+| "Skip persisting Phase 3 clarifying answers — they're trivial." | Compaction mid-Phase-5 round 2 loses 5 AUQs of user input — that data-loss is exactly what `approvals[]` persistence prevents, so it is non-negotiable. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4." | Hooks fail for a reason. Investigate root cause, not bypass. CLAUDE.md-level prohibition; honors it. |
 
 ---

@@ -3,13 +3,14 @@
 ## Contents
 
 - §API — `emit_learning` signature
+- §Caller contract — make the write visible and non-trailing
 - §MODE contract
 - §Required fields — what every entry must carry
 - §Optional fields the helper recognizes
 - §Sanitization — secret-redaction before write
 - §Injection rejection — write-time prompt-injection guard
 - §Dedup pipeline — supersede-chain handling
-- §4096-byte limit — the per-line atomicity cap
+- §4096-byte limit — the per-line sanity ceiling
 - §Example callers
 - §Known limitations
 - §Test coverage
@@ -39,6 +40,14 @@ echo '<json-object>' | emit_learning
 - `65` — could not create the `.geniro/knowledge/` parent directory (propagated from `atomic_state_append`).
 - `68` — serialized entry > 4096 bytes (POSIX atomic-append guarantee lost).
 - `69` — append write failed (disk full / permission denied; propagated from `atomic_state_append`).
+
+## Caller contract — make the write visible and non-trailing
+
+`emit_learning` is silent by design (no stdout on success). That silence is the failure surface: a step with no in-session signal that it ran is the first thing dropped when the orchestrator wraps up after the user-visible deliverable. In practice this left L2 nearly empty in heavy-usage projects — emit-eligible `/geniro:implement` runs (fix-loops, recorded decisions) and confirmed `/geniro:debug` root causes produced zero learnings, because the emit trailed the PR / handoff and never executed. Two rules close that gap. They bind every caller of this helper.
+
+1. **Echo the write.** After a successful emit (`rc=0`), print one plain-English line to the user: `Recorded learning: <one-line summary>`. The echo is both a confirmation the user can see and a self-check that the step actually ran. `rc=0` covers a fresh append and a dedup no-op alike — echo either way, since the learning is in the store in both cases. On a non-zero return, stay silent: callers ignore emit failures (best-effort), so surfacing an error would be noise. Echo only the user-facing knowledge emits — `diagnosis`, `convention`, `decision`, `discovery`, `pitfall`. High-frequency internal bookkeeping emits (`discarded_hypothesis` per rejected hypothesis, `retry_failure_sequence`) are priming data, not findings; they stay silent so one debug Phase 1 doesn't echo five times.
+
+2. **Fire it before the done declaration.** Sequence the emit ahead of the phase's terminal `phase: done` / handoff / final answer — and ahead of the outward-facing deliverable (commit / push / PR / posted answer) when the learning doesn't depend on that deliverable's outcome. An emit placed after the deliverable is trailing housekeeping: once the PR is open or the answer is posted, the work reads as finished and the trailing step gets skipped. Making the emit part of completing the work — not a postscript to it — is what keeps it from being dropped.
 
 ## MODE contract
 
@@ -104,7 +113,7 @@ The prior entry's `recurrence_count` is read from the matched entry (absent coun
 
 ## 4096-byte limit
 
-A single JSONL line must fit in `PIPE_BUF` for POSIX `>>` to be atomic. If the line exceeds 4096 bytes, the helper aborts with rc=68 rather than risk torn writes. In practice this means: keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put truly large content into a separate file referenced by `scope`.
+A single JSONL line must stay under the helper's 4096-byte sanity ceiling, or it aborts with rc=68 rather than risk a torn write. That ceiling bounds line length; it is not by itself an atomicity guarantee — POSIX `PIPE_BUF` (the size up to which `>>` appends are kernel-serialized) is platform-dependent: 4096 bytes on Linux but only 512 on macOS. So a line near the 4096 boundary is not guaranteed to append atomically on macOS; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Constraints for the canonical caveat. In practice: keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put truly large content into a separate file referenced by `scope`.
 
 ## Example callers
 

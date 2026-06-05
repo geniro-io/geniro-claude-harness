@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # block-geniro-deletion.sh
 # PreToolUse hook for Bash - prevents bulk deletion of .geniro/ contents.
 #

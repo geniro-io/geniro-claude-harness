@@ -18,7 +18,7 @@ State.md `phase: triage` during this phase.
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
 - §9 Step 0.7 — Risk-tier stratification
 - §10 Step 0.8 — Memory layer load
-- §11 Mode AUQ (Standard vs TDD)
+- §11 Mode AUQ (Standard / TDD / Deep)
 - §12 Size triage
 
 ---
@@ -191,7 +191,7 @@ Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatena
 
 **Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): set K to `unknown`, default routing to OUTGOING, surface `PR review-thread fetch failed — defaulting to Outgoing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open).
 
-**INCOMING AUQ.** When K > 0, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` (substitute the computed K — do NOT render the literal `K`) with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`.
+**INCOMING AUQ.** When K > 0, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` (substitute the actual PR number for `#N` and the computed count for `K` — do NOT render the literal `#N` or `K`) with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`.
 
 There is **NO `--incoming` flag**. Explicit override into INCOMING is via the anchored natural-language signals above. Bare keywords without a PR-ref anchor route to OUTGOING.
 
@@ -355,7 +355,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 1. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Compute the state-file path `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`.
 2. Read the state file if present. If absent, set `prior-round-summary: none — first review` and `round: 1`.
 3. If present AND state-file's `pr-ref:` matches the current run's `pr-ref` (both literal "none" counts as a match): set `round: <prior round + 1>` (defaulting prior to `1` when absent). Capture prior `prior-round-summary:` value into in-memory variable for threading into reviewer prompts as `PRIOR-ROUND FINDINGS:`. Also capture `pr-body:` value into `prior-pr-body` for the pr-metadata reviewer's drift check.
-4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Round-N gate"`, question `"This is round N of review on the same target. Continue or escalate?"`) with options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff"`. On Escalate: write a `## Handoff` to state file, persist `round:` and `prior-round-summary:`, exit cleanly without spawning reviewers (terminal `escalated`).
+4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Review rounds"`, question `"This is round N of review on the same target (substitute the actual round number for N). Continue or escalate?"`) with options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff"`. On Escalate: write a `## Handoff` to state file, persist `round:` and `prior-round-summary:`, exit cleanly without spawning reviewers (terminal `escalated`).
 5. Persist `round:` and `prior-round-summary:` to the state file. Consumed by every Phase 2 reviewer prompt as the `PRIOR-ROUND FINDINGS:` slot.
 
 ---
@@ -400,19 +400,20 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 ---
 
-## 11. Mode AUQ (Standard vs TDD)
+## 11. Mode AUQ (Standard / TDD / Deep)
 
 Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After triage, surface one `AskUserQuestion` (do NOT print options as plain text):
 
 - **Header:** "Review mode"
-- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings that an auto-authored failing test can reproduce)?"
+- **Question:** "How should I run this review — Standard, TDD (also author failing tests), or Deep (3× passes + 3-vote verification)?"
 - **Options:**
-- "Standard review (Recommended)" — current behavior; Phase 4.3 gate opt-in per-run; Phase 6 posts all kept findings.
-- "TDD review (auto-author failing tests for findings)" — Phase 4.3 gate's Recommended option flips to "Author tests…"; Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.
+- "Standard review" — posts all kept findings; the Phase 4.3 test-gate is still offered opt-in per run.
+- "TDD review — also author failing tests" — posts all kept findings AND auto-authors failing tests for the testable ones, appends a failing-test line to each test-confirmed finding, and offers to commit + push the authored tests to the reviewed branch.
+- "Deep review — 3× passes + 3-vote verification" — higher quality (finds more, validates more reliably) at higher token cost; runs each check 3× and verifies findings with a 3-agent majority vote. Posts the same finding set as Standard.
 
-If user declines (empty answer), default to Standard. `--tdd`/`--standard` flag (when present) always overrides this AUQ. Persist to `approvals[]` with category `tdd_mode_choice`.
+Neither Standard nor TDD carries a `(Recommended)` suffix — TDD is not safer than Standard, only costlier (it authors and runs tests); the user picks per run. The "Deep review" pick sets `deep-mode: true` with Standard posting — to combine deep with TDD, use the flags `--deep --tdd`. Deep is an orthogonal boolean (`deep-mode`), NOT a third value of the `mode` enum. If user declines (empty answer), default to Standard. The `--tdd` / `--standard` flags suppress this AUQ (they set the posting mode); `--deep` sets `deep-mode: true` but does NOT suppress it — a bare `--deep` still fires the chooser for the posting mode. Persist the posting-mode pick to `approvals[]` with category `tdd_mode_choice`; a Deep pick additionally persists to `approvals[]` with category `deep_mode_choice` and sets `deep-mode: true`. Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode flips, edge cases, and F→P contract scope.
+See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode adds, edge cases, and the failing-test contract scope.
 
 ---
 

@@ -50,7 +50,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
   mv -f "$tmp" "$state_file"
   ```
 
-- **Single-writer:** ONLY the orchestrator writes this file. Sub-agents NEVER write it — the PreToolUse hook reads it; if a sub-agent could write it, the agent could trivially set `phase: GREEN` and bypass enforcement. Spawn sites declare `disallowedTools: ["Write", "Edit"]` for the state file path or restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
+- **Single-writer:** ONLY the orchestrator writes this file. Subagents NEVER write it — the PreToolUse hook reads it; if a subagent could write it, the agent could trivially set `phase: GREEN` and bypass enforcement. Spawn sites declare `disallowedTools: ["Write", "Edit"]` for the state file path or restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
 
 ## RED phase
 
@@ -98,8 +98,8 @@ The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user 
 | "I know the code is right, RED is theatre." | If you didn't watch RED fail, you don't know if your test would have caught the bug. The cost of confirming RED is one test invocation; the cost of skipping it is silently shipping a test that passes on every implementation. |
 | "I'll skip REFACTOR — the GREEN code is fine, no duplication." | REFACTOR is optional, but explicitly mark state IDLE so the hook stops gating Edit|Write. Leaving phase at GREEN during the next cycle's RED step blocks the test author from writing the new test. |
 | "The state file is overhead — I'll skip writing it for this one quick fix." | The state file IS the contract. Without it the hook can't enforce order, and concurrent same-cwd sessions on different branches collide. The slug-scoped path solves the collision; the headers carry branch identity through compaction. |
-| "Sub-agents can write the state file — they're trustworthy." | Single-writer is non-negotiable. If a sub-agent could write `phase: GREEN`, the hook is bypassable by any agent that mis-reads the cycle, and the discipline collapses. Orchestrator writes; agents read (or are pre-inlined the relevant phase by the orchestrator). |
-| "I'll keep the state in JSON — it's more structured." | JSON corrupts on partial write; a half-written `{...}` is unparseable, while half a Markdown file is still readable. Markdown with `## phase` sections is half-readable when truncated; JSON is unparseable. The format choice is for compaction-resilience, not aesthetics. |
+| "Subagents can write the state file — they're trustworthy." | Single-writer is non-negotiable. If a subagent could write `phase: GREEN`, the hook is bypassable by any agent that mis-reads the cycle, and the discipline collapses. Orchestrator writes; agents read (or are pre-inlined the relevant phase by the orchestrator). |
+| "I'll keep the state in JSON — it's more structured." | JSON corrupts on partial write — a half-written `{...}` is unparseable, while a truncated Markdown file with `## phase` sections is still readable. The format choice is for compaction-resilience, not aesthetics. |
 
 ## Definition of Done
 
@@ -111,4 +111,4 @@ A consumer skill correctly applies the TDD cycle when:
 - [ ] REFACTOR phase (if entered) ran the full test suite, not just the cycle's test.
 - [ ] State file ends at `## phase\nIDLE` when the cycle completes; never left at GREEN or REFACTOR.
 - [ ] State file written atomically via mktemp + mv -f; never via direct `>` redirect.
-- [ ] Sub-agents did not write the state file; orchestrator is the single writer.
+- [ ] Subagents did not write the state file; orchestrator is the single writer.

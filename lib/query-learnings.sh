@@ -70,13 +70,18 @@ query_learnings() {
 
   if [ -n "$score_min" ]; then
     # Require a single optional-dot non-negative number (e.g. 0, .5, 1.25).
-    # The looser non-digit-non-dot guard let through "0.0.1", "1.", ".5"
-    # in malformed forms, which jq --argjson then rejected — surfacing as a
-    # silent empty result instead of the documented rc=64.
+    # The regex rejects the multi-dot / trailing-dot malformed forms ("0.0.1",
+    # "1.") that would later make jq error out.
     if ! printf '%s' "$score_min" | grep -Eq '^[0-9]+(\.[0-9]+)?$|^\.[0-9]+$'; then
       echo "query_learnings: --score-min must be a non-negative number (got '$score_min')" >&2
       return 64
     fi
+    # Normalize a leading-dot value (.5 -> 0.5): jq --argjson rejects leading-dot
+    # JSON on strict builds, which the masked jq failure below would otherwise
+    # surface as a silent empty result instead of correct filtering.
+    case "$score_min" in
+      .*) score_min="0$score_min" ;;
+    esac
   fi
 
   if [ -n "$limit" ]; then

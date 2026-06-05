@@ -41,11 +41,11 @@ If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely �
 
 ### 2.1 Runtime-behavior classification (canonical rule)
 
-Used by both Phase 4.3 Step 1 AND Phase 6 Step 3.5. A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query).
+Used by Phase 4.3 Step 1 to decide which `FIX-NOW` findings are test-eligible. A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query).
 
 A `FIX-NOW` finding's description is NON-runtime ("typo-class") if it cites: typo / spelling, cross-reference (link, anchor, ref number), wrong import path, dead code that compiles, comment-only edits, formatting, lint-style issues.
 
-The rule is intentionally prose-based and decided at orchestrator-evaluation time; the per-finding line schema does NOT carry a persisted `runtime-class:` tag — both phases evaluate the rule fresh against the same finding description, so they cannot diverge.
+The rule is intentionally prose-based and decided at orchestrator-evaluation time; the per-finding line schema does NOT carry a persisted `runtime-class:` tag — Phase 4.3 evaluates it fresh against the finding description each run.
 
 ---
 
@@ -62,7 +62,7 @@ Use `AskUserQuestion` (do NOT print options as plain text). When the state-file 
 
 If user picks **"Skip"**, proceed to Phase 5 (no spawn, no state changes, no caveats).
 
-If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — <decision-type in plain English>` (e.g. "automatic fix" / "can be verified with a test" — never the raw taxonomy token, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § plain-English decision-type); each option's `preview` carries the finding's full body (Evidence / Suggested-fix / Confidence / Origin) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop. AUQ has a 4-option cap; when more than 4 eligible findings exist, batch across multiple chained questions (≤4 per call) — never drop or merge options. Aggregate selections across all calls. If user deselects all, treat as "Skip".
+If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — <decision-type in plain English>` (e.g. "automatic fix" / "can be verified with a test" — never the raw taxonomy token, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop); each option's `preview` carries the finding's full body (Evidence / Suggested-fix / Confidence / Origin) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop. AUQ has a 4-option cap; when more than 4 eligible findings exist, batch across multiple chained questions (≤4 per call) — never drop or merge options. Aggregate selections across all calls. If user deselects all, treat as "Skip".
 
 Persist user pick to `approvals[]` with category `test_gate_choice`.
 
@@ -92,11 +92,13 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 """)
 ```
 
+**Overflow caveat (10-test author cap).** The agent authors at most 10 tests. When the eligible set exceeds 10, the un-authored findings still post normally — TDD is additive, never reductive — and the orchestrator surfaces a `## Caveats` note naming them: `N testable findings exceeded the 10-test author cap and post without a failing-test line.`
+
 ---
 
 ## 5. Step 4 — Independent re-verification by the orchestrator
 
-For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (single re-run; the agent already did 3× flake check). Cache invalidation rules governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` (single source of truth). Sub-agent PASS reports are inputs, not evidence; the orchestrator's independent re-run IS the gate.
+For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (single re-run; the agent already did 3× flake check). Cache invalidation rules governed by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` (single source of truth). Subagent PASS reports are inputs, not evidence; the orchestrator's independent re-run IS the gate.
 
 Use `backpressure.sh` to keep failing-test output from flooding context:
 
