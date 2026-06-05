@@ -86,7 +86,8 @@ _red_audit_append() {
 
 # Built-in patterns (parallel arrays).
 # Order matters: longer prefixes before shorter (sk-ant- before sk-).
-# `multiline` flag selects newline-tolerant matching via NUL-substitution.
+# `multiline` flag selects newline-tolerant matching via 0x01-substitution
+# (NUL itself cannot survive command substitution, which is why 0x01 is used).
 _RED_NAMES=(
   jwt
   aws-key

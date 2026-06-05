@@ -501,7 +501,7 @@ update brought a new install path, but in-memory skill bodies still reference
 the old one. Restart and you're done.
 ```
 
-Only emitted when `mode == re-run` AND `/geniro:setup` detected a `plugin.json` version delta vs the version recorded in the prior state file. Fresh `init` runs never emit this.
+Only emitted when `mode == re-run` AND the current `.claude-plugin/plugin.json` version differs from the `plugin_version:` recorded in the prior state file. Init runs write `plugin_version` fresh and never emit this; a prior state file that predates the field (no `plugin_version:`) yields no computable delta, so no warning fires.
 
 ## State file schema
 
@@ -525,6 +525,7 @@ geniro_schema_version: m10a-v1
 worktree: /absolute/path # cross-check on rehydration
 mode: init # init | re-run
 template_dir: /Users/you/.claude/plugins/geniro-claude-plugin@.../abc123
+plugin_version: 2.21.1 # from .claude-plugin/plugin.json; the §5.4 restart-warning compares this against the current plugin.json version (missing on a pre-field state file → no delta computable → no warning)
 detected:
 stack: node/npm
 lang: node
