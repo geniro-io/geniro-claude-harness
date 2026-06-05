@@ -141,7 +141,8 @@ non-resumable-actions: []
 approvals: []
 task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
-deep-mode: <true|false>          # set by the --deep flag (Phase 0); missing reads as false
+prd_mode: true                   # optional, present only when --prd was passed (Phase 0)
+deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); missing reads as false
 ---
 ```
 

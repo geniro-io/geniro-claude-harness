@@ -200,5 +200,5 @@ The rubric is additive — a single hunk can trigger multiple rows (e.g., a dele
 - Reviewer output format: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 - Phase 1 input inlining (DIFF / PLAN / LINEAR / PEER-PR slots): `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 1.
 - Phase 3 dedup + Phase 4 stratify pipeline: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 3 and Phase 4.
-- Cause-path comparison for deleted tests: `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)".
-- Caller-blast for surviving symbols: `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` §1.5.
+- Cause-path comparison for deleted tests: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)".
+- Caller-blast for surviving symbols: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §1.5.

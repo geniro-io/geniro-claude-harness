@@ -55,6 +55,29 @@ if ! command -v _geniro_sha256 >/dev/null 2>&1; then
   _geniro_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 fi
 
+# Branch -> slug derivation, single-sourced in lib/branch-slug.sh so this hook and
+# the sibling enforce-tdd-order.sh compute an identical slug from a branch name (a
+# divergent form misses the producer's state file on every >60-char branch). Inline
+# fallback keeps the hook self-contained on a vendored install without lib/.
+_geniro_slug_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/branch-slug.sh"
+if [ -f "$_geniro_slug_helper" ]; then
+  # shellcheck source=/dev/null
+  source "$_geniro_slug_helper" 2>/dev/null || true
+fi
+if ! command -v _geniro_branch_slug >/dev/null 2>&1; then
+  _geniro_branch_slug() {
+    local b="${1:-}"
+    if [ -z "$b" ]; then
+      b="$(git branch --show-current 2>/dev/null || true)"
+      [ -z "$b" ] && b="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    fi
+    local s
+    s="$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
+    s="${s:0:60}"
+    printf '%s' "${s%-}"
+  }
+fi
+
 # Find the nearest .geniro/safety.json walking up from cwd. Mirrors
 # file-protection.sh / block-dangerous-git.sh so the auto-archive opt-out is
 # honored regardless of cwd depth (a single cwd-relative check misses the
@@ -90,14 +113,7 @@ if [ -z "${branch:-}" ]; then
   branch="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 fi
 
-slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
-# First 60 chars, then strip a dash the cut may have left at the boundary —
-# identical to within-skill-state-handoff.md §Slug rules and the sibling
-# enforce-tdd-order.sh hook. A divergent form (e.g. a head-c-52 + hash suffix)
-# computes a slug no producer ever writes, so Tier 1 misses on EVERY >60-char
-# branch and silently forces the slower Tier-2 branch-frontmatter fallback.
-slug="${slug:0:60}"
-slug="${slug%-}"
+slug="$(_geniro_branch_slug "$branch")"
 
 # ---------------------------------------------------------------------------
 # Active T1.5 state-file resolution

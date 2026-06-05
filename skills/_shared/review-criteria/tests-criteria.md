@@ -151,8 +151,8 @@ grep -c "expect\|assert\|should" test_file.js
 
 **How to detect:**
 ```bash
-# Find vague test names
-grep -n "test_.*\|it\s*(\s*'[^']*should.*\|fit\|fdescribe" test_file.js | grep -E "do|work|pass|test"
+# Find vague test names (whole-word vague markers; not a bare "test" which re-matches every test_ name)
+grep -n "test_.*\|it\s*(\s*'[^']*should.*\|fit\|fdescribe" test_file.js | grep -wiE "do|work|works|pass|stuff|thing"
 # Look for complex setup
 grep -B10 "expect\|assert" test_file.js | grep -c "setup\|fixture\|mock"
 # Find mocked dependencies
@@ -181,8 +181,8 @@ grep -n "jest.mock\|sinon.stub\|mock\|spy" test_file.js
 # Find async tests without await
 grep -n "async.*=>\|function.*async" test_file.js
 grep -A5 "async.*=>" test_file.js | grep -v "await\|done\|return"
-# Promise tests without.catch
-grep -n "\.then\|\.catch" test_file.js | grep -v ".catch"
+# Promise tests without .catch
+grep -n "\.then\|\.catch" test_file.js | grep -v "\.catch("
 # Tests with setTimeout
 grep -n "setTimeout\|setInterval" test_file.js | grep -v "jest.useFakeTimers\|sinon.useFakeTimers"
 # Find untested event emitters / streams

@@ -16,7 +16,7 @@ Comprehensive code review using parallel multi-agent analysis.
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` — Phase 4.2 per-finding verifier contract (every CRITICAL/HIGH/MEDIUM survivor of §4.1).
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md` — Phase 4.3 test-confirmation gate.
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` — Phase 6 action-gate handoff + Post drill.
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` · `incoming-mode-reference.md` · `tdd-mode-reference.md` — PLAN CONTEXT load / INCOMING mode / `--tdd` semantics.
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` · `tdd-mode-reference.md` — PLAN CONTEXT load / `--tdd` semantics.
 
 ---
 
@@ -111,7 +111,7 @@ State.md `phase: triage`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/revie
 Summary of what Phase 1 does:
 
 1. **Step 0 — Workspace setup** — passive context detection (IN_WORKTREE, REVIEW_HANDOFF, DEBUG_HANDOFF, IMPLEMENT_TASK_STATE, BRANCH_MATCHES_TASK_SLUG, PROTECTED_BRANCH, TARGET_PR_NUMBER, IN_TARGET_WORKTREE) followed by a decision tree with auto-continue branches for in-worktree continuing-work signals. Workspace AUQ (single question — workspace decision) fires only when ambiguous. Inline modifier overrides (`worktree` / `no-worktree` / `current-branch` / `new-branch`) win deterministically. Approvals persist as `review_workspace_setup` to survive compaction and Round 2+ re-runs. /geniro:review never mutates workflow tracker status — that is `/geniro:plan` and `/geniro:implement` territory; /geniro:review reads tracker context only (see item 5). Fires BEFORE all subsequent items so they operate on the correct working tree. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §0.
-2. **Input mode detect** — OUTGOING / INCOMING / pr-ref routing per `$ARGUMENTS`. Anchored NL signals ("process review on #N") route to INCOMING; PR ref + K>0 unresolved threads fires Mode AUQ.
+2. **Input parsing** — resolve the review-target shape from `$ARGUMENTS` (empty / branch name / file paths / diff range / PR ref). A PR ref additionally drives the thread-state + existing-review fetch in item 4. /geniro:review always produces a review of the target — it does not process reviewer comments left on your own PR.
 3. **Scope resolution** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Resolve the review target only from explicit PR-ref forms; running `gh pr list` to invent a target reviews a PR the user never asked about.
 4. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`. From the thread-state fetch (`reviewThreads[]` per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1), persist every `isResolved == true` thread's `path:line` to state.md frontmatter `resolved-threads-snapshot:` so the Phase 6 Post drill's §7.1 input-side dedup can exclude findings overlapping already-resolved threads. Leave `resolved-threads-snapshot: null` when no PR ref or the fetch fails (§7.1 treats absence as "no dedup"). Also fetch the existing PR review surface per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1.1 — both the formal-review summaries (CHANGES_REQUESTED / COMMENTED, human + bot) and inline review-bot comment bodies (CodeRabbit and other `[bot]` reviewers) — persist to `pr-formal-reviews-snapshot:` + `pr-bot-comments-snapshot:`, and feed both to reviewers as prior-context (§2.3).
 5. **Workflow integrations** — workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A); glob both `./.geniro/workflow/*.md` (cwd-local — uncommitted local edits win) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback). Read them, apply tracker-ID regex against `$ARGUMENTS` + `pr.title` + `pr.body`, AND when a spec.md is resolvable (via `--plan <path>`, `geniro-plan:` PR-body line, walk-up `.geniro/planning/*/spec.md`, or canonical project paths) parse its frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read entries). Merge sources by `(kind, issue_id)` — `$ARGUMENTS` reference wins on conflict (user just typed it, fresher signal); PR body next; spec.md frontmatter as fallback. On Linear match with MCP available: fetch issue (+ parent epic + sibling sub-tasks). Build `LINEAR CONTEXT:` block. Persist `linear-task-ref:` + `linear-parent-ref:` to state.md frontmatter, derived from the deduplicated merged list. Read-only — /geniro:review never mutates tracker state via MCP. Fail-open if MCP unavailable.
@@ -216,11 +216,11 @@ State.md `phase: llm-spawn`.
 | 5 | optimizations | Always fires — no exception |
 | 6 | guidelines | Always fires — no exception |
 | 7 | conventions | Always fires — no exception. Owns repo-modal-pattern findings exclusively (explicit authored rules belong to rules-compliance, #12) |
-| 8 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` |
+| 8 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` |
 | 9 | design | Fires when UI globs match changed files (see §2.5 UI-file detection rule) |
 | 10 | pr-metadata | Fires when `pr-ref:` is non-none |
 | 11 | spec-compliance | Fires when PLAN CONTEXT is non-none AND (`pr-ref:` non-none OR risk-tier:high) |
-| 12 | rules-compliance | Fires when the repo contains any authored rule file (see §2.8 rules-file detection rule). Checks the diff against the project's own rule files (Cursor / Claude / AGENTS / etc.), citing the exact rule. Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md` |
+| 12 | rules-compliance | Fires when the repo contains any authored rule file (see §2.8 rules-file detection rule). Checks the diff against the project's own rule files (Cursor / Claude / AGENTS / etc.), citing the exact rule. Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` |
 | +N | custom:* | Fires per user-authored `.geniro/instructions/review-extra/<slug>.md`, discovered in Phase 1.5 |
 
 **Spawn-batch size.** Phase 2 spawns a reviewer-agent for every row whose trigger fires — trimming the set silently drops a coverage dimension the user expects:
@@ -288,11 +288,11 @@ After the parallel batch returns, narrate completion before transitioning to §3
 Surface any `status: failed` entries by their plain-English dim name (e.g., "PR metadata reviewer failed — see `## Errors`"), not by raw slug.
 
 **Criteria files** (read once at Phase 2 entry):
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `optimizations-criteria.md` · `guidelines-criteria.md` · `conventions-criteria.md` · `regressions-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/design-criteria.md` (conditional per §2.5)
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/pr-metadata-criteria.md` (conditional)
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/spec-compliance-criteria.md` (conditional per §2.6)
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md` (conditional per §2.8)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `optimizations-criteria.md` · `guidelines-criteria.md` · `conventions-criteria.md` · `regressions-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/design-criteria.md` (conditional per §2.5)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/pr-metadata-criteria.md` (conditional)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` (conditional per §2.6)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` (conditional per §2.8)
 - Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (≤10 per project)
 
 ### 2.4 `--simplify` flag weighting
@@ -305,7 +305,7 @@ When `$ARGUMENTS` contains `--simplify` (semantic parse — matches `simplify`, 
 - **bugs** reviewer — Quality bug-class extensions (defensive code that masks bugs, redundant null checks).
 - **optimizations** reviewer — Efficiency criteria (verbose loops, unnecessary allocations, sync I/O in async paths).
 
-Pre-pend body read from `${CLAUDE_PLUGIN_ROOT}/skills/review/simplify-criteria.md`.
+Pre-pend body read from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md`.
 
 The flag biases existing reviewers' attention; it does not add new dimensions, change output schema, or alter the reporter-mode handoff contract.
 
@@ -329,7 +329,7 @@ Feed pass/fail into the Phase 3 §3.3 KEEP/FILTER judgment. Failing build is aut
 
 ### 2.8 Rules-file detection rule (rules-compliance dim trigger)
 
-Fires when the repo contains at least one authored rule file — any of `CLAUDE.md` (root or nested), `.claude/rules/**/*.md`, `.cursor/rules/**/*.mdc`, `.cursorrules`, `.windsurfrules`, `.windsurf/rules/**`, `.github/copilot-instructions.md`, `AGENTS.md`, `.agents.md`. Detect via Glob at Phase 2 entry; skip the dimension when none exist — a repo with no authored rules has nothing for this dimension to check, so it never bloats the always-fire set. The reviewer discovers the files, parses their path-scopes (`.mdc` `globs:`, `.claude/rules` `paths:`), and checks the diff against each in-scope rule per `${CLAUDE_PLUGIN_ROOT}/skills/review/rules-compliance-criteria.md`.
+Fires when the repo contains at least one authored rule file — any of `CLAUDE.md` (root or nested), `.claude/rules/**/*.md`, `.cursor/rules/**/*.mdc`, `.cursorrules`, `.windsurfrules`, `.windsurf/rules/**`, `.github/copilot-instructions.md`, `AGENTS.md`, `.agents.md`. Detect via Glob at Phase 2 entry; skip the dimension when none exist — a repo with no authored rules has nothing for this dimension to check, so it never bloats the always-fire set. The reviewer discovers the files, parses their path-scopes (`.mdc` `globs:`, `.claude/rules` `paths:`), and checks the diff against each in-scope rule per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md`.
 
 ---
 
@@ -436,7 +436,7 @@ Summary:
 
 ### 4.4 `--simplify` flag interaction
 
-`--simplify` does NOT change Phase 4 thresholds or validator behavior. Simplify severities map P1→HIGH, P2→MEDIUM, P3→informational (per `${CLAUDE_PLUGIN_ROOT}/skills/review/simplify-criteria.md`): P1/P2 pass through Phase 4 like native HIGH/MEDIUM findings; P3 is filtered out of Phase 4 unless `--tdd` or risk-tier:high.
+`--simplify` does NOT change Phase 4 thresholds or validator behavior. Simplify severities map P1→HIGH, P2→MEDIUM, P3→informational (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md`): P1/P2 pass through Phase 4 like native HIGH/MEDIUM findings; P3 is filtered out of Phase 4 unless `--tdd` or risk-tier:high.
 
 ---
 
@@ -446,7 +446,7 @@ State.md `phase: persist`.
 
 ### 5.1 Handoff file write
 
-Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per row. `<PRIMARY_ROOT>` resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. `<PRIMARY_ROOT>` resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 
 **Write via `atomic_state_write`** — never direct Edit/Write on the canonical state path (the `enforce-state-helper` hook flags direct writes in warn-mode initially; it flips to hard-block in a future release).
 
@@ -482,7 +482,6 @@ note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
 ```
 
 Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`. After a successful emit, echo `Recorded learning: <summary>` while the report is being assembled (not after it's delivered), per that file's §"Caller contract".
-Also emit `convention` learnings — not for this skill; /geniro:implement owns convention emits.
 
 ### 5.4 PR comment posting (conditional — gated by Phase 6)
 

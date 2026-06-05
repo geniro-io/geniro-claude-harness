@@ -31,6 +31,8 @@ if [ -z "${_AS_DEPS_LOADED:-}" ]; then
   _as_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck disable=SC1091
   source "$_as_script_dir/repo-root.sh"
+  # shellcheck disable=SC1091
+  source "$_as_script_dir/score-formula.sh"
   _AS_DEPS_LOADED=1
 fi
 
@@ -68,24 +70,10 @@ archive_stale_learnings() {
   # Compute score per entry, identify stale candidates, optionally write.
   # Stale criterion AND-ed: score < 0.1 AND age > 180d AND access_count == 0
   # AND not-already-deprecated. Reports per-type breakdown to stderr.
-  local stale_filter='
-    def recency_decay($age_days; $tau):
-      if $age_days == null then 0.5
-      else (- ($age_days / $tau)) | exp end;
-    def trust_weight:
-      if . == "verified" then 1.0
-      elif . == "retrieved" then 0.66
-      else 0.33
-      end;
-    def access_weight($n):
-      1.0 + (($n + 1) | log10);
-    # Dampened recurrence factor — identical to query-learnings --score-min so
-    # archival never reaps an entry the ranker would keep. A count of 1 (or an
-    # absent field, treated as 1) yields ln(1)=0 → factor 1.0, so pre-field and
-    # never-repeated entries score exactly as before this factor was added.
-    def recurrence_weight($n):
-      1.0 + (([$n, 1] | max) | log);
-
+  # Score-formula weight functions are single-sourced in lib/score-formula.sh so
+  # the archiver and the ranker (query-learnings --score-min) never drift — a
+  # divergence would make archival reap entries the ranker would still surface.
+  local stale_filter="$GENIRO_SCORE_JQ_DEFS"'
     fromjson?
     | . as $entry
     | (try (.ts // "" | fromdateiso8601) catch null) as $epoch

@@ -4,7 +4,7 @@ Canonical contract for Reporter-class skills: running under a dynamic `Workflow(
 
 Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:investigate`.
 
-## The three invariants that bind identically inside a Workflow run
+## The four invariants that bind identically inside a Workflow run
 
 ### 1. Reporter boundary
 
@@ -36,7 +36,7 @@ A reporter does not apply fixes, and it does not record "how should X be fixed?"
 
 ## Why this binds
 
-Wrapping a skill in a workflow makes the model treat the workflow as the authority and the skill body as advisory — the contract then evaporates. The skill body is the authority; the workflow only changes how its subagent fan-out runs. The three invariants above bind regardless of the wrapper.
+Wrapping a skill in a workflow makes the model treat the workflow as the authority and the skill body as advisory — the contract then evaporates. The skill body is the authority; the workflow only changes how its subagent fan-out runs. The four invariants above bind regardless of the wrapper.
 
 ## Anti-rationalization
 

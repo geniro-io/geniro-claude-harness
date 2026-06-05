@@ -225,11 +225,11 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 | Dimension | Criteria file | Focus |
 |-----------|---------------|-------|
-| `bugs` | `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md` | Logic errors, null/undefined, off-by-one, race conditions, broken invariants |
-| `security` | `${CLAUDE_PLUGIN_ROOT}/skills/review/security-criteria.md` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 |
-| `architecture` | `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md` | Layering, coupling, abstractions, dead code, duplication, naming, file placement. **Also covers docs-staleness**: explicit check for README / architecture-doc / contributing-guide references to patterns or files renamed in Phase 2. **Also covers spec-compliance**: explicit check that the Phase 2 diff matches spec.md scope — no unspec'd files touched, no spec'd requirements unaddressed. **Also covers parallel-path symmetry (mirror-gap)** per architecture-criteria.md §1.6: when the diff adds a guard / replacement / cleanup on one path, verify every sibling path sharing the invariant got the same treatment. |
-| `tests` | `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases. **Pre-condition:** tests are green per Phase 2; this dim NEVER sees failing tests. |
-| `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities. |
+| `bugs` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` | Logic errors, null/undefined, off-by-one, race conditions, broken invariants |
+| `security` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/security-criteria.md` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 |
+| `architecture` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` | Layering, coupling, abstractions, dead code, duplication, naming, file placement. **Also covers docs-staleness**: explicit check for README / architecture-doc / contributing-guide references to patterns or files renamed in Phase 2. **Also covers spec-compliance**: explicit check that the Phase 2 diff matches spec.md scope — no unspec'd files touched, no spec'd requirements unaddressed. **Also covers parallel-path symmetry (mirror-gap)** per architecture-criteria.md §1.6: when the diff adds a guard / replacement / cleanup on one path, verify every sibling path sharing the invariant got the same treatment. |
+| `tests` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases. **Pre-condition:** tests are green per Phase 2; this dim NEVER sees failing tests. |
+| `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities. |
 
 **Code-style pre-inline slot (code-quality + architecture reviewers only):** if the Phase 1 / Phase 3-entry L4 loader echoed `Loaded code-style.md …`, pre-inline that content under a `## Code-style instructions` header per the reviewer-agent contract. If the loader echoed `No code-style.md found — skipping.`, omit the slot. Bugs / security / tests reviewers do NOT get the slot (code-style is orthogonal).
 
@@ -266,7 +266,7 @@ The orchestrator pre-resolves these slots:
 | `CHANGED_FILES` | Newline-separated list of paths in DIFF |
 | `TEST_DIR_HINT` | Project test directory pattern from CLAUDE.md "Essential Commands" (e.g., `tests/`, `__tests__/`, `*.test.ts` co-located) |
 | `TEST_FRAMEWORK` | Detected from package.json / pyproject.toml / Cargo.toml (e.g., `vitest`, `jest`, `pytest`, `go test`) |
-| `TESTS_CRITERIA` | Pre-inlined `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` body |
+| `TESTS_CRITERIA` | Pre-inlined `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` body |
 | `PRIOR_REVIEW_FINDINGS` | Round 1: `none — first round`. Round 2+: CRITICAL/HIGH findings from Round N-1 reviewers (pre-inlined) |
 | `OUTPUT_PATH` | `<task-dir>/.adversarial-out.md` |
 
@@ -376,7 +376,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 5. **Targeted interaction.** Using refs from step 3, perform 1-3 actions that exercise the specific behavior changed in this run. Cap at 5 total interactions. Re-snapshot after each to get fresh refs.
 
-6. **Responsive sweep** — only when the diff includes any `.css`/`.scss`/`.sass`/`.less`/`.styled.*` file, OR a JSX/TSX hunk touching `className`, `style`, or a CSS-module import. Call `mcp__plugin_playwright_playwright__browser_resize` to `{width: 375, height: 667}` (mobile) then `{width: 1280, height: 800}` (desktop). Snapshot each. Skip entirely for pure logic changes.
+6. **Responsive sweep** — only when the diff includes any `.css`/`.scss`/`.sass`/`.less`/`.styled.*` file, OR a JSX/TSX hunk touching `className`, `style`, or a CSS-module import. Call `mcp__plugin_playwright_playwright__browser_resize` at the three breakpoints `{width: 375, height: 667}` (mobile), then `{width: 768, height: 1024}` (tablet), then `{width: 1440, height: 900}` (desktop). Snapshot each. Skip entirely for pure logic changes.
 
 7. **Visual record.** Final `mcp__plugin_playwright_playwright__browser_take_screenshot` with `fullPage: true`, saved under `<task-dir>/playwright-verify.png`. This is the artifact — do NOT claim a pixel-diff against a prior state (no baseline image exists).
 

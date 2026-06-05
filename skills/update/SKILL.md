@@ -281,7 +281,7 @@ For each entry, in file order (newest cohort first — entries are independent, 
 3. If output non-empty → AUQ:
 - **Question:** `Breaking change in v<X.Y.Z>: <change-name>. <Action required text>. Auto-detected N affected files: <first 10 lines truncated>`
 - **Options:**
-- `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry via `bash -c` (same shell-safety reason as the detect). If the entry has no `Auto-fix:` field (manual-only migration), fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` via `bash -c` to verify — if still affected, warn and continue.
+- `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry via `bash -c` (same shell-safety reason as the detect). If the entry's `Auto-fix:` value begins with `manual-only` (or the field is absent), fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` via `bash -c` to verify — if still affected, warn and continue.
 - `Show me how to fix manually` — Print the `Action required:` text with exact commands; continue to next entry.
 - `Skip for now` — Log skipped; continue to next entry.
 - `Cancel migration walk` — Stop here; log remaining; terminate and emit final report.
@@ -290,7 +290,7 @@ After last entry: terminate and emit final report.
 
 If MIGRATION.md is present but malformed (cannot parse the heading structure), skip Phase 4 with one warning line: `[warn] MIGRATION.md present but malformed — proceeding without walk`.
 
-**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. Entries without `Auto-fix:` (marked `Auto-fix: manual-only`) require user action — print the manual steps instead.
+**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. Entries whose `Auto-fix:` value is `manual-only` require user action — print the manual steps instead.
 
 ## Done — Final report
 

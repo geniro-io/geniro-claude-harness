@@ -30,8 +30,11 @@ if [ -z "$MSG" ]; then
     # Each line is one event; assistant turns have type=="assistant" and message.content[].type=="text".
     # `tac` is GNU-only; stock macOS has `tail -r`. Fall back so the transcript
     # path is not silently disabled on macOS (which would defeat this warning).
+    # Read each line as raw text and `fromjson?` it so a single malformed line is
+    # skipped rather than aborting the whole stream (which would drop the last
+    # assistant turn and silently disable this warning).
     MSG=$({ tac "$TRANSCRIPT_PATH" 2>/dev/null || tail -r "$TRANSCRIPT_PATH" 2>/dev/null; } \
-      | jq -r 'select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' 2>/dev/null \
+      | jq -rR 'fromjson? | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' 2>/dev/null \
       | head -1 || echo "")
   fi
 fi

@@ -7,7 +7,7 @@ State.md `phase: triage` during this phase.
 ## Contents
 
 - §0 Step 0 — Workspace setup
-- §1 Input mode detection (3-mode routing)
+- §1 Input parsing + PR thread-state fetch
 - §2 Scope resolution
 - §3 PR-ref input parsing
 - §3.5 Workflow integrations (issue-tracker fetch)
@@ -169,31 +169,28 @@ After Step 0 settles, every subsequent Phase 1 step and downstream phases run fr
 
 ---
 
-## 1. Input mode detection (3-mode routing)
+## 1. Input parsing + PR thread-state fetch
 
-The pre-step routes `$ARGUMENTS` to exactly one of OUTGOING / INCOMING / pr-ref-driven flow:
+The pre-step resolves the review target from `$ARGUMENTS`, and for a PR ref fetches thread state that feeds downstream dedup and review-ingest:
 
-| Mode | Trigger | Routing |
-|---|---|---|
-| OUTGOING (default) | empty `$ARGUMENTS`, branch name, file paths, or diff range | Phase 1.5 mechanical pre-pass |
-| INCOMING | PR ref + computed `K > 0` unresolved threads (after AUQ pick) OR anchored NL signals ("process review on #N", "respond to review #N", "incoming review #N") | `incoming-mode-reference.md` Phase I |
-| PR ref + K=0 / K=unknown | `gh` fetch fail-open or no unresolved threads | OUTGOING (skips AUQ) |
+| Input shape | Routing |
+|---|---|
+| empty `$ARGUMENTS`, branch name, file paths, or diff range | Phase 1.5 mechanical pre-pass |
+| PR ref (`#1234` / PR URL) | resolve owner/repo/number → thread-state + existing-review fetch below → Phase 1.5 |
+
+/geniro:review always authors a review of the target. It does not process reviewer comments left on your own PR — that is the author's job, done via the PR itself or by routing an actionable comment to `/geniro:implement`.
 
 **PR-ref resolution.** Parse `<owner>/<repo>/<number>` from `$ARGUMENTS`. For a full PR URL, parse the path segments directly; for bare PR number (`#1234` or `1234`), resolve `<owner>/<repo>` from the current repo via `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`.
 
-**Thread-state fetch.** MCP-preferred: `mcp__github__pull_request_read` with the resolved owner/repo/number; consume `reviewThreads[]` from the returned payload directly. Fallback when MCP is unavailable:
+**Thread-state fetch.** Feeds the `resolved-threads-snapshot:` (Phase 1 item 4 — Post-drill input-side dedup) and the existing-review ingest (§1.1). MCP-preferred: `mcp__github__pull_request_read` with the resolved owner/repo/number; consume `reviewThreads[]` from the returned payload directly. Fallback when MCP is unavailable:
 
 ```bash
 gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -F cursor=null -f query='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{isResolved isOutdated path line}}}}}'
 ```
 
-Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatenate `nodes[]` across pages — typical PR completes in 1-3 calls, stays under rate-limit budget). Compute `K = count(nodes where isResolved == false && isOutdated == false)`. Outdated threads are excluded from K (referenced code rewritten; comment stale).
+Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatenate `nodes[]` across pages — typical PR completes in 1-3 calls, stays under rate-limit budget). Record each thread's `isResolved` / `isOutdated` / `path` / `line` — resolved threads feed the snapshot; outdated threads are excluded (referenced code rewritten, comment stale).
 
-**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): set K to `unknown`, default routing to OUTGOING, surface `PR review-thread fetch failed — defaulting to Outgoing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open).
-
-**INCOMING AUQ.** When K > 0, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` (substitute the actual PR number for `#N` and the computed count for `K` — do NOT render the literal `#N` or `K`) with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`.
-
-There is **NO `--incoming` flag**. Explicit override into INCOMING is via the anchored natural-language signals above. Bare keywords without a PR-ref anchor route to OUTGOING.
+**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): skip the snapshot (`resolved-threads-snapshot: null`), proceed with the review, and surface `PR review-thread fetch failed — reviewing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open).
 
 ### 1.1 Existing PR review ingest (formal reviews + inline bot comments)
 
@@ -201,7 +198,7 @@ The thread-state fetch above reads thread STATE (`isResolved`/`isOutdated`/`path
 
 Two distinct surfaces carry prior findings: (a) the top-level **formal review** (`reviews(){ state body author }` — APPROVED / CHANGES_REQUESTED / COMMENTED with a summary body, posted by humans AND bots), and (b) **inline review-thread comments** (anchored to `path:line`, mostly bots). A real incident had a run address only the failing-CI commit and inline comments while a teammate's posted formal review — carrying two advisory findings beyond the inline ones — went unread. Read BOTH so neither surface is silently dropped.
 
-For a target PR ref (skip entirely when `INPUT_SHAPE != pr-ref` — OUTGOING runs have no PR to query), extend the thread-state GraphQL to also select comment author + body, OR run a second `gh` call. MCP-preferred path: the `mcp__github__pull_request_read` payload already carries thread comments — read `comments[].author.login` + `comments[].body` from each `reviewThreads[]` node, and the formal reviews too — read `reviews[].state` + `reviews[].body` + `reviews[].author.login`. Fallback GraphQL:
+For a target PR ref (skip entirely when `INPUT_SHAPE != pr-ref` — a branch / diff / file-path input has no PR to query), extend the thread-state GraphQL to also select comment author + body, OR run a second `gh` call. MCP-preferred path: the `mcp__github__pull_request_read` payload already carries thread comments — read `comments[].author.login` + `comments[].body` from each `reviewThreads[]` node, and the formal reviews too — read `reviews[].state` + `reviews[].body` + `reviews[].author.login`. Fallback GraphQL:
 
 ```bash
 gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviews(first:50){nodes{state body author{login} submittedAt}} reviewThreads(first:100){nodes{isResolved isOutdated path line comments(first:10){nodes{author{login} body}}}}}}}'
@@ -368,7 +365,7 @@ Schema-aware:
 1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (11 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).
 2. Else fall back to prose detection with ~3000-char cap.
 
-PLAN CONTEXT body inlined in spec-compliance reviewer spawn prompt only (Phase 2). Other dimensions don't see it.
+PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn prompts (Phase 2). Other dimensions don't see it.
 
 ---
 

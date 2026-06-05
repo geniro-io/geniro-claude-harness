@@ -239,7 +239,7 @@ BRANCH: [from `git branch --show-current`]
 [Pre-inline `git diff <resolved-range>` output AND full contents of every changed source file from Step 1]
 
 ### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
-`${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`
 
 ### Project Test Framework
 - Test command (from CLAUDE.md Essential Commands): [e.g. `pnpm test`, `pytest`]

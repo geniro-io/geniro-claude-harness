@@ -162,9 +162,9 @@ On Phase 1 entry, in order:
 
 | Tier | Refactor behavior |
 |---|---|
-| **Trivial** | 1-2 files, mechanical (rename, single extract). Skip smell-detection. Skip smell-evidence filter. Skip independent reviewer + custom reviewers. Orchestrator authors the plan directly from $ARGUMENTS + scope-files Read; goes straight to Phase 2 execution. |
-| **Small** | Full smell-detection in Phase 1 BUT skip smell evidence (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
-| **Medium** | Full pipeline as specified — orchestrator-inline smell-detect + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
+| **Trivial** | 1-2 files, mechanical (rename, single extract). Skip smell detection. Skip the smell-evidence filter. Skip independent reviewer + custom reviewers. Orchestrator authors the plan directly from $ARGUMENTS + scope-files Read; goes straight to Phase 2 execution. |
+| **Small** | Full smell detection in Phase 1 BUT skip smell evidence (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
+| **Medium** | Full pipeline as specified — orchestrator-inline smell detection + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
 | **Big** | Recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user wants to proceed without planning, require explicit confirmation via `AskUserQuestion` header "Scope": "Run /geniro:plan first" / "Proceed without a plan (risky)". On "Proceed without a plan", Big runs the Medium pipeline. The only difference is user has accepted the added risk of proceeding without architectural review. |
 
 #### 1.3.2 Refactor-specific hard escalation signals (escalate OUT — orthogonal to effort-scaling)

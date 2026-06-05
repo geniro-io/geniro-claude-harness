@@ -79,11 +79,11 @@ State.md `phase: classify`. Low cost — a semantic $ARGUMENTS classification + 
 On Phase 1 entry:
 
 1. **Refresh custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory.
-2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Note: `_CODEBASE_MAP.md` content (if exists) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
+2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). `_CODEBASE_MAP.md` content (if present) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
 3. **Query past learnings** — `query-learnings --tag <kw1> --tag <kw2> --scope global --limit 5` (one `--tag` per keyword inferred from $ARGUMENTS). To find prior answers and avoid duplicate research.
 4. **Cross-layer conflict resolution** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
 
-Echo lines per mandatory.
+Echo the loaded lines per each helper's §Echo contract.
 
 ### Step 1: Parse the question
 

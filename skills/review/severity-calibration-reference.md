@@ -24,7 +24,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Data-loss or data-corruption path (DROP without WHERE; race condition that overwrites user records; missing migration rollback)
 - Hard crash on a documented input (unhandled NPE on common path; stack overflow on bounded recursion; deadlock with documented trigger)
 - Compliance violation with regulatory teeth (PII leak; GDPR/HIPAA scope leak; secret committed)
-- Deletion of a public API / module export / shared type with surviving cross-file callers OR downstream-consumer repo references (the `regressions` dim's deleted-symbol caller-blast signal). Per-dim concrete criteria in `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` Severity Tagging table.
+- Deletion of a public API / module export / shared type with surviving cross-file callers OR downstream-consumer repo references (the `regressions` dim's deleted-symbol caller-blast signal). Per-dim concrete criteria in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` Severity Tagging table.
 
 **Excludes:**
 - Hypothetical risk without a documented trigger ("this could lead to..." without a concrete scenario)

@@ -40,7 +40,7 @@ Each consumer cites this file rather than redefining vocabulary:
 | Skill / file | Where it cites this file |
 |---|---|
 | `/geniro:refactor` | Phase 1 Deepening Opportunities lens (`${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`) — vocabulary grounding before smell detection; the procedure body in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` reads it first too |
-| `/geniro:review` (tests dim) | `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md` — "narrow seams over wide seams" when a behavior is hard to test through the public interface |
+| `/geniro:review` (tests dim) | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` — "narrow seams over wide seams" when a behavior is hard to test through the public interface |
 
 ## Anti-rationalization
 

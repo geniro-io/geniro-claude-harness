@@ -33,7 +33,7 @@ grep -rn "import.*from\|require(" src/ | awk -F: '{print $1, $0}' > /tmp/deps.tx
 for file in $(grep -rl "import\|require" src/); do
 deps=$(grep "import\|require" "$file" | grep -oE "from ['\"]\./[^'\"]+['\"]" | sed "s/from ['\"]\.\\///;s/['\"]//g")  # -oE (portable ERE), not -oP (PCRE) — BSD/macOS grep lacks -P and the snippet exits rc=2
 for dep in $deps; do
-grep -q "$(basename "$file".js)\|$(basename "$file".ts)" "src/$dep"* 2>/dev/null && echo "CIRCULAR: $file <-> src/$dep"
+grep -q "$(basename "$file" .js)\|$(basename "$file" .ts)" "src/$dep"* 2>/dev/null && echo "CIRCULAR: $file <-> src/$dep"
 done
 done
 # Check dependency directions
@@ -96,7 +96,7 @@ When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code
 
 Severity HIGH when the untreated sibling loses or corrupts data; MEDIUM when it degrades gracefully. Anchor the finding at the edited path and name the unedited sibling `path:line`.
 
-This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/review/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence — Phase 3 dedup merges them and treats the agreement as a strong keep signal, so do not suppress your finding on the assumption another dimension will cover it.
+This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence — Phase 3 dedup merges them and treats the agreement as a strong keep signal, so do not suppress your finding on the assumption another dimension will cover it.
 
 ### 1.7. Type design — make illegal states unrepresentable
 
@@ -207,7 +207,7 @@ wc -l file.js | awk '$1 > 500 {print $0}'
 
 ### 6. Performance & Scalability
 
-> **Boundary with optimizations-criteria.md:** below owns architecture-level perf concerns — N+1 query patterns, ORM eager-loading, missing caching/memoization, missing pagination on unbounded queries, sync I/O in async context, O(n²) algorithms. ORM hydration-skip mechanisms (`.lean`, `disableIdentityMap`, `raw:true`, `getRawMany`, `HYDRATE_ARRAY`, `.values`, `.pluck`), column/field projection on the wire, React re-render hygiene, frontend bundle/asset perf, async parallelization, and per-row → bulk INSERT/UPDATE rewrites are owned by the **optimizations** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/optimizations-criteria.md`. If a finding fits both, prefer optimizations when the fix is a query-shape change; prefer architecture when the fix is a module-level redesign (caching layer, pagination contract).
+> **Boundary with optimizations-criteria.md:** below owns architecture-level perf concerns — N+1 query patterns, ORM eager-loading, missing caching/memoization, missing pagination on unbounded queries, sync I/O in async context, O(n²) algorithms. ORM hydration-skip mechanisms (`.lean`, `disableIdentityMap`, `raw:true`, `getRawMany`, `HYDRATE_ARRAY`, `.values`, `.pluck`), column/field projection on the wire, React re-render hygiene, frontend bundle/asset perf, async parallelization, and per-row → bulk INSERT/UPDATE rewrites are owned by the **optimizations** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md`. If a finding fits both, prefer optimizations when the fix is a query-shape change; prefer architecture when the fix is a module-level redesign (caching layer, pagination contract).
 
 - N+1 query patterns (queries inside loops instead of batched/joined queries)
 - Inefficient algorithms (O(n²) where O(n) possible)

@@ -259,7 +259,7 @@ After Write, run these checks (orchestrator-side, no subagent):
 | 7 | `## Steps` section present with ≥1 numbered item | HIGH |
 | 8 | **`risk_class:` field present** | **CRITICAL** |
 | 9 | **`risk_class:` value in `{low, medium, high}`** | **CRITICAL** |
-| 10 | **If `external-send: true`, `risk_class` MUST be `medium` or `high`** | **HIGH** |
+| 10 | **`external-send: true` requires `risk_class: medium` or `high`** | **HIGH** |
 
 On fail: surface the specific failure (check, line, expected). The on-failure rollback depends on **entry mode**:
 
@@ -540,7 +540,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - [ ] All user interactions used `AskUserQuestion`
 - [ ] `.gitignore` re-include rules added on first action created (idempotent)
 - [ ] No `{{placeholder}}` left in any written file
-- [ ] File written has frontmatter `created`, `created-by: geniro:actions`, and `risk_class:`
+- [ ] On create, file written has frontmatter `created`, `created-by: geniro:actions`, and `risk_class:` (validate enforces `risk_class:`; `created`/`created-by` are create-time stamps, not re-validated, so a hand-authored action without them still passes validate)
 - [ ] L2 `discovery` emit fired on successful run with `external-send: true`
 - [ ] Worktree fallback for `run` consulted main worktree only when local registry didn't resolve, and path confirmed via AUQ before executing
 - [ ] `delete` / `edit` refused to operate on actions in a sibling worktree

@@ -118,9 +118,9 @@ PROJECT CONVENTIONS: [paste relevant conventions from CLAUDE.md]
 
 ## Review Criteria
 Read and apply these criteria files:
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`
 
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Return findings as evidence. Do NOT emit an overall verdict — the orchestrating skill synthesizes findings and decides disposition.
 

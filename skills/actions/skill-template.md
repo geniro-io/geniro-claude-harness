@@ -7,7 +7,7 @@ This file is the canonical template for a `/geniro:actions create` output. The p
 | Variable | Source | Example |
 |---|---|---|
 | `{{name}}` | user-provided action name (kebab-case, ≤64 chars) | `pr-notify-slack` |
-| `{{description}}` | derived from interview Q1 + Q2; MUST start with "Use when" and stay ≤250 chars; optional terminal "Skip for …" clause (≤4 categorical items) only when an adjacent action exists | `Use when a PR is opened and you want to summarize it in #eng-reviews. Skip for force-pushed branches.` |
+| `{{description}}` | derived from interview Q1 + Q2; starts with "Use when" and stays ≤250 chars; optional terminal "Skip for …" clause (≤4 categorical items) only when an adjacent action exists | `Use when a PR is opened and you want to summarize it in #eng-reviews. Skip for force-pushed branches.` |
 | `{{model}}` | inferred from complexity; default `inherit` | `inherit` |
 | `{{allowed_tools}}` | derived from Q3 (output/side-effects) | `[Read, Bash(gh *), AskUserQuestion]` |
 | `{{argument_hint}}` | derived from interview; describe expected positional args | `[pr_number]` |
