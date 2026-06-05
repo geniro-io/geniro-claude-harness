@@ -6,7 +6,7 @@ Reference file for the `/geniro:review --simplify` flag. When `--simplify` is pr
 
 Severity reconciliation: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `--tdd` or risk-tier:high).
 
-NOT a new dimension — folds into existing dims. `/geniro:review` is a Reporter and does NOT auto-apply fixes. Users wanting auto-applied fixes pipe `/geniro:review --simplify` output to `/geniro:implement`.
+NOT a new dimension — folds into existing dims. Users wanting auto-applied fixes pipe `/geniro:review --simplify` output to `/geniro:implement`.
 
 (`/geniro:refactor` does NOT reference this file — its smell-detection routes through `existing-abstraction-audit.md` + orchestrator-inline deepening lens + `_shared/refactor-patterns.md`.)
 

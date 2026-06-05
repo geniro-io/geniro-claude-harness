@@ -53,7 +53,7 @@ The description should explain *why* the change is being made, not just *what* c
 
 **How to detect:**
 - Scan the body for "why" signals: words like "because", "to fix", "to address", "motivation", "this enables", "users were", or an explicit "## Why" / "## Motivation" / "## Context" heading.
-- If none present, flag as missing-why. Note: a clear bug-fix title ("Fix off-by-one in pagination") IS the why for trivial fixes (<20 LOC); skip this check for trivial diffs.
+- If none present, flag as missing-why. A clear bug-fix title ("Fix off-by-one in pagination") is itself the why for trivial fixes (<20 LOC); skip this check for trivial diffs.
 
 **Red flag:** non-trivial diff (>20 LOC) with no "because" / "to fix" / motivation heading anywhere in the body.
 

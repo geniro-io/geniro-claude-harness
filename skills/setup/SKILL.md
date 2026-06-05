@@ -380,7 +380,7 @@ prompt="""
 Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
 
 First, Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md and run every check it
-defines (cross-language contamination, template artifact, reference-example contamination) — that
+defines (cross-language contamination, template artifact, generic-placeholder) — that
 file is the single source for the contamination + template-residue criteria, with a per-language
 wrong-token table that catches stack drift this inline list cannot.
 

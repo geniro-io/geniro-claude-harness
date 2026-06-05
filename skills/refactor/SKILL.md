@@ -212,7 +212,7 @@ Risk classification (LOW / MEDIUM / HIGH) and ordering happen in §1.6 (orchestr
 
 Anchor: stay within WORKTREE on BRANCH — orchestrator verifies with `pwd && git branch --show-current` once at entry; abort if either differs.
 
-### 1.5 Orchestrator-side smell evidence + KEEP/FILTER
+### 1.5 Orchestrator-side smell evidence — keep or filter each smell
 
 Skipped for Trivial and Small. The orchestrator gathers evidence on detected smells against repo conventions inline — no subagent spawn (folded under subagent rationalization; light reasoning that fits orchestrator's main context cleanly should not be spawned).
 
@@ -465,7 +465,7 @@ Cleanup is best-effort — failed commands silently OK.
 
 ## State file schema
 
-T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}; body sections (Scope / Baseline / Smells Detected / Filtered smells / Plan / Plan steps / Apply Summary / Accepted Blocks / Review Findings / Persisted approvals / Tool log / Errors / Open Questions / Termination reason). `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
+T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}. `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
 
 ---
 

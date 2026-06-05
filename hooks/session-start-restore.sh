@@ -347,8 +347,8 @@ _fm_block_list_to_jsonl() {
 # Render a non-resumable-actions JSONL stream into Block 5 bullet lines.
 # Structured rendering for known action types, fallback for unknown.
 _render_non_resumable_block() {
-  jq -r '
-    .action as $a
+  jq -rR 'fromjson? // empty
+    | .action as $a
     | (.["completed-at"] // "?") as $c
     | if $a == "git-push" then
         "  - git-push (target: \(.target // "?"), ref: \(.ref // "?"), completed: \($c))"
@@ -444,8 +444,8 @@ _body_section_to_jsonl() {
 # Filter: resolved entries are excluded — legacy `resolved: "true"` OR canonical
 # `status: resolved|wontfix`; default (neither set) renders.
 _render_errors_block() {
-  jq -r '
-    if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") then empty
+  jq -rR 'fromjson? // empty
+    | if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") then empty
     else
       "  - \(.ts // "?") · \(.tool // "?") `\(.detail // "")` failed: \(.error // "(no error message)")\n      attempted_fix: \(.attempted_fix // "?") — did NOT resolve"
     end
@@ -454,8 +454,8 @@ _render_errors_block() {
 
 # Render `## Open Questions` body section into Block 5c bullets.
 _render_open_questions_block() {
-  jq -r '
-    if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") then empty
+  jq -rR 'fromjson? // empty
+    | if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") then empty
     else "  - \"\(.question // "?")\""
     end
   ' 2>/dev/null
@@ -464,8 +464,8 @@ _render_open_questions_block() {
 # Render frontmatter `approvals[]` into Block 5d bullets.
 # No filter — producer controls which categories persist.
 _render_approvals_block() {
-  jq -r '
-    "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked in phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
+  jq -rR 'fromjson? // empty
+    | "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked in phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
   ' 2>/dev/null
 }
 

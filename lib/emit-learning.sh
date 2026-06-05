@@ -249,13 +249,16 @@ emit_learning() {
   local line
   line=$(printf '%s' "$rebuilt" | jq -c .)
 
-  # Byte count, not character count — ${#line} counts characters, but PIPE_BUF
-  # atomicity is a byte limit; multibyte content just under 4096 chars can
-  # exceed 4096 bytes and silently skip the guard.
+  # Byte count, not character count — ${#line} counts characters, but the append
+  # cap is a byte limit; multibyte content just under 4096 chars can exceed 4096
+  # bytes and silently skip the guard. Reserve 2 bytes for the newline framing
+  # atomic_state_append adds, so the bytes actually written stay within the 4096
+  # ceiling (PIPE_BUF caveat: 4096 on Linux, only 512 on macOS — see
+  # atomic-state-write.md §Constraints).
   local line_bytes
   line_bytes=$(printf '%s' "$line" | wc -c | tr -d ' ')
-  if [ "$line_bytes" -gt 4096 ]; then
-    echo "emit_learning: serialized entry exceeds 4096 bytes (${line_bytes}); atomicity not guaranteed — consider shrinking body" >&2
+  if [ "$line_bytes" -gt 4094 ]; then
+    echo "emit_learning: serialized entry + framing exceeds 4096 bytes (${line_bytes}); atomicity not guaranteed — consider shrinking body" >&2
     return 68
   fi
 

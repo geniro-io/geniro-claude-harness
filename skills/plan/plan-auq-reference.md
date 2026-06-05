@@ -65,12 +65,12 @@ Two things to confirm before I lock the approach:
   Authorization header; 401 on missing/invalid. Test: `expect(401)...code: 'UNAUTHENTICATED'`.
 - Session cookie — adds `@UseGuards(SessionGuard)`; reads the `session_id` cookie;
   mirrors `/auth/session.spec.ts`; same 401 shape.
-- Skip — record assumption "endpoint uses JWT (default)" in section 4 for /geniro:implement to verify.
+- Skip — record assumption "endpoint uses JWT (default)" in the Assumptions section for /geniro:implement to verify.
 
 **Rate limit** — enforce a per-user rate limit?
 - Yes — reuse `RateLimitGuard` (src/common/rate-limit.guard.ts:18); 60 req/min/user; 429 on exceed.
 - No — unlimited; matches sibling read-only endpoints.
-- Skip — record assumption "no rate limit" in section 4.
+- Skip — record assumption "no rate limit" in the Assumptions section.
 ```
 
 Then the LEAN batched AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted:
@@ -85,7 +85,7 @@ questions:
       - label: "Session cookie"
         description: "@UseGuards(SessionGuard); reads session_id cookie."
       - label: "Skip — assume JWT"
-        description: "Recorded in section 4 Assumptions for /geniro:implement to verify."
+        description: "Recorded as an assumption for /geniro:implement to verify."
   - header: "Rate limit"
     question: "Should the endpoint enforce a per-user rate limit?"
     options:
@@ -94,7 +94,7 @@ questions:
       - label: "No — unlimited"
         description: "Matches sibling read-only endpoints."
       - label: "Skip — assume no limit"
-        description: "Recorded in section 4 Assumptions."
+        description: "Recorded as an assumption."
 ```
 
 These two questions are independent — auth method does not change the rate-limit options — so they ship in one call. A dependent pair (e.g., "Which datastore?" → then "Which migration tool?" whose options depend on the datastore pick) fires sequentially instead. When every option is self-explanatory in one line, skip the message and fire the AUQ directly. The ≤5-total cap holds across calls; chain a second call if more than 4 independent questions exist rather than dropping or merging any.

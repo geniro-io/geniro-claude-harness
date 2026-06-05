@@ -28,10 +28,10 @@ For every pattern category checked, follow this recipe before emitting any findi
 2. **Identify the file kind.** Component file? Service? Test? Schema? Migration? Hook? The kind determines which siblings are relevant.
 3. **Glob siblings of the same kind.** Same directory first; then analogous directories if the immediate parent has fewer than 3 siblings (`src/components/Button.tsx` → also check `src/ui/`, `packages/*/components/`).
 4. **Compute the modal frequency.** For each pattern category, count each variant across siblings.
-5. **Apply the 80% modal threshold.** Emit a finding ONLY if one variant accounts for ≥80% of N≥3 siblings.
+5. **Apply the 80% modal threshold.** Emit a finding only when one variant accounts for ≥80% of N≥3 siblings.
 6. **Skip ambiguous splits.** A 60/40 or three-way split means multiple valid patterns coexist — flagging would be bikeshedding. Stay silent.
 7. **Skip when N<3.** Fewer than 3 siblings makes the modal threshold unreliable. Stay silent — too few samples to call a "house style".
-8. **Cite the supporting samples.** Every emitted finding MUST list the sibling paths that establish the modal. No evidence paths → no finding.
+8. **Cite the supporting samples.** Every emitted finding lists the sibling paths that establish the modal — a finding with no evidence paths is bikeshedding and is not emitted.
 
 The 80% threshold, the N≥3 minimum, and the skip-ambiguous rule are the load-bearing constraints. Apply them at every category — they prevent this dimension from devolving into bikeshedding.
 

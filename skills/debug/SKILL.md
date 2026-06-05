@@ -486,7 +486,7 @@ rm -f ".geniro/state/debug/findings-state.md" 2>/dev/null
 rm -f ".geniro/state/debug/adversarial-tests.md" 2>/dev/null
 ```
 - **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. The reproduction test (authored at project's normal test path) STAYS on disk — it ships with the fix as the regression guard.
-- **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` MUST remain on disk as the escalation handoff channel — do NOT delete. Stays until next debug run overwrites it (single file per branch).
+- **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` must remain on disk as the escalation handoff channel, so do not delete it. Stays until next debug run overwrites it (single file per branch).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
 - **Adversarial mode:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` may remain as audit trail; authored test files stay on disk (unlike scientific-method experiments which get reverted).
 
@@ -522,7 +522,7 @@ Adversarial mode is SKIPPED and the skill reports `"no adversarial pass — <rea
 
 - Empty diff (nothing to test).
 - Diff contains zero production-code files (docs / config / lock / generated only).
-- Diff >50 changed files OR >1000 changed LOC → suggest `/geniro:review` for oversized diffs (the agent's 10-test hard cap wastes budget on diffs this large).
+- Diff >50 changed files OR >1000 changed LOC → suggest `/geniro:review` for oversized diffs (the agent's authored-test hard cap wastes budget on diffs this large).
 
 ### A4. RED-phase workflow
 
@@ -539,7 +539,7 @@ state.md `## Authored Tests` body section tracks each authored test per the colu
 
 ### A5. Spawn template
 
-Literal `Agent(subagent_type="adversarial-tester-agent", ...)` template — pre-inlined diff, framework detection, F→P invariant, hard cap (10 tests), scope anchor — in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §6 (A5 spawn template).
+Literal `Agent(subagent_type="adversarial-tester-agent", ...)` template — pre-inlined diff, framework detection, F→P invariant, authored-test hard cap, scope anchor — in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §6 (A5 spawn template).
 
 ### A6. Findings template
 
@@ -551,7 +551,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ## Stall Diagnosis Taxonomy
 
-When the §1.7 stall gate fires (5 inconclusive hypothesis tests), classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table + AUQ rendering + persistence rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §5.
+When the §1.7 stall gate fires, classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table + AUQ rendering + persistence rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §5.
 
 ---
 

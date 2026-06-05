@@ -2,6 +2,18 @@
 
 **Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), and `/geniro:plan` (manages `_FEATURES.md`).
 
+## Contents
+
+- §API — `update_semantic` signature + append/replace modes
+- §MODE contract — append vs replace
+- §Constraints — bounded-write limits
+- §Lock semantics — per-file O_EXCL lock + rc=11
+- §Replace semantics — prefix-match replacement
+- §Examples
+- §Caller patterns: handling rc=11
+- §Known limitations
+- §Test coverage
+
 ## API
 
 ```bash

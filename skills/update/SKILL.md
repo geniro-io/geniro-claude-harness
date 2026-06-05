@@ -200,7 +200,7 @@ done
 || { MISSING+=("$PLUGIN_PATH/agents/ (empty or missing)"); HASH_FAIL=1; }
 ```
 
-If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
+If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended — a hash-check failure means the download may be corrupted or tampered, so default the user to Cancel):
 
 - **Question:** `Integrity check failed — ${MISSING[*]}. Continue anyway?`
 - **Options:**

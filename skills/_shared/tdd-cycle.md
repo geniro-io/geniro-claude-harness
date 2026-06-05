@@ -99,7 +99,7 @@ The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user 
 | "I'll skip REFACTOR — the GREEN code is fine, no duplication." | REFACTOR is optional, but explicitly mark state IDLE so the hook stops gating Edit|Write. Leaving phase at GREEN during the next cycle's RED step blocks the test author from writing the new test. |
 | "The state file is overhead — I'll skip writing it for this one quick fix." | The state file IS the contract. Without it the hook can't enforce order, and concurrent same-cwd sessions on different branches collide. The slug-scoped path solves the collision; the headers carry branch identity through compaction. |
 | "Subagents can write the state file — they're trustworthy." | Single-writer is non-negotiable. If a subagent could write `phase: GREEN`, the hook is bypassable by any agent that mis-reads the cycle, and the discipline collapses. Orchestrator writes; agents read (or are pre-inlined the relevant phase by the orchestrator). |
-| "I'll keep the state in JSON — it's more structured." | JSON corrupts on partial write; a half-written `{...}` is unparseable, while half a Markdown file is still readable. Markdown with `## phase` sections is half-readable when truncated; JSON is unparseable. The format choice is for compaction-resilience, not aesthetics. |
+| "I'll keep the state in JSON — it's more structured." | JSON corrupts on partial write — a half-written `{...}` is unparseable, while a truncated Markdown file with `## phase` sections is still readable. The format choice is for compaction-resilience, not aesthetics. |
 
 ## Definition of Done
 

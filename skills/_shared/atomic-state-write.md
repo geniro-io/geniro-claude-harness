@@ -114,7 +114,7 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 
 For T3 CRUD files (`instructions/*.md`, `actions/*.md`, etc.), the caller is responsible for optimistic-concurrency mtime check **before** invoking `atomic_state_write`.
 
-**Important:** GNU `stat -c %Y` is Linux-only. BSD/macOS `stat` uses `-f %m`. Without a portable wrapper, the check silently no-ops on macOS (both `stat -c` calls error → both fallback to `echo 0` → values always equal → check disabled). Use this portable helper:
+GNU `stat -c %Y` is Linux-only. BSD/macOS `stat` uses `-f %m`. Without a portable wrapper, the check silently no-ops on macOS (both `stat -c` calls error → both fallback to `echo 0` → values always equal → check disabled). Use this portable helper:
 
 ```bash
 # Portable file-mtime — works on Linux (GNU coreutils) and macOS/BSD.
@@ -201,4 +201,4 @@ Add `enforce-state-helper` to `.geniro/safety.json` `allow_patterns` to silence 
 }
 ```
 
-Note: this only silences the hook; it does NOT make direct `Edit`/`Write` safe. Use only if you understand the atomicity trade-off.
+This only silences the hook; it does not make direct `Edit`/`Write` safe. Use it only if you understand the atomicity trade-off.

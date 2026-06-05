@@ -88,7 +88,7 @@ If PRIOR-ROUND FINDINGS was provided in your input:
 ### Step 2: Analyze Each File
 For each changed file:
 
-1. **Read the full file** (not just the diff) — context matters for understanding intent. The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided (imports, dependencies, referenced modules outside the changed set). When a finding requires reading context files, use Grep to locate the relevant section before reading the full file — targeted reads preserve your turn budget (maxTurns: 100) for review work.
+1. **Read the full file** (not just the diff) — context matters for understanding intent. The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided (imports, dependencies, referenced modules outside the changed set). When a finding requires reading context files, use Grep to locate the relevant section before reading the full file — targeted reads preserve your turn budget for review work.
 2. **Apply criteria checks** — systematically go through your checklist
 3. **Gather evidence** — note specific line numbers and surrounding context
 4. **Score confidence** — rate each potential finding 0-100

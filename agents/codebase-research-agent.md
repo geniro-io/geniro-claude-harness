@@ -75,7 +75,7 @@ Cap: at most 10 full-file Reads per research call. Past that, you're probably sc
 
 ### Step 3 — Synthesize the findings table
 
-Aggregate the evidence from Step 2 into the deliverable shape pinned in DELIVERABLE_SHAPE. Every finding row MUST cite a `file:line` (or `file:line-range`) per Evidence Standard kind 2. Reasoning without a citation is dropped from the report — if you can't point to the code, you don't have evidence yet.
+Aggregate the evidence from Step 2 into the deliverable shape pinned in DELIVERABLE_SHAPE. Every finding row must cite a `file:line` (or `file:line-range`) per Evidence Standard kind 2 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`). Reasoning without a citation is dropped from the report — if you can't point to the code, you don't have evidence yet.
 
 Order findings by relevance to the question (most-relevant first), not by file path or grep-hit order.
 
