@@ -202,7 +202,7 @@ done
 
 If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended pattern from risk_class:high):
 
-- **Question:** `WARNING: integrity check failed — ${MISSING[*]}. Continue?`
+- **Question:** `Integrity check failed — ${MISSING[*]}. Continue anyway?`
 - **Options:**
 - `Abort` — Exit without continuing; investigate (Recommended)
 - `Continue anyway (not recommended)` — Proceed with possibly broken install
@@ -233,7 +233,7 @@ fi
 
 If diff non-empty, AUQ:
 
-- **Question:** `WARNING: user content under .geniro/instructions/ or .geniro/actions/ changed during update. Files affected: <list>. The plugin update should not touch user-authored content.`
+- **Question:** `User content under .geniro/instructions/ or .geniro/actions/ changed during the update. Files affected: <list>. The plugin update should not touch user-authored content — review before continuing.`
 - **Options:**
 - `Show diff and continue (review later)` — Print diff, then continue to the migration walk
 - `Abort — preserve current state` — Exit; investigate manually (Recommended)

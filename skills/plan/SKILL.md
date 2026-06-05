@@ -237,7 +237,7 @@ Do NOT reintroduce these anti-patterns:
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
 | "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly." | Class-A hard caps forbidden by Class-B gates only (Phase 3 ≤5, Phase 7 3-round, Phase 8 3-round) — all escalate to user, not abort. |
 | "Auto-default empty AUQ answer to the Recommended option." | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
-| "Skip persisting Phase 3 clarifying answers — they're trivial." | Metaswarm anti-pattern. Compaction mid-Phase-5 round 2 loses 5 AUQs of user input. `approvals[]` persistence is non-negotiable. |
+| "Skip persisting Phase 3 clarifying answers — they're trivial." | Compaction mid-Phase-5 round 2 loses 5 AUQs of user input — that data-loss is exactly what `approvals[]` persistence prevents, so it is non-negotiable. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4." | Hooks fail for a reason. Investigate root cause, not bypass. CLAUDE.md-level prohibition; honors it. |
 
 ---

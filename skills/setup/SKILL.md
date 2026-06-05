@@ -15,7 +15,7 @@ argument-hint: "[optional: path to template directory]"
 
 ## Path Constraints
 
-**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** Use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
+**Don't use `~` in file paths passed to Read, Write, Edit, or Glob** — these tools don't expand `~`, so it creates a literal `~` directory instead of resolving to the home directory. Use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
 
 Resolve the user's Claude config dir once, honoring `CLAUDE_CONFIG_DIR`:
 

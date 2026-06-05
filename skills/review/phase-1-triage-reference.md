@@ -191,7 +191,7 @@ Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatena
 
 **Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): set K to `unknown`, default routing to OUTGOING, surface `PR review-thread fetch failed — defaulting to Outgoing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open).
 
-**INCOMING AUQ.** When K > 0, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` (substitute the computed K — do NOT render the literal `K`) with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`.
+**INCOMING AUQ.** When K > 0, fire `AskUserQuestion` (do NOT print options as plain text) with header `"Mode"`: `"PR #N has K unresolved threads. Pick mode:"` (substitute the actual PR number for `#N` and the computed count for `K` — do NOT render the literal `#N` or `K`) with options `"Outgoing — author my own review"` / `"Incoming — process reviewer feedback"`.
 
 There is **NO `--incoming` flag**. Explicit override into INCOMING is via the anchored natural-language signals above. Bare keywords without a PR-ref anchor route to OUTGOING.
 
@@ -355,7 +355,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 1. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. Compute the state-file path `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`.
 2. Read the state file if present. If absent, set `prior-round-summary: none — first review` and `round: 1`.
 3. If present AND state-file's `pr-ref:` matches the current run's `pr-ref` (both literal "none" counts as a match): set `round: <prior round + 1>` (defaulting prior to `1` when absent). Capture prior `prior-round-summary:` value into in-memory variable for threading into reviewer prompts as `PRIOR-ROUND FINDINGS:`. Also capture `pr-body:` value into `prior-pr-body` for the pr-metadata reviewer's drift check.
-4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Round-N gate"`, question `"This is round N of review on the same target. Continue or escalate?"`) with options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff"`. On Escalate: write a `## Handoff` to state file, persist `round:` and `prior-round-summary:`, exit cleanly without spawning reviewers (terminal `escalated`).
+4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Review rounds"`, question `"This is round N of review on the same target (substitute the actual round number for N). Continue or escalate?"`) with options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff"`. On Escalate: write a `## Handoff` to state file, persist `round:` and `prior-round-summary:`, exit cleanly without spawning reviewers (terminal `escalated`).
 5. Persist `round:` and `prior-round-summary:` to the state file. Consumed by every Phase 2 reviewer prompt as the `PRIOR-ROUND FINDINGS:` slot.
 
 ---

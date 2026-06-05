@@ -43,7 +43,7 @@ The orchestrator weighs these tags against the finding before applying or propos
 
 | Reasoning | Why it's wrong |
 |---|---|
-| "I already see it duplicated twice — extract now" | Two sites = unknown axis of variation. Wait for the third. Sandi Metz: "Duplication is far cheaper than the wrong abstraction." |
+| "I already see it duplicated twice — extract now" | Two sites don't yet reveal the axis of variation; wait for the third. Duplication is far cheaper to unwind later than the wrong abstraction is. |
 | "I'll add an optional parameter to the existing helper to fit this case" | That's force-fitting. The next caller adds another optional parameter, and the helper becomes a pile of orthogonal flags. Prefer local duplication. |
 | "Skip the Grep — I know that helper doesn't exist" | Project layouts vary, helpers move, your memory of the repo may be stale. The Grep takes 2 seconds and the audit is the single source of truth. |
 | "Extend it anyway — the parameter complication is small" | Small parameter complications compound. Each one masks the original abstraction's intent. Today's optional flag is tomorrow's bug. |

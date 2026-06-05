@@ -8,7 +8,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 Production-code agents that run before a failing test exists turn TDD into a checkbox: tests are added in the same diff, they pass on first run, and the regression they nominally cover is uncatchable. The Test-First Gate fires upstream of the spawn so the orchestrator records (a) whether a failing test already exists, (b) whether one needs authoring, or (c) explicit user opt-out with justification — and routes the agent accordingly.
 
-Skipping the gate is the documented anti-pattern in the superpowers `test-driven-development` "iron law" and in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Forbidden phrases (success claims without an Evidence Block from a captured RED run).
+Skipping the gate is the documented anti-pattern: a success claim made without an Evidence Block from a captured RED run, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Forbidden phrases.
 
 ## When this fires
 
@@ -31,7 +31,7 @@ The "Author failing test first" option is highlighted Recommended in every mode 
 
 ## Always-WAIT contract
 
-This gate is **Always-WAIT** in every mode and lane that fires it (per § When this fires). Auto-defaulting to "Skip TDD" is the documented anti-pattern catalogued in the superpowers `test-driven-development` "iron law" AND in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Forbidden phrases. The user has context the orchestrator does not — e.g., the change is one line of CSS that has no behavior surface, OR the change looks small but is the root cause of a customer-facing bug that absolutely needs a regression test.
+This gate is **Always-WAIT** in every mode and lane that fires it (per § When this fires). Auto-defaulting to "Skip TDD" is the documented anti-pattern — a success claim with no Evidence Block from a captured RED run, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § Forbidden phrases. The user has context the orchestrator does not — e.g., the change is one line of CSS that has no behavior surface, OR the change looks small but is the root cause of a customer-facing bug that absolutely needs a regression test.
 
 Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask. Never auto-default.
 

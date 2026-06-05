@@ -20,7 +20,7 @@ Statistical pattern inference across siblings. Flags deviations from the modal p
 
 ## Methodology — Modal Pattern Inference
 
-Per Allamanis et al. NATURALIZE and Microsoft IntelliCode: structural conventions emerge from repetition. Codify them by sampling.
+Structural conventions emerge from repetition across a codebase, not from an external style guide. Infer them by sampling the existing code and codifying the dominant pattern.
 
 For every pattern category checked, follow this recipe before emitting any finding:
 

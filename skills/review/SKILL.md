@@ -207,7 +207,7 @@ State.md `phase: llm-spawn`.
 
 ### 2.1 Dimension grid (12 built-in dimensions + N custom)
 
-| # | Dimension | Spawn rule (MANDATORY) |
+| # | Dimension | Spawn rule (always-fire or conditional) |
 |---|---|---|
 | 1 | bugs | Always fires — no exception |
 | 2 | security | Always fires — no exception |
