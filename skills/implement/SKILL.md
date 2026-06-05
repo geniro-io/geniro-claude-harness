@@ -617,17 +617,7 @@ State.md `phase: ship` on entry.
 4. **Atomic `non-resumable-actions[]` update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 5. **Emit learnings.** Emit `convention` to learnings.jsonl when ≥3-instance pattern detected; emit `decision` if spec.md recorded a non-trivial approach choice. Default trust = `verified`. Surface promotion suggestion only for `convention` type. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Extract Learnings".
 6. **Update project snapshot.** If Phase 2 added a new module, `update_semantic --file codebase-map --append "..."`. Lock-guarded; rc=11 = recoverable skip.
-7. **Update Docs / Suggest Improvements / Integration Updates / Custom post-ship steps / Cleanup.** Apply reference.md sub-sections in order. Custom post-ship steps run any user-authored `## Additional Steps` subsection from the loaded `<skill>.md` whose anchor is post-ship (e.g. `### After ship`) — these fire after the PR is created (preview-environment creation, PR-description augmentation, external notifications), per `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Custom post-ship steps". Without this step a loaded `### After ship` block has no execution anchor and is silently dropped once Cleanup runs. Cleanup deletes only transient subagent outputs — durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) survive Ship for downstream /geniro:review / /geniro:debug / /geniro:refactor / Adjustment Routing consumers:
-
-```bash
-rm -f "<task-dir>"/.kr-out.md \
-      "<task-dir>"/.ce-out.md \
-      "<task-dir>"/.tr-out.md \
-      "<task-dir>"/.adversarial-out.md \
-      "<task-dir>"/notes.md \
-      "<task-dir>"/playwright-verify.png
-# spec.md, state.md, plan-*.md, milestone-*.md remain
-```
+7. **Update Docs / Suggest Improvements / Integration Updates / Custom post-ship steps / Cleanup.** Apply reference.md sub-sections in order. Custom post-ship steps run any user-authored `## Additional Steps` subsection from the loaded `<skill>.md` whose anchor is post-ship (e.g. `### After ship`) — these fire after the PR is created (preview-environment creation, PR-description augmentation, external notifications), per `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Custom post-ship steps". Without this step a loaded `### After ship` block has no execution anchor and is silently dropped once Cleanup runs. Cleanup deletes only transient subagent outputs — durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) survive Ship for downstream /geniro:review / /geniro:debug / /geniro:refactor / Adjustment Routing consumers. The exact `rm -f` scratch-file list and the preserve set live in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Cleanup" (single source).
 8. **State.md final transition.** Frontmatter `phase: done` (or `ship-committed-only` / `self-review-only` depending on modifier / user pick). The SessionStart hook treats terminal states as "no resume needed".
 
 ### Adjustment routing (post-ship feedback)

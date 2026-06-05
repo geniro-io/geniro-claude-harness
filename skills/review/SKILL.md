@@ -597,32 +597,14 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 
 ## Definition of Done
 
-Code review is complete when:
+These are the load-bearing exit gates — the invariants that, if skipped, make the review incomplete or unsafe. Per-phase mechanics (context loading, mode detection, scoring) live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
 
-- [ ] Phase 1 mode detection ran — Outgoing vs Incoming routed per `$ARGUMENTS` shape
-- [ ] Phase 1 PLAN CONTEXT resolved
-- [ ] Phase 1 Workflow integrations ran when `.geniro/workflow/*.md` non-empty — tracker ID detected (if present in `$ARGUMENTS` / `pr.title` / `pr.body` / spec.md frontmatter `workflow_refs[]`; sources deduplicated by `(kind, issue_id)`; m5-v1 and m5-v2 specs both accepted); `linear-task-ref` + `linear-parent-ref` populated in frontmatter; `LINEAR CONTEXT:` block built (or fail-open caveat surfaced)
-- [ ] Phase 1 Peer-PR scout (PR-ref only) ran with extended scoring — `total_score = file_overlap + linear_bonus`; top-10 kept; per-sibling diff ≤200 lines; total cap 5K chars; PEER-PR CONTEXT fed to (architecture + design + bugs + conventions + optimizations + spec-compliance + regressions)
-- [ ] Phase 1 Round-N counter incremented + AUQ fired when round ≥3; risk-tier stratification ran (`risk-tier: <standard|high>` persisted; 4 downstream knobs adjusted); memory layers loaded (L4 instructions + L3 semantic + L2 learnings)
-- [ ] Phase 1 git-workspace decision ran when input was a PR ref
-- [ ] Phase 1.5 mechanical pre-pass ran — 3 checks (lint / schema / secret scan) with strict-mode secret-scan when risk-tier:high
-- [ ] Phase 2 reviewers spawned and executed in parallel, each prompt carrying PLAN CONTEXT (spec-compliance + regressions dims only) + LINEAR CONTEXT (spec-compliance + pr-metadata + architecture + regressions dims only) + PEER-PR CONTEXT (per Phase 1 Peer-PR scout) + PRIOR-ROUND FINDINGS + Mechanical Pre-pass Findings + alignment-tag instruction (PR metadata flows via the pr-metadata reviewer's existing context channel — no separate `PR CONTEXT:` slot)
-- [ ] Phase 2 spawn list includes `regressions` (8th always-fire dim) — declared in state.md `spawn_dims_declared[]` before parallel batch
-- [ ] Phase 4.2 per-finding verifier spawned for EVERY §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, no severity-scaling); refuted findings demoted to `## Filtered` before §4.3 F→P gate
-- [ ] Phase 2 spec-compliance reviewer spawned when PLAN CONTEXT non-`none` AND (input was a PR ref OR risk-tier:high)
-- [ ] Phase 2 `--simplify` flag prepended simplify criteria to (architecture / conventions / guidelines / bugs / optimizations) dimensions when present
-- [ ] Phase 3 relevance-filter applied; `convergence_count` field populated per finding
-- [ ] Phase 3 §3.3 KEEP/FILTER judgment complete; intent reconciliation applied (plan-authorized divergences demoted to `[INTENT-CHECK]`)
-- [ ] Phase 4.1 multi-signal threshold gate applied (convergence ≥2 OR Evidence-Block + confidence ≥60 OR criteria-pre-resolved marker OR confidence ≥80 fallback; high-tier relaxes signal 4 to ≥70; MEDIUM additionally requires signal #2 / Evidence-Block per Loop Invariant #6)
-- [ ] Phase 4.3 test-gate evaluated (skipped when no eligible findings or user declines); user approval persisted to `approvals[]`
-- [ ] TDD mode only: Phase 4.3 Step 2 AUQ rendered with `(Recommended)` suffix on "Author tests…" (gate itself fired exactly as in Standard mode); failing-test line appended to `[CONFIRMED-BY-TEST]` findings (post set identical to Standard — no filter)
-- [ ] Issues classified by severity (CRITICAL/HIGH/MEDIUM/LOW per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1) and Decision Type ([FIX-NOW] / [TESTABLE] / [PRODUCT-DECISION] / [INTENT-CHECK])
-- [ ] All findings tagged `[NEW]` (in changed lines) or `[PRE-EXISTING]` (in unchanged code) per `agents/reviewer-agent.md` Output Format; build-failure findings additionally tagged per §2.7
-- [ ] Phase 5 state artifact written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`
-- [ ] Phase 5.3 L2 pitfall auto-emit fired when any finding had `convergence_count ≥3`
-- [ ] Phase 6 open-decision gate fired for every `[PRODUCT-DECISION]` finding regardless of severity (LOW PRODUCT-DECISIONs are admitted via §4.1 Path B; always-WAIT)
-- [ ] Phase 6 open-decision gate completed AND every PRODUCT-DECISION finding's `step0_status` flipped from `pending` to `resolved` (or `wontfix`) BEFORE the Action gate's Post drill fires; §7.0 Pre-Post guard re-reads both `open_questions[]` and `## Findings` and aborts the post on any remaining `unresolved` / `pending` per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §7.0
-- [ ] Phase 6 Action gate fired (always-WAIT) — single consolidated decision; user pick persisted to `approvals[]` (category `action_gate`)
-- [ ] Phase 6 Round-N escalation gate fired when round ≥3 + "Continue rounds" pick; terminal state mapped to state.md `## Termination reason`
-- [ ] Phase 6 Action == Post drill ran (Steps 1.5-6) when user picked "Post"; `[POSTED-TO-PR]` markers persisted for idempotent re-run
-- [ ] Phase 6 Failing-tests gate fired when `## Authored Tests` non-empty; firing order conditional on Action choice per the gate-chain rule
+- [ ] The mandatory reviewer spawn list ran in parallel — all 8 always-fire dimensions (including `regressions`) + every applicable conditional dimension (design / pr-metadata / spec-compliance / rules-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch and the post-spawn verification gate confirmed declared == actual.
+- [ ] A fresh per-finding verifier ran for EVERY admitted survivor (CRITICAL / HIGH / MEDIUM); refuted findings demoted to `## Filtered`.
+- [ ] The multi-signal admission gate was applied (not the legacy single threshold) per Loop Invariant #6.
+- [ ] Every kept finding is classified by severity (per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1) and decision type, and tagged `[NEW]` / `[PRE-EXISTING]`.
+- [ ] The needs-your-decision gate fired for every such finding regardless of severity, and all are resolved (or wontfix) BEFORE the handoff is offered or anything is posted (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §7.0 Pre-Post guard).
+- [ ] The handoff artifact was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
+- [ ] The report was finalized (`report_status: draft→final`) only after the decision gate cleared; on Post, `[POSTED-TO-PR]` idempotency markers were persisted.
+- [ ] The Action gate fired (always-WAIT); the user pick persisted to `approvals[]`; the round-N escalation gate fired when round ≥3.
+- [ ] `--simplify` / `--tdd` / `--deep` honored when present — `--tdd` posts the same set as Standard (additive, never filters) and offers the authored failing tests.
