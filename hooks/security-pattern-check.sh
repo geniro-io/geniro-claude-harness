@@ -33,8 +33,9 @@ if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-# Write has `.content`; Edit has `.new_string`. Scan whichever is present.
-CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // .tool_input.new_string // ""' 2>/dev/null || echo "")
+# Write has `.content`; Edit has `.new_string`; MultiEdit has `.edits[].new_string`.
+# Scan whichever is present (MultiEdit: all edit bodies joined so the scan sees them).
+CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // .tool_input.new_string // ([.tool_input.edits[]?.new_string] | join("\n")) // ""' 2>/dev/null || echo "")
 if [ -z "$CONTENT" ]; then
   exit 0
 fi
@@ -124,7 +125,11 @@ check() {
   local matched=""
   # Echo only the matched construct ($&), not the whole source line ($_): the
   # full line can carry an adjacent secret, and this string is printed to stderr.
-  matched=$(printf '%s' "$CONTENT" | RX="$regex" perl -ne 'if (/$ENV{RX}/) { my $m = $&; $m = substr($m,0,160) if length($m) > 160; printf "%d:%s", $., $m; exit 0 }' 2>/dev/null | head -1 || true)
+  # Slurp the whole CONTENT (-0777) so an anti-pattern split across physical
+  # lines (a download-to-shell construct broken with a backslash-newline) still
+  # matches; derive the line number from the match offset and flatten newlines
+  # in the echoed construct so the stderr message stays one line.
+  matched=$(printf '%s' "$CONTENT" | RX="$regex" perl -0777 -ne 'if (/$ENV{RX}/) { my $m = $&; my $ln = (substr($_,0,$-[0]) =~ tr/\n//) + 1; $m =~ s/\n/ /g; $m = substr($m,0,160) if length($m) > 160; printf "%d:%s", $ln, $m; exit 0 }' 2>/dev/null | head -1 || true)
   if [ -n "$matched" ]; then
     block "$id" "$desc" "$matched"
   fi
@@ -159,7 +164,7 @@ check "sec-shell-injection" "py pyw" \
 # 5. curl|wget piped to sh/bash
 check "sec-curl-pipe-sh" "sh bash zsh dockerfile" \
   "curl/wget piped to shell — supply-chain risk (download, verify checksum/signature, then execute)" \
-  '(curl|wget)\b[^|\n]*\|\s*(sh|bash)\b'
+  '(curl|wget)\b[^|]*\|\s*(sh|bash)\b'
 
 # 6. TLS bypass
 check "sec-tls-bypass" "py pyw" \

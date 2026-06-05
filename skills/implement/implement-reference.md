@@ -452,7 +452,7 @@ Learning capture is an auto-step at the end of /geniro:implement. Phase 3 calls 
 | Type | When emits |
 |---|---|
 | `convention` | Phase 3 architecture or code-quality reviewer reports ≥3 instances of same pattern in changed code. Threshold tuning lives in the reviewer-agent spawn prompt. |
-| `decision` | Spec.md records a non-trivial approach choice with `## Considered Alternatives` section. Mirrors that decision to L2 for cross-session recall. (Note: when /geniro:plan ships, /geniro:plan emits the decision directly; inline-task path only.) |
+| `decision` | Spec.md records a non-trivial approach choice with `## Considered Alternatives` section. Mirrors that decision to L2 for cross-session recall. Fires only on the inline-task path — in spec-driven mode `/geniro:plan` already emitted the decision upstream. |
 
 **Trust default: `verified`** — entries are grounded in Phase 2 code and Phase 3 reviewer findings (test-validated on entry).
 
@@ -521,7 +521,7 @@ These files were used once by the orchestrator or subagents during the run; they
 <task-dir>/milestone-*.md  # /geniro:plan Big-mode milestone splits
 ```
 
-Downstream consumers (`/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement` Adjustment Routing) depend on these surviving Ship. Do NOT `rm -rf <task-dir>` — that's the legacy whole-directory cleanup superseded by the split.
+Downstream consumers (`/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement` Adjustment Routing) depend on these surviving Ship. Do NOT `rm -rf <task-dir>` — durable artifacts (spec / state / plan / milestone files) must survive Ship; clean only the targeted T1 scratch files.
 
 The `.geniro/` deletion guard hook allows targeted `rm -f` under `<task-dir>` (per-file deletions). Bulk `rm -rf .geniro/planning/<task-dir>/` is also allowed (deep path), but unused under the new contract.
 

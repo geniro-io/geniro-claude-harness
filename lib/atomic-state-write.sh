@@ -109,8 +109,13 @@ atomic_state_append() {
 
   # POSIX-atomic append for writes ≤ PIPE_BUF (4096 on Linux).
   # Shell `>>` opens with O_APPEND, so the kernel serializes concurrent writes.
-  if [ "${#content}" -gt 4096 ]; then
-    echo "atomic_state_append: content exceeds 4096 bytes (got ${#content}); atomicity not guaranteed" >&2
+  # Byte count, not character count — PIPE_BUF atomicity is a byte limit, and
+  # ${#content} counts characters (multibyte content can exceed 4096 bytes while
+  # under 4096 chars, silently skipping the guard).
+  local content_bytes
+  content_bytes=$(printf '%s' "$content" | wc -c | tr -d ' ')
+  if [ "$content_bytes" -gt 4096 ]; then
+    echo "atomic_state_append: content exceeds 4096 bytes (got ${content_bytes}); atomicity not guaranteed" >&2
     return 68
   fi
 

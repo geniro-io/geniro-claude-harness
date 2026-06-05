@@ -699,6 +699,10 @@ ARCHIVED_COUNT=0
 # aligned across the three hooks.
 _learnings_log="$GENIRO_ROOT/.geniro/knowledge/learnings.jsonl"
 _threshold="${GENIRO_AUTO_ARCHIVE_THRESHOLD:-5000}"
+# Sanitize — a non-numeric override (e.g. "5k") would make the `-gt` test below
+# error to stderr and evaluate false, silently disabling auto-archive. Mirror
+# the numeric-input sanitization used elsewhere in this hook.
+case "$_threshold" in ''|*[!0-9]*) _threshold=5000 ;; esac
 
 if [ -f "$_learnings_log" ]; then
   # Opt-out check (default ON; user sets false to disable).

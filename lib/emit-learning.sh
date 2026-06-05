@@ -184,6 +184,24 @@ emit_learning() {
     done
   fi
 
+  # Sanitize every string-valued path inside links (mirrors the ext loop — a
+  # credential-bearing URL in a link must not land unredacted; emit_learning's
+  # other paths route through redact_secrets, so links must too).
+  if printf '%s' "$rebuilt" | jq -e 'has("links") and (.links != null)' >/dev/null 2>&1; then
+    local lpaths_json lpath_count li
+    lpaths_json=$(printf '%s' "$rebuilt" | jq -c '[.links | paths(strings)]')
+    lpath_count=$(printf '%s' "$lpaths_json" | jq 'length')
+    for ((li = 0; li < lpath_count; li++)); do
+      local lpath_arr lval lfield_label lsanitized
+      lpath_arr=$(printf '%s' "$lpaths_json" | jq -c ".[$li]")
+      lval=$(printf '%s' "$rebuilt" | jq -r --argjson p "$lpath_arr" '.links | getpath($p)')
+      lfield_label=$(printf '%s' "$lpath_arr" | jq -r '"links." + (map(tostring) | join("."))')
+      lsanitized=$(printf '%s' "$lval" | redact_secrets "$producer" "$lfield_label" "$dedup_key")
+      rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson p "$lpath_arr" --arg v "$lsanitized" \
+        '.links = (.links | setpath($p; $v))')
+    done
+  fi
+
   # Dedup scan — last 200 entries.
   local log root
   root=$(_geniro_repo_root)
@@ -231,8 +249,13 @@ emit_learning() {
   local line
   line=$(printf '%s' "$rebuilt" | jq -c .)
 
-  if [ "${#line}" -gt 4096 ]; then
-    echo "emit_learning: serialized entry exceeds 4096 bytes (${#line}); atomicity not guaranteed — consider shrinking body" >&2
+  # Byte count, not character count — ${#line} counts characters, but PIPE_BUF
+  # atomicity is a byte limit; multibyte content just under 4096 chars can
+  # exceed 4096 bytes and silently skip the guard.
+  local line_bytes
+  line_bytes=$(printf '%s' "$line" | wc -c | tr -d ' ')
+  if [ "$line_bytes" -gt 4096 ]; then
+    echo "emit_learning: serialized entry exceeds 4096 bytes (${line_bytes}); atomicity not guaranteed — consider shrinking body" >&2
     return 68
   fi
 
