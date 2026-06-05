@@ -216,6 +216,8 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 - `spawn_dims_declared: [<dim-slug>, ...]` — declared parallel-spawn list, written at Phase 2 entry before the batch fires. Consumed by Phase 4 §4.0 verification gate (declared-vs-actual diff).
 - `spawn_dims_count: <int>` — denormalized length of `spawn_dims_declared`.
 - `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Consumed by Phase 2 to merge into the spawn batch.
+- `report_status: <draft|final>` — whole-report lifecycle. Phase 5.1 writes `draft` so a mid-gate compaction still recovers the findings; the Phase 6 finalize step (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3.5) flips it to `final` only after the Pre-gate (open questions) and the open-decision gate clear. The Action gate's handoff option and the §7.0 Post-drill guard both require `final`. **Back-compat (single source of this rule): a missing `report_status` reads as `final`** — mirrors the `step0_status: missing → resolved` precedent, so handoffs produced before this field exists are not retro-blocked. Other sites reference this rule; they do not restate it.
+- `deep-mode: <true|false>` — set by the `--deep` flag or the Deep chooser pick. Multiplies the reviewer/verifier fan-out (3× passes + 3-vote verification) per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`. Missing reads as `false`.
 
 **`/geniro:debug` producer-specific `authored_tests` array (T2 handoff only):**
 

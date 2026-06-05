@@ -18,7 +18,7 @@ State.md `phase: triage` during this phase.
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
 - §9 Step 0.7 — Risk-tier stratification
 - §10 Step 0.8 — Memory layer load
-- §11 Mode AUQ (Standard vs TDD)
+- §11 Mode AUQ (Standard / TDD / Deep)
 - §12 Size triage
 
 ---
@@ -400,19 +400,20 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 ---
 
-## 11. Mode AUQ (Standard vs TDD)
+## 11. Mode AUQ (Standard / TDD / Deep)
 
 Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After triage, surface one `AskUserQuestion` (do NOT print options as plain text):
 
 - **Header:** "Review mode"
-- **Question:** "Run a Standard review (post all kept findings) or a TDD review (only post findings that an auto-authored failing test can reproduce)?"
+- **Question:** "How should I run this review — Standard, TDD (also author failing tests), or Deep (3× passes + 3-vote verification)?"
 - **Options:**
-- "Standard review (Recommended)" — current behavior; Phase 4.3 gate opt-in per-run; Phase 6 posts all kept findings.
-- "TDD review (auto-author failing tests for findings)" — Phase 4.3 gate's Recommended option flips to "Author tests…"; Phase 6 PR-comment posting filters to `[CONFIRMED-BY-TEST]` findings plus non-testable decision-types only.
+- "Standard review" — posts all kept findings; the Phase 4.3 test-gate is still offered opt-in per run.
+- "TDD review — also author failing tests" — posts all kept findings AND auto-authors failing tests for the testable ones, appends a failing-test line to each test-confirmed finding, and offers to commit + push the authored tests to the reviewed branch.
+- "Deep review — 3× passes + 3-vote verification" — higher quality (finds more, validates more reliably) at higher token cost; runs each check 3× and verifies findings with a 3-agent majority vote. Posts the same finding set as Standard.
 
-If user declines (empty answer), default to Standard. `--tdd`/`--standard` flag (when present) always overrides this AUQ. Persist to `approvals[]` with category `tdd_mode_choice`.
+Neither Standard nor TDD carries a `(Recommended)` suffix — TDD is not safer than Standard, only costlier (it authors and runs tests); the user picks per run. The "Deep review" pick sets `deep-mode: true` with Standard posting — to combine deep with TDD, use the flags `--deep --tdd`. Deep is an orthogonal boolean (`deep-mode`), NOT a third value of the `mode` enum. If user declines (empty answer), default to Standard. The `--tdd` / `--standard` flags suppress this AUQ (they set the posting mode); `--deep` sets `deep-mode: true` but does NOT suppress it — a bare `--deep` still fires the chooser for the posting mode. Persist the posting-mode pick to `approvals[]` with category `tdd_mode_choice`; a Deep pick additionally persists to `approvals[]` with category `deep_mode_choice` and sets `deep-mode: true`. Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode flips, edge cases, and F→P contract scope.
+See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode adds, edge cases, and the failing-test contract scope.
 
 ---
 

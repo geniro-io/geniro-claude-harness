@@ -117,6 +117,8 @@ After loop:
 
 Critical: ALL verifier spawns fire in ONE assistant response, same assistant turn, NOT one per turn. Separate turns serialize execution and double wall-time; the canonical parallel-spawn invariant applies.
 
+**Deep mode (`deep-mode: true`).** Spawn 3 independent verifiers per survivor (instead of 1) inside a `Workflow(...)` and aggregate by 2/3 majority — `confirmed`/`clarified` are "stands" votes, `refuted` is a "drop" vote; ≥2 drop → refuted, else stands; a parse failure abstains; quorum < 2 parseable votes → fail-safe to ONE single-pass verifier. The per-verifier input (§2), output (§3), and actionability bar (§3.6) are identical; deep mode changes only the vote count and the aggregation. Persist the majority verdict to the existing `Validation` field and the tally to `Verification-evidence` (no schema bump). Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3.
+
 ---
 
 ## 5. Result aggregation and demotion rules

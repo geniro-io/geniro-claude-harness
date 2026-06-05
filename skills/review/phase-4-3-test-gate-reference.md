@@ -41,11 +41,11 @@ If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely �
 
 ### 2.1 Runtime-behavior classification (canonical rule)
 
-Used by both Phase 4.3 Step 1 AND Phase 6 Step 3.5. A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query).
+Used by Phase 4.3 Step 1 to decide which `FIX-NOW` findings are test-eligible. A `FIX-NOW` finding's description "names runtime behavior" if and only if it cites at least one of: regex match, parser output, control-flow branch (taken/not-taken), computed result, thrown error type, returned value, mutated state, observable side effect (DOM mutation, file write, API call, db query).
 
 A `FIX-NOW` finding's description is NON-runtime ("typo-class") if it cites: typo / spelling, cross-reference (link, anchor, ref number), wrong import path, dead code that compiles, comment-only edits, formatting, lint-style issues.
 
-The rule is intentionally prose-based and decided at orchestrator-evaluation time; the per-finding line schema does NOT carry a persisted `runtime-class:` tag — both phases evaluate the rule fresh against the same finding description, so they cannot diverge.
+The rule is intentionally prose-based and decided at orchestrator-evaluation time; the per-finding line schema does NOT carry a persisted `runtime-class:` tag — Phase 4.3 evaluates it fresh against the finding description each run.
 
 ---
 
@@ -91,6 +91,8 @@ For each seeded finding, attempt to author a failing test that reproduces it. If
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
 """)
 ```
+
+**Overflow caveat (10-test author cap).** The agent authors at most 10 tests. When the eligible set exceeds 10, the un-authored findings still post normally — TDD is additive, never reductive — and the orchestrator surfaces a `## Caveats` note naming them: `N testable findings exceeded the 10-test author cap and post without a failing-test line.`
 
 ---
 

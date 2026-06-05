@@ -11,10 +11,12 @@ Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:inves
 A Reporter-class skill produces findings, not changes. Inside every workflow step the same boundary holds:
 
 - No `Edit` / `Write` to production source.
-- No `git add` / `git commit` / `git push`.
+- No push of fixes or production-source — no `git add` / `git commit` / `git push` of any production or fix change.
 - No `gh pr create` / `gh pr merge`.
 
 The skill's documented on-disk deliverable (handoff file, reproduction test, or working-tree diff) and its sanctioned side-effects (for example, `/geniro:review` posting a PENDING PR review) are the ONLY outputs. Route fixes to `/geniro:implement` — never apply them in-skill.
+
+**Carve-out — authored-test push (`/geniro:review` only).** `/geniro:review` in TDD mode may commit + push the failing tests it authored to the reviewed branch, because authored tests are evidence, not a fix. The carve-out is triple-scoped: only files listed in the handoff `## Authored Tests`, only tests authored by `adversarial-tester-agent`, and only after the explicit "Commit + push" pick in the Phase 6 Failing-tests gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §6). It applies to `/geniro:review` ONLY — `/geniro:debug`, `/geniro:refactor`, and `/geniro:investigate` have no failing-tests gate and no authored-test push, so they read this carve-out as inapplicable, not as a general push license. A fix never rides along with the tests on that push.
 
 ### 2. Canonical action gate
 
@@ -46,3 +48,4 @@ Wrapping a skill in a workflow makes the model treat the workflow as the authori
 | "It's faster to write state with a direct Write inside the workflow." | `atomic_state_write` binds inside workflow steps too. Raw writes trip the `enforce-state-helper` hook and lose atomicity. |
 | "This finding asks the author to confirm something (e.g. 'confirm both migrations ship together') — I'll post it as written." | If the claim is checkable — both migrations in this PR's diff, the caller exists, the test covers the path — check it and state the verified result. Posting a "confirm X" you could have resolved offloads your work onto the reader. Only the genuinely unverifiable residue (did it deploy to an environment independently?) stays as a question. |
 | "The build is red / this finding needs a fix — I'll ask the user how to resolve it." | A reporter doesn't decide fixes. Investigate the verifiable part (why it's red) and report it; leave the fix decision to `/geniro:implement`. The only thing you ask is the disposition (post / hand off / save), at the action gate. |
+| "The tests are authored and ready — I'll push the fix in the same commit while I'm at it." | The authored-test push carve-out (§1) is tests-only and `/geniro:review`-only. A fix never ships from a reporter — route it to `/geniro:implement`. Bundling a fix into the test-push commit is exactly the boundary breach the triple-scope prevents. |
