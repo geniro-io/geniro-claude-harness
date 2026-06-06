@@ -178,15 +178,17 @@ signal proves insufficient — not part of the initial build:
 Keeping these optional and additive (a post-pass over the transcript, not a re-implementation of
 skill-creator) preserves the reuse-first stance.
 
-## 11. Open decisions (reduced)
+## 11. Decisions (resolved)
 
-1. **Companion skill or helper-only?** A thin `/geniro:eval` bookkeeping skill (prints trend + reminds
-   invocation + runs ingest) vs just `evals/ingest.sh` + the README. Recommend helper-only first; add
-   the skill only if the manual reminder proves annoying.
-2. **Comparator model.** skill-creator's blind comparator — Opus (accuracy) vs Sonnet (cheaper for
-   frequent local runs). With majority-of-3 variance control, Sonnet is usually enough.
-3. **skill-creator acquisition.** Plain `git clone` of `claude-plugins-official` referenced by path,
-   vs a git submodule pinned in this repo for reproducibility.
+1. **Form of the bookkeeping layer:** thin companion skill **`/geniro:eval`** in this plugin. It does
+   NOT delegate to skill-creator (unsupported). It prints the prior `HISTORY.md` trend as opening
+   context, reminds the maintainer of the exact skill-creator invocation + suite path, and calls
+   `ingest.sh` afterward. All execution/grading/comparison stays in skill-creator.
+2. **Comparator model:** **Opus** — maximize judge reliability on subtle quality differences;
+   runs are infrequent and local, so cost is acceptable.
+3. **skill-creator acquisition:** **git submodule, pinned**. The upstream commit is pinned in this repo
+   so eval results are reproducible — an upstream change to skill-creator can't silently shift the
+   judge's behavior between runs. Bumping the submodule is an explicit, reviewable commit.
 
 ## 12. Phased build plan
 
