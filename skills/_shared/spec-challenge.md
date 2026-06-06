@@ -2,7 +2,7 @@
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the procedure.
 
-A default, always-on adversarial pass that hardens a `spec.md` before it is acted on. It re-verifies the spec's load-bearing factual claims against the live code, (in plan mode) generates competing alternative approaches and red-teams the chosen one, then synthesizes a verdict. A manual run of this pass over one already-approved spec surfaced three blocking defects no earlier gate caught: a headline mechanism that carried no weight, a backfill predicate that matched zero rows, and a write-volume estimate off by 12x. Those are the failure classes this pass exists to catch — factually-wrong claims that read as plausible prose.
+A default, always-on adversarial pass that hardens a `spec.md` before it is acted on. It re-verifies the spec's load-bearing factual claims against the live code, (in plan mode) generates competing alternative approaches and red-teams the chosen one, then synthesizes a verdict. The failure class it exists to catch is the factually-wrong claim that reads as plausible prose: a headline mechanism that carries no weight, a backfill predicate that matches zero rows, a write-volume estimate off by an order of magnitude — defects that survive every gate keyed on structure rather than ground truth.
 
 ## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit)
 

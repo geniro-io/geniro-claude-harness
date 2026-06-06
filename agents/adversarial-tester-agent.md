@@ -1,6 +1,6 @@
 ---
 name: adversarial-tester-agent
-description: "Adversarial edge-case hunter and failing-test author. Use after an implementation lands a diff (/implement Phase 3, /debug repro mode) to hunt edge-case bugs in changed code — generates 5-12 hypotheses, authors up to 10 F→P-verified failing tests (red on current code), returns findings + authored test paths. Never modifies production source."
+description: "Adversarial edge-case hunter and failing-test author. Use after an implementation lands a diff (/implement Phase 3, /review --tdd mode, /debug adversarial mode) to hunt edge-case bugs in changed code — generates 5-12 hypotheses, authors up to 10 F→P-verified failing tests (red on current code), returns findings + authored test paths. Never modifies production source."
 tools: [Read, Write, Edit, Bash, Glob, Grep]
 model: inherit
 maxTurns: 60

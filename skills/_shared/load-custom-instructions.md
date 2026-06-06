@@ -65,7 +65,7 @@ For each file in the load set, in order:
 4. After the Read attempt(s) (success OR file-not-found), print exactly one echo line per the §Echo contract — non-negotiable.
 5. Apply the loaded content:
  - `## Rules` → standing rules active in every phase of the consumer skill
- - `## Constraints` → hard gates evaluated at the phase boundary named in each subsection (or globally if not phase-scoped)
+ - `## Constraints` → a flat bullet list of hard gates, evaluated globally (or at a phase boundary when a bullet's text names one) — not organized into per-phase subsections; only `## Additional Steps` uses named-phase subsections
  - `## Additional Steps` → extra steps inserted at the named phase boundary (if the skill has that phase; otherwise apply where they fit and skip the rest)
 
 ## Echo contract
@@ -118,8 +118,8 @@ The instruction files this helper loads have a fixed schema (defined authoritati
 
 The loader applies these as:
 
-- **Rules → standing constraints.** Active in every phase of the consumer skill until the run ends.
-- **Constraints → hard gates.** Evaluated at the boundary of the phase named in each subsection, or globally if not phase-scoped.
+- **Rules → standing rules.** Active in every phase of the consumer skill until the run ends.
+- **Constraints → hard gates.** A flat bullet list, evaluated globally (or at a phase boundary when a bullet names one). Only `## Additional Steps` uses named-phase subsections.
 - **Additional Steps → extra steps inserted at the named phase boundary.** If the per-skill file declares an Additional Step for a phase that doesn't exist in the consumer (e.g. `debug` has no PHASE 1 — it has step 1 / Observe), apply where it fits and skip the rest.
 
 Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantics in their own text. That phrase migrates entirely into this helper; consumer call sites say only "Apply this helper, echo per contract" — nothing more.

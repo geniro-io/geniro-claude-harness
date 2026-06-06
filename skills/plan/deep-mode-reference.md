@@ -51,7 +51,9 @@ Two fan-outs (may be one script with two phases, or separate calls). Build path/
 
 ```
 phase('Deep approaches — panel')
-const LENSES = ['minimal-change', 'reuse-first', 'risk-first', 'performance-first']
+const LENSES = ['minimal-change', 'reuse-first', 'risk-first']
+// Append a domain-relevant 4th lens only when one applies (e.g. for perf-sensitive work):
+//   LENSES.push('performance-first')
 const candidates = (await parallel(LENSES.map(lens => () =>
   agent(generatorPrompt(lens, exploreCtx, clarifyCtx), { label: `gen:${lens}`, phase: 'Deep approaches — panel' })
 ))).filter(Boolean).flatMap(parseApproaches)         // raw JSON → approach objects; parse-fail drops that lens

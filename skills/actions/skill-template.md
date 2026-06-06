@@ -16,14 +16,14 @@ This file is the canonical template for a `/geniro:actions create` output. The p
 | `{{created}}` | ISO date at write time | `2026-04-25` |
 | `{{purpose}}` | first-paragraph prose synthesized from Q1 | one short paragraph |
 | `{{when_to_use}}` | bullet list synthesized from Q2 | 2–4 bullets |
-| `{{when_not_to_use}}` | optional — list "Skip for…" exclusions if Q2 surfaced an adjacent-action collision | 0–3 bullets, or "(none)" |
+| `{{when_not_to_use}}` | optional — conditions under which to skip the action: adjacent-action collisions, or operational guards (e.g. a draft PR, a missing token) | 0–3 bullets, or "(none)" |
 | `{{steps}}` | numbered list synthesized from Q1 + Q3 | 3–8 numbered items |
 | `{{output_summary}}` | 1-line description of what the user sees when the action completes | one line |
 | `{{test_cases}}` | optional from Q4 | 1–2 short test cases or "(skipped)" |
 
 ## Generated file template
 
-When writing the action file, output EXACTLY this skeleton with substitutions applied (drop the optional `external-send:` frontmatter line when there is no external side-effect, and remove the optional `{{when_not_to_use}}` / `{{test_cases}}` sections fully if the user opted out):
+When writing the action file, output EXACTLY this skeleton with substitutions applied (drop the optional `external-send:` frontmatter line when there is no external side-effect, and remove the optional `{{when_not_to_use}}` section when the action has no skip conditions, and `{{test_cases}}` when the user skipped test cases):
 
 ```markdown
 ---

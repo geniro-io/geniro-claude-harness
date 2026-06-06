@@ -188,7 +188,7 @@ query_learnings() {
   if [ -n "$score_min" ]; then
     local now tau
     now=$(date -u +%s)
-    tau="${GENIRO_DECAY_TAU_DAYS:-90}"
+    tau="${GENIRO_DECAY_TAU_DAYS:-$GENIRO_DECAY_TAU_DAYS_DEFAULT}"
 
     # Score-formula weight functions are single-sourced in lib/score-formula.sh
     # so the ranker and the archiver (archive-stale) never drift.

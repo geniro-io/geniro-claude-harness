@@ -91,7 +91,7 @@ Constraints:
 
 Before committing edits to `skills/**/*.md` or `agents/**/*.md`, walk this checklist:
 
-1. **Line counts.** `wc -l` the touched file. Over 500 (or 700 hard ceiling) → split.
+1. **Line counts.** `wc -l` the touched file. Over 500 (target) or 700 (hard ceiling) → consider moving detail to a sibling `*-reference.md`; don't trim load-bearing content to hit a number (the caps are guidelines, not a strict split trigger).
 2. **Reference depth.** `grep '${CLAUDE_PLUGIN_ROOT}\|${CLAUDE_SKILL_DIR}'` the file. Any reference target itself must NOT reference another skill body for runtime instructions.
 3. **TOC presence.** Any reference file > 100 lines must have a TOC near the top.
 4. **No line-number cross-refs.** `grep -nE 'SKILL\.md:[0-9]+|reference\.md:[0-9]+'` returns nothing.

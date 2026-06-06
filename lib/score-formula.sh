@@ -17,6 +17,13 @@
 # The composite (how the four weights combine into a score and what each caller
 # does with it) stays in each caller — only the weight definitions are shared.
 
+# Recency-decay time constant (days). Single-sourced here so the ranker
+# (query-learnings --score-min) and the archiver (archive-stale) cannot drift on
+# the tau input the way the weight functions cannot drift. Both read it as
+# tau="${GENIRO_DECAY_TAU_DAYS:-$GENIRO_DECAY_TAU_DAYS_DEFAULT}".
+# shellcheck disable=SC2034  # consumed by callers that source this file
+: "${GENIRO_DECAY_TAU_DAYS_DEFAULT:=90}"
+
 # shellcheck disable=SC2034  # consumed by callers that source this file
 GENIRO_SCORE_JQ_DEFS='
   def recency_decay($age_days; $tau):

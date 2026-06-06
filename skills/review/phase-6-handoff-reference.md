@@ -454,7 +454,7 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 ### 7.3 Step 3 — Per-finding gate
 
-Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Steps 1.5 + 3.5 when applicable). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
+Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — Step 3.5 is mode-independent and applies no filter). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
 - **`question`** (multi-line markdown, per Source-field map):

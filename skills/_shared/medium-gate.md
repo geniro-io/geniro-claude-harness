@@ -59,7 +59,7 @@ For the gate to render bodies correctly, the artifact that carries MEDIUM findin
 ## Why this exists
 
 Auto-dropping MEDIUMs creates two failure modes:
-1. **Real bugs ship.** The reviewer-agent's MEDIUM definition is "Bug or deviation from standards impacting reliability/clarity" (`agents/reviewer-agent.md` §Output Format) — these are real issues, just not blocking. Dropping them silently means real bugs reach production with no audit trail.
+1. **Real bugs ship.** The reviewer-agent classifies MEDIUM as a verifiable defect impacting reliability or clarity that is unlikely or non-blocking (`agents/reviewer-agent.md` §Severity levels) — these are real issues, just not blocking. Dropping them silently means real bugs reach production with no audit trail.
 2. **Visibility lost.** A Ship summary that shows only CRITICAL/HIGH counts leaves the user with no way to see what was dropped. The Always-WAIT gate forces the count + digest to surface at the moment of decision.
 
 The cost is one AUQ call per fix-loop entry when MEDIUMs exist. Skipped silently when zero MEDIUMs — matches the PRODUCT-DECISION gate's skip-when-empty behavior.

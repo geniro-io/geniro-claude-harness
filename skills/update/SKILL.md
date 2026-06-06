@@ -276,7 +276,7 @@ Otherwise, parse MIGRATION.md and collect **every** `### <name>` entry across **
 
 For each entry, in file order (newest cohort first — entries are independent, so order does not affect which fire):
 
-1. Run the entry's `Auto-detect:` shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the walk. Run each entry's command in isolation so one failing detect cannot cascade into the rest. Capture output.
+1. If the `Auto-detect:` value begins with `N/A` (case-insensitively), it is an informational entry with no runnable detector — skip execution and treat the entry as not-affected (no AUQ). Never pass an `N/A — ...` value to `bash -c`: the prose carries `;`/`&&` that would execute its trailing fragments as commands. Otherwise run the entry's `Auto-detect:` shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the walk. Run each entry's command in isolation so one failing detect cannot cascade into the rest. Capture output.
 2. If output empty → user not affected; log "skipped (not affected): <change-name>"; continue.
 3. If output non-empty → AUQ:
 - **Question:** `Breaking change in v<X.Y.Z>: <change-name>. <Action required text>. Auto-detected N affected files: <first 10 lines truncated>`

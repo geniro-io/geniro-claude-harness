@@ -228,7 +228,7 @@ Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, t
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
 - Frontmatter `external-send: true` if Q3 = "Posts to an external system" or "Multiple side effects" with external.
-- Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if no adjacent-action collision), `## Steps` (numbered), `## Output`, `## Test cases` (only if Q4 = Yes).
+- Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if the action has no skip conditions), `## Steps` (numbered), `## Output`, `## Test cases` (only if Q4 = Yes).
 
 **Show the drafted markdown to the user. Do NOT call Write yet.** Then AUQ:
 
@@ -523,11 +523,6 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - PERSISTENT (CRUD) — `.geniro/actions/` tier; write via `atomic_state_write` with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
 - Compaction survival — actions are files on disk, so they persist across compaction
-- §Loop invariants — 7 loop invariants
-- §Budgets — quality-first budgets
-- §ACI surface per phase — per-phase ACI
-- §Phase 6: `edit` sub-command — edit dialogue-mode pattern
-- §Phase 8: `validate` sub-command — validate rule set (shared + structural lint)
 
 ## Definition of Done
 

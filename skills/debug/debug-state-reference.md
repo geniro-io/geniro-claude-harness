@@ -291,10 +291,16 @@ After re-verification, present this block directly in chat and persist (via the 
 **Tests discarded (F→P failed on re-run):** [K]
 
 ### CRITICAL / HIGH findings
-[For each: test file path, targeted source, category, confidence, hypothesis, reproduction command, suggested direction for fix (NOT the patch itself)]
+[For each finding, emit these labelled lines — the `**Test file:**` line is the human-readable mirror of the `authored_tests[]` frontmatter array that consumers fall back to parsing for legacy handoffs:]
+- **Test file:** `<path>`
+- **Targeted source:** `<file:line>`
+- **Category:** <category> · **Confidence:** <0-100>
+- **Hypothesis:** <what breaks and why>
+- **Reproduction:** `<command>`
+- **Suggested direction:** <fix direction, NOT the patch itself>
 
 ### MEDIUM findings
-[same shape]
+[same labelled shape]
 
 ### Discarded / Inconclusive
 [brief list with reasons]

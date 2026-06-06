@@ -133,7 +133,7 @@ tier: T1.5
 producer: plan
 schema-version: 1
 branch: <git-branch>
-worktree: <git-rev-parse-show-toplevel>
+worktree: <git-rev-parse-show-toplevel>     # optional, recommended for cross-worktree resume
 timestamp: <ISO-8601 UTC>
 phase: <state-machine-enum>
 status: in-progress

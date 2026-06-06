@@ -59,7 +59,7 @@ archive_stale_learnings() {
 
   local now tau
   now=$(date -u +%s)
-  tau="${GENIRO_DECAY_TAU_DAYS:-90}"
+  tau="${GENIRO_DECAY_TAU_DAYS:-$GENIRO_DECAY_TAU_DAYS_DEFAULT}"
   # Validate tau up front — a non-numeric value otherwise reaches `--argjson`
   # below and surfaces only as an opaque "jq failed" error.
   if ! printf '%s' "$tau" | grep -Eq '^([0-9]+(\.[0-9]+)?|\.[0-9]+)$'; then
@@ -108,6 +108,13 @@ archive_stale_learnings() {
   # Count stale entries (and per-type breakdown for the report).
   local stale_count
   stale_count=$(printf '%s\n' "$processed" | jq -s '[.[] | select(._is_stale)] | length')
+  # Guard the count before the arithmetic test — an empty/non-numeric value (jq
+  # absent or erroring) otherwise crashes `[ -eq ]` with an opaque "integer
+  # expected" instead of a clean failure (mirrors the tau validation above).
+  if ! printf '%s' "$stale_count" | grep -Eq '^[0-9]+$'; then
+    echo "archive-stale: jq failed counting stale entries in $log" >&2
+    return 2
+  fi
   if [ "$stale_count" -eq 0 ]; then
     echo "archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + access_count==0)" >&2
     return 1

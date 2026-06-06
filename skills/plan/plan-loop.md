@@ -99,7 +99,7 @@ If state.md already created when user cancels (e.g., deep cancel via Other): wri
 
 State.md `phase: problem-discovery` during this phase. **Fires only when `prd_mode: true`** (set in Phase 0.1 from a `--prd` flag in `$ARGUMENTS`). When `prd_mode` is unset, skip this phase entirely — the loop transitions Phase 0 → Phase 1 unchanged.
 
-This phase runs a problem-first discovery interview BEFORE explore and clarify, so the eventual spec is grounded in a validated problem rather than a presumed solution. It reuses the Phase 3 batched-AUQ pattern (independent questions batched into one call, ≤4 per call; chain a second call past the cap rather than drop a question — the 4-option-per-call tool limit applies here too).
+This phase runs a problem-first discovery interview BEFORE explore and clarify, so the eventual spec is grounded in a validated problem rather than a presumed solution. It reuses the Phase 3 batched-AUQ pattern (independent questions batched into one call, ≤4 per call; chain a second call past the cap rather than drop a question — the 4-question-per-call tool limit applies here too).
 
 ### 0.5.1 Interview dimensions
 
@@ -176,10 +176,10 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 
 | Tier | Spawns |
 |---|---|
-| Trivial (single-file config tweak, typo fix, rename) | 1 agent OR 0 if obviously scope-bound |
-| Small (localized change, 1-2 files) | 1-2 agents (existing-impl; integration-surface only if it spans a boundary) |
-| Medium (feature addition touching 2-5 files) | 2 agents (existing-impl + integration-surface) |
-| Big (subsystem-level change ≥10 files) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
+| Trivial (typo / config tweak / mechanical rename — no logic change) | 1 agent OR 0 if obviously scope-bound |
+| Small (localized, single-concern change) | 1-2 agents (existing-impl; integration-surface only if it spans a boundary) |
+| Medium (a feature, or a change that touches a contract / boundary) | 2 agents (existing-impl + integration-surface) |
+| Big (a hard escalation signal is present, or dimension score 7+ per effort-scaling.md) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
 
 Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium` (default) or `very thorough` for Big-tier subsystem facets.
 
