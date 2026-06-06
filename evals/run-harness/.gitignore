@@ -1,0 +1,5 @@
+node_modules/
+dist/
+# Per-trial transcripts/outputs are local-only (plan §14 decision 9).
+runs/
+*.log
