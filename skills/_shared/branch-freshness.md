@@ -28,10 +28,10 @@ Run the gate AFTER the workspace decision is known but BEFORE the first code edi
 
 ## 2. Shared sub-steps
 
-Both modes start here. The default-branch resolution follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3; the bash below restates that same order inline so this gate stays self-contained and fail-open when the helper file is unavailable. Resolve the default branch, then attempt a best-effort fetch:
+Both modes start here. The default-branch resolution follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 (origin/HEAD → local main/master), restated inline so this gate stays self-contained; it adds one terminal `"main"` offline-safety fallback beyond rule #3, for a repo with no remote and no main/master branch yet. Resolve the default branch, then attempt a best-effort fetch:
 
 ```bash
-# Default branch (scope-anchor rule #3): origin/HEAD, then local main/master, then "main".
+# Default branch: scope-anchor rule #3 (origin/HEAD, then local main/master) + terminal "main" offline-safety fallback.
 DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
 if [ -z "$DEFAULT_BRANCH" ]; then
   for b in main master; do

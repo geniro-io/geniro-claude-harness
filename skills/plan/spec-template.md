@@ -62,10 +62,10 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 ```
 
 **Field origins:**
-- Fields 1-5 (tier → timestamp): required base.
-- Fields 6-11 (geniro_kind → lifecycle): schema markers + extensions.
-- Field `workflow_refs`: optional tracker linkage (m5-v2). Omitted from frontmatter when no tracker was linked (pure inline-task /geniro:plan); downstream skills treat absence as "no tracker linkage".
-- Fields 12-17 (budget → tools_required): goal-state block embedded in frontmatter.
+- `tier` → `timestamp`: required base.
+- `geniro_kind` → `lifecycle`: schema markers + extensions.
+- `workflow_refs`: optional tracker linkage (m5-v2). Omitted from frontmatter when no tracker was linked (pure inline-task /geniro:plan); downstream skills treat absence as "no tracker linkage".
+- `budget` → `tools_required`: goal-state block embedded in frontmatter.
 
 **`workflow_refs[]` per-entry shape:**
 
@@ -181,11 +181,11 @@ The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3
 
 **Section 6 (Steps):** Each step cites ≥1 file:line reference unless it's a meta-step (e.g., "Step 1: Create new branch"). Phase 7 validator check #3 enforces this.
 
-**Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 Step 12). Use "none" if /geniro:implement may run autonomously start-to-finish.
+**Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 handoff-resolution step). Use "none" if /geniro:implement may run autonomously start-to-finish.
 
 **Section 10 (Rollback-Recovery):** "none — pure additive" is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is "none" — it auto-fails if body is empty.
 
-**Sections 4, 5, 10 for Trivial tasks:** may have body content "none — task scope precludes" with brief rationale. Headers MUST exist; bodies MAY be "none with rationale".
+**Sections 4, 5, 10 for Trivial tasks:** may have body content "none — task scope precludes" with brief rationale. All 11 headers stay present even for Trivial tasks — the Phase 7 schema_completeness check parses the section headers and fails validation if one is missing; the body under a non-applicable header may be "none with rationale".
 
 ## Milestone-mode
 

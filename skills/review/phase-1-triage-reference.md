@@ -13,7 +13,7 @@ State.md `phase: triage` during this phase.
 - §3.5 Workflow integrations (issue-tracker fetch)
 - §4 Peer-PR scout (PR-ref input only)
 - §5 reserved — scope resolution is covered under §2 above
-- §6 L4 instructions load
+- §6 Custom-instructions load
 - §7 Step 0.5 — Round-N counter
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
 - §9 Step 0.7 — Risk-tier stratification
@@ -339,7 +339,7 @@ Read-only — never writes files, never mutates git state. Latency ~1-3s base + 
 
 ---
 
-## 6. L4 instructions load
+## 6. Custom-instructions load
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `review.md`, and `code-style.md` (3 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
 
@@ -379,7 +379,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 4. Persist to state.md frontmatter.
 
 **Downstream knobs (4):**
-- Phase 4.1 severity threshold: standard ≥80; high ≥70.
+- Phase 4.1 severity threshold: per SKILL.md §4.1 signal #4 (advisory-fallback confidence ≥80, relaxed to ≥70 at `risk-tier: high`) — the single source for the numeric values.
 - Phase 4.2 verifier coverage: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) verified — no tier-scaling, no severity-scaling; same coverage at standard and high tier.
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.

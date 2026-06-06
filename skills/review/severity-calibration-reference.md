@@ -1,6 +1,6 @@
 # /geniro:review — Severity and confidence calibration
 
-Canonical decision rules consumed by `agents/reviewer-agent.md` AND every `*-criteria.md` file. When per-dim criteria files specialize severity to dim-specific signals, they MUST honor the inclusion + exclusion lists below.
+Canonical decision rules consumed by `agents/reviewer-agent.md` AND every `*-criteria.md` file. Per-dim criteria files may specialize severity to dim-specific signals, but they honor the inclusion + exclusion lists below — a criteria file that loosens them lets a dim re-classify a doc/cosmetic finding above LOW, corrupting the shared taxonomy that downstream consumers (verifier, stratifier, /geniro:implement) depend on.
 
 ## Contents
 
@@ -38,7 +38,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Race condition with a specific cited scenario (the scenario must be cited, not hypothesized)
 - Missing validation that lets malformed input reach a downstream consumer
 - Deleted production code with cross-file callers (the `regressions` dim signal: deletion + caller-blast)
-- Performance issue exceeding a measured threshold (per `optimizations-criteria.md`: >100 items, >1000 rows, >100KB minified — these are HIGH; below those, MEDIUM)
+- Performance issue exceeding a measured threshold (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md`: >100 items, >1000 rows, >100KB minified — these are HIGH; below those, MEDIUM)
 - Behavior change outside stated intent when an intent source exists (spec.md / PR body / commit message contradicts the diff)
 
 **Excludes:**
@@ -88,7 +88,7 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 | "PR description should mention X — that's a MEDIUM" | PR-description verbosity is process feedback, not a code defect. Reviewers do not block merge on prose. | LOW |
 | "Naming convention drift is MEDIUM because consistency matters" | Naming is style. The `conventions` dim's mandate is to flag it, not block merge on it. | LOW |
 | "Missing test coverage is HIGH because tests matter" | HIGH only if the uncovered path has a documented failure mode that this PR could trigger. Otherwise MEDIUM (verifiable defect risk) or LOW (theoretical gap). | MEDIUM or LOW |
-| "Performance suggestion is HIGH because it might be slow" | HIGH requires a measured threshold per `optimizations-criteria.md` (>100 items, >1000 rows, >100KB). Below that: MEDIUM. Untested: LOW. | depends |
+| "Performance suggestion is HIGH because it might be slow" | HIGH requires a measured threshold per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` (>100 items, >1000 rows, >100KB). Below that: MEDIUM. Untested: LOW. | depends |
 | "Could be refactored — MEDIUM" | "Could be refactored" with no impact citation is LOW. MEDIUM requires a specific maintainability impact (e.g., new contributor onboarding time, common error source). | LOW |
 | "I'll tag this MEDIUM so it surfaces — LOW gets dropped" | This is the perverse-incentive trap. The Phase 4.1 multi-signal gate (§5) provides four independent signals for a finding to surface — convergence, Evidence-Block + confidence ≥ 60, criteria-pre-resolved marker, and a confidence ≥ 80 fallback. If the finding is correct, one of those will fire — do not inflate severity to game the filter. | depends — true severity |
 
@@ -115,10 +115,10 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 - LOW: Style / formatting / naming polish; documentation gaps; comment wording
 
 ### conventions
-- CRITICAL: never (per `conventions-criteria.md` §Severity Guidelines)
+- CRITICAL: never (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity Guidelines)
 - HIGH: clear ≥80% modal violation in [NEW] code that introduces a pattern the repo uses nowhere else (zero-shot novel), or crosses a 100%-respected module/layer boundary
 - MEDIUM: ≥80% modal violation in [NEW] code where the introduced pattern exists in 1-2 other places; any [PRE-EXISTING] finding regardless of frequency
-- LOW: not emitted (per `conventions-criteria.md`; the dim suppresses sub-threshold rather than down-tagging)
+- LOW: not emitted (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md`; the dim suppresses sub-threshold rather than down-tagging)
 
 ---
 
@@ -189,7 +189,7 @@ The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor 
 
 ## 6. Per-dim calibration variants
 
-Per-dim criteria files MAY TIGHTEN this rubric (e.g., `conventions-criteria.md` caps at HIGH and suppresses LOW; `simplify-criteria.md` maps P1/P2/P3 to HIGH/MEDIUM/dropped) but MUST NOT LOOSEN it. Specifically:
+Per-dim criteria files may tighten this rubric (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` caps at HIGH and suppresses LOW; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md` maps P1/P2/P3 to HIGH/MEDIUM/informational, P3 filtered unless `--tdd` or `risk-tier: high`) but must not loosen it — loosening lets sub-threshold findings surface past the shared gate. Specifically:
 
 - A criteria file MUST NOT classify documentation / PR-description / cosmetic suggestions above LOW
 - A criteria file MUST NOT widen CRITICAL beyond the §1 inclusion list

@@ -20,11 +20,11 @@ set -euo pipefail
 INPUT=$(cat)
 
 # Extract last_assistant_message (Anthropic Agent SDK StopHookInput optional field)
-MSG=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
+MSG=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
 
 # Fallback: parse transcript_path JSONL for the last assistant turn's text
 if [ -z "$MSG" ]; then
-  TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // ""' 2>/dev/null || echo "")
+  TRANSCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.transcript_path // ""' 2>/dev/null || echo "")
   if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
     # Walk the JSONL file from the bottom; pick the last assistant turn's text content.
     # Each line is one event; assistant turns have type=="assistant" and message.content[].type=="text".

@@ -78,9 +78,9 @@ At least one of `--l4` / `--l3` / `--l2` should be supplied; otherwise the notic
 
 ```
 [layer-conflict] subject: http library
-  L4 .geniro/instructions/global.md: use axios
-  L3 .geniro/planning/.fingerprint.json + _project.md: vite.config.ts present, no axios in package.json
-  L2 learnings.jsonl dedup_key=a1b2c3d4: migrated to fetch on 2025-08-20
+  L4 rule (project rules) .geniro/instructions/global.md: use axios
+  L3 fact (project snapshot) .geniro/planning/.fingerprint.json + _project.md: vite.config.ts present, no axios in package.json
+  L2 history (past learnings) learnings.jsonl dedup_key=a1b2c3d4: migrated to fetch on 2025-08-20
   → Skill is following L4 (precedence). Consider /geniro:instructions edit global.md.
 ```
 
@@ -89,10 +89,10 @@ At least one of `--l4` / `--l3` / `--l2` should be supplied; otherwise the notic
 ```
 Hard cross-layer conflict on: http library
 
-The layers disagree and precedence (L4 > L3 > L2) alone cannot resolve this — your L4 rule contradicts current L3 reality. Which is intent?
+The layers disagree and precedence (project rules > project snapshot > past learnings) alone cannot resolve this — your project rule contradicts current project-snapshot reality. Which is intent?
 
-  - L4 rule (.geniro/instructions/global.md): use axios
-  - L3 fact (.geniro/planning/_project.md): axios removed from package.json; fetch in use
+  - L4 rule (project rules) (.geniro/instructions/global.md): use axios
+  - L3 fact (project snapshot) (.geniro/planning/_project.md): axios removed from package.json; fetch in use
 
 After you decide, /geniro:instructions edit global.md to refresh L4.
 ```

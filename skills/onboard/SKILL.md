@@ -458,7 +458,7 @@ For each onboarding, confirm:
 ```
 → Scan entire codebase structure
 → Generate quick refresh of architecture
-→ Note what's changed since last visit (L3 diff against prior `_CODEBASE_MAP.md`)
+→ Note what's changed since last visit (diff against the prior project snapshot `_CODEBASE_MAP.md`)
 → Map is ready as reference for the session
 
 ### Example 3: Planning a Feature

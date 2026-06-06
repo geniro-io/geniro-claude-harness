@@ -91,7 +91,7 @@ This is the calibration `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibratio
 
 A non-actionable finding is always `refuted` (`not-actionable`), never `clarified` — `clarified` presupposes the finding is actionable and merely needs a different recommended action, so it must not be the escape hatch for a finding that should be dropped.
 
-The R310-class false positive — a real server-side pattern that is unreachable under the production flag state — is exactly what this bar refutes without the user having to prompt a re-check.
+A real server-side pattern that is unreachable under the production flag state is exactly what this bar refutes without the user having to prompt a re-check.
 
 ---
 

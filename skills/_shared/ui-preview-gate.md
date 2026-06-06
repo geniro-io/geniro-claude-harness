@@ -75,13 +75,13 @@ Present the agent's output verbatim. Then use `AskUserQuestion` (do NOT print op
 
 ### Step 4: Emit approved description
 
-Write the approved description to the caller-designated path (e.g., `<task-dir>/ui-preview.md` for `/geniro:implement`, or hold in-memory when the caller requests it). Return control to the caller along with the file path or content.
+Write the approved description where the caller designates, or hold it in-memory when the caller requests it. `/geniro:plan` Phase 2 holds it in-memory and persists it to state.md `## UI Preview` rather than a standalone file. Return control to the caller along with the file path or content.
 
 ## Caller contract
 
 - **Callers provide:** predicted affected-files list, spec/change-request, 1-2 exemplar UI files, destination path for the approved description.
 - **Callers receive:** approved UI description content (or path), OR a routing signal "adjust plan" when the user picked option C at any round.
-- **Callers are responsible for:** feeding the approved description into every Phase-4/Phase-2 implementation agent that touches UI files under a `## UI Intent` section of that agent's prompt.
+- **Callers are responsible for:** consuming the approved description per their own procedure — e.g. `/geniro:plan` feeds it into spec.md section 6 (Steps) + section 9 (Validation) as authoring substrate.
 
 ## Anti-rationalization
 

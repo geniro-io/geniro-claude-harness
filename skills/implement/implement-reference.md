@@ -208,7 +208,7 @@ Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIMENSION: bugs | security | architecture | tests | code-quality
-CRITERIA (pre-inlined): [content of corresponding criteria file from skills/review/]
+CRITERIA (pre-inlined): [content of corresponding criteria file from ${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/ — see the reviewer dimensions table below]
 CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content]
 DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md rule 3]
 SPEC CONTEXT: [pre-inline spec.md OR state.md ## Inline Plan section]
@@ -416,7 +416,7 @@ emit_rejection_if_signal \
 
 `<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever ship-mode option carries the `(Recommended)` suffix — "Open draft PR" by default. Helper detects rejection signals and emits L2 entry — acceptance is a no-op.
 
-**Step 4 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`. Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
+**Step 4 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`, where `action` is a literal from the enum in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum (`git-push`, `pr-created`, `pr-comment-posted`). Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
 **Inline modifiers from $ARGUMENTS** (semantic parsing per Phase 1 table) override the ship-mode AUQ deterministically:
 

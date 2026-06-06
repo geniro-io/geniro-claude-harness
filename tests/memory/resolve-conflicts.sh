@@ -27,15 +27,15 @@ case "$out" in
 esac
 
 case "$out" in
-  *'L4 .geniro/instructions/global.md: use axios'*) pass "soft notice has L4 line with source" ;;
+  *'L4 rule (project rules) .geniro/instructions/global.md: use axios'*) pass "soft notice has L4 line with source" ;;
   *) fail "L4 line malformed" ;;
 esac
 case "$out" in
-  *'L3 .geniro/planning/_project.md: no axios in package.json'*) pass "soft notice has L3 line with source" ;;
+  *'L3 fact (project snapshot) .geniro/planning/_project.md: no axios in package.json'*) pass "soft notice has L3 line with source" ;;
   *) fail "L3 line malformed" ;;
 esac
 case "$out" in
-  *'L2 dedup_key=a1b2c3: migrated to fetch'*) pass "soft notice has L2 line with source" ;;
+  *'L2 history (past learnings) dedup_key=a1b2c3: migrated to fetch'*) pass "soft notice has L2 line with source" ;;
   *) fail "L2 line malformed" ;;
 esac
 
@@ -52,7 +52,7 @@ out=$(emit_conflict_notice \
   --l4 "use webpack" \
   --following L4)
 case "$out" in
-  *'L4: use webpack'*) pass "soft notice with L4 only (no source) renders L4: prefix" ;;
+  *'L4 rule (project rules): use webpack'*) pass "soft notice with L4 only (no source) renders L4 rule prefix" ;;
   *) fail "L4-only notice format wrong" ;;
 esac
 case "$out" in
@@ -78,11 +78,11 @@ case "$out" in
   *) fail "hard block header missing — got: $out" ;;
 esac
 case "$out" in
-  *'L4 rule (.geniro/instructions/global.md): use axios'*) pass "hard block has L4 rule with source" ;;
+  *'L4 rule (project rules) (.geniro/instructions/global.md): use axios'*) pass "hard block has L4 rule with source" ;;
   *) fail "L4 rule line wrong" ;;
 esac
 case "$out" in
-  *'L3 fact (.geniro/planning/_project.md): axios removed; fetch in use'*) pass "hard block has L3 fact with source" ;;
+  *'L3 fact (project snapshot) (.geniro/planning/_project.md): axios removed; fetch in use'*) pass "hard block has L3 fact with source" ;;
   *) fail "L3 fact line wrong" ;;
 esac
 case "$out" in

@@ -24,7 +24,7 @@ This dimension owns *micro-level* optimization wins observable on the diff. The 
 4. **Missing pagination on unbounded queries** → architecture
 5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture
 6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
-If a finding fits one of those six, emit it under architecture's `category: "performance"` instead. Optimizations stays focused on the six categories below.
+If a finding fits one of those six, emit it as an architecture finding (its Performance & Scalability section) instead. Optimizations stays focused on the six categories below.
 
 ## What to Check
 

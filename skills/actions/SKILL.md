@@ -287,7 +287,7 @@ Dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/acti
 Compute `<lookup>` from input: if already a valid kebab slug, `<lookup> = <input>`; otherwise normalize (trim, lowercase, whitespace-runs → hyphens). If `<lookup>` matches a registry entry's `name`:
 
 - **Source = local:** return `(<resolved-path>, <resolved-slug>, local)`. No AUQ.
-- **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree gate per step 1):
+- **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree confirmation; `<source>` was tagged in Step 1):
 - **Question:** "Action `<lookup>` exists in the main worktree at `<PRIMARY_ROOT>/.geniro/actions/<lookup>.md`. Use it?"
 - **Options:** `Use the main-worktree copy` / `Cancel`
 - **Source = main-worktree, sub-command = `delete` or `edit`:** skip the gate here; Step 4 handles the refuse-and-surface.
@@ -479,7 +479,7 @@ Validation results: 3 actions checked, 1 issue found.
 ✓ daily-recap.md (local) no issues
 ⚠ slack-release-ping.md (main-worktree) 1 HIGH
 └── Line 4: risk_class missing — REQUIRED field
-✓ pr-finalize.md (local) no issues
+✓ commit-and-pr-summary.md (local) no issues
 
 To fix: /geniro:actions edit slack-release-ping
 ```
@@ -492,7 +492,7 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | not read | not written | `/geniro:actions` does not touch CLAUDE.md |
+| CLAUDE.md (not a memory layer) | not read | not written | `/geniro:actions` does not touch CLAUDE.md |
 | L2 learnings.jsonl | not read in CRUD modes | written in run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run |
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |

@@ -132,7 +132,7 @@ When the PR links an issue, the description should either restate the acceptance
 
 On a re-review (round 2+ of human review on the same PR), the PR body often describes the EARLIER diff before fixes pushed in response to round 1. The body claims a behavior that the code no longer has, OR omits a behavior the code now has. The scope-alignment check (#8) above compares body vs CURRENT diff in a single pass; this check adds the cross-round dimension by comparing CURRENT body to the prior-run body persisted by the orchestrator.
 
-The Phase 5 state file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` carries `pr-body: <verbatim PR body>` in frontmatter (see `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 state-schema). On re-review, the orchestrator's Phase 1 Step 0.5 reads it before overwriting; this reviewer compares against it. SKILL.md also reads `.geniro/state/review-findings-state.md` once on Phase 5 entry if present for resume safety; write always lands at the path.
+The handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` carries `pr-body: <verbatim PR body>` in frontmatter (see the handoff frontmatter schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md`). On re-review, the orchestrator's Phase 1 prior-round triage read (re-review detection) reads it before overwriting; this reviewer compares against it.
 
 **How to detect:**
 1. From the orchestrator-pre-inlined `PRIOR-ROUND PR BODY:` slot (added on round 2+; renders as `none — first review` on round 1 or when the prior-run state file has no `pr-body:`), check if a prior PR body is present.

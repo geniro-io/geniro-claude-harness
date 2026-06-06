@@ -15,6 +15,11 @@
 #   atomic_state_write <target>   — tmp + fsync + rename + fsync-dir (T1 / T2 / T3 CRUD)
 #   atomic_state_append <target>  — POSIX O_APPEND for ≤4KB lines (T3 append-only / JSONL)
 
+# Single source for the append/JSONL byte ceiling: PIPE_BUF (4096 on Linux, 512 on
+# macOS) minus 2 bytes for the newline framing the append adds. emit-learning.sh sources
+# this file and reuses GENIRO_APPEND_MAX_BYTES, so the two enforcers never drift.
+: "${GENIRO_APPEND_MAX_BYTES:=4094}"
+
 # Per-file sync fallback: GNU `sync -d <path>` works on Linux; macOS lacks -d.
 # Probe once; reuse decision via a function.
 _atomic_state_sync_file() {
@@ -118,7 +123,7 @@ atomic_state_append() {
   # bytes while under 4096 chars, silently skipping the guard.
   local content_bytes
   content_bytes=$(printf '%s' "$content" | wc -c | tr -d ' ')
-  if [ "$content_bytes" -gt 4094 ]; then
+  if [ "$content_bytes" -gt "$GENIRO_APPEND_MAX_BYTES" ]; then
     echo "atomic_state_append: content + framing exceeds 4096 bytes (content ${content_bytes}); atomicity not guaranteed" >&2
     return 68
   fi

@@ -83,23 +83,23 @@ emit_conflict_notice() {
 
   if [ -n "$_RC_L4" ]; then
     if [ -n "$_RC_L4_SRC" ]; then
-      printf '  L4 %s: %s\n' "$_RC_L4_SRC" "$_RC_L4"
+      printf '  L4 rule (project rules) %s: %s\n' "$_RC_L4_SRC" "$_RC_L4"
     else
-      printf '  L4: %s\n' "$_RC_L4"
+      printf '  L4 rule (project rules): %s\n' "$_RC_L4"
     fi
   fi
   if [ -n "$_RC_L3" ]; then
     if [ -n "$_RC_L3_SRC" ]; then
-      printf '  L3 %s: %s\n' "$_RC_L3_SRC" "$_RC_L3"
+      printf '  L3 fact (project snapshot) %s: %s\n' "$_RC_L3_SRC" "$_RC_L3"
     else
-      printf '  L3: %s\n' "$_RC_L3"
+      printf '  L3 fact (project snapshot): %s\n' "$_RC_L3"
     fi
   fi
   if [ -n "$_RC_L2" ]; then
     if [ -n "$_RC_L2_SRC" ]; then
-      printf '  L2 %s: %s\n' "$_RC_L2_SRC" "$_RC_L2"
+      printf '  L2 history (past learnings) %s: %s\n' "$_RC_L2_SRC" "$_RC_L2"
     else
-      printf '  L2: %s\n' "$_RC_L2"
+      printf '  L2 history (past learnings): %s\n' "$_RC_L2"
     fi
   fi
 
@@ -116,20 +116,20 @@ hard_conflict_block() {
   _rc_parse_args "$@" || return $?
 
   printf 'Hard cross-layer conflict on: %s\n\n' "$_RC_SUBJECT"
-  printf 'The layers disagree and precedence (L4 > L3 > L2) alone cannot resolve this — your L4 rule contradicts current L3 reality. Which is intent?\n\n'
+  printf 'The layers disagree and precedence (project rules > project snapshot > past learnings) alone cannot resolve this — your project rule contradicts current project-snapshot reality. Which is intent?\n\n'
 
   if [ -n "$_RC_L4" ]; then
-    printf '  - L4 rule'
+    printf '  - L4 rule (project rules)'
     [ -n "$_RC_L4_SRC" ] && printf ' (%s)' "$_RC_L4_SRC"
     printf ': %s\n' "$_RC_L4"
   fi
   if [ -n "$_RC_L3" ]; then
-    printf '  - L3 fact'
+    printf '  - L3 fact (project snapshot)'
     [ -n "$_RC_L3_SRC" ] && printf ' (%s)' "$_RC_L3_SRC"
     printf ': %s\n' "$_RC_L3"
   fi
   if [ -n "$_RC_L2" ]; then
-    printf '  - L2 history'
+    printf '  - L2 history (past learnings)'
     [ -n "$_RC_L2_SRC" ] && printf ' (%s)' "$_RC_L2_SRC"
     printf ': %s\n' "$_RC_L2"
   fi

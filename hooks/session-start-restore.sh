@@ -368,6 +368,8 @@ _render_non_resumable_block() {
     | (.["completed-at"] // "?") as $c
     | if $a == "git-push" then
         "  - git-push (target: \(.target // "?"), ref: \(.ref // "?"), completed: \($c))"
+      elif $a == "pr-created" then
+        "  - pr-created (pr: \(.pr // "?"), url: \(.url // "?"), completed: \($c))"
       elif $a == "pr-comment-posted" then
         "  - pr-comment-posted (pr: \(.pr // "?"), comment-id: \(.["comment-id"] // "?"), completed: \($c))"
       elif $a == "slack-notify-sent" then

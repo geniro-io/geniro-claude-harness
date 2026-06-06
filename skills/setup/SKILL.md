@@ -35,9 +35,9 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 
 1. One result per subagent call — the verification subagent returns one structured report.
 2. Args validated before exec — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
-3. Permission before side-effect — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate.
+3. Permission before side-effect — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) are gated too — folded into the Phase Validate batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
 4. Bounded structured results — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
-5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | re-run`.
+5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | start-over (re-detect)` (the §4.2 three-option form).
 6. Observations not assumed success — every Bash command in Detect requires explicit observation parse, no silent skips.
 7. Errors as structured observations — Detect failures written to `## Errors`, not swallowed.
 
@@ -72,7 +72,7 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 |---|---|---|
 | User aborted at Validate AUQ (rejected generated content) | `failed` | "user-aborted at Validate AUQ — generated content rejected; restart via re-run mode" |
 | Validation drift cleared after retry | `done` | not written (success path) |
-| Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort" |
+| Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort / start-over (re-detect)" |
 | Generation hit write-protection | `failed` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
 | Bootstrap completed without drift | `done` | not written |
 
@@ -327,8 +327,10 @@ Generated CLAUDE.md sections:
 - `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in.
 - `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
+- `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
+- `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
 
-All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files? Options: yes / show preview first / edit").
+All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / show preview first / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
 
 ### 3.4 Conflict-resolution merge rules (re-run only)
 
@@ -440,7 +442,7 @@ emit_learning <<'EOF'
 EOF
 ```
 
-`trust: verified` per base schema (code-grounded — Detect read real files; no WebFetch).
+`trust: verified` per base schema (code-grounded — Detect read real files; no WebFetch). The `mode` field records the actual run mode — emit `"re-run"` instead of `"init"` when this fired on a re-run.
 
 ## Phase 5: Done
 
@@ -575,7 +577,7 @@ validate_rounds: 1
 
 | Layer | Read at | Write at | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Contains ONLY project info (stack, commands, conventions, domain). No geniro plugin info. Preserves user customizations via orchestrator-inline merge |
+| CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Contains ONLY project info (stack, commands, conventions, domain). No geniro plugin info. Preserves user customizations via orchestrator-inline merge |
 | L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |

@@ -25,7 +25,7 @@ Plan-specific layers of the opt-in `--deep` quality mode. The cross-skill contra
 Standard Phase 4.1 synthesizes the Phase 1 explore + Phase 3 answers into 2-3 approaches in one inline pass — the same context that later ranks them, so the candidate set reflects one set of blind spots. Deep mode replaces that single synthesis with a judge-panel `Workflow(...)`:
 
 - **Generate** — spawn 3-4 approach generators in parallel, each pinned to a DISTINCT lens so the candidate set spans the design space rather than one author's first instinct: `minimal-change` (smallest diff that satisfies the objective), `reuse-first` (maximize existing-abstraction reuse), `risk-first` (minimize blast radius / maximize reversibility), and a domain-relevant fourth where it applies (e.g. `performance-first`). Each generator receives the same Phase 1 explore + Phase 3 answer context.
-- **Dedup + score** — union the candidates, drop near-identical ones in-script (same core mechanism + same touched surface = one), then a scoring pass ranks the deduped set on the §4.3 axes (feasibility, blast radius, reversibility, cost).
+- **Dedup + score** — union the candidates, drop near-identical ones in-script (same core mechanism + same touched surface = one), then a scoring pass ranks the deduped set on four axes — feasibility, blast radius, reversibility, and cost (the deep-mode scoring rubric; the standard §4.2 critic stage that follows re-checks feasibility against the codebase).
 - **Synthesize** — the orchestrator takes the top 2-3 ranked candidates into the standard §4.2 critic stage and the §4.3 approach AUQ. The user still picks from 2-3 rendered approaches; deep mode raises the odds those 2-3 are the best of a wider field.
 
 Recall dedup runs BEFORE the §4.2 critics, so a duplicated approach never consumes a critic slot twice.
@@ -55,7 +55,7 @@ const LENSES = ['minimal-change', 'reuse-first', 'risk-first', 'performance-firs
 const candidates = (await parallel(LENSES.map(lens => () =>
   agent(generatorPrompt(lens, exploreCtx, clarifyCtx), { label: `gen:${lens}`, phase: 'Deep approaches — panel' })
 ))).filter(Boolean).flatMap(parseApproaches)         // raw JSON → approach objects; parse-fail drops that lens
-const ranked = scoreAndDedup(candidates)              // in-script: dedup near-identical, rank on the §4.3 axes
+const ranked = scoreAndDedup(candidates)              // in-script: dedup near-identical, rank on the four axes (feasibility/blast-radius/reversibility/cost)
 
 phase('Deep critics — 3x feasibility')
 const critiques = await parallel(top3(ranked).map(a => () =>

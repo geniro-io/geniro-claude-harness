@@ -9,7 +9,7 @@
 #   Returns 0 on success.
 #   Non-zero on failure; prints structured error to stderr.
 #
-# YAML parsing strategy (per M1 §Open Q1): shell-line only.
+# YAML parsing strategy: shell-line only.
 # We never need nested-structure parsing — required-field check is
 # key-presence, schema-version is an integer scalar.
 
@@ -221,7 +221,7 @@ validate_state_file() {
     fi
   fi
 
-  # Step 7 (P-M1-2): worktree path check (optional).
+  # Step 7: worktree path check (optional).
   if _vsf_fm_has_key "$fm" worktree; then
     local wt
     wt="$(_vsf_fm_get_value "$fm" worktree)"

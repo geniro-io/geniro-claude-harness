@@ -21,7 +21,7 @@ set -euo pipefail
 # Consume stdin — REQUIRED first step.
 INPUT=$(cat)
 
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
 if [ -z "$FILE_PATH" ]; then
   exit 0
 fi

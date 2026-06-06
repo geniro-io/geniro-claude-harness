@@ -68,7 +68,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 - **Topic spans multiple subsystems / very Big task** — the plan-loop completes normally (Phase 5 milestone-mode fires automatically per the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — the Big-tier milestone threshold). The Phase 9 handoff recommends `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs.
 
-- **User wants to plan WITHOUT writing a spec.md** — not supported. The committed spec.md IS the durable artifact downstream skills consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. If the user insists, run /geniro:plan, pick "Stop — keep spec for later" at Phase 9 (terminal `done`, spec sits on disk but not committed). The three detection markers must still be present per Phase 6 contract.
+- **User wants to plan WITHOUT writing a spec.md** — not supported. The committed spec.md IS the durable artifact downstream skills consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. If the user insists, run /geniro:plan, pick "Stop — keep spec for later" at Phase 9 (terminal `done`, committed spec sits on disk). The three detection markers must still be present per Phase 6 contract.
 
 - **`mode=CODE_REFERENCE`** — error and exit per Phase 0 (design-doc-detect helper returns CODE_REFERENCE → /geniro:plan emits error: "code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?"). Do NOT fall back to `mode=IDEA` — silent misclassification of code references is the failure mode `design-doc-detect.md` Anti-rationalization warns against.
 

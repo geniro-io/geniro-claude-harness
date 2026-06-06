@@ -3,13 +3,13 @@
 **Canonical reference for every state file in `.geniro/`.** See `ARCHITECTURE.md` §State Files for the design decisions behind this spec.
 
 Helpers reference this spec:
-- `skills/_shared/atomic-state-write.md` — write helper for T1, T3 CRUD, and append-only.
+- `skills/_shared/atomic-state-write.md` — write helper for T1.5, T2, T3 CRUD, and append-only.
 - `skills/_shared/validate-state-file.md` — validates frontmatter against this spec.
 
 ## Contents
 
 - Tier model — the four tiers and their lifecycle contracts
-- Path roots — which files live under each tier (plus the tier-exempt TDD-cycle state file)
+- Path roots — which files live under each tier (plus the tier-exempt TDD-cycle and verification-cache state files)
 - Frontmatter contract — common-base + tier-specific required fields
 - T2 `open_questions` array schema — the handoff gate substrate
 - `authored_tests` array schema — the debug-handoff test record
@@ -22,7 +22,7 @@ Helpers reference this spec:
 
 ## Tier model
 
-Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract — with one documented exception, the TDD-cycle state file (see §Path roots → Tier-exempt).
+Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract — with two documented exceptions, the TDD-cycle state file and the verification cache (see §Path roots → Tier-exempt).
 
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
@@ -76,6 +76,7 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 ### Tier-exempt — TDD-cycle state file
 
 - `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; the PreToolUse hook `enforce-tdd-order.sh` reads it; subagents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase and a target path so the hook can gate `Edit`/`Write` at the right moment — it is not a frontmatter-bearing durable artifact and is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
+- `.geniro/planning/<task-dir>/.verify-cache.json` — the cross-phase build/lint/test PASS cache (full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`). Like the TDD-cycle file it is single-writer (orchestrator-only; subagents emit `## Checks Report` sections instead of writing it), written via `mktemp` + `mv -f` rather than `atomic_state_write`, carries no frontmatter, and is never passed through `validate_state_file`. It is a regenerable cache — discarded on any invalidation per verification-cache.md §Invalidation rules, not a durable artifact.
 
 ---
 
@@ -125,6 +126,22 @@ approvals:
     at: <ISO-8601 UTC>
     asked_in_phase: <phase name>
 ```
+
+### `non-resumable-actions[]` action enum
+
+Each entry is `{action, completed-at, <action-specific-fields>}`. The `action` value is one of a fixed enum so the SessionStart restore hook (`hooks/session-start-restore.sh`) can render a per-action resume warning — producers emit the literal string and the hook string-matches it. This table is the single source; add a new value here and to the hook's renderer in lockstep.
+
+| `action` | Emitted by | Action-specific fields |
+|---|---|---|
+| `git-push` | `/geniro:implement` | `target`, `ref` |
+| `pr-created` | `/geniro:implement` | `pr`, `url` |
+| `pr-comment-posted` | `/geniro:implement` | `pr`, `comment-id` |
+| `pr-review-comment-batch` | `/geniro:review` | `pr-ref`, `finding-count`, `comment-ids` |
+| `git-commit` | `/geniro:plan`, `/geniro:implement` | `commit-sha` |
+| `slack-notify-sent` | `/geniro:actions` | `channel`, `ts` |
+| `release-tagged` | `/geniro:actions` | `tag` |
+
+An unrecognized `action` renders via the hook's generic fallback.
 
 ### T2 required `open_questions` array
 

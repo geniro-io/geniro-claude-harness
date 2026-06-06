@@ -319,7 +319,7 @@ Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches
 - **Name** (3-5 word label)
 - **Summary** (2-3 sentences)
 - **Trade-off** (1 sentence: gain vs give-up)
-- **Effort estimate** (Trivial / Medium / Big per effort-scaling.md)
+- **Effort estimate** (Trivial / Small / Medium / Big per effort-scaling.md)
 
 ### 4.2 Independent stress-test (adversarial weighing)
 

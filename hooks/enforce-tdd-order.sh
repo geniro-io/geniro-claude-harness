@@ -9,7 +9,7 @@ set -euo pipefail
 INPUT=$(cat)
 
 # Extract file path from tool input JSON
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
 
 if [ -z "$FILE_PATH" ]; then
   # No file path found, allow execution

@@ -64,7 +64,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ### 6. `budget`
 
-**Rule:** frontmatter `budget` block has all 3 sub-fields (`max_files_to_edit` / `max_lines_changed` / `time_budget`). Values may be `null` for unbounded, but the keys MUST be present.
+**Rule:** frontmatter `budget` block has all 3 sub-fields (`max_files_to_edit` / `max_lines_changed` / `time_budget`). Values may be `null` for unbounded, but the keys must be present — the validator checks key presence, not value.
 
 **Heuristic:** YAML key presence check.
 
@@ -72,7 +72,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ### 7. `checkpoints`
 
-**Rule:** frontmatter `checkpoints` is a non-empty list if section 6 (Steps) has ≥5 steps. Each checkpoint MUST reference a step-N anchor or section-name that exists.
+**Rule:** frontmatter `checkpoints` is a non-empty list if section 6 (Steps) has ≥5 steps. Each checkpoint must reference a step-N anchor or section-name that exists.
 
 **Heuristic:** step-count via numbered-list parsing; for each checkpoint entry, verify `step_anchor` resolves to an actual step.
 

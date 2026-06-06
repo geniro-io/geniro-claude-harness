@@ -29,7 +29,7 @@ MODE="warn"
 INPUT=$(cat)
 
 # Extract file path from tool input JSON.
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
 
 if [ -z "$FILE_PATH" ]; then
   exit 0
@@ -84,7 +84,7 @@ matches_state_path() {
   if echo "$p" | grep -qE '(^|/)\.geniro/(state|planning|knowledge|instructions|actions|workflow)/'; then
     return 0
   fi
-  # Plugin metadata file (T3 CRUD per M1).
+  # Plugin metadata file (T3 CRUD).
   if echo "$p" | grep -qE '(^|/)\.geniro/\.geniro-state\.json$'; then
     return 0
   fi

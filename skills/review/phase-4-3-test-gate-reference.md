@@ -28,13 +28,13 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 ## 2. Step 1 — Filter findings by decision-type
 
 **Eligible:**
-- Any finding with `decision: TESTABLE`.
-- CRITICAL or HIGH findings with `decision: FIX-NOW` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type, returned value, mutated state, observable side effect — DOM/file/API/db).
+- Any finding with `Decision Type: [TESTABLE]`.
+- CRITICAL or HIGH findings with `Decision Type: [FIX-NOW]` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type, returned value, mutated state, observable side effect — DOM/file/API/db).
 
 **Excluded:**
-- `decision: PRODUCT-DECISION` (multiple valid resolutions — no single behavior to assert).
-- `decision: INTENT-CHECK` (plan conformance, not runtime).
-- `decision: FIX-NOW` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
+- `Decision Type: [PRODUCT-DECISION]` (multiple valid resolutions — no single behavior to assert).
+- `Decision Type: [INTENT-CHECK]` (plan conformance, not runtime).
+- `Decision Type: [FIX-NOW]` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
 
 Use the decision-type taxonomy as defined in `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` §7.
 If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely — do NOT show an AUQ. Proceed to Phase 5.

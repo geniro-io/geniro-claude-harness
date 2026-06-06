@@ -8,6 +8,8 @@ This file is the single source of truth for cache invalidation. Skills cite this
 
 When a subagent reports PASS for the project's `<build_cmd> && <lint_cmd> && <test_cmd>` triad (via a `## Checks Report` section or equivalent structured artifact), the orchestrator MAY cache the result and skip re-running for the next phase — IF AND ONLY IF every invalidation rule below holds. The cache is a pre-mutation snapshot of green CI, not a time-bounded "recently passed" marker.
 
+Canonical path: `.geniro/planning/<task-dir>/.verify-cache.json` — tier-exempt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Tier-exempt (single-writer, no frontmatter, regenerable; written via `mktemp` + `mv -f`, not `atomic_state_write`). This is what `$cache_path` resolves to in the examples below.
+
 Cache record fields (minimum):
 
 - `command_triad`: verbatim build/lint/test commands as run.
@@ -23,14 +25,14 @@ The cache must be discarded and the triad re-run when any of the following hold:
 - Any `Edit`, `Write`, or external file modification happened between cache-write and cache-read. The orchestrator detects this by tracking its own tool calls and by re-reading `git status --porcelain` / file mtimes against `mtime_ceiling` before honoring the cache.
 - The cache is older than the current phase boundary's intent. Cross-phase carry is allowed only when no mutation has happened since cache-write; a phase-boundary crossing alone does NOT invalidate, but any mutation inside the new phase does.
 - A different commit SHA is checked out (`git rev-parse HEAD` differs from `commit_sha`). Worktree changes invalidate unconditionally — including reverts, rebases, and branch switches.
-- The reporting agent's exit was non-clean (timeout, partial output, hook abort). Orchestrators NEVER cache inferred-PASS from partial outputs — absence of FAIL is not PASS.
+- The reporting agent's exit was non-clean (timeout, partial output, hook abort). Orchestrators do not cache inferred-PASS from partial outputs — absence of FAIL is not PASS.
 - The `command_triad` differs from what the next phase needs (e.g., Phase 5 cached `pnpm test --run` but Phase 6 requires `pnpm test --run --coverage`). Different commands = different cache key.
 
 When invalidated, the orchestrator re-runs the full triad and writes a fresh cache record; the stale record is discarded, never partially honored.
 
 ## Atomic write & single-writer
 
-Only the orchestrator writes the cache; subagents NEVER write to the cache file directly. Subagents emit `## Checks Report` sections in their output; the orchestrator parses, validates, and writes.
+Only the orchestrator writes the cache; subagents do not write to the cache file directly. Subagents emit `## Checks Report` sections in their output; the orchestrator parses, validates, and writes.
 
 Writes go through tmpfile + atomic rename so a concurrent reader never sees a half-written record:
 
