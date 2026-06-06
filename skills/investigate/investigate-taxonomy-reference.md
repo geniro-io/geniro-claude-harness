@@ -61,6 +61,7 @@ geniro_schema_version: m9-v1
 task_slug: <slug>
 worktree: <abs-path>
 question_type: <one of the types in the Phase 1 Step 1 classification table>
+dive_round: <0-2>     # optional; Phase 3 dive-deeper round counter, survives compaction-resume (max 2)
 ---
 
 ## Scope

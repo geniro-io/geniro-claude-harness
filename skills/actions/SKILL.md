@@ -228,7 +228,7 @@ Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, t
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
 - Frontmatter `external-send: true` if Q3 = "Posts to an external system" or "Multiple side effects" with external.
-- Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if no adjacent-action collision), `## Steps` (numbered), `## Output`, `## Test cases` (only if Q4 = Yes).
+- Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if the action has no skip conditions), `## Steps` (numbered), `## Output`, `## Test cases` (only if Q4 = Yes).
 
 **Show the drafted markdown to the user. Do NOT call Write yet.** Then AUQ:
 
@@ -259,7 +259,7 @@ After Write, run these checks (orchestrator-side, no subagent):
 | 7 | `## Steps` section present with ≥1 numbered item | HIGH |
 | 8 | **`risk_class:` field present** | **CRITICAL** |
 | 9 | **`risk_class:` value in `{low, medium, high}`** | **CRITICAL** |
-| 10 | **If `external-send: true`, `risk_class` MUST be `medium` or `high`** | **HIGH** |
+| 10 | **`external-send: true` requires `risk_class: medium` or `high`** | **HIGH** |
 
 On fail: surface the specific failure (check, line, expected). The on-failure rollback depends on **entry mode**:
 
@@ -287,7 +287,7 @@ Dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/acti
 Compute `<lookup>` from input: if already a valid kebab slug, `<lookup> = <input>`; otherwise normalize (trim, lowercase, whitespace-runs → hyphens). If `<lookup>` matches a registry entry's `name`:
 
 - **Source = local:** return `(<resolved-path>, <resolved-slug>, local)`. No AUQ.
-- **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree gate per step 1):
+- **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree confirmation; `<source>` was tagged in Step 1):
 - **Question:** "Action `<lookup>` exists in the main worktree at `<PRIMARY_ROOT>/.geniro/actions/<lookup>.md`. Use it?"
 - **Options:** `Use the main-worktree copy` / `Cancel`
 - **Source = main-worktree, sub-command = `delete` or `edit`:** skip the gate here; Step 4 handles the refuse-and-surface.
@@ -479,7 +479,7 @@ Validation results: 3 actions checked, 1 issue found.
 ✓ daily-recap.md (local) no issues
 ⚠ slack-release-ping.md (main-worktree) 1 HIGH
 └── Line 4: risk_class missing — REQUIRED field
-✓ pr-finalize.md (local) no issues
+✓ commit-and-pr-summary.md (local) no issues
 
 To fix: /geniro:actions edit slack-release-ping
 ```
@@ -492,7 +492,7 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | not read | not written | `/geniro:actions` does not touch CLAUDE.md |
+| CLAUDE.md (not a memory layer) | not read | not written | `/geniro:actions` does not touch CLAUDE.md |
 | L2 learnings.jsonl | not read in CRUD modes | written in run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run |
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |
@@ -523,11 +523,6 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - PERSISTENT (CRUD) — `.geniro/actions/` tier; write via `atomic_state_write` with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
 - Compaction survival — actions are files on disk, so they persist across compaction
-- §Loop invariants — 7 loop invariants
-- §Budgets — quality-first budgets
-- §ACI surface per phase — per-phase ACI
-- §Phase 6: `edit` sub-command — edit dialogue-mode pattern
-- §Phase 8: `validate` sub-command — validate rule set (shared + structural lint)
 
 ## Definition of Done
 
@@ -540,7 +535,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - [ ] All user interactions used `AskUserQuestion`
 - [ ] `.gitignore` re-include rules added on first action created (idempotent)
 - [ ] No `{{placeholder}}` left in any written file
-- [ ] File written has frontmatter `created`, `created-by: geniro:actions`, and `risk_class:`
+- [ ] On create, file written has frontmatter `created`, `created-by: geniro:actions`, and `risk_class:` (validate enforces `risk_class:`; `created`/`created-by` are create-time stamps, not re-validated, so a hand-authored action without them still passes validate)
 - [ ] L2 `discovery` emit fired on successful run with `external-send: true`
 - [ ] Worktree fallback for `run` consulted main worktree only when local registry didn't resolve, and path confirmed via AUQ before executing
 - [ ] `delete` / `edit` refused to operate on actions in a sibling worktree

@@ -2,7 +2,7 @@
 
 Code style, naming conventions, documentation, consistency, and compliance with project standards.
 
-> **Scope:** repo-modal-pattern findings (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency, ADR contradictions) are owned exclusively by the `conventions` review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/review/conventions-criteria.md`. Do NOT emit such findings from `guidelines` — that produces a finding the user is told twice. This file covers style / naming / documentation / formatting / type-safety / public-API surface / dead-code only.
+> **Scope:** repo-modal-pattern findings (file placement, declaration order, mixing-of-kinds, error-handling style, sibling consistency, ADR contradictions) are owned exclusively by the `conventions` review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md`. Do NOT emit such findings from `guidelines` — that produces a finding the user is told twice. This file covers style / naming / documentation / formatting / type-safety / public-API surface / dead-code only.
 
 ## Contents
 
@@ -29,8 +29,8 @@ Code style, naming conventions, documentation, consistency, and compliance with 
 # Find single-letter or vague variables
 grep -nE "^\s*[a-z]\s*=" file.js
 grep -nE "var (x|y|z|data|temp|result|obj|arr|str)\b" file.js
-# Check naming inconsistency
-grep -n "const\|let\|var" file.js | head -20 | cut -d: -f2 | sort | uniq -c
+# Check naming inconsistency (camelCase vs snake_case mix)
+grep -oE "(const|let|var) [A-Za-z_][A-Za-z0-9_]*" file.js | awk '{print ($2 ~ /_/ ? "snake" : "camel")}' | sort | uniq -c
 # Find magic numbers
 grep -nE "[0-9]{2,}" file.js | grep -v "200\|404\|timestamp\|size"
 ```
@@ -73,8 +73,8 @@ grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
 
 **How to detect:**
 ```bash
-# Check indentation consistency
-head -20 file.js | cat -A | grep -E "^\s" | cut -c1-5 | sort | uniq -c
+# Check indentation consistency (tabs vs leading spaces — portable, no GNU `cat -A`)
+awk '/^\t/{tabs++} /^ /{spaces++} END{print "tab-indented:", tabs+0, "space-indented:", spaces+0}' file.js
 # Check line length
 awk 'length > 120 {print NR": length=" length}' file.js
 # Check brace style consistency
@@ -154,7 +154,7 @@ grep -n "for.*in\|forEach\|map\|reduce" file.js
 # Look for repeated constant values
 grep -nE ":\s*['\"].*['\"]\s*[,;}]" file.js | cut -d: -f2 | sort | uniq -c | sort -rn
 # Find duplicate function definitions
-grep -n "function\|const.*=" file.js | awk '{print $1}' | sort | uniq -c | sort -rn
+grep "function\|const.*=" file.js | awk '{print $1}' | sort | uniq -c | sort -rn
 ```
 
 **Red flags:**
@@ -176,7 +176,7 @@ grep -n "function\|const.*=" file.js | awk '{print $1}' | sort | uniq -c | sort 
 # Find unused imports
 grep -n "^import\|^require" file.js
 # Find wildcard imports
-grep -n "import \*\|from '.*\*'\|require('.*')" file.js
+grep -n "import \*\|from '.*\*'" file.js
 # Count imports per file
 grep -c "^import\|^require" file.js
 # Check for unused variables

@@ -86,7 +86,7 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`branch`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
 4. **Transition.** Branch on the `--prd` flag from §0.1: when it was present, set `phase: problem-discovery` via `atomic_state_write` and proceed to Phase 0.5; otherwise set `phase: explore` and proceed to Phase 1. Phase 0.5 itself sets `phase: explore` on completion (§0.5.4), so a `--prd` run flows through problem-discovery then rejoins the normal loop at Phase 1.
 
 ### 0.4 Cancel handling
@@ -99,7 +99,7 @@ If state.md already created when user cancels (e.g., deep cancel via Other): wri
 
 State.md `phase: problem-discovery` during this phase. **Fires only when `prd_mode: true`** (set in Phase 0.1 from a `--prd` flag in `$ARGUMENTS`). When `prd_mode` is unset, skip this phase entirely — the loop transitions Phase 0 → Phase 1 unchanged.
 
-This phase runs a problem-first discovery interview BEFORE explore and clarify, so the eventual spec is grounded in a validated problem rather than a presumed solution. It reuses the Phase 3 batched-AUQ pattern (independent questions batched into one call, ≤4 per call; chain a second call past the cap rather than drop a question — the 4-option-per-call tool limit applies here too).
+This phase runs a problem-first discovery interview BEFORE explore and clarify, so the eventual spec is grounded in a validated problem rather than a presumed solution. It reuses the Phase 3 batched-AUQ pattern (independent questions batched into one call, ≤4 per call; chain a second call past the cap rather than drop a question — the 4-question-per-call tool limit applies here too).
 
 ### 0.5.1 Interview dimensions
 
@@ -176,10 +176,10 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 
 | Tier | Spawns |
 |---|---|
-| Trivial (single-file config tweak, typo fix, rename) | 1 agent OR 0 if obviously scope-bound |
-| Small (localized change, 1-2 files) | 1-2 agents (existing-impl; integration-surface only if it spans a boundary) |
-| Medium (feature addition touching 2-5 files) | 2 agents (existing-impl + integration-surface) |
-| Big (subsystem-level change ≥10 files) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
+| Trivial (typo / config tweak / mechanical rename — no logic change) | 1 agent OR 0 if obviously scope-bound |
+| Small (localized, single-concern change) | 1-2 agents (existing-impl; integration-surface only if it spans a boundary) |
+| Medium (a feature, or a change that touches a contract / boundary) | 2 agents (existing-impl + integration-surface) |
+| Big (a hard escalation signal is present, or dimension score 7+ per effort-scaling.md) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
 
 Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium` (default) or `very thorough` for Big-tier subsystem facets.
 
@@ -246,7 +246,7 @@ State.md `phase: visual-companion` during this phase. Fires only when a UI trigg
 
 Fire Phase 2 if **either** condition holds:
 
-- Phase 1 explore-agent surfaced any path matching a UI file — path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`, OR
+- Phase 1 research surfaced any path matching a UI file — path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`, OR
 - $ARGUMENTS topic string contains a UI noun: `page`, `screen`, `modal`, `form`, `dashboard`, `button`, `view`, `panel`, `widget`.
 
 No trigger → skip Phase 2 entirely. Transition `phase: clarify` and proceed to Phase 3.
@@ -319,7 +319,7 @@ Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches
 - **Name** (3-5 word label)
 - **Summary** (2-3 sentences)
 - **Trade-off** (1 sentence: gain vs give-up)
-- **Effort estimate** (Trivial / Medium / Big per effort-scaling.md)
+- **Effort estimate** (Trivial / Small / Medium / Big per effort-scaling.md)
 
 ### 4.2 Independent stress-test (adversarial weighing)
 

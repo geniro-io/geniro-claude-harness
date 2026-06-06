@@ -28,6 +28,8 @@ if [ -z "${_QL_DEPS_LOADED:-}" ]; then
   _ql_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck disable=SC1091
   source "$_ql_script_dir/repo-root.sh"
+  # shellcheck disable=SC1091
+  source "$_ql_script_dir/score-formula.sh"
   _QL_DEPS_LOADED=1
 fi
 
@@ -186,27 +188,11 @@ query_learnings() {
   if [ -n "$score_min" ]; then
     local now tau
     now=$(date -u +%s)
-    tau="${GENIRO_DECAY_TAU_DAYS:-90}"
+    tau="${GENIRO_DECAY_TAU_DAYS:-$GENIRO_DECAY_TAU_DAYS_DEFAULT}"
 
-    local score_filter='
-      def recency_decay($age_days; $tau):
-        if $age_days == null then 0.5
-        else (- ($age_days / $tau)) | exp end;
-      def trust_weight:
-        if . == "verified" then 1.0
-        elif . == "retrieved" then 0.66
-        else 0.33
-        end;
-      def access_weight($n):
-        1.0 + (($n + 1) | log10);
-      # Dampened recurrence factor: 1 + ln(recurrence_count). A count of 1
-      # (or an absent field, treated as 1) yields ln(1)=0 → factor 1.0, so
-      # pre-field entries and never-repeated entries score exactly as before.
-      # ln growth keeps a high count strengthening but not dominating: 2 → ~1.69,
-      # 5 → ~2.61, 20 → ~4.0. Clamp the floor at 1 to guard a stray 0.
-      def recurrence_weight($n):
-        1.0 + (([$n, 1] | max) | log);
-
+    # Score-formula weight functions are single-sourced in lib/score-formula.sh
+    # so the ranker and the archiver (archive-stale) never drift.
+    local score_filter="$GENIRO_SCORE_JQ_DEFS"'
       map(
         . as $entry
         | (try (.ts // "" | fromdateiso8601) catch null) as $epoch
@@ -258,7 +244,9 @@ query_learnings() {
 # not a ledger. Returns 0 on success or no-op (no log, no match), 1 on
 # write error.
 record_access() {
-  local key="$1"
+  # Read with default-expansion so a zero-arg call under a caller's `set -u`
+  # reaches the guard below and returns rc=64 instead of crashing on an unbound $1.
+  local key="${1:-}"
   if [ -z "$key" ]; then
     echo "record_access: dedup_key required" >&2
     return 64

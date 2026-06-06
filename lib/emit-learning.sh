@@ -257,7 +257,7 @@ emit_learning() {
   # atomic-state-write.md §Constraints).
   local line_bytes
   line_bytes=$(printf '%s' "$line" | wc -c | tr -d ' ')
-  if [ "$line_bytes" -gt 4094 ]; then
+  if [ "$line_bytes" -gt "$GENIRO_APPEND_MAX_BYTES" ]; then
     echo "emit_learning: serialized entry + framing exceeds 4096 bytes (${line_bytes}); atomicity not guaranteed — consider shrinking body" >&2
     return 68
   fi

@@ -86,7 +86,8 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 
 | Variable | Default | Effect |
 |---|---|---|
-| `GENIRO_DECAY_TAU_DAYS` | 90 | Controls `recency_decay = exp(-Δdays / τ)`. Same env as `query-learnings`. Lower τ = faster decay. |
+| `GENIRO_DECAY_TAU_DAYS` | 90 | Controls `recency_decay = exp(-Δdays / τ)`. Same env as `query-learnings`. Lower τ = faster decay. Default single-sourced in `lib/score-formula.sh` (`GENIRO_DECAY_TAU_DAYS_DEFAULT`) so the ranker and archiver cannot drift on it. |
+| `GENIRO_AUTO_ARCHIVE_THRESHOLD` | 5000 | `learnings.jsonl` line count above which the SessionStart hook auto-invokes this helper (see §Caller conventions). |
 
 ## Caller conventions
 
@@ -103,7 +104,7 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 
 ## Test coverage
 
-Coverage to maintain for this helper (no dedicated `tests/memory/archive-stale.sh` yet):
+Coverage maintained for this helper in `tests/memory/archive-stale.sh`:
 - Dry-run identifies candidates without writing
 - Real run flips `deprecated: true`
 - Idempotency (re-run reports 0)

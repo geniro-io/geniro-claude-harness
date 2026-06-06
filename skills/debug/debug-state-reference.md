@@ -140,9 +140,9 @@ open_questions:                       # MUST be present; MAY be empty []
 
 Body: full content of findings template + body sections (`## Tool log` / `## Errors` / `## Open Questions` (human-readable mirror of frontmatter) / `## Resolved Questions` / `## Persisted approvals`).
 
-The `open_questions[]` frontmatter array is the machine-readable source of truth per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /geniro:implement's Phase 1 Step 12 gate.
+The `open_questions[]` frontmatter array is the machine-readable source of truth per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /geniro:implement's Phase 1 handoff-resolution step gate.
 
-The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced — full schema and producer/consumer contracts in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /geniro:implement Phase 1 Step 12) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
+The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced — full schema and producer/consumer contracts in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /geniro:implement Phase 1 handoff-resolution step) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
 
 ### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
 
@@ -218,9 +218,9 @@ When /geniro:debug stalls (the stall gate fires — threshold defined in SKILL.m
 | G | **Missing eval** | Bug type has no existing regression test pattern in the project — hypotheses cannot be expressed in the existing test framework | "Missing eval pattern" | Author a new test pattern (parameterized fuzzer, mutation-test seed, etc.) |
 | H | **Missing recovery path** | All hypotheses confirmed but the fix path is unclear because the bug spans a DI / generated-code / framework-internal layer | "Missing recovery path" | Specify whether the production-source escape hatch is acceptable, or escalate as architectural |
 
-**AUQ rendering:** stall gate fires `AskUserQuestion` with header "Stall diagnosis". Render 4 of the 8 categories at a time (AUQ maxItems=4) — model picks the most likely 4 based on stall context (inconclusive-test outputs, hypothesis types tried). User picks one or "Other". Each option's `preview` (where helpful) shows what Phase 1 will do next.
+**AUQ rendering:** stall gate fires `AskUserQuestion` with header "Stall diagnosis". Render the most likely missing-component categories plus an "Abandon — present partial findings" option (AUQ maxItems=4, so typically the top 3 categories + Abandon) — the model picks categories based on stall context (inconclusive-test outputs, hypothesis types tried). "Abort" comes via "Other". Each option's `preview` (where helpful) shows what Phase 1 will do next.
 
-**Persistence:** same structured-entry pattern as the Scientific-mode stall gate (SKILL.md §1.7 Stall escalation gate). Write a structured `open_questions[]` entry with `source: phase-1-stall-gate`, `question: <verbatim category text>`, `related_hypotheses: [<inconclusive H-IDs>]`, `status: unresolved`. On user pick (A-G), update to `status: resolved` with `resolution.picked` and `resolution.resolved_by: debug`. On H or abort, the entry stays `unresolved` and Phase 3 §3.0 Pre-gate surfaces it before the escalation AUQ.
+**Persistence:** same structured-entry pattern as the Scientific-mode stall gate (SKILL.md §1.7 Stall escalation gate). Write a structured `open_questions[]` entry with `source: phase-1-stall-gate`, `question: <verbatim category text>`, `related_hypotheses: [<inconclusive H-IDs>]`, `status: unresolved`. On user pick of any surfaced missing-component category, update to `status: resolved` with `resolution.picked` and `resolution.resolved_by: debug`. On Abandon or Abort, the entry stays `unresolved` and Phase 3 §3.0 Pre-gate surfaces it before the escalation AUQ.
 
 ---
 
@@ -239,7 +239,7 @@ BRANCH: [from `git branch --show-current`]
 [Pre-inline `git diff <resolved-range>` output AND full contents of every changed source file from Step 1]
 
 ### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
-`${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`
 
 ### Project Test Framework
 - Test command (from CLAUDE.md Essential Commands): [e.g. `pnpm test`, `pytest`]
@@ -252,7 +252,7 @@ none — adversarial mode runs a fresh pass (no prior reviewer findings availabl
 ### Output
 Write your report to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
 
-The handoff's frontmatter MUST include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check. Inline this schema verbatim — the consumer (/geniro:implement Phase 1 Step 12) reads this field to relocate the tests into its worktree:
+The handoff's frontmatter MUST include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check. Inline this schema verbatim — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree:
 
 ```yaml
 authored_tests:
@@ -291,10 +291,16 @@ After re-verification, present this block directly in chat and persist (via the 
 **Tests discarded (F→P failed on re-run):** [K]
 
 ### CRITICAL / HIGH findings
-[For each: test file path, targeted source, category, confidence, hypothesis, reproduction command, suggested direction for fix (NOT the patch itself)]
+[For each finding, emit these labelled lines — the `**Test file:**` line is the human-readable mirror of the `authored_tests[]` frontmatter array that consumers fall back to parsing for legacy handoffs:]
+- **Test file:** `<path>`
+- **Targeted source:** `<file:line>`
+- **Category:** <category> · **Confidence:** <0-100>
+- **Hypothesis:** <what breaks and why>
+- **Reproduction:** `<command>`
+- **Suggested direction:** <fix direction, NOT the patch itself>
 
 ### MEDIUM findings
-[same shape]
+[same labelled shape]
 
 ### Discarded / Inconclusive
 [brief list with reasons]

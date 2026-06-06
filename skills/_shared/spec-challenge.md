@@ -2,7 +2,7 @@
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the procedure.
 
-A default, always-on adversarial pass that hardens a `spec.md` before it is acted on. It re-verifies the spec's load-bearing factual claims against the live code, (in plan mode) generates competing alternative approaches and red-teams the chosen one, then synthesizes a verdict. A manual run of this pass over one already-approved spec surfaced three blocking defects no earlier gate caught: a headline mechanism that carried no weight, a backfill predicate that matched zero rows, and a write-volume estimate off by 12x. Those are the failure classes this pass exists to catch — factually-wrong claims that read as plausible prose.
+A default, always-on adversarial pass that hardens a `spec.md` before it is acted on. It re-verifies the spec's load-bearing factual claims against the live code, (in plan mode) generates competing alternative approaches and red-teams the chosen one, then synthesizes a verdict. The failure class it exists to catch is the factually-wrong claim that reads as plausible prose: a headline mechanism that carries no weight, a backfill predicate that matches zero rows, a write-volume estimate off by an order of magnitude — defects that survive every gate keyed on structure rather than ground truth.
 
 ## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit)
 
@@ -35,7 +35,7 @@ Caller invokes:
 | `MODE` | `plan` (post-write, pre-approval) or `implement` (Phase 1, pre-edit). Branches per-skill behavior — see §2. |
 | `SPEC_PATH` | Path to the `spec.md` to challenge. |
 | `TASK_DIR` | Planning task-dir; scratch output lands at `<TASK_DIR>/.spec-challenge-out.md`. |
-| `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|medium\|big`). Context for the synthesis judge's risk calibration, NOT a gate. This pass is always-on. |
+| `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|small\|medium\|big`). Context for the synthesis judge's risk calibration, NOT a gate. This pass is always-on. |
 | `DEEP` | `true` when the calling skill is in deep mode (`deep-mode: true`), else `false` / absent. When `true`, Stage B (§4) runs each cited claim through 3 independent verifiers with majority aggregation instead of 1 — the precision layer per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Orthogonal to `MODE`; raises verification reliability, not the claim set. Missing reads as `false`. |
 
 **Always-on, no tier skip.** The pass runs even on Trivial. "Always-on" does not mean "unbounded" — the cost is bounded by the spec's own cited-claim set (§3): one verifier per cited claim, scaling to claim count rather than every sentence. A Trivial spec cites few claims and gets a small batch; a Big spec cites many and gets a larger one. Tiering the SKIP decision was the rejected design — a Trivial spec with one wrong `file:line` is exactly the cheap-but-fatal case the pass catches. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, nothing more.

@@ -133,8 +133,8 @@ grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | gr
 ```bash
 # Find inverted conditions
 grep -n "if\s*(\s*!" file.js | grep -A2 "return\|throw"
-# Find unreachable code
-grep -n "return\|break\|throw" file.js | grep -A1 "^"
+# Find unreachable code (a line immediately after a return/break/throw at block level)
+grep -nA1 -E "^\s*(return|break|throw)\b" file.js
 ```
 
 ### 7. Resource Leaks

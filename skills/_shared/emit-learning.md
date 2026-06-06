@@ -27,7 +27,7 @@ echo '<json-object>' | emit_learning
 ```
 
 - **Input:** a single JSON object on stdin (one entry per call).
-- **Output:** none on success. JSONL line is appended to the log file. The helper does NOT echo the written entry or its computed `recurrence_count`. A caller that needs the post-write `recurrence_count` (e.g. to fire a `recurrence_count >= 3` rule-capture gate) reads it back via `query-learnings` after the emit — filter by the entry's `dedup_key` and pass `--include-superseded`, then read `recurrence_count` from the matched entry.
+- **Output:** none on success. JSONL line is appended to the log file. The helper does NOT echo the written entry or its computed `recurrence_count` — a caller that needs the post-write count (e.g. to fire a `recurrence_count >= 3` rule-capture gate) reads it back via `query-learnings`; see the `recurrence_count` field note below for the exact filter.
 - **Side effects:**
  - Appends to `.geniro/knowledge/learnings.jsonl` (created if absent).
  - May append to `.geniro/knowledge/.redaction-log.jsonl` (via `redact_secrets`).

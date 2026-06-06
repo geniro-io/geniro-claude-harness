@@ -18,7 +18,7 @@ Evidence Block schema + verification cache invalidation rules + per-skill consum
 
 - Any "done", "passing", "validated", "ready to ship", "shipped" claim by the orchestrator or any subagent.
 - Every CRITICAL or HIGH finding emitted by reviewer agents (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`). MEDIUM findings should attach evidence when available; CRITICAL/HIGH without evidence are downgraded or dropped.
-- Every hypothesis confirmation in `/geniro:debug` (already enforced by the artifact-kind table in `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard).
+- Every hypothesis confirmation in `/geniro:debug` — debug consumes this artifact-kind contract per its § Evidence Standard.
 - Any cross-phase cache-PASS carry — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`.
 
 ## Evidence Block schema

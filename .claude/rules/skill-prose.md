@@ -87,7 +87,7 @@ If a critical invariant lives in the middle third, the model will under-weight i
 
 ## Token budget awareness
 
-Reasoning degrades measurably past ~3,000 tokens of input ([particula.tech](https://particula.tech/blog/optimal-prompt-length-ai-performance), [mlops.community](https://mlops.community/blog/the-impact-of-prompt-bloat-on-llm-output-quality)). A typical loaded SKILL.md is 500 lines ≈ 4-6K tokens — already at the degradation threshold. Reference files cost only when loaded, so move detail there aggressively.
+Reasoning degrades measurably past ~3,000 tokens of input ([particula.tech](https://particula.tech/blog/optimal-prompt-length-ai-performance), [mlops.community](https://mlops.community/blog/the-impact-of-prompt-bloat-on-llm-output-quality)). A target-size SKILL.md (~500 lines, the cap being a guideline not a hard limit) is ≈ 4-6K tokens — already at the degradation threshold. Reference files cost only when loaded, so move detail there aggressively.
 
 Practical heuristics for trimming SKILL.md without losing content:
 - **Inline pseudo-code** → move to reference.md, reference it by anchor.
@@ -193,7 +193,7 @@ Cover the categories below. Extend when new internal vocabulary appears in skill
 | `open_questions[]` | "open questions from the prior review/debug" |
 | `related_findings[]` | "findings this question gates" |
 
-**Helper / function / hook names.** Implementation identifiers (`atomic_state_write`, `load_semantic`, `query_learnings`, `emit_learning`, `update_semantic`, `SessionStart`, `PostCompact`, `PreToolUse`) belong in author-facing prose, never narration. If the user needs to know a helper ran (e.g., to follow up on a failure), describe what it DID, not which function did it: "Couldn't refresh the project snapshot" beats "load_semantic returned rc=11".
+**Helper / function / hook names.** Implementation identifiers (`atomic_state_write`, `load_semantic`, `query_learnings`, `emit_learning`, `update_semantic`, `SessionStart`, `PreToolUse`, `Stop`) belong in author-facing prose, never narration. If the user needs to know a helper ran (e.g., to follow up on a failure), describe what it DID, not which function did it: "Couldn't refresh the project snapshot" beats "load_semantic returned rc=11".
 
 **Schema versions.** `m5-v1` / `m5-v2` / `m6-v1` are internal versioning markers. Don't surface unless the user must act on a version difference (e.g., re-author a spec after a breaking migration) — and even then, describe the action ("this spec uses the older format and needs re-authoring"), not the version number.
 

@@ -38,7 +38,7 @@ When `deep-mode: true`, Phase 2 replaces the single parallel reviewer batch with
 - The declared dimension set is unchanged — every always-fire + triggered-conditional + custom dimension from the §2.1 grid (still recorded in `spawn_dims_declared[]`; the `§4.0` verification gate still checks the declared SET, treating 3× as a multiplier on each declared dim, not a new dim).
 - For each dimension, the workflow spawns 3 independent `reviewer-agent` passes (parallel), each with the same pre-inlined context the single-pass spawn uses (diff, criteria, mechanical pre-pass findings, the dim's context slots).
 - The workflow **unions + dedups the 3 passes of one dimension into a single per-dim finding set** before returning — see §5. Returns, per dimension, the deduped findings list as raw JSON text.
-- The orchestrator reads the workflow result and proceeds to Phase 3 (relevance filter + cross-dim convergence) exactly as in standard mode, but over the deeper per-dim sets.
+- The orchestrator reads the workflow result and proceeds to Phase 3 (orchestrator-side dedup + cross-dim convergence) exactly as in standard mode, but over the deeper per-dim sets.
 
 **Why 3× raises recall:** a single reviewer pass is non-deterministic — it surfaces a subset of the issues in its dimension. Three independent passes surface overlapping-but-different subsets; their union catches issues any single pass missed. This is the recall lever the user asked for.
 

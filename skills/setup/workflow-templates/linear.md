@@ -108,7 +108,7 @@ in the PR description body.
 
 ## Implement Skill Behavior
 
-When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching Issue Context` above — the fetched title/description/acceptance criteria flow into Phase 1 (analyze) as planning input. /geniro:plan also reads Linear context if a PLAN CONTEXT references a Linear ID.
+When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching Issue Context` above — the fetched title/description/acceptance criteria flow into Phase 1 (analyze) as planning input. `/geniro:plan` also reads Linear context when a Linear issue ID or URL appears in its `$ARGUMENTS`, persisting it to the spec's `workflow_refs[]`.
 
 ## MCP Setup
 

@@ -17,8 +17,6 @@ Use this skill to systematically debug complex issues. Replaces guessing with ev
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes
 
-**Section-reference convention:** references in this SKILL.md point to local sub-sections (Phase 1, Phase 2, Phase 3 respectively — header lines `### 1.1`, `### 2.4`, etc. below).
-
 ---
 
 ## Your Role — Investigate, Don't Ship
@@ -246,12 +244,12 @@ Persist to state.md `## Root Cause` body section.
 When the hypothesis loop fails to converge — defined as **5 inconclusive hypothesis tests across all hypotheses** — fire the stall gate before declaring the bug unsolvable:
 
 1. **Do not silently report "cannot determine cause".**
-2. Apply the 8-component diagnose-by-missing-component taxonomy (`## Stall Diagnosis Taxonomy` below).
-3. **Surface to user via `AskUserQuestion`** with header "Stall diagnosis" — render 4 of the 8 categories (AUQ maxItems=4; pick the most likely 4 based on stall context).
+2. Apply the 8-category diagnose-by-missing-component taxonomy (`## Stall Diagnosis Taxonomy` below).
+3. **Surface to user via `AskUserQuestion`** with header "Stall diagnosis" — render the most likely missing-component categories plus an explicit "Abandon — present partial findings" option (AUQ maxItems=4, so typically the top 3 categories + Abandon; if more categories are relevant, chain a second AUQ per the cap-extension pattern). "Abort" comes via the AUQ "Other" option.
 4. state.md marks `phase: phase-1-escalated` with timestamp + inconclusive-test count + categorized stall hypothesis. Transitions:
-- User picks (A-G — a concrete missing artifact / category) → `phase: investigate` (resume hypothesis loop with new data).
-- User picks (H — "abandon — present partial findings") → `phase: ship-summary-only` (proceed to Phase 3 with a stall-flagged findings summary).
-- User can also pick "abort" → `phase: aborted` (terminal).
+- User picks a surfaced missing-component category → `phase: investigate` (resume hypothesis loop with new data).
+- User picks "Abandon — present partial findings" → `phase: ship-summary-only` (proceed to Phase 3 with a stall-flagged findings summary).
+- User picks "Abort" (via "Other") → `phase: aborted` (terminal).
 
 **Persist the stall as a structured open_questions[] entry** in state.md frontmatter (and mirror to the body `## Open Questions` section for human readability). Schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2:
 
@@ -259,12 +257,12 @@ When the hypothesis loop fails to converge — defined as **5 inconclusive hypot
 open_questions:
   - id: q<N>
     source: phase-1-stall-gate
-    question: <verbatim stall question — the 4 categories that were surfaced>
+    question: <verbatim stall question — the categories that were surfaced>
     related_hypotheses: [<inconclusive hypothesis IDs from ## Hypotheses>]
     status: unresolved
 ```
 
-When the user picks an option (A-G — concrete missing artifact), update the entry: `status: resolved`, `resolution.picked: <user pick>`, `resolution.resolved_by: debug`, `resolution.asked_in_phase: phase-1-stall-gate`. When the user picks H (abandon) or aborts, the entry remains `unresolved` — Phase 3 Pre-gate (§3.0) will surface it again before escalation.
+When the user picks a missing-component category, update the entry: `status: resolved`, `resolution.picked: <user pick>`, `resolution.resolved_by: debug`, `resolution.asked_in_phase: phase-1-stall-gate`. When the user picks Abandon or Abort, the entry remains `unresolved` — Phase 3 Pre-gate (§3.0) will surface it again before escalation.
 
 ---
 
@@ -355,7 +353,7 @@ Fires FIRST in Phase 3 — before the findings summary, before the escalation AU
    - `header`: `"Open question"`
    - `question`: the entry's `question:` field, verbatim
    - `options`: synthesized from the entry's context. Examples:
-     - Stall categories (Phase 1 stall gate) → re-render the original A-H options as resolution choices.
+     - Stall categories (Phase 1 stall gate) → re-render the stall categories surfaced in Phase 1 (the set persisted in this entry's `question:` field) plus the "Abandon" option; do not introduce categories that were not originally surfaced.
      - Multi-path fix deferred → render the original path options.
      - Cannot-verify deferred → render "Provide the missing data" / "Mark as accepted limitation" / "Escalate to /geniro:investigate".
    - Always-WAIT — empty answer = upstream bug, re-ask.
@@ -415,7 +413,7 @@ Output the markdown block directly in chat AND write the same content (with full
 **Accepted limitations?** [omit unless fix-fail path "Accept as documented limitation" was taken; if so: "<description of limitation>; user accepted on <ISO timestamp>"]
 ```
 
-**Populate `authored_tests[]` frontmatter (REQUIRED).** Alongside the body template above, write the `authored_tests[]` frontmatter array per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2 and the canonical contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Each F→P test authored in §2.4 gets one entry: `{id: t<N>, path: <repo-root-relative>, intent: <one-line guarantee>, mode: scientific, f_to_p_status: <enum>, related_hypotheses: [<H-IDs>]}`. If no test was authored (path B "Accept as documented limitation" or §2.4 escape-hatch with body `**Reproduction test:** escape hatch: <...>`), emit a single entry with `f_to_p_status: escape-hatch` and `intent: "escape-hatch: <verbatim rationale>"` — never omit the array. The body `**Reproduction test:**` line stays as human-readable mirror; the frontmatter is the machine-readable source for /geniro:implement Phase 1 Step 12's authored-test extraction (which invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to verify presence in the consumer's worktree and surface relocation suggestions if MISSING).
+**Populate `authored_tests[]` frontmatter (REQUIRED).** Alongside the body template above, write the `authored_tests[]` frontmatter array per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2 and the canonical contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Each F→P test authored in §2.4 gets one entry: `{id: t<N>, path: <repo-root-relative>, intent: <one-line guarantee>, mode: scientific, f_to_p_status: <enum>, related_hypotheses: [<H-IDs>]}`. If no test was authored (path B "Accept as documented limitation" or §2.4 escape-hatch with body `**Reproduction test:** escape hatch: <...>`), emit a single entry with `f_to_p_status: escape-hatch` and `intent: "escape-hatch: <verbatim rationale>"` — never omit the array. The body `**Reproduction test:**` line stays as human-readable mirror; the frontmatter is the machine-readable source for /geniro:implement's Phase 1 authored-test extraction (which invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to verify presence in the consumer's worktree and surface relocation suggestions if MISSING).
 
 The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path IS the contract.
 
@@ -423,8 +421,10 @@ The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/state/handof
 
 Only after the summary above is visible AND persisted, `AskUserQuestion` with header "Escalate" and these options:
 
-- **Trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`** — ≤2 files, obvious target, no architecture or auth/permissions change.
-- **Non-trivial — run `/geniro:implement`; pre-load findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern. (Both Trivial and Non-trivial route to the same target — `/geniro:implement`. The Trivial/Non-trivial designation surfaces in the spec context the receiving skill loads.)
+- **Trivial — run `/geniro:implement`** — ≤2 files, obvious target, no architecture or auth/permissions change.
+- **Non-trivial — run `/geniro:implement`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern. (Both Trivial and Non-trivial route to the same target — `/geniro:implement`. The Trivial/Non-trivial designation surfaces in the spec context the receiving skill loads.)
+
+Both `/geniro:implement` options pre-load findings from the handoff file written above (`from-debug-<branch>.md`); the receiving skill resolves its path itself, so the option labels stay free of internal path placeholders.
 - **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because the orchestrator's tools cannot reach the artifact. Trigger a follow-up `AskUserQuestion` with concrete options for the missing data. When data arrives, return to the §3.0 Pre-gate, do NOT escalate yet.
 - **Leave it to me** — user will apply the patch manually using the state file as reference. state.md transitions to `phase: ship-summary-only` (terminal).
 
@@ -531,11 +531,11 @@ Runs the **RED phase** of the canonical cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_
 1. **Resolve the diff** (A2). Pre-inline full diff + changed-file contents for the spawn prompt.
 2. **Detect the project test framework.** Read CLAUDE.md Essential Commands + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract test command, naming convention, and 1-2 exemplar test files closest to changed code.
 3. **Spawn `adversarial-tester-agent`** to AUTHOR RED tests — see Spawn Template (A5). The agent writes failing tests against today's code; no fix is authored.
-4. **Independently verify RED.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`, extract authored test file paths from frontmatter `authored_tests[]` (preferred) or fall back to body `**Test file:**` lines for legacy m7-v1 handoffs. Run the project test command **once per authored test** (single independent re-run — the agent already ran a 3× flake check per its Step 5). Tests that do not fail deterministically are deleted from disk AND removed from the body report AND pruned from the frontmatter `authored_tests[]` array — re-emit the handoff file via `atomic_state_write` so the consumer (/geniro:implement Phase 1 Step 12) sees the kept set only. **Re-emit contract:** the only delta is the pruned `authored_tests[]` entries plus the corresponding `**Test file:**` body lines. Preserve every other frontmatter key (`tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `open_questions`) and every other body section (Adversarial Findings summary, hypothesis details, Discarded / Inconclusive, etc.) byte-for-byte from the agent's original write — this is a surgical patch, not a rewrite. Mirror `/geniro:implement`'s producer-preserving resolution-write pattern (preserve `id`, `source`, `question`, `related_findings` when writing a resolution). This is the orchestrator-side RED-verification per `tdd-cycle.md` § RED phase Step 3.
+4. **Independently verify RED.** Read the agent's report at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`, extract authored test file paths from frontmatter `authored_tests[]` (preferred) or fall back to body `**Test file:**` lines for legacy m7-v1 handoffs. Run the project test command **once per authored test** (single independent re-run — the agent already ran a 3× flake check per its Step 5). Tests that do not fail deterministically are deleted from disk AND removed from the body report AND pruned from the frontmatter `authored_tests[]` array — re-emit the handoff file via `atomic_state_write` so the consumer (/geniro:implement's Phase 1 handoff-resolution step) sees the kept set only. **Re-emit contract:** the only delta is the pruned `authored_tests[]` entries plus the corresponding `**Test file:**` body lines. Preserve every other frontmatter key (`tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `open_questions`) and every other body section (Adversarial Findings summary, hypothesis details, Discarded / Inconclusive, etc.) byte-for-byte from the agent's original write — this is a surgical patch, not a rewrite. Mirror `/geniro:implement`'s producer-preserving resolution-write pattern (preserve `id`, `source`, `question`, `related_findings` when writing a resolution). This is the orchestrator-side RED-verification per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § RED phase Step 3.
 5. **Present Adversarial Findings** (A6 template).
-6. **Escalate fix authoring** — reuse escalation AUQ (Trivial / Non-trivial / Cannot-verify / Leave-it-to-me) with findings file path referencing `from-debug-adversarial-<branch>.md` instead of `from-debug-<branch>.md`. The authored test file paths inside are the escalation targets. The receiving skill writes the fix and runs GREEN verification (`tdd-cycle.md` § GREEN phase). If zero red tests survived re-verification, SKIP entirely — report `"no bugs found in scanned diff"` and go directly to Cleanup; terminal state `adversarial-aborted` with `## Termination reason: no-bugs-found-in-diff`.
+6. **Escalate fix authoring** — reuse escalation AUQ (Trivial / Non-trivial / Cannot-verify / Leave-it-to-me) with findings file path referencing `from-debug-adversarial-<branch>.md` instead of `from-debug-<branch>.md`. The authored test file paths inside are the escalation targets. The receiving skill writes the fix and runs GREEN verification (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § GREEN phase). If zero red tests survived re-verification, SKIP entirely — report `"no bugs found in scanned diff"` and go directly to Cleanup; terminal state `adversarial-aborted` with `## Termination reason: no-bugs-found-in-diff`.
 
-state.md `## Authored Tests` body section tracks each authored test per the column set in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` (# / Path / Targeted source / Category / Confidence / F→P status).
+state.md `## Authored Tests` body section tracks each authored test per the column set in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 ### A5. Spawn template
 

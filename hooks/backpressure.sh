@@ -36,7 +36,9 @@ run_silent() {
     if ( eval "$command" ) > "$tmp_file" 2>&1; then
         # Success: extract summary stats if available, otherwise just checkmark
         local line_count
-        line_count=$(wc -l < "$tmp_file")
+        # `tr -d ' '` strips the leading-space padding BSD `wc` emits on macOS,
+        # which would otherwise leak into the "N lines of output" summary string.
+        line_count=$(wc -l < "$tmp_file" | tr -d ' ')
 
         # Try to extract test count from common frameworks
         local summary=""
@@ -70,7 +72,7 @@ run_silent() {
         head -"$output_cap"  # Cap output to prevent context flooding
 
         local total_lines
-        total_lines=$(wc -l < "$tmp_file")
+        total_lines=$(wc -l < "$tmp_file" | tr -d ' ')
         if [ "$total_lines" -gt "$output_cap" ]; then
             printf "\n... (%d more lines truncated. Run command directly for full output)\n" $((total_lines - output_cap))
         fi

@@ -21,7 +21,7 @@ Two terminals open in the same `pwd` on different branches both write `.geniro/<
 
 ## Slug rules
 
-The branch slug is the suffix on every within-skill state file path. Compute it once at producer-write time and again at consumer-read time; both sites MUST produce the same string for the consumer to find the producer's state.
+The branch slug is the suffix on every within-skill state file path. Compute it once at producer-write time and again at consumer-read time; both sites must produce the same string, or the producer writes under one slug while the consumer reads from another and silently misses the state file.
 
 ```bash
 branch="$(git branch --show-current 2>/dev/null)"
@@ -32,6 +32,8 @@ slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]
 slug="${slug:0:60}"
 slug="${slug%-}"
 ```
+
+This derivation is single-sourced for shell consumers in `${CLAUDE_PLUGIN_ROOT}/lib/branch-slug.sh` (`_geniro_branch_slug`); the session-start-restore and enforce-tdd-order hooks source it (with an inline fallback for vendored installs). The block above is the canonical spec an orchestrator follows when it computes the slug itself.
 
 When `git` is unavailable or the project isn't a git repo, the fallback chain produces slug `detached-unknown` — the file still works for single-session use; collision is impossible without branches.
 

@@ -24,7 +24,7 @@ state.md `phase:` enum transitions:
                  │
                  └── plan-escalated ──┬── plan (user supplies missing context)
                                       ├── aborted (terminal)
-                                      └── routed (terminal — hard signal "Escalate"; also reached directly from plan when no tests exist, §1.2)
+                                      └── routed (terminal — hard signal "Escalate"; also reached directly from plan when no tests exist, SKILL.md Phase 1 §1.2)
 
 verify ──┬── (happy: → done above)
          │
@@ -74,7 +74,7 @@ Body sections:
 - `## Scope` — files + symbols in refactor scope
 - `## Baseline` — Evidence Block from Phase 1 §1.2 step 5 (test count + pass status)
 - `## Smells Detected` — (Medium+) orchestrator-inline output from Phase 1 §1.4
-- `## Filtered smells` — (Medium+) smells dropped by the §1.5 smell-evidence filter, each with its synthesis reason
+- `## Filtered smells` — (Medium+) smells dropped by the SKILL.md Phase 1 §1.5 smell-evidence filter, each with its synthesis reason
 - `## Plan` — ordered steps + risk + consumer counts + KEEP/FILTER decisions
 - `## Plan steps` — per-step execution rows (schema at SKILL.md Phase 2 §2.2), distinct from `## Plan`; orchestrator updates each row's `status` / `attempts` / `last_post_check` after each step
 - `## Apply Summary` — executed / blocked / final-suite status
@@ -118,9 +118,9 @@ PROJECT CONVENTIONS: [paste relevant conventions from CLAUDE.md]
 
 ## Review Criteria
 Read and apply these criteria files:
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/bugs-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/architecture-criteria.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`
 
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Return findings as evidence. Do NOT emit an overall verdict — the orchestrating skill synthesizes findings and decides disposition.
 

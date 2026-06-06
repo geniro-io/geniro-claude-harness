@@ -28,13 +28,13 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 ## 2. Step 1 — Filter findings by decision-type
 
 **Eligible:**
-- Any finding with `decision: TESTABLE`.
-- CRITICAL or HIGH findings with `decision: FIX-NOW` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type, returned value, mutated state, observable side effect — DOM/file/API/db).
+- Any finding with `Decision Type: [TESTABLE]`.
+- CRITICAL or HIGH findings with `Decision Type: [FIX-NOW]` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type, returned value, mutated state, observable side effect — DOM/file/API/db).
 
 **Excluded:**
-- `decision: PRODUCT-DECISION` (multiple valid resolutions — no single behavior to assert).
-- `decision: INTENT-CHECK` (plan conformance, not runtime).
-- `decision: FIX-NOW` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
+- `Decision Type: [PRODUCT-DECISION]` (multiple valid resolutions — no single behavior to assert).
+- `Decision Type: [INTENT-CHECK]` (plan conformance, not runtime).
+- `Decision Type: [FIX-NOW]` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
 
 Use the decision-type taxonomy as defined in `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` §7.
 If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely — do NOT show an AUQ. Proceed to Phase 5.
@@ -80,7 +80,7 @@ CHANGED FILES: [list of changed file paths with full content — pre-inlined fro
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF: [git diff summary]
-SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/review/tests-criteria.md (READ at runtime; do not expect it inlined)
+SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md (READ at runtime; do not expect it inlined)
 PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1-2 exemplar test files inlined]
 PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line — description — decision-type — severity]
 OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review-findings-adversarial.md
@@ -135,7 +135,7 @@ The demote-don't-delete rule is non-negotiable: a green test can mean (a) the bu
 
 ## 7. Step 6 — Fail-open
 
-If the adversarial-tester-agent fails to complete, returns malformed output, its report cannot be parsed, or the orchestrator's Step 4 re-run command errors (test framework not installed, exec error): do NOT revoke any findings and do NOT add `[CONFIRMED-BY-TEST]` tags. Surface "test-gate fail-open — bug confirmation skipped for this run" under `## Caveats`. Mirrors Phase 4.2 verifier and Phase 3 relevance-filter fail-open.
+If the adversarial-tester-agent fails to complete, returns malformed output, its report cannot be parsed, or the orchestrator's Step 4 re-run command errors (test framework not installed, exec error): do NOT revoke any findings and do NOT add `[CONFIRMED-BY-TEST]` tags. Surface "test-gate fail-open — bug confirmation skipped for this run" under `## Caveats`. Mirrors the Phase 4.2 verifier fail-open.
 
 Also log a structured entry to state.md `## Errors`:
 

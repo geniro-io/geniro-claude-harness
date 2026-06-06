@@ -35,9 +35,9 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 
 1. One result per subagent call — the verification subagent returns one structured report.
 2. Args validated before exec — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
-3. Permission before side-effect — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate.
+3. Permission before side-effect — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) are gated too — folded into the Phase Validate batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
 4. Bounded structured results — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
-5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | re-run`.
+5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | start-over (re-detect)` (the §4.2 three-option form).
 6. Observations not assumed success — every Bash command in Detect requires explicit observation parse, no silent skips.
 7. Errors as structured observations — Detect failures written to `## Errors`, not swallowed.
 
@@ -72,7 +72,7 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 |---|---|---|
 | User aborted at Validate AUQ (rejected generated content) | `failed` | "user-aborted at Validate AUQ — generated content rejected; restart via re-run mode" |
 | Validation drift cleared after retry | `done` | not written (success path) |
-| Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort" |
+| Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort / start-over (re-detect)" |
 | Generation hit write-protection | `failed` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
 | Bootstrap completed without drift | `done` | not written |
 
@@ -275,11 +275,11 @@ If `mode == re-run`, run a migration sweep before generating content. This ensur
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries across ALL `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble: the version heading is not a selection gate, and each entry's read-only auto-detect decides relevance (a user re-running `/geniro:setup` could be coming from any prior version; sweep all entries).
 2. For each entry with an `Auto-detect:` field, run the shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the sweep mid-way. Capture output.
-3. If output non-empty (user IS affected):
-   - If the entry's `Auto-fix:` is non-destructive (no `rm`, `-delete`, or `-exec rm`): run it silently via `bash -c`. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
-   - If the entry's `Auto-fix:` is destructive (contains `rm`, `-delete`, or `-exec rm`): do NOT apply it silently — a silent destructive sweep can delete working state the user would have chosen to keep. Log to `## Open Questions`: `[<ts>] migration destructive fix NOT auto-applied: <change-name> — run /geniro:update to apply it interactively per-entry`.
-   - If entry is `manual-only`: log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
-4. After sweep, re-run all `Auto-detect:` commands via `bash -c` to verify. Any still-affected entries are logged to `## Open Questions`.
+3. If output non-empty (user IS affected), branch on the `Auto-fix:` value in this order — test `manual-only` FIRST, because a `manual-only` value carries prose, not a runnable command, so it must not fall through to a branch that runs it via `bash -c`:
+   - If the `Auto-fix:` value begins with `manual-only` (matched case-insensitively, so `Manual-only` is caught too): log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
+   - Else if the `Auto-fix:` command is destructive (contains `rm`, `-delete`, or `-exec rm`): do NOT apply it silently — a silent destructive sweep can delete working state the user would have chosen to keep. Log to `## Open Questions`: `[<ts>] migration destructive fix NOT auto-applied: <change-name> — run /geniro:update to apply it interactively per-entry`.
+   - Else (non-destructive command): run it silently via `bash -c`. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
+4. After sweep, re-run the `Auto-detect:` command for every entry that was auto-applied in step 3 (skip entries deferred to `## Open Questions` and entries logged `manual-only` — those are intentionally still affected, so re-flagging them would double-log). Any auto-applied entry that is still affected is logged to `## Open Questions`.
 
 **No question during the sweep, but destructive fixes are surfaced, not auto-applied.** Setup re-run is user-initiated, so safe mechanical fixes (renames, field additions, mkdir) apply silently. Destructive fixes (rm/delete-class) are never silently applied — they are logged to `## Open Questions` for the user to apply through `/geniro:update`'s per-entry walk, so the sweep cannot reverse a deletion the user deliberately deferred. Auto-fix commands are maintainer-written and tested (same commands `/geniro:update` surfaces with "Fix it for me").
 
@@ -327,8 +327,10 @@ Generated CLAUDE.md sections:
 - `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in.
 - `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
+- `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
+- `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
 
-All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files? Options: yes / show preview first / edit").
+All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / show preview first / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
 
 ### 3.4 Conflict-resolution merge rules (re-run only)
 
@@ -440,7 +442,7 @@ emit_learning <<'EOF'
 EOF
 ```
 
-`trust: verified` per base schema (code-grounded — Detect read real files; no WebFetch).
+`trust: verified` per base schema (code-grounded — Detect read real files; no WebFetch). The `mode` field records the actual run mode — emit `"re-run"` instead of `"init"` when this fired on a re-run.
 
 ## Phase 5: Done
 
@@ -575,7 +577,7 @@ validate_rounds: 1
 
 | Layer | Read at | Write at | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Contains ONLY project info (stack, commands, conventions, domain). No geniro plugin info. Preserves user customizations via orchestrator-inline merge |
+| CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Contains ONLY project info (stack, commands, conventions, domain). No geniro plugin info. Preserves user customizations via orchestrator-inline merge |
 | L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |

@@ -9,21 +9,36 @@ set -euo pipefail
 INPUT=$(cat)
 
 # Extract file path from tool input JSON
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
 
 if [ -z "$FILE_PATH" ]; then
   # No file path found, allow execution
   exit 0
 fi
 
-# Compute branch slug per within-skill-state-handoff.md § Slug rules
-branch="$(git branch --show-current 2>/dev/null || echo "")"
-if [ -z "$branch" ]; then
-  branch="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+# Compute branch slug per skills/_shared/within-skill-state-handoff.md § Slug rules.
+# Single-sourced in lib/branch-slug.sh; the inline fallback keeps the hook working
+# on a vendored install without lib/. Producer and consumer must derive the same
+# slug or a >60-char branch yields a slug no skill ever wrote and the gate misses.
+_geniro_slug_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/branch-slug.sh"
+if [ -f "$_geniro_slug_helper" ]; then
+  # shellcheck source=/dev/null
+  source "$_geniro_slug_helper" 2>/dev/null || true
 fi
-slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##')"
-slug="${slug:0:60}"
-slug="${slug%-}"
+if ! command -v _geniro_branch_slug >/dev/null 2>&1; then
+  _geniro_branch_slug() {
+    local b="${1:-}"
+    if [ -z "$b" ]; then
+      b="$(git branch --show-current 2>/dev/null || true)"
+      [ -z "$b" ] && b="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    fi
+    local s
+    s="$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
+    s="${s:0:60}"
+    printf '%s' "${s%-}"
+  }
+fi
+slug="$(_geniro_branch_slug)"
 
 STATE_FILE=".geniro/state/tdd/state-${slug}.md"
 

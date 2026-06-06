@@ -24,7 +24,7 @@ This dimension owns *micro-level* optimization wins observable on the diff. The 
 4. **Missing pagination on unbounded queries** → architecture
 5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture
 6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
-If a finding fits one of those six, emit it under architecture's `category: "performance"` instead. Optimizations stays focused on the six categories below.
+If a finding fits one of those six, emit it as an architecture finding (its Performance & Scalability section) instead. Optimizations stays focused on the six categories below.
 
 ## What to Check
 
@@ -131,8 +131,8 @@ grep -nE "^import [A-Z][A-Za-z]+Page from" src/app/routes.tsx
 grep -nE "React\.lazy\(|lazy\(" src/app/routes.tsx
 # Heavy lib eager imports
 grep -rnE "^import.* from ['\"](recharts|chart\.js|monaco|pdfjs|@codemirror)" src/
-# Image elements missing modern attrs
-grep -nE "<img\s" file.tsx | grep -v "loading=\|srcset=\|width=\|height="
+# Image elements missing the lazy-loading attr (the red flag; check other attrs in separate passes — an OR-exclusion drops an img that has any one of them)
+grep -nE "<img\s" file.tsx | grep -v "loading="
 # Lodash full import
 grep -rnE "from ['\"]lodash['\"]" src/
 # Missing dynamic import for charts/editors
@@ -181,9 +181,9 @@ grep -nE "await fetch\(" file.ts | head
 **How to detect:**
 ```bash
 # Sequelize / TypeORM / Mongoose per-row create in loop
-grep -nB2 -A1 "for\s*(.*of\|in\s" file.ts | grep -E "\.(create|save|insertOne|updateOne)\("
+grep -nB2 -A1 -E "for\s*\(?.*\b(of|in)\b" file.ts | grep -E "\.(create|save|insertOne|updateOne)\("
 # Prisma per-row in loop
-grep -nB2 -A1 "for\s*(.*of\|in\s" file.ts | grep "prisma\."
+grep -nB2 -A1 -E "for\s*\(?.*\b(of|in)\b" file.ts | grep "prisma\."
 # Django per-row save in loop
 grep -nB2 -A1 "for.* in " file.py | grep "\.save("
 # Raw SQL: single-row INSERT in loop

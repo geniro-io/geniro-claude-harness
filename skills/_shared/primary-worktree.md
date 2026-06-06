@@ -39,7 +39,7 @@ Some agents have read-only tool surfaces (e.g. `tools: [Read, Glob, Grep]`) and 
 
 ```
 KNOWLEDGE_ROOT: <PRIMARY_ROOT>/.geniro/knowledge
-DEBUG_ROOT: <PRIMARY_ROOT>/.geniro/debug
+HANDOFF_ROOT: <PRIMARY_ROOT>/.geniro/state/handoff
 PLANNING_ROOT: <PRIMARY_ROOT>/.geniro/planning # cross-session subset only
 TASK_PLANNING_ROOT: <current-cwd>/.geniro/planning # task-local; intentionally cwd-relative
 ```
@@ -53,9 +53,9 @@ These are intended to outlive any single task. The resolver applies to both read
 | Artifact | Producer(s) | Consumer(s) | Notes |
 |---|---|---|---|
 | `.geniro/knowledge/learnings.jsonl` | `/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate` | every pipeline skill's Phase-1 `query-learnings` prior-knowledge lookup | structured corpus |
-| `.geniro/state/handoff/from-debug-<branch>.md` | `/geniro:debug` Phase 3 | `/geniro:implement` Phase 1 Step 12 | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
-| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/geniro:debug` adversarial mode | `/geniro:implement` Phase 1 Step 12 | same handoff |
-| `.geniro/state/handoff/from-review-<branch>.md` | `/geniro:review` | `/geniro:implement` Phase 1 Step 12 (the handoff-persist step that gates on unresolved open questions) | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on re-run |
+| `.geniro/state/handoff/from-debug-<branch>.md` | `/geniro:debug` Phase 3 | `/geniro:implement` Phase 1 handoff-resolution step | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
+| `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/geniro:debug` adversarial mode | `/geniro:implement` Phase 1 handoff-resolution step | same handoff |
+| `.geniro/state/handoff/from-review-<branch>.md` | `/geniro:review` | `/geniro:implement` Phase 1 handoff-resolution step (the handoff-persist step that gates on unresolved open questions) | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on re-run |
 | `.geniro/planning/_FEATURES.md` | manual or `/geniro:plan` | `/geniro:implement` (binding), `/geniro:plan` | persistent registry |
 | `.geniro/planning/_CODEBASE_MAP.md` | `/geniro:onboard` | every skill that consults the map (`/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` |
 | `.geniro/planning/_focus-<area>.md` | manual | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
@@ -87,6 +87,6 @@ If a within-skill state file is later promoted to cross-session use, add it to t
 
 - [ ] Every cross-session producer in the table above resolves the prefix via Mode A before writing
 - [ ] Every cross-session consumer reads through the same prefix
-- [ ] Subagents that read cross-session state receive narrow `*_ROOT` slots (`KNOWLEDGE_ROOT`, `DEBUG_ROOT`, `PLANNING_ROOT`, `TASK_PLANNING_ROOT`) in their spawn prompt — never a cwd-relative `.geniro/...` path
+- [ ] Subagents that read cross-session state receive narrow `*_ROOT` slots (`KNOWLEDGE_ROOT`, `HANDOFF_ROOT`, `PLANNING_ROOT`, `TASK_PLANNING_ROOT`) in their spawn prompt — never a cwd-relative `.geniro/...` path
 - [ ] Within-skill state files remain cwd-relative (intentional, not regressed)
 - [ ] `/geniro:implement`'s workspace-setup question (Step 0), Git-worktree option, surfaces a one-line worktree-entry note that knowledge/handoff writes auto-route to the main worktree

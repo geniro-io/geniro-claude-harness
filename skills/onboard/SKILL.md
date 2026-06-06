@@ -7,11 +7,9 @@ allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: --focus area1,area2 --depth N]"
 ---
 
-# Onboard: Rapid Codebase Orientation
+# Onboard: rapid codebase orientation
 
-2-phase loop (Discover → Map) mirroring `/geniro:implement`, `/geniro:refactor`, `/geniro:debug`. Generates a structured map that serves as a reference for the session. Useful for: new developers, new sessions after long gaps, understanding unfamiliar repos, or onboarding to an unfamiliar domain.
-
-Section-reference convention: local refs like Phase X are within this SKILL.md.
+2-phase loop (Discover → Map) mirroring `/geniro:implement`, `/geniro:refactor`, `/geniro:debug`. Generates a structured map that serves as a reference for the session.
 
 ## Arguments
 
@@ -425,7 +423,7 @@ For each onboarding, confirm:
 - [ ] State.md cleaned up per §2.5
 ---
 
-## When to Use This Skill
+## When to use this skill
 
 **Use `/geniro:onboard`:**
 - Starting work on a new/unfamiliar codebase
@@ -460,7 +458,7 @@ For each onboarding, confirm:
 ```
 → Scan entire codebase structure
 → Generate quick refresh of architecture
-→ Note what's changed since last visit (L3 diff against prior `_CODEBASE_MAP.md`)
+→ Note what's changed since last visit (diff against the prior project snapshot `_CODEBASE_MAP.md`)
 → Map is ready as reference for the session
 
 ### Example 3: Planning a Feature

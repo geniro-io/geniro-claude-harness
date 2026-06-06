@@ -22,14 +22,14 @@ Code rules split three ways depending on **when** they should fire:
 1. Single transaction, no subagents — `/geniro:instructions` runs entirely in the orchestrator (CRUD is too small for parallelism).
 2. Args validated before exec — every Write preceded by scope validation (regex match) AND file-existence check.
 3. Permission before side-effect — Write/Delete are AUQ-gated.
-4. Bounded structured results — `list` mode truncates per-file body display at ~2000 chars.
+4. Bounded structured results — `list --with-content` truncates per-file body display at ~2000 chars (base `list` shows only the name/size table).
 5. Hard escalation gates — 3-retry on scope ambiguity → final AUQ abort.
 6. Observations not assumed success — every Read/Write checks return status.
 7. Errors as structured observations — surfaced inline in the final user message (no state file).
 
 ## Budgets — quality-first
 
-`/geniro:instructions` has **zero hard kill caps**. Soft gates: 3-retry scope ambiguity → final AUQ abort, list-mode body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
+`/geniro:instructions` has **zero hard kill caps**. Soft gates: 3-retry scope ambiguity → final AUQ abort, `list --with-content` body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
 
 ## ACI surface per phase
 
@@ -113,7 +113,7 @@ What to NOT flag:
 ```
 
 **Frontmatter field reference:**
-- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. The slug must not match a built-in dimension name (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`) — the loader treats a colliding slug as the built-in reviewer and the custom criteria silently never run.
+- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. The slug must not match a built-in dimension name (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `rules-compliance`) — the loader treats a colliding slug as the built-in reviewer and the custom criteria silently never run. Keep this list in sync with `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Step 2 (Validate the slug), which runs the same collision check.
 - `description` (required) — one-line summary, ≤250 chars.
 - `model` (optional) — `haiku`/`sonnet`/`opus`; default `sonnet`.
 - `paths` (optional) — list of globs.
@@ -489,7 +489,7 @@ For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delet
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| L1 CLAUDE.md | not read | not written | That's `/geniro:setup`'s domain |
+| CLAUDE.md (not a memory layer) | not read | not written | That's `/geniro:setup`'s domain |
 | L2 learnings.jsonl | not read | not written | `/geniro:instructions` is a CRUD frontend, not a knowledge-emit producer |
 | L3 semantic files | not read | not written | Out of scope |
 | L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/geniro:instructions`'s entire surface |

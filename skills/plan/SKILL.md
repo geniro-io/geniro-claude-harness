@@ -133,7 +133,7 @@ tier: T1.5
 producer: plan
 schema-version: 1
 branch: <git-branch>
-worktree: <git-rev-parse-show-toplevel>
+worktree: <git-rev-parse-show-toplevel>     # optional, recommended for cross-worktree resume
 timestamp: <ISO-8601 UTC>
 phase: <state-machine-enum>
 status: in-progress
@@ -141,7 +141,8 @@ non-resumable-actions: []
 approvals: []
 task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
-deep-mode: <true|false>          # set by the --deep flag (Phase 0); missing reads as false
+prd_mode: true                   # optional, present only when --prd was passed (Phase 0)
+deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); missing reads as false
 ---
 ```
 

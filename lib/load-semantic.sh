@@ -9,7 +9,7 @@
 #       Loads default L3 files (top-2: _project.md + _CODEBASE_MAP.md)
 #       and any extras, emits concatenated content to stdout. Soft drift
 #       warning to stderr if .fingerprint.json diverges from current files
-#       (never auto-overwrites per M2 §6.2).
+#       (never auto-overwrites the fingerprint; drift is advisory-only).
 #
 #   update_fingerprint [<path1> <path2> ...]
 #       Recomputes hashes for the given files (or a sensible default
@@ -118,7 +118,7 @@ load_semantic() {
     _ls_check_drift "$root"
   fi
 
-  # Default top-2 per M2 §6.4 + any extras.
+  # Default top-2 L3 files (_project + _CODEBASE_MAP) + any extras.
   local -a names=("_project" "_CODEBASE_MAP")
   if [ -n "$extras" ]; then
     # `read -ra` splits on IFS (default whitespace) into the array WITHOUT

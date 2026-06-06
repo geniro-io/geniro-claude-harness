@@ -47,19 +47,19 @@ Chain a multi-select AUQ following `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-fin
 
 After the gate resolves:
 - **"Include all in fix loop"** → every MEDIUM finding is appended to the CRITICAL/HIGH pool the fixer agent receives. The fixer treats them with the same priority. Re-review fires for every dimension that had any finding (CRITICAL/HIGH or promoted-MEDIUM).
-- **"Pick which to include"** → user-selected MEDIUMs join the fix-loop pool; non-selected MEDIUMs are written to a `## Deferred MEDIUM` section in the review-feedback artifact and surface in the Ship summary line "Review feedback addressed".
+- **"Pick which to include"** → user-selected MEDIUMs join the fix-loop pool; non-selected MEDIUMs are written to a `## Deferred MEDIUM` section in the carrying artifact (per §Persisted-fields requirement) and surface in the Ship summary line "Review feedback addressed".
 - **"Skip — note in Ship summary only"** → all MEDIUMs are written to `## Deferred MEDIUM` and surface in the Ship summary; none enter the fix loop.
 
 Promoted MEDIUMs lose their MEDIUM tag in the fix-loop pool — the fixer agent sees them as "user-promoted findings" and treats them with the same fix-and-re-review treatment as CRITICAL/HIGH. Severity is preserved in the artifact for audit trail.
 
 ## Persisted-fields requirement
 
-For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/review-feedback.md` for `/geniro:implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/geniro:review` Phase 5) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema". This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
+For the gate to render bodies correctly, the artifact that carries MEDIUM findings into this gate (e.g. `<task-dir>/state.md` for `/geniro:implement` Phase 3 self-review, `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` for `/geniro:review` Phase 5) MUST persist each MEDIUM finding's body sub-fields (severity / `File:` / finding-title / `Why this matters:` / `Evidence:` / `Suggested fix:` / `Confidence:` / `Origin:`) per the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema". This mirrors the existing PRODUCT-DECISION persistence requirement, extended to MEDIUM rows.
 
 ## Why this exists
 
 Auto-dropping MEDIUMs creates two failure modes:
-1. **Real bugs ship.** The reviewer-agent's MEDIUM definition is "Bug or deviation from standards impacting reliability/clarity" (`agents/reviewer-agent.md` §Output Format) — these are real issues, just not blocking. Dropping them silently means real bugs reach production with no audit trail.
+1. **Real bugs ship.** The reviewer-agent classifies MEDIUM as a verifiable defect impacting reliability or clarity that is unlikely or non-blocking (`agents/reviewer-agent.md` §Severity levels) — these are real issues, just not blocking. Dropping them silently means real bugs reach production with no audit trail.
 2. **Visibility lost.** A Ship summary that shows only CRITICAL/HIGH counts leaves the user with no way to see what was dropped. The Always-WAIT gate forces the count + digest to surface at the moment of decision.
 
 The cost is one AUQ call per fix-loop entry when MEDIUMs exist. Skipped silently when zero MEDIUMs — matches the PRODUCT-DECISION gate's skip-when-empty behavior.

@@ -4,7 +4,7 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). SKILL.md r
 
 State.md `phase: action-gate` during this phase.
 
-**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per SKILL.md §5.1 Handoff file write). Consumers accept BOTH `m6-v1` (legacy — verification fields absent) AND `m6-v2` (rich — verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM). Within m6-v2, a producer running the pre-hoist Phase 4.2 (HIGH-only verification) emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM as legacy-pre-hoist, applying the same "treat as confirmed + one-line warning" fallback as `m6-v1` absence on HIGH.
+**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per SKILL.md §5.1 Handoff file write). Consumers accept BOTH `m6-v1` (legacy — verification fields absent) AND `m6-v2` (rich — verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM). Within m6-v2, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence on HIGH — apply the "treat as confirmed + one-line warning" fallback.
 
 ## Contents
 
@@ -25,7 +25,7 @@ State.md `phase: action-gate` during this phase.
 
 ## 1. Reporter behavior — no fix loop
 
-This skill confirms: /geniro:review does NOT apply fixes. Phase 6 handoff message NEVER includes "I'll fix these now" language. The /geniro:implement option routes to /geniro:implement skill (manual or via Phase 6 handoff line).
+/geniro:review does not apply fixes. The Phase 6 handoff message never includes "I'll fix these now" language. The fix path routes to /geniro:implement (manual, or via the Phase 6 handoff line).
 
 `--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention but the output is still a finding list for consumption by other skills.
 
@@ -264,9 +264,9 @@ The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding g
 
 **Verification fields — back-compat for legacy handoffs.** Two legacy cases produce findings without the four verification fields:
 1. `m6-v1` (pre-Phase-4.2) writers — no findings carry verification fields at any severity.
-2. `m6-v2` writers from before the verifier was hoisted to CRITICAL/MEDIUM — HIGH findings carry verification fields; CRITICAL and MEDIUM findings do not.
+2. `m6-v2` writers that verified only HIGH findings — HIGH findings carry verification fields; CRITICAL and MEDIUM findings do not.
 
-Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 Step 12) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so missing-field MUST NOT block the Post drill that worked before the field existed.
+Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution step) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so missing-field MUST NOT block the Post drill that worked before the field existed.
 
 **Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /geniro:implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /geniro:review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` (the safety improvement post-dates these handoffs) and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
 
@@ -454,7 +454,7 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 ### 7.3 Step 3 — Per-finding gate
 
-Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Steps 1.5 + 3.5 when applicable). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
+Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — Step 3.5 is mode-independent and applies no filter). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
 - **`question`** (multi-line markdown, per Source-field map):
@@ -591,7 +591,6 @@ If `AskUserQuestion` returns an empty answer at any prompt in Phase 6, fall back
 
 ## 9. Terminal state mapping
 
-Per
 | User pick | Terminal state | `## Termination reason` body |
 |---|---|---|
 | /geniro:implement findings | `done` | (omitted) |
@@ -601,4 +600,4 @@ Per
 | Continue rounds → Round-N → Escalate | `escalated` | (omitted; surfaced in `## Open Questions`) |
 | Skip — keep findings on disk | `done` | `modifier-exit: skip-action` |
 
-the SessionStart hook surfaces `## Termination reason` on resume so model and user see context, not bare "aborted".
+The SessionStart hook surfaces `## Termination reason` on resume so model and user see context, not bare "aborted".

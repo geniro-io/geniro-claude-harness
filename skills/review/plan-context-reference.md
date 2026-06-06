@@ -17,10 +17,10 @@ How `/geniro:review` ingests and threads plan/spec intent through reviewers, the
 
 ## 1. Accepted Input Forms
 
-The orchestrator collects PLAN CONTEXT from up to four sources, in this **priority order**:
+The orchestrator collects PLAN CONTEXT from up to five sources (item 6 is the empty fallback, not a source), in this **priority order**:
 
 1. **`--plan <path>` flag** (`$ARGUMENTS`) — explicit path to a spec.md / plan.md / design-doc file. Highest priority. Example: `review HEAD~5..HEAD --plan .geniro/planning/feat-auth/spec.md`.
-2. **PR body plan-reference** — when in PR mode, scan the PR body for a `geniro-plan: <path>` line (a convention emitted by `/geniro:plan` Phase 9 handoff message). If found, treat as a pointer to the on-disk spec.md.
+2. **PR body plan-reference** — when in PR mode, scan the PR body for a `geniro-plan: <path>` line (a manual convention — a user adds this line to the PR body to point /review at the on-disk spec.md; no skill writes it automatically). If found, treat as a pointer to the on-disk spec.md.
 3. **Auto-discovered spec.md** — walk `.geniro/planning/*/spec.md`. First match wins (most-recently-modified preferred).
 4. **Auto-discovered project files** — `docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`. Skipped silently if absent.
 5. **PR body as opaque prose** — when PR mode but no `geniro-plan:` reference found, fall back to `gh pr view <ref> --json body` content treated as prose.
@@ -125,7 +125,7 @@ When no sources resolve, the entire field collapses to:
 PLAN CONTEXT: none
 ```
 
-In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `spec-compliance-criteria.md` prose fallback). Emit a structured `open_questions[]` entry with `id: spec-compliance-prose-fallback`, `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
+In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` prose fallback). Emit a structured `open_questions[]` entry with `id: spec-compliance-prose-fallback`, `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
 
 ---
 
@@ -161,24 +161,21 @@ Schema-mode ~6000-char total cap exists because:
 
 Prose-mode 3000-char cap preserved (each reviewer prompt already carries criteria + changed files + diff + project context).
 
-**If your spec exceeds the 6000-char cap:** drop frontmatter `## Considered Alternatives` (optional section) AND/OR shrink section 4 (Assumptions) / section 5 (Risks) bodies. The orchestrator does NOT auto-summarize — it just truncates with `[…truncated…]`.
+**If your spec exceeds the 6000-char cap:** drop the optional body section `## Considered Alternatives` AND/OR shrink section 4 (Assumptions) / section 5 (Risks) bodies. The orchestrator does NOT auto-summarize — it just truncates with `[…truncated…]`.
 
 ---
 
 ## 7. Decision Type values (canonical)
 
-The four canonical decision-type values, shared with `agents/reviewer-agent.md`:
+The four canonical decision-type values (`[FIX-NOW]` / `[TESTABLE]` / `[PRODUCT-DECISION]` / `[INTENT-CHECK]`) are defined once in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` (the Decision Type classification the reviewer-agent reads inline) — that is the single source; this section does not restate them.
 
-- `[FIX-NOW]` — Mechanical correction, obvious target, low risk (e.g., test title vs assertion mismatch, typo, broken cross-reference).
-- `[TESTABLE]` — Defense-in-depth or edge case worth a test before action (e.g., empty-string guard, boundary case).
-- `[PRODUCT-DECISION]` — Multiple valid resolution paths; needs human triage (e.g., snapshot vs live-fetch trade-off, COALESCE vs CHECK vs catch+log).
-- `[INTENT-CHECK]` — Looks like a divergence from explicit plan; verify against spec before treating as bug. Auto-applied by the Phase 3 §3.3 KEEP/FILTER intent reconciliation when a reviewer tagged `[ALIGNS-WITH-PLAN]` or `[DIVERGES-FROM-PLAN]` AND the plan authorized the divergence.
+Review-specific note: `[INTENT-CHECK]` is auto-applied by the Phase 3 §3.3 KEEP/FILTER intent reconciliation when a reviewer tagged `[ALIGNS-WITH-PLAN]` or `[DIVERGES-FROM-PLAN]` AND the plan authorized the divergence.
 
 ---
 
 ## 8. Worked Example
 
-**Setup:** PR titled "Add timeline events". PR body includes `geniro-plan:.geniro/planning/feat-timeline/spec.md`.
+**Setup:** PR titled "Add timeline events". PR body includes `geniro-plan: .geniro/planning/feat-timeline/spec.md`.
 
 Loaded spec.md has frontmatter:
 
@@ -212,7 +209,7 @@ Three reviewer findings come back:
 
 - Finding 1 — reviewer sees `forbidden_actions: ["do NOT backfill"]` in frontmatter, tags `[ALIGNS-WITH-PLAN]` (intentional, not a bug). Routed to `[INTENT-CHECK]` decision-type, not bug severity.
 - Finding 2 — no plan reference. Untagged, regular review path.
-- Finding 3 — spec-compliance finding with section 11 anchor, severity HIGH (per spec-compliance-criteria.md Severity Tagging).
+- Finding 3 — spec-compliance finding with section 11 anchor, severity HIGH (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` Severity Tagging).
 
 **Phase 3 §3.3 KEEP/FILTER intent reconciliation:**
 
