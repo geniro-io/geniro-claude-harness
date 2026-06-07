@@ -509,8 +509,12 @@ precedent (§3).
 existing `tests/run-all.sh` auto-discovers it (no new runner): assert `/plan`'s `spec.md` frontmatter
 satisfies `/review`'s `workflow_refs[]` parser **when present** (it is _optional_ — present only on
 tracker-linked specs; mirror `/review`'s own "treat as absent" acceptance, so it never false-fails on an
-inline-task spec), and that `/review`'s handoff carries the `open_questions[]` / `step0_status` sentinels
-`/implement` consumes. Judge-free, no trials, no cost — it catches exactly the cross-skill seam regressions
+inline-task spec), and that `/review`'s handoff carries the `open_questions[]` sentinel `/implement`
+consumes. (Correction from the Phase-A build: `step0_status` is **not** consumed by `/implement` — `grep
+step0_status skills/implement/` is empty; it is a `/review`-internal per-finding field that `/review`'s §3
+open-decision gate flips and its §7.0 Invariant B re-checks before the PR post. The seam check therefore
+asserts `open_questions[]` as the genuine producer→consumer sentinel and `step0_status` as a `/review`-only
+invariant.) Judge-free, no trials, no cost — it catches exactly the cross-skill seam regressions
 per-skill grading is blind to.
 
 ## 12. Run UX
