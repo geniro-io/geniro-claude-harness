@@ -16,7 +16,7 @@ the tsx-resolution fix that shipped with this PR.
 
 ## Follow-ups
 
-### F5 (CRITICAL — gate correctness) — zero-variance sample → zero-width CI → false significance → false-promotion risk
+### F5 (CRITICAL — FIXED in this PR) — zero-variance sample → zero-width CI → false significance → false-promotion risk
 The inaugural A-vs-A row came back `quality_winrate_vs_baseline: 0`, `quality_ci: [0, 0]`,
 `significant_on_primary: true`. With 1 task × 1 trial — or **any** sample where all task clusters
 agree — the task-clustered CI has zero width, so the significance test ("CI excludes the 0.5 null")
@@ -25,9 +25,16 @@ passes trivially. Here `primary_beats_null` was `false` only because the single 
 `1 > 0.5 = true` and the gate would have PROMOTED two identical versions.** This is exactly the
 false-promotion the A-vs-A calibration exists to catch (plan decision 4): at n=1 the gate is **not
 safe**, and the degeneracy is not unique to n=1 (any zero-variance cluster set trips it — e.g. all
-trials agreeing on a modest real effect). Fix before trusting the gate: require a minimum
-cluster/trial count for significance, treat a zero-width CI as not-significant, and/or apply a
-variance floor / continuity correction. **Blocker for relying on the promotion gate.**
+trials agreeing on a modest real effect).
+
+**Fixed** (`ingest.sh`): significance and promotion now require **≥2 task clusters AND a positive-width
+CI** (`$ci_usable`); a zero-variance sample yields `significant_on_primary=false` +
+`primary_beats_null=false`. Regression-tested in `tests/evals/ingest.sh` (#20 single-task win must not
+promote, #21 single-task loss not significant, #22 multi-task all-agree not significant). The
+inaugural ledger row was regenerated under the fix (now `significant_on_primary=false`).
+*Residual follow-up:* the all-agree case is now conservatively **not** promoted — detecting a genuine
+unanimous sweep (e.g. 6/6 by a real effect) needs a variance-robust statistic (a sign/binomial test
+on the task-win count), not the mean-bootstrap.
 
 ### F1 — `length_confounded` keys on executor output tokens, not artifact length
 The flag came back `true` (candidate 24,830 vs baseline 19,307 output tokens) although the two specs

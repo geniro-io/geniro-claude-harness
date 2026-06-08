@@ -352,6 +352,50 @@ else
   fail "cache-price fallback wrong — rc=$rc cost=$ccost (want 2.68–2.70; a broken fallback gives ≈0.81)"
 fi
 
+# ===== 20. F5: a SINGLE-task win must NOT promote (a zero-width CI is not "significant") =====
+# The first live A-vs-A run exposed this: 1 task × 1 trial collapses the task-clustered CI to [v,v];
+# if that single value lands above the null the OLD gate set primary_beats_null=true — promoting on a
+# coin flip, i.e. it would promote two IDENTICAL versions. One task cannot establish a between-task CI.
+new_repo
+sw="$TMPDIR_BASE/bench-single-win.json"
+jq '.tasks = [ (.tasks[0] | .primary_value = 1) ]' "$FIXTURE" > "$sw"
+run_ingest "$sw" --candidate "$CAND" --baseline "$BASE" >/dev/null 2>&1
+sig=$(record | jq -r '.significant_on_primary'); beats=$(record | jq -r '.primary_beats_null')
+ntasks=$(record | jq -r '.tasks'); ciw=$(record | jq -r '.quality_ci | (.[1]-.[0])')
+if [ "$sig" = "false" ] && [ "$beats" = "false" ] && [ "$ntasks" = "1" ]; then
+  pass "F5 single-task win: zero-width CI (width=$ciw) NOT significant → no false promotion (sig=$sig beats=$beats)"
+else
+  fail "F5 REGRESSION — single-task win promoted on a degenerate CI: sig=$sig beats=$beats ntasks=$ntasks ci_width=$ciw"
+fi
+
+# ===== 21. F5: a SINGLE-task loss is also NOT "significant" (the inaugural A-vs-A row's real case) =====
+new_repo
+sl="$TMPDIR_BASE/bench-single-loss.json"
+jq '.tasks = [ (.tasks[0] | .primary_value = 0) ]' "$FIXTURE" > "$sl"
+run_ingest "$sl" --candidate "$CAND" --baseline "$BASE" >/dev/null 2>&1
+sig=$(record | jq -r '.significant_on_primary'); beats=$(record | jq -r '.primary_beats_null')
+if [ "$sig" = "false" ] && [ "$beats" = "false" ]; then
+  pass "F5 single-task loss: significant_on_primary=false (one task can't establish a between-task CI)"
+else
+  fail "F5 — single-task loss wrongly significant: sig=$sig beats=$beats"
+fi
+
+# ===== 22. F5: multi-task ALL-AGREE (zero observed variance) must NOT promote either =====
+# 6 tasks all = 1.0 still yields a zero-width bootstrap CI [1,1]; the gate must not read that as a
+# significant win ((0.5)^6 ≈ 1.6% under the null). Variance-robust unanimity detection is separate
+# follow-up; the safe default is "no promotion on zero observed variance".
+new_repo
+aw="$TMPDIR_BASE/bench-allwin.json"
+jq '.tasks |= map(.primary_value = 1)' "$FIXTURE" > "$aw"
+run_ingest "$aw" --candidate "$CAND" --baseline "$BASE" >/dev/null 2>&1
+sig=$(record | jq -r '.significant_on_primary'); beats=$(record | jq -r '.primary_beats_null')
+ciw=$(record | jq -r '.quality_ci | (.[1]-.[0])'); ntasks=$(record | jq -r '.tasks')
+if [ "$sig" = "false" ] && [ "$beats" = "false" ] && [ "$ntasks" -ge 2 ]; then
+  pass "F5 all-agree: $ntasks tasks all=1.0 → zero-width CI (width=$ciw) not significant → no promotion"
+else
+  fail "F5 REGRESSION — all-agree zero-variance promoted: sig=$sig beats=$beats ntasks=$ntasks ci_width=$ciw"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"
