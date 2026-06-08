@@ -434,7 +434,12 @@ emit_rejection_if_signal \
 
 ### 3.6 Suggest improvements (project scope only, routes)
 
-After L2 emit, follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`. Refactor runs typically surface:
+Runs after the §3.5 emit + recurrence offer. Source the improvement candidates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed":
+
+- **Medium and Big** (the tiers where §3.2 reviewers ran) — spawn `reflection-agent` (mode `refactor`): pass the working-tree diff, the §3.3 findings + disposition, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope refactor/<scope>`).
+- **Trivial and Small** — no reviewer batch ran and the diff is small; draft candidates inline against the routing table below rather than spawning an agent.
+
+Route any `Recurrence-eligible: yes` candidate to the §3.5 rule-capture offer (deduped against what §3.5 already offered) so the user is never prompted twice for the same rule; surface the remaining candidates via the helper's §Routing table + §Presentation. Echo `Reviewed for improvements: <N> candidate(s)`; skip silently when none. Refactor runs typically surface:
 
 | Insight category | Target | layer |
 |---|---|---|

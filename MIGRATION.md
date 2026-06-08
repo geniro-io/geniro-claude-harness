@@ -12,6 +12,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 The v3 release lands the /implement 3-phase rewrite, MANDATORY /review spawn list with pre/post-spawn verification gates, /plan workflow_refs[] tracker linkage (m5-v2 schema), per-section AUQ `preview` field with restored Phase 2 Visual Companion, structured `open_questions[]` in T2 handoffs with a 3-gate safety chain, T1/T1.5 state tier split for Ship-cleanup preservation, and universal `model: inherit` for all plugin subagents. Seven changes need user attention; auto-fix is provided where mechanical, manual review is called out where judgment is needed.
 
+### Post-task improvement suggestions now fire across implement / refactor / review / plan / onboard
+
+A new read-only `reflection-agent` (with inline equivalents in /plan and /onboard) synthesizes durable project-rule improvement candidates at the end of a task and offers to route them to CLAUDE.md / `.claude/rules/` / `.geniro/instructions/` / ADR. `/implement` Phase 3 moves its "Suggest Improvements" step ahead of the Ship-mode prompt (previously a post-PR trailing step that got dropped on wrap-up); `/review`, `/plan`, and `/onboard` gain the step for the first time. The user approves before anything is written — instruction-scoped rules hand off to `/geniro:instructions create`; declines are logged so they do not re-surface.
+
+**Action required:** Informational — the agent and steps ship with the update automatically; no project-state migration. Expect a new optional "Improvements" prompt at the end of these skills (skipped silently when nothing durable was learned).
+
+**Auto-detect:** N/A — additive behavior change; nothing to detect in an existing install.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — additive and opt-in at the prompt; on an Opus orchestrator session, each `/implement` / `/refactor` / `/review` run adds one more read-only subagent spawn (set orchestrator tier via `/model sonnet` if cost-sensitive).
+
+---
+
 ### Ship cleanup now preserves durable artifacts (T1 → T1.5 split)
 
 `/geniro:implement` Phase 3 Ship sub-step now preserves `spec.md`, `state.md`, `plan-*.md`, `milestone-*.md` (the new T1.5 durable layer). Only transient subagent outputs (`.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `notes.md`, `playwright-verify.png`) delete at Ship. Downstream `/geniro:review` spec-compliance and `/geniro:implement` adjustment routing now find their context reliably across runs.

@@ -188,6 +188,10 @@ EOF
 
 **Trigger:** emit on **first successful onboarding of a new codebase** OR **major architectural shift detected** (existing `_CODEBASE_MAP.md` content significantly diverges from previous version — heuristic: compare section counts / module-count delta / new top-level entries). Skip when re-running onboard against a stable codebase (no architectural change).
 
+### 2.3.5 Suggest improvements (inline)
+
+After the discovery emit, before the Next-step AUQ. Source candidates inline — no agent, since you just authored the map and there is no fresh diff to read — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (inline path) + §Routing table. Onboarding most often surfaces build/test/lint commands or tech-stack facts that belong in CLAUDE.md, occasionally a directory-scoped convention for `.claude/rules/`. Dedupe against any existing `CLAUDE.md` + `.claude/rules/*` + `.geniro/instructions/*` and drop what's already documented (a re-run against an already-documented codebase typically yields none); present surviving candidates via §Presentation, hand instruction-scoped rules to `/geniro:instructions create`, echo `Reviewed for improvements: <N> candidate(s)`, and skip silently when none. Declines log via `emit_rejection_if_signal` (scope `onboard/<area>`, category `improvement_candidate`).
+
 ### 2.4 Next-step AUQ
 
 After map ships, route user via `AskUserQuestion`:
