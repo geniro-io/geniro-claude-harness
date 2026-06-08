@@ -17,12 +17,12 @@ TDD mode is an opt-in variant of `/geniro:review` that is **purely additive**. I
 | Adversarial-tester-agent contract | Unchanged | Unchanged |
 | State-file schema | `mode:` field defaults to `standard` (also: pre-TDD-mode state files without the field read as `standard`) | `mode: tdd` |
 
-The Standard-vs-TDD chooser (Phase 1 §11) carries no `(Recommended)` highlight on either option — TDD is not "safer" than Standard, only costlier (it authors and runs tests). The user picks per run.
+The author-tests question (Phase 1 §11 Q2) carries no `(Recommended)` highlight on either option — TDD is not "safer" than review-only, only costlier (it authors and runs tests). The user picks per run. It is its own question, independent of the review-depth question (Q1), so Deep+TDD is a valid combination from the chooser.
 
 ## Activation paths
 
 - **Explicit flag:** `/geniro:review --tdd <args>` selects TDD; `/geniro:review --standard <args>` forces Standard. Flag parsing lives in Phase 1.
-- **Phase 1 Mode AUQ (§11):** When neither flag is present in `$ARGUMENTS`, the chooser offers Standard / TDD (neither marked Recommended). User pick is recorded in the state file.
+- **Phase 1 Mode AUQ (§11), Q2:** When neither `--tdd` nor `--standard` is present in `$ARGUMENTS`, the author-tests question offers "No — review only" / "Yes — also author failing tests" (neither marked Recommended). User pick is recorded in the state file as `mode:`.
 - **Default:** Standard mode, applied when the chooser is dismissed or returns empty.
 
 ## Edge cases

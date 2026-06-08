@@ -1,6 +1,6 @@
 # Deep Mode Reference
 
-Deep mode (`--deep`, or the "Deep review" pick in the Phase 1 §11 chooser) raises **quality** — recall (find more) and precision (validate more reliably) — by multiplying the reviewer and verifier fan-out and running it inside an internal `Workflow(...)`. It does NOT raise speed: under the Workflow concurrency cap (`min(16, cores-2)` concurrent agents per workflow) running each dimension 3× does not shrink wall-clock, it only deepens coverage at roughly 3-5× the token cost. Deep mode is opt-in for exactly this reason — it is not the default.
+Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) raises **quality** — recall (find more) and precision (validate more reliably) — by multiplying the reviewer and verifier fan-out and running it inside an internal `Workflow(...)`. It does NOT raise speed: under the Workflow concurrency cap (`min(16, cores-2)` concurrent agents per workflow) running each dimension 3× does not shrink wall-clock, it only deepens coverage at roughly 3-5× the token cost. Deep mode is opt-in for exactly this reason — it is not the default.
 
 Deep mode is an orthogonal axis to Standard/TDD: it sets the boolean `deep-mode: true` and composes with either posting mode (`--deep --tdd` is valid). It changes HOW MANY reviewer/verifier passes run and how their results aggregate — it does NOT change the Reporter boundary, the posted-set semantics, the action-gate options, or the `atomic_state_write` contract.
 
@@ -23,7 +23,7 @@ Deep mode is an orthogonal axis to Standard/TDD: it sets the boolean `deep-mode:
 ## 1. Activation + state
 
 - **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`), like `--tdd`.
-- **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ offers "Deep review (3× passes + 3-vote verification)" as a third option alongside Standard / TDD. Picking it sets the boolean. The chooser stays within the 4-option AUQ cap.
+- **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ asks review depth as its own question (Q1) — "Standard" / "Deep — 3× passes + 3-vote verify". Picking Deep sets the boolean. Depth is a separate question from author-tests (Q2), so Deep composes with either TDD choice.
 - **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` — a dedicated category so the session-restore hook re-applies it independently of `tdd_mode_choice`.
 - **Composition:** deep mode is independent of Standard/TDD. `deep-mode: true` + `mode: tdd` runs the 3× / 3-vote fan-out AND authors failing tests; the two never conflict.
 

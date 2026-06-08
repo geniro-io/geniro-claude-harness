@@ -18,7 +18,7 @@ State.md `phase: triage` during this phase.
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
 - §9 Step 0.7 — Risk-tier stratification
 - §10 Step 0.8 — Memory layer load
-- §11 Mode AUQ (Standard / TDD / Deep)
+- §11 Mode AUQ — review depth + author-tests
 - §12 Size triage
 
 ---
@@ -397,18 +397,35 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 ---
 
-## 11. Mode AUQ (Standard / TDD / Deep)
+## 11. Mode AUQ — review depth + author-tests
 
-Fires only when `$ARGUMENTS` contains neither `--tdd` nor `--standard`. After triage, surface one `AskUserQuestion` (do NOT print options as plain text):
+Depth (Standard vs Deep) and author-tests (TDD on/off) are independent axes — depth controls how many reviewer/verifier passes run (`deep-mode` boolean); TDD controls whether failing tests are additionally authored on top of whatever depth runs (`mode` enum). Surface them as TWO questions, not one combined option list, so each axis is chosen on its own — Deep+TDD is pickable, and "Standard" is unambiguous (it is only ever the depth label, never the author-tests choice).
 
-- **Header:** "Review mode"
-- **Question:** "How should I run this review — Standard, TDD (also author failing tests), or Deep (3× passes + 3-vote verification)?"
+After triage, surface the two questions in ONE `AskUserQuestion` call (do NOT print options as plain text). Per-axis flag suppression decides which questions fire:
+
+- **Q1 (review depth)** fires when `$ARGUMENTS` lacks `--deep`. A `--deep` flag pre-resolves depth to Deep, so Q1 is skipped.
+- **Q2 (author tests)** fires when `$ARGUMENTS` lacks both `--tdd` and `--standard`. Either flag pre-resolves the TDD axis (`--tdd` → author tests; `--standard` → review only), so Q2 is skipped.
+- When both axes are flag-resolved, fire no AUQ. When both questions fire, they go in the same `AskUserQuestion` call (two questions, answered together).
+
+**Q1 — review depth:**
+
+- **Header:** "Review depth"
+- **Question:** "How deep should the review go?"
 - **Options:**
-- "Standard review" — posts all kept findings; the Phase 4.3 test-gate is still offered opt-in per run.
-- "TDD review — also author failing tests" — posts all kept findings AND auto-authors failing tests for the testable ones, appends a failing-test line to each test-confirmed finding, and offers to commit + push the authored tests to the reviewed branch.
-- "Deep review — 3× passes + 3-vote verification" — higher quality (finds more, validates more reliably) at higher token cost; runs each check 3× and verifies findings with a 3-agent majority vote. Posts the same finding set as Standard.
+- "Standard" — one reviewer pass per dimension; findings filtered and verified once.
+- "Deep — 3× passes + 3-vote verify" — runs each check 3× and verifies findings with a 3-agent majority vote; higher quality (finds more, validates more reliably) at higher token cost. Posts the same finding set as Standard.
 
-Neither Standard nor TDD carries a `(Recommended)` suffix — TDD is not safer than Standard, only costlier (it authors and runs tests); the user picks per run. The "Deep review" pick sets `deep-mode: true` with Standard posting — to combine deep with TDD, use the flags `--deep --tdd`. Deep is an orthogonal boolean (`deep-mode`), NOT a third value of the `mode` enum. If user declines (empty answer), default to Standard. The `--tdd` / `--standard` flags suppress this AUQ (they set the posting mode); `--deep` sets `deep-mode: true` but does NOT suppress it — a bare `--deep` still fires the chooser for the posting mode. Persist the posting-mode pick to `approvals[]` with category `tdd_mode_choice`; a Deep pick additionally persists to `approvals[]` with category `deep_mode_choice` and sets `deep-mode: true`. Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
+**Q2 — author tests (TDD):**
+
+- **Header:** "Author tests"
+- **Question:** "Also author failing tests for the findings?"
+- **Options:**
+- "No — review only" — posts all kept findings; the option to author failing tests is still offered per run when some are testable.
+- "Yes — also author failing tests" — posts all kept findings AND auto-authors failing tests for the testable ones, appends a failing-test line to each test-confirmed finding, and offers to commit + push the authored tests to the reviewed branch.
+
+Neither question carries a `(Recommended)` suffix — depth and TDD are both per-run picks where the alternative is only costlier, never safer (Deep authors no fix; TDD authors and runs tests), so the user weighs cost against thoroughness each run. If a question is dismissed (empty answer), default that axis to its cheaper value: Q1 → Standard (`deep-mode: false`), Q2 → review only (`mode: standard`).
+
+Persist each pick independently: Q1 → frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`; Q2 → frontmatter `mode: <tdd|standard>` + `approvals[]` category `tdd_mode_choice`. The two categories are separate so the session-restore hook re-applies depth and TDD independently on a compaction-resume. Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 
 See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode adds, edge cases, and the failing-test contract scope.
 
