@@ -617,6 +617,10 @@ echo '{
 
 Dedup + sanitization automatic. Skipped if Phase 4 had ≤1 approach or no trade-off rationale recorded. After a successful emit, echo `Recorded learning: <summary>` to the user, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
 
+### 8.6 Suggest improvements (inline)
+
+After the §8.5 emit, before Phase 9. The approved spec was already committed at §8.4, so this step is anchored before the Phase 9 handoff prompt (the only remaining user-facing gate) — a named, numbered step, not a droppable post-prompt trailer. Source candidates inline — no agent, since you already hold the full approved spec and there is no fresh diff for an isolated read to find — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (inline path) + §Routing table. Planning most often surfaces an architectural decision worth an ADR (route per §"ADR target — when to use it") or a convention clarified during approach selection worth a rule. Dedupe against existing `CLAUDE.md` + `.claude/rules/*` + `.geniro/instructions/*` and drop one-offs; present surviving candidates via §Presentation, hand instruction-scoped rules to `/geniro:instructions create`, echo `Reviewed for improvements: <N> candidate(s)`, and skip silently when none. Declines log via `emit_rejection_if_signal` (scope `plan/<task-area>`, category `improvement_candidate`).
+
 ---
 
 ## Phase 9 — Handoff

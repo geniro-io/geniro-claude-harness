@@ -471,9 +471,11 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 ### Suggest Improvements (project scope only)
 
-Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — it owns the routing table, decision logic, and presentation pattern. Skip findings already captured by the learnings-emit step; this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture.
+Runs as Ship step 4 — BEFORE the Ship-mode AUQ, alongside the learnings emit — so it finalizes the work rather than trailing the PR (a post-deliverable step is the documented drop vector, same failure mode the learnings emit's ordering rule guards against).
 
-`AskUserQuestion` is always-WAIT here. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — submit a PR to the plugin repo OR edit your local plugin install directly.
+Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (mode `implement`): pass the committed diff + changed-file list, the Phase 3 reviewer findings, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`). The agent returns deduped, significance-gated candidates; route any `Recurrence-eligible: yes` candidate to the rule-capture offer (`/geniro:instructions create`) rather than the improvements prompt, and surface the rest via the helper's §Routing table + §Presentation. Echo `Reviewed for improvements: <N> candidate(s)`; skip the prompt silently when the agent returns none.
+
+`AskUserQuestion` is always-WAIT here. Skip findings already captured by the learnings-emit step; this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — submit a PR to the plugin repo OR edit your local plugin install directly.
 
 ---
 
@@ -491,7 +493,7 @@ Follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvemen
 
 Execute any user-authored post-ship steps from the loaded L4 `<skill>.md` (`.geniro/instructions/implement.md`). Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-ship anchor is `### After ship` (`ship` is the final non-terminal phase enum value; post-ship steps run after its work completes). Run any subsection whose phase anchor is post-ship. When a step is conditioned on a PR existing and the run did not create one (ship-mode "commit only" / "no push"), skip it.
 
-Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The preceding Ship sequence (Update Docs / Extract Learnings / Suggest Improvements / Integration Updates) covers plugin-defined post-ship work; this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
+Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The other plugin-defined Ship steps (Update Docs / Extract Learnings / Suggest Improvements / Integration Updates) cover plugin-defined work (some pre-AUQ, some post); this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
 
 ---
 

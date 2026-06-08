@@ -6,6 +6,7 @@
 - §Decision logic when target is ambiguous
 - §ADR target — when to use it (sparingly)
 - §Why code rules go to `.claude/rules/`, not CLAUDE.md
+- §Reflection-agent feed — how to source candidates (agent vs inline)
 - §Presentation — how to surface the routed suggestion
 
 When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, classify it by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
@@ -107,6 +108,28 @@ The three are complementary, not overlapping. Choose based on the trigger you wa
 
 **Reserve CLAUDE.md for:** commands, tech-stack/structure facts, and project-wide gates that must survive context compaction. Code rules go to `.claude/rules/` (per file-pattern) or `.geniro/instructions/code-style.md` (cross-cutting); skill-behavior rules go to `.geniro/instructions/<skill>.md`.
 
+## Reflection-agent feed
+
+Two ways to source the improvement candidates that feed §Presentation. Match the source to how rich the change signal is:
+
+- **Reflection agent** — when the task produced a fresh diff or a finding set worth an independent read (`/implement` Phase 3, `/refactor` Phase 3, `/review` Phase 6). Spawn `${CLAUDE_PLUGIN_ROOT}/agents/reflection-agent.md` to synthesize candidates in an isolated context. An isolated read beats orchestrator-inline synthesis here: the orchestrator just authored the change, so it carries the same blind spots; a fresh agent catches durable lessons the author's own reasoning skips.
+- **Inline** — when the orchestrator already holds the whole artifact it just authored and there is no fresh diff to discover (`/plan`'s approved spec, `/onboard`'s codebase map). Draft the candidates inline against the routing table above. A separate agent re-reading a self-authored artifact adds cost without the anti-anchoring benefit, so inline is the right call there.
+
+### Spawn slots (reflection-agent mode)
+
+Pass the agent: **mode** (`implement` | `refactor` | `review`), **the change** (diff summary + changed files; for review, the kept findings + their diff), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns deduped, significance-gated candidates per its Output Format; it never writes.
+
+### Anchor + echo (both sources)
+
+Run the improvement step as a **named step sequenced before the skill's ship/finalize prompt**, not as trailing prose after the deliverable — a silent step after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). After the step runs, echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired. When the candidate list is empty, skip §Presentation silently (no echo, no prompt).
+
+### Coexistence with recurrence rule-capture
+
+A candidate tagged `Recurrence-eligible: yes` restates a learning already seen 3+ times — route it to the rule-capture path (the `AskUserQuestion` header "Capture as rule", hand-off to `/geniro:instructions create`), NOT to the §Presentation prompt. This avoids prompting the user twice for the same rule. Two cases:
+
+- A skill with a **standalone recurrence offer** (`/refactor` §3.6→§3.5, `/debug` §3.3) fires that offer first, then §Presentation for the remaining (non-recurrence) candidates — deduped so the same rule is never offered twice.
+- A skill with **no standalone recurrence offer** (`/implement`, `/review`) routes a `Recurrence-eligible: yes` candidate straight to `/geniro:instructions create`, and sends the rest to §Presentation.
+
 ## Presentation
 
-For each improvement, draft `target / file / change / why`. Present via `AskUserQuestion` with header "Improvements" and options `Apply all` / `Review one-by-one` / `Skip`. Group by target so the user sees what goes where. If no improvements found, skip silently.
+For each improvement, draft `target / file / change / why`. Present via `AskUserQuestion` with header "Improvements" and options `Apply all` / `Review one-by-one` / `Skip`. Group by target so the user sees what goes where. If no improvements found, skip silently. On a `Skip` or an explicit decline, log it via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`) so the declined suggestion does not re-surface next run. Writes happen only after approval — for `.geniro/instructions/` targets, hand off to `/geniro:instructions create`; for CLAUDE.md / `.claude/rules/` / ADR / learnings, the orchestrator writes via the atomic state helpers.
