@@ -112,6 +112,34 @@ approvals:
     asked_in_phase: clarify
 ```
 
+### 2a. Planning-depth question (folded into this batch when `--deep` is absent)
+
+When `$ARGUMENTS` does not carry `--deep`, append a planning-depth question as its OWN independent question in the Phase 3 batch above (it never depends on a clarifying answer, so it batches within the ≤4-per-call cap; chain past the cap if needed). This depth question does not count toward the ≤5-total clarification cap — it is a mode question, not a clarification. When `--deep` is present, depth is already Deep — skip this question. No `(Recommended)` marker: Deep is costlier, not safer.
+
+```yaml
+- header: "Plan depth"
+  question: "How deep should the planning go?"
+  options:
+    - label: "Standard"
+      description: "Single-pass approach search and one verifier per cited claim."
+    - label: "Deep — wider search + 3-vote verify"
+      description: "A judge-panel approach search plus 3x verification of the spec's cited claims with majority vote; higher quality at higher token cost."
+```
+
+Empty answer → default Standard (`deep-mode: false`). Phase 3 is skipped on Trivial tasks, so depth there stays flag-only.
+
+Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an `approvals[]` entry with category `deep_mode_choice`:
+
+```yaml
+approvals:
+  - category: deep_mode_choice
+    prompt: "How deep should the planning go?"
+    options: ["Standard", "Deep — wider search + 3-vote verify"]
+    picked: "Standard"
+    at: 2026-05-17T10:50:00Z
+    asked_in_phase: clarify
+```
+
 ---
 
 ## 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)

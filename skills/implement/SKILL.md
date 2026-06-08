@@ -124,7 +124,7 @@ deep-mode: <true|false>   # set by the --deep flag (Phase 1 parse); missing read
 ---
 ```
 
-When `deep-mode: true`, Phase 1 (spec fact-check) and Phase 3 (self-review) run their deeper paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice`.
+When `deep-mode: true`, Phase 1 (spec fact-check) and Phase 3 (self-review) run their deeper paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice`. When `--deep` is absent, a Standard/Deep depth question folds into the Step 0 workspace AUQ (Question 3); pick Deep there to set `deep-mode: true`, or it stays flag-only on the auto-continue/resume paths where Step 0's AUQ does not fire.
 
 **Write contract.** Route every state.md mutation through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`) — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash. The State-helper enforcement hook warns on such a direct write (warn-mode initially; it flips to a hard-block in a future release).
 
@@ -349,7 +349,7 @@ Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): la
 
 #### 0c — AUQ structure
 
-Single `AskUserQuestion` call carrying up to 2 questions (always-WAIT, never auto-resolve):
+Single `AskUserQuestion` call carrying up to 3 questions (always-WAIT, never auto-resolve):
 
 **Question 1 — always asked when rules 5 or 6 fire:**
 
@@ -398,11 +398,26 @@ For each entry, find the workflow file with primary-worktree fallback per `${CLA
 
 The workflow file IS the source of truth for question text, options, AND status-conditional branching — do NOT hardcode "Linear" / "Jira" labels, and do NOT bypass the status check by firing the prompt unconditionally.
 
-If `1 + N > 4` (rare — task linked to ≥4 trackers), chain into a second AUQ.
+If the batch exceeds 4 questions — `1` (workspace, when rules 5/6 fire) + `N` (workflow) + `1` (depth, when `--deep` is absent) > 4 — chain into a second AUQ.
+
+**Question 3 — implement depth (fired when `$ARGUMENTS` lacks `--deep`):**
+
+```
+header: "Implement depth"
+question: "How deep should the implementation analysis go?"
+multiSelect: false
+options:
+  - label: "Standard"
+    description: "One spec fact-check pass and one self-review pass."
+  - label: "Deep — 3× fact-check + 3-vote verify"
+    description: "3× spec fact-check before editing plus a 3× self-review with 3-vote finding verification; higher quality at higher token cost."
+```
+
+Question 3 joins the Step 0c AUQ batch whenever that AUQ fires and `--deep` is absent. Neither option carries `(Recommended)` — Deep is costlier, not safer. A `--deep` flag pre-resolves depth to Deep, so Question 3 is skipped; an empty answer defaults to Standard (`deep-mode: false`). On the auto-continue / resume paths where the Step 0 AUQ does not fire (decision-tree rules 1-3), depth stays flag-only — re-prompting for depth on continuing work adds friction, the `--deep` flag is always available, and on resume `deep-mode` was already persisted on the original run. Counts toward the batch-exceeds-4 chain rule above.
 
 #### 0d — Approvals-persistence
 
-Persist BOTH answers to state.md `approvals[]`:
+Persist the workspace and workflow-status answers to state.md `approvals[]`. The depth pick (Question 3) is materialized once at Step 4 — frontmatter `deep-mode` plus its `approvals[]` entry under category `deep_mode_choice` — so the depth choice is written in exactly one place:
 
 ```yaml
 approvals:
@@ -441,7 +456,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 1. **Semantic-parse `$ARGUMENTS`.** Apply the table in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: $ARGUMENTS semantic-parse table".
 2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Spec discovery walk-list"). If no spec.md / plan.md / DESIGN_DOC frontmatter found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` to state.md body).
 3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Persist outcome to state.md frontmatter `approvals[]` with `category: disambiguate_arguments`.
-4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`. When Step 1 parsed `--deep`, write `deep-mode: true` into the state.md frontmatter at creation and append `{category: deep_mode_choice, picked: deep, at: <ISO-8601 UTC>}` to `approvals[]` via `atomic_state_write` — the activation must be persisted, not just held in working memory, so a compaction-resume re-applies it (a parsed flag that is never written is the loading-≠-firing gap that silently drops deep mode on resume).
+4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`. Write the resolved depth into the state.md frontmatter at creation: `deep-mode: true` when EITHER Step 1 parsed `--deep` OR the Step 0 Question-3 depth pick was Deep; `deep-mode: false` for a Standard / empty pick. Append the matching `{category: deep_mode_choice, picked: <deep|standard>, at: <ISO-8601 UTC>}` to `approvals[]` via `atomic_state_write` — the resolved depth must be persisted, not just held in working memory, so a compaction-resume re-applies it (a parsed flag or Step 0 pick that is never written is the loading-≠-firing gap that silently drops the depth choice on resume).
 5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); the §Echo contract requires one observable line per file. Both are mandatory.
 6. **Load project snapshot.** `load_semantic` with default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification to user.
 7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Subagent spawn template". Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — both agents declare `model: inherit`.

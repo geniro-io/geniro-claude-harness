@@ -19,7 +19,7 @@ Implement-specific layers of the opt-in `--deep` quality mode. The cross-skill c
 
 ## 1. Activation
 
-`/geniro:implement --deep <task>` sets `deep-mode: true`. Semantic parse at the Phase 1 `$ARGUMENTS` parse (alongside `no-worktree` / `--no-adversarial`) — matches `--deep` / `deep` / `deep mode`. Implement has no posting-mode AUQ to fold a chooser into (Step 0 is workspace-only), so deep mode is flag-only per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2. Persist `deep-mode:` to state.md frontmatter and the activation to `approvals[]` category `deep_mode_choice`. When false (default), Phase 1 and Phase 3 run their standard single-pass paths and deep mode adds zero overhead.
+`/geniro:implement --deep <task>` sets `deep-mode: true`. Semantic parse at the Phase 1 `$ARGUMENTS` parse (alongside `no-worktree` / `--no-adversarial`) — matches `--deep` / `deep` / `deep mode`. When `--deep` is absent, a depth question (Standard / Deep) folds into the Step 0 workspace AUQ as its own question per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2 — no new standalone gate; on the auto-continue / resume paths where the Step 0 AUQ does not fire, depth falls back to flag-only (on resume, `deep-mode` was already persisted on the original run). Persist `deep-mode:` to state.md frontmatter and the activation to `approvals[]` category `deep_mode_choice`. When false (default), Phase 1 and Phase 3 run their standard single-pass paths and deep mode adds zero overhead.
 
 ## 2. Precision — Phase 1 spec fact-check (3× verify)
 

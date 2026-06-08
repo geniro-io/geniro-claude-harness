@@ -69,7 +69,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 0.5 | Problem discovery (opt-in — fires only with `--prd`: problem-first interview before explore, feeds the spec's optional `## Problem & Evidence` section) | §"Phase 0.5 — Problem discovery" |
 | 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
-| 3 | Clarifying questions (≤5 total — non-trivial option consequences rendered to a chat message first, independent ones batched into one lean AUQ, dependent ones sequenced) | §"Phase 3 — Clarifying questions" |
+| 3 | Clarifying questions (≤5 total — non-trivial option consequences rendered to a chat message first, independent ones batched into one lean AUQ, dependent ones sequenced), plus the Standard/Deep depth question when `--deep` is absent | §"Phase 3 — Clarifying questions" |
 | 4 | Approaches (2-3 rendered to a chat message with diagrams, then ONE lean AUQ with Recommended first; `--deep`: judge-panel approach search + 3× feasibility critics with majority vote — `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`) | §"Phase 4 — Approaches" |
 | 5 | Cluster approval (fixed 11-section schema grouped into 3 dependency-ordered clusters; each cluster rendered to a chat message, then ONE lean AUQ — Approve all / Revise specific sections / Cancel; milestone-mode) | §"Phase 5 — Section approval" |
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
@@ -146,7 +146,7 @@ deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); m
 ---
 ```
 
-When `deep-mode: true`, Phase 4 and Phase 7.5 run their deeper paths via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it.
+When `deep-mode: true`, Phase 4 and Phase 7.5 run their deeper paths via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it. When `--deep` is absent, a Standard/Deep depth question folds into the Phase 3 clarify AUQ (skipped on a Trivial task → flag-only there); pick Deep there to set `deep-mode: true`.
 
 **Write contract.** Every state.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, never direct `Edit`/`Write` on canonical state paths — the State-helper enforcement hook warns now and flips to hard-block in a future release. The plan-mode mutation guard restricts Write tool to `.geniro/planning/**` OR `.geniro/state/**` while a /geniro:plan run is active.
 
