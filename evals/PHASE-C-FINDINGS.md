@@ -10,9 +10,24 @@ the tsx-resolution fix that shipped with this PR.
   exactly as the design assumed. (plan decision 10 confirmed on real data.)
 - **End-to-end plumbing works:** 2 real `/plan` runs on `claude-opus-4-8[1m]`, gates auto-answered,
   specs produced + graded 5/5, position-swapped comparison, aggregation, ingest, gate evaluation.
-- **The promotion gate does not false-promote** an n=1 input (no variance → no significance → no fire).
+
+> The A-vs-A calibration did **not** confirm gate safety — it **exposed a false-significance bug**
+> (F5 below). That is the calibration doing its job (plan decision 4).
 
 ## Follow-ups
+
+### F5 (CRITICAL — gate correctness) — zero-variance sample → zero-width CI → false significance → false-promotion risk
+The inaugural A-vs-A row came back `quality_winrate_vs_baseline: 0`, `quality_ci: [0, 0]`,
+`significant_on_primary: true`. With 1 task × 1 trial — or **any** sample where all task clusters
+agree — the task-clustered CI has zero width, so the significance test ("CI excludes the 0.5 null")
+passes trivially. Here `primary_beats_null` was `false` only because the single comparison landed at
+0; **had it gone the other way (`value = 1` → `CI = [1,1]`), `primary_beats_null` would be
+`1 > 0.5 = true` and the gate would have PROMOTED two identical versions.** This is exactly the
+false-promotion the A-vs-A calibration exists to catch (plan decision 4): at n=1 the gate is **not
+safe**, and the degeneracy is not unique to n=1 (any zero-variance cluster set trips it — e.g. all
+trials agreeing on a modest real effect). Fix before trusting the gate: require a minimum
+cluster/trial count for significance, treat a zero-width CI as not-significant, and/or apply a
+variance floor / continuity correction. **Blocker for relying on the promotion gate.**
 
 ### F1 — `length_confounded` keys on executor output tokens, not artifact length
 The flag came back `true` (candidate 24,830 vs baseline 19,307 output tokens) although the two specs
