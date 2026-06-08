@@ -168,7 +168,7 @@ Loading all three layers ensures research agents have full context — prior dec
 
 ### 1.1b Branch freshness
 
-On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`. /geniro:plan does not create branches, but when the session sits on a feature branch behind the default branch, offer to update it before research spawns — so the spec is grounded in fresh code rather than a stale tree. Skipped silently when the branch is already current.
+On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`. /geniro:plan does not create branches, but when the current branch is behind the latest default branch, offer to update it before research spawns — so the spec is grounded in fresh code rather than a stale tree. This covers BOTH cases the helper handles: a feature branch behind the default (offer merge/rebase), AND sitting on the default branch itself while its remote moved ahead (offer pull) — do not skip the gate just because HEAD is on the default branch. Skipped silently only when the branch already contains everything on the default.
 
 ### 1.2 Effort-tier-scaled research spawns
 

@@ -22,7 +22,7 @@ Consumers: `/geniro:implement` (both modes), `/geniro:plan`, `/geniro:debug`, `/
 | Mode | Fires when | What it does |
 |---|---|---|
 | **FRESH-BASE** | A skill is about to CREATE a new branch or worktree (`/geniro:implement` Step 0, "New feature branch" / "Git worktree" options). | Cut the new branch/worktree from the latest default-branch tip instead of from wherever HEAD currently sits. |
-| **FRESH-CONTINUE** | A skill is about to continue work on an EXISTING branch (auto-continue paths, "Current branch", or any skill entered on a feature branch). | If the branch is behind the default branch, offer to bring it up to date before work starts. Skip silently when already current. |
+| **FRESH-CONTINUE** | A skill is about to continue work on an EXISTING branch — auto-continue paths, "Current branch", any skill entered on a feature branch, OR a skill entered while on the default branch itself. | If the current branch is behind the latest default branch, offer to bring it up to date before work starts — including the on-default-branch case (remote moved ahead → offer pull, §4.1). Skip silently when already current. |
 
 Run the gate AFTER the workspace decision is known but BEFORE the first code edit / spec write / investigation. Skip the gate entirely on a compaction-resume (the branch was already synced when the run first started — re-asking on every resume is noise).
 
@@ -154,3 +154,4 @@ The update is an offer, not a hard gate — a conflict that the user must resolv
 | "Fetch is slow — skip it and compare against local <DEFAULT_BRANCH>." | Local default is only as fresh as the last manual pull, so "latest" would be a lie. Attempt the fetch with the timeout; fall back to local only when it actually fails, and say so. |
 | "On a merge conflict I'll resolve it so work isn't blocked." | A skill auto-resolving someone's merge conflict produces silent, unreviewed history. Abort, surface the conflict, and continue on the un-merged branch — the user resolves it deliberately. |
 | "Re-ask the catch-up question on every compaction-resume to be safe." | The branch was synced when the run first started; re-asking on resume is noise. The gate fires once per fresh start, recorded in `approvals[]`. |
+| "I'm on the default branch (main/master), not a feature branch — this freshness gate is about feature branches, so skip it." | FRESH-CONTINUE covers the default branch too (§4.1): on the default branch with the remote ahead, fire the update-default AUQ and offer to pull. Computing `BEHIND` (§4) does not depend on which branch you are on — run the comparison regardless of HEAD, and only the `BEHIND == 0` result skips silently. Skipping because "this is main" plans/works against a stale tree. |
