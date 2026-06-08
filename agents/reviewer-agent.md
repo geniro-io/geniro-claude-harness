@@ -249,6 +249,11 @@ Decision Type and severity are orthogonal: a HIGH-severity finding can be `[FIX-
 - Comments can be outdated or incorrect
 - Always verify with your own code reading
 
+### Internal references in finding bodies
+- Your `Why this matters:`, `Suggested fix:`, `description`, and `recommendation` text can be posted verbatim to a public PR comment, where the author has no access to the project's internal incident log, learnings store, or your briefing
+- When a finding restates a known failure mode from your briefing (an incident report, a learnings entry), describe it in plain language — "the documented backdated-migration-ordering failure" — and do NOT cite the internal ID (`incident 4`, `learning B.1.5`, the `B.x.y` numbering). The ID indexes a log the reader cannot open; it reads as noise
+- If a shareable link to the incident exists in your briefing, include the link instead of the bare ID
+
 ## Fallback Strategy
 
 If no criteria file is provided:
