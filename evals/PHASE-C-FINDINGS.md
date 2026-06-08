@@ -61,3 +61,14 @@ By design (`evals/README.md`), `ingest` writes the row to the **primary** worktr
 not the worktree it ran in. Correct once the tooling is on `main`; but when run from an unmerged
 feature-branch worktree, the row lands on `main` rather than the PR branch. Either surface this in
 run-suite output, or add an opt-in `--ledger-here` for pre-merge validation runs.
+
+### F6 (FIXED in this PR) — CI didn't check out the submodule → comparisons silently degraded to 0.5
+The `tests` job ran `actions/checkout@v4` without `submodules: true`, so `evals/vendor/skills` (the
+pinned `grader.md` / `comparator.md`) was absent in CI. `agent_prompt`'s `exit 65` on a missing file
+is **swallowed inside command substitution** (`c="$(agent_prompt comparator.md)"`), leaving an empty
+template — the comparator prompt lost its header, the judge returned no winner, and every comparison
+scored a no-winner TIE (`primary_value 0.5`). Real run-suite tests #4/#7/#8 (genuine content wins)
+failed `0.5 ≠ 1`: a misconfiguration masquerading as a result. **Fixed:** (a) `ci.yml` checkout now
+sets `submodules: true` (anthropics/skills is public); (b) run-suite gains a loud pre-flight guard
+(rc 65 + a `git submodule update --init` hint) so a missing prompt never silently degrades, with an
+`EVAL_VENDOR_DIR` seam + regression test (#10).

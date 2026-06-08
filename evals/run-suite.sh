@@ -35,7 +35,10 @@ set -uo pipefail
 
 _rs_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS_DIR="$_rs_dir/run-harness"
-VENDOR="$_rs_dir/vendor/skills/skills/skill-creator/agents"
+# Pinned judge prompts live in the evals/vendor/skills submodule. Overridable (EVAL_VENDOR_DIR) so a
+# test can point at an empty dir and assert the missing-prompt guard fires (below) instead of the
+# silent 0.5 degradation a missing submodule used to cause.
+VENDOR="${EVAL_VENDOR_DIR:-$_rs_dir/vendor/skills/skills/skill-creator/agents}"
 
 # Rough per-call cost priors for the dry-run estimate ONLY (the committed cost is derived, not these).
 # /plan trial ≈ $2.7 (Phase-0 measured); a grade/compare judging a small spec ≈ $0.15.
@@ -246,6 +249,17 @@ compare_swapped() {
 }
 
 locate_spec() { find "$1/.geniro/planning" -name 'spec.md' -type f 2>/dev/null | LC_ALL=C sort | head -1; }
+
+# Pre-flight: the pinned judge prompts MUST exist before we spend anything. Otherwise agent_prompt's
+# `exit 65` (swallowed inside command substitution) leaves an empty template, the comparator builds a
+# headerless prompt, and EVERY comparison silently collapses to a no-winner TIE (primary_value 0.5) —
+# a misconfiguration masquerading as a real result. Fail loud here in the main shell so it propagates.
+for _pp in grader.md comparator.md; do
+  if [ ! -f "$VENDOR/$_pp" ]; then
+    echo "run-suite: pinned judge prompt $_pp not found under $VENDOR — run: git submodule update --init evals/vendor/skills" >&2
+    exit 65
+  fi
+done
 
 for id in $IDS; do
   prompt="$(jq -r --argjson i "$id" '.evals[] | select(.id == $i) | .prompt' "$SUITE" 2>/dev/null)"

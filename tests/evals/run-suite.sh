@@ -240,6 +240,20 @@ else
   fi
 fi
 
+# ===== 10. Missing pinned judge prompts fail LOUD (rc 65), not a silent 0.5 (F6 regression) =====
+# A missing evals/vendor/skills submodule left the comparator with an empty template, so every
+# comparison degraded to a no-winner TIE (primary_value 0.5) — which surfaced as a confusing CI red
+# (tests #4/#7/#8 got 0.5≠1) instead of a clear failure. The pre-flight guard must fail fast with a
+# clear message and produce no benchmark. EVAL_VENDOR_DIR points the prompt dir at an empty path.
+WS="$TMPDIR_BASE/ws-novendor"
+out="$( EVAL_VENDOR_DIR="$TMPDIR_BASE/empty-vendor" bash "$RS" --skill geniro:plan --suite "$SUITE" \
+       --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$WS" 2>&1 )"; rc=$?
+if [ "$rc" -eq 65 ] && printf '%s' "$out" | grep -q "pinned judge prompt" && [ ! -e "$WS/benchmark.json" ]; then
+  pass "missing pinned prompts: fail loud rc=65 with a clear message, no benchmark (F6: no silent 0.5)"
+else
+  fail "missing-prompt guard wrong — rc=$rc made_bench=$([ -e "$WS/benchmark.json" ] && echo yes || echo no) out: $(printf '%s' "$out" | tr '\n' '|' | cut -c1-160)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"
