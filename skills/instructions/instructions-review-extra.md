@@ -29,6 +29,7 @@ Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a diffe
 - **Cite specific code patterns or anti-patterns, not abstract principles.** "String concatenation inside a template literal that contains the keyword `SELECT`" beats "SQL safety". The reviewer-agent grounds its findings in the patterns you name — abstract principles produce abstract findings.
 - **Set `severity-default` to the typical severity for THIS reviewer's findings.** The reviewer-agent can override per-finding, but the default informs its initial scoring. A SQL-injection reviewer wants HIGH; a naming-consistency reviewer wants LOW.
 - **Use `paths:` to scope narrow reviewers.** A reviewer that only matters for SQL files should not run on every PR — set `paths: ["**/*.sql", "**/dao/*.{ts,py}"]` so it fires only when at least one changed file matches. An always-fires reviewer (no `paths:` field) burns reviewer-agent budget on diffs where it can never find anything.
+- **Declare `requires-context:` if the reviewer needs live external data.** A reviewer that matches the diff against a Notion page, a Linear issue, or an API response can't fetch that data itself — it runs in a subagent with no MCP access. Write a natural-language `requires-context:` directive naming the source and what to extract; the orchestrator fetches it and injects it as a `CUSTOM CONTEXT:` block before the reviewer runs (fail-open if the source is unavailable). Without it, a reviewer whose criteria reference external data silently sees none and produces empty or hallucinated findings.
 - **Test the reviewer on one diff before committing it.** Invoke `/geniro:review` against a known-good PR and a known-bad PR and confirm findings appear and look right. A misfiring reviewer pollutes every subsequent review with noise.
 - **Pick `model:` to match check depth.** Use `haiku` for narrow pattern matchers (regex-like checks). Use `sonnet` (default) for most semantic checks. Reserve `opus` for deep architectural concerns where Sonnet would miss the intent.
 - **Sweet-spot count is 4-6 custom reviewers.** The skill warns when you'd create the 7th (i.e., exceed the sweet spot) and hard-refuses at the 11th (see "Count caps" below). Too many narrow reviewers fragment attention; consolidate when two reviewers' criteria overlap.
@@ -140,6 +141,19 @@ On any "Skip", omit the `severity-default:` field.
 
 Explain the body shape before asking. Use `AskUserQuestion` with no options (free-form via "Other"):
 - **Question:** "Paste the criteria body. Mirror the `what to flag / what NOT to flag` shape from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md`. Keep it 30-80 lines, focused on concrete code patterns (not abstract principles). Example structure:\n\n```\n# Criteria\n\nWhat to flag:\n- String concatenation that builds a SQL string with a runtime variable\n- ORM.raw calls passing concatenated strings instead of bind parameters\n\nWhat to NOT flag:\n- Static SQL with no variables\n- Schema-migration files that intentionally build CREATE statements\n```\n\nPaste your criteria below:"
+
+### Step 9.5: Optional external-data dependency
+
+Use `AskUserQuestion`:
+- **Question:** "Does this reviewer need live external data the orchestrator should fetch for it — a Notion page, a Linear/Jira issue, an API response? Subagents can't call MCP tools directly, so the orchestrator fetches the data and hands it to the reviewer."
+- **Options:**
+  - label: "No external data" — description: "The reviewer works from the diff and project files alone. This covers most reviewers."
+  - label: "Yes — declare what to fetch" — description: "The orchestrator pre-fetches live external data and injects it before the reviewer runs."
+
+On "Yes — declare what to fetch", chain a free-form follow-up via `AskUserQuestion` (no options — "Other" path):
+- **Question:** "Describe what to fetch in one or two sentences — name the source and what the reviewer needs from it. E.g., 'Fetch the live Notion Incident Report (the page titled \"Incident Report\", latest entry) and provide its incident-pattern list so the reviewer can match the diff against known incidents.'"
+
+Store the answer verbatim as the `requires-context:` frontmatter value. On "No external data", omit the field.
 
 ### Step 10: Write the file
 
