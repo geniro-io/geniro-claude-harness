@@ -45,9 +45,28 @@ EST_JUDGE_USD=0.15
 # Overridable commands. When an EVAL_*_CMD env var is set (tests inject fakes), it is a
 # word-split command string; otherwise the default runs the real tool via a QUOTED argv so a
 # space in the repo path can't word-split the path itself into a broken invocation.
-run_driver()  { if [ -n "${EVAL_DRIVER_CMD:-}" ]; then $EVAL_DRIVER_CMD "$@"; else node --import tsx "$HARNESS_DIR/src/driver.ts" "$@"; fi; }
+# Invoke tsx by its ABSOLUTE binary path — NOT `node --import tsx`. The latter resolves the bare
+# `tsx` specifier against the process CWD (the worktree root, which has no node_modules) and silently
+# ERR_MODULE_NOT_FOUND's; the first live run died this way and scored a vacuous TIE. The .bin/tsx path
+# resolves its own deps from its install location, so it works from any CWD.
+run_driver()  {
+  if [ -n "${EVAL_DRIVER_CMD:-}" ]; then $EVAL_DRIVER_CMD "$@"; return; fi
+  local tsx_bin="$HARNESS_DIR/node_modules/.bin/tsx"
+  if [ ! -x "$tsx_bin" ]; then
+    echo "run-suite: ERROR driver runtime missing — $tsx_bin not found. Run: npm --prefix \"$HARNESS_DIR\" install" >&2
+    return 65
+  fi
+  "$tsx_bin" "$HARNESS_DIR/src/driver.ts" "$@"
+}
 run_fixture() { if [ -n "${EVAL_FIXTURE_CMD:-}" ]; then $EVAL_FIXTURE_CMD; else bash "$HARNESS_DIR/fixtures/build-plan-fixture.sh"; fi; }
 run_claude()  { if [ -n "${EVAL_CLAUDE_CMD:-}" ]; then $EVAL_CLAUDE_CMD "$@"; else claude "$@"; fi; }
+
+# --selfcheck: boot-probe the REAL driver invocation (resolve tsx, load the module, parse args) and
+# exit — no suite/candidate needed, no API spend. Guards the run-suite→driver tsx-resolution path that
+# silently broke the first live run; a test drives this from a tsx-less CWD (with EVAL_DRIVER_CMD unset).
+case " $* " in
+  *" --selfcheck "*) run_driver --selfcheck --plugin-raw; exit $? ;;
+esac
 
 SKILL="geniro:plan"
 SUITE=""
