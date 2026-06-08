@@ -11,8 +11,11 @@ locally, by hand, accumulating every run into a committed ledger. Full design:
 evals/
 ├── run-harness/        Phase 0 — Agent-SDK canUseTool driver (subscription, auto-answers gates)
 │   └── README.md       how it bills, the driver flags, the approve-default-v1 policy
+├── run-suite.sh        Phase C — the one-command §6 loop: drive A/B → grade → swap-compare → aggregate → ingest
+├── aggregate-runs.sh   Phase C — glue: a benchmark WORKSPACE (run dirs + grader/comparator output) → benchmark.json
 ├── ingest.sh           Phase B — derive cost/CIs/gate from a benchmark.json, append one ledger run
-├── BENCHMARK-SCHEMA.md the benchmark.json input contract ingest reads (Phase-C wiring target)
+├── BENCHMARK-SCHEMA.md the benchmark.json contract (ingest reads it; aggregate-runs.sh writes it)
+├── vendor/skills/      Phase C — skill-creator pinned as a submodule @ da20c925 (grader.md/comparator.md prompts)
 ├── lib/
 │   ├── ledger-append.sh   the cross-run ledger writer (built on atomic_state_append + emit-learning pattern)
 │   └── eval-stats.sh      single-sourced stats math (Wilson + task-clustered seeded bootstrap), like score-formula.sh
@@ -74,7 +77,7 @@ echo '{"skill":"plan","baseline_ref":"<sha>","candidate_ref":"<sha>","notes":"ma
 > targets the local checkout instead, so the initial committed files land on the branch you're
 > committing from.)
 
-## What Phase B delivers (this PR)
+## What Phase B delivers (shipped, PR #28)
 
 The math that turns a run into a ledger row — everything the harness can't measure on the
 subscription (no per-token $) and the right CI per metric (plan §8/§9, §16):
@@ -95,32 +98,54 @@ subscription (no per-token $) and the right CI per metric (plan §8/§9, §16):
 - **`BENCHMARK-SCHEMA.md` + `fixtures/benchmark.example.json`** — the input contract (with
   field provenance) ingest reads, defined ahead of its Phase-C producer.
 
-### End-to-end: harness → ingest (the §6 run loop, by hand)
+## What Phase C delivers (this PR)
+
+The wiring that turns the Phase-0 harness into a one-command run that produces a real ledger
+row — **plus the first real `/plan` measurement** (plan §16 Phase C):
+
+- **skill-creator pinned as a submodule** (`evals/vendor/skills` @ `da20c925`) — freezes the
+  reused `grader.md` / `comparator.md` prompts (decision 3). Prompts/scripts are pinned; eval
+  *results* are not (the server-side judge drifts — that's what the CI gate + recorded model ids
+  + κ are for). After a fresh clone: `git submodule update --init evals/vendor/skills`.
+- **`aggregate-runs.sh`** — the glue from a benchmark **workspace** (per-trial `result.json` +
+  `grading.json`, plus a position-swapped `comparison.json` per task) to a `benchmark.json`
+  conforming to `BENCHMARK-SCHEMA.md`. Tokens come from `result.json`'s `model_usage` (the
+  authoritative cumulative), **cache tiers preserved** so ingest prices them right; a task with no
+  `primary_value` is a hard error. Covered by `tests/evals/aggregate-runs.sh` (8 cases).
+- **`run-suite.sh`** — the §6 loop as one command (below). Drives A/B trials, grades the candidate,
+  position-swap compares (both orders, averaged → `primary_value`), aggregates, and (`--ingest`)
+  appends the row. `--dry-run` prints the matrix + a rough cost estimate and spends nothing.
+  Covered by `tests/evals/run-suite.sh` (6 cases, incl. the position-swap-cancels-a-biased-judge
+  property and the full aggregate→ingest chain, run with injected fakes — no spend).
+- **Cache-aware cost** — `price-map.json` gained per-model `cache_read` / `cache_write` tiers and
+  the `[1m]` model ids the SDK reports; `ingest.sh` now prices cache tokens (a geniro run is
+  cache-read-dominated, so a flat fold over-counts ~4×). Validated against a real run's `costUSD`
+  to the cent. Backward-compatible: a cache-less benchmark derives the identical cost (still `@v1`).
+- **Driver nesting fix** — the driver strips `CLAUDECODE` so the headless run works when launched
+  from inside a Claude Code session (mirrors skill-creator's `run_eval.py`).
+
+### End-to-end: the §6 run loop (one command)
 
 ```bash
-# 0. Recall the champion ref from HISTORY.md (only the ref — NOT the trend; plan §6).
-# 1. Drive both versions through the Phase-0 harness over the suite (subscription, gates auto-answered):
-cd evals/run-harness
-node --import tsx src/driver.ts --skill geniro:plan --plugin-ref <candidate-sha> \
-  --cwd "$(bash fixtures/build-plan-fixture.sh | tail -1)" --out runs/plan-cand --max-turns 300 \
-  --prompt "<suite task prompt>"
-node --import tsx src/driver.ts --skill geniro:plan --plugin-ref <baseline-sha> \
-  --cwd "$(bash fixtures/build-plan-fixture.sh | tail -1)" --out runs/plan-base --max-turns 300 \
-  --prompt "<suite task prompt>"
-# 2. Grade + aggregate the runs into a benchmark.json (skill-creator aggregate; Phase C wiring),
-#    conforming to BENCHMARK-SCHEMA.md.
-# 3. Ingest — derive cost/CIs/gate and append the committed row:
-cd ../..
-bash evals/ingest.sh path/to/benchmark.json \
-  --candidate <candidate-sha> --baseline <baseline-sha> --notes "first /plan A/B"
-# 4. Read a sample of transcripts under evals/run-harness/runs/ before trusting the verdict (§6 step 5).
+# 0. Recall the champion ref from HISTORY.md (only the ref — NOT the trend; plan §6, read discipline below).
+# 1. Preview the matrix + rough cost, spend nothing:
+bash evals/run-suite.sh --skill geniro:plan --suite evals/suites/plan/evals.json \
+  --candidate <cand-sha> --baseline <base-sha> --trials 1 --dry-run
+# 2. Run it (subscription; gates auto-answered). The FIRST real run is A-vs-A (same ref both sides):
+#    it exercises the whole pipeline AND is the empirical-null calibration — it must come back a TIE.
+bash evals/run-suite.sh --skill geniro:plan --suite evals/suites/plan/evals.json \
+  --candidate <ref> --baseline <ref> --trials 1 --out evals/runs/plan-avsa
+# 3. Inspect evals/runs/plan-avsa/benchmark.json, then append the committed row (or pass --ingest above):
+bash evals/ingest.sh evals/runs/plan-avsa/benchmark.json --candidate <ref> --baseline <ref> \
+  --notes "first /plan A-vs-A null calibration"
+# 4. Read a sample of transcripts under the workspace before trusting the verdict (§6 step 5).
 # 5. Commit the appended evals/history.jsonl + evals/HISTORY.md.
 ```
 
 The harness bills against the **Claude Code subscription**, never the per-token API
 (`approve-default-v1` auto-answers gates by the `(Recommended)` marker) — see
-[`run-harness/README.md`](run-harness/README.md). The exact `benchmark.json` shape ingest
-consumes is [`BENCHMARK-SCHEMA.md`](BENCHMARK-SCHEMA.md).
+[`run-harness/README.md`](run-harness/README.md). The exact `benchmark.json` shape is
+[`BENCHMARK-SCHEMA.md`](BENCHMARK-SCHEMA.md). Workspaces under `evals/runs/` are gitignored.
 
 ## Read discipline
 
@@ -130,7 +155,7 @@ judge is designed to avoid (plan §6, §15). Read the trend post-hoc via `/genir
 
 ## Roadmap
 
-Phase 0 (driver) ✅ · Phase A (ledger + suites + seam) ✅ · **Phase B (ingest: cost + CIs) — this
-PR** · Phase C (first real `/plan` run + measure $/time) · Phase D (`/review` calibration + κ +
-20–50 tasks + cross-family judge + `/geniro:eval`) · Phase E (end-to-end + `analyze-thread`
-trajectory).
+Phase 0 (driver) ✅ · Phase A (ledger + suites + seam) ✅ · Phase B (ingest: cost + CIs) ✅ ·
+**Phase C (submodule + aggregate-runs + run-suite + cache-aware cost) — this PR** · Phase D
+(`/review` calibration + κ + 20–50 tasks + cross-family judge + `/geniro:eval`) · Phase E
+(end-to-end + `analyze-thread` trajectory).

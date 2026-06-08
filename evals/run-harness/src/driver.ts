@@ -90,6 +90,14 @@ for (const k of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]) {
 for (const k of ["CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "CLAUDE_CODE_USE_ANTHROPIC_AWS"]) {
   if (process.env[k]) console.error(`[subscription-guard] WARNING: ${k} is set — run may route to a 3rd-party provider, not your subscription.`);
 }
+// Allow nesting under a Claude Code session (the eval suite is itself often driven from one).
+// `CLAUDECODE=1` is an INTERACTIVE-nesting guard; programmatic subprocess use is safe, so strip it
+// from the child env — otherwise the spawned `claude` refuses to start. Mirrors skill-creator's
+// run_eval.py (`env = {k:v for k,v in os.environ if k != "CLAUDECODE"}`).
+if (process.env.CLAUDECODE) {
+  console.error("[driver] stripping CLAUDECODE from the child env so the headless run can nest inside a Claude Code session.");
+  delete process.env.CLAUDECODE;
+}
 
 // ----- target project dir (isolated .geniro/state root per trial) -----
 let cwd = arg("--cwd", "");
