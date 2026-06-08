@@ -24,6 +24,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # evals/vendor/skills pins the judge prompts (grader.md / comparator.md). Without it the
+          # run-suite comparator builds an empty prompt and every comparison degrades to a no-winner
+          # TIE (primary_value 0.5). The public anthropics/skills submodule must be checked out.
+          submodules: true
 
       - name: Verify jq is available
         run: jq --version

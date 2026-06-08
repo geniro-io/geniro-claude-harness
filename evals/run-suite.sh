@@ -35,7 +35,10 @@ set -uo pipefail
 
 _rs_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS_DIR="$_rs_dir/run-harness"
-VENDOR="$_rs_dir/vendor/skills/skills/skill-creator/agents"
+# Pinned judge prompts live in the evals/vendor/skills submodule. Overridable (EVAL_VENDOR_DIR) so a
+# test can point at an empty dir and assert the missing-prompt guard fires (below) instead of the
+# silent 0.5 degradation a missing submodule used to cause.
+VENDOR="${EVAL_VENDOR_DIR:-$_rs_dir/vendor/skills/skills/skill-creator/agents}"
 
 # Rough per-call cost priors for the dry-run estimate ONLY (the committed cost is derived, not these).
 # /plan trial ≈ $2.7 (Phase-0 measured); a grade/compare judging a small spec ≈ $0.15.
@@ -45,9 +48,28 @@ EST_JUDGE_USD=0.15
 # Overridable commands. When an EVAL_*_CMD env var is set (tests inject fakes), it is a
 # word-split command string; otherwise the default runs the real tool via a QUOTED argv so a
 # space in the repo path can't word-split the path itself into a broken invocation.
-run_driver()  { if [ -n "${EVAL_DRIVER_CMD:-}" ]; then $EVAL_DRIVER_CMD "$@"; else node --import tsx "$HARNESS_DIR/src/driver.ts" "$@"; fi; }
+# Invoke tsx by its ABSOLUTE binary path — NOT `node --import tsx`. The latter resolves the bare
+# `tsx` specifier against the process CWD (the worktree root, which has no node_modules) and silently
+# ERR_MODULE_NOT_FOUND's; the first live run died this way and scored a vacuous TIE. The .bin/tsx path
+# resolves its own deps from its install location, so it works from any CWD.
+run_driver()  {
+  if [ -n "${EVAL_DRIVER_CMD:-}" ]; then $EVAL_DRIVER_CMD "$@"; return; fi
+  local tsx_bin="$HARNESS_DIR/node_modules/.bin/tsx"
+  if [ ! -x "$tsx_bin" ]; then
+    echo "run-suite: ERROR driver runtime missing — $tsx_bin not found. Run: npm --prefix \"$HARNESS_DIR\" install" >&2
+    return 65
+  fi
+  "$tsx_bin" "$HARNESS_DIR/src/driver.ts" "$@"
+}
 run_fixture() { if [ -n "${EVAL_FIXTURE_CMD:-}" ]; then $EVAL_FIXTURE_CMD; else bash "$HARNESS_DIR/fixtures/build-plan-fixture.sh"; fi; }
 run_claude()  { if [ -n "${EVAL_CLAUDE_CMD:-}" ]; then $EVAL_CLAUDE_CMD "$@"; else claude "$@"; fi; }
+
+# --selfcheck: boot-probe the REAL driver invocation (resolve tsx, load the module, parse args) and
+# exit — no suite/candidate needed, no API spend. Guards the run-suite→driver tsx-resolution path that
+# silently broke the first live run; a test drives this from a tsx-less CWD (with EVAL_DRIVER_CMD unset).
+case " $* " in
+  *" --selfcheck "*) run_driver --selfcheck --plugin-raw; exit $? ;;
+esac
 
 SKILL="geniro:plan"
 SUITE=""
@@ -227,6 +249,17 @@ compare_swapped() {
 }
 
 locate_spec() { find "$1/.geniro/planning" -name 'spec.md' -type f 2>/dev/null | LC_ALL=C sort | head -1; }
+
+# Pre-flight: the pinned judge prompts MUST exist before we spend anything. Otherwise agent_prompt's
+# `exit 65` (swallowed inside command substitution) leaves an empty template, the comparator builds a
+# headerless prompt, and EVERY comparison silently collapses to a no-winner TIE (primary_value 0.5) —
+# a misconfiguration masquerading as a real result. Fail loud here in the main shell so it propagates.
+for _pp in grader.md comparator.md; do
+  if [ ! -f "$VENDOR/$_pp" ]; then
+    echo "run-suite: pinned judge prompt $_pp not found under $VENDOR — run: git submodule update --init evals/vendor/skills" >&2
+    exit 65
+  fi
+done
 
 for id in $IDS; do
   prompt="$(jq -r --argjson i "$id" '.evals[] | select(.id == $i) | .prompt' "$SUITE" 2>/dev/null)"

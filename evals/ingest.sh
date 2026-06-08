@@ -196,8 +196,13 @@ JQ_PROGRAM=' # rounding helpers keep the committed record compact + readable
   | mean($pv) as $wr
   | bootstrap_ci($pv; $reps; $seed; 0.025; 0.975) as $qci
   | ($qci[0]) as $lo | ($qci[1]) as $hi
-  | ( ($lo != null) and (($null < $lo) or ($null > $hi)) ) as $sig
-  | ( ($lo != null) and ($lo > $null) ) as $beats
+  # F5: a zero-variance sample — one task, or all task clusters agreeing — collapses the
+  # task-clustered CI to zero width, so "CI excludes the null" passes trivially and the gate would
+  # PROMOTE on a coin flip (even two identical versions). Require >=2 task clusters AND a
+  # positive-width CI before asserting significance or a win; otherwise the result is not usable.
+  | ( (($pv | length) >= 2) and ($lo != null) and ($hi != null) and ($hi > $lo) ) as $ci_usable
+  | ( $ci_usable and (($null < $lo) or ($null > $hi)) ) as $sig
+  | ( $ci_usable and ($lo > $null) ) as $beats
   | ([ $tasks[].expectation_pass[]? ]) as $ep
   | ($ep | add // 0) as $ep_k | ($ep | length) as $ep_n
   | ([ $tasks[].precision_hits? // empty ] | add // 0) as $ph

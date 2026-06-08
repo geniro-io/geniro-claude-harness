@@ -216,6 +216,44 @@ else
   fail "lowercase winner mis-scored — primary_value=$pv (want 1)"
 fi
 
+# ===== 9. REGRESSION: the REAL driver invocation (no fake) must resolve tsx from a foreign CWD =====
+# The first live run died with ERR_MODULE_NOT_FOUND: `node --import tsx` resolves the bare `tsx`
+# specifier against the process CWD (worktree root, no node_modules) and produced a vacuous TIE.
+# run-suite now invokes tsx by absolute binary path. Drive the REAL run_driver via `--selfcheck`
+# (no API spend, no fake — EVAL_DRIVER_CMD unset) from a tsx-less CWD. Every other test stubs the
+# driver, so this is the ONLY test that exercises the real tsx-resolution path that broke.
+FOREIGN="$(mktemp -d "$TMPDIR_BASE/foreign.XXXX")"
+TSX_BIN="$REPO_ROOT/evals/run-harness/node_modules/.bin/tsx"
+sc_out="$( cd "$FOREIGN" && env -u EVAL_DRIVER_CMD bash "$RS" --selfcheck 2>&1 )"; sc_rc=$?
+if [ -x "$TSX_BIN" ]; then
+  if [ "$sc_rc" -eq 0 ] && printf '%s' "$sc_out" | grep -q "\[selfcheck\] ok"; then
+    pass "real driver boots under tsx from a foreign CWD (regression: bare 'node --import tsx' broke first live run)"
+  else
+    fail "real driver --selfcheck failed from foreign CWD — rc=$sc_rc out: $(printf '%s' "$sc_out" | tr '\n' '|' | cut -c1-200)"
+  fi
+else
+  # deps not installed here → run_driver must fail CLEAN (clear message, rc 65), never a node stack trace
+  if [ "$sc_rc" -eq 65 ] && printf '%s' "$sc_out" | grep -q "driver runtime missing"; then
+    pass "real driver --selfcheck without deps: clean 'driver runtime missing' guard (rc 65), no stack trace"
+  else
+    fail "missing-deps guard wrong — rc=$sc_rc out: $(printf '%s' "$sc_out" | tr '\n' '|' | cut -c1-200)"
+  fi
+fi
+
+# ===== 10. Missing pinned judge prompts fail LOUD (rc 65), not a silent 0.5 (F6 regression) =====
+# A missing evals/vendor/skills submodule left the comparator with an empty template, so every
+# comparison degraded to a no-winner TIE (primary_value 0.5) — which surfaced as a confusing CI red
+# (tests #4/#7/#8 got 0.5≠1) instead of a clear failure. The pre-flight guard must fail fast with a
+# clear message and produce no benchmark. EVAL_VENDOR_DIR points the prompt dir at an empty path.
+WS="$TMPDIR_BASE/ws-novendor"
+out="$( EVAL_VENDOR_DIR="$TMPDIR_BASE/empty-vendor" bash "$RS" --skill geniro:plan --suite "$SUITE" \
+       --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$WS" 2>&1 )"; rc=$?
+if [ "$rc" -eq 65 ] && printf '%s' "$out" | grep -q "pinned judge prompt" && [ ! -e "$WS/benchmark.json" ]; then
+  pass "missing pinned prompts: fail loud rc=65 with a clear message, no benchmark (F6: no silent 0.5)"
+else
+  fail "missing-prompt guard wrong — rc=$rc made_bench=$([ -e "$WS/benchmark.json" ] && echo yes || echo no) out: $(printf '%s' "$out" | tr '\n' '|' | cut -c1-160)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"
