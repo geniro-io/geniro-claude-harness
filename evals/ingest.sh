@@ -144,6 +144,13 @@ if [ -z "$EXEC_MODEL" ] || [ -z "$PRICE_IN" ] || [ -z "$PRICE_OUT" ]; then
   echo "ingest: executor_model '$EXEC_MODEL' has no entry in $PRICE_MAP — re-resolve prices before a cost-gated run" >&2
   exit 72
 fi
+# Prompt-cache token tiers. A geniro run is cache-read-dominated (≈2.1M read vs ≈10K fresh input
+# on a /plan trial), so pricing cache reads flat at the input rate over-counts ~4x. Use the model's
+# explicit cache_read/cache_write when present, else Anthropic's standard 0.1×/1.25× of input — so a
+# pre-cache price map (or one omitting these) still derives a sane cost. A benchmark.json that carries
+# no cache_*_tokens is unaffected (the tiers multiply 0), keeping prior rows' cost basis stable.
+PRICE_CR="$(jq -r --arg m "$EXEC_MODEL" '.models[$m] | (.cache_read // (.input * 0.1))' "$PRICE_MAP")"
+PRICE_CW="$(jq -r --arg m "$EXEC_MODEL" '.models[$m] | (.cache_write // (.input * 1.25))' "$PRICE_MAP")"
 PRICE_VERSION="$(jq -r '.version // 0' "$PRICE_MAP")"
 
 # ---- instructions_digest (held constant across the A/B pair, plan §8/decision 13) ----
@@ -183,7 +190,7 @@ JQ_PROGRAM=' # rounding helpers keep the committed record compact + readable
   def rci($n): if . == null then null else map(if . == null then null else (. * pow(10; $n) | round) / pow(10; $n) end) end;
   . as $b
   | ($b.tasks) as $tasks
-  | {input: $pin, output: $pout} as $price
+  | {input: $pin, output: $pout, cr: $pcr, cw: $pcw} as $price
   | ($b.primary_null // 0.5) as $null
   | [ $tasks[].primary_value ] as $pv
   | mean($pv) as $wr
@@ -197,10 +204,10 @@ JQ_PROGRAM=' # rounding helpers keep the committed record compact + readable
   | ([ $tasks[].precision_total? // empty ] | add // 0) as $pt
   | ([ $tasks[] | select(.recall_passk != null) | .recall_passk ]) as $rpk
   | ([ $tasks[] | select(.recall_at1 != null) | .recall_at1 ]) as $r1
-  | ([ $tasks[] | (.candidate.input_tokens + .candidate.output_tokens) ]) as $ctok
-  | ([ $tasks[] | (.baseline.input_tokens + .baseline.output_tokens) ]) as $btok
-  | ([ $tasks[] | (.candidate.input_tokens * $price.input + .candidate.output_tokens * $price.output) / 1000000 ]) as $ccost
-  | ([ $tasks[] | (.baseline.input_tokens * $price.input + .baseline.output_tokens * $price.output) / 1000000 ]) as $bcost
+  | ([ $tasks[] | (.candidate.input_tokens + .candidate.output_tokens + (.candidate.cache_read_tokens // 0) + (.candidate.cache_creation_tokens // 0)) ]) as $ctok
+  | ([ $tasks[] | (.baseline.input_tokens + .baseline.output_tokens + (.baseline.cache_read_tokens // 0) + (.baseline.cache_creation_tokens // 0)) ]) as $btok
+  | ([ $tasks[] | (.candidate.input_tokens * $price.input + .candidate.output_tokens * $price.output + (.candidate.cache_read_tokens // 0) * $price.cr + (.candidate.cache_creation_tokens // 0) * $price.cw) / 1000000 ]) as $ccost
+  | ([ $tasks[] | (.baseline.input_tokens * $price.input + .baseline.output_tokens * $price.output + (.baseline.cache_read_tokens // 0) * $price.cr + (.baseline.cache_creation_tokens // 0) * $price.cw) / 1000000 ]) as $bcost
   | ([ $tasks[].candidate.wall_seconds ]) as $cwall
   | ([ $tasks[].baseline.wall_seconds ]) as $bwall
   | (mean($ctok)) as $mtok | (mean($btok)) as $mtokb
@@ -259,7 +266,7 @@ RECORD="$(jq -c \
   --arg notes "$NOTES" --arg idig "$INSTRUCTIONS_DIGEST" \
   --argjson seed "$SEED" --argjson reps "$BOOTSTRAP_REPS" --argjson attempt "$ATTEMPT_NO" \
   --argjson z "$GENIRO_EVAL_Z95" --argjson pin "$PRICE_IN" --argjson pout "$PRICE_OUT" \
-  --argjson pricever "$PRICE_VERSION" \
+  --argjson pcr "$PRICE_CR" --argjson pcw "$PRICE_CW" --argjson pricever "$PRICE_VERSION" \
   "$GENIRO_EVAL_STATS_JQ_DEFS$JQ_PROGRAM" "$BENCH" 2>/dev/null)"
 jqrc=$?
 if [ "$jqrc" -ne 0 ] || [ -z "$RECORD" ]; then

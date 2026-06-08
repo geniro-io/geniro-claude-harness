@@ -327,6 +327,31 @@ else
   fail "valueless trailing flag did not fast-exit 64 — rc=$rc (137 = had to be killed = hang)"
 fi
 
+# ===== 19. Cache-price FALLBACK: a price map OMITTING cache tiers still derives the cache-aware cost
+# via 0.1x (read) / 1.25x (write) of input — pins ingest's `.cache_read // (.input*0.1)` default,
+# which the committed price-map (explicit tiers) otherwise leaves untested (green-but-vacuous). =====
+new_repo
+nocache_map="$TMPDIR_BASE/price-nocache.json"
+jq -n '{version:1, models:{"claude-opus-4-8":{input:5.0, output:25.0}}}' > "$nocache_map"  # NO cache_read/cache_write
+cachebench="$TMPDIR_BASE/bench-cache.json"
+jq -n '{
+  schema_version:"benchmark-v1", skill:"plan", executor_model:"claude-opus-4-8",
+  position_swapped:true, primary_metric:"quality_winrate_vs_baseline", primary_null:0.5,
+  tasks:[ { id:1, trials:1, primary_value:0.5, expectation_pass:[1],
+    candidate:{input_tokens:10100, output_tokens:34374, cache_read_tokens:2173960, cache_creation_tokens:110797, wall_seconds:450},
+    baseline: {input_tokens:10100, output_tokens:34374, cache_read_tokens:2173960, cache_creation_tokens:110797, wall_seconds:450} } ]
+}' > "$cachebench"
+run_ingest "$cachebench" --candidate "$CAND" --baseline "$BASE" --price-map "$nocache_map" >/dev/null 2>&1
+rc=$?
+ccost=$(record | jq -r '.mean_cost_usd')
+# fallback cache_read=0.1*5=0.5, cache_write=1.25*5=6.25 → $2.6893 (same as explicit tiers). A broken
+# fallback (e.g. 0.001x/0.0x) collapses to ≈$0.81, outside the band.
+if [ "$rc" -eq 0 ] && fcmp "$ccost > 2.68 && $ccost < 2.70"; then
+  pass "cache-price fallback: a cache-tier-less price map derives cost via 0.1x/1.25x of input (cost=$ccost ≈ 2.6893)"
+else
+  fail "cache-price fallback wrong — rc=$rc cost=$ccost (want 2.68–2.70; a broken fallback gives ≈0.81)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

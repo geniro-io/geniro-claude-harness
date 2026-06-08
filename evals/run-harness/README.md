@@ -29,6 +29,10 @@ Runs bill against the **Claude Code subscription**, never the per-token API:
 - The driver **strips `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN`** from the child env and
   warns on `CLAUDE_CODE_USE_BEDROCK/VERTEX/FOUNDRY`, so a stray key can't silently switch
   to API billing.
+- The driver also **strips `CLAUDECODE`** from the child env — that variable is an *interactive*
+  nesting guard, and programmatic subprocess use is safe, so removing it lets the headless run
+  nest inside a Claude Code session (mirrors skill-creator's `run_eval.py`). Without it the
+  spawned `claude` refuses to start when the suite is driven from a Claude Code session.
 - A fully no-SDK path is **not possible**: auto-*answering* `AskUserQuestion` (supplying the
   chosen label, not just allow/deny) requires the SDK `canUseTool` callback; the raw
   `claude -p` CLI and hooks can't inject the answer payload.
@@ -133,6 +137,9 @@ fixed approve gate. Covered by `src/auto-answer.test.ts` (10 cases).
   cost from `tokens × price-map` for reproducibility (plan §9).
 - These two runs are smokes, not the methodology. Suites (20–50 tasks), the cost/CI ingest,
   the ledger, and the seam check are Phases A–E.
+- **Driving a whole suite** (multi-trial A/B → grade → swap-compare → aggregate → ingest) is
+  Phase C's `evals/run-suite.sh`, which calls this driver per trial. Run it once per (skill,
+  partition); see [`../README.md`](../README.md). This README documents the single-trial driver.
 
 ## Files
 

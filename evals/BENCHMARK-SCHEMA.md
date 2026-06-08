@@ -30,7 +30,7 @@ conforming instance and the fixture the ingest tests run against.
 | `schema_version` | C | string | `"benchmark-v1"`. |
 | `skill` | C | string | e.g. `"plan"`. CLI `--skill` overrides. |
 | `candidate_ref` / `baseline_ref` | C | string | git SHAs. CLI `--candidate`/`--baseline` override; one of (flag, field) is required. ingest verifies both resolve to commits and the tree is clean. |
-| `executor_model` | C | string | Must have a `price-map.json` entry, or ingest fails fast (cost can't be faked). Cost is derived from **this** model's price for both sides (an A/B pins the executor; only the skill differs). |
+| `executor_model` | C | string | Must have a `price-map.json` entry, or ingest fails fast (cost can't be faked). Cost is derived from **this** model's price for both sides (an A/B pins the executor; only the skill differs). The Agent SDK reports the **1M-context id** (e.g. `claude-opus-4-8[1m]`), which `price-map.json` carries as an alias; `aggregate-runs.sh` records the model id verbatim from `result.json`'s `model_usage` (or `meta.executor_model`) — no silent normalization that could hide a model swap. |
 | `judge_model`, `cross_family_judge`, `models_resolved_at` | C | string | Pass-through provenance. |
 | `executor_temperature`, `judge_temperature` | C | number | Executor pinned > 0 so pass^k measures real variation; judge low/0 (plan §8). |
 | `auq_autoanswer_policy` | C | string | `"approve-default-v1"` (the harness policy). |
@@ -56,7 +56,7 @@ conforming instance and the fixture the ingest tests run against.
 | `recall_passk` | A | number | Optional. Per-task reliability: 1 if the planted issue was found-and-survived in all k trials, else 0 (or a fraction). Bootstrapped if present. |
 | `recall_at1` | A | number | Optional. Per-task recall on the first trial. |
 | `precision_hits` / `precision_total` | A | number | Optional. Per-task precision numerator/denominator → pooled into `precision` (Wilson). |
-| `candidate` / `baseline` | H | object | `{ input_tokens, output_tokens, wall_seconds }` for this task, summed over its trials, per side. ingest derives mean cost/tokens/time + deltas. |
+| `candidate` / `baseline` | H | object | `{ input_tokens, output_tokens, wall_seconds }` for this task, summed over its trials, per side, **plus optional `cache_read_tokens` / `cache_creation_tokens`** (prompt-cache tiers). ingest derives mean cost/tokens/time + deltas. Tokens come from `result.json`'s `model_usage` (the authoritative cumulative — its `costUSD` matches `total_cost_usd`), falling back to `usage`. A geniro run is **cache-read-dominated** (≈2.1M read vs ≈10K fresh input on a /plan trial), so cache tiers are carried separately and ingest prices them with the 0.1× read / 1.25× write multipliers — folding them into `input_tokens` flat would over-count cost ~4×. `mean_tokens` is the honest total (input + output + cache read + cache creation). |
 
 ## What ingest DERIVES (tag D — never in `benchmark.json`)
 
@@ -79,12 +79,36 @@ Promote a candidate only when `primary_beats_null` is true **on the held-out par
 significant regression (`significant_on_primary: true` with `primary_beats_null: false`),
 never on a secondary metric alone (plan §6 step 7).
 
-## Phase-C wiring note
+## Phase-C wiring (now wired: `evals/aggregate-runs.sh`)
 
-The harness writes `runs/<id>/result.json` (token usage, `duration_ms`) and `gates.jsonl` per
-trial; `aggregate_benchmark.py` produces the grader/comparator point estimates. Phase C's glue
-maps those onto this schema: sum a task's per-trial `result.json` token usage + duration into
-`tasks[].candidate`/`baseline`; map grader `expectations[]` PASS/FAIL into
-`tasks[].expectation_pass`; map the position-swapped comparator's per-task winrate into
-`tasks[].primary_value`. `total_cost_usd` from the subscription SDK is **not** used — cost is
-derived from tokens × `price-map.json` (plan §3/§9).
+The harness writes `runs/<id>/result.json` (`model_usage`/`usage`, `duration_ms`) and `gates.jsonl`
+per trial; the pinned `grader.md`/`comparator.md` (submodule `evals/vendor/skills`) produce
+`grading.json` and the comparison. **`evals/aggregate-runs.sh`** is the glue that maps a benchmark
+**workspace** onto this schema and **`evals/run-suite.sh`** is the one-command §6 loop that produces
+the workspace and calls the glue. Workspace layout:
+
+```
+<workspace>/
+  meta.json                                run config / provenance (the top-level C fields)
+  eval-<id>/
+    candidate/run-<i>/result.json          harness summary  → tasks[].candidate token/wall sums
+    candidate/run-<i>/grading.json         grader output    → tasks[].expectation_pass (candidate side)
+    baseline/run-<i>/{result,grading}.json
+    comparison.json                        {primary_value, recall_passk?, …} → position-swapped winrate
+```
+
+The glue: sums each side's per-trial `model_usage` tokens (cache tiers preserved) + `duration_ms`
+into `tasks[].candidate`/`baseline`; flattens the candidate `grading.json` `expectations[].passed`
+into `tasks[].expectation_pass`; copies the position-swapped comparator's per-task winrate into
+`tasks[].primary_value` (a task without one is a hard error — rc 66). `total_cost_usd` from the
+subscription SDK is **not** used — cost is derived from tokens × `price-map.json` (plan §3/§9; the
+derivation was validated against a real run's `costUSD` to the cent).
+
+> **Why not skill-creator's `aggregate_benchmark.py` directly:** it pre-aggregates `grading.json`
+> into per-config mean/stddev and carries **no comparator winrate** and **no SDK token usage** (it
+> reads a sibling `timing.json`). ingest needs the **raw per-task** structure (the task is the unit
+> of randomization — decision 4), the swap winrate as `primary_value`, and the harness token usage —
+> so `aggregate-runs.sh` reads the **same `grading.json`** `aggregate_benchmark.py` consumes (the
+> pinned grader's contract) and assembles this schema directly. The submodule still pins the reused
+> assets — the `grader.md`/`comparator.md` prompts the run uses, and `aggregate_benchmark.py`'s
+> grading.json contract.
