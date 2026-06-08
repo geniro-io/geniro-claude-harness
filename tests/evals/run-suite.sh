@@ -216,6 +216,30 @@ else
   fail "lowercase winner mis-scored — primary_value=$pv (want 1)"
 fi
 
+# ===== 9. REGRESSION: the REAL driver invocation (no fake) must resolve tsx from a foreign CWD =====
+# The first live run died with ERR_MODULE_NOT_FOUND: `node --import tsx` resolves the bare `tsx`
+# specifier against the process CWD (worktree root, no node_modules) and produced a vacuous TIE.
+# run-suite now invokes tsx by absolute binary path. Drive the REAL run_driver via `--selfcheck`
+# (no API spend, no fake — EVAL_DRIVER_CMD unset) from a tsx-less CWD. Every other test stubs the
+# driver, so this is the ONLY test that exercises the real tsx-resolution path that broke.
+FOREIGN="$(mktemp -d "$TMPDIR_BASE/foreign.XXXX")"
+TSX_BIN="$REPO_ROOT/evals/run-harness/node_modules/.bin/tsx"
+sc_out="$( cd "$FOREIGN" && env -u EVAL_DRIVER_CMD bash "$RS" --selfcheck 2>&1 )"; sc_rc=$?
+if [ -x "$TSX_BIN" ]; then
+  if [ "$sc_rc" -eq 0 ] && printf '%s' "$sc_out" | grep -q "\[selfcheck\] ok"; then
+    pass "real driver boots under tsx from a foreign CWD (regression: bare 'node --import tsx' broke first live run)"
+  else
+    fail "real driver --selfcheck failed from foreign CWD — rc=$sc_rc out: $(printf '%s' "$sc_out" | tr '\n' '|' | cut -c1-200)"
+  fi
+else
+  # deps not installed here → run_driver must fail CLEAN (clear message, rc 65), never a node stack trace
+  if [ "$sc_rc" -eq 65 ] && printf '%s' "$sc_out" | grep -q "driver runtime missing"; then
+    pass "real driver --selfcheck without deps: clean 'driver runtime missing' guard (rc 65), no stack trace"
+  else
+    fail "missing-deps guard wrong — rc=$sc_rc out: $(printf '%s' "$sc_out" | tr '\n' '|' | cut -c1-200)"
+  fi
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

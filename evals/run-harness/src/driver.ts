@@ -99,6 +99,18 @@ if (process.env.CLAUDECODE) {
   delete process.env.CLAUDECODE;
 }
 
+// ----- boot self-check (no API spend) -----
+// Reaching here proves this module LOADED under tsx (the SDK import at the top resolved, args
+// parsed, claude bin located). `run-suite.sh` launches the driver from the worktree root; a bare
+// `node --import tsx` resolves the `tsx` specifier against the CWD (no node_modules there) and
+// silently ERR_MODULE_NOT_FOUND'd — the first live run died this way and scored a vacuous TIE.
+// `--selfcheck` lets a test exercise that exact real invocation for free (run-suite now calls tsx
+// by its absolute binary path, so resolution is CWD-independent).
+if (process.argv.includes("--selfcheck")) {
+  console.error(`[selfcheck] ok — node=${process.version} claude-bin=${claudeBin || "(sdk-bundled)"} sdk-import=ok cwd=${process.cwd()}`);
+  process.exit(0);
+}
+
 // ----- target project dir (isolated .geniro/state root per trial) -----
 let cwd = arg("--cwd", "");
 let cwdIsTemp = false;
