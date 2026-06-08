@@ -159,6 +159,7 @@ These get surfaced on hypothesis formation so that the orchestrator does NOT re-
 - Reproduce the bug consistently. Capture error messages, logs, stack traces.
 - Identify what changed (recent commit, config, user action). Record exact repro steps.
 - **If repro is unclear/missing:** `AskUserQuestion` with header "Repro details" — 2-4 concrete options (environment / steps to trigger / expected vs actual behavior). Do NOT guess.
+- **Check open PRs for an existing fix.** Before forming hypotheses, scan open PRs for one that may already fix this bug (ranked by overlap with the suspect / recently-changed files + symptom-keyword match in the PR title/body) — so the session does not re-investigate something already being patched. Surface matches as hypothesis-priming context; on a strong hit (file overlap AND keyword match) fire an `AskUserQuestion` (header "Existing fix") — review that PR's diff first / test it as a hypothesis / keep investigating — and persist the pick to `approvals[]` category `existing_fix_pr`. Read-only, fail-open (skipped with no GitHub remote or `gh` unavailable), Scientific Mode only. Full mechanism: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §8.
 
 Persist to state.md body sections `## Symptom` and `## Reproduction Steps` (per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2).
 
@@ -557,7 +558,7 @@ When the §1.7 stall gate fires, classify the stall as a missing component (8-ca
 
 ## State file schema
 
-T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `deep_mode_choice` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `deep_mode_choice`, `existing_fix_pr` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 ---
 
@@ -568,7 +569,7 @@ T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `de
 - Explicitly blocked: any Edit/Write, any side-effect tool.
 
 **Phase 1 (Investigate):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, read-only `gh pr list` / `gh pr view` / `gh pr diff` for the §1.2 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
 - Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching without user confirmation.
 

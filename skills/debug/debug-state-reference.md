@@ -11,6 +11,7 @@ Detail sections extracted from `skills/debug/SKILL.md` to keep the main skill bo
 5. Stall Diagnosis Taxonomy — 8-component missing-component table
 6. Adversarial Mode templates — A5 spawn prompt + A6 findings template
 7. Extended examples — Intermittent Timeout + Verify Recent Changes
+8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
 
 ---
 
@@ -60,7 +61,7 @@ timestamp: <ISO-8601 UTC>
 phase: <enum per State Machine above>
 status: <in-progress|done|failed>
 non-resumable-actions: []
-approvals: []                         # categories: disambiguate_mode, multi_path_fix, deep_mode_choice
+approvals: []                         # categories: disambiguate_mode, multi_path_fix, deep_mode_choice, existing_fix_pr
 deep-mode: <true|false>               # optional, set by the --deep flag or the Phase 0 Debug-depth chooser; missing reads as false
 geniro_kind: debug-state
 geniro_schema_version: m7-v1
@@ -342,3 +343,46 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 → A4 Step 4: Independently re-run 7 authored tests; 5 fail RED, 2 pass-today (discarded)
 → A6 Adversarial Findings persisted to `from-debug-adversarial-<branch>.md`
 → Escalate: /geniro:implement with the authored tests as escalation targets
+
+---
+
+## 8. Open-PR scan — already fixed elsewhere?
+
+Phase 1 (Scientific Mode) sub-step referenced from SKILL.md §1.2. Checks whether an open PR already fixes the bug under investigation — so a debug session does not re-investigate something a teammate is already patching, and so a strong match can prime or short-circuit the hypothesis loop. Read-only; never opens, edits, or comments on a PR (debug's no-ship boundary holds).
+
+**When it runs.** After §1.2 Observe & repro, once the symptom and the suspect / recently-changed files are known, before §1.4 Hypothesize. Scientific Mode only — Adversarial Mode tests a specific diff, where "already fixed elsewhere" does not apply.
+
+**Skip (fail-open) when:**
+
+- The repo has no GitHub remote, or `gh` is unavailable / unauthenticated (`gh auth status` non-zero). Render a one-line note (`open-PR scan skipped — gh unavailable`) and continue the investigation.
+- No usable signal — no suspect files identified AND the symptom is too generic to produce distinctive keyword tokens. Continue without a note.
+
+**Signal inputs:**
+
+- `suspect_files` — the suspect / recently-changed files from §1.2 (the `git log` / "what changed" identification).
+- `keywords` — distinctive tokens from the symptom or error string (function names, error codes, unique phrases). Drop stop-words and generic terms so the title/body match stays high-signal.
+
+**Mechanism:**
+
+1. `gh pr list --state open --json number,title,headRefName,author,updatedAt,url,files --limit 30`. The `files` field carries each PR's changed paths, so the whole candidate scan is one call — no per-candidate round-trip (mirrors the /review peer-PR scout). Optionally pre-narrow with `--search "<top keywords>"` when the keyword set is distinctive — GitHub matches the search server-side across PR title + body.
+2. Score each candidate from that single result:
+   - `file_overlap` — count of `suspect_files` the PR's `files` field also lists.
+   - `keyword_match` — +1 if the PR title contains a `keywords` token or the error string, or the PR surfaced via the `--search` pre-narrow (a server-side title + body match); cap +2.
+   - `total_score = file_overlap + keyword_match`.
+3. Keep the **top-5** by `total_score` (ties broken by `updatedAt` descending). Drop any candidate with `total_score == 0` (no overlap and no keyword — irrelevant).
+
+**Surfacing + gate:**
+
+- **Strong hit** — the top candidate has `file_overlap >= 1` AND `keyword_match >= 1`: the bug may already be fixed. Fire `AskUserQuestion` (header `"Existing fix"`; question names the PR `#N "title"` and why it matched):
+  - **Review that PR's diff first** — read `gh pr diff <N>` (cap ~150 lines). If it resolves the bug, skip the hypothesis loop and go to Phase 3; name the existing PR in the findings **Proposed fix** line (`already fixed in open PR #N <url> — no new patch needed`) so it reaches the downstream consumer through the persisted handoff body (§3.1), not just chat. The user typically routes that to "Leave it to me" and merges the PR. If it does not resolve the bug, record why in `## Hypotheses` and keep investigating.
+  - **Test it as a hypothesis** — form a hypothesis that the PR's change fixes the bug and test it against the feedback loop (§1.5) like any other.
+  - **Ignore — keep investigating** — discard the match and proceed to §1.4.
+  - Persist the pick to state.md frontmatter `approvals[]` category `existing_fix_pr` via `atomic_state_write`, so the session-start restore re-applies it across a compaction or resume. The matched PR itself rides to the consumer in the findings body (above), so no new handoff frontmatter field is needed — `approvals[]` holds only the user's decision.
+- **Weak matches only** — overlap without a keyword, or a keyword without overlap: surface them as hypothesis-priming context (no AUQ), mirroring the §1.1 ruled-out surfacing:
+  ```
+  Open PRs touching this area (consider before forming hypotheses):
+  - #N "title" (url) — touches <overlapping files>
+  ```
+- **Zero kept candidates:** continue silently.
+
+**Bounds.** Top-5 cap; the candidate scan is a single `gh pr list` call (the `files` field avoids per-PR round-trips); a full `gh pr diff` (~150 lines) only on the "Review that PR's diff first" path. The scan never writes files or mutates git state — it is a read-only priming check, consistent with the Phase 1 ACI surface.
