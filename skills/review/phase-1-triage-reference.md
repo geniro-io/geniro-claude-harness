@@ -234,6 +234,16 @@ Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR c
 
 **Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Do NOT promote "Auto Mode Active" reminder into transcript framing — review has no auto mode.
 
+### 2.1 Scope-exclusion transparency
+
+When the review's scoped file set is a proper subset of the PR's changed files — fewer files than `gh pr diff <ref> --name-only` shows — a reader cannot tell "excluded because reviewed elsewhere" from "missed." The common cause is a stacked PR: when the PR's `baseRefName` (§3) is not the repo default branch, scope-anchor resolves scope to the base-relative delta, so the ancestor commits' files — still visible on the PR's GitHub "Files changed" — are deliberately out of scope (they belong to the ancestor PR and are reviewed there). Surface that exclusion:
+
+- **Excluded files:** the files in `gh pr diff <ref> --name-only` (what the PR shows the reader) MINUS the file set the reviewer agents were actually given (the resolved review scope the orchestrator already holds). Do NOT recompute the reviewed set from `git diff <baseRefName>...HEAD` — that result drifts as the base branch moves (a merged or reset base can make it equal the full diff). When the excluded set is empty, render no note.
+- **Ancestor PR:** `gh pr list --state open --head <baseRefName> --json number,title,url --limit 1`, falling back to `--state all` when empty — the PR whose head IS this base (`--head`, not the peer-PR scout's `--base`, which finds children/siblings).
+- **Ancestor findings:** reuse the §1.1 thread-state GraphQL against the ancestor PR number to COUNT its review threads (resolved + unresolved) — do NOT persist the result to the target PR's `pr-bot-comments-snapshot:` / `pr-formal-reviews-snapshot:` (those hold the target's prior-review context fed to reviewers).
+
+Rendered as the Phase 6 report `## Summary` `Scope:` bullet (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.6). Computed in-memory at report time from `gh pr diff <ref> --name-only` and the scope the reviewers were given — no new frontmatter field. Fail-open: no `--head` match → render "<M> files excluded — owning PR not identified; confirm they were reviewed separately"; `gh` unavailable, or a compaction dropped the in-memory reviewed-file set → omit the note (the review's scoped findings still hold).
+
 ---
 
 ## 3. PR-ref input parsing

@@ -162,6 +162,7 @@ open_questions:                       # MUST be present; MAY be empty []
 
 ## Summary
 - Branch: <branch>
+- Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1 (omitted when the review covered the whole PR)
 - Mode: <standard|tdd>
 - Round: <N>
 - Risk-tier: <standard|high>
