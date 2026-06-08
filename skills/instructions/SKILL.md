@@ -61,7 +61,7 @@ The stable scope set:
 |---|---|---|---|---|
 | `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only |
 | `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase self-review, `refactor` Phase verify); pre-inlined into reviewer-agent prompts for guidelines/conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
-| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default` |
+| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default`, `requires-context` |
 | `implement` | `.geniro/instructions/implement.md` | L4 | `/geniro:implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `plan` | `.geniro/instructions/plan.md` | L4 | `/geniro:plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `review` | `.geniro/instructions/review.md` | L4 | `/geniro:review` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
@@ -101,6 +101,7 @@ paths: # OPTIONAL; list of globs; absent = always fires
 - "**/*.sql"
 - "**/dao/*.{ts,py}"
 severity-default: HIGH # OPTIONAL; default MEDIUM
+# requires-context: "Fetch the live Notion incident report (latest entry) and list its patterns." # OPTIONAL; live external data the orchestrator fetches + injects (subagents can't call MCP)
 ---
 
 # Criteria
@@ -118,6 +119,7 @@ What to NOT flag:
 - `model` (optional) — `haiku`/`sonnet`/`opus`; default `sonnet`.
 - `paths` (optional) — list of globs.
 - `severity-default` (optional) — `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`; default `MEDIUM`.
+- `requires-context` (optional) — natural-language directive naming the live external data this reviewer needs (a Notion page, a Linear issue, an API response). The reviewer runs in a subagent that can't call MCP, so the orchestrator pre-fetches the data and injects it as a `CUSTOM CONTEXT:` block at spawn time, failing open if it's unavailable (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context). Omit unless the reviewer genuinely needs external data. Example: `requires-context: "Fetch the live Notion Incident Report (latest entry) and provide its incident-pattern list."`
 
 ## Phase 1: Parse intent
 
@@ -393,7 +395,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 
 | Scope | Extra checks |
 |---|---|
-| `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` describes intent (LOW preference); `model` in `{haiku, sonnet, opus}` if present; `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present |
+| `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` describes intent (LOW preference); `model` in `{haiku, sonnet, opus}` if present; `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present; `requires-context` is a non-empty string if present |
 | `code-style.md` | At least 1 rule under `## Rules` — LOW warning if empty (no-op file) |
 
 **description lint rules** (applied to `review-extra/<slug>.md` frontmatter `description:` field only):
@@ -404,6 +406,15 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | description describes intent vs implementation | LOW warning |
 | description mentions adjacent terms (e.g., for `sql-bindings`: mentions "SQL", "ORM", "DAO") | LOW warning |
 | description has explicit boundary clauses ("Skip for …", "Not for …") | LOW info |
+
+**`requires-context` lint rules** (applied to `review-extra/<slug>.md`):
+
+| Rule | Severity |
+|---|---|
+| Criteria body or `description` references live external data (`mcp__`, the words "Notion" / "Linear" / "Jira", "fetch from", "the API", or an `http(s)://` URL) but no `requires-context:` is declared | MEDIUM — emit: "Criteria reference live external data, but no `requires-context:` is declared. This reviewer runs in a subagent without MCP access and will see no external data — declare `requires-context:` so the orchestrator fetches it (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context)." |
+| `requires-context:` present but not a non-empty string | HIGH |
+
+This is the guard that catches the silent-empty-findings trap at authoring time: a reviewer whose criteria say "match the diff against the Notion incident report" but which never declares the dependency will spawn into a subagent that can't fetch it, producing empty or hallucinated findings with no error.
 
 ### Step 3 — Per-skill phase mapping
 

@@ -6,6 +6,7 @@
 - §Inputs from the consumer skill — CHANGED_FILES / PRIMARY_ROOT slots
 - §What this helper produces — the spawn-spec schema
 - §Discovery procedure — Steps 1-7 (resolve root → glob → parse → validate → path-filter → cap → build specs)
+- §Hydrating requires-context — orchestrator pre-fetch of declared external data
 - §How consumers use the spawn-specs — the Agent() call template
 - §Batched-mode behavior — `/geniro:review` one-spawn-per-run rule
 - §Anti-rationalization
@@ -34,6 +35,7 @@ A list of **spawn-specs** — one dict per surviving custom reviewer — with th
 - `model` (string) — one of `haiku`, `sonnet`, `opus`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; user-explicit values are honored as-is per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` user-authored carve-out)
 - `criteria-content` (string) — the body of the .md file (everything after the closing `---` of the frontmatter)
 - `severity-default` (string or null) — one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, or null when unset
+- `requires-context` (string or null) — the verbatim `requires-context:` frontmatter directive (natural-language description of the live external data the reviewer needs the orchestrator to fetch), or null when unset
 - `source-path` (string) — the .md file path; used in audit lines and error messages
 
 The consumer skill takes this list and, for each spec, appends one `Agent()` call to its parallel reviewer batch using the template in §How consumers use the spawn-specs.
@@ -74,6 +76,7 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 7. The `severity-default:` field is present and is not in `{CRITICAL, HIGH, MEDIUM, LOW}`.
 8. The `paths:` field is present and is not a non-empty list of non-empty strings.
 9. The body section (after the frontmatter) is empty OR contains fewer than 5 non-blank lines.
+10. The `requires-context:` field is present and is not a non-empty string.
 
 For each invalid file, print one diagnostic line: `[load-custom-reviewers] skipped <path>: <reason>`. Continue processing the rest. One bad file does NOT kill the whole review.
 
@@ -97,6 +100,19 @@ For each surviving (valid + path-filtered + within-cap) file, build the spawn-sp
 
 Return the list to the consumer skill.
 
+## Hydrating requires-context
+
+Subagents run with a fixed tool surface — `reviewer-agent` declares `tools: [Read, Glob, Grep, Bash]` — and cannot call MCP servers. A custom reviewer that needs live external data (a Notion page, a Linear / Jira issue, an API response) therefore can't fetch it itself, and the fetch can't be added at the spawn site: the tool list is fixed and MCP tool names are per-install, so they're unknowable here. The orchestrator runs in the main context where MCP IS available, so it pre-fetches the data and injects it into the one reviewer's prompt — the same hydrate-and-inject pattern `/geniro:review` already uses for `LINEAR CONTEXT:`.
+
+Run this once per spawn-spec whose `requires-context` is non-null, AFTER Step 7 builds the specs and BEFORE appending the `Agent()` calls:
+
+1. **Interpret the directive.** Read the natural-language `requires-context` string and pick the available tool that satisfies it (an MCP tool, `WebFetch`, etc.). The directive names the source and what to extract — e.g. "fetch the live Notion Incident Report, latest entry, and provide its incident-pattern list".
+2. **Fetch read-only.** Call the tool to retrieve only what the directive asks for. Never mutate external state — review is read-only, matching the Linear-fetch rule in `/geniro:review`.
+3. **Bound the result.** Cap the fetched content at ~5K characters (truncate with an explicit `[truncated]` marker). One reviewer's injected context should not dwarf the diff it reviews.
+4. **Build the `CUSTOM CONTEXT:` block.** Pass the fetched data into that reviewer's spawn prompt via the `CUSTOM CONTEXT:` slot (see the template below). Scope it to the one reviewer that declared the dependency — the other reviewers in the batch do NOT receive it.
+
+**Fail open.** If no available tool can satisfy the directive, or the fetch errors, do NOT abort the reviewer or the batch. Inject `CUSTOM CONTEXT: unavailable — <one-line reason>` so the reviewer knows it is running without the data, and surface one line to the consumer skill's caveats channel (`/geniro:review` → `## Caveats`; `/geniro:implement` / `/geniro:refactor` → their fail-open notice) so the reader knows that dimension ran blind. This mirrors the "fail-open if MCP unregistered" rule for Linear context — one missing data source never blocks the review.
+
 ## How consumers use the spawn-specs
 
 For each spec the helper returns, the consumer skill appends one `Agent()` call to its parallel reviewer batch. The `model=` argument is **conditionally included**:
@@ -116,6 +132,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
+CUSTOM CONTEXT: [hydrated requires-context data per §Hydrating requires-context — OMIT this line entirely when spec.requires-context is null]
 SEVERITY DEFAULT: {spec.severity-default | "MEDIUM"}
 Review ONLY for the custom dimension '{spec.dimension-label}' as defined by the CRITERIA above. Do not cross into other dimensions. Use SEVERITY DEFAULT as your initial severity score for findings emitted under this dimension; you may up- or down-grade per-finding based on the criteria's specific guidance.
 Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.
@@ -147,3 +164,4 @@ Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spaw
 | "If `paths:` is set and matches nothing, I'll fire anyway just to be safe" | If the user scoped a reviewer to `**/*.sql` and the diff has no SQL files, firing it wastes a Sonnet call and produces zero findings. Silently drop — the `paths:` field IS the user's opt-out for unrelated diffs. |
 | "I'll cache the spawn-specs across consumer-skill invocations within the session" | Don't. The changed-files list differs per invocation, so the `paths:` filter result differs too. Re-run the helper on every consumer-skill invocation. The cost is one Glob + N small Reads — cheap relative to the parallel reviewer batch itself. |
 | "Custom reviewer's frontmatter omitted `model:` — I'll default to `sonnet` at the spawn site" | When `model:` is OMITTED in the custom-reviewer frontmatter, default to `inherit`, not `sonnet`. Custom reviewers follow the same default as built-ins per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user opts INTO a hardcoded tier only by explicitly writing `model: haiku` / `model: sonnet` / `model: opus` — honor that declaration when present, OMIT `model=` at the spawn site when absent. |
+| "The custom reviewer's criteria say to fetch from Notion — I'll add the MCP tool to its spawn so the subagent fetches it" | The `reviewer-agent` tool surface is fixed (`Read, Glob, Grep, Bash`) and can't be widened per-spawn; MCP tool names are also per-install and unknowable here. The orchestrator pre-fetches the data and injects it via `requires-context:` / `CUSTOM CONTEXT:` instead — see §Hydrating requires-context. Without a `requires-context:` declaration, the reviewer silently sees no external data; that's what the validate-lint guard in `/geniro:instructions` flags at authoring time. |
