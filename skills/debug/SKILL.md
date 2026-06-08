@@ -4,7 +4,7 @@ description: "Use when a bug needs systematic investigation. 3-phase loop (Inves
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
-argument-hint: "[bug description | verify <diff-range> | verify last changes]"
+argument-hint: "[bug description | verify <diff-range> | verify last changes] [--deep]"
 ---
 
 # Debug: Scientific-Method Investigation
@@ -46,7 +46,7 @@ The invariants apply unchanged:
 7. **Errors → structured observations.** Failed `git diff`, denied permission, `adversarial-tester-agent` "agent not found" ladder fallback all become structured `## Tool log` entries before being acted on.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-`## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped.
+`## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped. **Deep mode** (opt-in, default off): `--deep` (or the Phase 0 Debug-depth chooser when `--deep` is absent) deepens Phase 1 hypothesis generation (3× fan-out + dedup) and Phase 2 fix/reproduction verification (3 verifiers, majority vote) per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — higher quality at higher token cost, no change to gates or the no-ship boundary.
 
 ---
 
@@ -109,11 +109,13 @@ state.md `phase: mode-detect`. **Step 0 — Load custom instructions.** Apply `$
 
 **Step 0.1 — Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /geniro:debug investigates in place on the current branch, so if that branch is behind the default branch, offer to update it before the investigation starts. Skipped silently when the branch is already current.
 
+**Step 0.2 — Deep-mode activation.** Semantic-parse `$ARGUMENTS` for `--deep` / `deep` / `deep mode` and strip the token before the mode-detect routing below (so it never leaks into the Scientific-vs-Adversarial decision). Deep mode composes with the mode switch — Scientific+Deep and Adversarial+Deep are both valid. Then resolve depth: `--deep` present or a compaction-resume → skip the depth question (flag pre-resolves to Deep; resume re-applies the persisted choice); empty `$ARGUMENTS` → add the "Debug depth" question to the same mode AskUserQuestion call; otherwise (common path) → fire a standalone "Debug depth" question here, before Phase 1.1 memory load. The question shape (header "Debug depth", Standard / Deep options, no `(Recommended)`, empty → Standard) and persistence (`deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice` at the earliest `atomic_state_write`) are spelled out in `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` §1.
+
 $ARGUMENTS routing:
 
 | $ARGUMENTS shape | Mode | Transition |
 |---|---|---|
-| empty | AUQ with header "Mode" — 4 options: "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)". First 3 → Scientific. Fourth → Adversarial. | `mode-detect` → `investigate` OR `adversarial-mode-detect` |
+| empty | AUQ with header "Mode" — 4 options: "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)". First 3 → Scientific. Fourth → Adversarial. When `--deep` is absent and this is not a resume, add the Step 0.2 "Debug depth" question to this SAME AskUserQuestion call (two questions answered together). | `mode-detect` → `investigate` OR `adversarial-mode-detect` |
 | matches anchored verify-keyword signals (table below) | Adversarial Mode | `adversarial-mode-detect` |
 | otherwise | Scientific Mode | `mode-detect` → `investigate` |
 
@@ -191,7 +193,7 @@ Persist to state.md `## Feedback Loop` body section: Command / Expected output /
 
 Based on Observation + Feedback Loop output, form **2-3 competing hypotheses**. Each must be testable against the feedback loop — each hypothesis test toggles one variable, re-runs the loop, and observes whether the captured signature changes.
 
-**Consider infrastructure causes alongside code causes** per § Infrastructure Investigation below. If symptoms include timeouts, intermittent failures, or environment-only manifestation, form at least one infrastructure hypothesis.
+**Consider infrastructure causes alongside code causes** per § Infrastructure Investigation below. If symptoms include timeouts, intermittent failures, or environment-only manifestation, form at least one infrastructure hypothesis. **Deep-mode branch (`deep-mode: true`):** generate the hypothesis set via a 3× independent fan-out inside an internal `Workflow(...)`, then UNION + DEDUP (dedup key = hypothesis mechanism + targeted file/module) into one candidate set before the §1.5 test loop consumes it; the §1.5 testing stays orchestrator-inline (recall multiplies generation, not testing). Per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` §2; fail-safe to the single-pass synthesis below if the workflow errors.
 
 Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypothesis / Evidence For / Evidence Against / Status: pending → testing → confirmed | rejected | inconclusive / Test Plan / Result — per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2).
 
@@ -309,7 +311,7 @@ Persist to state.md `## Proposed Fix` body section.
 
 **F→P invariant.** Pre-fix: run the authored test ≥2× and confirm the SAME failure signature both times (same exception type + same failing assertion). Two divergent failures are NOT confirmation — investigate flakiness or two bugs before continuing.
 
-**Verify the proposed fix — monkey-patch in the test by default; production-source edits are an explicit escape hatch.** Apply the patch locally as a monkey-patch inside the authored test file (mock, fixture, test-local shim, or a throwaway helper imported only by the test). Re-run the authored test ≥2× post-fix and confirm the failure DISAPPEARS both times. If the bug genuinely cannot be verified without editing production source (hard-to-mock chain — DI container, framework hook, native module, generated code), list every touched production file under "Verification edits to revert:" in the findings, confirm each is reverted before escalation, and re-run `git diff` to prove the working tree contains only the reproduction test.
+**Verify the proposed fix — monkey-patch in the test by default; production-source edits are an explicit escape hatch.** Apply the patch locally as a monkey-patch inside the authored test file (mock, fixture, test-local shim, or a throwaway helper imported only by the test). Re-run the authored test ≥2× post-fix and confirm the failure DISAPPEARS both times. If the bug genuinely cannot be verified without editing production source (hard-to-mock chain — DI container, framework hook, native module, generated code), list every touched production file under "Verification edits to revert:" in the findings, confirm each is reverted before escalation, and re-run `git diff` to prove the working tree contains only the reproduction test. **Deep-mode branch (`deep-mode: true`):** give the fix→test judgment 3 INDEPENDENT verifiers and take a majority vote (does the monkey-patched fix genuinely turn the F→P test red→green, AND is the test a strong regression guard, not too weak); the `adversarial-tester-agent` stays a SINGLE spawn even in deep mode. Per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` §3 (abstain/quorum rules, the native-precision rationale, fail-safe to the single-pass monkey-patch verify above).
 
 **Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored):
 - `header: "Repro infeasible"`
@@ -318,9 +320,7 @@ Persist to state.md `## Proposed Fix` body section.
 
 Record the user's selection AND rationale in state.md `## Reproduction Test` body section under "Reproduction Decision". The default is mandatory; escape hatch is opt-in with a paper trail.
 
-Do NOT run the full project test suite here — that's the receiving skill's responsibility. Phase 2's goal is the F→P-verified test artifact + evidence the proposed patch turns it green.
-
-If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs/schemas/controllers: note this in the findings template "Special handling" field.
+Do NOT run the full project test suite here — that's the receiving skill's responsibility. Phase 2's goal is the F→P-verified test artifact + evidence the proposed patch turns it green. If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs/schemas/controllers, note this in the findings template "Special handling" field.
 
 ### 2.5 Fix-loop escalation (2 fix attempts failed → AUQ)
 
@@ -557,7 +557,7 @@ When the §1.7 stall gate fires, classify the stall as a missing component (8-ca
 
 ## State file schema
 
-T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `deep_mode_choice` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 ---
 

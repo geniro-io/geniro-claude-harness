@@ -60,7 +60,8 @@ timestamp: <ISO-8601 UTC>
 phase: <enum per State Machine above>
 status: <in-progress|done|failed>
 non-resumable-actions: []
-approvals: []                         # categories: disambiguate_mode, multi_path_fix
+approvals: []                         # categories: disambiguate_mode, multi_path_fix, deep_mode_choice
+deep-mode: <true|false>               # optional, set by the --deep flag or the Phase 0 Debug-depth chooser; missing reads as false
 geniro_kind: debug-state
 geniro_schema_version: m7-v1
 mode: <scientific|adversarial>
@@ -113,6 +114,7 @@ geniro_schema_version: m7-v2
 mode: scientific
 phase: ship
 status: done
+deep-mode: <true|false>               # propagated from state.md; producer→consumer in lockstep; missing reads as false
 approvals: []
 non-resumable-actions: []
 authored_tests:                       # MUST be present; MAY be empty []
@@ -146,7 +148,7 @@ The `authored_tests[]` frontmatter array is the machine-readable source of truth
 
 ### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
 
-Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`. Same schema as from-debug-<branch>.md with `mode: adversarial` and `phase: adversarial-ship` discriminators. Body: A6 Adversarial Findings template + body sections.
+Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`. Same schema as from-debug-<branch>.md with `mode: adversarial` and `phase: adversarial-ship` discriminators; the `deep-mode: <true|false>` field propagates here too (producer→consumer in lockstep; missing reads as false). Body: A6 Adversarial Findings template + body sections.
 
 ---
 
