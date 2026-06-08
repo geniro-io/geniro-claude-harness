@@ -14,3 +14,4 @@ time, and pass-rate are reported, not gated. A delta inside the CI is a tie, not
 
 | Date | Skill | Cand | vs | Primary (winrate, CI) | Recall^k | κ | Cost Δ | Time Δ | Tasks×Trials | Sig | Verdict |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-06-08 | plan | fe328c3 | fe328c3 | 0 [0,0] | — | — | 0.3177 | 71.12 | 1×1 | yes | — |
