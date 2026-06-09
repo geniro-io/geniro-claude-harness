@@ -68,23 +68,19 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
    **Tier 1 — Producer-authored rich entry (preferred).** When the entry carries `context` / `evidence` / `options` / `recommendation` fields per the extended schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 `open_questions`:
    - `header`: `"Open question"` (literal — never paraphrase)
-   - `question`: multi-line markdown rendered per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate, substituting fields:
-     - `<SEVERITY>` — omit (open_questions don't carry severity directly; if `related_findings[]` is non-empty, render the highest-severity related finding's severity here)
-     - `<path:lines>` — entry's `evidence[0].file:lines` if present, else omit
-     - `<short title>` — first sentence of `question`
-     - `<type>` — entry's `source` (e.g., `spec-compliance`, `bugs`)
-     - "Why this matters" line — first 1-2 lines of `context`
-     - body — full `context` rendered verbatim under a `## Context` block
+   - **chat block + `question`**: render per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (§ Message-first rendering), sourcing fields from the entry:
+     - chat block — render `context` as the self-contained What / Concern / Why explanation in plain English (expand any reviewer shorthand), with `evidence[0].file:lines` as the Evidence line; when `related_findings[]` is non-empty, name the highest-severity related finding's severity and the source dimension (entry's `source`, e.g. `spec-compliance`, `bugs`) inside the explanation
+     - lean `question` — the plain-English title (first sentence of the entry's `question`) + `evidence[0].file:lines` if present, then a pointer to the chat block
    - `options[]` — one per `options[]` entry in the question:
      - `label` — option's `label`
      - `description` — option's `description`
-     - `preview` — option's `preview` PLUS a trailing `## Evidence` block built from the entry's `evidence[]` array (same preview body on every option — the body is per-question, not per-option) PLUS a `## Recommendation` line when `recommendation.option_id == this.id` (italicized: *"Producer recommends this option — <rationale>"*)
+     - `preview` — leave empty or a one-line recap; the `context` / `evidence[]` body lives in the chat block (§ Message-first rendering), not the side-box. When `recommendation.option_id == this.id`, position that option first, suffix its `label` with ` (Recommended)`, and state the producer's rationale in the chat block
    - When `recommendation.option_id` is set, position THAT option first in the `options[]` array and suffix its `label` with ` (Recommended)`.
 
    **Tier 2 — Cross-reference into `## Findings` body.** When the entry has `related_findings: [F1, F2, ...]` non-empty but lacks the Tier 1 rich fields, read those finding blocks from the same handoff file's `## Findings` body (per the multi-line "Per-finding body schema" defined later in this same reference file, after the Wontfix-path note below). Apply `per-finding-question.md` § Single-finding gate rendering directly against the first related finding's body — Evidence / Suggested-fix / Confidence / Origin all flow from the finding fields. When >1 related findings exist, prefer the highest-severity finding; mention the others as `"Also gates: F2, F3"` in the question body.
 
    **Tier 3 — Legacy synth fallback.** When neither Tier 1 nor Tier 2 source data is available (bare `question:` only):
-   - `question`: the entry's `question:` field, verbatim
+   - chat block + `question`: render a chat block first per § Message-first rendering — expand the terse `question:` field into a plain-English explanation of what is being asked and why (use whatever `context` / `evidence` exists); the lean AUQ `question` then restates it. Do NOT fire the bare reviewer phrasing as the question
    - `options`: synthesized from the question text. For ambiguity-resolution patterns, supply 3-4 concrete options derived from the question:
      - Scope question ("X in-scope or split?") → "In scope — keep in this PR" / "Split — revert X to a separate PR" / "Out of scope — drop entirely"
      - Verification question ("Cannot confirm Y exists; verify?") → "Yes — Y exists and matches" / "No — Y is wrong; revise PR title/body" / "Unknown — skip verification"
@@ -285,7 +281,7 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 **For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
 1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). For CRITICAL / HIGH / MEDIUM findings, confirm the Phase 4.2 verifier passed before firing the AUQ: the `Validation:` field MUST be `confirmed` or `clarified`. A `Validation: refuted` finding should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. A missing `Validation:` on a CRITICAL/HIGH/MEDIUM finding (legacy handoff per §2 back-compat) is treated as `confirmed` — proceed with the AUQ but surface the one-line warning.
-2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. Set `header: "Open decision"`. Render the `question` text with finding's severity / `path:lines` / short-title / decision-type / `why-matters` line per spec's Source-field map; render each option's `label`+`description` from finding's `options:` sub-list bullets; render each option's `preview` with finding body (Evidence / Suggested-fix / Confidence / Origin). Do NOT collapse rendering to label + 1-line description. Append ONE standard disposition beyond the finding's own `options:` bullets — `label: "Keep off the PR — I'll handle this"`, `description: "Record the decision for you; do not include this finding in anything posted to the PR."` — the audience control for a residue the PR author cannot action (a governance / legal / data-classification / business-intent question): it routes the decision to you, not onto the PR. It occupies one AUQ option slot, so when the finding's own `options:` already lists 4, chain a follow-up per the cap-extension rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension) — never drop or merge an existing option to make room.
+2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate, which mandates § Message-first rendering: FIRST render the finding to chat as a self-contained block (what the code does / the concern / why it matters / evidence / options, in plain English — expand any reviewer shorthand so the question stands on its own), THEN fire a lean AUQ. Set `header: "Open decision"`. Build the chat block and the lean `question` + option `label`+`description` from the finding's `options:` sub-list and body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) per the spec's Source-field map. Leave each option's `preview` empty or a one-line recap — never the finding body, which the truncating/often-absent side-box cannot hold. Append ONE standard disposition beyond the finding's own `options:` bullets — `label: "Keep off the PR — I'll handle this"`, `description: "Record the decision for you; do not include this finding in anything posted to the PR."` — the audience control for a residue the PR author cannot action (a governance / legal / data-classification / business-intent question): it routes the decision to you, not onto the PR. It occupies one AUQ option slot, so when the finding's own `options:` already lists 4, chain a follow-up per the cap-extension rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension) — never drop or merge an existing option to make room.
 3. Update the finding line in the state file via `atomic_state_write` (never a raw `Edit`/`Write` — the handoff is a canonical state path and raw writes trip the `enforce-state-helper` hook): replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag. When the user picks the **Keep off the PR** disposition, set `step0_status: resolved`, write `recommendation: keep-off-pr`, AND add `post-disposition: off-pr` to the finding line — §7.1 reads `post-disposition: off-pr` and drops the finding from the post set, so a residue you chose to handle yourself never reaches the PR author.
 
 When more than 4 PRODUCT-DECISION findings exist OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`: chain `AskUserQuestion` calls per cap-extension pattern.
@@ -481,19 +477,18 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — Step 3.5 is mode-independent and applies no filter). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
-- **`question`** (multi-line markdown, per Source-field map):
+- **Chat render (first):** render the finding to chat per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — a self-contained block (what the code does / the concern / why it matters / evidence, in plain English) so the user decides whether to post from an explained finding, not a side-box snippet.
+- **`question`** (lean): the plain-English one-line title, then the ask:
 ```
-**<SEVERITY>** `path:lines` — <short title> — decision: <type>
+<plain-English one-line title> — `path:lines`
 
-**Why this matters:** <1-sentence impact from reviewer-agent's Why-this-matters: field>
-
-Post this finding to the PR as an inline comment, or skip?
+Full explanation above. Post this finding to the PR as an inline comment, or skip?
 ```
 - **`options[]`** (three fixed options):
 - "Post this finding" — adds finding to post set; iteration continues.
 - "Skip this finding" — omits; iteration continues.
 - "Stop posting (skip remaining)" — exit loop entirely; all unseen findings treated as Skip.
-- **`preview`**: finding's full body block (Evidence / Suggested-fix / Confidence / Origin).
+- **`preview`**: leave empty or a one-line recap; the finding body lives in the chat block (§ Message-first rendering), not the side-box.
 
 After loop completes (or user picked "Stop posting"), aggregated post set is the union of "Post" picks. If empty, treat as Skip and proceed without firing `gh api` POST.
 
