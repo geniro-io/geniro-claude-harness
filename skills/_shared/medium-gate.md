@@ -40,7 +40,7 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
 
 Chain a multi-select AUQ following `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop verbatim:
 - `multiSelect: true`, `header: "Pick MEDIUMs"`, `question: "Pick MEDIUMs to include in the fix loop"`.
-- One option per MEDIUM finding, with `preview` showing the full body (Evidence / Suggested fix / Confidence / Origin) per the per-finding-question.md preview block.
+- One option per MEDIUM finding; render each finding's self-contained body to chat first per the per-finding-question.md § Message-first rendering (option `preview` stays empty or a one-line recap).
 - Cap-extension: when more than 4 MEDIUMs exist, batch across multiple chained AUQ calls (≤4 per call) per the per-finding-question.md cap-extension rule. Never split or drop options to fit a single question.
 
 ## Result handling

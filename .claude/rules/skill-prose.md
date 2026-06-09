@@ -119,6 +119,11 @@ The orchestrator can still find it via grep if needed, but it doesn't compete fo
 
 The single test that governs every user-facing string: **a fresh user with the plugin installed but no architecture docs loaded — no `CLAUDE.md`, no `state-tier-spec.md`, no `MEMORY.md` — must be able to act on the string without first learning a Geniro-specific identifier.** If the user has to learn `T2` / `FIX-NOW` / `phase: triage` / `m5-v2` / `KR` to understand what the orchestrator is doing or what the question is asking, the string is wrong — restate the identifier's meaning inline OR drop the identifier and substitute the plain-English form.
 
+The test has two dimensions; a user-facing string must pass both:
+
+- **No untranslated identifiers (vocabulary).** The jargon dimension — `T2` / `FIX-NOW` / `phase: triage` must be restated inline or dropped.
+- **No assumed hidden context (completeness).** The string must explain the situation it is about. A question or report line is wrong if it can only be understood by someone who saw the subagents' output. Example: a review gate asking *"How should we handle the implicit entity-default @Filter at the 3 call sites?"* fails even though every word is plain English — the user was never shown what that code does, why it is a concern, or what the options mean. For decisions that carry finding or investigation context, render the self-contained explanation to a chat message first, then fire a lean question, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering.
+
 This test applies to **everything the orchestrator surfaces to the user**:
 
 - Chat narration (step echoes, progress updates, transition messages).

@@ -287,7 +287,7 @@ If the confirmed root cause has more than one valid fix path with real trade-off
 - Each option:
 - `label` (1-5 words) — name of the path
 - `description` — one-line trade-off
-- `preview` — investigation context (Root cause / Evidence from `## Hypotheses` Result / Hypothesis-confirmed status + number per the helper's source-field map)
+- chat block (§ Message-first rendering) — render the investigation context (root cause / evidence from `## Hypotheses` Result / hypothesis-confirmed status + number per the helper's source-field map) to chat first in plain English; `preview` stays empty or a one-line recap
 
 **Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entry with `category: multi_path_fix` and matching `root_cause` (use root-cause text as the disambiguator). If found, use prior `picked` value. If not, fire AUQ → on user pick, append entry to `approvals[]` via `atomic_state_write`.
 

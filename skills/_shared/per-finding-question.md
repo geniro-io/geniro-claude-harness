@@ -1,12 +1,13 @@
 # Per-Finding AskUserQuestion Rendering
 
-Canonical shape for every `AskUserQuestion` call that surfaces a code-review finding (or a set of findings) to the user. The user must see enough of the finding body at the moment of decision to actually exercise judgment — `label` + 1-line `description` is not enough.
+Canonical shape for every `AskUserQuestion` call that surfaces a code-review finding (or a set of findings) to the user. The user must understand the finding fully at the moment of decision — what the code does, what the concern is, why it matters, and what each option means — without having seen the reviewer agents' output. The finding body is rendered to a chat message first (§ Message-first rendering); the `AskUserQuestion` itself stays lean. A bare `label` + 1-line `description`, or a finding body crammed into the truncating `preview` side-box, is not enough.
 
 This file is the single source of truth. Skills cite specific sections; do NOT inline-paste the body schema.
 
 ## Contents
 
 - When this applies — which AUQ calls fall under this contract
+- Message-first rendering — render the finding to chat first, then a lean question
 - Single-finding gate — one finding per call (shape + source-field map + cap-extension)
 - Multi-select pick loop — multiple findings per call
 - Investigation-driven fix gate — debug-flavored single-finding variant
@@ -18,6 +19,30 @@ This file is the single source of truth. Skills cite specific sections; do NOT i
 
 Any AUQ call that asks the user to act on one or more findings. Both the per-finding "resolve this PRODUCT-DECISION" gate and the multi-select "pick which findings to act on" loop fall under this contract.
 
+## Message-first rendering
+
+Every gate under this contract follows a two-step shape — **render the finding to chat first, then fire a lean question** — mirroring the Gate presentation contract `/geniro:plan` uses for its approval gates.
+
+1. **Render the finding to a chat message FIRST.** Before the `AskUserQuestion` fires, write a self-contained explanation to chat. It has full width and persists in scrollback:
+
+   ```
+   ### Decision needed: <plain-English one-line title>
+
+   **What the code does now:** <plain English — name the function / file / behavior in words; expand any shorthand the reviewer used>
+   **The concern:** <what is wrong, risky, or sub-optimal>
+   **Why it matters:** <concrete impact: what breaks or degrades, who is affected, under what condition>
+   **Evidence:** `path:lines` — <short behavior quote or snippet>
+   **Options:**
+   - **<Option A>** — <consequence>
+   - **<Option B>** — <consequence>
+   ```
+
+2. **Then fire a LEAN `AskUserQuestion`.** The `question` restates the plain-English title and points at the chat explanation; each option is a short selector with a one-line `description`. Leave `preview` empty or use it for a one-line recap — never as the rendering surface.
+
+**Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a reviewer phrase like "relies on the implicit entity-default @Filter at the 3 call sites" must be spelled out — which code paths, what the default does, why the reliance is in question — never echoed verbatim into the question. No term may appear in the `question` or any option that was not explained in the chat block first.
+
+Why this shape: `AskUserQuestion` renders `preview` as a narrow monospace side-box that hard-truncates long content with no scroll, and is often absent entirely in an interactive session. A finding body placed there is unreadable or invisible — so the body lives in the chat message, which has full width, and the lean question captures only the decision.
+
 ## Single-finding gate (one finding per call)
 
 Used by:
@@ -28,60 +53,36 @@ Used by:
 ### Required AUQ shape
 
 - **`header`**: short chip label set by the calling skill (e.g. `"Open decision"`, `"Escalate"`).
-- **`question`**: multi-line markdown — render every field below verbatim from the finding's structured fields (see `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format):
+- **Chat render (first):** render the finding to chat per § Message-first rendering before firing the AUQ — the self-contained block carries What-the-code-does / The-concern / Why-it-matters / Evidence / Options, built from the finding's structured fields (see `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format) and expanded into plain English per the § Message-first rendering self-containment rule (never echoed verbatim when they carry reviewer shorthand).
+- **`question`** (lean): the plain-English one-line title, then a pointer to the chat block:
 
  ```
- **<SEVERITY>** `path:lines` — <short title>
+ <plain-English one-line title> — `path:lines`
 
- **Why this matters:** <1-sentence impact>
-
- How do you want to resolve this?
+ Full explanation above. How do you want to resolve it?
  ```
 
 - **`options[]`** — one per enumerated path (from the finding's `Options:` field for PRODUCT-DECISION resolution gates; from the calling skill's escalation menu for refactor-style escalation gates — see `/geniro:refactor` Phase 3 escalation for the 4-fixed-option menu):
  - **`label`**: 1-5 words — the action name (e.g. `"Move to utils"`, `"Keep as-is"`, `"Run /geniro:implement"`).
  - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/geniro:refactor` escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
- - **`preview`**: full finding body, formatted as:
-
- ````
- ## Evidence
-
- ```<lang>
- <2-5 lines from the finding's Evidence: field>
- ```
-
- ## Suggested fix
-
- <synthesis text from the finding's Suggested fix: field>
-
- ## Confidence
-
- NN%
-
- ## Origin
-
- [NEW] | [PRE-EXISTING]
- ````
-
- Render the same `preview` body on every option for the same finding — the body is per-finding, not per-option, but AUQ scopes preview to options so the user can re-read the body from any focused option without losing the option-pick context. When the calling skill's options are an escalation menu (not the finding's own `Options:`), the preview body is still the finding's body — the escalation labels merely tell the user what action will be taken on it.
+ - **`preview`**: leave empty, or a one-line recap only. The finding body — Evidence, Suggested fix, Confidence, Origin — is rendered to chat per § Message-first rendering, which is the surface that holds it. Do NOT cram the body into the `preview` side-box: it truncates long content with no scroll and is often absent in an interactive session, so a body placed there is unreadable or invisible. When the calling skill's options are an escalation menu (not the finding's own `Options:`), the chat block still describes the finding's body — the escalation labels merely tell the user what action will be taken on it.
 
 ### Source-field map
 
-| AUQ field | Reviewer-agent finding field |
+The chat block (§ Message-first rendering) is the surface that carries the finding body; the AUQ stays lean. Fields are expanded into plain English, not echoed verbatim when they carry reviewer shorthand.
+
+| Destination | Reviewer-agent finding field |
 |-----------|------------------------------|
-| `<SEVERITY>` in `question` | severity (`CRITICAL` / `HIGH` / `MEDIUM` / `LOW`) |
-| `path:lines` in `question` | `File:` |
-| `<short title>` in `question` | finding-title (heading after severity in reviewer output) |
-| `Why this matters` line | `Why this matters:` |
-| `description` per option | `Options:` bullet's "— <one-line trade-off>" portion |
-| `preview` Evidence block | `Evidence:` (entire codeblock) |
-| `preview` Suggested fix | `Suggested fix:` (synthesis text for PRODUCT-DECISION) |
-| `preview` Confidence | `Confidence:` |
-| `preview` Origin | `Origin:` |
+| chat `What the code does now` + `The concern` | synthesized in plain English from finding-title + `Evidence:` + `Why this matters:` |
+| chat `Why it matters` | `Why this matters:` (expanded to name the concrete impact, not a verbatim one-liner) |
+| chat `Evidence` line + `path:lines` | `File:` + `Evidence:` (2-5 lines) |
+| chat `Options` / AUQ option `label` + `description` | `Options:` bullets (`label` ← action name; `description` ← "— <one-line trade-off>") |
+| AUQ `question` title + `path:lines` | finding-title (plain English) + `File:` |
+| chat recap of `Confidence` / `Origin` | `Confidence:` / `Origin:` |
 
 ### Cap-extension for >4 options
 
-If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follow-up)`, chain a follow-up `AskUserQuestion`: present at most 4 options per call, never drop or merge options across calls, and aggregate the selections from every call. The body schema above applies identically to each chained call — preview content is the SAME body each time. This `§ Cap-extension` is the canonical definition of the rule; consuming skills cite it rather than restating it.
+If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follow-up)`, chain a follow-up `AskUserQuestion`: present at most 4 options per call, never drop or merge options across calls, and aggregate the selections from every call. The schema above applies identically to each chained call — the finding's chat block (§ Message-first rendering) is rendered once and referenced across the chained calls; `preview` stays empty or a one-line recap each time. This `§ Cap-extension` is the canonical definition of the rule; consuming skills cite it rather than restating it.
 
 ## Multi-select pick loop (multiple findings per call)
 
@@ -97,8 +98,8 @@ The multi-select shape is canonical for the Test-gate Pick branch, which selects
 - **`options[]`** — one per eligible finding:
  - **`label`**: call sites set their own label format. When a label needs to convey decision-type (e.g. the Test-gate Pick, where decision-type is what matters when picking findings to author tests for), render it in plain English — "auto-fixable" (FIX-NOW), "testable" (TESTABLE), "needs your decision" (PRODUCT-DECISION), "confirm intent" (INTENT-CHECK) — rather than the raw `decision: <type>` tag, since the label is user-facing; keep the raw taxonomy tag in `description` or `preview` if a call site needs it. Severity drives sort order at the call site, not label content.
  - **`description`**: 1-line per current call-site spec — call sites set their own.
- - **`preview`**: full finding body, formatted identically to the Single-finding gate's preview block above (Evidence / Suggested fix / Confidence / Origin).
-- **Cap-extension:** when more than 4 eligible findings exist, batch across multiple chained AUQ calls (≤4 per call); preview body is per-finding (each option carries its own finding's body).
+ - **`preview`**: leave empty or a one-line recap only. Per § Message-first rendering, render each eligible finding's self-contained block to chat before the pick loop so the user picks from explained findings, not side-box snippets.
+- **Cap-extension:** when more than 4 eligible findings exist, batch across multiple chained AUQ calls (≤4 per call); each finding's self-contained block is rendered to chat per § Message-first rendering (`preview` stays empty or a one-line recap).
 
 ## Investigation-driven fix gate (debug-flavored)
 
@@ -111,43 +112,20 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 ### Required AUQ shape
 
 - **`header`**: short chip label set by the calling skill (`"Fix path"` for the multi-path fix gate, `"Repro infeasible"` for the repro-infeasible escape hatch — both `/geniro:debug` Phase 2).
-- **`question`**: multi-line markdown:
+- **Chat render (first):** render the investigation context to chat per § Message-first rendering — `### Fix decision: <plain-English root-cause title>`, then **Root cause** (`path:lines` + plain English), **What's failing** (observed failure in plain English), **Reproduction status**, **Options** (each fix path + consequence). Pull fields from `.geniro/state/debug/<slug>/state.md`.
+- **`question`** (lean): multi-line markdown:
 
  ```
- **Confirmed root cause:** `path:lines` — <hypothesis title>
+ <plain-English root-cause title> — `path:lines`
 
- **Observed failure:** <one-line summary of the failing-test signature or captured pre-fix output>
-
- How do you want to <resolve | regression-guard> this?
+ Full explanation above. How do you want to <resolve | regression-guard> it?
  ```
 
  Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` file:line + title + `## Hypotheses` Result field pre-fix output).
 - **`options[]`** — one per fix path or per alternative regression guard:
  - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
  - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
- - **`preview`**: investigation context, formatted as:
-
- ````
- ## Root cause
-
- `path:lines` — <hypothesis title>
-
- ## Evidence
-
- ```<lang>
- <2-5 lines from the failing-test output OR captured pre-fix snippet from state.md `## Hypotheses` Result field>
- ```
-
- ## Reproduction status
-
- <"Hypothesis confirmed at Phase 1 Isolate; reproduction test pending Phase 2" for the multi-path fix gate; "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" for the repro-infeasible escape hatch>
-
- ## Hypothesis
-
- Hypothesis <number> from `.geniro/state/debug/<slug>/state.md` § Hypotheses
- ````
-
- Render the same `preview` body on every option for the same investigation — the body is per-investigation, not per-option.
+ - **`preview`**: leave empty or a one-line recap only — the investigation context lives in the chat block (§ Message-first rendering), not the truncating/often-absent side-box.
 
 ### Source-field map
 
@@ -156,9 +134,9 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 | `path:lines` in `question` | confirmed hypothesis's `## Root Cause` section (file:line of root cause) |
 | `<hypothesis title>` in `question` | confirmed hypothesis's title |
 | `<observed failure>` in `question` | first line of confirmed hypothesis's `## Hypotheses` Result field → captured pre-fix output |
-| `preview` Evidence codeblock | full captured pre-fix output (2-5 lines) from `## Hypotheses` Result field |
-| `preview` Reproduction status | "Hypothesis confirmed at Phase 1 Isolate; reproduction test pending Phase 2" (multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" (repro-infeasible escape hatch) |
-| `preview` Hypothesis number | hypothesis ID from state.md `## Hypotheses` |
+| chat `Evidence` codeblock | full captured pre-fix output (2-5 lines) from `## Hypotheses` Result field |
+| chat `Reproduction status` | "Hypothesis confirmed at Phase 1 Isolate; reproduction test pending Phase 2" (multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" (repro-infeasible escape hatch) |
+| chat `Hypothesis` number | hypothesis ID from state.md `## Hypotheses` |
 
 ## Where the body fields come from
 
@@ -186,7 +164,7 @@ The `(Recommended)` suffix on an AskUserQuestion option is load-bearing — user
 
 ### Pre-selection is the lever
 
-Renaming `(Recommended)` to `(Suggested)` does NOT fix the anchoring problem — default-effect research shows pre-selection is the lever, not the label text. The rule above is therefore stated in terms of WHICH option is pre-selected, not what label decorates it. When the override-of-prior-finding rule or the orchestrator-authored-hypothesis rule fires, the orchestrator MUST surface the contradiction in the AUQ's `question` text — e.g.: `"I think the prior CRITICAL is stale because <reason>, but I haven't verified scenario <Y> directly. How should I proceed?"` — and the Recommended option, with its preview body showing the prior finding's full Evidence + Why-matters fields, must be the verification path.
+Renaming `(Recommended)` to `(Suggested)` does NOT fix the anchoring problem — default-effect research shows pre-selection is the lever, not the label text. The rule above is therefore stated in terms of WHICH option is pre-selected, not what label decorates it. When the override-of-prior-finding rule or the orchestrator-authored-hypothesis rule fires, the orchestrator MUST surface the contradiction in the AUQ's `question` text — e.g.: `"I think the prior CRITICAL is stale because <reason>, but I haven't verified scenario <Y> directly. How should I proceed?"` — and the Recommended option, with the prior finding's full Evidence + Why-matters fields shown in the chat block (§ Message-first rendering), must be the verification path.
 
 ### Anti-rationalization
 
@@ -199,4 +177,4 @@ Renaming `(Recommended)` to `(Suggested)` does NOT fix the anchoring problem —
 
 ## Why this exists
 
-A title-only AUQ option creates the *ceremony* of approval without the *substrate* for judgment. Users either rubber-stamp the recommended option or escape to "Type something" / chat — both outcomes defeat the Always-WAIT contract. The fix is structural: surface the finding body at the moment of decision so the gate is informed.
+A title-only AUQ option — or a finding body hidden in the truncating `preview` side-box — creates the *ceremony* of approval without the *substrate* for judgment. Users either rubber-stamp the recommended option or escape to "Type something" / chat — both outcomes defeat the Always-WAIT contract. The fix is structural: render the finding to chat in self-contained plain English at the moment of decision (§ Message-first rendering) so the gate is informed and the question stands on its own.
