@@ -1,6 +1,6 @@
 # Spec Compliance Review Criteria
 
-Completeness audit of the diff **against the plan / spec** — what the spec promised but the diff omits. The diff's code quality (correctness, security, architecture, tests, optimizations, guidelines, conventions, design) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF completeness only. The spec is the source of truth; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored.
+Completeness audit of the diff **against the plan / spec** — what the spec promised but the diff omits. The diff's code quality (correctness, security, architecture, tests, optimizations, guidelines, conventions, design) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF completeness only. The spec is the **primary rubric** for what the change intended; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored. But the spec is a fallible human artifact, not ground truth: a divergence between spec and diff can mean the diff is wrong OR the spec is wrong. Before flagging an omission as a defect against the implementation, rule out that the code deliberately and correctly departed from a spec premise the live code contradicts (see §Spec-premise validation) — otherwise a correct implementation gets blamed for the spec's own error.
 
 This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
 
@@ -45,6 +45,25 @@ When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched a Li
 - **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to Check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
 
 Findings from Linear-AC mismatches carry the prefix "Linear AC: " in the Cause field to distinguish from PLAN CONTEXT ACs (e.g., "Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path"). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
+
+## Spec-premise validation (classify the divergence before assigning blame)
+
+Every candidate omission below is a divergence between what the spec asked for and what the diff did. A divergence has two possible causes, and they route to opposite outcomes — classify which BEFORE emitting the finding. You have Read / Grep / Bash; use them to ground the check against the live code, not against the spec's own words.
+
+For each candidate divergence, ask: **is the spec's premise still true in the current codebase?**
+
+- Check whether the file / module / endpoint / entity / column / API the spec references still exists and still matches the spec's assumption. Examples of a contradicted premise: the spec says "update table `foo`" but `foo` was renamed to `bar` and the diff correctly updates `bar`; the spec says "add `/v1/x`" but the codebase standard moved to `/v2` and the diff adds `/v2/x`; the spec says "call `helper()`" but `helper` was deleted and the diff inlines its logic.
+
+- **If the code's departure is grounded** (the spec premise is contradicted by the live code, and the diff's choice is the correct one given current reality), the divergence is a **spec-defect, not a code omission**. Emit it as:
+  - **Decision Type:** `[INTENT-CHECK]` — the user decides whether to fix the spec or the code. Never `[FIX-NOW]` against the implementation; the implementation is not broken.
+  - **Severity:** cap at MEDIUM (advisory). A stale spec is not a HIGH/CRITICAL code omission.
+  - **Cause:** phrase as "spec may be stale: `<spec premise>` is contradicted by `<code reality>`", NOT "diff omitted X".
+  - **Evidence:** cite TWO live-code facts, each with `file:line` — (1) the fact that contradicts the spec's premise, AND (2) the fact establishing the diff's departure is the *correct* response, not merely that the premise is stale. Quote the spec fragment alongside them. The second citation is the load-bearing guard against under-reporting: "the premise looks stale" is not enough to clear the implementation — you must show the omission is the right call. Cite (1) but not (2) → inconclusive (see below), not a spec-defect.
+  - **Also emit a structured `open_questions[]` entry** (`source: spec-compliance`, `status: unresolved`) so the decision actually gates the handoff — an `[INTENT-CHECK]` tag alone surfaces the note in the PR body but fires no interactive decision gate. Phrase: "Spec premise `<premise>` is contradicted by `<code reality>` (`file:line`); the diff correctly departed. Decide: fix the spec, change the code to match the spec, or accept the divergence." This reuses the same channel as §Cross-PR Scope Split — same `open_questions[]` plumbing, same handoff gating.
+
+- **If the code's departure is NOT grounded** (the spec premise still holds and the diff genuinely skipped a still-valid scoped item), emit the standard code-omission finding per §What to Check at its normal severity.
+
+This is skip-when-clean: it only runs when a real divergence surfaces, and it never rewrites the spec — it flags the spec as possibly-wrong and routes the decision to the user via the `open_questions[]` gate above. When the grounding check is inconclusive (you cannot cite BOTH live-code facts — the premise contradiction AND the correctness of the departure), default to the standard code-omission finding but note the uncertainty in `Evidence:`.
 
 ## What to Check
 
@@ -228,7 +247,7 @@ The detection signals above come from `gh pr view --json isDraft,author,title,bo
 
 Do not emit findings for items the plan did not commit to. PLAN CONTEXT is the rubric here — if a check's precondition is not visible in the plan, the check does not fire. This is the load-bearing constraint that separates this dimension from inventing requirements: a finding is only valid when the missing artifact can be cited verbatim back to a specific fragment of the plan in the `Evidence:` field.
 
-Apply the severity downgrades from the False Positives section before tagging. A precondition-met finding against an exploratory-plan item drops one level (HIGH becomes MEDIUM, MEDIUM becomes informational); a precondition-met finding against a draft PR may be suppressed entirely per the draft-PR carve-out. The final severity tag should reflect both the structural class of the gap (Check N → CRITICAL/HIGH/MEDIUM here) AND any downgrade rule that fires from the False Positives section.
+Apply the severity downgrades from the False Positives section before tagging. A precondition-met finding against an exploratory-plan item drops one level (HIGH becomes MEDIUM, MEDIUM becomes informational); a precondition-met finding against a draft PR may be suppressed entirely per the draft-PR carve-out. The final severity tag should reflect both the structural class of the gap (Check N → CRITICAL/HIGH/MEDIUM here) AND any downgrade rule that fires from the False Positives section. A divergence classified as a spec-defect by §Spec-premise validation overrides the Check-N structural severity entirely: it caps at MEDIUM and routes to `[INTENT-CHECK]`, because the gap is in the spec, not the implementation.
 
 ## Cross-PR Scope Split (peer-PR context)
 
