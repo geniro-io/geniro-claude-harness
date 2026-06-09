@@ -57,7 +57,7 @@ A finding without a verifiable `file:line` + verbatim `evidence` is inadmissible
 |---|---|---|
 | Test suites | `bash tests/run-all.sh` | T1 |
 | Authoring lint | `bash tests/authoring/lint-skills.sh` (hard fails → findings; warnings → advisory findings) | T2 / T4 |
-| ShellCheck | `shellcheck -S error hooks/*.sh lib/*.sh tests/**/*.sh` (errors → T1); re-run `-S warning` (advisory → T4) | T1 / T4 |
+| ShellCheck | `find hooks lib tests -name '*.sh' -exec shellcheck -S error {} +` (errors → T1); re-run `-S warning` (advisory → T4). `find`, not `tests/**/*.sh` — `**` needs globstar and silently misses top-level files without it | T1 / T4 |
 | Deleted-skill refs | `grep -rnE 'geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)' skills/ agents/ hooks/ lib/` — matches are CANDIDATES for D3 adjudication (CLAUDE.md's deleted-skills table is a legitimate mention) | feed D3 |
 | hooks.json wiring | Every script referenced in `hooks/hooks.json` exists in `hooks/`; every `hooks/*.sh` + `hooks/*.js` is either registered or documented as library/manual | T1 |
 | Frontmatter fields | Every `skills/*/SKILL.md` has `name`, `description`, `context`, `model`, `allowed-tools`, `argument-hint`; description ≤1024 chars | T2 |
@@ -69,7 +69,7 @@ Record full battery output to the state checkpoint. Machine findings are pre-ver
 
 ## D2 — Cross-file consistency
 
-**Scope:** `CLAUDE.md`, `README.md`, `HOOKS.md`, `MIGRATION.md`, `skills/`, `agents/`, `hooks/hooks.json`. **Method:** LLM reviewer, grep-grounded.
+**Scope:** `CLAUDE.md`, `README.md`, `HOOKS.md`, `MIGRATION.md`, `skills/`, `agents/`, `hooks/` (checks 1-2 compare doc claims against actual script matchers), `lib/` (check 4 compares helper contracts against the scripts). **Method:** LLM reviewer, grep-grounded.
 
 Checks:
 1. **Docs-vs-reality drift.** CLAUDE.md skills table, README, and HOOKS.md claims vs actual skill/hook behavior: listed skills exist, described flags/phases/paths match the SKILL.md body, hook descriptions match the script's actual matchers and bypass IDs.
@@ -148,7 +148,7 @@ Tier mapping: T4 by default; pure-style items → T5. Never propose trimming loa
 
 **Scope:** `skills/`, `agents/`, `hooks/`, `lib/`. **Method:** LLM reviewer seeded with a number-density grep.
 
-Seed grep (orchestrator runs, pastes matches into the prompt): `grep -rnoE '(≤|>=|<=|≥|max |cap |within )[0-9]+|[0-9]+ (retries|rounds|lines|files|questions|attempts|seconds|chars|tokens)' skills/ agents/ | sort | uniq -c | sort -rn | head -80` plus `grep -rnE '[0-9]{3,}' hooks/ lib/ --include='*.sh' | grep -v '^\s*#'`.
+Seed grep (orchestrator runs, pastes matches into the prompt): `grep -rnoE '(≤|>=|<=|≥|max |cap |within )[0-9]+|[0-9]+ (retries|rounds|lines|files|questions|attempts|seconds|chars|tokens)' skills/ agents/ | sort | uniq -c | sort -rn | head -80` plus `grep -rnE '[0-9]{3,}' hooks/ lib/ --include='*.sh' | grep -v ':[[:space:]]*#'` (POSIX class, not `\s` — BSD grep treats `\s` as a literal `s`).
 
 Checks:
 1. **Unexplained thresholds.** A numeric limit with no adjacent rationale and no citation to a canonical source. The fix is an inline WHY or a citation — keep the number itself.
@@ -161,7 +161,7 @@ Tier mapping: contradicting constants → T1; multi-homed / unexplained → T4; 
 
 ## D8 — Safety & test coverage
 
-**Scope:** `hooks/hooks.json`, `hooks/`, `lib/`, `tests/`, `settings.json`. **Method:** LLM reviewer.
+**Scope:** `hooks/hooks.json`, `hooks/`, `lib/`, `tests/`, `settings.json`, plus `skills/` for check 6 only (destructive-op grep). **Method:** LLM reviewer.
 
 Checks:
 1. **Matcher coverage.** Every guard hook's `hooks.json` matcher covers ALL tools that can perform the guarded action (Edit/Write/MultiEdit/NotebookEdit; Bash variants). A guard that misses one tool is bypassable — T0.

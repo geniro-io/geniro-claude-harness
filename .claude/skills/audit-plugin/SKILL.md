@@ -40,7 +40,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="general-purpose"` with `model="opus"` passed explicitly — reasoning-grade general-purpose work, not plugin carve-out agents (mirrors the /improve-template mapping). The Phase 1 battery and Phase 3 verification are orchestrator-inline: deterministic commands and targeted re-reads don't justify a spawn.
+All reviewers and fix agents are `subagent_type="general-purpose"` with `model=` OMITTED — they inherit the orchestrator's tier, so the user's session-level model choice governs audit depth and cost. The Phase 1 battery and Phase 3 verification are orchestrator-inline: deterministic commands and targeted re-reads don't justify a spawn.
 
 ---
 
@@ -48,7 +48,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model="
 
 1. **Parse `$ARGUMENTS`:**
    - Empty → full audit (all dimensions, full inventory).
-   - `--quick` → Phase 1 battery only; skip Phases 2-3; report machine findings and stop at Phase 4.
+   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings (the action gate and cleanup apply regardless of depth).
    - A path (`skills/review`, `hooks/`, `lib/`) → restrict every dimension's scope to files under it; spawn only dimensions whose scope intersects.
    - A dimension name (`consistency`, `staleness`, `rules`, `logic`, `shell`, `simplicity`, `numbers`, `safety`) → spawn only that reviewer (plus the Phase 1 battery, which always runs).
 2. **Build the inventory** (Glob; record counts + `wc -l` totals in the state checkpoint):
@@ -56,8 +56,8 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model="
    - Repo-local: `.claude/rules/*.md`, `.claude/skills/**/*.md`.
    - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
    - Tests: `tests/**` (coverage map input for D8). `design/` and `evals/` are out of scope unless `$ARGUMENTS` names them.
-3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and the do-not-flag list from `.claude/skills/audit-plugin/dimensions-reference.md`. If a `design/plugin-audit-*.md` from a prior run exists, read its health summary — patterns it endorses extend the do-not-flag list, and its open findings get a "still open?" re-check tag in Phase 3.
-4. **Write the state checkpoint** to `.geniro/state/audit-plugin/state-<slug>.md` (slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules; capital `Branch:`/`Worktree:`/`Timestamp:` fields per §Producer contract). Checkpoint after every phase with: phase completed, scope, dimensions selected, finding counts.
+3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and the do-not-flag list from `.claude/skills/audit-plugin/dimensions-reference.md`. If prior dated audit reports exist (`design/plugin-audit-2*.md` — date-named reports only, not companions like `plugin-audit-PROGRESS.md`), read the most recent one's health summary — patterns it endorses extend the do-not-flag list, and its open findings get a "still open?" re-check tag in Phase 3.
+4. **Write the state checkpoint** to `.geniro/state/audit-plugin/<slug>/state.md` — slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules; audit-plugin is not in that helper's enumerated producer set but adopts its contract shape verbatim. Write via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — direct Write to `.geniro/state/` paths trips the state-helper hook), with the full T1.5 YAML frontmatter starting on line 1: `tier: T1.5`, `producer: audit-plugin`, `schema-version: 1`, `branch`, `worktree`, `timestamp`, `phase`, `status`, `non-resumable-actions: []` (plain-text header lines before the `---` fence fail `validate_state_file`). Checkpoint after every phase with: phase completed, scope, dimensions selected, finding counts.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 
@@ -75,7 +75,7 @@ If `--quick`: jump to Phase 4 with machine findings only.
 Spawn the selected reviewers in ONE response. Each prompt is self-contained — reviewers must not need to discover their own rubric:
 
 ```
-Agent(model="opus", subagent_type="general-purpose", prompt="""
+Agent(subagent_type="general-purpose", prompt="""
 ## Task: Plugin audit — dimension D<N> (<name>)
 
 You are one reviewer in a multi-dimension audit of this Claude Code plugin repo.
@@ -109,7 +109,7 @@ Dimension-specific notes:
 - **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
 - **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (`skills/_shared/` + `skills/*/*-reference.md`), same prompt, both in the batch.
 
-Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report.
+Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-D<n>.md` (via `atomic_state_write`) and record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
 
 ## PHASE 3 — Merge, verify, filter (orchestrator-inline)
 
@@ -140,11 +140,11 @@ Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness,
 - **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
 - **Report only:** proceed to cleanup.
 
-**Cleanup & commit:** delete `.geniro/state/audit-plugin/state-<slug>.md` and any reviewer scratch files (per the helper §Cleanup contract — current slug only). Run `git status --short`; offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow repo commit style (`git log -5 --oneline` first); never `--no-verify` / `--amend`.
+**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-D*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Run `git status --short`; offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow repo commit style (`git log -5 --oneline` first); never `--no-verify` / `--amend`.
 
 ## State recovery
 
-On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/state-<slug>.md`. If present, run the helper §Consumer contract, then resume from the next incomplete phase — reviewer outputs recorded in the checkpoint don't need re-spawning; unrecorded ones do.
+On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.md`. If present, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-D<n>.md` exists don't need re-spawning; missing ones do.
 
 ## Anti-rationalization
 
