@@ -1,25 +1,28 @@
 ---
 name: find-code-threads
-description: "Use when finding past Claude Code conversation threads that touched code — across every project on this machine — to hand selected ones to /analyze-thread for failure analysis. Scans ~/.claude/projects, keeps only threads that edited code, groups them by project with a title and date, and takes a free-text pick. Skip for analyzing one already-known thread file (call /analyze-thread directly) or live debugging (/geniro:debug)."
+description: "Use when finding past Claude Code conversation threads that touched code — across every project and every config dir on this machine — to hand selected ones to /analyze-thread for failure analysis. Scans the projects/ tree of each config dir, keeps only threads that edited code, and either lists them grouped by project or, when you pass a query, searches inside the thread bodies (PR number, error string, filename, or a topic phrase) and ranks the matches. Takes a free-text pick. Skip for analyzing one already-known thread file (call /analyze-thread directly) or live debugging (/geniro:debug)."
 context: main
 model: inherit
 allowed-tools: [Read, Bash, Glob, Grep, AskUserQuestion]
-argument-hint: "[optional filter — project or topic substring]"
+argument-hint: "[search query — PR number / phrase / filename — or empty for all]"
 ---
 
 # /find-code-threads — Discover code-bearing Claude threads and hand them to /analyze-thread
 
-You are the orchestrator for finding past Claude Code conversation threads that edited code and routing the ones the user picks to the existing `/analyze-thread` skill. You scan every project's session logs under `~/.claude/projects/`, keep only threads that touched code, present them grouped by project with a short title, take a free-text selection, then launch `/analyze-thread` on the first pick and print the rest as a ready-to-run queue. You only READ session logs — you never modify them, and you never edit `/analyze-thread`.
+You are the orchestrator for finding past Claude Code conversation threads that edited code and routing the ones the user picks to the existing `/analyze-thread` skill. The sibling `scan.py` enumerates every project's session logs across all config dirs, keeps only threads that touched code, and — when the user passes a query — searches inside the thread bodies and ranks the matches. You present the survivors, take a free-text selection, then launch `/analyze-thread` on the first pick and print the rest as a ready-to-run queue. You only READ session logs — you never modify them, and you never edit `/analyze-thread`.
 
-**Input:** an optional filter substring in `$ARGUMENTS` (matches a project path or a thread title); empty means "every project".
-**Output:** a grouped, titled list of code-bearing threads + (on the user's pick) a launched `/analyze-thread <path> --format=jsonl` directive for the first selection and a runnable queue for the rest.
+**Input:** an optional query in `$ARGUMENTS`.
+- **Empty** → list every code-bearing thread, grouped by project.
+- **A query** (e.g. `2649`, `bright data`, `case-radar.ts`, `didnt post low`) → keep only threads whose body, title, or project path matches, ranked best-first. See **Searching by content** below for what to type.
+
+**Output:** a titled list of code-bearing threads + (on the user's pick) a launched `/analyze-thread <path> --format=jsonl` directive for the first selection and a runnable queue for the rest.
 
 ---
 
 ## Phases
 
-1. **Discover** — enumerate every `*.jsonl` session log under `~/.claude/projects/` with `find`, keep only threads whose content shows a code edit (`Edit` / `Write` / `MultiEdit` / `NotebookEdit`), and for each survivor extract a title, the true project label, the date, a turn count, and an oversize flag.
-2. **Present** — render the survivors grouped by project, newest-first, each row numbered with its title, date, turn count, and an oversize marker; cap each project at the newest 10 with a "show more" affordance.
+1. **Discover** — run `scan.py`. It enumerates every `*.jsonl` session log under each config dir's `projects/`, keeps only threads that edited code (`Edit` / `Write` / `MultiEdit` / `NotebookEdit`), and for each survivor extracts a title, the true project label, the date, a turn count, and an oversize flag. With a query it also scores each thread by content match and drops non-matches.
+2. **Present** — render the survivors. No query → grouped by project, newest-first. A query → one flat list ranked best-first, each row showing its project, date, title, a match indicator, and a snippet. Number every shown row.
 3. **Select & launch** — take a free-text reply (`1,4,7` / `1-5` / `all`), resolve it to absolute paths, echo the set for confirmation, then launch `/analyze-thread <first> --format=jsonl` and print the remaining picks as a runnable queue.
 
 ---
@@ -28,9 +31,11 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 1. **Read-only on session logs.** This skill only reads thread files; it writes nothing and never edits `/analyze-thread`. The downstream `/analyze-thread` is also read-only on the thread it analyzes.
 2. **`--format=jsonl` on every launched command.** Every current session log begins with a line like `{"type":"last-prompt"…}` / `{"type":"queue-operation"…}` — none begin with `{"type":"summary|user|assistant"}`, so `/analyze-thread`'s format sniff would misread them as markdown. Forcing `--format=jsonl` skips the sniff and is mandatory on the launched command and every queued command.
-3. **Free-text selection, not a multiSelect question.** A single project can hold 45–66 code threads; an `AskUserQuestion` caps at 4 options, so one-option-per-thread cannot present them. Selection is a numbered chat list plus a free-text reply, parsed and echoed back. The only `AskUserQuestion` is the lean launch-confirmation gate (3 options).
-4. **Project label comes from the thread's `cwd`, not the folder name.** Decoding the `~/.claude/projects/<encoded>` folder name by turning `-` into `/` corrupts labels for projects with literal hyphens (e.g. `claude-plugin`). Read the true path from the JSONL `cwd` field instead.
+3. **Free-text selection, not a multiSelect question.** A single project can hold well over a hundred code threads; an `AskUserQuestion` caps at 4 options, so one-option-per-thread cannot present them. Selection is a numbered chat list plus a free-text reply, parsed and echoed back. The only `AskUserQuestion` is the lean launch-confirmation gate (3 options).
+4. **Project label comes from the thread's `cwd`, not the folder name.** Decoding the `projects/<encoded>` folder name by turning `-` into `/` corrupts labels for projects with literal hyphens (e.g. `claude-plugin`). `scan.py` reads the true path from the JSONL `cwd` field instead.
 5. **English-only skill body.** Thread titles are runtime data and may contain any language — render them as-is in the list. The skill body itself stays English-only.
+6. **Scan every config dir, not just `~/.claude/`.** A thread's session logs live under whichever config dir was active when it ran. `scan.py` scans `~/.claude/projects`, `$CLAUDE_CONFIG_DIR/projects` when that env var is set, and every path in its `EXTRA_ROOTS` list — so a thread under a second config dir is never invisible. Add a new config dir to `EXTRA_ROOTS` in `scan.py` once.
+7. **Search returns ranked candidates; you disambiguate the top few.** `scan.py` ranks by term proximity, not certainty. A worktree dir named `pr-2649` mentions that number without being the PR-2649 review. Before presenting or launching a query result, confirm the top candidates are what the user means — check which skill actually ran, or that a real PR reference is present — rather than trusting rank #1 blindly.
 
 ---
 
@@ -38,10 +43,12 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 | Budget | Value | Why |
 |---|---|---|
-| Discovery wall-clock | a few seconds typical; ~10s on a years-deep tree | The code-signal `grep -l` short-circuits on the first match, so kept threads are cheap; the per-thread turn count is the main cost on multi-GB histories |
-| `ai-title` read window | first 2 MB of each file | The embedded `ai-title` line can sit ~1.5 MB into a large log; a 2 MB cap captures it while bounding work on 30–65 MB files |
-| First-prompt read window | first 800 KB | The opening user turns (and the slash-command name) live in the first events; 800 KB covers them without reading whole logs |
-| Per-project display cap | newest 10, with "show more" | Past ~10 rows per project the list becomes unscannable; the rest expand on request |
+| List wall-clock | a few seconds typical; ~10s on a years-deep multi-config tree | The code-signal scan short-circuits on the first edit, so kept threads are cheap |
+| Search wall-clock | ~5–10s | A query reads up to 12 MB of each thread's body to score matches; bounded so a 60 MB log can't dominate |
+| Title scan window | first 2 MB of each file | The embedded `ai-title` line can sit ~1.5 MB into a large log; 2 MB captures it while bounding work |
+| Body search window | first 12 MB of each file | Covers the vast majority of logs whole; a match deeper than 12 MB in a giant log may be missed (acceptable — one early hit still surfaces the thread) |
+| List display cap | newest 10 per project, with "show more" | Past ~10 rows per project the list becomes unscannable; the rest expand on request |
+| Search display cap | top 15 ranked, with "show more" | A common-word query can match every thread; ranking floats the real matches up, so show the best 15 and expand on request |
 | Oversize flag | mark threads > 5 MB | `/analyze-thread` rejects files over its 5 MB hard cap, so flag them rather than silently queueing a command that will be refused |
 
 ---
@@ -50,96 +57,65 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 | Phase | Tools used | Notes |
 |---|---|---|
-| 1 Discover | Bash (`find`, `grep`, `jq`, `head`, `stat`, `date`, `awk`, `sed`) | One pipeline produces the row list |
-| 2 Present | (orchestrator inline) | No tools — render the row list into grouped tables |
+| 1 Discover | Bash (`python3 scan.py`) | One process produces the row list (list or ranked-search) |
+| 2 Present | (orchestrator inline) | No tools — render the rows into tables |
 | 3 Select & launch | AskUserQuestion, Read | AUQ for the launch-confirmation gate; Read only if previewing a thread before launch |
 
 ---
 
 ## PHASE 1: DISCOVER
 
-Run this Bash pipeline. It prints one tab-separated row per code-bearing thread:
-`mtime · date · oversize · turns · project_label · title · abs_path`, sorted by project then newest-first.
+Run the sibling engine. `SKILL_DIR` is this skill's base directory — the absolute path shown in the invocation header (`Base directory for this skill: …`).
 
 ```bash
-projects="$HOME/.claude/projects"
-ARGS="$ARGUMENTS"   # optional filter — empty means every project
-
-find "$projects" -maxdepth 2 -name '*.jsonl' -type f 2>/dev/null | while IFS= read -r f; do
-  # Code signal: keep only threads that edited code. grep -l short-circuits on the first match.
-  grep -lE '"name":"(Edit|Write|MultiEdit|NotebookEdit)"' "$f" >/dev/null 2>&1 || continue
-
-  size=$(stat -f '%z' "$f" 2>/dev/null || echo 0)
-  mtime=$(stat -f '%m' "$f" 2>/dev/null || echo 0)
-  oversize=0; [ "${size:-0}" -gt 5242880 ] && oversize=1
-  date=$(date -r "${mtime:-0}" '+%Y-%m-%d' 2>/dev/null || echo '?')
-
-  # True project label from the cwd field. Parse-then-extract, not grep-then-parse: the first line that
-  # literally contains "cwd" is sometimes a base64 blob where the bytes happen to spell it; that line
-  # fails to parse and would drop the thread onto the lossy encoded folder name, splitting one project
-  # into two groups. Parse each line and take the first real .cwd. No read cap: grep -m1 closes the pipe
-  # at the first cwd (SIGPIPE stops jq), so it reads only the opening lines even on a 60 MB log — and the
-  # cwd can sit on line 3 behind a multi-MB first line, which a byte cap would miss. Folder-name decode
-  # (with -- to survive a leading '-') is a last resort only.
-  label=$(jq -Rr 'fromjson? | .cwd // empty' "$f" 2>/dev/null | grep -m1 .)
-  [ -z "$label" ] && label="$(basename -- "$(dirname "$f")")"
-
-  # Title preference: 1) embedded ai-title  2) first free-text user prompt  3) the slash-command name.
-  title=$(head -c 2000000 "$f" 2>/dev/null | grep -m1 '"type":"ai-title"' \
-          | jq -Rr 'fromjson? | (.aiTitle // empty) | .[0:100]' 2>/dev/null | head -1)
-  if [ -z "$title" ]; then
-    # Render each user turn's text (string content, or the text blocks of an array), newlines flattened.
-    ut=$(head -c 800000 "$f" 2>/dev/null | jq -Rr '
-      fromjson?
-      | select(.type=="user")
-      | (.message.content
-         | if type=="string" then .
-           elif type=="array" then (map(select(.type=="text").text // empty) | join(" "))
-           else "" end)
-      | gsub("[\r\n\t]+"; " ")
-      | select(length>0)' 2>/dev/null)
-    # First turn that is a real prompt: not a slash-command wrapper, not the injected skill body.
-    real=$(printf '%s\n' "$ut" \
-      | grep -vE '<command-|<local-command-|^ *Base directory for this skill:|^ *Caveat: The messages below' \
-      | grep -vE '^[[:space:]]*$' | head -1)
-    if [ -n "$real" ]; then
-      title=$real
-    else
-      # Slash-command thread with no free-text prompt → use the command name as the label.
-      title=$(printf '%s\n' "$ut" | grep -m1 '<command-name>' | sed 's/.*<command-name>//; s,</command-name>.*,,')
-    fi
-  fi
-  [ -z "$title" ] && title="(code thread — no title)"
-  title=$(printf '%s' "$title" | tr '\t\r\n' '   ' | cut -c1-100)
-  label=$(printf '%s' "$label" | tr -d '\t\r\n')
-
-  # Turn count: user + assistant events (awk, not grep -c, to avoid the BSD no-trailing-newline undercount).
-  turns=$(awk '/"type":"(user|assistant)"/{n++} END{print n+0}' "$f" 2>/dev/null)
-
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$mtime" "$date" "$oversize" "$turns" "$label" "$title" "$f"
-done \
-  | sort -t"$(printf '\t')" -k5,5 -k1,1nr \
-  | { if [ -n "$ARGS" ]; then awk -F'\t' -v q="$ARGS" 'BEGIN{q=tolower(q)} index(tolower($5 FS $6), q)'; else cat; fi; }
+# List mode (empty $ARGUMENTS) or search mode (a query in $ARGUMENTS).
+python3 "${SKILL_DIR}/scan.py" $ARGUMENTS
 ```
 
-Why each guard is there:
+It prints one tab-separated row per surviving code-bearing thread:
 
-- **`find`, never a bare `for f in "$d"*.jsonl`** — a bare glob aborts under zsh (`no matches found`) on a project dir that has no logs (empty `projects`, worktree dirs). `find` returns cleanly.
-- **`jq -Rr 'fromjson?'`, never bare `jq`** — bare `jq` aborts on the first unparseable line and silently wedges the pipeline; `fromjson?` skips bad lines.
-- **`stat -f` / `date -r`** — BSD coreutils form (this runs on the user's macOS). `stat -c` / `date -d` are GNU-only.
-- **2 MB `ai-title` window** — the title line is often deep in the file; reading 2 MB captures the measured maximum offset without scanning a whole 60 MB log.
-- **array-aware first-prompt** — modern user turns store content as an array of text blocks, not a bare string; both shapes are rendered.
-- **filter on label + title only** — the optional `$ARGUMENTS` filter (`awk` on fields 5–6) matches the project path and title, not the epoch / date / turn-count / file-path columns, so a term like `claude` (in every file path) or a bare number does not match every row.
+```
+mtime · date · oversize · turns · relevance · hits · project_label · title · abs_path · snippet
+```
 
-If the pipeline prints nothing, no code-bearing threads matched (or the filter excluded them all) — tell the user and stop.
+- **List mode** (`relevance`=`hits`=0, `snippet` empty): sorted by project, then newest-first.
+- **Search mode**: kept only when the query matches the body, title, or label; `relevance` = how many query terms co-occur within one ~160-char window (proximity), `hits` = total term occurrences, `snippet` = cleaned text around the densest match. Sorted relevance-desc, hits-desc, newest.
+
+**Why `scan.py`, not a shell `grep`/`jq` pipeline:**
+- `grep` skips `.jsonl` logs that embed base64 images as "binary" unless forced with `-a`, silently dropping real threads. A single Python read+search never does.
+- The macOS zsh sandbox strips `PATH` inside `| while` / `for in $(...)` loop bodies, so a per-file shell loop loses `cut`/`head`/`awk` mid-run. One Python process has no inner shell loops to break.
+- Proximity ranking and snippet extraction are trivial in Python and painful in shell.
+
+Every parsing guard (true `cwd` label, 2 MB title window, first-real-prompt fallback, oversize flag, multi-root scan, PR-number handling) lives in `scan.py` — read its module docstring before changing search behavior.
+
+If the engine prints nothing, no code-bearing threads matched (or the query excluded them all) — tell the user, name the query if any, and stop.
+
+---
+
+## Searching by content
+
+Type the most **distinctive** token you remember from the thread. Distinctive beats descriptive — the engine matches text that is literally in the thread, not your after-the-fact summary of it.
+
+| You remember… | Type | Why it works |
+|---|---|---|
+| the PR it reviewed | `2649` | A bare 3–6 digit query is read as a PR reference (`pull/2649`, `#2649`, `pr-2649`), so it ignores the same digits buried in UUIDs, token counts, and timestamps |
+| an error or log string | `ECONNREFUSED` or `null pointer` | Rare strings match few threads — high precision |
+| a file it edited | `case-radar.ts` | Filenames appear verbatim in edit-tool calls |
+| only the topic | `bright data` / `rls roles` | Multi-word queries rank by proximity — threads where the words cluster outrank threads where a common word merely appears scattered |
+
+Tips:
+- A vague paraphrase (`didnt post low`) matches loosely — every thread containing "post" or "low" is kept, and ranking does the work. Prefer a PR number or a unique token when you have one.
+- Multiple words are OR-matched for recall but ranked by how tightly they co-occur, so the real match usually lands in the top few even amid many loose matches.
 
 ---
 
 ## PHASE 2: PRESENT
 
-Read the rows from Phase 1 and render them grouped by project. The rows arrive sorted by project then newest-first, so walk them top to bottom and start a new project block when the `project_label` changes.
+### List mode (no query)
 
-**Number every kept row first, across the whole list.** Walk the full sorted set and assign global numbers 1, 2, 3, … N before hiding anything. Each thread keeps its number whether or not it is shown, so a pick always maps to exactly one thread — and the next project continues the count past the previous project's FULL row count (if project A has 45 threads, project B's first row is #46, even though only #1–10 of A are shown).
+Rows arrive sorted by project then newest-first. Walk them top to bottom; start a new project block when `project_label` changes.
+
+**Number every kept row first, across the whole list.** Assign global numbers 1, 2, 3, … N before hiding anything. Each thread keeps its number whether or not it is shown, and the next project continues the count past the previous project's FULL row count (if project A has 45 threads, project B's first shown row is #46, even though only #1–10 of A are visible).
 
 ```
 ## Code threads — <N> across <M> projects
@@ -150,17 +126,33 @@ Read the rows from Phase 1 and render them grouped by project. The rows arrive s
    ...
   10.  <date>  <title>            (<turns> turns)
   … +<K> more in this project (#11–<last>) — reply "more <project name>" to reveal them
-
-### <next project name>  (<full path>)
-  46.  <date>  <title>            (<turns> turns)
-   ...
 ```
 
 Rules:
-- Numbers are assigned once across the full kept set and never change. Display the newest 10 rows per project; hidden rows keep their already-assigned numbers (e.g. #11–45) and are *revealed*, not renumbered, when the user replies `more <project name>`.
-- Mark oversize rows with `[>5 MB]` and note once below the list that `/analyze-thread` refuses files over 5 MB, so those need splitting before they can be analyzed.
-- Keep titles on one line; they are already truncated to ~100 characters.
-- If the list is empty, say no code-bearing threads matched (name the active filter, if any) and stop.
+- Numbers are assigned once across the full kept set and never change. Show the newest 10 rows per project; hidden rows keep their already-assigned numbers and are *revealed*, not renumbered, on `more <project name>`.
+- Mark oversize rows with `[>5 MB]` and note once that `/analyze-thread` refuses files over 5 MB.
+- Keep titles on one line (already truncated to ~100 characters).
+
+### Search mode (a query)
+
+Rows arrive ranked best-first across all projects. Present ONE flat list (relevance ordering beats project grouping when the user is hunting a specific thread). Number the shown rows 1…N.
+
+```
+## Threads matching "<query>" — top <shown> of <total>
+
+   1.  <date>  <title>            [<project name>]  (<turns> turns)  <match indicator>
+          ↳ <snippet>
+   2.  ...
+  … +<K> more — reply "more" to reveal the rest (lower-ranked)
+```
+
+Rules:
+- Show the top 15; reveal the rest on `more`. A common-word query can match every thread — say so (`<total>` matched) so the user knows ranking, not exclusion, is in play.
+- Include the snippet so the user can tell matches apart at a glance.
+- Before presenting, sanity-check the top candidates against what the user asked for (invariant #7) — e.g. if they want a `/review` run, confirm the rank-#1 thread actually ran that skill, not merely mentions the PR. Note any candidate you down-rank and why.
+- Mark oversize rows with `[>5 MB]`.
+
+If the list is empty, say no code-bearing threads matched (name the query) and stop.
 
 ---
 
@@ -172,7 +164,7 @@ Ask the user to reply in free text. Accept:
 - a comma list: `1,4,7`
 - a range: `1-5`
 - a mix: `1-3,8,11`
-- `all` — every thread in the list (after any active filter)
+- `all` — every thread in the list (after any active query)
 
 Parse the reply against the numbered list, resolve each number to its absolute path, and drop any number outside the list (note which were ignored).
 
@@ -217,8 +209,8 @@ List any oversize picks separately under "Too large to analyze as-is (over 5 MB 
 
 | `$ARGUMENTS` | Effect |
 |---|---|
-| empty | Scan every project under `~/.claude/projects/`. |
-| a substring (e.g. `crawler`, `review skill`) | Case-insensitive substring filter on the project-path and title columns only — keeps matching threads. It does not match the date, turn-count, or file-path columns, so `claude` (in every file path) or a bare number won't match everything. Useful to narrow a years-deep history to one project or topic. |
+| empty | List every code-bearing thread across all config dirs, grouped by project. |
+| a query (`2649` / `bright data` / `case-radar.ts`) | Content search inside thread bodies + titles + project paths, ranked best-first. See **Searching by content** for what to type. A bare 3–6 digit query is treated as a PR reference. |
 
 ---
 
@@ -226,13 +218,14 @@ List any oversize picks separately under "Too large to analyze as-is (over 5 MB 
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll present the threads as a multiSelect AskUserQuestion so the user just clicks." | A single project holds far more than the 4-option AUQ cap, so one-option-per-thread cannot present them (invariant #3). Selection is a numbered list + free-text reply; the only AUQ is the 3-option launch confirmation. |
+| "I'll present the threads as a multiSelect AskUserQuestion so the user just clicks." | A single project holds far more than the 4-option AUQ cap (invariant #3). Selection is a numbered list + free-text reply; the only AUQ is the 3-option launch confirmation. |
 | "The thread is obviously JSONL, so /analyze-thread will detect it — I'll drop `--format=jsonl`." | Current session logs begin with `last-prompt` / `queue-operation` lines, which `/analyze-thread`'s sniff reads as markdown (invariant #2). Every launched and queued command must carry `--format=jsonl`. |
-| "I'll label each project by decoding its folder name (`-` → `/`)." | That corrupts any project with a literal hyphen in its path (invariant #4). Read the true path from the JSONL `cwd` field. |
-| "I'll grab the cwd with `grep -m1 '\"cwd\"'` then parse just that line." | The first line that literally contains `cwd` is sometimes a base64 blob where the bytes happen to spell it; that line fails to parse and the thread silently falls back to the lossy folder name, so one project splits into two groups in the list. Parse each line and take the first real `.cwd` (`jq -Rr 'fromjson? \| .cwd // empty' \| grep -m1 .`). |
-| "After `more <project>` I'll re-render that project's threads numbered from 1." | Renumbering on expand makes a pick collide with numbers already given to other projects' rows. Numbers are assigned once across the full kept set; expansion only reveals the hidden rows' existing numbers (e.g. #11–45), never renumbers. |
-| "Reading only the first 200 KB is enough to find the title." | The `ai-title` line can sit ~1.5 MB deep; a 200 KB window misses it on roughly half of titled threads. Read up to 2 MB for the title and 800 KB for the first-prompt fallback. |
-| "I'll loop the project dirs with a glob (`for f in "$d"*.jsonl`)." | A bare glob aborts under zsh on a directory with no logs. Use `find … -name '*.jsonl'`, which returns cleanly on empty dirs. |
+| "I'll search the bodies myself with `grep -r <query>`." | `grep` skips image-laden `.jsonl` logs as binary unless forced with `-a`, and the zsh sandbox strips PATH inside shell loops, so the search silently misses threads. Run `scan.py` (one Python process) — invariant #6, Phase 1. |
+| "A bare number like `2649` should match those digits anywhere in the body." | That matches UUIDs, cache-token counts, and timestamps that happen to contain `2649` — dozens of false hits. `scan.py` reads a 3–6 digit query as a PR reference (`pull/2649` / `#2649` / `pr-2649`) and only falls back to the raw number when no PR reference exists. |
+| "Rank #1 is obviously the thread — launch it." | Search ranks by proximity, not certainty (invariant #7). A worktree named `pr-2649` mentions the number without being the review. Confirm the top candidates ran the skill the user means before launching. |
+| "I'll only scan `~/.claude/projects`." | Threads run under a second config dir (`$CLAUDE_CONFIG_DIR`, or one listed in `scan.py`'s `EXTRA_ROOTS`) live elsewhere and would be invisible (invariant #6). `scan.py` scans every configured root. |
+| "I'll label each project by decoding its folder name (`-` → `/`)." | That corrupts any project with a literal hyphen in its path (invariant #4). `scan.py` reads the true path from the JSONL `cwd` field. |
+| "After `more <project>` I'll re-render that project's threads numbered from 1." | Renumbering on expand makes a pick collide with numbers already given to other rows. Numbers are assigned once across the full kept set; expansion only reveals hidden rows' existing numbers. |
 | "I'll launch all selected threads in one `/analyze-thread` call to save round-trips." | `/analyze-thread` takes exactly one thread path per run. Launch the first and print the rest as a runnable queue. |
 | "An oversize thread is fine to queue — let the user find out." | `/analyze-thread` refuses files over its 5 MB cap, so the queued command would just fail. Flag oversize threads up front so the user can split them first. |
 
@@ -240,8 +233,9 @@ List any oversize picks separately under "Too large to analyze as-is (over 5 MB 
 
 ## Definition of Done
 
-- [ ] Phase 1: `find`-based scan ran; only code-bearing threads kept; each row has a title, true `cwd` label, date, turn count, and oversize flag
-- [ ] Phase 2: rows grouped by project, newest-first, numbered once across the full set (stable on expand), capped at 10/project with "show more"
+- [ ] Phase 1: `scan.py` ran across every config root; only code-bearing threads kept; each row has a title, true `cwd` label, date, turn count, oversize flag (and, for a query, a relevance score + snippet)
+- [ ] Phase 2 (list): rows grouped by project, newest-first, numbered once across the full set (stable on expand), capped at 10/project with "show more"
+- [ ] Phase 2 (search): flat ranked list, top 15 shown with snippets, total-matched count stated, top candidates sanity-checked against the query
 - [ ] Phase 3: free-text selection parsed and echoed; launch-confirmation AUQ fired (with a `header`)
 - [ ] Phase 3: first *launchable* pick launched as `/analyze-thread <path> --format=jsonl`; remaining launchable picks queued (each with `--format=jsonl`); oversize picks listed separately, not queued
 - [ ] No session log or any other file modified by this skill
@@ -250,5 +244,6 @@ List any oversize picks separately under "Too large to analyze as-is (over 5 MB 
 
 ## REFERENCE
 
+- `scan.py` (sibling) — the discovery + search engine. Module docstring documents every column, root-resolution, the PR-number rule, and the proximity score. Add a new config dir to its `EXTRA_ROOTS` list.
 - `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/SKILL.md` — the downstream consumer: input contract (single thread path in `$ARGUMENTS`), the `--format=jsonl` modifier, the 5 MB cap, and the sibling-launch pattern this skill mirrors
 - `.claude/rules/skill-authoring.md` · `.claude/rules/skill-prose.md` · `.claude/rules/skill-structure.md` — authoring conventions this skill follows by convention (project-local skills are outside CI lint scope)

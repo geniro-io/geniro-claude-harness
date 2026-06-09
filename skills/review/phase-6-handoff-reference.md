@@ -232,7 +232,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding under the handoff's `## Findings` body renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff:
 
 ```markdown
-### F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR] <short title>
+### F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR] <short title>
 - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
 - **File:** path/to/file.ts:42-48
 - **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
@@ -453,15 +453,23 @@ This §7.0 check is the fail-closed second line of defense for ALL FOUR invarian
 
 This guard exists because posting a draft PR review with unresolved ambiguity, missing user picks, verifier-refuted findings buried in the body, or a report the user has not finished deciding would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array, `step0_status:` sentinel, `Validation:` field, and `report_status` lifecycle are designed to prevent. The four invariants are independent (different arrays, different gates, different producer phases) so the guard must check all four; checking only some leaves the remaining paths uncovered.
 
-### 7.1 Step 1.5 — Resolved-thread dedup (input-side filter)
+### 7.1 Step 1.5 — Already-on-PR dedup (post-set filter)
 
-The post-drill's eligible-finding set is every unposted finding across BOTH `## Findings` (kept CRITICAL / HIGH / MEDIUM + any LOW `PRODUCT-DECISION` admitted via §4.1 Path B) and `## Deferred — sub-threshold` (LOW awareness items) — once the user has chosen to post, severity no longer gates postability. Before showing eligible findings to the user, exclude findings whose `path:lines` overlaps an entry in the state file's `resolved-threads-snapshot:`. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required.
+The post-drill's eligible-finding set is every unposted finding across BOTH `## Findings` (kept CRITICAL / HIGH / MEDIUM + any LOW `PRODUCT-DECISION` admitted via §4.1 Path B) and `## Deferred — sub-threshold` (LOW awareness items) — once the user has chosen to post, severity no longer gates postability. This step removes from the post set findings that already exist on the PR, so the user isn't asked to re-raise what's already there.
 
-For each matching finding, append `[ALREADY-RESOLVED-ON-PR]` to its tag list and add `reason: already-resolved-on-pr` annotation when moving to `## Filtered`. The Step 2 granularity AUQ and Step 3 per-finding gate count only non-excluded findings.
+Safety invariant: every exclusion is SURFACED — tagged and moved to `## Filtered` with a `reason:`, NEVER silently dropped. The user sees in `## Filtered` exactly what was withheld and why, so §7.4's completeness guarantee holds.
+
+Run THREE overlap checks against the snapshots already persisted to state.md frontmatter in Phase 1 (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1 / §1.1). A `null` or absent snapshot means "nothing to dedup against" — skip that check.
+
+1. **Resolved bot threads** (`resolved-threads-snapshot:`) — exclude findings whose `path:lines` overlaps a snapshot entry. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required. Tag `[ALREADY-RESOLVED-ON-PR]`, move to `## Filtered` with `reason: already-resolved-on-pr`.
+2. **Unresolved bot comments** (`pr-bot-comments-snapshot:`) — these carry `path:line`, so apply the SAME range-overlap rule as check 1 (as precise). Catches a still-open CodeRabbit / other-bot finding the parallel reviewers re-discovered. Tag `[ALREADY-RAISED-ON-PR]`, move to `## Filtered` with `reason: already-raised-by-bot-reviewer`.
+3. **Author / human formal reviews** (`pr-formal-reviews-snapshot:`) — these are free prose with NO line, so the range rule cannot apply. Use a CONSERVATIVE match: exclude ONLY when the finding's `path` basename AND a distinctive keyword from the finding's title BOTH appear in a formal-review body. Tag `[ALREADY-RAISED-ON-PR]`, move to `## Filtered` with `reason: likely-raised-in-author-review`. When the match is uncertain (path basename appears but no strong title-keyword hit), do NOT exclude — keep the finding in the post set, because a duplicate comment is a smaller harm than a silently withheld finding (§7.4 completeness wins ties).
 
 Also exclude any finding carrying `post-disposition: off-pr` (set by the §3 open-decision gate when the user picked "Keep off the PR — I'll handle this"): append `[KEPT-OFF-PR]` to its tag list, move it to `## Filtered` with `reason: user-kept-off-pr`, and never place it in the inline `comments[]` or the body. This is the audience control for a decision residue the PR author cannot action — the decision is recorded for the reviewer, not posted to the PR.
 
-When Step 1.5 empties the post set, fall back to Skip semantics — do not call `gh api` POST; surface `All eligible findings were excluded (already-resolved threads or kept-off-PR) — nothing drafted on PR` once in chat.
+The Step 2 granularity AUQ and Step 3 per-finding gate count only non-excluded findings.
+
+When Step 1.5 empties the post set, fall back to Skip semantics — do not call `gh api` POST; surface `All eligible findings were excluded (already on the PR or kept-off-PR) — nothing drafted on PR` once in chat.
 
 ### 7.2 Step 2 — Granularity gate
 
@@ -510,9 +518,10 @@ gh pr view <pr-ref> --json headRefOid --jq '.headRefOid'
 
 Use the returned value as `commit_id`. Also overwrite state file's `pr-head-sha:` with the re-fetched value. Without this re-fetch, API rejects comments whose `path` is not present in `commit_id`'s tree with `Validation Failed: path could not be resolved`.
 
-**Split the post set:**
-- Findings with `File: <path>` whose line is present in the diff's `commit_id` tree → inline `comments[]` array. Inline-anchor every such finding regardless of severity — a LOW finding on a changed line is still an inline comment, never a body bullet. Severity gates whether a finding is kept (Phase 4.1), not where a kept finding renders.
-- Findings with `File: <path>` whose line is OUTSIDE the diff (the line is unchanged, so the reviews API rejects the inline comment with `path could not be resolved`) → top-level review `body` under a `## Findings on unchanged lines` section, each rendered as `**<SEVERITY>** \`<path>:<line>\` — <description>` so the reader can still locate it. This is the ONLY sanctioned route for a real file-finding into the body — it exists because GitHub cannot anchor a comment to a line absent from the diff, not as a catch-all for findings the orchestrator would rather batch. A finding whose line IS in the diff must never land here.
+**Split the post set.** Pick the side from the unified diff hunk the finding's line sits in: a line removed (`-`) in the hunk is LEFT (base side); an added (`+`) or context line of the new file is RIGHT; a line in no hunk routes to the body. Three file-finding routes, in order:
+- (a) Findings with `File: <path>` whose line is present on the RIGHT (an added or context line of the new file, in the diff's `commit_id` tree) → inline `comments[]` array with `side:"RIGHT"`. Inline-anchor every such finding regardless of severity — a LOW finding on a changed line is still an inline comment, never a body bullet. Severity gates whether a finding is kept (Phase 4.1), not where a kept finding renders.
+- (b) Findings with `File: <path>` on a DELETED line (present on the LEFT / base side of a diff hunk, removed by the PR) → inline `comments[]` with `side:"LEFT"` (and `start_side:"LEFT"` for a multi-line range). Using `RIGHT` here is exactly what triggers `path could not be resolved`, so a deleted-line finding sets LEFT — it does NOT fall to the body.
+- (c) Findings with `File: <path>` whose line is in NEITHER side of any hunk (truly unchanged, outside the changed ranges, so the reviews API rejects the inline comment with `path could not be resolved`) → top-level review `body` under a `## Findings on unchanged lines` section, each rendered as `**<SEVERITY>** \`<path>:<line>\` — <description>` so the reader can still locate it. This is the ONLY sanctioned route for a real file-finding into the body — it exists because GitHub cannot anchor a comment to a line absent from both sides of the diff, not as a catch-all for findings the orchestrator would rather batch. A finding whose line is on the RIGHT or LEFT side of a hunk must never land here.
 - Findings with `File: PR-METADATA` → top-level review `body` under `## PR Metadata` section.
 - Findings with `File: SPEC-COMPLIANCE` → top-level review `body` under `## Spec Compliance` section.
 
@@ -533,9 +542,9 @@ Each comment object:
 {
 "path": "<file path relative to repo root>",
 "line": <last line>,
-"side": "RIGHT",
+"side": "<RIGHT for an added/context line; LEFT for a deleted line>",
 "start_line": <first line, ONLY when range spans multiple lines; OMIT for single-line>,
-"start_side": "RIGHT",
+"start_side": "<same side as \"side\"; include only with start_line>",
 "body": "**<SEVERITY>** — <description>\n\n**Recommendation:** <recommendation>"
 }
 ```
