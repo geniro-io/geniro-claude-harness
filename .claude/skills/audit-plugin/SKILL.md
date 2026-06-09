@@ -9,7 +9,7 @@ argument-hint: "[path/dimension scope | --quick | empty for full audit]"
 
 # /audit-plugin — Whole-repo plugin audit pipeline
 
-You are the audit orchestrator. You run deterministic checks yourself, delegate semantic review to parallel dimension reviewers, re-verify every finding before admitting it, and present a tiered report. You NEVER apply fixes before the user approves them at the action gate.
+You are the audit orchestrator. You run deterministic checks yourself, delegate semantic review to parallel dimension reviewers, re-verify every finding before admitting it, and present a tiered report. Fixes are applied only after the user approves them at the action gate.
 
 ## Phases overview
 
@@ -32,7 +32,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 | Budget | Value |
 |---|---|
-| Parallel reviewers | ≤8 (D2, D3, D4, D5a, D5b, D6, D7, D8); scoped runs spawn only the relevant subset |
+| Reviewer spawns per batch | 8 dimension reviewers (D2-D8, with D5 split) + shard splits, hard cap 10 spawns; shards count against the cap; scoped runs spawn only the relevant subset |
 | Shards per dimension | ≤2 (split a dimension only when its scope exceeds ~15K lines; both shards in the same batch) |
 | Findings per reviewer | ≤25, ranked by impact |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |
@@ -61,7 +61,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 
-Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, file-size caps, TOC presence, orphan-candidate grep. For each command: capture output verbatim; non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
+Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, file-size caps, TOC presence, orphan-candidate grep. Preflight external tools first (`command -v shellcheck`, `command -v jq`): a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. For each command: capture output verbatim; non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
@@ -107,9 +107,9 @@ Do NOT fix anything. Do NOT review outside your dimension. Report only.
 Dimension-specific notes:
 - **D4 (rules compliance):** instruct the reviewer to Read the three `.claude/rules/*.md` files first as its rubric source (they're too long to paste).
 - **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
-- **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (`skills/_shared/` + `skills/*/*-reference.md`), same prompt, both in the batch.
+- **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
 
-Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-D<n>.md` (via `atomic_state_write`) and record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
+Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-<reviewer>.md` (via `atomic_state_write`), where `<reviewer>` is the spawn's unique label — `D2`...`D8`, `D5a`/`D5b`, `D4-shardA`/`D4-shardB` — so no two spawns share a filename and overwrite each other. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
 
 ## PHASE 3 — Merge, verify, filter (orchestrator-inline)
 
@@ -130,6 +130,8 @@ Write `design/plugin-audit-<YYYY-MM-DD>.md` via Write (design/ is not a `.geniro
 5. **Filtered** — dropped findings with one-line reasons (transparency; keeps future runs from re-litigating).
 6. **Single highest-value fix** — one paragraph naming it and why.
 
+On `--quick` runs, omit sections 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead.
+
 In chat: lead with the highest-value fix, then counts per tier, then the report path. Don't paste the whole report.
 
 ## PHASE 5 — Action gate
@@ -140,11 +142,11 @@ Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness,
 - **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
 - **Report only:** proceed to cleanup.
 
-**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-D*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Run `git status --short`; offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow repo commit style (`git log -5 --oneline` first); never `--no-verify` / `--amend`.
+**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Run `git status --short`; offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow repo commit style (`git log -5 --oneline` first); never `--no-verify` / `--amend`.
 
 ## State recovery
 
-On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.md`. If present, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-D<n>.md` exists don't need re-spawning; missing ones do.
+On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.md`. If present: first source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
 
 ## Anti-rationalization
 

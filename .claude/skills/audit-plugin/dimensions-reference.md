@@ -28,7 +28,7 @@ Dimensions are review lenses; tiers classify the output. Every finding gets exac
 | T1 | Correctness | Logic bugs, gates that can never fire, producer/consumer schema mismatch, shell bugs with behavioral impact, untested live data-mutating code |
 | T2 | Rule violations | Breaches of `.claude/rules/*` hard exclusions or hard structural rules (description >1024, reference-graph inversion, non-English, dangling refs) |
 | T3 | Staleness & drift | Dead references, doc-vs-reality drift, stale conditionals, orphaned files |
-| T4 | Maintainability | Duplicated single-source content, unexplained or multi-homed constants, over-complication, anti-rationalization dead weight |
+| T4 | Maintainability | Duplicated single-source content, unexplained or multi-homed constants, over-complication, anti-rationalization dead weight, latent-but-unreachable defects, test-coverage-map gaps |
 | T5 | Cosmetic | Title-Case headers, terminology mixes, caps-without-reasoning, provenance citations |
 
 ## Finding output contract (shared reviewer schema)
@@ -37,7 +37,7 @@ Every reviewer returns a Markdown table with EXACTLY these columns, one row per 
 
 | Column | Content |
 |---|---|
-| `id` | `D<dim>-<n>` (e.g. `D3-4`) |
+| `id` | `D<dim>-<n>` (e.g. `D3-4`; sub-reviewers keep their label — `D5a-2`, `D4-shardB-1`) |
 | `tier` | T0-T5 per the table above |
 | `file:line` | Real location — verified by the reviewer with Read before reporting. Use `file:start-end` for ranges. |
 | `issue` | One sentence, plain English |
@@ -57,7 +57,7 @@ A finding without a verifiable `file:line` + verbatim `evidence` is inadmissible
 |---|---|---|
 | Test suites | `bash tests/run-all.sh` | T1 |
 | Authoring lint | `bash tests/authoring/lint-skills.sh` (hard fails → findings; warnings → advisory findings) | T2 / T4 |
-| ShellCheck | `find hooks lib tests -name '*.sh' -exec shellcheck -S error {} +` (errors → T1); re-run `-S warning` (advisory → T4). `find`, not `tests/**/*.sh` — `**` needs globstar and silently misses top-level files without it | T1 / T4 |
+| ShellCheck | Preflight `command -v shellcheck` (absent → "skipped: tool unavailable", never a finding). Then `find hooks lib tests -name '*.sh' -exec shellcheck -S error {} +` (errors → T1); re-run `-S warning` (advisory → T4). `find`, not `tests/**/*.sh` — `**` needs globstar and silently misses top-level files without it | T1 / T4 |
 | Deleted-skill refs | `grep -rnE 'geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)' skills/ agents/ hooks/ lib/` — matches are CANDIDATES for D3 adjudication (CLAUDE.md's deleted-skills table is a legitimate mention) | feed D3 |
 | hooks.json wiring | Every script referenced in `hooks/hooks.json` exists in `hooks/`; every `hooks/*.sh` + `hooks/*.js` is either registered or documented as library/manual | T1 |
 | Frontmatter fields | Every `skills/*/SKILL.md` has `name`, `description`, `context`, `model`, `allowed-tools`, `argument-hint`; description ≤1024 chars | T2 |
@@ -69,10 +69,10 @@ Record full battery output to the state checkpoint. Machine findings are pre-ver
 
 ## D2 — Cross-file consistency
 
-**Scope:** `CLAUDE.md`, `README.md`, `HOOKS.md`, `MIGRATION.md`, `skills/`, `agents/`, `hooks/` (checks 1-2 compare doc claims against actual script matchers), `lib/` (check 4 compares helper contracts against the scripts). **Method:** LLM reviewer, grep-grounded.
+**Scope:** `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `MIGRATION.md`, `skills/`, `agents/`, `hooks/` (check 1 compares doc claims against actual script matchers), `lib/` (check 4 compares helper contracts against the scripts). **Method:** LLM reviewer, grep-grounded.
 
 Checks:
-1. **Docs-vs-reality drift.** CLAUDE.md skills table, README, and HOOKS.md claims vs actual skill/hook behavior: listed skills exist, described flags/phases/paths match the SKILL.md body, hook descriptions match the script's actual matchers and bypass IDs.
+1. **Docs-vs-reality drift.** CLAUDE.md skills table, README, HOOKS.md, ARCHITECTURE.md, and CONTRIBUTING.md claims vs actual skill/hook/helper behavior: listed skills exist, described flags/phases/paths match the SKILL.md body, hook descriptions match the script's actual matchers and bypass IDs, design rationale cited from ARCHITECTURE.md still matches the code that cites it.
 2. **Description-vs-body drift.** Each SKILL.md frontmatter `description:` vs what the body actually does (flags, phases, outputs).
 3. **Schema lockstep.** For every state-file / handoff field a producer writes (per `skills/_shared/state-tier-spec.md`), confirm consumers read the same field name and shape; flag fields written-but-never-read or read-but-never-written.
 4. **Helper contract drift.** For each `_shared/*.md` helper and `lib/*.sh` script: do callers pass the slots / flags / MODE values the contract defines? Do cited exit codes match the script?
@@ -148,7 +148,7 @@ Tier mapping: T4 by default; pure-style items → T5. Never propose trimming loa
 
 **Scope:** `skills/`, `agents/`, `hooks/`, `lib/`. **Method:** LLM reviewer seeded with a number-density grep.
 
-Seed grep (orchestrator runs, pastes matches into the prompt): `grep -rnoE '(≤|>=|<=|≥|max |cap |within )[0-9]+|[0-9]+ (retries|rounds|lines|files|questions|attempts|seconds|chars|tokens)' skills/ agents/ | sort | uniq -c | sort -rn | head -80` plus `grep -rnE '[0-9]{3,}' hooks/ lib/ --include='*.sh' | grep -v ':[[:space:]]*#'` (POSIX class, not `\s` — BSD grep treats `\s` as a literal `s`).
+Seed grep (orchestrator runs, pastes matches into the prompt): `grep -rhoE '(≤|>=|<=|≥|max |cap |within )[0-9]+|[0-9]+ (retries|rounds|lines|files|questions|attempts|seconds|chars|tokens)' skills/ agents/ | sort | uniq -c | sort -rn | head -80` — `-h`, not `-n`: a `file:line:` prefix makes every line unique, so `uniq -c` would count nothing and the multi-homed-constant signal vanishes; the reviewer greps locations for the candidates it pursues. Plus `grep -rnE '[0-9]{3,}' hooks/ lib/ --include='*.sh' | grep -v ':[[:space:]]*#'` (POSIX class, not `\s` — BSD grep treats `\s` as a literal `s`).
 
 Checks:
 1. **Unexplained thresholds.** A numeric limit with no adjacent rationale and no citation to a canonical source. The fix is an inline WHY or a citation — keep the number itself.
