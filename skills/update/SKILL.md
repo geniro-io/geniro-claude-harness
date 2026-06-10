@@ -278,10 +278,13 @@ For each entry, in file order (newest cohort first — entries are independent, 
 
 1. If the `Auto-detect:` value begins with `N/A` (case-insensitively), it is an informational entry with no runnable detector — skip execution and treat the entry as not-affected (no AUQ). Never pass an `N/A — ...` value to `bash -c`: the prose carries `;`/`&&` that would execute its trailing fragments as commands. Otherwise run the entry's `Auto-detect:` shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the walk. Run each entry's command in isolation so one failing detect cannot cascade into the rest. Capture output.
 2. If output empty → user not affected; log "skipped (not affected): <change-name>"; continue.
-3. If output non-empty → AUQ:
-- **Question:** `Breaking change in v<X.Y.Z>: <change-name>. <Action required text>. Auto-detected N affected files: <first 10 lines truncated>`
+3. If output non-empty → **live-task guard, then AUQ**:
+
+**Live-task guard (delete-class entries only).** When the entry's `Auto-fix:` is delete-class (contains `rm`, `-delete`, or `-exec rm`) and any detected path sits inside a task-dir (`.geniro/planning/<task-dir>/` or `.geniro/state/<skill>/<slug>/`), read each owning dir's `state.md` before building the AUQ: the task is live when `state.md` exists with a non-terminal `phase:`/`status:` (the same terminal-state test the session-start restore hook applies; when unsure, treat the task as live). A maintainer-written auto-fix matches paths mechanically and cannot know which task is mid-run — the walk supplies that check. Live-task paths are excluded from `Fix it for me` and named in the AUQ question; they re-detect as orphans once their task finishes. Never delete a live task's files even when the documented command would match them.
+
+- **Question:** `Breaking change in v<X.Y.Z>: <change-name>. <Action required text>. Auto-detected N affected files: <first 10 lines truncated>` — when the guard excluded live-task paths, append `; <M> of these belong to a live task (<dir>: <phase/status>) and are excluded from the fix`.
 - **Options:**
-- `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry via `bash -c` (same shell-safety reason as the detect). If the entry's `Auto-fix:` value begins with `manual-only` (matched case-insensitively, so `Manual-only` is caught too) or the field is absent, fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` via `bash -c` to verify — if still affected, warn and continue.
+- `Fix it for me (Recommended)` — Run the `Auto-fix:` commands from the MIGRATION.md entry via `bash -c` (same shell-safety reason as the detect). When the guard excluded live-task paths, do NOT run the blanket documented command — apply the same operation restricted to the orphan path set (narrowing the target set is the one sanctioned deviation; the operation itself stays as documented). If the entry's `Auto-fix:` value begins with `manual-only` (matched case-insensitively, so `Manual-only` is caught too) or the field is absent, fall back to printing the manual instructions and continue. After fix, re-run `Auto-detect:` via `bash -c` to verify — if still affected, warn and continue; paths the guard deliberately kept are expected to re-detect on a status-blind detector — log those as deferred-live, not as a fix failure.
 - `Show me how to fix manually` — Print the `Action required:` text with exact commands; continue to next entry.
 - `Skip for now` — Log skipped; continue to next entry.
 - `Cancel migration walk` — Stop here; log remaining; terminate and emit final report.
@@ -290,7 +293,7 @@ After last entry: terminate and emit final report.
 
 If MIGRATION.md is present but malformed (cannot parse the heading structure), skip Phase 4 with one warning line: `[warn] MIGRATION.md present but malformed — proceeding without walk`.
 
-**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. Entries whose `Auto-fix:` value is `manual-only` (matched case-insensitively) require user action — print the manual steps instead.
+**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. The single sanctioned deviation is the live-task guard above: restricting a delete-class command to the orphan subset of its detected paths (same operation, narrower target set) — widening scope, changing the operation, or improvising a different fix stays forbidden. Entries whose `Auto-fix:` value is `manual-only` (matched case-insensitively) require user action — print the manual steps instead.
 
 ## Done — Final report
 

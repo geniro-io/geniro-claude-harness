@@ -2,7 +2,7 @@
 
 Plugin-maintainer-authored breaking-change log consumed by `/geniro:update` Phase 4 and the `/geniro:setup` re-run migration sweep.
 
-**Consumption contract (both consumers).** The `## vX.Y.Z` headings group changes into feature cohorts for human readability — they track plugin features, not the package's semver version, so a cohort's heading number can sit outside the installed package's version range while its features are already live (the "v3.0.0" cohort shipped across several 2.x releases). Consumers therefore do NOT select entries by version range. Walk *every* `### <name>` entry across *all* sections and run its `Auto-detect:` command — these are read-only (`grep` / `find` / `ls` only — never mutate) and report whether THIS install is affected. The auto-detect output is the sole relevance signal: an empty result means the install is already current for that entry and it is skipped. This contract governs entry selection and the relevance signal; each consumer applies and re-verifies an entry's `Auto-fix:` per its own interaction model.
+**Consumption contract (both consumers).** The `## vX.Y.Z` headings group changes into feature cohorts for human readability — they track plugin features, not the package's semver version, so a cohort's heading number can sit outside the installed package's version range while its features are already live (the "v3.0.0" cohort shipped across several 2.x releases). Consumers therefore do NOT select entries by version range. Walk *every* `### <name>` entry across *all* sections and run its `Auto-detect:` command — these are read-only (`grep` / `find` / `ls` / `printf`-class only — never mutate) and report whether THIS install is affected. The auto-detect output is the sole relevance signal: an empty result means the install is already current for that entry and it is skipped. This contract governs entry selection and the relevance signal; each consumer applies and re-verifies an entry's `Auto-fix:` per its own interaction model.
 
 For users installing the plugin fresh (no pre-existing `.geniro/`), this file is purely informational — `/geniro:setup` writes the current schema directly.
 
@@ -46,12 +46,30 @@ A new read-only `reflection-agent` (with inline equivalents in /plan and /onboar
 
 **Action required:** Delete any pre-v3 orphan transient files left behind inside completed task-dirs.
 
-**Auto-detect:** `find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' \) 2>/dev/null`
+Both commands below share one liveness predicate: a transient is an orphan only when its task-dir's `state.md` is missing or terminal (`phase:` done/aborted/routed/failed, or `status:` done/completed/failed/aborted/routed — the core of the session-restore hook's terminal sets). Transients inside a live task-dir are the working files of an in-flight run, not orphans — they are never matched, and they become detectable once that task finishes. A status-blind glob here once flagged (and would have deleted) a running `/implement` task's research outputs.
+
+**Auto-detect:**
+
+```bash
+find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' \) -exec sh -c '
+  for f do
+    s="${f%/*}/state.md"
+    if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then
+      printf "%s\n" "$f"
+    fi
+  done' sh {} + 2>/dev/null
+```
 
 **Auto-fix:**
 
 ```bash
-find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' \) -exec rm -f {} + 2>/dev/null
+find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' \) -exec sh -c '
+  for f do
+    s="${f%/*}/state.md"
+    if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then
+      rm -f "$f"
+    fi
+  done' sh {} + 2>/dev/null
 ```
 
 **Severity:** LOW — orphan transient files are inert; v3 `/implement` creates and cleans them per-run.
