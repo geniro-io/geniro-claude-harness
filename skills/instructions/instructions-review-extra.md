@@ -31,7 +31,7 @@ Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a diffe
 - **Use `paths:` to scope narrow reviewers.** A reviewer that only matters for SQL files should not run on every PR — set `paths: ["**/*.sql", "**/dao/*.{ts,py}"]` so it fires only when at least one changed file matches. An always-fires reviewer (no `paths:` field) burns reviewer-agent budget on diffs where it can never find anything.
 - **Declare `requires-context:` if the reviewer needs live external data.** A reviewer that matches the diff against a Notion page, a Linear issue, or an API response can't fetch that data itself — it runs in a subagent with no MCP access. Write a natural-language `requires-context:` directive naming the source and what to extract; the orchestrator fetches it and injects it as a `CUSTOM CONTEXT:` block before the reviewer runs (fail-open if the source is unavailable). Without it, a reviewer whose criteria reference external data silently sees none and produces empty or hallucinated findings.
 - **Test the reviewer on one diff before committing it.** Invoke `/geniro:review` against a known-good PR and a known-bad PR and confirm findings appear and look right. A misfiring reviewer pollutes every subsequent review with noise.
-- **Pick `model:` to match check depth.** Use `haiku` for narrow pattern matchers (regex-like checks). Use `sonnet` (default) for most semantic checks. Reserve `opus` for deep architectural concerns where Sonnet would miss the intent.
+- **Omit `model:` unless this reviewer needs a deliberate tier pin.** Omitted means the reviewer inherits the orchestrator's tier (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`), which is right for most semantic checks. Declare `haiku` only for narrow pattern matchers (regex-like checks) where speed matters; declare `opus` only for deep architectural concerns that must run strong even from a cheaper session.
 - **Sweet-spot count is 4-6 custom reviewers.** The skill warns when you'd create the 7th (i.e., exceed the sweet spot) and hard-refuses at the 11th (see "Count caps" below). Too many narrow reviewers fragment attention; consolidate when two reviewers' criteria overlap.
 
 ## Mode: create — review-extra variant
@@ -97,14 +97,14 @@ Use `AskUserQuestion` with no options (free-form via "Other"):
 ### Step 6: Optional model override
 
 Use `AskUserQuestion`:
-- **Question:** "Which model should run this reviewer? Sonnet handles most semantic checks well; Haiku is good for narrow pattern matchers; Opus is for deep architectural concerns."
+- **Question:** "Which model should run this reviewer? By default it inherits whatever model your session runs on; pin a specific model only if this check should always run cheaper or stronger than the session."
 - **Options:**
-- label: "sonnet (Recommended)" — description: "Default — best balance of cost and depth for semantic checks"
-- label: "haiku" — description: "Cheap and fast — best for narrow regex-like pattern checks"
-- label: "opus" — description: "Most thorough — use for deep architectural / cross-file concerns"
-- label: "Skip — use default sonnet" — description: "Omit the model field; default to sonnet"
+- label: "Inherit session model (Recommended)" — description: "Omit the model field — the reviewer runs at the same tier as your session"
+- label: "haiku" — description: "Pin cheap and fast — best for narrow regex-like pattern checks"
+- label: "sonnet" — description: "Pin the mid tier — solid semantic checks at fixed cost"
+- label: "opus" — description: "Pin the strongest tier — deep architectural / cross-file concerns that must run strong even from a cheaper session"
 
-On "Skip", omit the `model:` field from frontmatter.
+On "Inherit session model", omit the `model:` field from frontmatter (omitted = inherit, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`).
 
 ### Step 7: Optional paths globs
 
@@ -159,13 +159,12 @@ Store the answer verbatim as the `requires-context:` frontmatter value. On "No e
 
 Assemble the frontmatter (omitting fields the user skipped) and route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
 
-Example output for the `sql-bindings` walk-through:
+Example output for the `sql-bindings` walk-through (the user picked "Inherit session model" at Step 6, so `model:` is omitted):
 
 ```yaml
 ---
 slug: sql-bindings
 description: All SQL queries use parameterized bindings, never string concatenation
-model: sonnet
 paths:
 - "**/*.sql"
 - "**/dao/*.{ts,py}"

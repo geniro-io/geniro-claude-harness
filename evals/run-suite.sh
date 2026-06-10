@@ -72,6 +72,10 @@ case " $* " in
 esac
 
 SKILL="geniro:plan"
+# Judge pinned for cross-run comparability (meta.json models_resolved_at marks when this was chosen).
+# Passed as --model on every judge call so the recorded judge_model is the model that actually graded —
+# without the pin the judge silently runs at the CLI's ambient default while meta.json claims opus.
+JUDGE_MODEL="claude-opus-4-8"
 SUITE=""
 CANDIDATE=""
 BASELINE=""
@@ -146,9 +150,10 @@ echo "run-suite: workspace = $WORKSPACE"
 write_meta() {
   mkdir -p "$WORKSPACE"
   jq -n --arg skill "$SKILL_SHORT" --arg cand "$CANDIDATE" --arg base "$BASELINE" \
+    --arg jm "$JUDGE_MODEL" \
     --argjson holdout "$HOLDOUT" '{
       schema_version:"benchmark-v1", skill:$skill, candidate_ref:$cand, baseline_ref:$base,
-      executor_model:null, judge_model:"claude-opus-4-8", judge_temperature:0.0, executor_temperature:1.0,
+      executor_model:null, judge_model:$jm, judge_temperature:0.0, executor_temperature:1.0,
       models_resolved_at:"2026-06-06", auq_autoanswer_policy:"approve-default-v1",
       holdout_partition:$holdout, position_swapped:true,
       primary_metric:"quality_winrate_vs_baseline", primary_null:0.5
@@ -181,8 +186,8 @@ agent_prompt() { cat "$VENDOR/$1" 2>/dev/null || { echo "run-suite: pinned $1 no
 # preamble), then `jq first(inputs)` returns the first object and LAZILY ignores trailing prose.
 claude_json() {
   local prompt="$1" raw
-  raw="$(run_claude -p "$prompt" --output-format json 2>/dev/null | jq -r '.result // empty' 2>/dev/null)"
-  [ -n "$raw" ] || raw="$(run_claude -p "$prompt" 2>/dev/null)"     # fallback: plain text
+  raw="$(run_claude -p "$prompt" --model "$JUDGE_MODEL" --output-format json 2>/dev/null | jq -r '.result // empty' 2>/dev/null)"
+  [ -n "$raw" ] || raw="$(run_claude -p "$prompt" --model "$JUDGE_MODEL" 2>/dev/null)"     # fallback: plain text
   printf '%s' "$raw" | tr -d '\r' | sed -e 's/^```json//' -e 's/^```//' -e 's/```$//' \
     | awk 'f{print;next}{i=index($0,"{");if(i>0){print substr($0,i);f=1}}' \
     | jq -cn 'first(inputs)' 2>/dev/null

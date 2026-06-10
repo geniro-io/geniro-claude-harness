@@ -16,16 +16,17 @@ You are the orchestrator for investigating and fixing issues in the geniro-claud
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Every `Agent(...)` spawn MUST be explicit about its tier — pass `model=` explicitly for mechanical/bounded agents, OMIT `model=` for the reasoning-grade carve-out (frontmatter-declared `model: inherit`) so the synthesis tier mirrors orchestrator. For plugin-defined subagents (`reviewer-agent`, `adversarial-tester-agent` — 2 agents post-rationalization), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined (frontmatter stripped).
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`: spawn sites OMIT `model=` so every subagent inherits the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off; a skill-side hardcode (e.g. forcing opus from a Sonnet session) overrides that choice silently. For plugin-defined subagents (`reviewer-agent`, `adversarial-tester-agent` — 2 agents post-rationalization), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined (frontmatter stripped).
 
 **Skill-specific mapping:**
 
 | Spawn | Tier | Why |
 |---|---|---|
-| Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | `opus` (passed explicitly) | Reasoning-grade research, but general-purpose — not a carve-out subagent |
+| Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | inherit (OMIT `model=`) | Reasoning-grade research runs at the tier the user chose for the session |
 | Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits orchestrator's main context cleanly per subagent rationalization |
-| Phase 4 implementation agents | `opus` (passed explicitly) | General-purpose — not a carve-out subagent |
-| Phase 5 review agent | `opus` (passed explicitly) | General-purpose fresh reviewer — not a carve-out subagent |
+| Phase 4 implementation agents | inherit (OMIT `model=`) | Template edits are the deliverable — they run at the user's chosen tier |
+| Phase 5 review agent | inherit (OMIT `model=`) | Fresh reviewer judges at the same tier that authored the changes |
+| Create-skill Phase A duplicate-check + Phase B author agent | inherit (OMIT `model=`) | Semantic comparison and skill authoring are reasoning-grade |
 
 ---
 
@@ -111,7 +112,7 @@ Spawn ONLY the agents the Matrix selected — all in the same assistant turn, NO
 Replace every `{{placeholder}}` with the actual content from Step 1 before spawning.
 
 ```
-Agent(model="opus", prompt="""
+Agent(prompt="""
 ## Task: Internet Research
 Search for patterns, best practices, and known solutions related to:
 {{issue description from Step 1}}
@@ -130,7 +131,7 @@ For each finding, provide:
 Return findings as a structured table. Do NOT suggest implementation — research only.
 """, description="Research: internet patterns")
 
-Agent(model="opus", prompt="""
+Agent(prompt="""
 ## Task: ARCHITECTURE.md Research
 Read `ARCHITECTURE.md` and search for sections relevant to:
 {{issue description from Step 1}}
@@ -151,7 +152,7 @@ For each finding, provide:
 Return findings as a structured table. Do NOT suggest implementation — research only.
 """, description="Research: ARCHITECTURE.md patterns")
 
-Agent(model="opus", prompt="""
+Agent(prompt="""
 ## Task: Codebase Exploration
 Explore the current state of the template files related to:
 {{issue description from Step 1}}
@@ -294,7 +295,7 @@ Group approved findings into implementation units:
 Pre-inline the current file content each agent needs (from Phase 1 codebase research).
 
 ```
-Agent(model="opus", prompt="""
+Agent(prompt="""
 ## Task: Implement Changes
 Apply the following approved changes:
 
@@ -351,7 +352,7 @@ If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix roun
 MUST be a fresh agent — never reuse implementation agents (avoids anchoring bias).
 
 ```
-Agent(model="opus", prompt="""
+Agent(prompt="""
 ## Task: Independent Review of Template Changes
 Review changes made to the geniro-claude-plugin template. You were NOT involved in
 researching or implementing these changes — review with fresh eyes.
@@ -504,11 +505,11 @@ your existing validation infrastructure (validation gate + relevance-filter
    - (Optional, if applicable) **Subagents**: "Does this skill spawn subagents? Which existing agent definitions, or new ones?"
    - (Optional, if applicable) **Workflow file integration**: "Should this skill read from `.geniro/workflow/*.md` (Linear, GitHub Issues, etc.)?"
 
-4. **Pre-existing-instruction check.** Spawn a generic Agent (`subagent_type="general-purpose"`) with `model="sonnet"` and a focused prompt: pre-inline (a) the proposed skill's purpose + trigger + outputs, (b) the existing skills inventory (`Glob skills/**/SKILL.md` summary as a list of `name | description-first-line` pairs), (c) the project-local skills inventory (`Glob .claude/skills/**/SKILL.md`). The agent's task: read each existing skill's full description (and the first 30 lines of any with significant trigger overlap), then return a structured table with columns `name | overlap-level (none|partial|significant) | overlap-rationale | recommendation (proceed | extend-existing | reject)`. The orchestrator decides KEEP (proceed to Phase B) or REJECT (route the user to the existing skill instead). Without this check, the codebase accumulates near-duplicate skills.
+4. **Pre-existing-instruction check.** Spawn a generic Agent (`subagent_type="general-purpose"`, `model=` omitted — inherits orchestrator tier) with a focused prompt: pre-inline (a) the proposed skill's purpose + trigger + outputs, (b) the existing skills inventory (`Glob skills/**/SKILL.md` summary as a list of `name | description-first-line` pairs), (c) the project-local skills inventory (`Glob .claude/skills/**/SKILL.md`). The agent's task: read each existing skill's full description (and the first 30 lines of any with significant trigger overlap), then return a structured table with columns `name | overlap-level (none|partial|significant) | overlap-rationale | recommendation (proceed | extend-existing | reject)`. The orchestrator decides KEEP (proceed to Phase B) or REJECT (route the user to the existing skill instead). Without this check, the codebase accumulates near-duplicate skills.
 
 ### Phase B: Draft (one author-agent spawn, then validate)
 
-1. **Spawn an author agent** (`model: opus`, general-purpose) with:
+1. **Spawn an author agent** (general-purpose, `model=` omitted — inherits orchestrator tier) with:
    - The full Phase A interview transcript (pre-inlined)
    - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
    - Constraints (pre-inlined): description rules from Phase 4 validator below + the 500-line target / 700-line hard ceiling from `.claude/rules/skill-structure.md` § File-size limits + reference depth ≤1 hop + edit-in-place principle

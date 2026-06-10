@@ -96,7 +96,7 @@ The `review-extra` scope is **directory-style** — one file per custom reviewer
 ---
 slug: sql-bindings # REQUIRED; matches filename; must NOT collide with built-in dimensions
 description: All SQL queries use parameterized bindings, never string concatenation
-model: sonnet # OPTIONAL; haiku|sonnet|opus; default sonnet
+model: sonnet # OPTIONAL; haiku|sonnet|opus|inherit; omitted = inherit (orchestrator tier)
 paths: # OPTIONAL; list of globs; absent = always fires
 - "**/*.sql"
 - "**/dao/*.{ts,py}"
@@ -116,7 +116,7 @@ What to NOT flag:
 **Frontmatter field reference:**
 - `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. The slug must not match a built-in dimension name (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `rules-compliance`) — the loader treats a colliding slug as the built-in reviewer and the custom criteria silently never run. Keep this list in sync with `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Step 2 (Validate the slug), which runs the same collision check.
 - `description` (required) — one-line summary, ≤250 chars.
-- `model` (optional) — `haiku`/`sonnet`/`opus`; default `sonnet`.
+- `model` (optional) — `haiku`/`sonnet`/`opus`/`inherit`; omitted = `inherit` (the reviewer runs at the orchestrator's tier, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`). Declare a tier only to deliberately pin this reviewer cheaper or stronger than the session.
 - `paths` (optional) — list of globs.
 - `severity-default` (optional) — `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`; default `MEDIUM`.
 - `requires-context` (optional) — natural-language directive naming the live external data this reviewer needs (a Notion page, a Linear issue, an API response). The reviewer runs in a subagent that can't call MCP, so the orchestrator pre-fetches the data and injects it as a `CUSTOM CONTEXT:` block at spawn time, failing open if it's unavailable (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context). Omit unless the reviewer genuinely needs external data. Example: `requires-context: "Fetch the live Notion Incident Report (latest entry) and provide its incident-pattern list."`
@@ -395,7 +395,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 
 | Scope | Extra checks |
 |---|---|
-| `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` describes intent (LOW preference); `model` in `{haiku, sonnet, opus}` if present; `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present; `requires-context` is a non-empty string if present |
+| `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` describes intent (LOW preference); `model` in `{haiku, sonnet, opus, inherit}` if present (matches `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §validation); `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present; `requires-context` is a non-empty string if present |
 | `code-style.md` | At least 1 rule under `## Rules` — LOW warning if empty (no-op file) |
 
 **description lint rules** (applied to `review-extra/<slug>.md` frontmatter `description:` field only):
