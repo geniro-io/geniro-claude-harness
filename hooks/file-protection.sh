@@ -148,10 +148,15 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # before any extraction; the line carrying the << operator itself is kept, so
   # `cat <<EOF > .env` still yields its redirect target.
   SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
-    hd && $0 == tag { hd = 0; next }
-    hd { next }
+    hd {
+      line = $0
+      if (dash) sub(/^\t+/, "", line)   # <<- strips leading TABS from the terminator
+      if (line == tag) hd = 0
+      next
+    }
     match($0, /<<-?["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
       tag = substr($0, RSTART, RLENGTH)
+      dash = (tag ~ /^<<-/)
       sub(/^<<-?/, "", tag)
       gsub(/["'\'']/, "", tag)
       hd = 1
@@ -256,7 +261,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 fi
 
 # ---- Edit/Write/MultiEdit branch ----
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
 
 if [ -z "$FILE_PATH" ]; then
   # No file path found, allow execution

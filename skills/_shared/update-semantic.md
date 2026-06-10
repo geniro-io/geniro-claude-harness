@@ -89,13 +89,15 @@ deferred_writes=()
 attempt_update() {
  update_semantic "$@"
  if [ $? -eq 11 ]; then
- deferred_writes+=("$*")
+ # %q-quote each arg so a multi-word --append/--replace value survives the
+ # eval replay as ONE argument ("$*" would re-split it into many).
+ deferred_writes+=("$(printf '%q ' "$@")")
  fi
 }
 
 # At skill completion, drain the queue
 for w in "${deferred_writes[@]}"; do
- # eval ok here because args are skill-controlled
+ # eval safe here: args were %q-quoted at enqueue time
  eval "update_semantic $w"
 done
 ```

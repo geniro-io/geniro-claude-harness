@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # block-config-weakening.sh
-# PreToolUse hook for Edit|Write — blocks edits to an EXISTING lint / formatter /
-# type-checker config file.
+# PreToolUse hook for Edit|Write|MultiEdit|NotebookEdit — blocks edits to an EXISTING
+# lint / formatter / type-checker config file.
+#
+# Scope is DELIBERATELY file-tool-only: a shell-side weakening (`sed -i` on
+# tsconfig.json, `>> .eslintignore`) is NOT caught here. Detecting "this shell write
+# weakens a config" from a command string is coarse and false-positive-prone, so that
+# surface is left to /geniro:review (which reads the resulting diff against the rules).
+# This is the same file-tool-only posture as security-pattern-check + enforce-tdd-order.
 #
 # Rationale: editing an established linter/formatter/type-checker config to silence
 # a check (disable a rule, loosen tsconfig strictness, add an ignore entry) hides
@@ -28,7 +34,7 @@ fi
 # Consume stdin — REQUIRED first step.
 INPUT=$(cat)
 
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
 if [ -z "$FILE_PATH" ]; then
   exit 0
 fi

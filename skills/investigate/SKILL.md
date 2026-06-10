@@ -375,7 +375,7 @@ T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative —
 - Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
 
 **Phase 3 (Synthesize+Review+Present):**
-- Allowed: Read (for re-reading cited files during synthesis).
+- Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up + the save-routing gate) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
 - Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
 - Fresh verifier agent: Read / Grep (no Edit / Write).
 - Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` or `docs/decisions/` only). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks. The learnings save routes through `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` via Bash (matching the body Step 4a routing), because a raw Write to the append-only `.geniro/knowledge/learnings.jsonl` truncates the log and bypasses secret-redaction.

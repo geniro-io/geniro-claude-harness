@@ -37,9 +37,11 @@ Producers do NOT need to validate the file they just wrote — the write helper 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
 
-if ! validate_state_file ".geniro/planning/dark-mode/state.md"; then
-  rc=$?
-  # Handle recovery per the Recovery AUQ template — open recovery AUQ.
+# Capture rc directly — inside `if ! cmd` the special var $? holds the negated
+# test status (always 0), so per-exit-code routing must read rc from the call.
+validate_state_file ".geniro/planning/dark-mode/state.md"; rc=$?
+if [ "$rc" -ne 0 ]; then
+  # Handle recovery per the Recovery AUQ template (route on $rc) — open recovery AUQ.
   ...
 fi
 ```

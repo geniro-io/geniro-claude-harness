@@ -18,11 +18,11 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 ### 1. `single_objective`
 
-**Rule:** Section 1 (Objective) body contains exactly one sentence ending in a period, declarative form (not imperative, not interrogative).
+**Rule:** Section 1 (Objective) body contains exactly one sentence ending in a period, stated as a goal (imperative "Add X." or declarative "X is added." — not interrogative).
 
-**Heuristic:** sentence-count and final-token check.
+**Heuristic:** sentence-count and final-token check (final token is a period, not `?`).
 
-**Fix hint on fail:** "Section 1 must be exactly one declarative sentence ending in a period. Got: <N> sentences OR non-declarative final token. Rewrite as a single goal statement."
+**Fix hint on fail:** "Section 1 must be exactly one goal sentence ending in a period. Got: <N> sentences OR a question. Rewrite as a single goal statement."
 
 ### 2. `bounded_scope`
 

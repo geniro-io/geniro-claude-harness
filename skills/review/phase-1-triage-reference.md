@@ -105,7 +105,10 @@ Decision tree (first match wins; evaluate top-down):
    AND no continuing-work signals match
    ⇒ Fire 2-option AUQ (header: "Git workspace"):
         A) "Create review worktree" — runs:
-             git worktree add .claude/worktrees/review-<short-slug> <CURRENT_BRANCH>
+             git worktree add --detach .claude/worktrees/review-<short-slug> <CURRENT_BRANCH>
+             # --detach: <CURRENT_BRANCH> is already checked out in this (main) worktree,
+             # so a non-detached add would fail "already used by worktree". A read-only
+             # review only needs the tree at that commit, not a second branch checkout.
              EnterWorktree(...)
            Slug source: spec.title (if resolvable) / `$ARGUMENTS` first token / branch name. Per
            `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.

@@ -140,6 +140,9 @@ linear-task-ref: <ENG-123|null>
 linear-parent-ref: <ENG-100|null>
 simplify-mode: <true|false>
 resolved-threads-snapshot: [<path:line entries|null>]
+pr-bot-comments-snapshot: [<path:line entries|null>]   # read by §7.1 dedup check 2
+pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3
+prior-round-summary: <text|null>                       # written/read across re-run rounds (§7)
 approvals: []
 non-resumable-actions: []
 open_questions:                       # MUST be present; MAY be empty []
