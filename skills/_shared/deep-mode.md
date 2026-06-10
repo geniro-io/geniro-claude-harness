@@ -41,6 +41,7 @@ Deep mode invokes the Workflow tool from inside the skill — sanctioned because
 3. **Path constants outside template literals.** A bare `${...}` inside a workflow backtick template literal is read as JS interpolation and crashes the script — `${CLAUDE_PLUGIN_ROOT}`, a literal bash `${var^^}`, etc. Build such strings as plain constants before the literal, or write them in plain words inside prompts.
 4. **OMIT `model=` at every spawn.** Voters and passes inherit the orchestrator tier (`model: inherit`). Tier-pinning to control cost defeats the user's session `/model` choice — the cost knob is the opt-in flag, not a silent downgrade of the agents.
 5. **Agent registration.** The `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` prefixed→bare→general-purpose ladder is awkward inside a single `agent({agentType})` call. Resolve by passing the session-resolved registration rung as `agentType`, or by spawning `general-purpose` with the agent body (frontmatter stripped) inlined into the prompt. If registration fails inside the workflow runtime, fail-safe to the non-workflow single-pass path (§5).
+6. **No `run_in_background` on the Workflow call.** The Workflow tool has no `run_in_background` parameter — workflows always run in the background. That parameter belongs to `Bash`/`Agent`; passing it to the Workflow call fails with a schema error and the deep stage never starts. Omit it.
 
 ## 5. Fail-safe ladder
 

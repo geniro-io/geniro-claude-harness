@@ -10,6 +10,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### State-helper enforcement now hard-blocks direct writes to `.geniro/` state paths (incl. Bash-side)
+
+`hooks/enforce-state-helper.sh` flips from warn-mode to hard-block, and now also covers the `Bash` tool. Direct `Edit`/`Write`/`MultiEdit` to a canonical state path under `.geniro/` (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`) is blocked (exit 2), as are Bash-side writes into the same paths (redirection `>`/`>>`, `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=`). Reads stay allowed, commands invoking the sanctioned helpers (`atomic_state_write` / `atomic_state_append`) are allowed, and paths under `.geniro/state/tdd/` are exempt (the TDD-order hook writes that file via its own mktemp + mv procedure). The prior warn-mode let a consumer session ignore 42 warnings in one run; the block makes the contract enforceable.
+
+**Action required:** Route writes to `.geniro/` state paths through `atomic_state_write` / `atomic_state_append` (per `skills/_shared/atomic-state-write.md`). If a workflow legitimately needs to bypass the guard, add `enforce-state-helper` to `.geniro/safety.json` `allow_patterns`.
+
+**Auto-detect:** N/A — only reveals itself when a blocked write occurs (fail-loud); the hook output prints the exact bypass ID to add.
+
+**Auto-fix:** Manual-only — route writes through `atomic_state_write` / `atomic_state_append`, or add `enforce-state-helper` to `.geniro/safety.json` `allow_patterns`.
+
+**Severity:** MEDIUM — fail-loud with the bypass ID; no silent corruption possible, but a workflow that hand-wrote a state file directly will now stop until migrated to the helper or allowlisted.
+
+---
+
 The v3 release lands the /implement 3-phase rewrite, MANDATORY /review spawn list with pre/post-spawn verification gates, /plan workflow_refs[] tracker linkage (m5-v2 schema), per-section AUQ `preview` field with restored Phase 2 Visual Companion, structured `open_questions[]` in T2 handoffs with a 3-gate safety chain, T1/T1.5 state tier split for Ship-cleanup preservation, and universal `model: inherit` for all plugin subagents. Seven changes need user attention; auto-fix is provided where mechanical, manual review is called out where judgment is needed.
 
 ### Post-task improvement suggestions now fire across implement / refactor / review / plan / onboard

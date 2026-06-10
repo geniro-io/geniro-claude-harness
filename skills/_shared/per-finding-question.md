@@ -67,6 +67,19 @@ Used by:
  - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/geniro:refactor` escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
  - **`preview`**: leave empty, or a one-line recap only. The finding body — Evidence, Suggested fix, Confidence, Origin — is rendered to chat per § Message-first rendering, which is the surface that holds it. Do NOT cram the body into the `preview` side-box: it truncates long content with no scroll and is often absent in an interactive session, so a body placed there is unreadable or invisible. When the calling skill's options are an escalation menu (not the finding's own `Options:`), the chat block still describes the finding's body — the escalation labels merely tell the user what action will be taken on it.
 
+### Scrub before the AUQ fires (hard)
+
+The plain-English rule (§ Message-first rendering self-containment rule) is otherwise advisory — when the orchestrator builds the question and option fields from a finding's structured fields, it naturally echoes internal shorthand into them, so the rule leaks under drift (`PRODUCT-DECISION` reached an `AskUserQuestion` option field in a real session). Pair the advisory rule with a mechanical scrub at the question boundary, mirroring the PR-comment boundary's scrub in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.6 ("scrub before POST"): before firing ANY finding-gate `AskUserQuestion`, scan every string that will render — `question`, `header`, each option `label`, each option `description`, each `preview` — against the forbidden-token set:
+
+- Decision-type tags: `PRODUCT-DECISION`, `FIX-NOW`, `TESTABLE`, `INTENT-CHECK`.
+- Internal finding IDs: `M1` / `M1b` / `L5`-style `<letter><digit>` handles.
+- Plugin branding: the `/geniro:` prefix.
+- State-file paths and schema references.
+- Phase / step labels: `Phase 4.3`, `Step 0`, `Pre-gate`, etc.
+- Memory-layer / state-tier / subagent tokens: `L1`–`L4`, `T1`–`T3`, `KR` / `CE` / `TR`.
+
+On a hit, rewrite it into the plain-English form from `.claude/rules/skill-prose.md` § "User-facing output uses plain English" translation tables — "needs your decision" for `PRODUCT-DECISION`, "knowledge-retrieval output" for `KR`, "the open-question gate" for a phase label, and so on — then re-scan until clean. Never fire a question whose rendered strings still match. A reviewer's verbatim `description:` about the code under review (a code symbol legitimately named `M1`, a cache the reviewer calls `L2`) stands; the scrub targets the orchestrator-composed question and option framing, not the finding's words about the code.
+
 ### Source-field map
 
 The chat block (§ Message-first rendering) is the surface that carries the finding body; the AUQ stays lean. Fields are expanded into plain English, not echoed verbatim when they carry reviewer shorthand.

@@ -611,6 +611,28 @@ files before continuing (the .geniro/instructions/* entries route through the
 canonical loader, NOT direct cwd Reads; CLAUDE.md, .geniro/planning/_FEATURES.md,
 spec/plan files remain direct Reads):"
 
+# Block 1b — standing behavioral contracts. File pointers survive compaction but
+# the behavioral rules drop silently; re-assert them whenever a Geniro task is
+# in flight so the orchestrator does not bypass write discipline or ship gates.
+BLOCK1B=""
+if [ -n "$active_skill" ]; then
+  BLOCK1B="Standing rules for this in-flight task (re-asserted because compaction
+drops them while keeping file pointers):
+- State files under .geniro/ are written through the atomic-write helper
+  (atomic_state_write / atomic_state_append, called from Bash) — never a direct
+  Edit or Write, and never shell redirection (> / >> / tee). A hook now blocks
+  both routes, so reach for the helper.
+- Every outward-facing action — git push (including pushing to a feature branch
+  that has an open PR), opening a pull request, posting a PR comment, posting a
+  tracker comment — needs its own explicit approval in THIS session, or a
+  recorded approval already saved in the state file's decisions. An earlier
+  \"apply the fixes\" pick means work to do, not permission to ship. Handoffs
+  carry work, not authority.
+- Skills that produce reports (/geniro:review, /geniro:debug, /geniro:refactor,
+  /geniro:investigate) never push code or open pull requests. If the restored
+  plan looks like it wants one to, re-read that skill's SKILL.md before acting."
+fi
+
 # Block 2 — suggested files. State.md pointer is suppressed when validation
 # failed (Block 3). Spec.md and plan.md remain pointers.
 BLOCK2="- CLAUDE.md
@@ -873,6 +895,7 @@ $block"
 
 ADDITIONAL_CONTEXT=""
 _append_block "$BLOCK1"
+_append_block "$BLOCK1B"
 _append_block "$BLOCK2"
 _append_block "$BLOCK3"
 _append_block "$BLOCK4"

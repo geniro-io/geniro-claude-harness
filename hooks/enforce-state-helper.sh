@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 # enforce-state-helper.sh
-# PreToolUse hook for Write and Edit — nudges skills toward atomic-state-write.
+# PreToolUse hook for Write/Edit/MultiEdit AND Bash — blocks direct writes to
+# canonical state paths under .geniro/, steering skills to atomic-state-write.
 #
-# Scope: writes to canonical state paths under .geniro/ should go through the
+# Scope: writes to canonical state paths under .geniro/ must go through the
 # atomic-state-write helper (lib/atomic-state-write.sh), not direct
-# Edit/Write calls. The helper guarantees tmp + fsync + rename + fsync-dir
+# Edit/Write/Bash calls. The helper guarantees tmp + fsync + rename + fsync-dir
 # atomicity. Direct calls truncate-and-rewrite — a reader during the window
 # sees a partial file.
 #
-# Modes:
-#   warn   — print to stderr, allow the call (current default)
-#   block  — print to stderr, exit 2 (after all skills migrate)
+# Edit/Write/MultiEdit branch: checks .tool_input.file_path.
+# Bash branch: catches shell-side writes the file-tool matcher never sees —
+# redirection (>, >>, >|), tee, in-place sed (-i), cp/mv destinations, dd of=.
+# Reads (cat/grep) stay allowed. Commands invoking the sanctioned helpers
+# (atomic_state_write / atomic_state_append) are allowed — they write via their
+# own mktemp + mv. Paths under .geniro/state/tdd/ are exempt: the TDD-order
+# hook's state file is a documented exception written via its own mktemp + mv
+# procedure (skills/_shared/tdd-cycle.md §State file contract).
 #
 # Per-project bypass:
 #   .geniro/safety.json — { "allow_patterns": ["enforce-state-helper"] }
@@ -21,19 +27,19 @@
 
 set -euo pipefail
 
-# Flip this to "block" once all skills migrate to atomic_state_write
-# (see ARCHITECTURE.md §State Files).
-MODE="warn"
+MODE="block"
+
+# Fail open but LOUDLY if jq is missing: without it the hook cannot parse tool
+# input, and a silent exit 0 would leave the user believing the guard is active.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so direct state-path writes are NOT being checked. Install jq to restore the guard."}\n'
+  exit 0
+fi
 
 # Consume stdin — REQUIRED first step for Claude Code hooks.
 INPUT=$(cat)
 
-# Extract file path from tool input JSON (NotebookEdit carries notebook_path).
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
-
-if [ -z "$FILE_PATH" ]; then
-  exit 0
-fi
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
 
 # Locate nearest .geniro/safety.json walking up from cwd.
 find_safety_json() {
@@ -91,10 +97,6 @@ matches_state_path() {
   return 1
 }
 
-if ! matches_state_path "$FILE_PATH"; then
-  exit 0
-fi
-
 # Match the right helper to the tier.
 suggested_helper() {
   local p="$1"
@@ -105,29 +107,197 @@ suggested_helper() {
   fi
 }
 
-HELPER=$(suggested_helper "$FILE_PATH")
+# A path directly under .geniro/state/ that conforms to none of the canonical
+# layouts is invisible to the validator and session-restore (ad-hoc schema-less
+# files were observed in the wild). Recognized layouts:
+#   state/<skill>/<slug>/state.md  ·  state/setup/state.md singleton
+#   state/handoff/from-<producer>-<branch>.md  ·  state/tdd/state-<slug>.md
+non_canonical_state_layout() {
+  local p="$1"
+  echo "$p" | grep -qE '(^|/)\.geniro/state/' || return 1
+  if echo "$p" | grep -qE '(^|/)\.geniro/state/[^/]+/[^/]+/state\.md$'; then return 1; fi
+  if echo "$p" | grep -qE '(^|/)\.geniro/state/setup/state\.md$'; then return 1; fi
+  if echo "$p" | grep -qE '(^|/)\.geniro/state/handoff/from-[^/]+\.md$'; then return 1; fi
+  if echo "$p" | grep -qE '(^|/)\.geniro/state/tdd/state-[^/]+\.md$'; then return 1; fi
+  return 0
+}
 
-MSG_PREFIX="State-helper [enforce-state-helper]"
-MSG_BODY="Direct Edit/Write to canonical state path: $FILE_PATH
-$MSG_PREFIX:   Use \`$HELPER\` via Bash for atomicity guarantee.
-$MSG_PREFIX:   Pattern:
-$MSG_PREFIX:     source \"\${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh\"
-$MSG_PREFIX:     $HELPER \"$FILE_PATH\" <<'EOF'
-$MSG_PREFIX:     ...content...
-$MSG_PREFIX:     EOF
-$MSG_PREFIX:   Spec: skills/_shared/atomic-state-write.md"
+# Emit the block message for one matched state path, then exit 2 (block) or 0 (warn).
+emit_state_helper_decision() {
+  local path="$1"
+  local helper
+  helper=$(suggested_helper "$path")
 
-if [ "$MODE" = "block" ]; then
-  echo "$MSG_PREFIX: $MSG_BODY" >&2
-  echo "$MSG_PREFIX: To bypass per-project, add \"enforce-state-helper\" to allow_patterns in .geniro/safety.json." >&2
-  exit 2
+  local prefix="State-helper [enforce-state-helper]"
+  local body="Direct write to canonical state path: $path
+$prefix:   Use \`$helper\` via Bash for atomicity guarantee.
+$prefix:   Pattern:
+$prefix:     source \"\${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh\"
+$prefix:     $helper \"$path\" <<'EOF'
+$prefix:     ...content...
+$prefix:     EOF
+$prefix:   Spec: skills/_shared/atomic-state-write.md"
+
+  local layout_hint=""
+  if non_canonical_state_layout "$path"; then
+    layout_hint="$prefix:   This path under .geniro/state/ matches no canonical layout (state/<skill>/<slug>/state.md, the state/setup/state.md singleton, state/handoff/from-<producer>-<branch>.md, or state/tdd/state-<slug>.md) — ad-hoc files there are invisible to the validator and session-restore."
+  fi
+
+  if [ "$MODE" = "block" ]; then
+    echo "$prefix: $body" >&2
+    [ -n "$layout_hint" ] && echo "$layout_hint" >&2
+    echo "$prefix: To bypass per-project, add \"enforce-state-helper\" to allow_patterns in .geniro/safety.json." >&2
+    exit 2
+  fi
+
+  echo "$prefix (warn): $body" >&2
+  [ -n "$layout_hint" ] && echo "$layout_hint" >&2
+  jq -nc --arg p "$path" --arg h "$helper" \
+    '{systemMessage: ("Geniro: direct write to state path " + $p + " — use the " + $h + " helper (atomic write) instead. Bypass: \"enforce-state-helper\" in .geniro/safety.json.")}'
+  exit 0
+}
+
+if [ "$TOOL_NAME" = "Bash" ]; then
+  # ---- Bash branch: shell-side writes into canonical state paths ----
+  COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
+  if [ -z "$COMMAND" ]; then
+    exit 0
+  fi
+  # Sanctioned helpers write via their own mktemp + mv — allow the command.
+  if printf '%s' "$COMMAND" | grep -qE '\b(atomic_state_write|atomic_state_append)\b'; then
+    exit 0
+  fi
+
+  # Heredoc bodies are DATA, not shell syntax — a `> .geniro/...` inside one is
+  # text. Drop body lines (between <<TAG / <<-TAG / <<'TAG' and the closing TAG)
+  # before any extraction; the line carrying the << operator is kept, so
+  # `atomic_state_write x <<EOF > y` still yields its redirect target.
+  SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
+    hd {
+      line = $0
+      if (dash) sub(/^\t+/, "", line)
+      if (line == tag) hd = 0
+      next
+    }
+    match($0, /<<-?["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+      tag = substr($0, RSTART, RLENGTH)
+      dash = (tag ~ /^<<-/)
+      sub(/^<<-?/, "", tag)
+      gsub(/["'\'']/, "", tag)
+      hd = 1
+      print
+      next
+    }
+    { print }
+  ')
+
+  JOINED="${SCRUBBED//\\$'\n'/ }"
+  ONELINE="${JOINED//$'\n'/ }"
+
+  # Quoted string literals are data (`echo "see > .geniro/x"` writes nothing).
+  ONELINE=$(printf '%s' "$ONELINE" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+
+  CANDIDATES=""
+  add_candidate() {
+    local c="$1"
+    c="${c#\"}"; c="${c%\"}"
+    c="${c#\'}"; c="${c%\'}"
+    if [ -n "$c" ]; then
+      CANDIDATES="${CANDIDATES}${c}
+"
+    fi
+  }
+
+  # 1) Redirection targets: > file, >> file, >| file.
+  while IFS= read -r tok; do
+    [ -z "$tok" ] && continue
+    add_candidate "$(printf '%s' "$tok" | sed -E 's/^>{1,2}\|?[[:space:]]*//')"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '>{1,2}\|?[[:space:]]*[^[:space:];|&<>)]+' || true)"
+
+  # 2) tee: every non-flag argument of a tee invocation is written to.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in *tee|-*) continue ;; esac
+      add_candidate "$tok"
+    done
+    set +f
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])tee[[:space:]]+[^|;&]*' || true)"
+
+  # 3) In-place sed: file arguments of a `sed -i` span are overwritten.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    printf '%s' "$span" | grep -qE '[[:space:]]-i' || continue
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in
+        *sed|-*) continue ;;
+        s[!a-zA-Z0-9]*|y[!a-zA-Z0-9]*) continue ;;
+      esac
+      add_candidate "$tok"
+    done
+    set +f
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])sed[[:space:]]+[^|;&]*' || true)"
+
+  # 4) cp/mv: only the DESTINATION (last non-flag token) is a write. A cp/mv
+  #    whose SOURCE is itself under .geniro/ is a housekeeping rename/copy of
+  #    content already written through the helper (version-it, pre-edit snapshot,
+  #    revert) — an atomic filesystem move, not a torn-write risk — so the
+  #    destination is skipped. A source OUTSIDE .geniro/ keeps blocking: that is
+  #    a content write into the tree around the helper.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    last=""
+    first=""
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in cp|mv|*/cp|*/mv|-*) continue ;; esac
+      [ -z "$first" ] && first="$tok"
+      last="$tok"
+    done
+    set +f
+    case "$first" in
+      *.geniro/*) continue ;;
+    esac
+    case "$last" in ""|cp|mv|*/cp|*/mv) : ;; *) add_candidate "$last" ;; esac
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])(cp|mv)[[:space:]]+[^|;&]*' || true)"
+
+  # 5) dd of=target
+  while IFS= read -r tok; do
+    [ -z "$tok" ] && continue
+    add_candidate "${tok#of=}"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE 'of=[^[:space:];|&]+' || true)"
+
+  if [ -z "$CANDIDATES" ]; then
+    exit 0
+  fi
+  while IFS= read -r cand; do
+    [ -z "$cand" ] && continue
+    # .geniro/state/tdd/ is a documented exception (own mktemp + mv procedure).
+    case "$cand" in *.geniro/state/tdd/*) continue ;; esac
+    if matches_state_path "$cand"; then
+      emit_state_helper_decision "$cand"
+    fi
+  done <<< "$CANDIDATES"
+  exit 0
 fi
 
-# warn mode — surface the message, allow the call. PreToolUse stderr on exit 0
-# lands only in the verbose transcript, so the stdout systemMessage JSON below
-# carries the user-visible warning.
-echo "$MSG_PREFIX (warn): $MSG_BODY" >&2
-echo "$MSG_PREFIX (warn): This warning becomes a hard block once all Geniro skills finish migrating to the helper." >&2
-jq -nc --arg p "$FILE_PATH" --arg h "$HELPER" \
-  '{systemMessage: ("Geniro: direct Edit/Write to state path " + $p + " — use the " + $h + " helper (atomic write) instead. This warning becomes a hard block in a future release; bypass: \"enforce-state-helper\" in .geniro/safety.json.")}'
-exit 0
+# ---- Edit/Write/MultiEdit branch ----
+# Extract file path from tool input JSON (NotebookEdit carries notebook_path).
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
+
+if [ -z "$FILE_PATH" ]; then
+  exit 0
+fi
+
+case "$FILE_PATH" in *.geniro/state/tdd/*) exit 0 ;; esac
+
+if ! matches_state_path "$FILE_PATH"; then
+  exit 0
+fi
+
+emit_state_helper_decision "$FILE_PATH"
