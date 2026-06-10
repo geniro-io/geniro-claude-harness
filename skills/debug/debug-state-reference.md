@@ -12,6 +12,7 @@ Detail sections extracted from `skills/debug/SKILL.md` to keep the main skill bo
 6. Adversarial Mode templates — A5 spawn prompt + A6 findings template
 7. Extended examples — Intermittent Timeout + Verify Recent Changes
 8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
+9. `diagnosis` emit — canonical `emit_learning` call shape (Phase 3 §3.3)
 
 ---
 
@@ -386,3 +387,30 @@ Phase 1 (Scientific Mode) sub-step referenced from SKILL.md §1.2. Checks whethe
 - **Zero kept candidates:** continue silently.
 
 **Bounds.** Top-5 cap; the candidate scan is a single `gh pr list` call (the `files` field avoids per-PR round-trips); a full `gh pr diff` (~150 lines) only on the "Review that PR's diff first" path. The scan never writes files or mutates git state — it is a read-only priming check, consistent with the Phase 1 ACI surface.
+
+---
+
+## 9. `diagnosis` emit — canonical `emit_learning` call shape
+
+The Phase 3 §3.3 diagnosis emit. `emit_learning` reads a single JSON object on stdin; a YAML payload exits 64, and mis-named or missing `ext` sub-fields silently drop the typed extension. Mirror this shape exactly — the field names below match the helper contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Example callers, including the `diagnosis`-required `ext.{symptom, root_cause, fix}`:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
+emit_learning <<'EOF'
+{
+  "producer": "/geniro:debug",
+  "scope": "src/components/Toggle.tsx",
+  "summary": "Stale closure in useEffect — value missing from deps",
+  "tags": ["bug", "react", "useEffect"],
+  "type": "diagnosis",
+  "ext": {
+    "symptom": "toggle stale",
+    "root_cause": "missing dep",
+    "fix": "add value to deps array"
+  },
+  "trust": "verified"
+}
+EOF
+```
+
+Substitute the run's real values: `scope` = the affected file/module path glob; `summary` = the one-line root-cause statement; `tags` inferred from affected files + hypothesis category; `ext.symptom` / `ext.root_cause` / `ext.fix` = the confirmed observation, isolated cause, and proposed patch. After a `rc=0` return, echo `Recorded learning: <summary>` per the helper's §Caller contract — the helper writes silently, so the echo is the only in-session signal it ran. On a non-zero return, surface the plain-English failure line (rc=64 missing field / 68 oversized / 69 write-failed) rather than swallowing it.

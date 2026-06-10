@@ -61,6 +61,7 @@ The invariants apply unchanged:
 7. **Errors → structured observations.** Reviewer spawn failures → `## Errors` body section. `gh` fail-open NOT silent — log to `## Errors`.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 9. **Re-verify ambiguity gates at external-effect boundaries.** The Pre-gate (`review-handoff.md` §2.5), the open-decision gate (`review-handoff.md` §3 Step 0), and the Phase 4.2 per-finding verifier establish gate invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, and kept-finding `Validation:` respectively; the Pre-Post guard (`review-handoff.md` §7.0) re-reads ALL THREE before any `gh api POST /reviews` because mid-phase producer writes, parallel resolvers, or orchestrator drift can re-create unresolved ambiguity (or surface a `Validation: refuted` finding that bypassed the upstream filter) between the upstream gate and the external write. Never trust an upstream gate's invariant at a public-surface boundary.
+10. **Stamp `phase:` on entry, before the phase's work.** Write state.md `phase: <X>` via `atomic_state_write` when each phase BEGINS, ahead of that phase's steps — not at persist time. A checkpoint written only at the end records history, not current state: a crash mid-phase leaves no resumable marker, and a declaration the phase produces (e.g. `spawn_dims_declared` written in §2.2, before the spawns) lands ~100 events too late to power the gate that reads it if the whole phase's state is deferred to persist. A phase is stamped DONE only after its trailing steps complete — stamp `persist` only once the §5.3 learning emits have run, OR stamp the next phase at its own entry; never stamp a later phase while an earlier phase's trailing emits are still pending.
 
 `## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5.3 emit-learning + 1 per PR-side-effect).
 
@@ -111,7 +112,7 @@ State.md `phase: triage`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/revie
 
 Summary of what Phase 1 does:
 
-1. **Step 0 — Workspace setup** — passive context detection (IN_WORKTREE, REVIEW_HANDOFF, DEBUG_HANDOFF, IMPLEMENT_TASK_STATE, PROTECTED_BRANCH, TARGET_PR_NUMBER, IN_TARGET_WORKTREE) followed by a decision tree with auto-continue branches for in-worktree continuing-work signals. Workspace AUQ (single question — workspace decision) fires only when ambiguous. Inline modifier overrides (`worktree` / `no-worktree` / `current-branch` / `new-branch`) win deterministically. Approvals persist as `review_workspace_setup` to survive compaction and Round 2+ re-runs. /geniro:review never mutates workflow tracker status — that is `/geniro:plan` and `/geniro:implement` territory; /geniro:review reads tracker context only (see item 5). Fires BEFORE all subsequent items so they operate on the correct working tree. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §0.
+1. **Step 0 — Workspace setup** — passive context detection (IN_WORKTREE, REVIEW_HANDOFF, DEBUG_HANDOFF, IMPLEMENT_TASK_STATE, PROTECTED_BRANCH, TARGET_PR_NUMBER, IN_TARGET_WORKTREE) followed by a decision tree with auto-continue branches for in-worktree continuing-work signals. Workspace AUQ (single question — workspace decision) fires only when ambiguous. Inline modifier overrides (`worktree` / `no-worktree` / `current-branch` / `new-branch`) win deterministically. On a compaction-resume or Round 2+ re-run, persisted `review_workspace_setup` / `deep_mode_choice` / `tdd_mode_choice` approvals are read FIRST — before passive detection and any workspace action — and the recorded workspace location is honored exactly (re-ask only if it no longer applies), so an already-approved workspace is never silently relocated. /geniro:review never mutates workflow tracker status — that is `/geniro:plan` and `/geniro:implement` territory; /geniro:review reads tracker context only (see item 5). Fires BEFORE all subsequent items so they operate on the correct working tree. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §0.
 2. **Input parsing** — resolve the review-target shape from `$ARGUMENTS` (empty / branch name / file paths / diff range / PR ref). A PR ref additionally drives the thread-state + existing-review fetch in item 4. /geniro:review always produces a review of the target — it does not process reviewer comments left on your own PR.
 3. **Scope resolution** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Resolve the review target only from explicit PR-ref forms; running `gh pr list` to invent a target reviews a PR the user never asked about. When the review scopes to fewer files than the PR shows (commonly a stacked PR, base ≠ default branch), the excluded files are surfaced as a Scope-exclusion note (which ancestor PR owns them + its findings) so "reviewed upstream" is never mistaken for "missed" — full contract `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1.
 4. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`. From the thread-state fetch (`reviewThreads[]` per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1), persist every `isResolved == true` thread's `path:line` to state.md frontmatter `resolved-threads-snapshot:` so the Phase 6 Post drill's §7.1 already-on-PR dedup can exclude findings overlapping existing PR comments. Leave `resolved-threads-snapshot: null` when no PR ref or the fetch fails (§7.1 treats absence as "no dedup"). Also fetch the existing PR review surface per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1.1 — both the formal-review summaries (CHANGES_REQUESTED / COMMENTED, human + bot) and inline review-bot comment bodies (CodeRabbit and other `[bot]` reviewers) — persist to `pr-formal-reviews-snapshot:` + `pr-bot-comments-snapshot:`, and feed both to reviewers as prior-context (§2.3).
@@ -136,6 +137,8 @@ Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr di
 State.md `phase: mechanical-prepass`.
 
 Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first; LLM-spawn second with pre-pass findings as prior-context. Sequential, not parallel — LLM agents seeing prior mechanical findings produce better-targeted output.
+
+**Each check is must-attempt and lands one of two recorded outcomes** — findings written (Check 1/2 to the finding list, Check 3 tagged CRITICAL), OR a fail-open `## Errors mechanical-prepass-<id>: <reason>` entry. There is no silent third outcome — skipping a check entirely (e.g. running neither lint nor `tsc` on a TS-dominated diff) is the failure this contract closes; a check that does not apply (no lint config, no schema files) still records its outcome as a `## Errors` skip entry so the §4.0 gate can confirm it was reached. Declare the attempted set in state.md frontmatter (§1.5.7) before exiting this phase, mirroring §2.2's spawn-declaration pattern.
 
 ### 1.5.1 Check 1 — Lint
 
@@ -194,11 +197,23 @@ Mechanical findings tagged `origin: mechanical:<check_id>`. Routed two ways:
 
 ### 1.5.6 Fail-handling
 
-If lint or schema check fails (process exit nonzero with no output OR command not found):
-- Write `## Errors` entry: `mechanical-prepass-{check_id}: command_unavailable_or_failed`.
-- Continue to Phase 2 without the failed check's findings (fail-open, consistent with `gh` fail-open).
+Each check records exactly one outcome — findings, or a `## Errors` entry. Continue to Phase 2 either way (fail-open, consistent with `gh` fail-open):
 
-Secret scan is a pure-regex pass — cannot fail.
+- **Check failed** (process exit nonzero with no output OR command not found): write `## Errors mechanical-prepass-<check_id>: command_unavailable_or_failed`.
+- **Check not applicable** (no lint config detected for `lint`; no TS / schema / proto files in the diff for `schema`): write `## Errors mechanical-prepass-<check_id>: not_applicable` so the check still has a recorded outcome — a skip with no record is indistinguishable from never reaching the check, which is what the §4.0 declaration gate detects.
+
+Secret scan is a pure-regex pass — it cannot fail or be not-applicable, so its outcome is always its finding set (possibly empty).
+
+### 1.5.7 Pre-pass declaration (state.md write before Phase 2)
+
+Before leaving Phase 1.5, declare the attempted check set in state.md frontmatter via `atomic_state_write`, mirroring §2.2's spawn-declaration pattern:
+
+```yaml
+# frontmatter update
+mechanical_prepass_attempted: [lint, schema, secret]
+```
+
+The list names every check that ran to an outcome (findings or a `## Errors` entry). This is the observability surface the Phase 4 §4.0 verification gate asserts against — a missing declaration, or a listed check with no corresponding outcome (no findings and no `## Errors mechanical-prepass-<id>` entry), is a pre-pass contract miss the gate surfaces.
 
 ---
 
@@ -258,9 +273,13 @@ This is observability for the Phase 4 §4.0 verification gate — declared-vs-ac
 
 ### 2.3 Spawn invocation
 
-Before firing the parallel batch, narrate the spawn to the user — read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`guidelines` -> "code quality", `pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance", `rules-compliance` -> "rules compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit a one-line status:
+**Step 2.3.1 — Emit the spawn echo (welded to the batch fire).** Read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`guidelines` -> "code quality", `pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance", `rules-compliance` -> "rules compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit this one-line status in the SAME assistant response that fires the parallel `Agent(...)` batch (Step 2.3.2) — not a separate turn — so the user sees what is being spawned exactly when it spawns:
 
 > Spawning <N> reviewers: <comma-separated plain-English list>.
+
+A dropped echo produces a silent multi-minute window where the user cannot tell the batch fired; the Definition-of-Done line below makes the drop detectable.
+
+**Step 2.3.2 — Fire the batch.**
 
 **Deep-mode branch (`deep-mode: true`).** Do NOT fire the single parallel batch below. Instead invoke the deep recall Workflow — 3× passes per declared dimension with in-script union + dedup — per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, then proceed to Phase 3 over the deduped per-dim sets. The `spawn_dims_declared[]` declaration (§2.2) and the §4.0 verification gate still apply to the declared dimension SET (3× is a multiplier on each declared dim, not a new dim). Fail-safe to the single-pass batch below if the workflow errors (deep-mode-reference §6). Everything below describes the standard single-pass path.
 
@@ -369,7 +388,11 @@ State.md `phase: stratify`.
 
 ### 4.0 Post-spawn verification gate (declared vs actual)
 
-Before stratification fires, verify the Phase 2 parallel batch actually delivered every dimension declared in §2.2:
+Before stratification fires, run two declared-vs-actual checks.
+
+**4.0a Mechanical pre-pass declaration check.** Assert state.md frontmatter `mechanical_prepass_attempted` (§1.5.7) exists and each listed check (`lint`, `schema`, `secret`) has a recorded outcome — findings on the list, or a `## Errors mechanical-prepass-<id>` entry. A missing `mechanical_prepass_attempted` declaration means the pre-pass was skipped wholesale (a TS-dominated diff that ran no lint and no `tsc` is the documented live miss); a listed check with no outcome means it was declared but never reached. Either is a contract miss: append `## Errors mechanical-prepass-incomplete: declared=<...> missing-outcome=<...>` and surface it in the Phase 6 report `## Caveats`; this is advisory (the pre-pass is fail-open by design and LLM reviewers still ran), so do NOT block — record the gap so the user knows the cheap-deterministic layer was thin this run.
+
+**4.0b Spawn-batch completeness check.** Verify the Phase 2 parallel batch actually delivered every dimension declared in §2.2:
 
 ```
 declared = state.md frontmatter spawn_dims_declared
@@ -377,6 +400,8 @@ actual   = set of dimensions whose reviewer-agent emitted a structured result in
 
 missing = declared − actual
 ```
+
+A `spawn_dims_declared` list that does not exist in frontmatter at this point is itself a contract miss, not a pass: §2.2 writes it BEFORE the parallel batch precisely so this gate has a baseline — if it appears only at persist time (written ~after the spawns), the gate it powers ran inert against a missing baseline. Treat an absent or first-seen-at-persist `spawn_dims_declared` as drift: append `## Errors phase-2-spawn-declaration-missing` and reconstruct `declared` from the §2.1 grid for THIS run before computing `missing`.
 
 If `missing` is non-empty:
 
@@ -473,20 +498,16 @@ If a file exists at `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`, rea
 
 **Trigger condition:** Phase 3 orchestrator-side dedup produced a finding with `convergence_count: ≥3` (3+ reviewers reported same issue OR 2 reviewers + 1 mechanical pre-pass).
 
-When trigger fires, **auto-spawn (no AUQ)**:
+When trigger fires, **auto-emit (no AUQ)**. `emit_learning` reads a single JSON object on stdin — pipe the JSON, do not pass YAML key/value lines (a YAML block exits 64, dropping the learning):
 
-```yaml
-emit-learning:
-producer: /geniro:review
-scope: <changed-file-glob>
-summary: "<finding title with file:line>"
-tags: [<dimension>, <project-tech>]
-type: pitfall
-trust: verified
-note: "Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
+emit_learning <<'EOF'
+{"producer":"/geniro:review","type":"pitfall","scope":"<changed-file-glob>","summary":"<finding title with file:line>","tags":["<dimension>","<project-tech>"],"trust":"verified","body":"Cross-reviewer convergence: <N> reviewers + <mechanical-flag>"}
+EOF
 ```
 
-Helper: `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`. Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`. After a successful emit, echo `Recorded learning: <summary>` while the report is being assembled (not after it's delivered), per that file's §"Caller contract".
+Required fields are `producer` / `scope` / `summary` / `tags` (a missing one exits 64). Dedup + sanitization per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`. After a successful emit (`rc=0`), echo `Recorded learning: <summary>` while the report is being assembled (not after it's delivered), per that file's §"Caller contract"; on a non-zero return, print one plain-English line so the dropped learning is visible rather than swallowed.
 
 ### 5.4 PR comment posting (conditional — gated by Phase 6)
 
@@ -525,7 +546,7 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
 1. **Pre-gate — Resolve Open Questions** fires first whenever frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry (cap-extension >4). Always-WAIT. Resolutions persist back via `atomic_state_write`. Complete this before any other gate, because the later gates act on findings whose ambiguity these questions resolve. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5. Skipped when zero unresolved entries.
 2. **Open-decision gate** — fire one AUQ (header `Open decision`) for each kept finding whose state-file `Decision Type:` field is `PRODUCT-DECISION` — judgment calls the reviewer won't resolve for you. Skipped when none.
    - **Finalize (silent — no AUQ).** After the open-decision gate clears, flip the report from `draft` to `final` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5). The Action gate's handoff option and the public-post guard both require `final`, so the handoff is never offered against a report whose decisions are still open. This is the fix for "the report is finalized before I've decided".
-   - **Suggest improvements (reflection, read-only).** After finalize, before the Action gate, spawn `reflection-agent` (read-only, mode `review`) to propose project-rule updates from the kept findings + diff (full spawn slots — rule-file paths + prior declines — in §3.7), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed". /geniro:review never writes project files — route instruction-scoped candidates to `/geniro:instructions create` and surface the rest (CLAUDE.md / `.claude/rules/` / ADR) as advisory notes. Echo `Reviewed for improvements: <N> candidate(s)`; skip silently when none. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.7.
+   - **Suggest improvements (reflection, read-only).** After finalize, before the Action gate, spawn `reflection-agent` (read-only, mode `review`) to propose project-rule updates from the kept findings + diff (full spawn slots — rule-file paths + prior declines — in §3.7), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed". /geniro:review never writes project files — route instruction-scoped candidates to `/geniro:instructions create` and surface the rest (CLAUDE.md / `.claude/rules/` / ADR) as advisory notes. **Emit the reflection echo as the closing step of this gate, in the response that completes the reflection pass and BEFORE the Action gate AUQ fires:** `Reviewed for improvements: <N> candidate(s)` (or `Reviewed for improvements: none` when the agent returns nothing) — a dropped echo leaves the user unaware the reflection ran; the Definition-of-Done line below makes the drop detectable. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.7.
 3. **Action gate** — fire `AskUserQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?" / "apply the fix now" / "add the test now") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). The canonical 4 option labels below are an allowlist: substituting an ad-hoc "apply the fix" / "add the test" / "what next?" option (or applying any fix from /geniro:review) is forbidden — fixes route to `/geniro:implement findings`. Option labels (verbatim, do not paraphrase):
    - `"/geniro:implement findings"` — append ` (Recommended)` when CRITICAL≥1 OR HIGH≥2; exits /geniro:review and the model surfaces `/geniro:implement .geniro/state/handoff/from-review-<branch>.md` as the next command. Its description must disclose that /geniro:implement applies the fixes and asks before committing/pushing — picking it routes the findings, it does not authorize a ship (per the §4 literal description).
    - `"Post Draft PR review"` — present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted. OMIT only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]` from a prior round.
@@ -604,11 +625,15 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 These are the load-bearing exit gates — the invariants that, if skipped, make the review incomplete or unsafe. Per-phase mechanics (context loading, mode detection, scoring) live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
 
 - [ ] The mandatory reviewer spawn list ran in parallel — all 8 always-fire dimensions (including `regressions`) + every applicable conditional dimension (design / pr-metadata / spec-compliance / rules-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch and the post-spawn verification gate confirmed declared == actual.
+- [ ] The spawn echo (`Spawning <N> reviewers: ...`) was emitted in the same response that fired the reviewer batch (per §2.3.1).
 - [ ] A fresh per-finding verifier ran for EVERY admitted survivor (CRITICAL / HIGH / MEDIUM); refuted findings demoted to `## Filtered`.
 - [ ] The multi-signal admission gate was applied (not the legacy single threshold) per Loop Invariant #6.
 - [ ] Every kept finding is classified by severity (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1) and decision type, and tagged `[NEW]` / `[PRE-EXISTING]`.
 - [ ] The needs-your-decision gate fired for every such finding regardless of severity, and all are resolved (or wontfix) BEFORE the handoff is offered or anything is posted (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.0 Pre-Post guard).
+- [ ] State.md `phase:` was stamped via `atomic_state_write` on ENTRY to each phase (per Loop Invariant #10), so the spawn-declaration and pre-pass declaration existed before the gates that read them — not deferred to persist time.
+- [ ] The mechanical pre-pass attempted all three checks (lint / schema / secret), each with a recorded outcome (findings or a `## Errors mechanical-prepass-<id>` entry), `mechanical_prepass_attempted[]` was declared, and the §4.0a gate confirmed the declaration.
 - [ ] The handoff artifact was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
 - [ ] The report was finalized (`report_status: draft→final`) only after the decision gate cleared; on Post, `[POSTED-TO-PR]` idempotency markers were persisted.
+- [ ] The reflection echo (`Reviewed for improvements: <N> candidate(s)` / `none`) was emitted before the Action gate AUQ fired (per the Suggest-improvements step).
 - [ ] The Action gate fired (always-WAIT); the user pick persisted to `approvals[]`; the round-N escalation gate fired when round ≥3.
 - [ ] `--simplify` / `--tdd` / `--deep` honored when present — `--tdd` posts the same set as Standard (additive, never filters) and offers the authored failing tests.
