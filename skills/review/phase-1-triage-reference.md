@@ -27,7 +27,17 @@ State.md `phase: triage` during this phase.
 
 Step 0 fires BEFORE input-mode detect, scope resolution, PR-ref parsing, workflow-integration fetch, peer-PR scout, and L4 / L3 / L2 helper calls. Workspace decision determines the working tree the rest of Phase 1 inspects; running PR-diff parsing or peer-PR `gh pr list` against the wrong worktree pollutes state.md with cwd-bound results.
 
-Two sub-steps: **passive detection** (0a, no AUQ) → **decide action** (0b, auto-continue or AUQ).
+Sub-step order: **read prior approvals** (0-pre, before any detection) → **passive detection** (0a, no AUQ) → **decide action** (0b, auto-continue or AUQ). The approvals read comes first so a Round 2+ re-run honors the workspace the user already approved instead of detecting fresh and relocating it.
+
+### 0-pre — Read prior approvals (FIRST, before passive detection)
+
+On a compaction-resume or a Round 2+ re-run of /geniro:review on the same branch, the prior round already persisted the user's workspace, depth, and tests choices. Read them BEFORE passive detection (0a) and any workspace action — detecting fresh and acting first is how a live Round 2 run created a worktree at a default location while the user's Round 1 pick named a different one, silently relocating an approved workspace.
+
+1. Resolve the prior state/handoff for this branch (`<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, plus the resumed `state.md` on a compaction-resume). When neither exists, this is a first run — skip to 0a with no inherited picks.
+2. Read these `approvals[]` categories: `review_workspace_setup` (workspace location/action), `deep_mode_choice` (review depth), `tdd_mode_choice` (author-tests). Each recorded pick is **binding** for this run.
+3. **Honor the recorded workspace location exactly** — re-enter the same worktree path the prior round approved; do not substitute a different location. The persisted pick names a specific tree, not just "use a worktree": re-applying it at a fresh default location is the silent-relocation failure this sub-step prevents.
+4. **Re-ask only when the recorded pick no longer applies** — the approved worktree was deleted, or the branch moved off the commit it was created from. In that case fire the workspace AUQ fresh (the Case-mismatch UX below still governs); a stale pick is re-decided, never silently swapped for a default.
+5. When a workspace pick is inherited, narrate one line so the inheritance is visible: `Continuing the workspace/depth/tests choices you approved in the previous round: <workspace pick>, <depth pick>, <tests pick>.` Then skip the 0b decision tree's AUQ branches (the workspace decision is already made) and proceed to execute the inherited workspace action in 0d. `deep_mode_choice` / `tdd_mode_choice` re-apply to the depth/tests axes (the Mode AUQ at §11 reads `approvals[]` and skips re-prompting answered axes).
 
 ### 0a — Detect current context (passive)
 
@@ -146,13 +156,13 @@ approvals:
     timestamp: <ISO-8601>
 ```
 
-On compaction-resume or Round 2+ re-runs of /geniro:review on the same branch, Step 0 reads `approvals[]` and re-applies the prior answer without re-prompting.
+On a compaction-resume or a Round 2+ re-run, the recorded answer is read and re-applied in §0-pre — BEFORE passive detection and any workspace action — so the persisted pick binds before the tree is detected fresh.
 
 Workflow status transitions (e.g., "Move <issue_id> to In Review?") are NOT part of Step 0 — /geniro:review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture) per §3.5; they are not user-prompted in Step 0. Workflow status mutation belongs to `/geniro:implement` only — Step 0c (kickoff) and Phase 3 Ship (completion); `/geniro:plan`, `/geniro:debug`, `/geniro:refactor`, and `/geniro:review` are all read-only tracker consumers.
 
-### 0d — Execution after AUQ
+### 0d — Execution of the workspace decision
 
-After AUQ resolves and `approvals[]` is persisted:
+After the workspace decision is made (AUQ-resolved this round, or inherited per §0-pre) and `approvals[]` is persisted:
 
 1. **Workspace action** — execute worktree create / EnterWorktree / no-op per `review_workspace_setup` pick.
 2. State.md frontmatter `branch:` and `worktree:` updated to reflect the new working tree before Phase 1 §1 (input mode detect) runs.
@@ -329,7 +339,11 @@ Read-only — never writes to Linear; never mutates git state. Latency ~1-3s per
 
 ## 4. Peer-PR scout (PR-ref input only)
 
-Skip for files / diff range / branch. Mechanism:
+Skip for files / diff range / branch.
+
+**The PEER-PR CONTEXT slot value has exactly two legal sources** — (a) the literal result of running the scoring procedure below to completion, starting from the live `gh pr list` call, or (b) the literal fail-open string (`none — gh unavailable (fail-open)` / `none — no relevant open peer PRs`). A scout exists to DISCOVER open sibling PRs the orchestrator does not already know about; synthesizing the slot from PRs already mentioned in context (merged/closed PRs the run happened to reference, prior-round handoff content) is not a scout — it cannot surface an unknown open sibling, and it feeds reviewers a fabricated peer set. If `gh pr list` did not run this round, the only legal value is the fail-open string, never a hand-assembled block.
+
+Mechanism:
 
 - `gh pr list --state open --base <baseRefName> --json number,title,headRefName,author,updatedAt,files --limit 30`
 - Compute file-path intersection between current PR's changed files and each sibling. `gh pr diff <N> --name-only` for file-name list (re-derived from parsing captured diff text or separate call).
@@ -340,7 +354,7 @@ Skip for files / diff range / branch. Mechanism:
 - Keep **top-10** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When workflow integration is skipped (no workflow file), `linear_bonus` is always 0 and this reduces to pure file-overlap top-10.
 - For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (~200 lines per sibling — bounds total context against the higher sibling count).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**5000 chars** — drop lowest-`total_score` sibling first if exceeded.
-- Pre-inline into reviewer prompts: architecture, design, **bugs, conventions, optimizations, spec-compliance, regressions** (expanded from architecture + design only). Skipped for tests + security + guidelines + pr-metadata (orthogonal or target-PR-specific).
+- Pre-inline the SAME slot value into all 7 receiving reviewer prompts identically — architecture, design, bugs, conventions, optimizations, spec-compliance, regressions (expanded from architecture + design only). Feeding the block to a subset is a distribution miss the user did not consent to; the slot content is one computed value shared verbatim across the 7. Skipped for tests + security + guidelines + pr-metadata (orthogonal or target-PR-specific). The slot is part of each receiving dim's pre-inlined context per SKILL.md §2.3; a dim spawned without it is detectable against the §2.3 spawn-context contract and the §4.0 post-spawn verification gate.
 
 Fail-open: if `gh pr list` fails or zero overlap-and-bonus surviving, render slot as `none — gh unavailable (fail-open)` (error case) or `none — no relevant open peer PRs` (legitimate empty result).
 

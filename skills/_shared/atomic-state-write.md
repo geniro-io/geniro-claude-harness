@@ -47,22 +47,24 @@ Reads content from stdin, writes atomically via `tmp + fsync + rename + fsync-di
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 
-atomic_state_write ".geniro/planning/dark-mode/state.md" <<'EOF'
+atomic_state_write ".geniro/planning/dark-mode/state.md" <<EOF
 ---
 tier: T1.5
 producer: implement
 schema-version: 1
 branch: feature/dark-mode
-timestamp: 2026-05-19T14:30:00Z
+timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 phase: implement
 status: in-progress
 non-resumable-actions: []
 ---
 
 ## Phase log
-- analyze done at 14:25:00Z
+- analyze done
 EOF
 ```
+
+**Timestamp sourcing.** Every `timestamp:` / `completed-at:` / time-bearing field comes from a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured in the same Bash call that writes — never a copied example literal, a remembered value, or a rounded estimate. The literal timestamps elsewhere in this doc (and in `state-tier-spec.md`'s examples) are illustrative; an unquoted heredoc as shown above interpolates the live read at write time, which is why the example above uses `$(date -u ...)` rather than a frozen string. These fields order decisions across rounds and compactions, and the restore hook renders `completed-at` when warning about already-fired external actions — an invented time corrupts exactly the audit trail the field exists to provide.
 
 **Exit codes:**
 

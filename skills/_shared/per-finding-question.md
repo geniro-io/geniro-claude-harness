@@ -39,9 +39,13 @@ Every gate under this contract follows a two-step shape — **render the finding
 
 2. **Then fire a LEAN `AskUserQuestion`.** The `question` restates the plain-English title and points at the chat explanation; each option is a short selector with a one-line `description`. Leave `preview` empty or use it for a one-line recap — never as the rendering surface.
 
+**Separate-message rule.** The chat block must be a SEPARATE, already-emitted assistant message that exists before the `AskUserQuestion` fires. Emitting the text and the AUQ tool call in the same assistant turn does not satisfy the contract: same-turn text may not display in some clients, and the question must be answerable from what the user has already seen. A question that says "the message above" / "rendered above" / "summarized above" while no such message exists obtains an approval the user could not have been informed of — a gate failure, not a UX nit.
+
 **Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a reviewer phrase like "relies on the implicit entity-default @Filter at the 3 call sites" must be spelled out — which code paths, what the default does, why the reliance is in question — never echoed verbatim into the question. No term may appear in the `question` or any option that was not explained in the chat block first.
 
 Why this shape: `AskUserQuestion` renders `preview` as a narrow monospace side-box that hard-truncates long content with no scroll, and is often absent entirely in an interactive session. A finding body placed there is unreadable or invisible — so the body lives in the chat message, which has full width, and the lean question captures only the decision.
+
+**Resume paths render too.** The separate-message rule holds after a compaction, wakeup, or workflow-completion continuation. Do not assume the chat block was rendered in an earlier turn — verify against the visible transcript/state, then author the render fresh if it is not there, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/wakeup-prompts.md`. The pre-compaction message is gone from the user's live view even when state.md records that the gate was reached.
 
 ## Single-finding gate (one finding per call)
 
@@ -78,7 +82,11 @@ The plain-English rule (§ Message-first rendering self-containment rule) is oth
 - Phase / step labels: `Phase 4.3`, `Step 0`, `Pre-gate`, etc.
 - Memory-layer / state-tier / subagent tokens: `L1`–`L4`, `T1`–`T3`, `KR` / `CE` / `TR`.
 
-On a hit, rewrite it into the plain-English form from `.claude/rules/skill-prose.md` § "User-facing output uses plain English" translation tables — "needs your decision" for `PRODUCT-DECISION`, "knowledge-retrieval output" for `KR`, "the open-question gate" for a phase label, and so on — then re-scan until clean. Never fire a question whose rendered strings still match. A reviewer's verbatim `description:` about the code under review (a code symbol legitimately named `M1`, a cache the reviewer calls `L2`) stands; the scrub targets the orchestrator-composed question and option framing, not the finding's words about the code.
+- `carry-over` / `carryover` — plain-English form: "carried over from the previous review round".
+
+On a hit, rewrite it into the plain-English form from `.claude/rules/skill-prose.md` § "User-facing output uses plain English" translation tables — "needs your decision" for `PRODUCT-DECISION`, "knowledge-retrieval output" for `KR`, "the open-question gate" for a phase label, and so on — then re-scan until clean. Never fire a question whose rendered strings still match. A reviewer's verbatim `description:` about the code under review (a code symbol legitimately named `M1`, a cache the reviewer calls `L2`) stands; the scrub targets the orchestrator-composed question and option framing, not the finding's words about the code. Chat narration step-echoes pass the same translation tables — the scrub mechanism guards the AUQ and PR-comment boundaries, and by the plain-English rule narration follows the same vocabulary.
+
+**Render-exists check (part of this scrub).** Before firing a gate AUQ whose `question` references previously-rendered content ("the message above", "rendered above", "summarized above"), verify the immediately-preceding assistant message IS that render (per § Message-first rendering). If it is not — a status line, a tool call, or absent — author the render first as its own message, then fire the AUQ in the next turn. A reference to a render that does not exist is a gate failure (the user could not have been informed), not a wording nit.
 
 ### Source-field map
 

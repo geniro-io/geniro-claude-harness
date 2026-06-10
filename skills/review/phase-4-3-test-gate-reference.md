@@ -23,6 +23,10 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 
 **Spawn the agent only after explicit user approval.** The gate is the load-bearing safety property; an inline gate degrades to "this counts as approval".
 
+**Firing phase — during stratify, BEFORE persist.** This gate fires inside Phase 4 stratification (`phase: stratify`), before the Phase 5 persist phase and before the Phase 6 Action gate. It is never deferred to end-of-run and never batched into the same `AskUserQuestion` call as the Action gate. The ordering is load-bearing: a test outcome here can demote a finding to `## Filtered` (a green test → `[CHALLENGED-BY-TEST]`), which changes the finding count the Action gate decides over — so the action decision is downstream of this gate's result. Batching the two into one AUQ lets this gate's answer invalidate the Action gate's own premise ("Review complete: N kept findings") within the same call.
+
+**Two distinct test-related gates — do not conflate.** This Phase 4.3 gate is the test-AUTHORING gate (offer to write failing tests during stratify). The separate commit-policy gate — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6 Failing-tests gate, which decides whether to commit/push the tests authored here — fires later, in Phase 6. They ask different questions at different phases; an authored test from this gate is what makes the §6 gate fire (via the `## Authored Tests` section, populated in §5 Step 4).
+
 ---
 
 ## 2. Step 1 — Filter findings by decision-type
@@ -51,14 +55,16 @@ The rule is intentionally prose-based and decided at orchestrator-evaluation tim
 
 ## 3. Step 2 — User-approval gate (mandatory before any agent spawn)
 
-Use `AskUserQuestion` (do NOT print options as plain text). When the state-file `mode:` is `tdd`, render the first option's label with literal ` (Recommended)` suffix; in Standard mode, render without the suffix. The gate itself is non-negotiable in every mode.
+This gate is its own `AskUserQuestion` call fired during stratify (per §1 Firing phase) — never batched into the Phase 6 Action gate's AUQ, never deferred to end-of-run. Use `AskUserQuestion` (do NOT print options as plain text). When the state-file `mode:` is `tdd`, render the first option's label with literal ` (Recommended)` suffix; in Standard mode, render without the suffix. The gate itself is non-negotiable in every mode.
+
+**The 3-option set is canonical and rendered verbatim — all three, every run.** Do not drop "Let me pick which findings" because few findings are eligible; do not add an improvised `(Recommended)` to "Skip" or to any option. The only `(Recommended)` marker is the documented one: the FIRST option's label gains the ` (Recommended)` suffix when `mode: tdd`, and no suffix otherwise. No other marker placement is valid.
 
 - **Header:** "Test-gate"
 - **Question:** "Author failing tests to confirm review findings? Tests that pass today demote the corresponding finding to ## Filtered (kept visible, not deleted). The skill never writes tests without your approval."
-- **Options:**
-- "Author tests for all eligible findings" — first option's literal label gains a ` (Recommended)` suffix when `mode: tdd`
-- "Let me pick which findings"
-- "Skip — don't author tests"
+- **Options (render all three, verbatim):**
+- "Author tests for all eligible findings" — this first option's literal label gains a ` (Recommended)` suffix when `mode: tdd`; no suffix in Standard mode
+- "Let me pick which findings" — always present; never dropped when the eligible set is small
+- "Skip — don't author tests" — never carries a `(Recommended)` suffix
 
 If user picks **"Skip"**, proceed to Phase 5 (no spawn, no state changes, no caveats).
 

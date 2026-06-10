@@ -6,6 +6,7 @@
 - §Caller contract — make the write visible and non-trailing
 - §MODE contract
 - §Required fields — what every entry must carry
+- §Evidence bar for `trust: verified` — the captured-artifact requirement
 - §Optional fields the helper recognizes
 - §Sanitization — secret-redaction before write
 - §Injection rejection — write-time prompt-injection guard
@@ -66,6 +67,10 @@ distinguish.
 - `tags` (array)
 
 The helper rejects entries missing any of these with rc=64.
+
+## Evidence bar for `trust: verified`
+
+A learning emitted with `trust: verified` is grounded in a captured observation from the run — a test result, command output, log line, or `file:line` the producer actually read (an Evidence Block artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`). A conclusion reasoned from context without such an observation is `trust: inferred`, not `verified`. Diagnosis-type learnings (root-cause claims, client/tool behavior claims) need the observation to actually demonstrate the claimed cause — a plausible explanation for a symptom is correlation, not verification. Memory outlives the session: a confidently-recorded wrong diagnosis misdirects every future session that recalls it, so the bar for `verified` is the captured artifact, not confidence.
 
 ## Optional fields the helper recognizes
 

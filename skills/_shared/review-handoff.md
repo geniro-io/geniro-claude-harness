@@ -230,6 +230,15 @@ EOF
 
 Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
 
+**Write/rewrite discipline — schema comes from the template, never from memory.** Any full handoff write (Phase 5.1 first write) or rewrite (a later round updating the file, a re-author after compaction, any whole-file replacement) follows this procedure — re-authoring the handoff from memory drops the identity frontmatter, renames fields (`pr-head-sha` → `pr-head-oid`, breaking the §7.5 freshness check that then reads null), collapses the per-finding verification fields into a prose line (downstream parses it as legacy `m6-v1`), and drops snapshot fields the same run's Post drill needs:
+
+1. **Before writing, re-read the source schema.** Re-read the §2.6 template above (or, for a rewrite, the prior handoff being updated) and take the field set from there — the frontmatter keys, the per-finding `m6-v2` verification fields, and the `## ` section list. Do not reconstruct any of them from memory.
+2. **Write via `atomic_state_write`** with the full frontmatter + body skeleton, every finding rendered as the multi-line per-finding body block (not a prose collapse).
+3. **After writing, self-check (grep) presence.** Grep the written file for the identity frontmatter keys (`tier:`, `producer:`, `schema-version:`, `geniro_kind:`, `geniro_schema_version:`, `task_slug:`) AND the mandatory per-finding verification field labels on each kept finding (`Validation:`, `Recommended-action:`, `Verification-confidence:`, `Verification-evidence:`). Any missing key means the write dropped schema — re-author from the template, do not patch by memory.
+4. **On a rewrite, preserve every prior frontmatter field.** A field present in the prior version is preserved unless an explicit contract drops it (e.g. a documented schema migration). Fields are dropped by contract, never by omission. Before overwriting, capture the prior frontmatter key set (grep the file's keys); after writing, diff against it — a key that vanished without a contract is a regression. The snapshot fields (`resolved-threads-snapshot:`, `pr-bot-comments-snapshot:`, `pr-formal-reviews-snapshot:`) are the easiest to lose on a rewrite and are exactly what the §7.1 Post-drill dedup reads.
+
+**Definition of Done (write/rewrite):** the written handoff carries every identity frontmatter key and every mandatory per-finding verification field from the §2.6 template, and a rewrite preserved every frontmatter field the prior version carried (verifiable by the before/after key diff in steps 3-4).
+
 ---
 
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding under the handoff's `## Findings` body renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff:
@@ -259,7 +268,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 - **step0_status:** `pending | resolved | wontfix` [PRODUCT-DECISION only — omit for other types]
 ```
 
-The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 3 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
+The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 4 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
 
 **Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every kept finding (CRITICAL / HIGH / MEDIUM) that lands in `## Findings`. Phase 4.2 spawns one fresh `reviewer-agent` per §4.1 survivor regardless of severity; verdicts of `validation: refuted` are filtered before reaching the handoff, so any finding present here carries `Validation: confirmed` or `Validation: clarified`. The fields are ABSENT on LOW findings — including a LOW `PRODUCT-DECISION` admitted via §4.1 Path B (decision-type) — because no LOW finding enters the Phase 4.2 verifier (§4.2 runs on Path-A survivors, `severity >= MEDIUM`). A Path-B LOW `PRODUCT-DECISION` still carries `step0_status: pending` (it IS a PRODUCT-DECISION, so the §3 open-decision gate fires for it) but no `Validation`/verification fields. When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions.
 
@@ -284,8 +293,10 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 **For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
 1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). For CRITICAL / HIGH / MEDIUM findings, confirm the Phase 4.2 verifier passed before firing the AUQ: the `Validation:` field MUST be `confirmed` or `clarified`. A `Validation: refuted` finding should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. A missing `Validation:` on a CRITICAL/HIGH/MEDIUM finding (legacy handoff per §2 back-compat) is treated as `confirmed` — proceed with the AUQ but surface the one-line warning.
-2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate, which mandates § Message-first rendering: FIRST render the finding to chat as a self-contained block (what the code does / the concern / why it matters / evidence / options, in plain English — expand any reviewer shorthand so the question stands on its own), THEN fire a lean AUQ. Set `header: "Open decision"`. Build the chat block and the lean `question` + option `label`+`description` from the finding's `options:` sub-list and body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) per the spec's Source-field map. Leave each option's `preview` empty or a one-line recap — never the finding body, which the truncating/often-absent side-box cannot hold. Append ONE standard disposition beyond the finding's own `options:` bullets — `label: "Keep off the PR — I'll handle this"`, `description: "Record the decision for you; do not include this finding in anything posted to the PR."` — the audience control for a residue the PR author cannot action (a governance / legal / data-classification / business-intent question): it routes the decision to you, not onto the PR. It occupies one AUQ option slot, so when the finding's own `options:` already lists 4, chain a follow-up per the cap-extension rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension) — never drop or merge an existing option to make room.
-3. Update the finding line in the state file via `atomic_state_write` (never a raw `Edit`/`Write` — the handoff is a canonical state path and raw writes trip the `enforce-state-helper` hook): replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag. When the user picks the **Keep off the PR** disposition, set `step0_status: resolved`, write `recommendation: keep-off-pr`, AND add `post-disposition: off-pr` to the finding line — §7.1 reads `post-disposition: off-pr` and drops the finding from the post set, so a residue you chose to handle yourself never reaches the PR author.
+2. Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate, which mandates § Message-first rendering: FIRST render the finding to chat as a self-contained block (what the code does / the concern / why it matters / evidence / options, in plain English — expand any reviewer shorthand so the question stands on its own), THEN fire a lean AUQ. Set `header: "Open decision"`. Build the chat block and the lean `question` + option `label`+`description` from the finding's `options:` sub-list and body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) per the spec's Source-field map. Leave each option's `preview` empty or a one-line recap — never the finding body, which the truncating/often-absent side-box cannot hold.
+3. **Append the "Keep off the PR" disposition to the AUQ options — mandatory, every PRODUCT-DECISION AUQ.** Beyond the finding's own `options:` bullets, add ONE standard option: `label: "Keep off the PR — I'll handle this"`, `description: "Record the decision for you; do not include this finding in anything posted to the PR."` Why it is its own step: the keep-on-PR / keep-off-PR call belongs to the user — it is the audience control for a residue the PR author cannot action (a governance / legal / data-classification / business-intent question). Omitting the option does not drop the decision; it silently transfers it to the orchestrator at payload time (§7.1), which is the exact failure this step prevents. The option occupies one AUQ slot, so when the finding's own `options:` already lists 4, chain a follow-up per the cap-extension rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension) — never drop or merge an existing option to make room.
+   - **Definition of Done (this step):** every fired PRODUCT-DECISION AUQ's `options[]` (across chained calls) contains the literal `"Keep off the PR — I'll handle this"` label — verifiable as a count of fired AUQs == count of PRODUCT-DECISION findings, each carrying the disposition option.
+4. Update the finding line in the state file via `atomic_state_write` (never a raw `Edit`/`Write` — the handoff is a canonical state path and raw writes trip the `enforce-state-helper` hook): replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag. When the user picks the **Keep off the PR** disposition, set `step0_status: resolved`, write `recommendation: keep-off-pr`, AND add `post-disposition: off-pr` to the finding line — §7.1 reads `post-disposition: off-pr` and drops the finding from the post set, so a residue you chose to handle yourself never reaches the PR author.
 
 When more than 4 PRODUCT-DECISION findings exist OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`: chain `AskUserQuestion` calls per cap-extension pattern.
 
@@ -302,7 +313,7 @@ The handoff written in Phase 5.1 carries `report_status: draft`. After §2.5 (Pr
 1. Re-verify every `open_questions[]` entry is `{resolved, wontfix}` and every PRODUCT-DECISION finding is `step0_status: {resolved, wontfix}` — the same invariants §7.0 re-reads. If any is still `unresolved` / `pending`, loop back to the owning gate; do NOT finalize.
 2. Set frontmatter `report_status: final` via `atomic_state_write`.
 
-This is a re-verify-plus-one-field-flip, NOT a re-bake — the per-finding decisions already persisted in §3 step 3. The field exists so the §4 Action gate's handoff option and the §7.0 public-post guard can assert the report is no longer provisional: a report still at `draft` means a decision gate did not clear, and the handoff would route an un-finalized report. Keep this step — a future "simplification" pass that strips it silently re-opens the gap the user reported (the handoff offered before their decisions land).
+This is a re-verify-plus-one-field-flip, NOT a re-bake — the per-finding decisions already persisted in §3 step 4. The field exists so the §4 Action gate's handoff option and the §7.0 public-post guard can assert the report is no longer provisional: a report still at `draft` means a decision gate did not clear, and the handoff would route an un-finalized report. Keep this step — a future "simplification" pass that strips it silently re-opens the gap the user reported (the handoff offered before their decisions land).
 
 No AUQ fires here — finalize is silent. The user already answered the decision gates; a separate "finalize?" confirmation would be friction without new information.
 
@@ -401,6 +412,8 @@ Persist user pick to `approvals[]` with category `round_n_escalation`, written v
 
 ## 6. Failing-tests gate
 
+This is the commit-POLICY gate — it decides whether to commit/push the tests already authored. It is distinct from the test-AUTHORING gate that offered to write those tests during stratify (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md` §3). The authoring gate fires earlier (Phase 4 stratify) and populates `## Authored Tests`; this gate fires here in Phase 6 only when that section is non-empty. Do not conflate the two.
+
 Fires when `## Authored Tests` section is non-empty. Firing order conditional per gate chain.
 
 - **Header:** "Failing tests"
@@ -428,6 +441,8 @@ When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to 
 
 ### 7.0 Step 0 — Unresolved-ambiguity guard (fail-closed)
 
+This re-read is a mandatory, explicit step that fires in the window between the Action gate's "Post" pick and the first `gh api POST /reviews` call — never earlier (an Action-gate-time read can go stale before POST) and never assumed-already-done. It is its own Bash read of the handoff; a Post drill that reaches §7.5 without a §7.0 read of state.md in that window has skipped the guard.
+
 Before any of the Post-drill steps below fire, re-read state.md and verify FOUR invariants. If any fails, abort the Post drill — never post to GitHub with unresolved ambiguity, missing user picks, refuted findings baked in, or a provisional (un-finalized) report.
 
 **Invariant A — no `open_questions[]` left `unresolved`.** The §2.5 Pre-gate runs first in Phase 6 and should leave zero entries with `status: unresolved` by the time Action gate fires.
@@ -454,6 +469,8 @@ This §7.0 check is the fail-closed second line of defense for ALL FOUR invarian
    - After resolution loops for lists (a) + (b) + (d) complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds ALL FOUR filtered lists empty.
 4. When step 3 finds all four filtered lists empty, proceed to §7.1.
 
+**Definition of Done (§7.0 guard):** the §7.0 guard ran between the action pick and any POST — verifiable as a Bash read of the handoff (`cat`/`head` of state.md) issued AFTER the Action gate recorded the "Post" pick and BEFORE the §7.5 `gh api POST /reviews` call. No such read in that window means the guard did not run; do not POST.
+
 This guard exists because posting a draft PR review with unresolved ambiguity, missing user picks, verifier-refuted findings buried in the body, or a report the user has not finished deciding would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array, `step0_status:` sentinel, `Validation:` field, and `report_status` lifecycle are designed to prevent. The four invariants are independent (different arrays, different gates, different producer phases) so the guard must check all four; checking only some leaves the remaining paths uncovered.
 
 ### 7.1 Step 1.5 — Already-on-PR dedup (post-set filter)
@@ -476,12 +493,16 @@ When Step 1.5 empties the post set, fall back to Skip semantics — do not call 
 
 ### 7.2 Step 2 — Granularity gate
 
+**Non-skippable whenever the post set would exclude any finding.** Once the user picks "Post", severity does not gate postability — every eligible finding (CRITICAL / HIGH / MEDIUM / LOW / deferred) is in the post set unless it leaves via one of two accounted paths: a user pick in this gate (or its §7.3 follow-up), OR a §7.1 dedup exclusion that wrote a `## Filtered` `reason:`. There is no third path. The orchestrator never narrows the post set at §7.5 payload time on its own judgment — an unaccounted exclusion (a finding silently dropped with no user pick and no recorded reason) is the failure this gate prevents. So this AUQ fires whenever the §7.1-filtered eligible set is non-empty; it is skipped only when §7.1 already emptied the set (handled above — Skip semantics).
+
 Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 - **Question:** "Send all unposted findings (including LOW / deferred awareness items) in a single batched review, or pick which ones to post?"
 - **Options:**
 - "Send all (Recommended)" — single batched review event minimizes per-finding AUQ calls and dodges secondary rate limits with a single POST.
 - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include.
+
+**Definition of Done (§7.2 gate):** every finding in the §7.1-filtered eligible set either posts, or carries a recorded reason for its absence — a user "Skip this finding" / "Stop posting" pick from §7.3, a §7.1 `## Filtered` `reason:`, or `post-disposition: off-pr`. A finding excluded with none of these is an unaccounted drop; do not POST until it is accounted.
 
 ### 7.3 Step 3 — Per-finding gate
 
@@ -591,9 +612,17 @@ Parse POST response to extract review's `id` field. Second call to derive per-co
 gh api "/repos/<owner>/<repo>/pulls/<number>/reviews/<review-id>/comments"
 ```
 
-Match each returned comment back to its source finding by `(path, line)`. For each matched comment, append `[POSTED-TO-PR]` to the finding's tag list and add `posted-to-pr: <html_url>` to the line in the state file. The idempotency contract: the next `/geniro:review` run against the same PR reads these markers and excludes already-posted findings.
+Match each returned comment back to its source finding by `(path, line)`, and tag EACH matched finding individually:
 
-If the GET fails (rate limit, transient error), persist `[POSTED-TO-PR]` markers without `posted-to-pr:` URLs — the dedupe contract holds (marker IS the key).
+1. For each returned comment, find its source finding by `(path, line)` equality.
+2. Append `[POSTED-TO-PR]` to THAT finding's tag list and add `posted-to-pr: <html_url>` to THAT finding's line in the state file.
+3. Repeat per comment — one `[POSTED-TO-PR]` tag per posted finding.
+
+Per-finding tagging matched by path+line is the only valid form. A single aggregate marker (one `[POSTED-TO-PR]` written at the section or review level, or a prose note like "posted 8 of 12") is invalid — it leaves the individual findings untagged, so the next round's unposted-set computation (§7.1 reads per-finding `[POSTED-TO-PR]` markers) cannot tell which findings already posted and re-raises them. The marker IS the per-finding idempotency key; an aggregate marker has no key the dedup reads.
+
+**Definition of Done (§7.7):** every finding that posted in this run carries its own `[POSTED-TO-PR]` tag on its own line — verifiable as count of `[POSTED-TO-PR]` tags added == count of comments in the POST response. No aggregate or section-level marker stands in for per-finding tags.
+
+If the GET fails (rate limit, transient error), persist the per-finding `[POSTED-TO-PR]` markers without `posted-to-pr:` URLs — the dedupe contract holds (the per-finding marker IS the key). Match findings to posted comments by the `(path, line)` you sent in the POST payload, since the per-comment URLs are what the GET would have supplied.
 
 After markers persisted, surface ONE chat-surface line:
 
