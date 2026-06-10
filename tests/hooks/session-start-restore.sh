@@ -766,6 +766,33 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 19. Block 1b — standing behavioral contracts re-asserted only with an active
+#     task. Compaction keeps file pointers but drops the behavioral rules, so the
+#     block must fire when a resolvable in-flight state.md exists and stay absent
+#     on cold startup.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q "work, not authority" \
+  && pass "Block 1b: contract block fires with an active task" \
+  || fail "Block 1b: contract block missing with an active task"
+
+# Cold startup (no active task) → block must be absent.
+sandbox="$TMPDIR_BASE/cold1b-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+if echo "$ac" | grep -q "work, not authority"; then
+  fail "Block 1b: contract block should be absent on cold startup"
+else
+  pass "Block 1b: contract block absent on cold startup"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

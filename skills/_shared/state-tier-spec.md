@@ -10,6 +10,7 @@ Helpers reference this spec:
 
 - Tier model — the four tiers and their lifecycle contracts
 - Path roots — which files live under each tier (plus the tier-exempt TDD-cycle and verification-cache state files)
+- No ad-hoc state files under `.geniro/state/` — free-form files bypass the validator, restore hook, and cleanup
 - Frontmatter contract — common-base + tier-specific required fields
 - T2 `open_questions` array schema — the handoff gate substrate
 - `authored_tests` array schema — the debug-handoff test record
@@ -77,6 +78,12 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 
 - `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; the PreToolUse hook `enforce-tdd-order.sh` reads it; subagents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase so the hook can gate `Edit`/`Write` at the right moment (the hook reads `## phase` alone — it does not store or compare a per-cycle target path) — it is not a frontmatter-bearing durable artifact and is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
 - `.geniro/planning/<task-dir>/.verify-cache.json` — the cross-phase build/lint/test PASS cache (full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`). Like the TDD-cycle file it is single-writer (orchestrator-only; subagents emit `## Checks Report` sections instead of writing it), written via `mktemp` + `mv -f` rather than `atomic_state_write`, carries no frontmatter, and is never passed through `validate_state_file`. It is a regenerable cache — discarded on any invalidation per verification-cache.md §Invalidation rules, not a durable artifact.
+
+### No ad-hoc state files under `.geniro/state/`
+
+Every file under `.geniro/state/` conforms to one of the canonical layouts above: `state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, `state/handoff/from-<producer>-<branch>.md`, or the documented `state/tdd/state-<slug>.md` exception. A free-form file dropped directly under `.geniro/state/` (observed in the wild: `ci-201-verification-tracker.md` with no frontmatter) is invisible to `validate_state_file`, to the SessionStart restore hook, and to the Phase-Ship cleanup contracts — none of those know to look for it, so it neither resumes nor gets cleaned. Route a working note like that to `.geniro/planning/<task-dir>/` (the scratch tier) instead, where the cleanup contract reaches it.
+
+Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never manufacture a second `.geniro/` root inside a linked worktree. The resolver exists precisely so multi-worktree checkouts converge on the primary worktree's root; a split root fragments the file set the restore hook can discover, so a task started under one root cannot resume against the other.
 
 ---
 

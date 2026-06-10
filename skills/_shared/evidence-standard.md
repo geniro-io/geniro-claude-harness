@@ -58,6 +58,8 @@ The `Stop` hook (`require-evidence-on-completion.sh`) scans final responses for 
 
 Replace with the captured Evidence Block + a one-line summary that cites the exit code and tail.
 
+**Scope the claim when the artifact has open items.** When the thing a completion claim describes carries an open checklist or unresolved items, scope the claim to what was actually verified — e.g. "all HIGH-severity cells verified live; 13 lower-severity items tracked in the checklist" — rather than claiming the whole. An unscoped "verification is complete" over open items is a forbidden phrase even with an Evidence Block attached: the evidence covers the verified subset, so an "all complete" claim outruns its own proof. The Evidence Block establishes what was checked; the claim must not assert more than that.
+
 Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, but the hook does NOT scan them — they produced too many false positives on benign sentences ("Should I run tests?"). Treat them as authoring guidance, not an enforced gate.
 
 ## Stop hook reliability disclaimer
@@ -82,5 +84,6 @@ A consumer skill correctly applies the Evidence Standard when:
 - [ ] Every completion claim ("done", "passing", "validated", "shipped", "ready to ship") in orchestrator output is followed by an Evidence Block in the same message.
 - [ ] Every CRITICAL/HIGH reviewer-agent finding carries an Evidence Block at emit-time (relevance-filter drops findings missing it).
 - [ ] No forbidden-phrase token appears in final output without an accompanying Evidence Block.
+- [ ] When the artifact carries open or unresolved items, the completion claim is scoped to the verified subset — no unscoped "complete" over an open checklist, even with an Evidence Block attached.
 - [ ] Cross-phase PASS carries cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` and verify no intervening mutation.
 - [ ] Evidence is captured in the current message — no stale artifacts, no reasoning-only claims.
