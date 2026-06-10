@@ -59,6 +59,14 @@ fi
 JOINED="${COMMAND//\\$'\n'/ }"
 PADDED=" ${JOINED//$'\n'/ } "
 
+# Strip git GLOBAL options (`git -C <path> worktree remove`, `git -c k=v add -f`,
+# --git-dir/--work-tree/--namespace/--exec-path/--config-env/--attr-source, pager
+# flags) so the `git <subcommand>` matchers below see the subcommand contiguously.
+# Without this, `git -C /repo worktree remove` and `git -C /repo add -f .geniro/...`
+# evade the data-loss guards. Mirrors block-dangerous-git.sh (kept inline so this
+# guard stays self-contained for vendored installs).
+PADDED=$(printf '%s' "$PADDED" | sed -E 's/git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--work-tree(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--namespace(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--exec-path(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--config-env(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--attr-source(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g')
+
 find_safety_json() {
   local dir="$PWD"
   while [ "$dir" != "/" ]; do

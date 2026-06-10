@@ -28,8 +28,8 @@ MODE="warn"
 # Consume stdin — REQUIRED first step for Claude Code hooks.
 INPUT=$(cat)
 
-# Extract file path from tool input JSON.
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+# Extract file path from tool input JSON (NotebookEdit carries notebook_path).
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
 
 if [ -z "$FILE_PATH" ]; then
   exit 0

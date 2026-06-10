@@ -202,6 +202,23 @@ emit_learning() {
     done
   fi
 
+  # Sanitize any UNKNOWN top-level string field. summary / body are already
+  # sanitized above; ts / dedup_key / supersedes / producer / scope / type /
+  # trust are control-plane identifiers. A caller that stashes a secret in a
+  # non-schema key (e.g. `note`, `entry`) would otherwise persist it verbatim.
+  local extra_keys_json extra_count ei
+  extra_keys_json=$(printf '%s' "$rebuilt" | jq -c \
+    '[to_entries[] | select(.value | type == "string") | .key]
+     - ["ts","dedup_key","summary","body","supersedes","producer","scope","type","trust"]')
+  extra_count=$(printf '%s' "$extra_keys_json" | jq 'length')
+  for ((ei = 0; ei < extra_count; ei++)); do
+    local ekey eval_ esan
+    ekey=$(printf '%s' "$extra_keys_json" | jq -r ".[$ei]")
+    eval_=$(printf '%s' "$rebuilt" | jq -r --arg k "$ekey" '.[$k]')
+    esan=$(printf '%s' "$eval_" | redact_secrets "$producer" "$ekey" "$dedup_key")
+    rebuilt=$(printf '%s' "$rebuilt" | jq -c --arg k "$ekey" --arg v "$esan" '.[$k] = $v')
+  done
+
   # Dedup scan — last 200 entries.
   local log root
   root=$(_geniro_repo_root)

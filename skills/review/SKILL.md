@@ -3,7 +3,7 @@ name: geniro:review
 description: "Use when a comprehensive code review of pending changes (a diff, branch, or PR) is needed. Reporter workflow: triage, a cheap mechanical pre-pass, then parallel single-dimension reviewers (bugs, security, architecture, tests, regressions, conventions, and more, plus any custom ones) whose findings are filtered and individually verified, then persisted. Emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/geniro:implement, or you manually) apply the fixes — review never edits code itself. Resolves any needs-your-decision questions before offering the handoff. Optional --simplify folds reuse/quality/efficiency criteria into the existing dimensions. Optional --tdd additionally offers to author failing tests for the testable findings (gated by your approval) and to push them — it posts the same finding set as Standard. Optional --deep runs each check three times and verifies findings with a 3-agent majority vote (higher quality, higher cost)."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree]
+allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree, Workflow]
 argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--tdd] [--standard] [--simplify] [--deep]"
 ---
 
@@ -40,7 +40,7 @@ State.md `phase:` enum transitions:
 └── aborted ── (round-limit / safety / tool-unavailable)
 ```
 
-**Terminal states:** `done`, `aborted`. the SessionStart recovery treats both as "review complete / cancelled". `done` includes a Phase 6 handoff line.
+**Terminal states:** `done`, `aborted`, `escalated`. the SessionStart recovery treats all three as "review complete / cancelled". `done` includes a Phase 6 handoff line; `escalated` (round-limit hand-off) and `aborted` each carry a `## Termination reason`.
 
 **Non-terminal states:** `triage`, `mechanical-prepass`, `llm-spawn`, `filter`, `stratify`, `persist`, `action-gate`. the recovery rolls these back to phase-entry and re-runs from there (idempotent — `approvals[]` ensures Phase 6 AUQ skips already-answered).
 

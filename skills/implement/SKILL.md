@@ -3,7 +3,7 @@ name: geniro:implement
 description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship. Optional --deep deepens two phases — a 3× self-review with 3-vote majority verification of findings, and a 3× fact-check of the spec's cited claims before editing (higher quality, higher cost)."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, EnterWorktree, ExitWorktree]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, EnterWorktree, ExitWorktree, Workflow]
 argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep]"
 ---
 
@@ -49,6 +49,8 @@ Each `git push` / `gh pr create` / posted comment appends to `non-resumable-acti
 **Terminal states**: `done`, `ship-committed-only`, `self-review-only`, `debug-handoff`, `aborted`.
 
 **Non-terminal states**: `analyze`, `implement`, `self-review`, `ship`.
+
+**Escalation (paused) states**: `phase-2-escalated`, `phase-3-escalated` — a fix-loop exhausted and an AUQ is open. On resume the recovery re-surfaces "task was paused — last AUQ options" so the user re-picks without losing context (mirrors /geniro:debug's escalation states).
 
 **Termination reason convention.** When `phase: aborted` is reached, write one line to state.md body under `## Termination reason`: `repeated-failure: phase-N retry-limit` / `safety-denied: <rule>` / `tool-unavailable: <tool>`. The SessionStart hook re-injects this on resume.
 
@@ -291,8 +293,8 @@ Decision tree (first match wins; evaluate top-down):
 
 ```
 1. Resumable state.md exists for resolved task slug
-   AND state.md frontmatter phase: ∈ {analyze, implement, self-review, ship}
-   ⇒ SKIP Step 0 entirely. Resume per state.md.
+   AND state.md frontmatter phase: ∈ {analyze, implement, self-review, ship, phase-2-escalated, phase-3-escalated}
+   ⇒ SKIP Step 0 entirely. Resume per state.md — a non-terminal phase rolls back to phase entry; an escalation (paused) phase re-surfaces its last AUQ options.
 
 2. IN_WORKTREE == true
    AND CURRENT_BRANCH ∈ continuing-work set:
@@ -565,7 +567,7 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
 
 **State.md update on phase exit.** `phase: self-review` (happy path) or `phase: phase-2-escalated` (if escalation fires). On `aborted`, write `## Termination reason: repeated-failure: phase-2 retry-limit (<N> failing tests)`.
 
-**L2 emit on retry exit.** When Phase 2 exits AND `retry_count ≥ 2` (i.e., at least one fix-iteration happened), call `emit-learning` with `type: retry_failure_sequence`, `trust: verified`, required `ext.{phase: "phase-2-fix-loop", attempts: [...], resolution}`. Each `attempts[]` entry = `{round: N, failure: "<one-line summary>"}`. `resolution ∈ {passed, escalated, aborted}` matches the actual exit state. Sliding-window cap = 3 latest per `(producer, scope, phase)`; on overflow, mark oldest `deprecated: true` via direct edit BEFORE appending. Single-retry exits (retry_count == 1) do NOT emit. Future Phase 1 `query-learnings` calls surface this as priming context.
+**L2 emit on retry exit.** When Phase 2 exits AND `retry_count ≥ 2` (i.e., at least one fix-iteration happened), call `emit-learning` with `type: retry_failure_sequence`, `trust: verified`, required `ext.{phase: "phase-2-fix-loop", attempts: [...], resolution}`. Each `attempts[]` entry = `{round: N, failure: "<one-line summary>"}`. `resolution ∈ {passed, escalated, aborted}` matches the actual exit state. Sliding-window cap = 3 latest per `(producer, scope, phase)`; on overflow, flip the oldest entry's `deprecated: true` BEFORE appending — this mutates `.geniro/knowledge/learnings.jsonl`, so rewrite the file through the atomic-write path (`atomic_state_write`), not a direct `Edit`/`Write` the state-helper hook guards (mirrors debug §1.5). Single-retry exits (retry_count == 1) do NOT emit. Future Phase 1 `query-learnings` calls surface this as priming context.
 
 ### Loop visualization
 

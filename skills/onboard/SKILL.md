@@ -277,11 +277,11 @@ Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skil
 Mirrors the /geniro:implement ACI surface — read-only Phase 1, helper-mediated writes Phase 2.
 
 **Phase 1 (Discover):**
-- Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`).
+- Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`) / AskUserQuestion (the §1.3 repo-size-cap expansion gate).
 - Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
-- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `emit-learning` helper invocations.
+- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `emit-learning` helper invocations / AskUserQuestion (the §2.4 next-step gate) / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
 - Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
 Existing safety hooks apply across all phases (file-protection / git-guardrail / `.geniro/` deletion guard).

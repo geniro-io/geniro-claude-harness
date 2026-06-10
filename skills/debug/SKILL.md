@@ -3,7 +3,7 @@ name: geniro:debug
 description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, Workflow]
 argument-hint: "[bug description | verify <diff-range> | verify last changes] [--deep]"
 ---
 
@@ -251,7 +251,7 @@ When the hypothesis loop fails to converge — defined as **5 inconclusive hypot
 3. **Surface to user via `AskUserQuestion`** with header "Stall diagnosis" — render the most likely missing-component categories plus an explicit "Abandon — present partial findings" option (AUQ maxItems=4, so typically the top 3 categories + Abandon; if more categories are relevant, chain a second AUQ per the cap-extension pattern). "Abort" comes via the AUQ "Other" option.
 4. state.md marks `phase: phase-1-escalated` with timestamp + inconclusive-test count + categorized stall hypothesis. Transitions:
 - User picks a surfaced missing-component category → `phase: investigate` (resume hypothesis loop with new data).
-- User picks "Abandon — present partial findings" → `phase: ship-summary-only` (proceed to Phase 3 with a stall-flagged findings summary).
+- User picks "Abandon — present partial findings" → keep `phase: ship` (NOT the terminal yet) and proceed to Phase 3 with a stall-flagged findings summary; Phase 3 exit writes the terminal `ship-summary-only` (§3.2). Writing the terminal at the gate would strand a compaction-resume as "complete" before the summary + handoff are produced.
 - User picks "Abort" (via "Other") → `phase: aborted` (terminal).
 
 **Persist the stall as a structured open_questions[] entry** in state.md frontmatter (and mirror to the body `## Open Questions` section for human readability). Schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2:
@@ -565,8 +565,8 @@ T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `de
 ## ACI per-phase tool surface
 
 **Phase 0 (Mode Detect):**
-- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`).
-- Explicitly blocked: any Edit/Write, any side-effect tool.
+- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; plus `atomic_state_write` to persist the mode/depth pick) / AskUserQuestion (the mode + depth gate).
+- Explicitly blocked: any Edit/Write to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
 
 **Phase 1 (Investigate):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, read-only `gh pr list` / `gh pr view` / `gh pr diff` for the §1.2 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).

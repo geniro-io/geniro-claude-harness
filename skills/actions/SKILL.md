@@ -46,8 +46,8 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
 | `execute` (list) | `Read`, `Glob`, `Bash(ls...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
-| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p .geniro/actions/, grep, echo >> .gitignore)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
-| `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
+| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p .geniro/actions/, grep, echo >> .gitignore, sed -i, rm -f .gitignore.bak, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
+| `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
 | `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
 | `execute` (run) | **Intersection of /geniro:actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
 | `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
@@ -391,6 +391,8 @@ Call **Phase 5.0**. If `<source> == main-worktree`, refuse-and-surface (editing 
 
 ### Step 2 — Open for external editing
 
+Snapshot the file before handing it off — `cp "<absolute-path>" "<absolute-path>.pre-edit.bak"` — so the auto-validation's "Revert to pre-edit version" option (Step 3) has a restore target; without it that option has nothing to restore.
+
 Print absolute path: `Edit: <absolute-path-to-resolved-file>`.
 
 AUQ to wait for the user's "done" signal:
@@ -407,9 +409,9 @@ Re-run the **Phase 4 Step 6 validation gate** with **entry mode = `edit-in-place
 **Auto-validation surfacing:** if validation fails (CRITICAL/HIGH), surface findings + AUQ:
 
 - **Question:** "Auto-validation found issues: <list>. What next?"
-- **Options:** `Open editor again` / `Save anyway despite warnings` / `Revert to pre-edit version`
+- **Options:** `Open editor again` / `Save anyway despite warnings` / `Revert to pre-edit version` (restore via `mv "<path>.pre-edit.bak" "<path>"`)
 
-The auto-validation does NOT block save; it surfaces. User remains in control.
+The auto-validation does NOT block save; it surfaces. User remains in control. On any terminal pick (Save / Revert / Cancel), remove the snapshot: `rm -f "<path>.pre-edit.bak"`.
 
 After all 10 checks pass: `Edited \`.geniro/actions/<resolved-slug>.md\`. Run with \`/geniro:actions run <resolved-slug>\`.`
 
