@@ -70,12 +70,12 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
 | 3 | Clarifying questions (≤5 total — non-trivial option consequences rendered to a chat message first, independent ones batched into one lean AUQ, dependent ones sequenced), plus the Standard/Deep depth question when `--deep` is absent | §"Phase 3 — Clarifying questions" |
-| 4 | Approaches (2-3 rendered to a chat message with diagrams, then ONE lean AUQ with Recommended first; `--deep`: judge-panel approach search + 3× feasibility critics with majority vote — `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`) | §"Phase 4 — Approaches" |
-| 5 | Cluster approval (fixed 11-section schema grouped into 3 dependency-ordered clusters; each cluster rendered to a chat message, then ONE lean AUQ — Approve all / Revise specific sections / Cancel; milestone-mode) | §"Phase 5 — Section approval" |
+| 4 | Approaches (2-3 rendered to a chat message in the shared visual language — progress tracker, plain-English digest, diagrams — then ONE lean AUQ with Recommended first; `--deep`: judge-panel approach search + 3× feasibility critics with majority vote — `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`) | §"Phase 4 — Approaches" |
+| 5 | Cluster approval (fixed 11-section schema grouped into 3 dependency-ordered clusters; each cluster rendered in the visual language — progress tracker, one-sentence opener, scope/steps/done visuals, friendly per-section digests — then ONE lean AUQ — Approve all / Explain a section further / Revise specific sections / Cancel; milestone-mode) | §"Phase 5 — Section approval" |
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open; `--deep`: 3× verify per cited claim with majority vote) | §"Phase 7.5 — Spec challenge" |
-| 8 | User approve (schema-rich AUQ + git commit) | §"Phase 8 — User approval" |
+| 8 | User approve (visual summary message + lean AUQ + git commit) | §"Phase 8 — User approval" |
 | 9 | Handoff (2 options: /geniro:implement / Stop) | §"Phase 9 — Handoff" |
 
 Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema gap.
@@ -117,7 +117,7 @@ This skill has no hard kill caps. All limits are escalation gates that surface t
 - spec.md section count: exactly 11.
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
-**Rationale.** The ≤3 AUQ gates guideline applies to /geniro:implement, NOT /geniro:plan. /geniro:plan is a **clarification-heavy** skill — its job IS to ask questions. Rich content is rendered to chat messages (the Gate presentation contract); each gate then fires ONE lean question: Phase 3 ≤5 questions in 1-2 batched calls + Phase 4 ×1 + Phase 5 ×3 (one per cluster, not per section) + Phase 8 ×1 → ~6-7 lean AUQ calls typical. Collapsing Phase 5 from one question per section to one per cluster drops the questions the user answers there from ~11 to 3.
+**Rationale.** The ≤3 AUQ gates guideline applies to /geniro:implement, NOT /geniro:plan. /geniro:plan is a **clarification-heavy** skill — its job IS to ask questions. Rich content is rendered to chat messages (the Gate presentation contract); each gate then fires ONE lean question: Phase 3 ≤5 questions in 1-2 batched calls + Phase 4 ×1 + Phase 5 ×3 (one per cluster, not per section) + Phase 8 ×1 → ~6-7 lean AUQ calls typical. Collapsing Phase 5 from one question per section to one per cluster drops the questions the user answers there from ~11 to 3; Explain-further rounds add re-asks only when the user requests them.
 
 ---
 
@@ -228,7 +228,7 @@ Do NOT reintroduce these anti-patterns:
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll cram the section ADR digest into the AUQ `preview` so each option is self-contained." | The `preview` side-box is a narrow monospace panel beside the option list — too small for a Decision/Why/How digest, code examples, and diagrams; the user squints at it per option. Render the cluster to a chat message (full width, persists in scrollback) per the Gate presentation contract, then keep the AUQ options lean. Cramming content into `preview` is the exact failure mode message-first exists to fix. |
+| "I'll cram the section digest into the AUQ `preview` so each option is self-contained." | The `preview` side-box is a narrow monospace panel beside the option list — too small for a section digest, code examples, and diagrams; the user squints at it per option. Render the cluster to a chat message (full width, persists in scrollback) per the Gate presentation contract, then keep the AUQ options lean. Cramming content into `preview` is the exact failure mode message-first exists to fix. |
 | "I'll author all 11 sections and fire one approval for the whole spec — fewer questions is strictly better." | Authoring everything before the first gate surfaces cross-section issues only after the user reads the whole plan — too late to cheaply correct. Author → render → gate ONE cluster, then the next; cluster 1 is approved before cluster 2 is authored, so each cluster builds on grounded prior content. One question per cluster (not per section, not per whole spec) is the chosen granularity — per-section `approvals[]` grain is preserved by the Revise-picker. |
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /geniro:implement when the rendered UI doesn't match). |
 | "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work." | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |

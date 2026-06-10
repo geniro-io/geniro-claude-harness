@@ -144,30 +144,33 @@ approvals:
 
 ## 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 
-Apply the Gate presentation contract. Render the approaches to a chat message (full ASCII diagrams + code identifiers + trade-offs + stress-test verdicts), then fire ONE lean AUQ whose options are just the approach names.
+Apply the Gate presentation contract (§Visual rendering language). Render the approaches to a chat message — progress tracker, one-sentence opener, then per approach a plain-English summary + ASCII diagram + what-changes + trade-off + stress-test verdict — and fire ONE lean AUQ whose options are just the approach names.
 
 Chat message rendered before the AUQ:
 
 ```markdown
-Two approaches for the backfill — I recommend the first.
+Plan approval — choosing the approach
+● Approach · ○ Goal & scope · ○ Steps · ○ Safety · ○ Final approval
+
+**In one sentence:** picking how to rebuild drifted telemetry counts — two ways to build it; I recommend the first.
 
 ### Service-layer fan-out  ✅ Recommended
-Split per-user backfill into queued jobs; the orchestrator dequeues N at a time.
+Split the per-user backfill into queued jobs; a worker pool takes N at a time, so memory stays flat no matter how many users.
 
   ┌─────────────┐    ┌──────────────────┐    ┌────────────┐
   │ /backfill    │─→─│ BackfillQueue.add │─→─│ Worker pool│
   └─────────────┘    └──────────────────┘    └────────────┘
 
-New: `src/jobs/BackfillQueue.ts` + a per-user job class.
+What changes: new `src/jobs/BackfillQueue.ts` + a per-user job class.
 Trade-off: +1 infrastructure piece; bounded memory under load.
 Stress-test: no blockers; queue-table migration needed (minor, src/db/schema.ts:40).
 
 ### In-process Promise.all
-Loop users, await `Promise.all` in chunks of 50.
+Loop the users and run 50 backfills at a time inside the existing process — nothing new to deploy.
 
   for (chunk of chunks(users, 50)) await Promise.all(chunk.map(backfill))
 
-New: tweaks to `src/backfill/runner.ts` only.
+What changes: tweaks to `src/backfill/runner.ts` only.
 Trade-off: zero new infrastructure; memory spike on large datasets.
 Stress-test: major — runner.ts:88 already holds the full user set in memory; the spike compounds.
 ```
@@ -204,52 +207,65 @@ Procedure per cluster (Gate presentation contract):
 
 1. **Author the cluster's sections inline** using Phase 1 research findings + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate.
 
-2. **Render the cluster to a chat message** — one sub-heading per section; under each, the Decision → Why → How digest + concrete example + an ASCII diagram where it helps (especially section 6 Steps). A "none — task scope precludes" section is a one-line note here, not a rendered section.
+2. **Render the cluster to a chat message in the Visual rendering language** (Gate presentation contract) — progress tracker (`step N of 3`), one-sentence opener, the cluster-level visual (cluster 1: in/out scope map; cluster 2: steps flow diagram; cluster 3: done-condition checklist), then one icon-headed sub-heading per section with its friendly digest block (lead sentence / `**Why:**` with evidence cite / `**How it gets built:**` / `**You'll see:**`) closed by the concrete example + visual per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example + visual per section type". A "none — task scope precludes" section is a one-line note here, not a rendered section.
 
-3. **Fire ONE lean AUQ for the cluster** — three options, no `preview` (the message above carries the content): Approve all / Revise specific sections / Cancel planning.
+3. **Fire ONE lean AUQ for the cluster** — four options, no `preview` (the message above carries the content): Approve all / Explain a section further / Revise specific sections / Cancel planning.
 
-4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). On "Approve all", append one entry per section (`picked: approve`); on "Revise", record revised sections distinctly (`picked: revised: <summary>`). The cluster is a presentation grouping only — no `cluster_<id>` category.
+4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). On "Approve all", append one entry per section (`picked: approve`); on "Revise", record revised sections distinctly (`picked: revised: <summary>`); "Explain a section further" persists nothing. The cluster is a presentation grouping only — no `cluster_<id>` category.
 
 5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6.
+
+**Explain path.** "Explain a section further" opens the same section picker as Revise. For each picked section, render a deeper walkthrough message — the full evidence chain (additional `file:line` cites), an expanded or alternative diagram, edge-case behavior, and exactly what /geniro:implement will and will not touch — then re-fire the cluster AUQ. A reading aid, not a decision: it writes no `approvals[]` entry, never changes section content, and does not count toward the 3 revision rounds.
 
 **Revise path.** "Revise specific sections" opens a follow-up multi-select picker of the cluster's section names (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` multi-select schema). For each picked section, capture the revision (free-text via Other), re-author it AND any same-cluster sections that depend on it, re-render the cluster message, re-fire this AUQ. Max 3 revision rounds per cluster.
 
 Literal cluster-1 chat message (rendered before the AUQ):
 
 ```markdown
-## Goal & scope — 3 sections
+Plan approval — step 1 of 3
+✔ Approach · ● Goal & scope · ○ Steps · ○ Safety · ○ Final approval
 
-### 1. Objective
-**Decision:** Add a `/backfill` endpoint that re-derives per-user telemetry counts on demand.
-**Why:** src/telemetry/aggregate.ts:120 shows counts drift after retroactive event edits;
-chosen approach = service-layer fan-out.
-**How:** /geniro:implement adds `BackfillController.run()` calling the queued `BackfillQueue`
-service; no schema change to events.
-Example: "User triggers /backfill → counts reconcile within 30s."
+**In one sentence:** we're agreeing on what the backfill feature will do, what's
+included, and what stays out.
 
-### 2. Scope — Included
-**Decision:** BackfillController + BackfillQueue service + per-user job class.
-**Why:** integration surface from Phase 1 — src/jobs/ already hosts a queue runner
-(src/jobs/runner.ts:40); reuse it.
-**How:** /geniro:implement touches src/telemetry/, src/jobs/, src/api/routes.ts.
-Example: bullets map to src/jobs/BackfillQueue.ts (new), routes.ts (edit).
+┌─ In scope ──────────────────────┐   ┌─ Out of scope ──────────────┐
+│ + src/jobs/BackfillQueue.ts     │   │ x event-schema migration    │
+│ + per-user job class            │   │ x admin dashboard           │
+│ ~ src/api/routes.ts             │   └─────────────────────────────┘
+│ ~ src/telemetry/                │       + new file   ~ edited file
+└─────────────────────────────────┘
 
-### 3. Scope — Excluded
-**Decision:** Event-schema migration and the admin dashboard are out of scope.
-**Why:** the chosen approach reuses the existing schema; the dashboard is a separate
-Linear epic (no file in the touched surface).
-**How:** /geniro:implement will NOT touch src/db/schema.ts or src/admin/.
-Example: "Backfill runs against the current events table as-is."
+### 🎯 Objective
+We'll add a `/backfill` endpoint that re-derives per-user telemetry counts on demand.
+- **Why:** counts drift after retroactive event edits (evidence:
+  src/telemetry/aggregate.ts:120); the approach you picked is service-layer fan-out.
+- **How it gets built:** a `BackfillController.run()` calling the queued
+  `BackfillQueue` service; no change to the events schema.
+- **You'll see:** trigger `/backfill` → counts reconcile within ~30s.
+
+### 📦 What's included
+We'll build the controller, the queue service, and a per-user job class.
+- **Why:** src/jobs/ already hosts a queue runner (src/jobs/runner.ts:40) — we
+  reuse it instead of adding new infrastructure.
+- **You'll see:** the scope map above — 2 new files, 2 edited areas.
+
+### 🚫 What's excluded
+The event-schema migration and the admin dashboard stay out.
+- **Why:** the chosen approach reuses the existing schema; the dashboard is a
+  separate tracker epic (no file in the touched surface).
+- **You'll see:** src/db/schema.ts and src/admin/ untouched after implementation.
 ```
 
 Then the LEAN AUQ:
 
 ```yaml
 header: "Goal & scope"
-question: "Approve the Goal & scope cluster (3 sections above)?"
+question: "Approve the Goal & scope step (3 sections above)?"
 options:
   - label: "Approve all (3 sections)"
     description: "Objective + In scope + Out of scope as rendered."
+  - label: "Explain a section further"
+    description: "Pick a section; I'll walk through it in more depth, then re-ask."
   - label: "Revise specific sections"
     description: "Pick which of the 3 to change; I'll re-author and re-ask."
   - label: "Cancel planning"
@@ -286,24 +302,34 @@ Handoff (Phase 9) offers `/geniro:implement .geniro/planning/<slug>/milestone-1.
 
 ## 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
 
-Apply the Gate presentation contract. Render the full plan summary to a chat message (with the concrete examples already authored per section), then fire a lean AUQ.
+Apply the Gate presentation contract (§Visual rendering language). Render the full plan summary to a chat message (with the concrete examples already authored per section), then fire a lean AUQ.
 
 Chat message rendered before the AUQ:
 
 ```markdown
-The spec is ready at `.geniro/planning/<slug>/spec.md`. Summary before you approve:
+Plan approval — final step
+✔ Approach · ✔ Goal & scope · ✔ Steps · ✔ Safety · ● Final approval
 
-**Objective:** <section 1 body — single sentence>
-**Scope:** <section 2 Included bullets + section 3 Excluded summary>
-**Approval Points:** <section 8 list, max 5 shown with "... and N more" if >5>
-**Risk class:** <auto-computed: low / medium / high from section 5 Risks count + section 7 forbidden_actions>
-**Rollback:** <section 10 summary, 1-2 sentences>
-**Done Condition:** <section 11 observable signal>
+**In one sentence:** the full spec is written and checked — this is the last look
+before it's committed and handed to implementation.
+
+Spec on disk: `.geniro/planning/<slug>/spec.md`
+
+**🎯 The goal:** <section 1 body — single sentence>
+**📦 In / out:** <section 2 Included bullets + section 3 Excluded summary — reuse
+the in/out scope map from the Goal & scope step>
+**🙋 Where you'll be asked mid-build:** <section 8 list, max 5 shown with
+"... and N more" if >5>
+**⚠️ Risk level:** <auto-computed: low / medium / high from section 5 Risks count
++ section 7 forbidden_actions> — <one-line why>
+**↩️ If something goes wrong:** <section 10 summary, 1-2 sentences>
+**✅ How we'll know it's done:**
+☐ <section 11 — one checkbox per observable signal, e.g. "all 5 acceptance tests green">
+☐ <"telemetry shows ≥1 successful event insert">
 **Touched files:** <glob count from section 2 Scope.Included>
 
-Example (Done Condition): "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert."
-
-Approval is valid for this planning session; re-approval is needed if spec.md is edited after this point.
+Approval is valid for this planning session; re-approval is needed if spec.md is
+edited after this point.
 ```
 
 Then the LEAN AUQ — `question` is a one-line recap pointing at the message:
