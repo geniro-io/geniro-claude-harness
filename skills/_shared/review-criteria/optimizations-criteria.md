@@ -250,4 +250,4 @@ A valid finding shape: "PR #N (peer) optimizes `<path>` at `<file:line>` via <me
 - **MEDIUM**: missing `.lean` / `raw:true` / projection on hot-path read; sequential awaits on independent calls; missing route code-splitting; missing `React.memo` on demonstrably expensive child; long-list render 100–1000 rows without virtualization; image without modern format / `loading="lazy"` on hero
 - **LOW**: minor projection wins on cold paths; below-fold image without `loading="lazy"`; tree-shaking-hostile `import _ from 'lodash'` where only one helper is used
 
-Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1 (the optimizations dim specializes HIGH/MEDIUM to the measured thresholds above per §6).
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1 (the optimizations dim specializes HIGH/MEDIUM to the measured thresholds above per §6).

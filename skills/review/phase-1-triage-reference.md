@@ -242,7 +242,7 @@ When the review's scoped file set is a proper subset of the PR's changed files �
 - **Ancestor PR:** `gh pr list --state open --head <baseRefName> --json number,title,url --limit 1`, falling back to `--state all` when empty — the PR whose head IS this base (`--head`, not the peer-PR scout's `--base`, which finds children/siblings).
 - **Ancestor findings:** reuse the §1.1 thread-state GraphQL against the ancestor PR number to COUNT its review threads (resolved + unresolved) — do NOT persist the result to the target PR's `pr-bot-comments-snapshot:` / `pr-formal-reviews-snapshot:` (those hold the target's prior-review context fed to reviewers).
 
-Rendered as the Phase 6 report `## Summary` `Scope:` bullet (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §2.6). Computed in-memory at report time from `gh pr diff <ref> --name-only` and the scope the reviewers were given — no new frontmatter field. Fail-open: no `--head` match → render "<M> files excluded — owning PR not identified; confirm they were reviewed separately"; `gh` unavailable, or a compaction dropped the in-memory reviewed-file set → omit the note (the review's scoped findings still hold).
+Rendered as the Phase 6 report `## Summary` `Scope:` bullet (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6). Computed in-memory at report time from `gh pr diff <ref> --name-only` and the scope the reviewers were given — no new frontmatter field. Fail-open: no `--head` match → render "<M> files excluded — owning PR not identified; confirm they were reviewed separately"; `gh` unavailable, or a compaction dropped the in-memory reviewed-file set → omit the note (the review's scoped findings still hold).
 
 ---
 
@@ -369,7 +369,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 
 ## 8. Step 0.6 — PLAN CONTEXT load (schema-aware)
 
-Per `plan-context-reference.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
 1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (11 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).

@@ -84,7 +84,7 @@ If PRIOR-ROUND FINDINGS was provided in your input:
 3. As you apply your dimension criteria in Step 2, bias your attention toward analogous gaps in the CURRENT diff — if prior rounds caught a race condition in one handler, look for similar races in adjacent handlers; if prior rounds caught a missing migration rollback, look for missing rollback in any new migration; if prior rounds caught a semantic blast radius miss, look for unnamed callers of any changed symbol.
 4. Do not re-flag the prior-round entries themselves — those are either already fixed (and the diff shows the fix) or being tracked by the orchestrator's idempotency contract. If you see what looks like a prior-round entry, assume the orchestrator has handled it and move on.
 5. If the slot value is `none — first review` (the orchestrator's sentinel for round 1), or the slot is absent entirely, skip this step — apply general best practices without round-bias.
-6. The slot is capped at ~3000 chars (mirrors the PLAN CONTEXT cap rationale documented at `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` §4+§6); a truncation marker `[…truncated…]` may appear if prior rounds had many findings.
+6. The slot is capped at ~3000 chars (mirrors the PLAN CONTEXT cap rationale documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §4+§6); a truncation marker `[…truncated…]` may appear if prior rounds had many findings.
 
 ### Step 2: Analyze Each File
 For each changed file:
@@ -107,7 +107,7 @@ Only output findings with confidence ≥60. When a finding's behavior is explici
 
 ## Confidence Scoring (advisory)
 
-Emit `Confidence: XX%` (0-100) — an advisory hint about your self-rated certainty, NOT the load-bearing filter. Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §4, LLM self-reported confidence is poorly calibrated for Claude and nearly random in production. The orchestrator's Phase 4.1 multi-signal gate uses convergence + evidence-grounding as primary signals, with the percentage as a fallback.
+Emit `Confidence: XX%` (0-100) — an advisory hint about your self-rated certainty, NOT the load-bearing filter. Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, LLM self-reported confidence is poorly calibrated for Claude and nearly random in production. The orchestrator's Phase 4.1 multi-signal gate uses convergence + evidence-grounding as primary signals, with the percentage as a fallback.
 
 Still rate your confidence — downstream consumers (orchestrator tie-breaking, the per-finding verifier, the user) read it. But do not inflate confidence to push a finding past a perceived threshold; if the finding is correct, the multi-signal gate will surface it via convergence or evidence-grounding even at 60-79%.
 
@@ -175,7 +175,7 @@ A finding states what you verified, not a chore for the reader. Before writing "
 
 ### Verify-finding mode
 
-When the input prompt contains `mode: verify-finding`, emit a structured verification result INSTEAD of the standard finding schema. This mode is used by `/geniro:review` Phase 4.2 per-finding verifier — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` for the full contract.
+When the input prompt contains `mode: verify-finding`, emit a structured verification result INSTEAD of the standard finding schema. This mode is used by `/geniro:review` Phase 4.2 per-finding verifier — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` for the full contract.
 
 In verify-finding mode you receive:
 - A single finding body (title, file:line, severity, decision-type, evidence, suggested-fix)
@@ -206,14 +206,14 @@ Re-read the cited code before answering. Confirmation without empirical re-read 
 
 ### Severity levels
 
-Full inclusion + exclusion lists for each tier live in `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1. Read that file before assigning severity if you are uncertain. Key rules:
+Full inclusion + exclusion lists for each tier live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1. Read that file before assigning severity if you are uncertain. Key rules:
 
 - **CRITICAL** — Security vulnerability with concrete exploit path; data-loss path; hard crash on documented input; compliance violation. Excludes hypothetical risks without documented trigger.
 - **HIGH** — Visible user-facing regression with cited reproduction; race condition with specific scenario; missing validation reaching a downstream consumer; deleted production code with cross-file callers; performance exceeding a measured threshold. Excludes theoretical defects without reproduction path; documentation gaps; naming/style.
 - **MEDIUM** — Verifiable defect impacting reliability or clarity that is unlikely or non-blocking; edge case bug with low likelihood; missing test coverage where the uncovered path has a documented failure mode. **EXCLUDES documentation polish, PR-description verbosity, naming polish, formatting, style suggestions, cosmetic refactors, and process recommendations** — those are LOW.
 - **LOW** — Style / naming / format suggestions; documentation polish; PR-description / commit-message verbosity; cosmetic refactors; convention drift on non-critical fields. The plugin has NO NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion".
 
-The most common miscalibration is inflating LOW → MEDIUM to surface a finding past the filter. The Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5) provides four independent signals for a correct finding to surface — do not inflate severity to game the filter.
+The most common miscalibration is inflating LOW → MEDIUM to surface a finding past the filter. The Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) provides four independent signals for a correct finding to surface — do not inflate severity to game the filter.
 
 ### Decision Type Guidance
 

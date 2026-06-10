@@ -17,7 +17,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — gets ONE fr
 
 ## 1. When this fires
 
-After the Phase 4.1 multi-signal threshold gate — Path A, severity-gated (`severity >= MEDIUM` AND any-of {convergence ≥2, Evidence-Block present + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback}; tier-relaxed at signal #4 to ≥70 for `risk-tier: high`). See `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5 for the full gate spec, including Path B (a LOW `PRODUCT-DECISION` admitted by decision-type, which skips this verifier). Fires BEFORE Phase 4.3 test-confirmation gate and Phase 5 stratification.
+After the Phase 4.1 multi-signal threshold gate — Path A, severity-gated (`severity >= MEDIUM` AND any-of {convergence ≥2, Evidence-Block present + confidence ≥60, criteria-pre-resolved marker, confidence ≥80 fallback}; tier-relaxed at signal #4 to ≥70 for `risk-tier: high`). See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 for the full gate spec, including Path B (a LOW `PRODUCT-DECISION` admitted by decision-type, which skips this verifier). Fires BEFORE Phase 4.3 test-confirmation gate and Phase 5 stratification.
 
 Skip condition: ONLY when the Path-A surviving set is empty (a Path-B-only LOW `PRODUCT-DECISION` is not a defect-to-confirm and is never verified). Never skip based on tier or severity — every CRITICAL / HIGH / MEDIUM survivor gets a verifier.
 
@@ -85,7 +85,7 @@ The verifier never leaves a checkable "confirm X" in a finding that will be post
 
 `confirmed` requires more than the defect existing in the code. There must be a concrete path, reachable under the CURRENT production configuration (feature flags, gates, env, role), where the change produces a wrong or different outcome than before the PR. A real code pattern that cannot change any outcome — because the gating flag is OFF, the branch is dead, or it merely describes the normal/safe shape of the code — is NOT a confirmed finding.
 
-This is the calibration `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` already demands ("hypothetical risk without a documented trigger" excluded from CRITICAL; "the edge case must be reachable" for MEDIUM) — the verifier is where it gets enforced, automatically, on every finding rather than only when a human asks.
+This is the calibration `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` already demands ("hypothetical risk without a documented trigger" excluded from CRITICAL; "the edge case must be reachable" for MEDIUM) — the verifier is where it gets enforced, automatically, on every finding rather than only when a human asks.
 
 - For any finding whose risk depends on a flag / gate / role / config branch, the orchestrator includes the current config state in the verifier prompt (§2) and the verifier asks the decisive question: "with that gate in its CURRENT production state, can this change produce a different value or behavior than before the PR?"
 - When the pattern exists but no actionable path does, emit `validation: refuted`, `recommended_action: drop`, and an `evidence` line stating the reachability result (e.g. `flag useProposalV2 OFF in prod → the new V2 write block is unreachable; getRejectionHubspotValue(null)==='No'==pre-PR → zero delta`). The orchestrator files it under `## Filtered` with reason `not-actionable`.
@@ -123,7 +123,7 @@ After loop:
 
 Critical: ALL verifier spawns fire in ONE assistant response, same assistant turn, NOT one per turn. Separate turns serialize execution and double wall-time; the canonical parallel-spawn invariant applies.
 
-**Deep mode (`deep-mode: true`).** Spawn 3 independent verifiers per survivor (instead of 1) inside a `Workflow(...)` and aggregate by 2/3 majority — `confirmed`/`clarified` are "stands" votes, `refuted` is a "drop" vote; ≥2 drop → refuted, else stands; a parse failure abstains; quorum < 2 parseable votes → fail-safe to ONE single-pass verifier. The per-verifier input (§2), output (§3), and actionability bar (§3.6) are identical; deep mode changes only the vote count and the aggregation. Persist the majority verdict to the existing `Validation` field and the tally to `Verification-evidence` (no schema bump). Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3.
+**Deep mode (`deep-mode: true`).** Spawn 3 independent verifiers per survivor (instead of 1) inside a `Workflow(...)` and aggregate by 2/3 majority — `confirmed`/`clarified` are "stands" votes, `refuted` is a "drop" vote; ≥2 drop → refuted, else stands; a parse failure abstains; quorum < 2 parseable votes → fail-safe to ONE single-pass verifier. The per-verifier input (§2), output (§3), and actionability bar (§3.6) are identical; deep mode changes only the vote count and the aggregation. Persist the majority verdict to the existing `Validation` field and the tally to `Verification-evidence` (no schema bump). Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3 (a `/geniro:review`-only execution path — cross-skill consumers of this file never follow it).
 
 ---
 
@@ -134,7 +134,7 @@ After all verifiers return, the orchestrator processes results:
 1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier` (or `not-actionable` when the verifier refuted on the §3.6 actionability bar — the defect was real but unreachable / no behavior delta). Do NOT propagate to Phase 4.3 test-confirmation gate or Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged.
 2. **`validation: clarified`** — update the finding's `Decision Type:` to match the verifier's `recommended_action`. Append verifier `confidence` and `evidence` to the finding body. Keep finding in active set. When the verifier resolved an embedded "confirm X" ask (§3.5), replace that phrasing in the finding body with the verified result it returned — the posted finding states the fact, never the un-run check.
 3. **`validation: confirmed`** — append verifier `confidence` and `evidence` to the finding body. Keep finding in active set (decision-type unchanged).
-4. **State-file persistence** — write `validation`, `recommended_action`, `verification_confidence`, `verification_evidence` to the per-finding body schema in `phase-6-handoff-reference.md` (handoff schema bump from m6-v1 → m6-v2).
+4. **State-file persistence** — write `validation`, `recommended_action`, `verification_confidence`, `verification_evidence` to the per-finding body schema in `review-handoff.md` (handoff schema bump from m6-v1 → m6-v2).
 
 ---
 
@@ -159,5 +159,5 @@ After all verifiers return, the orchestrator processes results:
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — agent registration ladder.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — OMIT `model=` rule.
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` — handoff schema consumer.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` — handoff schema consumer.
 - `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` — base agent contract the verifier mode extends.

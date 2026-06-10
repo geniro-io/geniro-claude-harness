@@ -43,7 +43,7 @@ The orchestrator (`/geniro:implement` Phase 3 self-review / `/geniro:review` Pha
 
 ## Persistence schema
 
-Tags persist in two artifact families, mirroring the existing `[CONFIRMED-BY-TEST]` persistence pattern (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema"):
+Tags persist in two artifact families, mirroring the existing `[CONFIRMED-BY-TEST]` persistence pattern (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §"Per-finding body schema"):
 
 **1. Reviewer findings — `<task-dir>/state.md` `## Accepted Findings` body block (`/geniro:implement` Phase 3 self-review records accepted findings here; in-loop findings are held in memory and applied inline) and `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`.**
 
@@ -53,7 +53,7 @@ The per-finding line gains a `cause:` field (lowercase to match existing field c
 - [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR] path:lines — <description> — decision: <FIX-NOW|TESTABLE|PRODUCT-DECISION|INTENT-CHECK> — recommendation: <action> — confidence: NN% — cause: <ROOT-CAUSE|SYMPTOM|UNKNOWN|SYMPTOM-ACK>
 ```
 
-When `cause: SYMPTOM` (or `cause: UNKNOWN` requiring debug escalation), the line is followed by indented sub-fields capturing the gate-rendering payload — same indent shape as the `decision: PRODUCT-DECISION` sub-fields in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §"Per-finding body schema":
+When `cause: SYMPTOM` (or `cause: UNKNOWN` requiring debug escalation), the line is followed by indented sub-fields capturing the gate-rendering payload — same indent shape as the `decision: PRODUCT-DECISION` sub-fields in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §"Per-finding body schema":
 
 ```
  symptom: <one-line description of the observed downstream effect>
