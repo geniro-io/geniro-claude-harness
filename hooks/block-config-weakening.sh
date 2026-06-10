@@ -18,6 +18,13 @@
 
 set -euo pipefail
 
+# Fail open but LOUDLY if jq is missing: without it the hook cannot parse tool
+# input, and a silent exit 0 would leave the user believing the guard is active.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so linter/formatter config edits are NOT being checked. Install jq to restore the guard."}\n'
+  exit 0
+fi
+
 # Consume stdin — REQUIRED first step.
 INPUT=$(cat)
 

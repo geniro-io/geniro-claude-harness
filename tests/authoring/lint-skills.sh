@@ -86,7 +86,7 @@ done
 # 5. Anti-rationalization tables over the 15-row guideline.
 for f in skills/*/SKILL.md; do
   [ -f "$f" ] || continue
-  rows=$(sed -n '/^## [Aa]nti-rationalization/,/^## /p' "$f" | grep -cE '^\|' || true)
+  rows=$(sed -n '/^## [Aa]nti-[Rr]ationalization/,/^## /p' "$f" | grep -cE '^\|' || true)
   if [ "$rows" -gt 2 ]; then
     rows=$((rows - 2))  # subtract header + separator rows
     if [ "$rows" -gt 15 ]; then report_warn "$(rel "$f"): anti-rationalization table has $rows rows (guideline ≤15)"; fi

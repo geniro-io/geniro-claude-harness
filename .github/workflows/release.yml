@@ -7,13 +7,33 @@ on:
 permissions:
   contents: write
 
+# One release at a time; never cancel an in-flight release. Two rapid pushes to
+# main would otherwise race on the same plugin.json base version and the loser's
+# `git push` would fail non-fast-forward, silently dropping a merged release.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          # The pre-release test gate below runs the full suite, and the eval
+          # suites read pinned judge prompts from the evals/vendor submodule.
+          submodules: true
+
+      - name: Verify jq is available
+        run: jq --version
+
+      # A push with failing tests must not cut a release. CI runs on the same
+      # push, but the two workflows are independent — this is the release-side
+      # gate: red tests stop the version bump and the GitHub Release.
+      - name: Run shell test suites (release gate)
+        run: bash tests/run-all.sh
 
       - name: Get current version
         id: current
@@ -37,6 +57,14 @@ jobs:
             exit 0
           fi
 
+          # A spec-conformant `BREAKING CHANGE:` footer lives in the commit
+          # BODY, which the per-subject loop below never sees — scan full
+          # bodies for the footer separately.
+          BODY_BREAKING=0
+          if git log "$RANGE" --pretty=format:"%B" 2>/dev/null | grep -qE '^BREAKING[- ]CHANGE:'; then
+            BODY_BREAKING=1
+          fi
+
           # Default to a patch bump: a push to main with commits always cuts a
           # release, even when the messages carry no recognized semantic type
           # (chore/docs/style/ci/test, merge commits, or non-conventional text).
@@ -54,6 +82,10 @@ jobs:
             fi
             # fix/perf/refactor and any unrecognized type stay at the patch default
           done <<< "$COMMITS"
+
+          if [ "$BODY_BREAKING" -eq 1 ]; then
+            BUMP="major"
+          fi
 
           echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
 
@@ -82,6 +114,7 @@ jobs:
           mv tmp.json .claude-plugin/plugin.json
 
       - name: Commit version bump
+        id: bumpcommit
         if: steps.bump.outputs.bump != 'none'
         run: |
           NEW_VERSION="${{ steps.next.outputs.version }}"
@@ -93,6 +126,10 @@ jobs:
           # bump-worthy push and loop indefinitely.
           git commit -m "chore(release): v${NEW_VERSION} [skip ci]"
           git push
+          # The release step tags THIS commit (not `main`, which may have moved
+          # by the time the tag is created — a commit landing in between would
+          # get tagged but excluded from the notes range).
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         if: steps.bump.outputs.bump != 'none'
@@ -109,6 +146,6 @@ jobs:
           gh release create "v${NEW_VERSION}" \
             --title "v${NEW_VERSION}" \
             --notes "$NOTES" \
-            --target main
+            --target "${{ steps.bumpcommit.outputs.sha }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -5,6 +5,13 @@
 # Bypass: .geniro/safety.json allow_patterns: ["tdd-order"].
 set -euo pipefail
 
+# Fail open but LOUDLY if jq is missing: without it the hook cannot parse tool
+# input, and a silent exit 0 would leave the user believing the gate is active.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"systemMessage":"Geniro hook inactive: jq not found on PATH, so the TDD-order gate is NOT running. Install jq to restore it."}\n'
+  exit 0
+fi
+
 # Consume stdin - REQUIRED first step
 INPUT=$(cat)
 
@@ -40,7 +47,23 @@ if ! command -v _geniro_branch_slug >/dev/null 2>&1; then
 fi
 slug="$(_geniro_branch_slug)"
 
-STATE_FILE=".geniro/state/tdd/state-${slug}.md"
+# Resolve the nearest project root (the directory holding .geniro/) by walking
+# up from cwd, so the state lookup still works when the session cwd is a
+# subdirectory of the project. TDD state is task-local: a linked worktree keeps
+# its OWN .geniro/state/tdd/, so this deliberately does NOT redirect to the
+# primary worktree (unlike lib/repo-root.sh, which serves cross-session memory
+# writers).
+_tdd_local_root() {
+  local d="$PWD"
+  while [ "$d" != "/" ] && [ -n "$d" ]; do
+    if [ -d "$d/.geniro" ]; then printf '%s' "$d"; return 0; fi
+    d="$(dirname "$d")"
+  done
+  git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD"
+}
+ROOT="$(_tdd_local_root)"
+
+STATE_FILE="${ROOT}/.geniro/state/tdd/state-${slug}.md"
 
 # If state file doesn't exist, skill hasn't opted in to TDD — no surprise blocks
 if [ ! -f "$STATE_FILE" ]; then

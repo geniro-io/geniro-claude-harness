@@ -317,6 +317,30 @@ else
   fail "record_access never-deletes guard; rc=$rc lines=$lines unchanged=$([ "$before" = "$after" ] && echo y || echo n) (expect 1/3/y)"
 fi
 
+# Held rewrite lock → skip the bump (best-effort), leave the log untouched,
+# and do NOT steal or release the foreign lock.
+new_sandbox
+printf '%s\n' '{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"rl1","access_count":0}' \
+  > .geniro/knowledge/learnings.jsonl
+mkdir .geniro/knowledge/.archive-stale.lock
+set +e; record_access rl1; rc=$?; set -e
+cnt=$(jq -Rc 'fromjson? | select(.dedup_key=="rl1") | .access_count' .geniro/knowledge/learnings.jsonl)
+if [ "$rc" -eq 0 ] && [ "$cnt" = "0" ] && [ -d .geniro/knowledge/.archive-stale.lock ]; then
+  pass "record_access skips the bump while the rewrite lock is held (lock preserved)"
+else
+  fail "record_access lock-skip; rc=$rc cnt=$cnt lockdir=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) (expect 0/0/y)"
+fi
+rmdir .geniro/knowledge/.archive-stale.lock
+
+# Lock is acquired for the bump and released afterwards (RETURN trap).
+set +e; record_access rl1; rc=$?; set -e
+cnt=$(jq -Rc 'fromjson? | select(.dedup_key=="rl1") | .access_count' .geniro/knowledge/learnings.jsonl)
+if [ "$rc" -eq 0 ] && [ "$cnt" = "1" ] && [ ! -d .geniro/knowledge/.archive-stale.lock ]; then
+  pass "record_access releases the rewrite lock after the bump"
+else
+  fail "record_access lock-release; rc=$rc cnt=$cnt lock-left=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) (expect 0/1/n)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

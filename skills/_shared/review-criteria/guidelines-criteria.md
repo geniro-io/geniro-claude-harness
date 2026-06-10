@@ -249,7 +249,7 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - Check `.eslintrc`, `prettier.config`, etc.
 - Don't flag if matches project config
 
-7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW — the Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §5) will still surface correct findings via convergence or evidence-grounding.
+7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW — the Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) will still surface correct findings via convergence or evidence-grounding.
 
 ## Stack-Agnostic Patterns
 
@@ -278,7 +278,7 @@ Works across all languages/frameworks:
 
 ## Severity Tagging
 
-Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
 - **CRITICAL** — never emitted by this dim (style/convention findings cannot be CRITICAL).
 - **HIGH** — never emitted by this dim.

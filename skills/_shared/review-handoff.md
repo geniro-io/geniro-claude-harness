@@ -1,10 +1,10 @@
-# Phase 6 Action-Gate Handoff Reference
+# /geniro:review Phase 6 — Action-Gate Handoff
 
-Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). The `/geniro:review` SKILL.md retains a 2-3 line summary + a pointer here; cross-skill consumers (`/geniro:implement` handoff resolution, `_shared/` gate helpers, criteria files) read individual sections by § anchor.
 
 State.md `phase: action-gate` during this phase.
 
-**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per SKILL.md §5.1 Handoff file write). Consumers accept BOTH `m6-v1` (legacy — verification fields absent) AND `m6-v2` (rich — verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM). Within m6-v2, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence on HIGH — apply the "treat as confirmed + one-line warning" fallback.
+**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per `/geniro:review` SKILL.md §5.1 Handoff file write). Consumers accept BOTH `m6-v1` (legacy — verification fields absent) AND `m6-v2` (rich — verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM). Within m6-v2, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence on HIGH — apply the "treat as confirmed + one-line warning" fallback.
 
 ## Contents
 
@@ -159,7 +159,7 @@ open_questions:                       # MUST be present; MAY be empty []
 
 ## Summary
 - Branch: <branch>
-- Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1 (omitted when the review covered the whole PR)
+- Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1 (a `/geniro:review`-only path; omitted when the review covered the whole PR)
 - Mode: <standard|tdd>
 - Round: <N>
 - Risk-tier: <standard|high>
@@ -182,7 +182,7 @@ open_questions:                       # MUST be present; MAY be empty []
 <list, surfaced for user awareness>
 
 ## Filtered
-<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), not-actionable (real-but-unreachable per the §3.6 actionability bar in phase-4-verification-reference.md), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), not-actionable (real-but-unreachable per the §3.6 actionability bar in finding-verification.md), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
 
 ## Authored Tests
@@ -459,7 +459,7 @@ The post-drill's eligible-finding set is every unposted finding across BOTH `## 
 
 Safety invariant: every exclusion is SURFACED — tagged and moved to `## Filtered` with a `reason:`, NEVER silently dropped. The user sees in `## Filtered` exactly what was withheld and why, so §7.4's completeness guarantee holds.
 
-Run THREE overlap checks against the snapshots already persisted to state.md frontmatter in Phase 1 (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1 / §1.1). A `null` or absent snapshot means "nothing to dedup against" — skip that check.
+Run THREE overlap checks against the snapshots already persisted to state.md frontmatter in Phase 1 (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1 / §1.1 — a `/geniro:review`-only path; cross-skill consumers never run this drill). A `null` or absent snapshot means "nothing to dedup against" — skip that check.
 
 1. **Resolved bot threads** (`resolved-threads-snapshot:`) — exclude findings whose `path:lines` overlaps a snapshot entry. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required. Tag `[ALREADY-RESOLVED-ON-PR]`, move to `## Filtered` with `reason: already-resolved-on-pr`.
 2. **Unresolved bot comments** (`pr-bot-comments-snapshot:`) — these carry `path:line`, so apply the SAME range-overlap rule as check 1 (as precise). Catches a still-open CodeRabbit / other-bot finding the parallel reviewers re-discovered. Tag `[ALREADY-RAISED-ON-PR]`, move to `## Filtered` with `reason: already-raised-by-bot-reviewer`.

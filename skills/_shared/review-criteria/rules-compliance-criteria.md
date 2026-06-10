@@ -46,7 +46,7 @@ Checkable rule examples: "use the repo logger, never `console.log` in `src/`", "
 
 ## 4. Severity
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md`. A rule violation's severity follows the IMPACT of breaking the rule, not the bare fact that it is a rule:
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md`. A rule violation's severity follows the IMPACT of breaking the rule, not the bare fact that it is a rule:
 
 - Rule encodes a correctness / security invariant (input validation, auth, no-secrets-in-source) → up to HIGH / CRITICAL.
 - Rule encodes a maintainability convention → MEDIUM.

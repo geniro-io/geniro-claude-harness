@@ -25,6 +25,13 @@
 
 set -euo pipefail
 
+# Fail open but LOUDLY if jq is missing: without it the hook cannot parse tool
+# input, and a silent exit 0 would leave the user believing the scan is active.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"systemMessage":"Geniro hook inactive: jq not found on PATH, so the security-pattern scan is NOT running. Install jq to restore it."}\n'
+  exit 0
+fi
+
 # Consume stdin — REQUIRED first step.
 INPUT=$(cat)
 
@@ -138,7 +145,7 @@ check() {
 # ----- Pattern definitions (order: more specific first) -----
 
 # 1. eval/exec — code execution from string
-check "sec-eval-exec" "py pyw" \
+check "sec-eval-exec" "py pyw pyx pyi" \
   "Python eval()/exec() — executes a string as code" \
   '(?<![._a-zA-Z0-9])(eval|exec)\s*\('
 
@@ -147,27 +154,32 @@ check "sec-eval-exec" "js jsx ts tsx mjs cjs" \
   '(?<![._a-zA-Z0-9])(eval\s*\(|new\s+Function\s*\()'
 
 # 2. pickle — unsafe deserialization
-check "sec-pickle" "py pyw" \
+check "sec-pickle" "py pyw pyx pyi" \
   "pickle.load(s) — arbitrary code execution on untrusted input (use json or a signed format)" \
   '\bpickle\.loads?\s*\('
 
 # 3. yaml.load without SafeLoader
-check "sec-yaml-unsafe" "py pyw" \
+check "sec-yaml-unsafe" "py pyw pyx pyi" \
   "yaml.load() — use yaml.safe_load() or pass Loader=yaml.SafeLoader" \
   '\byaml\.load\s*\('
 
 # 4. shell injection — subprocess shell=True / os.system / os.popen
-check "sec-shell-injection" "py pyw" \
+check "sec-shell-injection" "py pyw pyx pyi" \
   "shell=True / os.system() / os.popen() — shell injection risk (pass argv as a list)" \
   '(\bsubprocess\.(call|run|check_call|check_output|Popen)\s*\([^)]*shell\s*=\s*True|\bos\.(system|popen)\s*\()'
 
-# 5. curl|wget piped to sh/bash
+# 5. curl|wget piped to sh/bash. The [^|\n]* spans stay within one physical
+#    line (a backslash-newline continuation is explicitly allowed by the middle
+#    group), so a curl on line 1 and an unrelated pipe-to-shell lines later can
+#    no longer false-positive across the -0777 slurp. The optional wrapper group
+#    catches `| sudo bash`, `| env VAR=1 sh`, `| command zsh`, and absolute
+#    shell paths (`| /bin/sh`).
 check "sec-curl-pipe-sh" "sh bash zsh dockerfile" \
   "curl/wget piped to shell — supply-chain risk (download, verify checksum/signature, then execute)" \
-  '(curl|wget)\b[^|]*\|\s*(sh|bash)\b'
+  '(curl|wget)\b[^|\n]*(\\\n[^|\n]*)*\|\s*((sudo|doas)(\s+-\S+)*\s+|command\s+|env(\s+\S+=\S*)*\s+)?(\S*/)?(sh|bash|zsh|dash|ksh)\b'
 
 # 6. TLS bypass
-check "sec-tls-bypass" "py pyw" \
+check "sec-tls-bypass" "py pyw pyx pyi" \
   "verify=False — TLS certificate verification disabled" \
   '\bverify\s*=\s*False\b'
 
@@ -189,7 +201,7 @@ check "sec-weak-crypto" "js jsx ts tsx mjs cjs" \
   "createHash('md5'|'sha1') — broken for security (SHA-256+ for auth/integrity; OK for non-security checksums)" \
   "createHash\\s*\\(\\s*[\"'](md5|sha1)[\"']"
 
-check "sec-weak-crypto" "py pyw" \
+check "sec-weak-crypto" "py pyw pyx pyi" \
   "hashlib.md5() / hashlib.sha1() — broken for security (SHA-256+ for auth/integrity; for a non-security checksum, justify inline and bypass via allow_patterns)" \
   '\bhashlib\.(md5|sha1)\s*\('
 

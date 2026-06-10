@@ -248,7 +248,7 @@ This criteria works across languages:
 
 ## Severity Guidelines
 
-Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
 - **CRITICAL** — Unbounded recursion on user input; auth-bypass via missing role check; SQL injection in a dynamic query; deadlock with a documented trigger; data-corruption write with no compensating action; infinite loop reachable from a public entry point.
 - **HIGH** — Race condition with a specific reachable scenario (e.g., two concurrent writes to the same row without a transaction); off-by-one in pagination when item count equals page size; null-dereference on a non-edge-case path; unhandled error path that leaks state or aborts a request mid-write; a masking default that hides a failure on a path where a downstream consumer acts on the fallback as if it were real data (e.g., `.catch(() => [])` feeding a count / filter / dispatch); a missing rollback that leaves a multi-step write half-applied.

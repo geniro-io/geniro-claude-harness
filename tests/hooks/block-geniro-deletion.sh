@@ -69,8 +69,35 @@ expect_block "double-slash subdir blocked"      "$(run_cmd 'rm -rf .geniro//inst
 expect_block "parent-escape .. blocked"         "$(run_cmd 'rm -rf .geniro/instructions/..')"
 expect_block "dotted-DIR state subdir blocked"  "$(run_cmd 'rm -rf .geniro/state/review.bak/')"
 
-# ===== find ... .geniro ... -delete =====
+# ===== prefixed-path forms (absolute / $PWD / ~ / ..) must not evade =====
+expect_block "absolute-path subdir blocked"      "$(run_cmd "rm -rf $TMPDIR_BASE/.geniro/instructions")"
+expect_block "PWD-var-prefixed subdir blocked"   "$(run_cmd 'rm -rf "$PWD/.geniro/instructions"')"
+expect_block "parent-relative subdir blocked"    "$(run_cmd 'rm -rf ../proj/.geniro/instructions')"
+expect_block "tilde-prefixed subdir blocked"     "$(run_cmd 'rm -rf ~/proj/.geniro/actions')"
+expect_block "absolute whole tree blocked"       "$(run_cmd "rm -rf $TMPDIR_BASE/.geniro")"
+expect_allow "absolute deep 3-seg tree allowed"  "$(run_cmd "rm -rf $TMPDIR_BASE/.geniro/planning/task-dir/")"
+
+# ===== compound commands: only rm's OWN args are segment-gated =====
+expect_allow "mkdir .geniro path + unrelated rm -rf allowed" "$(run_cmd 'mkdir -p .geniro/knowledge && rm -rf /tmp/scratch')"
+expect_block "command-substitution rm -rf .geniro blocked"   "$(run_cmd 'echo $(rm -rf .geniro)')"
+expect_block "command-substitution subdir rm blocked"        "$(run_cmd 'echo $(rm -rf .geniro/instructions)')"
+expect_block "/bin/rm -rf .geniro blocked"                   "$(run_cmd '/bin/rm -rf .geniro/')"
+expect_block "plain rm span does not mask destructive span"  "$(run_cmd 'rm -f notes.txt; rm -rf .geniro/instructions/')"
+
+# ===== prefix-glob tokens must not evade =====
+expect_block "rm -rf .geniro* blocked"           "$(run_cmd 'rm -rf .geniro*')"
+expect_block "rm -rf .gen* blocked"              "$(run_cmd 'rm -rf .gen*')"
+expect_block "rm -rf .* blocked"                 "$(run_cmd 'rm -rf .*')"
+expect_allow "rm -rf .cache* allowed"            "$(run_cmd 'rm -rf .cache*')"
+
+# ===== find ... .geniro ... -delete / -exec rm / xargs rm =====
 expect_block "find .geniro -delete blocked"     "$(run_cmd "find .geniro -name '*.md' -delete")"
+expect_block "find .geniro -exec rm blocked"    "$(run_cmd 'find .geniro -type f -exec rm {} +')"
+expect_block "find .geniro -execdir rm blocked" "$(run_cmd 'find .geniro -name "*.md" -execdir rm {} \;')"
+expect_block "find .geniro | xargs rm blocked"  "$(run_cmd 'find .geniro -type f | xargs rm -f')"
+expect_block "find .geniro | xargs -0 rm blocked" "$(run_cmd 'find .geniro -type f -print0 | xargs -0 rm')"
+expect_allow "find .geniro -print allowed"      "$(run_cmd 'find .geniro -name "*.md" -print')"
+expect_allow "find .geniro | xargs grep allowed" "$(run_cmd 'find .geniro -type f | xargs grep -l TODO')"
 
 # ===== git worktree remove =====
 expect_block "git worktree remove blocked"      "$(run_cmd 'git worktree remove ../wt')"

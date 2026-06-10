@@ -116,6 +116,59 @@ fi
 slug="$(_geniro_branch_slug "$branch")"
 
 # ---------------------------------------------------------------------------
+# Terminal-state sets + candidate filter
+# ---------------------------------------------------------------------------
+#
+# A finished task's state.md is durable (T1.5 — retained after Ship), so
+# resolution must SKIP terminal candidates rather than discard the final pick:
+# a done /plan task-dir at Tier 1a would otherwise shadow an in-flight /debug
+# slug dir on the same branch (Tier 1b/2) and the live task would silently not
+# be restored.
+#
+# Completion is carried primarily by `phase:` — implement/plan/refactor/onboard/
+# investigate leave `status: in-progress` even at their terminal phase and mark
+# done via `phase:` alone. `status:` is the coarse fallback (setup/debug/review
+# advance it; it also absorbs model-drift values like `completed`, which is not
+# in the documented in-progress|done|failed enum but was observed in the wild).
+# The `*-escalated` paused phases are deliberately absent from the sets — those
+# represent in-flight work waiting on the user and must still resume.
+TERMINAL_PHASES="done aborted routed failed ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted verify-summary-only reverted adr-documented map-truncated present-summary-only"
+TERMINAL_STATUSES="done completed failed aborted routed"
+
+# Extract one scalar frontmatter value (line-anchored, between the first two
+# `---` fences; strips one layer of surrounding quotes). One parse shape for
+# branch / phase / status during resolution.
+_fm_scalar_quick() {
+  awk -v key="$2" '
+    NR == 1 && $0 != "---" { exit 0 }
+    NR == 1 { in_fm = 1; next }
+    in_fm && $0 == "---" { exit 0 }
+    in_fm && $0 ~ "^" key ":" {
+      sub("^" key ":[[:space:]]*", "")
+      gsub(/[[:space:]]+$/, "")
+      if ($0 ~ /^"[^"]*"$/ || $0 ~ /^\047[^\047]*\047$/) {
+        $0 = substr($0, 2, length($0) - 2)
+      }
+      print
+      exit
+    }
+  ' "$1" 2>/dev/null
+}
+
+_is_terminal_candidate() {
+  local _f="$1" _p _s
+  _p="$(_fm_scalar_quick "$_f" phase)"
+  _s="$(_fm_scalar_quick "$_f" status)"
+  if [ -n "$_p" ]; then
+    case " $TERMINAL_PHASES " in *" $_p "*) return 0 ;; esac
+  fi
+  if [ -n "$_s" ]; then
+    case " $TERMINAL_STATUSES " in *" $_s "*) return 0 ;; esac
+  fi
+  return 1
+}
+
+# ---------------------------------------------------------------------------
 # Active T1.5 state-file resolution
 # ---------------------------------------------------------------------------
 #
@@ -131,8 +184,10 @@ slug="$(_geniro_branch_slug "$branch")"
 state_file=""
 task_dir=""
 
-# Tier 1a — layout A (task-dir = slug)
-if [ -n "$slug" ] && [ -f "./.geniro/planning/$slug/state.md" ]; then
+# Tier 1a — layout A (task-dir = slug). Terminal candidates are skipped so a
+# finished task here cannot shadow an in-flight Tier 1b/2 candidate.
+if [ -n "$slug" ] && [ -f "./.geniro/planning/$slug/state.md" ] \
+   && ! _is_terminal_candidate "./.geniro/planning/$slug/state.md"; then
   state_file="./.geniro/planning/$slug/state.md"
 fi
 
@@ -141,7 +196,7 @@ if [ -z "$state_file" ] && [ -n "$slug" ]; then
   for _skill_dir in ./.geniro/state/*/; do
     [ -d "$_skill_dir" ] || continue
     _candidate="${_skill_dir}${slug}/state.md"
-    if [ -f "$_candidate" ]; then
+    if [ -f "$_candidate" ] && ! _is_terminal_candidate "$_candidate"; then
       state_file="$_candidate"
       break
     fi
@@ -151,7 +206,8 @@ fi
 # Tier 1c — layout C (singleton — currently only setup). Resolved against the
 # primary worktree via the repo-root helper — /setup writes its singleton in
 # the project root and a linked-worktree session must restore from there.
-if [ -z "$state_file" ] && [ -f "$GENIRO_ROOT/.geniro/state/setup/state.md" ]; then
+if [ -z "$state_file" ] && [ -f "$GENIRO_ROOT/.geniro/state/setup/state.md" ] \
+   && ! _is_terminal_candidate "$GENIRO_ROOT/.geniro/state/setup/state.md"; then
   state_file="$GENIRO_ROOT/.geniro/state/setup/state.md"
 fi
 
@@ -174,29 +230,15 @@ _state_candidates() {
   done | sort -rn | cut -d' ' -f2-
 }
 
-# Extract `branch:` value from frontmatter (line-anchored, between first two `---` fences).
-_fm_branch_of() {
-  awk '
-    NR == 1 && $0 != "---" { exit 0 }
-    NR == 1 { in_fm = 1; next }
-    in_fm && $0 == "---" { exit 0 }
-    in_fm && /^branch:/ {
-      sub(/^branch:[[:space:]]*/, "")
-      gsub(/[[:space:]]+$/, "")
-      if ($0 ~ /^"[^"]*"$/ || $0 ~ /^\047[^\047]*\047$/) {
-        $0 = substr($0, 2, length($0) - 2)
-      }
-      print
-      exit
-    }
-  ' "$1" 2>/dev/null
-}
+# Frontmatter `branch:` extraction shares _fm_scalar_quick (defined with the
+# terminal-candidate filter above) — one parse shape for branch/phase/status.
 
 if [ -z "$state_file" ]; then
   while IFS= read -r _candidate; do
     [ -z "$_candidate" ] && continue
-    _fm_branch="$(_fm_branch_of "$_candidate")"
-    if [ -n "$_fm_branch" ] && [ "$_fm_branch" = "$branch" ]; then
+    _fm_branch="$(_fm_scalar_quick "$_candidate" branch)"
+    if [ -n "$_fm_branch" ] && [ "$_fm_branch" = "$branch" ] \
+       && ! _is_terminal_candidate "$_candidate"; then
       state_file="$_candidate"
       break
     fi
@@ -502,21 +544,12 @@ fi
 #
 # A resolved state.md whose task already finished must NOT be surfaced as
 # resumable — otherwise a fresh session (e.g. opened to run /update) re-opens a
-# completed task and the orchestrator announces a bogus "resume". state.md is a
-# durable T1.5 artifact retained after Ship, so the hook cannot rely on its
-# absence; it must read the terminal markers and discard the task.
+# completed task and the orchestrator announces a bogus "resume".
 #
-# Completion is carried primarily by `phase:` — implement/plan/refactor/onboard/
-# investigate leave `status: in-progress` even at their terminal phase and mark
-# done via `phase:` alone. `status:` is the coarse fallback (setup/debug/review
-# advance it; it also absorbs model-drift values like `completed`, which is not
-# in the documented in-progress|done|failed enum but was observed in the wild).
-# Match either against the terminal sets, then clear the task so every
-# downstream block falls through to the existing cold-startup (no-active-task)
-# path. The `*-escalated` paused phases are deliberately absent from the sets —
-# those represent in-flight work waiting on the user and must still resume.
-TERMINAL_PHASES="done aborted routed failed ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted verify-summary-only reverted adr-documented map-truncated present-summary-only"
-TERMINAL_STATUSES="done completed failed aborted routed"
+# Resolution already skips terminal candidates (_is_terminal_candidate, defined
+# with the terminal sets near the top), so this gate is a defense-in-depth net:
+# it re-checks the values parsed by the main frontmatter pass and clears the
+# task so every downstream block falls through to the cold-startup path.
 
 if [ -n "$state_file" ]; then
   _is_terminal=false
@@ -755,10 +788,19 @@ if [ -f "$_learnings_log" ]; then
 
       # Atomic lock acquisition. Failure = another tab is running it; skip.
       if mkdir "$_lock_dir" 2>/dev/null; then
-        _archive_output=$(bash "${CLAUDE_PLUGIN_ROOT:-.}/lib/archive-stale.sh" 2>&1)
+        _archive_rc=0
+        # GENIRO_ARCHIVE_LOCK_HELD=1 — this hook already holds the mkdir lock;
+        # without the flag the helper's direct-invocation branch would see the
+        # held lock and skip with rc=3.
+        _archive_output=$(GENIRO_ARCHIVE_LOCK_HELD=1 bash "${CLAUDE_PLUGIN_ROOT:-.}/lib/archive-stale.sh" 2>&1) || _archive_rc=$?
 
-        # Update hash marker (capture POST-archive state).
-        _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
+        if [ "$_archive_rc" -le 1 ]; then
+          # Update hash marker (capture POST-archive state) — only after a
+          # COMPLETED scan (rc=0 archived / rc=1 nothing matched, per the
+          # archive-stale.md exit-code contract). A real failure (rc>=2, or a
+          # missing helper) must stay retry-eligible on the next session start.
+          _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
+        fi
 
         # Release lock.
         rmdir "$_lock_dir" 2>/dev/null

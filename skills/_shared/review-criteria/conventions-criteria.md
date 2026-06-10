@@ -300,4 +300,4 @@ Do NOT apply the modal threshold to peer PRs as if they were merged siblings —
 - **MEDIUM**: ≥80% modal violation in [NEW] code where the introduced pattern exists in 1–2 other places (minority but not novel); any [PRE-EXISTING] finding regardless of frequency.
 - **LOW**: not emitted. N<3 siblings or modal frequency below 80% means no finding at all — these conditions suppress the finding rather than producing a low-severity one.
 
-Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1 (the conventions dim tightens it — caps at HIGH, suppresses LOW; see §6).
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1 (the conventions dim tightens it — caps at HIGH, suppresses LOW; see §6).

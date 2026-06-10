@@ -107,6 +107,36 @@ assert_eq "$(redact 'xoxb-12345-67890-ABCDEFGHIJKLMNOPQRSTUVWX')" \
           'api-key:xoxb'
 
 new_sandbox
+assert_eq "$(redact 'github_pat_11AAAAAAA0AbCdEfGhIjKlMnOpQrStUvWxYz')" \
+          '[REDACTED:api-key:github-fine-grained]' \
+          'api-key:github-pat (fine-grained PAT)'
+
+new_sandbox
+assert_eq "$(redact 'glpat-AbCdEfGhIjKlMnOpQrSt')" \
+          '[REDACTED:api-key:gitlab]' \
+          'api-key:gitlab'
+
+new_sandbox
+assert_eq "$(redact 'xoxp-12345-67890-ABCDEFGHIJKLMNOPQRSTUVWX')" \
+          '[REDACTED:api-key:slack]' \
+          'api-key:xox (user token)'
+
+new_sandbox
+assert_eq "$(redact 'AIzaSyA1bC2dE3fG4hI5jK6lM7nO8pQ9rS0tU1v')" \
+          '[REDACTED:api-key:google]' \
+          'api-key:google (AIza)'
+
+new_sandbox
+assert_eq "$(redact 'AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY12')" \
+          'aws_secret_access_key=[REDACTED:aws-secret]' \
+          'aws-secret — uppercase env-var spelling'
+
+new_sandbox
+assert_eq "$(redact 'authorization: bearer abc.def_123-xyz')" \
+          'authorization: Bearer [REDACTED:bearer]' \
+          'bearer — lowercase scheme'
+
+new_sandbox
 assert_eq "$(redact 'Authorization: Bearer abc.def_123-xyz')" \
           'Authorization: Bearer [REDACTED:bearer]' \
           'bearer — Authorization header'

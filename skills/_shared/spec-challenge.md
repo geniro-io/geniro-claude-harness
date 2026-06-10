@@ -73,7 +73,7 @@ If the spec cites zero verifiable claims (e.g. a pure meta-step spec), skip §4 
 
 ## 4. Stage B — VERIFY claims (both modes)
 
-Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-finding verifier contract — read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` fully and mirror it. The two differences from `/geniro:review` are the polarity and the source of the "finding":
+Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-finding verifier contract — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` fully and mirror it. The two differences from `/geniro:review` are the polarity and the source of the "finding":
 
 **Polarity flip.** The `/geniro:review` verifier asks "does the claimed DEFECT exist in the cited code?" The spec-claim verifier asks "is this asserted FACT true in the cited code?" Frame the spec claim as the thing under test; `validation: confirmed` means the fact holds, `validation: refuted` means the cited code contradicts the asserted fact, `validation: clarified` means the fact is partly true but the spec's framing is off (e.g. the column exists but is nullable when the step assumes NOT NULL).
 
@@ -81,10 +81,10 @@ Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-f
 
 ### Input contract per verifier
 
-Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Each verifier receives ONLY its own claim plus, mirroring `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §2:
+Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Each verifier receives ONLY its own claim plus, mirroring `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2:
 
 - The single claim: source location (Section 6 step / Section 4 assumption / frontmatter field) + the literal asserted fact.
-- The cited code slice — read the file at the claim's `file:line` and inline it, using the slice cap in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §2. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region within the same cap.
+- The cited code slice — read the file at the claim's `file:line` and inline it, using the slice cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region within the same cap.
 - 1-hop caller grep — `grep -rn "<symbol>"` for the cited symbol, capped per §2.
 - 1-2 sibling tests for the same symbol — grep `test/ tests/ __tests__/ spec/`, capped per §2.
 
@@ -205,7 +205,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 - [ ] Helper runs on every spec regardless of `EFFORT_TIER` — no tier skip.
 - [ ] Stage A extracts claims from Section 6 citations, Section 4 assumptions, and frontmatter `budget`/`effort_tier`.
 - [ ] Stage B spawns exactly one verifier per cited claim, all in ONE assistant response, via the spawn-agent ladder with `model=` omitted.
-- [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.
+- [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.
 - [ ] Stage C (ALTERNATIVES) runs in plan mode and is skipped in implement mode.
 - [ ] Stage D red-team findings are each anchored to a file:line or a §4 result and classified blocking / non-blocking.
 - [ ] Stage E verdict is MODE-correct (plan: keep / keep-with-modifications / re-plan; implement: clean / defects-found) and grounded per the evidence standard.

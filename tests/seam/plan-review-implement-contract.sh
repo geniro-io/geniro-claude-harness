@@ -24,7 +24,7 @@
 #
 #   CORRECTION (surfaced to maintainer): the plan §11/§16 text says "open_questions[] / step0_status
 #      sentinels /implement consumes". Ground truth (recon): /implement consumes ONLY open_questions[].
-#      `step0_status` is a /review-INTERNAL per-finding field (skills/review/phase-6-handoff-reference.md:258,261)
+#      `step0_status` is a /review-INTERNAL per-finding field (skills/_shared/review-handoff.md:258,261)
 #      — /review's §3 gate flips pending→resolved and §7.0 Invariant B re-checks it before the PR post;
 #      `grep step0_status skills/implement/` = 0 hits. We therefore assert step0_status as a /review
 #      producer-side invariant (§7.0 Invariant B: a `report_status: final` handoff has no PRODUCT-DECISION

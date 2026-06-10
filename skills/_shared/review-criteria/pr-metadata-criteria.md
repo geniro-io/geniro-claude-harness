@@ -132,7 +132,7 @@ When the PR links an issue, the description should either restate the acceptance
 
 On a re-review (round 2+ of human review on the same PR), the PR body often describes the EARLIER diff before fixes pushed in response to round 1. The body claims a behavior that the code no longer has, OR omits a behavior the code now has. The scope-alignment check (#8) above compares body vs CURRENT diff in a single pass; this check adds the cross-round dimension by comparing CURRENT body to the prior-run body persisted by the orchestrator.
 
-The handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` carries `pr-body: <verbatim PR body>` in frontmatter (see the handoff frontmatter schema in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md`). On re-review, the orchestrator's Phase 1 prior-round triage read (re-review detection) reads it before overwriting; this reviewer compares against it.
+The handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` carries `pr-body: <verbatim PR body>` in frontmatter (see the handoff frontmatter schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`). On re-review, the orchestrator's Phase 1 prior-round triage read (re-review detection) reads it before overwriting; this reviewer compares against it.
 
 **How to detect:**
 1. From the orchestrator-pre-inlined `PRIOR-ROUND PR BODY:` slot (added on round 2+; renders as `none — first review` on round 1 or when the prior-run state file has no `pr-body:`), check if a prior PR body is present.
@@ -165,7 +165,7 @@ The detection signals above come from `gh pr view --json isDraft,author,title,bo
 
 ## Severity Tagging
 
-Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/review/severity-calibration-reference.md` §1.
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
 - **CRITICAL** — PR title misrepresents the diff (title says "refactor", diff adds new feature); PR body empty when repo CONTRIBUTING.md requires non-empty; PR description claims behavior X is unchanged while diff demonstrably changes X.
 - **HIGH** — Missing test-plan section when test files are modified; missing screenshots when UI files changed; missing breaking-change note when an exported API signature changed.
@@ -181,4 +181,4 @@ PR-metadata findings have no `path:lines`. Emit each finding with:
 - All other reviewer-agent output fields per the standard template (Severity, Cause, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
 - `Evidence:` quotes the relevant fragment of the title or body verbatim, with a brief surrounding-prose marker so the reader sees what was missing (e.g., "title: `Add stuff`" or "body section: `## Test plan` heading present but empty").
 
-The Phase 6 Post drill's Step 4 composer (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §7.5) detects the `File: PR-METADATA` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST, NOT into the inline `comments[]` array (which requires a path-anchored line).
+The Phase 6 Post drill's Step 4 composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.5) detects the `File: PR-METADATA` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST, NOT into the inline `comments[]` array (which requires a path-anchored line).

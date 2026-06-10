@@ -97,7 +97,11 @@ _RED_NAMES=(
   api-key:pk_live
   api-key:pk_test
   api-key:ghp
+  api-key:github-pat
+  api-key:gitlab
   api-key:xoxb
+  api-key:xox
+  api-key:google
   bearer
   url-cred
   private-key
@@ -105,14 +109,18 @@ _RED_NAMES=(
 _RED_REGEXES=(
   'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'
   'AKIA[0-9A-Z]{16}'
-  'aws_secret_access_key[[:space:]]*=[[:space:]]*[A-Za-z0-9/+=]{40}'
+  '[Aa][Ww][Ss]_[Ss][Ee][Cc][Rr][Ee][Tt]_[Aa][Cc][Cc][Ee][Ss][Ss]_[Kk][Ee][Yy][[:space:]]*=[[:space:]]*[A-Za-z0-9/+=]{40}'
   'sk-ant-[A-Za-z0-9_-]+'
   'sk-[A-Za-z0-9_-]+'
   'pk_live_[A-Za-z0-9_]+'
   'pk_test_[A-Za-z0-9_]+'
   'ghp_[A-Za-z0-9_-]+'
+  'github_pat_[A-Za-z0-9_]+'
+  'glpat-[A-Za-z0-9_-]+'
   'xoxb-[A-Za-z0-9_-]+'
-  'Bearer [A-Za-z0-9._-]+'
+  'xox[a-z]-[A-Za-z0-9_-]+'
+  'AIza[0-9A-Za-z_-]{35}'
+  '[Bb][Ee][Aa][Rr][Ee][Rr] [A-Za-z0-9._-]+'
   '(https?)://[^:/[:space:]]+:[^@/[:space:]]+@'
   '-----BEGIN [A-Z ]*PRIVATE KEY-----.*-----END [A-Z ]*PRIVATE KEY-----'
 )
@@ -130,12 +138,16 @@ _RED_REPLACEMENTS=(
   '[REDACTED:api-key:stripe-live]'
   '[REDACTED:api-key:stripe-test]'
   '[REDACTED:api-key:github]'
+  '[REDACTED:api-key:github-fine-grained]'
+  '[REDACTED:api-key:gitlab]'
   '[REDACTED:api-key:slack-bot]'
+  '[REDACTED:api-key:slack]'
+  '[REDACTED:api-key:google]'
   'Bearer [REDACTED:bearer]'
   '\1://[REDACTED:url-cred]@'
   '[REDACTED:private-key]'
 )
-_RED_MULTILINE=(0 0 0 0 0 0 0 0 0 0 0 1)
+_RED_MULTILINE=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1)
 
 redact_secrets() {
   local producer="${1:-unknown}" field="${2:-unknown}" dedup_key="${3:-unknown}"

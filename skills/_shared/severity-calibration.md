@@ -203,5 +203,5 @@ When a per-dim file specializes severity, it MUST cite §1 above as the canonica
 
 - `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Severity levels + §Confidence Scoring — agent-side rubric pointers here
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.1 — multi-signal Phase 4.1 gate consumer
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` — per-finding verifier (disproof step on every §4.1 survivor)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` — per-finding verifier (disproof step on every §4.1 survivor)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` — Cause taxonomy ([ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN])

@@ -97,6 +97,44 @@ expect_allow "restore single file allowed"      "$(run_cmd 'git restore src/file
 expect_allow "chained rm -f after push allowed" "$(run_cmd 'git push origin main && rm -f stale.txt')"
 expect_allow "empty command fails open"         "$(run_cmd '')"
 
+# ===== git global options must not evade the guards =====
+expect_block "git -C <path> push --force blocked"      "$(run_cmd 'git -C /tmp/r push --force')"
+expect_block "git -C <path> reset --hard blocked"      "$(run_cmd 'git -C /tmp/r reset --hard')"
+expect_block "git -c k=v push -f blocked"              "$(run_cmd 'git -c user.email=x@y push -f origin main')"
+expect_block "git --git-dir=... clean -fd blocked"     "$(run_cmd 'git --git-dir=/srv/repo/.git clean -fd')"
+expect_block "git -C <path> branch -D blocked"         "$(run_cmd 'git -C ../other branch -D feature')"
+expect_allow "git -C <path> plain push allowed"        "$(run_cmd 'git -C /tmp/r push origin main')"
+expect_allow "git -C <path> status allowed"            "$(run_cmd 'git -C /tmp/r status')"
+
+# ===== backslash line-continuation must not evade =====
+expect_block "backslash-continued force-push blocked"  "$(run_cmd 'git \
+push --force')"
+
+# ===== reset --hard is span-bounded (no cross-command false positive) =====
+expect_allow "reset + chained --hardened flag allowed" "$(run_cmd 'git reset HEAD~1 && npm run build -- --hardened')"
+
+# ===== checkout/restore mass-discard without -- =====
+expect_block "checkout . (no --) blocked"              "$(run_cmd 'git checkout .')"
+expect_block "checkout ./ blocked"                     "$(run_cmd 'git checkout ./')"
+expect_block "checkout HEAD -- . blocked"              "$(run_cmd 'git checkout HEAD -- .')"
+expect_allow "checkout dotfile allowed"                "$(run_cmd 'git checkout -- .gitignore')"
+expect_block "restore ./ blocked"                      "$(run_cmd 'git restore ./')"
+
+# ===== separator abutting the flag (no space) must still block =====
+expect_block "reset --hard;chained blocked"            "$(run_cmd 'git reset --hard;git status')"
+expect_block "push --force;chained blocked"            "$(run_cmd 'git push --force;echo done')"
+expect_block "push -f|piped blocked"                   "$(run_cmd 'git push -f|cat')"
+expect_block "checkout .;chained blocked"              "$(run_cmd 'git checkout .;npm start')"
+expect_block "restore .&&chained blocked"              "$(run_cmd 'git restore .&&true')"
+
+# ===== update-ref --delete long form =====
+expect_block "update-ref --delete blocked"             "$(run_cmd 'git update-ref --delete refs/heads/x')"
+
+# ===== clean dry-run is a preview, not a deletion =====
+expect_allow "clean -nfd (dry-run) allowed"            "$(run_cmd 'git clean -nfd')"
+expect_allow "clean --dry-run -fd allowed"             "$(run_cmd 'git clean --dry-run -fd')"
+expect_block "clean -n && clean -fd still blocked"     "$(run_cmd 'git clean -n && git clean -fd')"
+
 # ===== per-project bypass =====
 mkdir -p "$TMPDIR_BASE/bypass/.geniro"
 printf '%s\n' '{"allow_patterns":["force-push"]}' > "$TMPDIR_BASE/bypass/.geniro/safety.json"

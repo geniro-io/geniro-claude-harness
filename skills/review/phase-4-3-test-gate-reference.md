@@ -36,7 +36,7 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 - `Decision Type: [INTENT-CHECK]` (plan conformance, not runtime).
 - `Decision Type: [FIX-NOW]` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
 
-Use the decision-type taxonomy as defined in `${CLAUDE_PLUGIN_ROOT}/skills/review/plan-context-reference.md` §7.
+Use the decision-type taxonomy as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §7.
 If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely — do NOT show an AUQ. Proceed to Phase 5.
 
 ### 2.1 Runtime-behavior classification (canonical rule)

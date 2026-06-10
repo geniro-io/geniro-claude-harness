@@ -50,7 +50,7 @@ The Workflow tool returns its result to the orchestrator and the orchestrator re
 
 When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, unchanged) gets **3 independent verifiers** instead of 1, run inside a `Workflow(...)`, aggregated by majority:
 
-- Each verifier receives the same isolated input the single-pass verifier gets (the single finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-verification-reference.md` §2) — NOT the other verifiers' outputs (independence is load-bearing).
+- Each verifier receives the same isolated input the single-pass verifier gets (the single finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2) — NOT the other verifiers' outputs (independence is load-bearing).
 - Each verifier emits the same structured result (`validation: confirmed | refuted | clarified`, `recommended_action`, `confidence`, `evidence`) as raw JSON text.
 - **Majority rule (of 3):** count `confirmed` and `clarified` as "stands" votes, `refuted` as "drop" votes.
   - ≥2 "drop" votes → the finding is **refuted** → demote to `## Filtered` (`reason: refuted-by-majority-verify`).
@@ -130,7 +130,7 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 
 - **Reporter boundary** — reviewers/verifiers are read-only; no `Edit`/`Write`/`git`/`gh` mutation. The workflow produces findings + verdicts, nothing else.
 - **Atomic state writes** — the orchestrator (NOT the workflow agents) owns every `atomic_state_write` to state.md and the handoff. Workflow agents return data; they never write `.geniro/` state.
-- **Action gate** — deep mode does not add or change action-gate options. The canonical 4 options and the `report_status: final` precondition (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-6-handoff-reference.md` §3.5) bind unchanged.
+- **Action gate** — deep mode does not add or change action-gate options. The canonical 4 options and the `report_status: final` precondition (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) bind unchanged.
 - **No-ship** — deep mode never pushes or fixes. The TDD authored-test push carve-out (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1) is the only sanctioned write, and it is independent of deep mode.
 
 ---

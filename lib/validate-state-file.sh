@@ -13,20 +13,26 @@
 # We never need nested-structure parsing — required-field check is
 # key-presence, schema-version is an integer scalar.
 
-# Exit codes
-readonly _VSF_OK=0
-readonly _VSF_NO_FILE=1
-readonly _VSF_NO_FRONTMATTER=2
-readonly _VSF_UNCLOSED_FRONTMATTER=3
-readonly _VSF_MISSING_BASE_FIELD=4
-readonly _VSF_MISSING_TIER_FIELD=5
-readonly _VSF_SCHEMA_VERSION_MISMATCH=6
-readonly _VSF_CHECKSUM_MISMATCH=7
-readonly _VSF_WORKTREE_NOT_FOUND=8
-readonly _VSF_BAD_TIER_VALUE=9
-readonly _VSF_NO_TARGET=64        # EX_USAGE — caller passed no target path
+# Exit codes — guarded so a second `source` in the same shell doesn't trip
+# `readonly variable` errors (every peer helper carries the same idempotent
+# guard; under a caller's `set -e` an unguarded re-source would abort the
+# whole Bash block before validation even runs).
+if [ -z "${_VSF_DEPS_LOADED:-}" ]; then
+  readonly _VSF_OK=0
+  readonly _VSF_NO_FILE=1
+  readonly _VSF_NO_FRONTMATTER=2
+  readonly _VSF_UNCLOSED_FRONTMATTER=3
+  readonly _VSF_MISSING_BASE_FIELD=4
+  readonly _VSF_MISSING_TIER_FIELD=5
+  readonly _VSF_SCHEMA_VERSION_MISMATCH=6
+  readonly _VSF_CHECKSUM_MISMATCH=7
+  readonly _VSF_WORKTREE_NOT_FOUND=8
+  readonly _VSF_BAD_TIER_VALUE=9
+  readonly _VSF_NO_TARGET=64        # EX_USAGE — caller passed no target path
 
-readonly _VSF_SUPPORTED_SCHEMA_VERSION=1
+  readonly _VSF_SUPPORTED_SCHEMA_VERSION=1
+  _VSF_DEPS_LOADED=1
+fi
 
 # Portable SHA-256 (canonical: lib/hash.sh). Source it if reachable; an inline
 # fallback keeps this validator self-contained for vendored installs that ship

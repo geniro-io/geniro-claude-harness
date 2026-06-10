@@ -16,10 +16,12 @@
 #   - rm -rf .geniro / .geniro/                    (whole tree)
 #   - rm -rf .geniro/<single-segment>              (e.g. .geniro/instructions/)
 #   - shell-equivalent forms of the above that the segment gate would otherwise
-#     miss: trailing glob (.geniro/instructions/* , .geniro/*), doubled slashes
-#     (.geniro//instructions/), parent-escape (.geniro/instructions/..), and a
-#     dotted state DIRECTORY name (.geniro/state/review.bak/)
-#   - find <path-with-.geniro> ... -delete         (bulk find-delete)
+#     miss: trailing glob (.geniro/instructions/* , .geniro/*), prefix glob
+#     (.gen*, .geniro*), doubled slashes (.geniro//instructions/), parent-escape
+#     (.geniro/instructions/..), a dotted state DIRECTORY name
+#     (.geniro/state/review.bak/), and prefixed paths (/abs/.geniro/<seg>,
+#     $PWD/.geniro/<seg>, ../proj/.geniro/<seg>)
+#   - find <path-with-.geniro> ... -delete / -exec rm / | xargs rm   (bulk deletes)
 #   - git worktree remove                          (worktrees often hold un-routed state)
 #
 # Per-project allowlist: .geniro/safety.json (in cwd or any ancestor) can opt out
@@ -37,6 +39,13 @@
 
 set -euo pipefail
 
+# Fail open but LOUDLY if jq is missing: without it the guard cannot inspect
+# commands, and a silent exit 0 would leave the user believing the guard is active.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so .geniro/ deletions are NOT being checked. Install jq to restore the guard."}\n'
+  exit 0
+fi
+
 INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
 
@@ -44,9 +53,11 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
-# Pad and collapse newlines (mirrors block-dangerous-git.sh) so multi-line
-# heredocs and embedded newlines can't slip past whitespace-anchored matchers.
-PADDED=" ${COMMAND//$'\n'/ } "
+# Join backslash-newline continuations, then pad and collapse newlines (mirrors
+# block-dangerous-git.sh) so multi-line heredocs, line-continued commands, and
+# embedded newlines can't slip past whitespace-anchored matchers.
+JOINED="${COMMAND//\\$'\n'/ }"
+PADDED=" ${JOINED//$'\n'/ } "
 
 find_safety_json() {
   local dir="$PWD"
@@ -87,31 +98,19 @@ block() {
   exit 2
 }
 
-# Does the command include `rm` with -r (in any flag combination: -rf, -fr, -Rf, -R, --recursive)?
-has_rm_recursive() {
-  echo "$PADDED" | grep -qE 'rm[[:space:]]+([^|;&]*[[:space:]])?-[a-zA-Z]*r[a-zA-Z]*[[:space:]]' && return 0
-  echo "$PADDED" | grep -qE 'rm[[:space:]]+([^|;&]*[[:space:]])?-[a-zA-Z]*R[a-zA-Z]*[[:space:]]' && return 0
-  echo "$PADDED" | grep -qE 'rm[[:space:]]+([^|;&]*[[:space:]])?--recursive[[:space:]]' && return 0
-  return 1
-}
-
-# 1. rm -rf .geniro / .geniro/ (bare — whole tree)
-if ! is_allowed "rm-geniro-tree"; then
-  if has_rm_recursive; then
-    if echo "$PADDED" | grep -qE '(/|[[:space:]"'"'"'])\.geniro/?[[:space:]"'"'"';|&]'; then
-      block "rm-geniro-tree" "rm -rf .geniro/ would wipe ALL plugin runtime + user-authored content (instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Use \`rm -f <single-file>\` for individual deletes."
-    fi
-  fi
-fi
-
-# 2 & 2b. Per-arg evaluation of .geniro/ subdirectory protections.
+# 1 & 2. Per-SPAN, then per-ARG evaluation of rm commands.
 #
-# Why per-arg: a single regex against $PADDED can be masked by a multi-arg
-# command. E.g. `rm -rf .geniro/instructions/ .geniro/planning/foo/bar` —
-# the second arg's 3-seg shape made the global "is there a deep form anywhere?"
-# check pass, letting the first arg's shallow `.geniro/instructions/` through.
-# We now iterate each token and apply the segment-depth gate to each one
-# independently.
+# Spans: each `rm ...` segment of the command (bounded by the next &/;/|
+# separator) is evaluated on its own, so a .geniro path used by a NON-rm part
+# of a compound command (`mkdir -p .geniro/x && rm -rf /tmp/y`) is not
+# mistaken for an rm argument. The boundary class includes ( and / so
+# `$(rm ...)` substitutions and `/bin/rm` still produce a span.
+#
+# Per-arg: a single regex against a span can be masked by a multi-arg command.
+# E.g. `rm -rf .geniro/instructions/ .geniro/planning/foo/bar` — the second
+# arg's 3-seg shape made the global "is there a deep form anywhere?" check
+# pass, letting the first arg's shallow `.geniro/instructions/` through. Each
+# token gets the segment-depth gate independently.
 #
 # Pattern IDs evaluated per arg:
 #   - rm-geniro-subdir       — `.geniro/<seg>` / `.geniro/<seg>/`            (2 segments)
@@ -123,8 +122,25 @@ fi
 #   - `.geniro/state/<file>.<ext>` (3 segments where last is a file with extension)
 #   - `.geniro/state/<skill>/<file>` (4+ segments) — slug-scoped state files
 
-if has_rm_recursive; then
-  # Tokenize the original COMMAND on whitespace. Strip surrounding quotes from
+RM_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[|;&(/[:space:]])rm[[:space:]]+[^|;&]*' || true)
+while IFS= read -r RM_SPAN; do
+  [ -z "$RM_SPAN" ] && continue
+  # Only recursive rm (-r/-R in any flag combination, or --recursive) is
+  # segment-gated — `rm -f <single-file>` at any depth stays allowed.
+  if ! printf '%s' " $RM_SPAN " | grep -qE '[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]|[[:space:]]--recursive[[:space:]]'; then
+    continue
+  fi
+
+  # 1. rm -rf .geniro / .geniro/ / <prefix>/.geniro (bare — whole tree). The
+  #    trailing space appended to the span lets the terminator class match at
+  #    end-of-span; ) is in the class so `$(rm -rf .geniro)` terminates a match.
+  if ! is_allowed "rm-geniro-tree"; then
+    if printf '%s' "$RM_SPAN " | grep -qE '(/|[[:space:]"'"'"'])\.geniro/?[[:space:]"'"'"');|&]'; then
+      block "rm-geniro-tree" "rm -rf .geniro/ would wipe ALL plugin runtime + user-authored content (instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Use \`rm -f <single-file>\` for individual deletes."
+    fi
+  fi
+
+  # 2 & 2b. Tokenize the span on whitespace. Strip surrounding quotes from
   # each token so `'.geniro/x/'`, `".geniro/x/"`, and `.geniro/x/` all evaluate
   # the same. This is best-effort tokenization (not a full shell parser); it's
   # sufficient to catch the realistic multi-arg `rm` form.
@@ -134,10 +150,12 @@ if has_rm_recursive; then
   # bash 3.2 (macOS) and GNU bash.
   set -f
   # shellcheck disable=SC2086
-  for raw in $COMMAND; do
-    # Trim surrounding single/double quotes
+  for raw in $RM_SPAN; do
+    # Trim surrounding single/double quotes, plus a trailing command-
+    # substitution close so `$(rm -rf .geniro/x)` tokens still segment-count.
     arg="${raw#\"}"; arg="${arg%\"}"
     arg="${arg#\'}"; arg="${arg%\'}"
+    arg="${arg%)}"
 
     # Remember whether the arg explicitly named a directory (trailing slash) — a
     # dotted DIRECTORY name (.geniro/state/review.bak/) must not be mistaken for a
@@ -148,19 +166,38 @@ if has_rm_recursive; then
     # Strip a trailing slash for segment-counting.
     stripped="${arg%/}"
 
-    # Only inspect args that are .geniro/-rooted paths (allow optional leading ./).
-    case "$stripped" in
-      .geniro|./.geniro)
-        # Bare `.geniro` arg — the rm-geniro-tree check below handles the whole-
-        # tree form. Skip here.
+    # A prefix-glob token expands to .geniro/ at execution time even though the
+    # literal token never spells the full name (`rm -rf .gen*`). Treat any glob
+    # whose literal prefix is a prefix of ".geniro" as a whole-tree delete.
+    glob_probe="${stripped#./}"
+    case "$glob_probe" in
+      '.*'|'.g*'|'.ge*'|'.gen*'|'.geni*'|'.genir*'|'.geniro*')
+        if ! is_allowed "rm-geniro-tree"; then
+          block "rm-geniro-tree" "rm -rf $arg is a glob that expands to .geniro/ — the same loss as rm -rf .geniro/. Use \`rm -f <single-file>\` for individual deletes."
+        fi
         continue
         ;;
-      .geniro/*|./.geniro/*) ;;
-      *) continue ;;
     esac
 
-    # Normalize: drop leading "./" so segment counts are stable.
-    norm="${stripped#./}"
+    # Inspect any arg that carries a .geniro path segment. Absolute paths,
+    # unexpanded \$PWD/~ prefixes, and ../-escapes delete the same tree as the
+    # relative spelling, so they are normalized to their `.geniro/...` suffix
+    # before segment-counting.
+    case "$stripped" in
+      .geniro|./.geniro)
+        # Bare `.geniro` arg — the whole-tree regex (check 1 above) handles it.
+        continue
+        ;;
+      .geniro/*)   norm="$stripped" ;;
+      ./.geniro/*) norm="${stripped#./}" ;;
+      */.geniro)
+        # Prefixed bare tree (/abs/path/.geniro) — also covered by the
+        # whole-tree regex (check 1 above) via its (/|quote|space) prefix class.
+        continue
+        ;;
+      */.geniro/*) norm=".geniro/${stripped##*/.geniro/}" ;;
+      *) continue ;;
+    esac
 
     # Normalize to the path the shell actually deletes, so equivalent forms count
     # at the same depth instead of slipping the segment gate:
@@ -221,12 +258,19 @@ if has_rm_recursive; then
     fi
   done
   set +f
-fi
+done <<< "$RM_SPANS"
 
-# 3. find ... .geniro ... -delete  (any flavor of find-delete that touches .geniro)
+# 3. find ... .geniro ... -delete / -exec rm / piped to xargs rm — bulk deletion
+#    that walks the tree. All three spellings produce the same loss.
 if ! is_allowed "find-geniro-delete"; then
   if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-delete'; then
     block "find-geniro-delete" "find ... -delete on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path, or pathlib.Path.unlink in Python) so each deletion is auditable."
+  fi
+  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-exec(dir)?[[:space:]]+([^[:space:]]*/)?rm([[:space:]]|$)'; then
+    block "find-geniro-delete" "find ... -exec rm on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
+  fi
+  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^&;]*\|[[:space:]]*xargs([[:space:]]+(-[^[:space:]]+|\{\}))*[[:space:]]+([^[:space:]]*/)?rm([[:space:]]|$)'; then
+    block "find-geniro-delete" "find ... | xargs rm on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
   fi
 fi
 

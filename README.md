@@ -112,7 +112,6 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ```
 /geniro:setup
-/geniro:setup --reset-prefs        # reset preference categories only
 ```
 
 ### `/geniro:plan` — Spec-first planning
@@ -135,7 +134,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:review` — Parallel multi-agent code review
 
-6-phase reporter loop (triage → mechanical pre-pass → LLM reviewers → filter → stratify → persist → action-gate). **MANDATORY spawn list:** always-fire (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions) + conditional (design when UI files present / pr-metadata when input was a PR ref / spec-compliance when PLAN CONTEXT non-none) + N custom from `.geniro/instructions/review-extra/`. Phase 2 declares `spawn_dims_declared[]` in state.md before the parallel batch; Phase 4 §4.0 verifies declared-vs-actual to catch silent skips. Phase 1 Step 0 smart workspace setup; /review is read-only — never mutates tracker status. Phase 1.5 mechanical pre-pass (lint / schema / secret scan + custom-reviewer discovery). Phase 5b auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Emits T2 hand-off with structured `open_questions[]` (3-gate chain prevents posting or implementing with unresolved questions). Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria. Optional `--tdd` flag tightens validation budget + F→P test-gate. All reviewer-agents inherit orchestrator tier.
+6-phase reporter loop (triage → mechanical pre-pass → LLM reviewers → filter → stratify → persist → action-gate). **MANDATORY spawn list:** always-fire (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions) + conditional (design when UI files present / pr-metadata when input was a PR ref / spec-compliance when PLAN CONTEXT non-none AND the input was a PR ref or the change is high-risk / rules-compliance when the repo has authored rule files) + N custom from `.geniro/instructions/review-extra/`. Phase 2 declares `spawn_dims_declared[]` in state.md before the parallel batch; Phase 4 §4.0 verifies declared-vs-actual to catch silent skips. Phase 1 Step 0 smart workspace setup; /review is read-only — never mutates tracker status. Phase 1.5 mechanical pre-pass (lint / schema / secret scan + custom-reviewer discovery). Every filter survivor is independently re-verified by a fresh reviewer before it reaches you; Phase 5.3 auto-emits `pitfall` L2 entries on cross-reviewer convergence ≥3. Emits a hand-off with structured `open_questions[]` (3-gate chain prevents posting or implementing with unresolved questions). Optional `--simplify` flag prepends Reuse/Quality/Efficiency criteria. Optional `--tdd` flag is additive — it posts the same finding set as Standard and additionally offers auto-authored failing tests for the testable findings (it never filters the posted set). Optional `--deep` runs each dimension three times with 3-vote majority verification (higher quality, higher cost). All reviewer-agents inherit orchestrator tier.
 
 ```
 /geniro:review                                # review uncommitted changes

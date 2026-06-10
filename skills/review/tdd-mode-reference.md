@@ -13,7 +13,7 @@ TDD mode is an opt-in variant of `/geniro:review` that is **purely additive**. I
 | Phase 4.3 "Author tests for all eligible findings" option | Unmarked | Marked `(Recommended)` |
 | `**Failing test:** <path>` body line on a finding | Only if a test was authored + confirmed | Same — appended to every `[CONFIRMED-BY-TEST]` finding |
 | Phase 6 "Commit + push" option (when PR ref present) | Unmarked, except `(Recommended)` when the user just selected "Post Draft PR review" in the Action gate | Marked `(Recommended)` — pushing the authored tests to the reviewed branch is the additive payoff |
-| Phase 6 PR draft-review comment body | severity + description + recommendation (no confidence, no decision-type, no plugin branding, no internal finding IDs — see `phase-6-handoff-reference.md` §7.6 "PR-comment body content rules") | + `**Failing test:** \`<path>\`` line on `[CONFIRMED-BY-TEST]` findings, where `<path>` is the project's actual test file (never `.geniro/...`) |
+| Phase 6 PR draft-review comment body | severity + description + recommendation (no confidence, no decision-type, no plugin branding, no internal finding IDs — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.6 "PR-comment body content rules") | + `**Failing test:** \`<path>\`` line on `[CONFIRMED-BY-TEST]` findings, where `<path>` is the project's actual test file (never `.geniro/...`) |
 | Adversarial-tester-agent contract | Unchanged | Unchanged |
 | State-file schema | `mode:` field defaults to `standard` (also: pre-TDD-mode state files without the field read as `standard`) | `mode: tdd` |
 

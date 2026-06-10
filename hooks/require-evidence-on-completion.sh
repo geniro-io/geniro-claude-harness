@@ -33,9 +33,18 @@ if [ -z "$MSG" ]; then
     # Read each line as raw text and `fromjson?` it so a single malformed line is
     # skipped rather than aborting the whole stream (which would drop the last
     # assistant turn and silently disable this warning).
+    # Each matching event's text blocks are joined and emitted as ONE @json-encoded
+    # line, so `head -1` selects the first RESULT (the newest assistant event with
+    # text), not the first physical line — a multi-line message used to be
+    # truncated to line 1 here, hiding any claim below it. The trailing `jq -r .`
+    # decodes the JSON string back to raw text. Tool-use-only events are skipped
+    # (select(length > 0)) so they can't mask the newest text-bearing turn.
     MSG=$({ tac "$TRANSCRIPT_PATH" 2>/dev/null || tail -r "$TRANSCRIPT_PATH" 2>/dev/null; } \
-      | jq -rR 'fromjson? | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' 2>/dev/null \
-      | head -1 || echo "")
+      | jq -rR 'fromjson? | select(.type == "assistant")
+                | [.message.content[]? | select(.type == "text") | .text]
+                | select(length > 0) | join("\n") | @json' 2>/dev/null \
+      | head -1 \
+      | jq -r '.' 2>/dev/null || echo "")
   fi
 fi
 
@@ -146,6 +155,10 @@ This is a soft reminder layer (Stop hooks fire ~50-80% of the time). Authoritati
 per-skill (reviewer-agent finding emit-time, verification-cache invalidation, Edit|Write TDD-order).
 Bypass this warning by adding "evidence-stop" to .geniro/safety.json allow_patterns.
 EOF
+  # Stop-hook stderr on exit 0 lands only in the verbose transcript — the
+  # stdout systemMessage JSON below is what the user actually sees.
+  jq -nc --arg p "$FOUND_PHRASE" \
+    '{systemMessage: ("Geniro evidence reminder: completion claim \"" + $p + "\" has no Evidence Block (Command / Exit code / Tail) or file:line citation. See skills/_shared/evidence-standard.md; bypass: \"evidence-stop\" in .geniro/safety.json.")}'
 fi
 
 # Warn-only: always exit 0 (per audit revision M2 — Stop hook is reminder, not enforcement)

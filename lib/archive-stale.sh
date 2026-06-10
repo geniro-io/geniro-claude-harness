@@ -13,10 +13,12 @@
 #
 # NEVER deletes — flips deprecated:true only, audit trail preserved.
 # Auto-runs on SessionStart (default ON, hash-gated, opt-out via
-# safety.json memory.auto_archive_stale: false). The SessionStart hook
-# acquires the mkdir-lock and invokes this helper; this helper never
-# auto-locks (the hook owns the lock). Also invokable explicitly by
-# user. Idempotent: already-deprecated entries skipped.
+# safety.json memory.auto_archive_stale: false). Locking: the SessionStart
+# hook acquires the mkdir-lock around its invocation, so the FUNCTION never
+# auto-locks; the direct-invocation branch at the bottom of this file takes
+# the same lock itself (rc=3 when held), so manual runs cannot interleave
+# with the hook or with record_access counter rewrites of the same log.
+# Idempotent: already-deprecated entries skipped.
 #
 # API:
 #   archive_stale_learnings [--dry-run]
@@ -26,6 +28,7 @@
 #   0 — success (flipped or no-op)
 #   1 — no entries match criteria (informational)
 #   2 — IO error
+#   3 — direct invocation only: rewrite lock held by another process; skipped
 
 if [ -z "${_AS_DEPS_LOADED:-}" ]; then
   _as_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -161,8 +164,9 @@ archive_stale_learnings() {
     return 2
   }
 
-  # POSIX rename(2) — atomic on same filesystem.
-  mv "$tmp" "$log" || {
+  # POSIX rename(2) — atomic on same filesystem. -f so an unwritable target
+  # cannot prompt and hang a tty session.
+  mv -f "$tmp" "$log" || {
     rm -f "$tmp"
     echo "archive-stale: failed to rename tmp to $log" >&2
     return 2
@@ -177,6 +181,29 @@ archive_stale_learnings() {
 
 # Allow direct invocation: archive-stale.sh [--dry-run]
 if [ "${BASH_SOURCE[0]}" = "${0:-}" ]; then
+  # Direct runs take the same mkdir lock the SessionStart hook holds around its
+  # invocation (and that record_access takes for its counter rewrite), so a
+  # manual run cannot interleave with another rewrite of the same log. Held
+  # lock → another writer is active; skip with rc=3 rather than queue. Stale
+  # locks (>10 min, crashed process) are reclaimed, mirroring the hook.
+  # The hook itself invokes this file as a script while ALREADY holding the
+  # lock — it sets GENIRO_ARCHIVE_LOCK_HELD=1 to say "caller owns the lock",
+  # which skips acquisition here.
+  _as_lock_root="$(_geniro_repo_root)"
+  _as_lock="$_as_lock_root/.geniro/knowledge/.archive-stale.lock"
+  if [ -d "$_as_lock_root/.geniro/knowledge" ] && [ -z "${GENIRO_ARCHIVE_LOCK_HELD:-}" ]; then
+    if [ -d "$_as_lock" ]; then
+      _as_lock_mtime=$(stat -c %Y "$_as_lock" 2>/dev/null || stat -f %m "$_as_lock" 2>/dev/null || echo 0)
+      if [ $(( $(date +%s) - _as_lock_mtime )) -gt 600 ]; then
+        rmdir "$_as_lock" 2>/dev/null
+      fi
+    fi
+    if ! mkdir "$_as_lock" 2>/dev/null; then
+      echo "archive-stale: another rewrite of learnings.jsonl is in progress (lock held: $_as_lock) — skipped. Re-run in a moment." >&2
+      exit 3
+    fi
+    trap 'rmdir "$_as_lock" 2>/dev/null' EXIT
+  fi
   archive_stale_learnings "$@"
   exit $?
 fi
