@@ -274,13 +274,12 @@ Actions are now gated by `risk_class: low | medium | high`. Older actions lack t
 **Auto-fix:**
 
 ```bash
-for f in $(find .geniro/actions -maxdepth 1 -name '*.md' -exec grep -L '^risk_class:' {} +); do
-  sed -i '/^---$/,/^---$/{/^---$/!{/^---$/!{0,/^---$/!s/^---$/risk_class: low\n---/}}}' "$f" 2>/dev/null || \
-  sed -i '2a risk_class: low' "$f"
+find .geniro/actions -maxdepth 1 -name '*.md' -exec grep -L '^risk_class:' {} + | while IFS= read -r f; do
+  awk 'NR==1 && $0=="---" {print; print "risk_class: low"; next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 done
 ```
 
-Adds `risk_class: low` to the frontmatter of each affected action. Users should review and adjust to `medium` or `high` where appropriate after the fix.
+Adds `risk_class: low` right after the opening `---` of each affected action's frontmatter (awk, not `sed -i` — the insert-with-newline sed forms are GNU-only and fail on macOS BSD sed). A file without frontmatter is rewritten unchanged and still needs a manual `/geniro:actions edit <slug>`. Users should review and adjust to `medium` or `high` where appropriate after the fix.
 
 **Severity:** HIGH — `/geniro:actions list` and `/geniro:actions run <slug>` validate frontmatter on every invocation; missing field surfaces as a CRITICAL lint and refuses the run.
 

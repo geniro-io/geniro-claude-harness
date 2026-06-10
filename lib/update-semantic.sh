@@ -128,9 +128,11 @@ update_semantic() {
   fi
 
   # Release the lock on every function-return path (normal or early-error return)
-  # so a stale O_EXCL lock can't wedge all future L3 writes. RETURN is
-  # function-scoped, so it adds no trap to the caller's shell.
-  trap 'rm -f "$lock_path"' RETURN
+  # so a stale O_EXCL lock can't wedge all future L3 writes. Bash RETURN traps
+  # are NOT function-scoped by default — the trap self-clears (`trap - RETURN`)
+  # on first fire so it cannot linger in the caller's shell and clobber a
+  # caller's own RETURN trap.
+  trap 'rm -f "$lock_path"; trap - RETURN' RETURN
 
   local rc=0
   case "$op" in

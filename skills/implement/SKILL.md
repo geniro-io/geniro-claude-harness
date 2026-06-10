@@ -158,12 +158,12 @@ fi
 Phase 1 entry runs Step 0 first (workspace setup — see §PHASE 1 Step 0 below), then six helper calls — two L4/L3 reads, two subagent spawns (Knowledge-Retrieval + Codebase-Explorer), one L2 query, one cross-layer protocol:
 
 0. **Step 0 workspace setup** — passive context detection followed by 1-2 question AUQ (skipped on auto-continue path). Fires BEFORE any L4/L3/L2 helper call; workspace decision determines the worktree the rest of Phase 1 inspects.
-1. `load-custom-instructions` (L4) with `MODE: refresh` — see §L4 below.
-2. `load-semantic` (L3) with `MODE: refresh` — see §L3 below.
+1. **Load custom instructions** — `load-custom-instructions` with `MODE: refresh`; see §L4 below.
+2. **Load the project snapshot** — `load-semantic` with `MODE: refresh`; see §L3 below.
 3. **Knowledge-Retrieval subagent spawn** — parallel with Codebase-Explorer; reads back from `<task-dir>/.kr-out.md`. See §Phase 1 subagent spawn.
 4. **Codebase-Explorer subagent spawn** — parallel with Knowledge-Retrieval; reads back from `<task-dir>/.ce-out.md`. See §Phase 1 subagent spawn.
-5. `query-learnings` — see "past learnings" sub-section below. Tags may be primed by the knowledge-retrieval agent's output.
-6. `resolve-conflicts` (L4/L3/L2 protocol) — see §Cross-layer conflict surfacing. Fires only if disagreement detected after the reads.
+5. **Query past learnings** — `query-learnings`; see "past learnings" sub-section below. Tags may be primed by the knowledge-retrieval agent's output.
+6. **Cross-layer conflict resolution** — `resolve-conflicts`; see §Cross-layer conflict surfacing. Fires only if disagreement detected after the reads.
 
 Phase 2 makes no new helper calls at entry; per-Edit `.claude/rules/*.md` JIT loads fire only when an Edit target matches a rule path returned by Codebase-Explorer (cache scope: Phase 2). Phase 3 entry re-fires `load-custom-instructions(MODE: refresh)` AND fires `load-custom-reviewers` once (round 1 only) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` — spawn-specs are appended to the parallel reviewer batch alongside the 5 built-ins and the adversarial-tester. Phase 3 fix-loop iterations may re-fire `query-learnings`. Phase 3 ship sub-step adds writes: `emit-learning` (L2), `update-semantic` (L3 bounded append), and `atomic_state_write` (state.md frontmatter `non-resumable-actions[]`).
 

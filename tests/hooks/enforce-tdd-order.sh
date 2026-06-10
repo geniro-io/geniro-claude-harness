@@ -67,6 +67,13 @@ expect_allow "GREEN: production file allowed"          "$(run_edit "$GITREPO/src
 write_phase IDLE
 expect_allow "IDLE: production file allowed"           "$(run_edit "$GITREPO/src/app.js")"
 
+# ===== RED enforced from a subdirectory cwd (state path is root-resolved) =====
+write_phase RED
+mkdir -p "$GITREPO/src/deep"
+cd "$GITREPO/src/deep" || exit 1
+expect_block "RED from subdir cwd: production file blocked" "$(run_edit "$GITREPO/src/app.js")"
+cd "$GITREPO" || exit 1
+
 # ===== safety.json tdd-order bypass =====
 write_phase RED
 mkdir -p "$GITREPO/.geniro"

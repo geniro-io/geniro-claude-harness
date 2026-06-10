@@ -29,6 +29,15 @@ fail() {
   echo "FAIL: $1" >&2
 }
 
+# Double-source under `set -e` must not abort on readonly re-assignment —
+# the _VSF_DEPS_LOADED guard makes a second source a no-op.
+resrc=$( (set -e; source "$REPO_ROOT/lib/validate-state-file.sh"; source "$REPO_ROOT/lib/validate-state-file.sh"; echo RESOURCE_OK) 2>&1 )
+if printf '%s' "$resrc" | grep -q RESOURCE_OK; then
+  pass "double-source is idempotent (no readonly crash under set -e)"
+else
+  fail "double-source crashed: $resrc"
+fi
+
 # Helper to run validator and capture exit code without aborting set -e
 expect_rc() {
   local target="$1" expected="$2" label="$3"

@@ -75,8 +75,9 @@ atomic_state_write() {
   # 2. fsync tmp file (best effort).
   _atomic_state_sync_file "$tmp"
 
-  # 3. Atomic rename (POSIX guarantees rename-within-same-fs is atomic).
-  if ! mv "$tmp" "$target"; then
+  # 3. Atomic rename (POSIX guarantees rename-within-same-fs is atomic). -f so
+  #    an unwritable existing target cannot prompt and hang a tty session.
+  if ! mv -f "$tmp" "$target"; then
     rm -f "$tmp"
     echo "atomic_state_write: rename to $target failed" >&2
     return 67

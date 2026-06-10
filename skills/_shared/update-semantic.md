@@ -54,7 +54,7 @@ event.
 ## Lock semantics
 
 - **Acquire:** `(set -C; :>lock_path) 2>/dev/null` — POSIX-portable O_EXCL create. The shell with `noclobber` set refuses to write to an existing file.
-- **Release:** explicit `rm -f` on success/error paths inside the helper. The function does NOT install a signal trap — if the process is killed mid-write the lock leaks and a stale lock will surface as rc=11 on the next call. **Manual recovery:** delete the lock file.
+- **Release:** a `trap 'rm -f "$lock_path"; trap - RETURN' RETURN` installed inside the helper fires on every return path and then uninstalls itself — bash RETURN traps are not function-scoped by default, so without the self-clear it would linger in the caller's shell and clobber a caller's own RETURN trap (the explicit `rm -f` on the success path is a belt-and-braces duplicate). The function does NOT install a *signal* trap — if the process is killed mid-write the lock leaks and a stale lock will surface as rc=11 on the next call. **Manual recovery:** delete the lock file.
 - **Different files have independent locks.** A `_CODEBASE_MAP.md` write does not block a `_FEATURES.md` write.
 
 ## Replace semantics

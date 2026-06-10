@@ -258,6 +258,21 @@ record_access() {
 
   [ -f "$log" ] || return 0
 
+  # Take the shared knowledge-rewrite lock (the same mkdir lock the
+  # auto-archive path uses) so two whole-file rewriters cannot overwrite each
+  # other's changes (e.g. erase freshly-flipped deprecated flags — both
+  # rewrites preserve the line count, so the count guard below cannot catch
+  # rewriter-vs-rewriter races). Held lock → another rewrite is in flight; skip
+  # the bump (best-effort counter). The RETURN trap releases the lock on every
+  # exit path and self-clears (bash RETURN traps are not function-scoped by
+  # default — without `trap - RETURN` it would linger in the caller's shell),
+  # mirroring update-semantic.sh.
+  local lock="$root/.geniro/knowledge/.archive-stale.lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    return 0
+  fi
+  trap 'rmdir "$lock" 2>/dev/null; trap - RETURN' RETURN
+
   local tmp="${log}.tmp.$$"
   # Read raw and `fromjson?` per line: a malformed line yields no output for that
   # line rather than aborting jq. The post-jq count guard below then refuses the
@@ -287,8 +302,9 @@ record_access() {
     return 1
   fi
 
-  # POSIX rename(2) — atomic on same filesystem.
-  mv "$tmp" "$log" || {
+  # POSIX rename(2) — atomic on same filesystem. -f so an unwritable target
+  # cannot prompt and hang a tty session.
+  mv -f "$tmp" "$log" || {
     rm -f "$tmp"
     return 1
   }

@@ -34,7 +34,10 @@ while IFS= read -r t; do
   echo "========================================================"
   echo "RUN: $t"
   echo "========================================================"
-  if bash "$t"; then
+  # </dev/null: a suite (or a hook under test) that reads stdin must get EOF
+  # immediately — inheriting the runner's stdin blocks on a TTY locally and
+  # behaves differently in CI.
+  if bash "$t" </dev/null; then
     echo
   else
     failed=$((failed + 1))

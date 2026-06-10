@@ -133,6 +133,29 @@ set -e
   && pass "non-numeric GENIRO_DECAY_TAU_DAYS -> rc=2" \
   || fail "bad tau should rc=2; got $rc"
 
+# ===== Direct invocation takes the rewrite lock =====
+new_sandbox
+write_corpus
+mkdir "$(dirname "$LOG")/.archive-stale.lock"
+set +e
+out=$(bash "$REPO_ROOT/lib/archive-stale.sh" 2>&1); rc=$?
+set -e
+if [ "$rc" -eq 3 ] && printf '%s' "$out" | grep -q 'lock held'; then
+  pass "direct invocation skips with rc=3 while the lock is held"
+else
+  fail "direct-run lock skip; rc=$rc (expect 3) out=$out"
+fi
+rmdir "$(dirname "$LOG")/.archive-stale.lock"
+
+set +e
+bash "$REPO_ROOT/lib/archive-stale.sh" >/dev/null 2>&1; rc=$?
+set -e
+if { [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; } && [ ! -d "$(dirname "$LOG")/.archive-stale.lock" ]; then
+  pass "direct invocation acquires and releases the lock (rc=$rc)"
+else
+  fail "direct-run lock release; rc=$rc lock-left=$([ -d "$(dirname "$LOG")/.archive-stale.lock" ] && echo y || echo n)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

@@ -123,7 +123,11 @@ if [ "$MODE" = "block" ]; then
   exit 2
 fi
 
-# warn mode — surface the message, allow the call.
+# warn mode — surface the message, allow the call. PreToolUse stderr on exit 0
+# lands only in the verbose transcript, so the stdout systemMessage JSON below
+# carries the user-visible warning.
 echo "$MSG_PREFIX (warn): $MSG_BODY" >&2
 echo "$MSG_PREFIX (warn): This warning becomes a hard block once all Geniro skills finish migrating to the helper." >&2
+jq -nc --arg p "$FILE_PATH" --arg h "$HELPER" \
+  '{systemMessage: ("Geniro: direct Edit/Write to state path " + $p + " — use the " + $h + " helper (atomic write) instead. This warning becomes a hard block in a future release; bypass: \"enforce-state-helper\" in .geniro/safety.json.")}'
 exit 0

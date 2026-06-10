@@ -40,7 +40,10 @@ new_sandbox() {
   HISTMD="$d/evals/HISTORY.md"
 }
 
-jsonl_lines() { [ -f "$JSONL" ] && grep -c . "$JSONL" || echo 0; }
+# if/else (not `&&...||`): on an EXISTING-but-empty file `grep -c .` prints 0
+# AND exits 1, so the `||` arm would print a second 0 ("0\n0") and break the
+# numeric comparisons below.
+jsonl_lines() { if [ -f "$JSONL" ]; then grep -c . "$JSONL" || true; else echo 0; fi; }
 
 # A minimal but valid record builder (jq-built so quoting is safe).
 record() {

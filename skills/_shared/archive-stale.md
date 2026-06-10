@@ -30,6 +30,7 @@ Or direct invocation:
 - `0` — success (flipped to deprecated, or dry-run completed)
 - `1` — no entries match criteria (informational)
 - `2` — IO error, bad flag, invalid `GENIRO_DECAY_TAU_DAYS`, or refused-to-rewrite because the log holds malformed line(s) (see §Safety invariants)
+- `3` — direct invocation only: the rewrite lock is held by another process; run skipped (re-run in a moment). A caller that already owns the lock (the SessionStart hook) sets `GENIRO_ARCHIVE_LOCK_HELD=1` to skip acquisition.
 
 **Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so archival mutations target the canonical L2 log. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
 
@@ -80,7 +81,7 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 - **Auto-runs on SessionStart** when threshold met AND file changed since last archive. Manual invocation also supported (typical: `--dry-run` to preview).
 - **Idempotent.** Already-deprecated entries are skipped (criterion 4 in §Criteria). Re-runs are safe and report 0 candidates.
 - **Atomic write.** Uses tmp + POSIX `rename(2)` for the final write. Mid-run interruption leaves either the old or new file, never a partial one.
-- **Multi-tab safe.** When invoked via hook, runs under a `mkdir`-acquired POSIX-atomic lock at `.geniro/knowledge/.archive-stale.lock`. Concurrent SessionStart events lose the race and skip silently; only one tab does work. Stale-lock TTL = 600s (orphans from crashed processes auto-cleaned).
+- **Multi-tab safe.** When invoked via hook, runs under a `mkdir`-acquired POSIX-atomic lock at `.geniro/knowledge/.archive-stale.lock`. Direct invocations acquire the same lock themselves (rc=3 when held), and `record_access` counter rewrites share it too — the hook, direct runs, and counter bumps are mutually excluded. A caller that *sources* this helper and calls `archive_stale_learnings()` directly owns locking itself (the function never auto-locks — see the header contract). Concurrent SessionStart events lose the race and skip silently; only one tab does work. Stale-lock TTL = 600s (orphans from crashed processes auto-cleaned).
 
 ## Environment
 

@@ -698,6 +698,74 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 17. Terminal Tier-1a candidate must not shadow an in-flight Tier-1b task —
+#     resolution skips finished candidates instead of discarding the final pick.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+# Finish the planning task (terminal phase) and add a live debug slug dir on
+# the same branch.
+sed -i.bak 's/^phase: implement$/phase: done/' "$sandbox/.geniro/planning/feature-x/state.md"
+rm -f "$sandbox/.geniro/planning/feature-x/state.md.bak"
+mkdir -p "$sandbox/.geniro/state/debug/feature-x"
+cat > "$sandbox/.geniro/state/debug/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: debug
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: investigate
+status: in-progress
+non-resumable-actions: []
+---
+
+## Phase log
+- observing
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q "state/debug/feature-x/state.md" \
+  && pass "terminal planning state does not shadow the live debug task" \
+  || fail "terminal planning state shadows the live debug task"
+
+if echo "$ac" | grep -q "planning/feature-x/state.md"; then
+  fail "finished planning state.md should not be surfaced"
+else
+  pass "finished planning state.md is not surfaced"
+fi
+
+# ---------------------------------------------------------------------------
+# 18. Auto-archive hash marker is written only after a SUCCESSFUL helper run —
+#     a failed run must stay retry-eligible on the next session start.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+printf '%s\n%s\n' '{"type":"discovery","dedup_key":"a"}' '{"type":"discovery","dedup_key":"b"}' \
+  > "$sandbox/.geniro/knowledge/learnings.jsonl"
+
+# Helper unreachable (bogus plugin root) → run fails → marker must NOT appear.
+printf '{"source":"startup","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="/tmp/no-such-dir-$$" bash "$HOOK" >/dev/null 2>&1
+if [ ! -f "$sandbox/.geniro/knowledge/.archive-stale.hash" ]; then
+  pass "archive hash marker NOT written when the helper run fails"
+else
+  fail "archive hash marker written despite a failed helper run"
+fi
+
+# Real plugin root → helper succeeds → marker appears.
+printf '{"source":"startup","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK" >/dev/null 2>&1
+if [ -f "$sandbox/.geniro/knowledge/.archive-stale.hash" ]; then
+  pass "archive hash marker written after a successful helper run"
+else
+  fail "archive hash marker missing after a successful helper run"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

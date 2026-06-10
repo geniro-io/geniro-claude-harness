@@ -30,14 +30,18 @@ The helper never errors out — it falls through to passthrough if `git`, `jq`, 
 |---|---|---|
 | `jwt` | `eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+` | `[REDACTED:jwt]` |
 | `aws-key` | `AKIA[0-9A-Z]{16}` | `[REDACTED:aws-key]` |
-| `aws-secret` | `aws_secret_access_key[[:space:]]*=[[:space:]]*[A-Za-z0-9/+=]{40}` | `aws_secret_access_key=[REDACTED:aws-secret]` |
+| `aws-secret` | `aws_secret_access_key[[:space:]]*=[[:space:]]*[A-Za-z0-9/+=]{40}` (case-insensitive key via per-letter classes — catches `AWS_SECRET_ACCESS_KEY=` too) | `aws_secret_access_key=[REDACTED:aws-secret]` |
 | `api-key:sk-ant` | `sk-ant-[A-Za-z0-9_-]+` | `[REDACTED:api-key:anthropic]` |
 | `api-key:sk` | `sk-[A-Za-z0-9_-]+` | `[REDACTED:api-key:openai-or-similar]` |
 | `api-key:pk_live` | `pk_live_[A-Za-z0-9_]+` | `[REDACTED:api-key:stripe-live]` |
 | `api-key:pk_test` | `pk_test_[A-Za-z0-9_]+` | `[REDACTED:api-key:stripe-test]` |
 | `api-key:ghp` | `ghp_[A-Za-z0-9_-]+` | `[REDACTED:api-key:github]` |
+| `api-key:github-pat` | `github_pat_[A-Za-z0-9_]+` | `[REDACTED:api-key:github-fine-grained]` |
+| `api-key:gitlab` | `glpat-[A-Za-z0-9_-]+` | `[REDACTED:api-key:gitlab]` |
 | `api-key:xoxb` | `xoxb-[A-Za-z0-9_-]+` | `[REDACTED:api-key:slack-bot]` |
-| `bearer` | `Bearer [A-Za-z0-9._-]+` | `Bearer [REDACTED:bearer]` |
+| `api-key:xox` | `xox[a-z]-[A-Za-z0-9_-]+` (user/app/refresh Slack tokens; runs after the more specific `xoxb`) | `[REDACTED:api-key:slack]` |
+| `api-key:google` | `AIza[0-9A-Za-z_-]{35}` | `[REDACTED:api-key:google]` |
+| `bearer` | `Bearer [A-Za-z0-9._-]+` (case-insensitive scheme — catches `bearer`/`BEARER` too) | `Bearer [REDACTED:bearer]` |
 | `url-cred` | `(https?)://[^:/[:space:]]+:[^@/[:space:]]+@` | `\1://[REDACTED:url-cred]@` |
 | `private-key` | `-----BEGIN [A-Z ]*PRIVATE KEY-----.*-----END [A-Z ]*PRIVATE KEY-----` | `[REDACTED:private-key]` |
 

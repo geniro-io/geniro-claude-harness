@@ -69,6 +69,47 @@ expect_allow "safety.json bypass: write-env allowed"        "$(run_write /proj/.
 expect_block "safety.json bypass: unrelated pattern still blocks" "$(run_write /proj/server.pem)"
 cd "$TMPDIR_BASE" || exit 1
 
+# ===== Bash branch: shell-side writes into protected paths =====
+run_bash() {
+  jq -nc --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "bash: echo redirect to .env blocked"        "$(run_bash 'echo "API_KEY=x" > .env')"
+expect_block "bash: append to .env blocked"               "$(run_bash 'printf "K=v\n" >> ./.env')"
+expect_block "bash: tee to .env blocked"                  "$(run_bash 'echo x | tee .env')"
+expect_block "bash: tee -a to credentials.json blocked"   "$(run_bash 'cat tmp.txt | tee -a config/credentials.json')"
+expect_block "bash: sed -i on go.sum blocked"             "$(run_bash "sed -i.bak 's/a/b/' go.sum")"
+expect_block "bash: cp onto .env blocked"                 "$(run_bash 'cp .env.example .env')"
+expect_block "bash: mv onto server.pem blocked"           "$(run_bash 'mv new.pem server.pem')"
+expect_block "bash: dd of=secrets.yaml blocked"           "$(run_bash 'dd if=/dev/stdin of=secrets.yaml')"
+expect_allow "bash: reading .env allowed"                 "$(run_bash 'cat .env')"
+expect_allow "bash: grep in .env allowed"                 "$(run_bash 'grep KEY .env')"
+expect_allow "bash: cp FROM protected source allowed"     "$(run_bash 'cp .env /tmp/inspect.txt')"
+expect_allow "bash: redirect to normal file allowed"      "$(run_bash 'echo x > out.txt')"
+expect_allow "bash: stderr to /dev/null allowed"          "$(run_bash 'npm test 2>/dev/null')"
+expect_allow "bash: fd dup >&2 allowed"                   "$(run_bash 'echo err >&2')"
+expect_allow "bash: plain git command allowed"            "$(run_bash 'git status')"
+expect_allow "bash: sed without -i on go.sum allowed"     "$(run_bash "sed 's/a/b/' go.sum")"
+
+# Data contexts (quoted strings, heredoc bodies, sed scripts) must not block —
+# and the quoted-target miss is the documented trade-off of that scrub.
+expect_allow "bash: quoted-string mention of > .env allowed"  "$(run_bash 'echo "set x > .env to configure"')"
+expect_allow "bash: quoted sed script naming .env allowed"    "$(run_bash "sed -i 's/.env.example/.env.sample/' README.md")"
+expect_allow "bash: unquoted sed script naming .env allowed"  "$(run_bash 'sed -i s/.env.example/.env.sample/ README.md')"
+expect_allow "bash: heredoc body mentioning > .env allowed"   "$(run_bash 'cat <<DOC > out.txt
+PORT=3000 > .env is just text
+DOC')"
+expect_block "bash: heredoc INTO .env still blocked"          "$(run_bash 'cat <<DOC > .env
+K=v
+DOC')"
+expect_allow "bash: QUOTED redirect target is a documented miss" "$(run_bash 'echo k > ".env"')"
+
+# safety.json bypass applies to the Bash branch too
+cd "$TMPDIR_BASE/proj-bypass" || exit 1
+expect_allow "bash: bypass write-env honored"             "$(run_bash 'echo K=v > .env')"
+expect_block "bash: bypass unrelated pattern still blocks" "$(run_bash 'cp x.pem server.pem')"
+cd "$TMPDIR_BASE" || exit 1
+
 # ===== Fail-open on missing file_path =====
 expect_allow "missing file_path → allow" "$(echo '{"tool_input": {}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
 
