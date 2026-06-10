@@ -248,7 +248,7 @@ When the hypothesis loop fails to converge — defined as **5 inconclusive hypot
 
 1. **Do not silently report "cannot determine cause".**
 2. Apply the 8-category diagnose-by-missing-component taxonomy (`## Stall Diagnosis Taxonomy` below).
-3. **Surface to user via `AskUserQuestion`** with header "Stall diagnosis" — render the most likely missing-component categories plus an explicit "Abandon — present partial findings" option (AUQ maxItems=4, so typically the top 3 categories + Abandon; if more categories are relevant, chain a second AUQ per the cap-extension pattern). "Abort" comes via the AUQ "Other" option.
+3. **Render the investigation status to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — what was tested (per-hypothesis results as a short `☐`/`✔` checklist) and which component categories remain unexplored — then fire the lean `AskUserQuestion` with header "Stall diagnosis": the most likely missing-component categories plus an explicit "Abandon — present partial findings" option (AUQ maxItems=4, so typically the top 3 categories + Abandon; if more categories are relevant, chain a second AUQ per the cap-extension pattern). "Abort" comes via the AUQ "Other" option.
 4. state.md marks `phase: phase-1-escalated` with timestamp + inconclusive-test count + categorized stall hypothesis. Transitions:
 - User picks a surfaced missing-component category → `phase: investigate` (resume hypothesis loop with new data).
 - User picks "Abandon — present partial findings" → keep `phase: ship` (NOT the terminal yet) and proceed to Phase 3 with a stall-flagged findings summary; Phase 3 exit writes the terminal `ship-summary-only` (§3.2). Writing the terminal at the gate would strand a compaction-resume as "complete" before the summary + handoff are produced.
@@ -281,13 +281,10 @@ On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: debug +
 
 If the confirmed root cause has more than one valid fix path with real trade-offs (e.g., snapshot-vs-live-fetch, COALESCE vs CHECK constraint vs catch+log, fix-at-source vs fix-at-call-site), do NOT pick one and write a single text proposal.
 
-**Fire `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored)**:
+**Render the investigation context to chat first, then fire the lean `AskUserQuestion` — both per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored)**. That section carries the full render template (title, opener, root-cause digest, cause → effect flow visual, reproduction status, options) and its source-field map into `.geniro/state/debug/<slug>/state.md`:
 - `header: "Fix path"`
-- `question` text: confirmed root cause's `path:lines` + hypothesis title
-- Each option:
-- `label` (1-5 words) — name of the path
-- `description` — one-line trade-off
-- chat block (§ Message-first rendering) — render the investigation context (root cause / evidence from `## Hypotheses` Result / hypothesis-confirmed status + number per the helper's source-field map) to chat first in plain English; `preview` stays empty or a one-line recap
+- `question` text: plain-English root-cause title + `path:lines`
+- options: one per fix path — `label` (1-5 words, path name) + `description` (one-line trade-off); `preview` stays empty or a one-line recap
 
 **Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entry with `category: multi_path_fix` and matching `root_cause` (use root-cause text as the disambiguator). If found, use prior `picked` value. If not, fire AUQ → on user pick, append entry to `approvals[]` via `atomic_state_write`.
 
@@ -314,9 +311,9 @@ Persist to state.md `## Proposed Fix` body section.
 
 **Verify the proposed fix — monkey-patch in the test by default; production-source edits are an explicit escape hatch.** Apply the patch locally as a monkey-patch inside the authored test file (mock, fixture, test-local shim, or a throwaway helper imported only by the test). Re-run the authored test ≥2× post-fix and confirm the failure DISAPPEARS both times. If the bug genuinely cannot be verified without editing production source (hard-to-mock chain — DI container, framework hook, native module, generated code), list every touched production file under "Verification edits to revert:" in the findings, confirm each is reverted before escalation, and re-run `git diff` to prove the working tree contains only the reproduction test. **Deep-mode branch (`deep-mode: true`):** give the fix→test judgment 3 INDEPENDENT verifiers and take a majority vote (does the monkey-patched fix genuinely turn the F→P test red→green, AND is the test a strong regression guard, not too weak); the `adversarial-tester-agent` stays a SINGLE spawn even in deep mode. Per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` §3 (abstain/quorum rules, the native-precision rationale, fail-safe to the single-pass monkey-patch verify above).
 
-**Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), `AskUserQuestion` per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored):
+**Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), render the investigation context to chat first, then fire the lean `AskUserQuestion` — both per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored):
 - `header: "Repro infeasible"`
-- `question`: best-guess root-cause `path:lines` (or "unknown" if not isolated) + hypothesis title
+- `question`: plain-English root-cause title + `path:lines` (or "unknown" if not isolated)
 - Options: regression-guard alternatives — "Add runtime assertion" / "Author fuzz seed" / "Add monitor/alert" / "Skip regression guard" (description carries one-line trade-off)
 
 Record the user's selection AND rationale in state.md `## Reproduction Test` body section under "Reproduction Decision". The default is mandatory; escape hatch is opt-in with a paper trail.
@@ -328,7 +325,7 @@ Do NOT run the full project test suite here — that's the receiving skill's res
 When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-patch round counts as one), surface to user — mirrors escalation pattern:
 
 1. Do **not** silently report "no fix works".
-2. `AskUserQuestion` with header "Fix-fail" and options:
+2. Render the two failed attempts to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — what each attempt changed, what still fails, with evidence cites — then the lean `AskUserQuestion` with header "Fix-fail" and options:
 - **Try different approach** — go back to (Hypothesize) with a fresh angle. state.md transitions back to `phase: investigate`.
 - **Accept as documented limitation** — proceed to Phase 3 ship sub-step with `## Accepted Limitations` block in state.md body. state.md transitions to `phase: ship`. Receiving skill sees the unresolved limitation in the findings summary.
 - **Abort** — `phase: aborted` (terminal).
@@ -350,9 +347,9 @@ Fires FIRST in Phase 3 — before the findings summary, before the escalation AU
 
 1. Read state.md frontmatter `open_questions[]`. Filter to entries with `status: unresolved`.
 
-2. For each unresolved entry, fire one `AskUserQuestion`:
+2. For each unresolved entry, render it to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — the decision-queue tracker opens the render when ≥2 entries are unresolved (denominator: the unresolved `open_questions[]` count, already persisted), then the `### 🧭 Decision needed:` title (a plain-English restatement of the entry's `question:` field), the `**In one sentence:**` opener, a conversational lead (what the investigation hit and why it stayed open, drawn from the entry's `source` + `related_hypotheses`), `**Why it matters:**` with an evidence cite, a visual when one maps (§ Finding-type visual map), and the options. Then fire one lean `AskUserQuestion`:
    - `header`: `"Open question"`
-   - `question`: the entry's `question:` field, verbatim
+   - `question`: the plain-English title (the entry's `question:` field sources the title; do not echo it verbatim) + a pointer to the chat block
    - `options`: synthesized from the entry's context. Examples:
      - Stall categories (Phase 1 stall gate) → re-render the stall categories surfaced in Phase 1 (the set persisted in this entry's `question:` field) plus the "Abandon" option; do not introduce categories that were not originally surfaced.
      - Multi-path fix deferred → render the original path options.
@@ -375,14 +372,14 @@ Skipped silently when `open_questions[]` has zero `unresolved` entries.
 
 ### 3.1 Present findings (chat + persist handoff)
 
-Before asking where to route the fix, present a human-readable findings summary to the user. Do NOT jump straight to the escalation AUQ — the user chooses the escalation target based on this summary.
-
-Output the markdown block directly in chat AND write the same content (with full frontmatter wrapping it) to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` via `atomic_state_write`. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the handoff survives worktree teardown.
+Present a human-readable findings summary before the escalation question fires — the user chooses the escalation target based on it, so do not jump straight to the question. Output the markdown block directly in chat AND write the same content (with full frontmatter wrapping it) to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` via `atomic_state_write`. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the handoff survives worktree teardown. The summary speaks the gate visual language (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language) — no progress tracker (this is the single terminal gate), an `**In one sentence:**` opener, light icons on the field labels, and the cause → effect flow visual; the escalation `AskUserQuestion` itself stays lean — the render does not alter its option set. The icon prefixes on the field labels are presentation only — consumers match labels by their text, never by the icon, and the two parsed labels (`**Reproduction test:**`, `**Test file:**`) stay undecorated.
 
 **Findings template body:**
 
 ```markdown
 ## Debug Findings
+
+**In one sentence:** [what was wrong and what fixing it takes — one plain sentence]
 
 **Source branch:** [from `git branch --show-current`]
 
@@ -390,28 +387,30 @@ Output the markdown block directly in chat AND write the same content (with full
 
 **Why escalating to <target>:** [one sentence — which target and concrete reason scope fits it; user makes the final routing choice in the escalation question (§3.2)]
 
-**Root cause:** [one sentence, plain language — why the bug happens]
+**🔍 Root cause:** [one sentence, plain language — why the bug happens]
 
-**Reproduction:** [exact steps that trigger the bug]
+[cause → effect flow per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Finding-type visual map, "Debug root cause" row: `<root cause at path:line> ──▸ <intermediate> ──▸ <observed failure>`]
+
+**🧪 Reproduction:** [exact steps that trigger the bug]
 
 **Confirmed hypothesis:** [which numbered hypothesis from `## Hypotheses` was confirmed, and the test result that confirmed it]
 
 **Rejected hypotheses:** [brief — which hypotheses were ruled out and why]
 
-**Proposed fix:**
+**🛠 Proposed fix:**
 - Files: [path(s) that need to change]
 - Change: [unified diff or before/after snippet]
 - Rationale: [one sentence tying the change to the root cause]
 
-**Evidence the fix works:** [default: "failing test went green under in-test monkey-patch; production source untouched"; or "<n> production files edited as escape hatch and reverted; bug stopped reproducing"]
+**✅ Evidence the fix works:** [default: "failing test went green under in-test monkey-patch; production source untouched"; or "<n> production files edited as escape hatch and reverted; bug stopped reproducing"]
 
 **Reproduction test:** [<path>, <F→P status — example: "verified red on current code; verified green under throwaway patch"> — OR — "escape hatch: <alternative guard with rationale>"]
 
-**Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
+**⚠️ Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
 
-**Stall-flagged?** [omit if stall gate did NOT fire; if it did: "Yes — cause not fully isolated; <component> identified as missing. Receiving skill should treat this as a starting point, not a closed investigation."]
+**⚠️ Stall-flagged?** [omit if stall gate did NOT fire; if it did: "Yes — cause not fully isolated; <component> identified as missing. Receiving skill should treat this as a starting point, not a closed investigation."]
 
-**Accepted limitations?** [omit unless fix-fail path "Accept as documented limitation" was taken; if so: "<description of limitation>; user accepted on <ISO timestamp>"]
+**⚠️ Accepted limitations?** [omit unless fix-fail path "Accept as documented limitation" was taken; if so: "<description of limitation>; user accepted on <ISO timestamp>"]
 ```
 
 **Populate `authored_tests[]` frontmatter (REQUIRED).** Alongside the body template above, write the `authored_tests[]` frontmatter array per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2 and the canonical contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Each F→P test authored in §2.4 gets one entry: `{id: t<N>, path: <repo-root-relative>, intent: <one-line guarantee>, mode: scientific, f_to_p_status: <enum>, related_hypotheses: [<H-IDs>]}`. If no test was authored (path B "Accept as documented limitation" or §2.4 escape-hatch with body `**Reproduction test:** escape hatch: <...>`), emit a single entry with `f_to_p_status: escape-hatch` and `intent: "escape-hatch: <verbatim rationale>"` — never omit the array. The body `**Reproduction test:**` line stays as human-readable mirror; the frontmatter is the machine-readable source for /geniro:implement's Phase 1 authored-test extraction (which invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` to verify presence in the consumer's worktree and surface relocation suggestions if MISSING).

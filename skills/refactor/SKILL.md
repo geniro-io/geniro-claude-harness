@@ -15,6 +15,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — the smell-detection sub-step (reuse-vs-create audit per detected smell)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — the single-finding AskUserQuestion gate
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` § Visual rendering language — the shared visual language for gate messages rendered to chat before a lean question
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — the PRODUCT-DECISION ADR-path (4th AskUserQuestion option, included only when ADR-eligible)
 
 **Section-reference convention:** within this SKILL.md, bare `§N.M` refs point to local Phase sub-sections (Phase 1, Phase 2, Phase 3 respectively); `§ <name>` refs name a section inside the cited `_shared` helper. `refactor-reference.md` numbers its own top-level sections 1-3 (State machine / Schema / Spawn template), so any Phase reference there is written `Phase N §N.M` to avoid colliding with those.
@@ -240,12 +241,18 @@ Orchestrator builds the plan from the smell-evidence inline output (Medium+) or 
 
 1. **Classify risk per smell** using the consumer-count table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 § "Step 2: Change Impact Scoring" (public API / module export / shared-type change is HIGH regardless of consumer count).
 2. **Order the plan**: safer transformations first (LOW → MEDIUM → HIGH). Within the same tier, group by file to minimize re-reads.
-3. **Mark HIGH-risk steps for user confirmation** (presented via `AskUserQuestion`).
+3. **Mark HIGH-risk steps for user confirmation** (gated via the approval gate below).
 4. **Build the final plan** with: smells, ordered steps, risk per step, consumer counts, files that will change, what will NOT change (public APIs, DB schema, test behavior), `max_risk` (max across all step risks).
 
-**Approval gate (Always-WAIT):** If any steps are **HIGH risk**, present them to user via `AskUserQuestion` header "Approve HIGH-risk steps" and wait for confirmation. Each step rendered with: file path / proposed transformation / consumer count / risk classification / rationale.
+**Approval gate (Always-WAIT):** If any steps are **HIGH risk**, gate them in two steps — render first, then ask — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering (separate-message rule, render-exists check), with the pre-fire scrub per the same contract's § Single-finding gate, "Scrub before the AUQ fires", using the elements from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` § Visual rendering language:
 
-**Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entries with `category: refactor_high_step` matching the current step. Use prior `picked` if found. On user pick, append entries to `approvals[]` via `atomic_state_write`. The persisted-approvals render surfaces these on resume.
+1. **Render the HIGH-risk step plan to ONE chat message first.** Skip the progress tracker — this is a single gate, not a decision queue. Open with `**In one sentence:**` stating what is being approved (the higher-risk transformations in this refactor plan, before any edit runs). Then, with a light icon on each heading:
+   - **Steps flow diagram** over the FULL ordered plan (`step 1 ▸ step 2 ▸ step 3 …`), HIGH-risk steps marked (e.g. `⚠ step 3`), so the user sees where the gated steps sit in the run.
+   - **Per HIGH-risk step, a friendly digest block:** a lead sentence naming the transformation and the file in plain words; `**Why it matters:**` with the consumer count and evidence cite (`path:lines`); and the expected behavior-preservation check — which test run proves the step changed nothing observable.
+   - **Per HIGH-risk step, the risk mini-table:** risk · symptom you'd see · severity (the "Refactor step set" row of per-finding-question.md § Finding-type visual map).
+2. **Then fire ONE lean `AskUserQuestion`** (header "Approve HIGH-risk steps", conventions per gate-rendering.md § Lean-question conventions) and wait for confirmation: approve all HIGH-risk steps, or reject specific steps (rejected steps are skipped in Phase 2; on that pick, run a follow-up multi-select picker over the HIGH-risk steps per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop). One question covers the whole HIGH-risk set; per-step grain lives in `approvals[]`, not in extra questions.
+
+**Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entries with `category: refactor_high_step` matching the current step. Use prior `picked` if found. On user pick, append one entry per HIGH-risk step the pick covers via `atomic_state_write` — per-step grain unchanged even though one question covers the set. The persisted-approvals render surfaces these on resume.
 
 If all steps are LOW/MEDIUM: present the plan summary in chat and proceed (no AUQ).
 
@@ -302,7 +309,7 @@ Model tier note: the orchestrator's session tier runs the loop. HIGH-risk plan s
 
 ### 2.3 Session-level cap + escalation AUQ
 
-After execution returns, count BLOCKED-to-executed ratio (post-user-rejection denominator: approved plan steps minus user-rejected HIGH-risk steps). **If ≥30% BLOCKED:** stop and escalate via `AskUserQuestion` header "Stuck":
+After execution returns, count BLOCKED-to-executed ratio (post-user-rejection denominator: approved plan steps minus user-rejected HIGH-risk steps). **If ≥30% BLOCKED:** stop and escalate in two steps per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — render the run outcome to a chat message first (`**In one sentence:**` opener + a blocked-steps mini-table: step · what blocked it · retries used), then fire the lean `AskUserQuestion` header "Stuck":
 
 - **Keep what worked and escalate the rest** — proceed to Phase 3 with blocked-steps list noted; user runs `/geniro:implement` separately for blocked items. state.md → `phase: verify` with `## Accepted Blocks` body section.
 - **Revert all changes** — `git checkout -- .` (with user confirmation). state.md → `phase: reverted` (terminal).
@@ -314,7 +321,7 @@ Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `
 
 After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change guarantee held.
 
-If regression failed: fire AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git checkout -- .` after explicit user confirmation. state.md → `phase: reverted` (terminal).
+If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git checkout -- .` after explicit user confirmation. state.md → `phase: reverted` (terminal).
 
 If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
@@ -348,7 +355,7 @@ Full spawn template (acceptance criteria, pre-inlined `code-style.md`, focus are
 
 A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor guarantees zero behavior change. Picking one is a behavior change, contradicting the zero-behavior-change guarantee. Phase 3 ESCALATES PRODUCT-DECISION to `/geniro:implement`; does NOT gate-and-fix in-skill.
 
-Surface every PRODUCT-DECISION finding via `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`). 4 fixed options (ADR-eligibility determines whether 4th option included):
+Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per its § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per § Finding-type visual map — then fire the lean `AskUserQuestion`. 4 fixed options (ADR-eligibility determines whether 4th option included):
 
 1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: routed` (terminal — recovery treats as complete; the decision was handed to /geniro:implement). Without a terminal write here the run would resume re-surfacing an already-resolved escalation.
 2. **Revert this refactor and start over** — `git checkout -- .` with user confirmation. state.md → `reverted` (terminal).

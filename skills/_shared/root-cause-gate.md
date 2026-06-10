@@ -1,6 +1,6 @@
 # Root-Cause Gate
 
-Canonical AskUserQuestion gate that fires when a finding or proposed change is classified `[SYMPTOM]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Replaces the older "just fix it" implicit handling — auto-patching a symptom without confirming the underlying cause is the same class of failure as auto-dropping MEDIUMs (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md`): a real bug ships, no audit trail, and the visible defect re-emerges later via a different surface.
+Canonical AskUserQuestion gate that fires when a finding or proposed change is classified `[SYMPTOM]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Auto-patching a symptom without confirming the underlying cause silently handles a defect the user never confirmed: a real bug ships, no audit trail, and the visible defect re-emerges later via a different surface.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the gate logic.
 
@@ -25,26 +25,34 @@ Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain te
 
 ## Required AUQ shape (single-select)
 
+The gate follows the two-step shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering: render the classification to a chat message first, then fire a lean question.
+
+**Chat render (first).** A self-contained block in the visual language (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language):
+
+- The progress tracker — only when ≥2 symptom-classified findings/designs are queued in the same skill phase: `✔ Decision 1 — <short tag> · ● Decision 2 of 3 — <short tag> · ○ Decision 3`.
+- `### 🧭 Decision needed: <plain-English title>` — the finding/design title in plain words.
+- `**In one sentence:** <what this decision settles — whether to ship the surface-level patch as-is, or confirm the underlying cause first>`
+- A conversational digest: what the proposed change does, and why it is classified as patching a downstream effect rather than the underlying cause — name the file / behavior in words.
+- `**Why it matters:** <one-line concrete impact>` (evidence: `<file:line or design-section>`)
+- The cause→effect flow visual per per-finding-question.md § Finding-type visual map (Debug root cause row): `<suspected root cause at path:line> ──▸ <intermediate> ──▸ <observed symptom>`.
+- **Options:** the three options below, each with its one-line consequence.
+
+Pull the `<title>` / `<file:line or design-section>` / `<symptom>` / `<suspected root cause>` / `<why this matters>` values from the upstream artifact's persisted body fields:
+- For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
+- For `/geniro:plan`: from /plan-emitted design unit fields in spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
+
+When more than one `[SYMPTOM]` finding/design fires the gate in the same skill phase, fire the AUQ once per finding (sequentially) — the user's choice on one symptom does not transfer to another. The single-select shape stays the same per call; do NOT batch into a multi-select. Each finding's chat block renders fresh before its own question.
+
+**Lean `AskUserQuestion` (second):**
+
 - **`header`**: `"Root cause"`.
-- **`question`**: multi-line markdown — render the classification, the finding/design title, the location, the symptom, the suspected root cause, and one line of why-this-matters so the user can decide without drilling into the full report:
+- **`question`**:
 
  ```
- Classification: surface symptom — proposed change patches a downstream effect, not the underlying cause.
+ <plain-English title> — `<file:line or design-section>`
 
- Finding/design: <title>
- Where: <file:line or design-section>
- Symptom: <one-line>
- Suspected root cause: <one-line>
- Why this matters: <one-line>
-
- How do you want to handle this?
+ Full explanation above. How do you want to handle this?
  ```
-
- Pull the `<title>` / `<file:line or design-section>` / `<symptom>` / `<suspected root cause>` / `<why this matters>` values from the upstream artifact's persisted body fields:
- - For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the new `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
- - For `/geniro:plan`: from /plan-emitted design unit fields in spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
-
- When more than one `[SYMPTOM]` finding/design fires the gate in the same skill phase, fire the AUQ once per finding (sequentially) — the user's choice on one symptom does not transfer to another. The single-select shape stays the same per call; do NOT batch into a multi-select.
 
 - **`options[]`** (3 single-select):
  - `label`: `"Confirmed root cause (proceed)"` — `description`: `"I have already verified the underlying cause; this fix is the correct surface-level implementation. Proceed."`
@@ -65,7 +73,7 @@ Symptom-matching is correlation, not causation — the same principle the `/geni
 - intentional deferral (root cause is being addressed in a separate work stream; patch the surface for now)
 - accidental shortcut (author didn't realize the real bug sits elsewhere; patch will mask the defect until it re-emerges through a different surface)
 
-Always-WAIT routes the call to the only entity that holds that intent. The cost is one AUQ call per `[SYMPTOM]` finding that survives the relevance-filter — matches the `medium-gate.md` cost profile (skipped silently when zero `[SYMPTOM]` classifications exist).
+Always-WAIT routes the call to the only entity that holds that intent. The cost is one AUQ call per `[SYMPTOM]` finding that survives the relevance-filter; the gate is skipped silently when zero symptom-classified findings exist.
 
 ## Anti-rationalization
 
@@ -73,6 +81,6 @@ Always-WAIT routes the call to the only entity that holds that intent. The cost 
 |---|---|
 | "The symptom matches the bug, that's good enough" | Symptom-matching is correlation, not causation. Only confirmed cause (verified by code-trace, repro test, or hypothesis-confirmation artifact per `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` § Evidence Standard) justifies a fix. The reviewer-agent's `[SYMPTOM]` classification means causation is unconfirmed — fire the gate. |
 | "I'll just pick one of the two valid fixes" | If the reviewer-agent classifies a design unit as `MIXED` (one path treats the symptom, another addresses the cause) and the user has not been asked, picking silently ships a product decision the user did not authorize. Symmetric with the multi-path fix gate in /geniro:debug (§2.2) and the `[PRODUCT-DECISION]` gate in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Fire the AUQ. |
-| "The classification looks wrong — it's clearly a root-cause fix, I'll skip the gate" | Skipping the gate based on your own re-classification is the same anti-pattern as auto-dropping a MEDIUM because "it didn't seem real" (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` § Why this exists). The agent's classification is the gate trigger; if it's wrong, the user picks "Confirmed root cause (proceed)" and the re-tag happens at result-handling — the audit trail records the override. |
+| "The classification looks wrong — it's clearly a root-cause fix, I'll skip the gate" | Skipping the gate based on your own re-classification silently handles a finding the user never saw — the defect ships with no audit trail and re-emerges via another surface. The agent's classification is the gate trigger; if it's wrong, the user picks "Confirmed root cause (proceed)" and the re-tag happens at result-handling — the audit trail records the override. |
 | "Only one [SYMPTOM] finding fired — the user will get annoyed by the question" | One AUQ call is the cost of preventing a real bug from shipping. The user is far more annoyed by a regression caused by an unconfirmed root cause than by a single decision prompt. |
 | "I'll batch every [SYMPTOM] finding into one multi-select" | Each symptom has its own root cause, its own user context, and its own correct disposition. Batching forces the user to over-generalize ("escalate all" or "proceed all") and loses the per-finding decision the gate exists to capture. Fire one AUQ per finding sequentially. |

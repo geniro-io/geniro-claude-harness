@@ -8,6 +8,7 @@ This file is the single source of truth. Skills cite specific sections; do NOT i
 
 - When this applies — which AUQ calls fall under this contract
 - Message-first rendering — render the finding to chat first, then a lean question
+- Finding-type visual map — visual shape per finding/unit type
 - Single-finding gate — one finding per call (shape + source-field map + cap-extension)
 - Multi-select pick loop — multiple findings per call
 - Investigation-driven fix gate — debug-flavored single-finding variant
@@ -26,16 +27,24 @@ Every gate under this contract follows a two-step shape — **render the finding
 1. **Render the finding to a chat message FIRST.** Before the `AskUserQuestion` fires, write a self-contained explanation to chat. It has full width and persists in scrollback:
 
    ```
-   ### Decision needed: <plain-English one-line title>
+   <progress tracker — only when ≥2 decisions are queued: ✔ Decision 1 — <short tag> · ● Decision 2 of 4 — <short tag> · ○ Decision 3 · ○ Decision 4>
 
-   **What the code does now:** <plain English — name the function / file / behavior in words; expand any shorthand the reviewer used>
-   **The concern:** <what is wrong, risky, or sub-optimal>
-   **Why it matters:** <concrete impact: what breaks or degrades, who is affected, under what condition>
-   **Evidence:** `path:lines` — <short behavior quote or snippet>
+   ### 🧭 Decision needed: <plain-English one-line title>
+
+   **In one sentence:** <what this decision settles>
+
+   <lead sentence(s), conversational: what the code does now and what the concern is — name the function / file / behavior in words; expand any shorthand the reviewer used>
+
+   **Why it matters:** <concrete impact: what breaks or degrades, who is affected, under what condition> (evidence: `path:lines`)
+
+   <the visual — shape per § Finding-type visual map below; when code itself is the clearest visual, a 2-5 line evidence snippet>
+
    **Options:**
    - **<Option A>** — <consequence>
    - **<Option B>** — <consequence>
    ```
+
+   The tracker, opener, digest, per-unit visual, and heading icons are defined canonically in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language; this template is their finding-gate instantiation.
 
 2. **Then fire a LEAN `AskUserQuestion`.** The `question` restates the plain-English title and points at the chat explanation; each option is a short selector with a one-line `description`. Leave `preview` empty or use it for a one-line recap — never as the rendering surface.
 
@@ -47,17 +56,33 @@ Why this shape: `AskUserQuestion` renders `preview` as a narrow monospace side-b
 
 **Resume paths render too.** The separate-message rule holds after a compaction, wakeup, or workflow-completion continuation. Do not assume the chat block was rendered in an earlier turn — verify against the visible transcript/state, then author the render fresh if it is not there, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/wakeup-prompts.md`. The pre-compaction message is gone from the user's live view even when state.md records that the gate was reached.
 
+## Finding-type visual map
+
+Every rendered finding carries a visual per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language. The shape per unit type:
+
+| Unit type | Visual shape |
+|---|---|
+| Logic / bug finding | 3-6 line ASCII data-flow of the broken path (`request ──▸ buildQuery() ──▸ WHERE archived=false ──▸ rows silently dropped`) or a before → after snippet pair |
+| Architecture / conventions finding | Blast-radius sketch: the changed symbol and its callers/consumers as a 3-6 line tree |
+| Security / risk finding | Mini-table: risk · symptom you'd see · severity |
+| Test-coverage finding | `☐` checklist of the missing/affected test names |
+| Performance finding | Small numbers table (current vs expected measurement) when numbers exist; otherwise the hot-path data-flow |
+| Debug root cause | Cause → effect flow: `<root cause at path:line> ──▸ <intermediate> ──▸ <observed failure>` |
+| Refactor step set | Steps flow diagram (`step 1 ▸ step 2 ▸ step 3`) + risk mini-table for HIGH-risk steps |
+
+When a finding genuinely has nothing to map, the 2-5 line evidence snippet IS the visual; never invent a diagram for content that doesn't diagram.
+
 ## Single-finding gate (one finding per call)
 
 Used by:
 - `/geniro:review` Phase action-gate (PRODUCT-DECISION resolution; PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
-- `/geniro:implement` Phase 3 self-review fix-loop pre-step (PRODUCT-DECISION resolution)
+- `/geniro:implement` Phase 3 self-review fix loop (resolving findings that need the user's decision)
 - `/geniro:refactor` escalation
 
 ### Required AUQ shape
 
 - **`header`**: short chip label set by the calling skill (e.g. `"Open decision"`, `"Escalate"`).
-- **Chat render (first):** render the finding to chat per § Message-first rendering before firing the AUQ — the self-contained block carries What-the-code-does / The-concern / Why-it-matters / Evidence / Options, built from the finding's structured fields (see `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format) and expanded into plain English per the § Message-first rendering self-containment rule (never echoed verbatim when they carry reviewer shorthand).
+- **Chat render (first):** render the finding to chat per § Message-first rendering before firing the AUQ — the self-contained block carries the tracker (when ≥2 decisions are queued), the one-sentence opener, the conversational lead, the why-it-matters line with its evidence cite, the visual (§ Finding-type visual map), and the options, built from the finding's structured fields (see `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format) and expanded into plain English per the § Message-first rendering self-containment rule (never echoed verbatim when they carry reviewer shorthand).
 - **`question`** (lean): the plain-English one-line title, then a pointer to the chat block:
 
  ```
@@ -70,6 +95,7 @@ Used by:
  - **`label`**: 1-5 words — the action name (e.g. `"Move to utils"`, `"Keep as-is"`, `"Run /geniro:implement"`).
  - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/geniro:refactor` escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
  - **`preview`**: leave empty, or a one-line recap only. The finding body — Evidence, Suggested fix, Confidence, Origin — is rendered to chat per § Message-first rendering, which is the surface that holds it. Do NOT cram the body into the `preview` side-box: it truncates long content with no scroll and is often absent in an interactive session, so a body placed there is unreadable or invisible. When the calling skill's options are an escalation menu (not the finding's own `Options:`), the chat block still describes the finding's body — the escalation labels merely tell the user what action will be taken on it.
+ - **Explain-further option:** append an **"Explain further"** option to the decision options — a reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option: picking it renders a deeper walkthrough of the finding (full evidence chain, expanded diagram, edge cases) as a new chat message, then the same question re-fires. It writes no decisions and never counts toward the calling skill's revision/round caps. When the finding's own options already fill 4 slots, surface it via the § Cap-extension chained call instead of dropping a decision option.
 
 ### Scrub before the AUQ fires (hard)
 
@@ -94,9 +120,10 @@ The chat block (§ Message-first rendering) is the surface that carries the find
 
 | Destination | Reviewer-agent finding field |
 |-----------|------------------------------|
-| chat `What the code does now` + `The concern` | synthesized in plain English from finding-title + `Evidence:` + `Why this matters:` |
-| chat `Why it matters` | `Why this matters:` (expanded to name the concrete impact, not a verbatim one-liner) |
-| chat `Evidence` line + `path:lines` | `File:` + `Evidence:` (2-5 lines) |
+| chat lead sentence(s) — what the code does + the concern | synthesized in plain English from finding-title + `Evidence:` + `Why this matters:` |
+| chat `Why it matters` line + its evidence cite | `Why this matters:` (expanded to name the concrete impact, not a verbatim one-liner) + `File:` (the `path:lines` cite) |
+| chat visual | built from `Evidence:` per § Finding-type visual map |
+| chat tracker tag (when ≥2 decisions queued) | finding-title, shortened to a 2-4 word plain-English tag |
 | chat `Options` / AUQ option `label` + `description` | `Options:` bullets (`label` ← action name; `description` ← "— <one-line trade-off>") |
 | AUQ `question` title + `path:lines` | finding-title (plain English) + `File:` |
 | chat recap of `Confidence` / `Origin` | `Confidence:` / `Origin:` |
@@ -133,7 +160,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 ### Required AUQ shape
 
 - **`header`**: short chip label set by the calling skill (`"Fix path"` for the multi-path fix gate, `"Repro infeasible"` for the repro-infeasible escape hatch — both `/geniro:debug` Phase 2).
-- **Chat render (first):** render the investigation context to chat per § Message-first rendering — `### Fix decision: <plain-English root-cause title>`, then **Root cause** (`path:lines` + plain English), **What's failing** (observed failure in plain English), **Reproduction status**, **Options** (each fix path + consequence). Pull fields from `.geniro/state/debug/<slug>/state.md`.
+- **Chat render (first):** render the investigation context to chat per § Message-first rendering — the progress tracker (only when ≥2 fix decisions are queued), `### 🧭 Fix decision: <plain-English root-cause title>`, `**In one sentence:** <what this decision settles>`, a conversational root-cause digest (what is failing and why, plain English — name the file / behavior in words), the cause→effect flow visual per § Finding-type visual map (Debug root cause row), a **Reproduction status** line, then **Options** (each fix path + consequence). Pull fields from `.geniro/state/debug/<slug>/state.md`.
 - **`question`** (lean): multi-line markdown:
 
  ```
@@ -147,6 +174,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
  - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
  - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
  - **`preview`**: leave empty or a one-line recap only — the investigation context lives in the chat block (§ Message-first rendering), not the truncating/often-absent side-box.
+ - **Explain-further option:** the same rule as the Single-finding gate — append an **"Explain further"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (deeper walkthrough as a new chat message, same question re-fires, no decisions written, no round caps consumed); when the fix paths already fill 4 slots, surface it via the § Cap-extension chained call.
 
 ### Source-field map
 
@@ -154,10 +182,10 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 |-----------|--------------------------------------|
 | `path:lines` in `question` | confirmed hypothesis's `## Root Cause` section (file:line of root cause) |
 | `<hypothesis title>` in `question` | confirmed hypothesis's title |
-| `<observed failure>` in `question` | first line of confirmed hypothesis's `## Hypotheses` Result field → captured pre-fix output |
-| chat `Evidence` codeblock | full captured pre-fix output (2-5 lines) from `## Hypotheses` Result field |
+| chat digest's observed failure | first line of confirmed hypothesis's `## Hypotheses` Result field → captured pre-fix output |
+| chat cause→effect flow visual + evidence snippet | `## Root Cause` file:line (the flow's origin node) + full captured pre-fix output (2-5 lines) from `## Hypotheses` Result field |
 | chat `Reproduction status` | "Hypothesis confirmed at Phase 1 Isolate; reproduction test pending Phase 2" (multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" (repro-infeasible escape hatch) |
-| chat `Hypothesis` number | hypothesis ID from state.md `## Hypotheses` |
+| chat digest's hypothesis reference | hypothesis ID from state.md `## Hypotheses` |
 
 ## Where the body fields come from
 

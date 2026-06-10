@@ -63,7 +63,7 @@ ANY-OF semantics: at least one marker survives any single user action that strip
 | `/geniro:plan <topic>` | AUQ "Existing design doc at `<path>`. Start fresh with this as context / Cancel". On "Start fresh" → load doc into Phase 1 explore context (NOT as section template); run full plan loop from Phase 1; emit a new spec.md at a fresh task-dir. On "Cancel" → exit without writing state.md. | Run full `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` from Phase 1. | Unsupported — error: "code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?". |
 | `/geniro:implement <arg>` | Phase 1 analyze treats the design doc as a spec source — walks the spec-discovery list and loads it as the authoritative spec.md OR plan.md alias. | Inline-task mode — treat as a raw spec description, write a brief `## Inline Plan` to state.md, proceed to Phase 2. | Existing behavior — treat as a code reference (Phase 1 reads it as context but not as the spec source). |
 
-AUQ shape conventions for any of the per-consumer prompts above follow the canonical pattern in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/medium-gate.md` (single-select unless explicitly multi-select; never auto-default on empty answer; fall back to plain text on empty-answer bug).
+AUQ shape conventions for any of the per-consumer prompts above follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions (single-select unless explicitly multi-select; never auto-default on empty answer; fall back to plain text on empty-answer bug).
 
 ## Marker writers
 

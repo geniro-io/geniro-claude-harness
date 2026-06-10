@@ -197,6 +197,16 @@ else:
 
 **Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing tests)`.
 
+**Test-failure escalation digest (render before the escalation AUQ).** When the Phase 2 escalation fires (retry exhaust, infrastructure error, or an early not-converging trigger), render a failure digest to chat as its own message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ. The digest carries:
+
+- `### 🧭 Decision needed:` with a plain-English one-line title (e.g. "3 fix attempts spent — the date-parsing tests are still failing").
+- `**In one sentence:**` what this decision settles — hand the failure to a debug investigation, accept it as a documented limitation, or stop.
+- A conversational lead: what failed in plain English — which behavior the failing tests check and what the fix attempts changed; for an early trigger, state the plain-English stall reason (never the raw signal name).
+- `**Why it matters:**` why this blocks the phase — the self-review that follows assumes green tests, so proceeding past these failures means the review reads code the suite says is broken (evidence: the test-runner report's Command / Exit code / Summary block).
+- The failing-test names as a `☐` checklist — the test-finding shape from the same contract's §Finding-type visual map — capped at the test-runner report's reported failures.
+
+Build the digest from the structured `.tr-out.md` report, never raw test stdout (the token-cost rule above). The lean AUQ that follows carries only the title and the three options from the SKILL.md Phase 2 escalation step.
+
 ---
 
 ## Phase 3: Self-review reviewer-agent template
@@ -346,13 +356,14 @@ else:
 **Escalation at exhaust.** When the loop hits round 3 with unresolved findings:
 
 1. Do NOT silently push or claim completion.
-2. Surface via `AskUserQuestion` (header: `"Resolve findings"`) with:
-   - Summary of unresolved findings per dimension (top 3 each).
-   - Options:
-     - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). Caller resumes via `/geniro:debug` using state.md as a T2 handoff.
-     - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
-     - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
-3. State.md records `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
+2. **Render the unresolved findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — a separate, already-emitted chat message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 unresolved findings, open the message with the decision-queue progress tracker (`✔` decided · `●` deciding now · `○` ahead — one stop per finding with a short plain-English tag). Each finding gets the visual-form block: the `### 🧭 Decision needed:` title, the `**In one sentence:**` opener, a conversational lead expanding what the code does and what the concern is, `**Why it matters:**` with its evidence cite, and a visual per the same contract's §Finding-type visual map. The per-dimension findings summary lives in this render — never inside the question.
+3. Then fire the lean `AskUserQuestion` (header: `"Resolve findings"`) with these options:
+   - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). Caller resumes via `/geniro:debug` using state.md as a T2 handoff.
+   - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
+   - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
+
+   The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Single-finding gate — apply that section; don't restate it here.
+4. State.md records `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
 
 The Always-WAIT contract applies: empty `AskUserQuestion` answer = upstream bug, fall back to plain text and re-ask. NEVER auto-default to any option.
 
@@ -382,7 +393,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 8. **Cleanup.** If step 1 spawned a dev server (PID recorded), send `kill -TERM <pid>`; if still alive after 3s, escalate with `kill -KILL <pid>`. NEVER kill servers the user had running before verification — only clean up what this step spawned.
 
-**Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, route via `AskUserQuestion`: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal).
+**Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, render them to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — the issue list as a mini-table (risk · symptom you'd see · severity, the risk-finding shape from the same contract's §Finding-type visual map), each issue described in plain English with the screenshot it appears in referenced by path — then fire the lean `AskUserQuestion` with options: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal).
 
 ---
 
