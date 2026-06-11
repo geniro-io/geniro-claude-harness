@@ -30,7 +30,18 @@
 #   1 — emit-learning helper error
 
 if [ -z "${_ER_DEPS_LOADED:-}" ]; then
-  _er_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and the sibling `source` calls below would silently load nothing.
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _er_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_er_self="${(%):-%x}"'
+  else
+    _er_self="$0"
+  fi
+  _er_script_dir="$(cd "$(dirname "$_er_self")" && pwd)"
   # shellcheck disable=SC1091
   source "$_er_script_dir/emit-learning.sh"
   _ER_DEPS_LOADED=1

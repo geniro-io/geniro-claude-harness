@@ -38,7 +38,18 @@ fi
 # fallback keeps this validator self-contained for vendored installs that ship
 # without lib/hash.sh. Stock macOS has `shasum` but not `sha256sum`.
 if ! command -v _geniro_sha256 >/dev/null 2>&1; then
-  _vsf_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || _vsf_script_dir="."
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and hash.sh would be missed (inline fallback still covers that).
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _vsf_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_vsf_self="${(%):-%x}"'
+  else
+    _vsf_self="$0"
+  fi
+  _vsf_script_dir="$(cd "$(dirname "$_vsf_self")" && pwd 2>/dev/null)" || _vsf_script_dir="."
   if [ -f "$_vsf_script_dir/hash.sh" ]; then
     # shellcheck disable=SC1091
     source "$_vsf_script_dir/hash.sh"

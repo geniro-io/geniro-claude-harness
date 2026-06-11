@@ -29,7 +29,18 @@
 
 # Helper sourcing — idempotent.
 if [ -z "${_EL_DEPS_LOADED:-}" ]; then
-  _el_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and the sibling `source` calls below would silently load nothing.
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _el_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_el_self="${(%):-%x}"'
+  else
+    _el_self="$0"
+  fi
+  _el_script_dir="$(cd "$(dirname "$_el_self")" && pwd)"
   # shellcheck disable=SC1091
   source "$_el_script_dir/repo-root.sh"
   # shellcheck disable=SC1091

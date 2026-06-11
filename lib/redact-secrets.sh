@@ -20,7 +20,18 @@
 
 # Source the shared repo-root helper once.
 if [ -z "${_GENIRO_REPO_ROOT_LOADED:-}" ]; then
-  _red_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and the sibling `source` calls below would silently load nothing.
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _red_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_red_self="${(%):-%x}"'
+  else
+    _red_self="$0"
+  fi
+  _red_script_dir="$(cd "$(dirname "$_red_self")" && pwd)"
   # shellcheck disable=SC1091
   source "$_red_script_dir/repo-root.sh"
   _GENIRO_REPO_ROOT_LOADED=1
@@ -74,8 +85,17 @@ _red_audit_append() {
   mkdir -p "$(dirname "$log")"
 
   if [ -z "${_RED_ATOMIC_LOADED:-}" ]; then
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Cross-shell self-location (see the header block) — %x inside a function
+    # resolves to the file that defined it, matching BASH_SOURCE semantics.
+    local script_dir self
+    if [ -n "${BASH_SOURCE:-}" ]; then
+      self="${BASH_SOURCE[0]}"
+    elif [ -n "${ZSH_VERSION:-}" ]; then
+      eval 'self="${(%):-%x}"'
+    else
+      self="$0"
+    fi
+    script_dir="$(cd "$(dirname "$self")" && pwd)"
     # shellcheck disable=SC1091
     source "$script_dir/atomic-state-write.sh"
     _RED_ATOMIC_LOADED=1
@@ -185,12 +205,26 @@ redact_secrets() {
     done < <(jq -r '.redaction.additional_patterns[]? | [.name, .regex, .replacement] | @tsv' "$sj" 2>/dev/null)
   fi
 
+  # Iterate the parallel arrays by counter — `${!names[@]}` is bash-only
+  # (zsh expands it to the VALUES, silently mis-iterating). Array index base
+  # differs too (bash 0, native zsh 1), so probe it instead of branching on
+  # shell: a one-element array answers which base this shell uses.
+  local -a _red_probe
+  _red_probe=(first)
+  local base=1
+  [ "${_red_probe[0]:-}" = "first" ] && base=0
+
   local i name regex replacement ml matches total new delim=$'\002'
-  for i in "${!names[@]}"; do
-    name="${names[$i]}"
-    regex="${regexes[$i]}"
-    replacement="${replacements[$i]}"
-    ml="${multiline[$i]}"
+  local count="${#names[@]}"
+  i=0
+  while [ "$i" -lt "$count" ]; do
+    name="${names[$((i + base))]}"
+    regex="${regexes[$((i + base))]}"
+    replacement="${replacements[$((i + base))]}"
+    ml="${multiline[$((i + base))]}"
+    # Increment BEFORE the `continue`s below — after them it would be skipped
+    # and the loop would spin forever on the same index.
+    i=$((i + 1))
 
     if _red_is_ignored "$name"; then
       continue

@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Regression: lib helpers must work when SOURCED UNDER ZSH, not just bash.
+#
+# The Bash tool in some Claude Code environments executes commands under zsh.
+# BASH_SOURCE is bash-only — before the cross-shell self-location fix, every
+# helper that located siblings via dirname "${BASH_SOURCE[0]}" silently loaded
+# nothing under zsh (functions undefined), and _geniro_repo_root resolved to
+# the empty string so writes targeted /.geniro (filesystem root). Separately,
+# `${!arr[@]}` in redact_secrets expanded to VALUES under zsh, mis-iterating
+# the pattern loop and blanking every sanitized field.
+#
+# This suite sources each sibling-sourcing helper under BOTH shells and
+# exercises the end-to-end emit + redact + query path under zsh.
+#
+# Run: bash tests/memory/zsh-source-compat.sh
+
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+
+if ! command -v zsh >/dev/null 2>&1; then
+  echo "SKIP: zsh not available on this machine — nothing to verify."
+  exit 0
+fi
+
+TMPDIR_BASE="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR_BASE"' EXIT
+
+TESTS_RUN=0
+TESTS_FAILED=0
+pass() { TESTS_RUN=$((TESTS_RUN + 1)); echo "PASS: $1"; }
+fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo "FAIL: $1" >&2; }
+
+SANDBOX_DIR=""
+new_sandbox() {
+  SANDBOX_DIR="$(mktemp -d "$TMPDIR_BASE/sandbox.XXXXXXXXXX")"
+  mkdir -p "$SANDBOX_DIR/.geniro"
+  (cd "$SANDBOX_DIR" && git init -q)
+}
+
+# --- 1. Each sibling-sourcing helper defines its public function when
+#        sourced under zsh AND under bash (the fix must not regress bash).
+check_source() {
+  local shell="$1" helper="$2" fn="$3"
+  new_sandbox
+  if (cd "$SANDBOX_DIR" && "$shell" -c "source '$REPO_ROOT/lib/$helper' && command -v $fn" >/dev/null 2>&1); then
+    pass "$shell: source lib/$helper defines $fn"
+  else
+    fail "$shell: source lib/$helper did not define $fn"
+  fi
+}
+
+for shell in zsh bash; do
+  check_source "$shell" emit-learning.sh      emit_learning
+  check_source "$shell" redact-secrets.sh     redact_secrets
+  check_source "$shell" query-learnings.sh    query_learnings
+  check_source "$shell" load-semantic.sh      load_semantic
+  check_source "$shell" update-semantic.sh    update_semantic
+  check_source "$shell" emit-rejection.sh     emit_rejection_if_signal
+  check_source "$shell" archive-stale.sh      archive_stale_learnings
+  check_source "$shell" validate-state-file.sh validate_state_file
+  check_source "$shell" atomic-state-write.sh atomic_state_write
+done
+
+# --- 2. End-to-end emit under zsh: entry lands in the SANDBOX log (repo root
+#        resolved correctly, not "" → /.geniro) with the secret redacted
+#        (pattern loop iterated, sanitized text not blanked).
+new_sandbox
+json=$(jq -nc '{producer:"/debug",scope:"zsh-e2e",summary:"key sk-ant-test12345 leaked",tags:["zsh-compat"]}')
+rc=0
+(cd "$SANDBOX_DIR" && printf '%s' "$json" \
+  | zsh -c "source '$REPO_ROOT/lib/emit-learning.sh' && emit_learning") || rc=$?
+log="$SANDBOX_DIR/.geniro/knowledge/learnings.jsonl"
+summary=$(jq -r '.summary' "$log" 2>/dev/null || echo "MISSING")
+if [ "$rc" -eq 0 ] && [ "$summary" = "key [REDACTED:api-key:anthropic] leaked" ]; then
+  pass "zsh e2e: emit_learning writes to sandbox log with redacted summary"
+else
+  fail "zsh e2e: rc=$rc summary='$summary' (expected redacted, in sandbox log)"
+fi
+
+# --- 3. redact_secrets under zsh walks the WHOLE pattern list: secrets from
+#        two different patterns (anthropic + AWS) both redacted in one pass.
+new_sandbox
+out=$(cd "$SANDBOX_DIR" && printf '%s' 'a sk-ant-abc123 b AKIAAAAABBBBCCCCDDDD c' \
+  | zsh -c "source '$REPO_ROOT/lib/redact-secrets.sh' && redact_secrets test summary k1" 2>/dev/null)
+case "$out" in
+  *'sk-ant'*|*'AKIA'*)
+    fail "zsh redact: secret survived sanitization: '$out'" ;;
+  *'[REDACTED:api-key:anthropic]'*'[REDACTED:aws-key]'*)
+    pass "zsh redact: both patterns redacted in one pass" ;;
+  *)
+    fail "zsh redact: unexpected output: '$out'" ;;
+esac
+
+# --- 4. Seed under zsh, then query under zsh (exercises repo-root +
+#        score-formula chain in the read path).
+new_sandbox
+json=$(jq -nc '{producer:"/debug",scope:"zsh-q",summary:"query roundtrip probe",tags:["zsh-roundtrip"]}')
+out=$(cd "$SANDBOX_DIR" && printf '%s' "$json" \
+  | zsh -c "source '$REPO_ROOT/lib/emit-learning.sh' && emit_learning \
+            && source '$REPO_ROOT/lib/query-learnings.sh' && query_learnings --tag zsh-roundtrip" 2>/dev/null)
+case "$out" in
+  *'query roundtrip probe'*) pass "zsh roundtrip: emit then query finds the entry" ;;
+  *) fail "zsh roundtrip: query output missing entry: '$out'" ;;
+esac
+
+# --- 5. archive-stale direct-invocation guard under zsh: sourcing must NOT
+#        run main; direct execution MUST (empty log → its rc=1 notice).
+new_sandbox
+out=$(cd "$SANDBOX_DIR" && zsh -c "source '$REPO_ROOT/lib/archive-stale.sh'" 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  pass "zsh: sourcing archive-stale.sh does not trigger the direct-run main"
+else
+  fail "zsh: sourcing archive-stale.sh ran main (rc=$rc out='$out')"
+fi
+
+new_sandbox
+out=$(cd "$SANDBOX_DIR" && zsh "$REPO_ROOT/lib/archive-stale.sh" --dry-run 2>&1)
+rc=$?
+case "$out" in
+  *'no learnings.jsonl found'*)
+    if [ "$rc" -eq 1 ]; then
+      pass "zsh: direct execution of archive-stale.sh runs main"
+    else
+      fail "zsh: direct execution ran main but rc=$rc (expected 1)"
+    fi ;;
+  *)
+    fail "zsh: direct execution did not reach main (rc=$rc out='$out')" ;;
+esac
+
+echo
+echo "Tests run:    $TESTS_RUN"
+echo "Tests failed: $TESTS_FAILED"
+[ "$TESTS_FAILED" -eq 0 ]

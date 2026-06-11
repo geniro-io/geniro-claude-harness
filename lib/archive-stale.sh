@@ -31,7 +31,18 @@
 #   3 — direct invocation only: rewrite lock held by another process; skipped
 
 if [ -z "${_AS_DEPS_LOADED:-}" ]; then
-  _as_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and the sibling `source` calls below would silently load nothing.
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _as_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_as_self="${(%):-%x}"'
+  else
+    _as_self="$0"
+  fi
+  _as_script_dir="$(cd "$(dirname "$_as_self")" && pwd)"
   # shellcheck disable=SC1091
   source "$_as_script_dir/repo-root.sh"
   # shellcheck disable=SC1091
@@ -180,7 +191,16 @@ archive_stale_learnings() {
 }
 
 # Allow direct invocation: archive-stale.sh [--dry-run]
-if [ "${BASH_SOURCE[0]}" = "${0:-}" ]; then
+# bash: executed ⇔ BASH_SOURCE[0] == $0. zsh: sourcing appends ":file" to
+# ZSH_EVAL_CONTEXT; direct execution leaves it "toplevel" (the bash test
+# would mis-read both zsh cases as sourced, since BASH_SOURCE is empty there).
+_as_direct=0
+if [ -n "${ZSH_VERSION:-}" ]; then
+  case "${ZSH_EVAL_CONTEXT:-toplevel}" in *:file*) ;; *) _as_direct=1 ;; esac
+elif [ "${BASH_SOURCE[0]:-}" = "${0:-}" ]; then
+  _as_direct=1
+fi
+if [ "$_as_direct" = "1" ]; then
   # Direct runs take the same mkdir lock the SessionStart hook holds around its
   # invocation (and that record_access takes for its counter rewrite), so a
   # manual run cannot interleave with another rewrite of the same log. Held

@@ -17,7 +17,18 @@
 #       .geniro/planning/.fingerprint.json atomically via atomic_state_write.
 
 if [ -z "${_LS_DEPS_LOADED:-}" ]; then
-  _ls_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and the sibling `source` calls below would silently load nothing.
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _ls_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_ls_self="${(%):-%x}"'
+  else
+    _ls_self="$0"
+  fi
+  _ls_script_dir="$(cd "$(dirname "$_ls_self")" && pwd)"
   # shellcheck disable=SC1091
   source "$_ls_script_dir/repo-root.sh"
   # shellcheck disable=SC1091

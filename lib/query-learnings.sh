@@ -25,7 +25,18 @@
 #   1 — record_access IO error
 
 if [ -z "${_QL_DEPS_LOADED:-}" ]; then
-  _ql_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and the sibling `source` calls below would silently load nothing.
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _ql_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_ql_self="${(%):-%x}"'
+  else
+    _ql_self="$0"
+  fi
+  _ql_script_dir="$(cd "$(dirname "$_ql_self")" && pwd)"
   # shellcheck disable=SC1091
   source "$_ql_script_dir/repo-root.sh"
   # shellcheck disable=SC1091

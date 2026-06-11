@@ -19,7 +19,18 @@
 #     on no-match (signaled via stderr, not error).
 
 if [ -z "${_US_DEPS_LOADED:-}" ]; then
-  _us_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+  # is empty and the sibling `source` calls below would silently load nothing.
+  # zsh names the sourced file via the %x prompt escape; eval keeps the
+  # zsh-only syntax out of bash's (and ShellCheck's) parser.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _us_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_us_self="${(%):-%x}"'
+  else
+    _us_self="$0"
+  fi
+  _us_script_dir="$(cd "$(dirname "$_us_self")" && pwd)"
   # shellcheck disable=SC1091
   source "$_us_script_dir/repo-root.sh"
   # shellcheck disable=SC1091
