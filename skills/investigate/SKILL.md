@@ -280,7 +280,7 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text) with header
 - "Dive deeper into [specific aspect]" — re-run with narrower scope; **max 2 dive-deeper rounds** (persist the count to state.md frontmatter `dive_round:` via `atomic_state_write`, so a compaction-resume mid-dive doesn't silently reset it). At limit, suggest fresh `/geniro:investigate` with refined question.
 - "I have a follow-up question" — start a new investigation.
 - "Save key findings to memory" — persist important discoveries (see Step 4a for routing — learnings.jsonl, ADR, OR CLAUDE.md Domain Context).
-- "Done — answer is sufficient" — chains a second AUQ to route to next action.
+- "Done — answer is sufficient" — prints a `### Next steps` closing block and ends the run (terminal `present-summary-only`).
 
 ### Step 4a: Save-routing (when user picks "Save key findings to memory")
 
@@ -301,14 +301,7 @@ Findings can route to multiple stores when they're load-bearing in different way
 If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). **Max 2 dive-deeper rounds** — persist the count to state.md frontmatter `dive_round:` via `atomic_state_write` (a scratchpad count resets on compaction-resume mid-dive); if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
 If user wants to save findings: follow Step 4a save-routing (above). Do NOT default everything to learnings.jsonl. Before writing to any store, check if an existing entry covers the topic — UPDATE rather than duplicate.
 
-If user picks "Done — answer is sufficient": chain a second `AskUserQuestion` to route them to any follow-up action the investigation surfaced. Skip this second question if the user already indicated they are done with the topic entirely (terminal `present-summary-only`).
-- **Question:** "Anything to act on from this investigation?"
-- **Header:** "Next step"
-- **Options:**
-- label: "Fix a bug I found" — description: "Run `/geniro:debug <symptom>` to investigate and propose a fix"
-- label: "Implement a change" — description: "Run `/geniro:implement` to design and build the change (consumes a spec.md from /geniro:plan OR inline-task mode)"
-- label: "Plan a bigger change" — description: "Run `/geniro:plan <feature>` to draft an approved spec first"
-- label: "Nothing — just wanted the answer" — description: "End here. Resume your prior work." — terminal `present-summary-only`
+If user picks "Done — answer is sufficient": print a short `### Next steps` closing block — plain text, no further question. Suggest a follow-up command ONLY where the investigation's outcome makes it genuinely applicable: `/geniro:debug <symptom>` if the answer surfaced a bug, `/geniro:plan <feature>` if it motivates a feature or larger change, `/geniro:implement <task>` if a small direct code change is the clear next move. If nothing applies, close with a single line stating the investigation is complete. Then run Step 5 (learning emit, when its trigger applies) and Step 6 (cleanup), writing `present-summary-only` as the terminal value — ending here without them leaks the state directory and drops the learning.
 
 ### Step 5: Record the answer as a learning (with trust label)
 
@@ -343,7 +336,7 @@ Default trust: `retrieved` if WebFetch/WebSearch was load-bearing; `verified` if
 
 ### Step 6: Cleanup
 
-State.md `phase: present` → `done`. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
+State.md `phase: present` → the path's terminal value: `done` after save-routing, `present-summary-only` after a "Done — answer is sufficient" pick. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
 rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true

@@ -18,7 +18,7 @@ Detail sections extracted from `skills/investigate/SKILL.md` to keep the main sk
 ```
 [entry]
 └── classify ──┬── investigate ──┬── present ──┬── done
-               │                 │            └── present-summary-only (terminal — "Nothing — just wanted the answer" pick)
+               │                 │            └── present-summary-only (terminal — "Done — answer is sufficient" pick)
                │                 │
                │                 └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
                │                                             ├── present (user picks "drop unverified claims" → continue with gaps)

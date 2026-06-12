@@ -190,18 +190,19 @@ EOF
 
 ### 2.3.5 Suggest improvements (inline)
 
-After the discovery emit, before the Next-step AUQ. Source candidates inline — no agent, since you just authored the map and there is no fresh diff to read — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (inline path) + §Routing table. Onboarding most often surfaces build/test/lint commands or tech-stack facts that belong in CLAUDE.md, occasionally a directory-scoped convention for `.claude/rules/`. Dedupe against any existing `CLAUDE.md` + `.claude/rules/*` + `.geniro/instructions/*` and drop what's already documented (a re-run against an already-documented codebase typically yields none); present surviving candidates via §Presentation, hand instruction-scoped rules to `/geniro:instructions create`, echo `Reviewed for improvements: <N> candidate(s)`, and skip silently when none. Declines log via `emit_rejection_if_signal` (scope `onboard/<area>`, category `improvement_candidate`).
+After the discovery emit, before the printed next-steps block. Source candidates inline — no agent, since you just authored the map and there is no fresh diff to read — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (inline path) + §Routing table. Onboarding most often surfaces build/test/lint commands or tech-stack facts that belong in CLAUDE.md, occasionally a directory-scoped convention for `.claude/rules/`. Dedupe against any existing `CLAUDE.md` + `.claude/rules/*` + `.geniro/instructions/*` and drop what's already documented (a re-run against an already-documented codebase typically yields none); present surviving candidates via §Presentation, hand instruction-scoped rules to `/geniro:instructions create`, echo `Reviewed for improvements: <N> candidate(s)`, and skip silently when none. Declines log via `emit_rejection_if_signal` (scope `onboard/<area>`, category `improvement_candidate`).
 
-### 2.4 Next-step AUQ
+### 2.4 Print next steps
 
-After map ships, route user via `AskUserQuestion`:
-- **Header:** "Next step"
-- **Question:** "The codebase map is ready. What do you want to do next?"
-- **Options:**
-- **"Plan a feature"** — description: "Run `/geniro:plan <feature>` to draft an approved spec (spec.md you approve before code)"
-- **"Investigate specifics"** — description: "Run `/geniro:investigate <question>` to dig deeper into a subsystem"
-- **"Implement a change"** — description: "Run `/geniro:implement` to design and build (consumes a spec.md from /geniro:plan OR inline-task mode)"
-- **"Review feature backlog"** — description: "Read `_FEATURES.md` (manual backlog) or run `/geniro:plan` to author one"
+After the map ships, end the onboarding report with a printed "Next steps" block — suggestions only, no question:
+
+```
+### Next steps
+- Run `/geniro:plan <idea>` to draft an approved spec for a feature against the new map.
+- Run `/geniro:investigate <question>` to dig deeper into a subsystem.
+- Run `/geniro:implement <task>` to design and build a change directly.
+- Review `_FEATURES.md` (the manual feature backlog), or run `/geniro:plan` to author one.
+```
 
 ### 2.5 Cleanup
 
@@ -281,7 +282,7 @@ Mirrors the /geniro:implement ACI surface — read-only Phase 1, helper-mediated
 - Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
-- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `emit-learning` helper invocations / AskUserQuestion (the §2.4 next-step gate) / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
+- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `emit-learning` helper invocations / AskUserQuestion (the §2.3.5 improvement-candidate presentation) / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
 - Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
 Existing safety hooks apply across all phases (file-protection / git-guardrail / `.geniro/` deletion guard).
@@ -423,7 +424,7 @@ For each onboarding, confirm:
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use `--focus` for large repos)
 - [ ] L3 `_CODEBASE_MAP.md` updated via `update-semantic`
 - [ ] L2 `discovery` emit fired per trigger conditions
-- [ ] User routed to a next-step command via `AskUserQuestion` (next-step options per §2.4)
+- [ ] Next-steps suggestions printed at the end of the report (per §2.4)
 - [ ] State.md cleaned up per §2.5
 ---
 

@@ -296,7 +296,7 @@ If "Slice into milestones" picked:
 2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 11-section schema scoped to the milestone.
 3. Persist to `approvals[]` with category `milestone_slice`.
 
-Handoff (Phase 9) offers `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs. The milestone-mode AUQ fires only at Big tier; not Small/Medium/Trivial.
+Handoff (Phase 9) prints `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs. The milestone-mode AUQ fires only at Big tier; not Small/Medium/Trivial.
 
 ---
 
@@ -338,8 +338,8 @@ Then the LEAN AUQ — `question` is a one-line recap pointing at the message:
 header: "Approve spec"
 question: "Approve the spec summarized above? (Full text: .geniro/planning/<slug>/spec.md)"
 options:
-  - label: "Approve — proceed to handoff"   # Recommended
-    description: "The handoff step runs next."
+  - label: "Approve — commit the plan"   # Recommended
+    description: "Commits spec.md and prints the /geniro:implement command to build it."
   - label: "Request changes — I'll describe"
     description: "Fires a sub-AUQ for revision text; revisions re-run affected sections (max 3 rounds)."
   - label: "Abort — discard spec"

@@ -165,7 +165,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:onboard` — Rapid codebase orientation
 
-2-phase loop (Discover → Map). Scans codebase structure and produces `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` with the canonical 8-section template (underscore-prefixed L3 registry). Phase 1 applies a <=50-file scan cap (user-confirmable expansion via AUQ). Phase 2 calls `update-semantic` (bounded auto-incremental L3 write), emits L2 `discovery`, fires Next-step AUQ routing to /plan / /investigate / /implement / `_FEATURES.md`. `--focus` / `--depth` retained as scope-limiters on the full 8-section template.
+2-phase loop (Discover → Map). Scans codebase structure and produces `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` with the canonical 8-section template (underscore-prefixed L3 registry). Phase 1 applies a <=50-file scan cap (user-confirmable expansion via AUQ). Phase 2 calls `update-semantic` (bounded auto-incremental L3 write), emits L2 `discovery`, prints next-step suggestions (/plan / /investigate / /implement / `_FEATURES.md`). `--focus` / `--depth` retained as scope-limiters on the full 8-section template.
 
 ```
 /geniro:onboard

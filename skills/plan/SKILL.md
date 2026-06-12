@@ -30,7 +30,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6.
-- Phase 9 handoff — 2-option menu (`/geniro:implement directly` / `Stop`).
+- Phase 9 handoff — prints the milestone-aware `/geniro:implement <path>` command (no question — the spec is already saved and committed at Phase 8).
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
@@ -76,7 +76,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open; `--deep`: 3× verify per cited claim with majority vote) | §"Phase 7.5 — Spec challenge" |
 | 8 | User approve (visual summary message + lean AUQ + git commit) | §"Phase 8 — User approval" |
-| 9 | Handoff (2 options: /geniro:implement / Stop) | §"Phase 9 — Handoff" |
+| 9 | Handoff (non-interactive — prints the milestone-aware `/geniro:implement <path>` command, writes terminal `phase: done`) | §"Phase 9 — Handoff" |
 
 Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema gap.
 
@@ -201,7 +201,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
 | Phase 7.5 (Spec challenge, always-on) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn — OMIT `model=`) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
-| Phase 9 (Handoff) | AskUserQuestion / Read | All mutations |
+| Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write) | All file mutations except the state.md terminal write |
 
 **Mutation enforcement:** frontmatter `allowed-tools` excludes `Edit` (this skill never edits in place).
 
