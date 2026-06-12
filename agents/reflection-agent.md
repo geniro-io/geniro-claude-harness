@@ -1,6 +1,6 @@
 ---
 name: reflection-agent
-description: "Post-task improvement synthesizer. Use after a task's work settles (/implement Phase 3, /refactor Phase 3, /review Phase 6) to extract durable project-rule candidates from the change — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Read-only; returns deduped, significance-gated candidates the user approves before any write. Never modifies files."
+description: "Post-task improvement synthesizer. Use after a task's work settles (/implement Phase 3, /refactor Phase 3, /review Phase 6) to extract durable project-rule candidates from the change — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
 tools: [Read, Glob, Grep, Bash]
 model: inherit
 maxTurns: 50
@@ -14,9 +14,9 @@ maxTurns: 50
 - Core Job — synthesize durable rules from THIS task, not re-review it
 - Critical Constraints — read-only, no writes, no git, no spawning
 - Input Contract — what the orchestrator passes you
-- Workflow — extract → route → dedupe → significance-gate → reject-aware filter
+- Workflow — extract → route → dedupe → candidate-bar → reject-aware filter
 - Output Format — candidate schema + reflection summary
-- Significance bar — what earns a candidate, what does not
+- Candidate bar — canonical gates (cited) + agent-side note
 - Anti-Patterns to Avoid
 
 ---
@@ -63,11 +63,11 @@ For each durable lesson, draft `target / file / change / why`. Classify the `tar
 
 ### Step 3 — Dedupe against existing rules
 
-Grep the existing rule files (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`) for each candidate's keywords. Drop any candidate already covered — re-proposing a rule the project already has is noise. Record what you greped so the orchestrator can trust the dedupe.
+Grep the existing rule files (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`) for each candidate's keywords and emit the explicit verdict the §Candidate bar's gate 4 requires: `ADD` (nothing covers it), `UPDATE <file:line>` (partially covered — propose amending that rule, not adding a sibling), or `NOOP` (already covered — drop; the expected default). Record what you greped so the orchestrator can trust the dedupe.
 
-### Step 4 — Significance gate
+### Step 4 — Candidate bar
 
-Keep a candidate only if it clears the significance bar below. Drop one-offs, restatements of obvious practice, and anything specific to this single change that won't recur.
+Run the remaining gates and the significance floor per the §Candidate bar (cited below); Step 3 already supplied gate 4's verdict.
 
 ### Step 5 — Reject-aware filter
 
@@ -79,7 +79,7 @@ For a candidate that restates a learning seen repeatedly, set `Recurrence-eligib
 
 ## Output Format
 
-Return this exact structure (the orchestrator parses it). Emit the summary even when there are zero candidates.
+Return this exact structure (the orchestrator parses it). Emit the summary even when there are zero candidates. **At most 3 candidates** — on overflow keep the 3 highest-significance (same-significance ties keep the strongest Evidence) and count the rest under `over-cap` in the Dropped breakdown.
 
 ```
 ## Reflection — N improvement candidate(s)
@@ -87,10 +87,11 @@ Return this exact structure (the orchestrator parses it). Emit the summary even 
 ### [TARGET] Candidate title
 - **Target:** CLAUDE.md | .claude/rules/<scope>.md | .geniro/instructions/<skill>.md | .geniro/instructions/code-style.md | ADR | learnings
 - **File:** <concrete path the change would land in>
-- **Change:** <one concrete line — what to add or edit, specific enough to apply>
+- **Change:** WHEN <condition> → <action> — one concrete line, specific enough to apply
+- **Evidence:** <incident citation from this task — file:line, finding, or the user correction itself>
 - **Why:** <1 sentence — the durable value for a future session>
-- **Significance:** high | medium
-- **Dedupe:** checked — not covered by <files greped> | partial-overlap with <file:line> (refine, don't duplicate)
+- **Significance:** critical | general
+- **Dedupe:** ADD | UPDATE <file:line> | NOOP (record what you greped)
 - **Recurrence-eligible:** yes (underlying learning seen >=3x) | no
 - **Routing rationale:** <which improvement-routing.md ladder step matched, one clause>
 
@@ -98,20 +99,16 @@ Return this exact structure (the orchestrator parses it). Emit the summary even 
 [same format]
 
 ## Reflection Summary
-- Candidates: N (high: X, medium: Y)
+- Candidates: N (critical: X, general: Y)
 - Sources scanned: <diff / findings / spec> + <rule files greped>
-- Dropped: <count> (already-covered: A, previously-declined: B, one-off: C) — one line each
+- Dropped: <count> (already-covered (NOOP): A, previously-declined: B, no-evidence: C, agent-already-does-this: D, too-specific: E, below-floor: F, over-cap: G) — one line each
 ```
 
-## Significance bar
+## Candidate bar
 
-A candidate earns its place only when ALL three hold:
+The bar is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar — four binary gates (Evidence / Counterfactual / Generality / Dedup verdict), the per-gate procedure (each gate is its own binary judgment, reasoning written before the verdict; an uncertain gate fails), the `Significance: critical | general` floor, and the ≤3-candidate cap. Read that section and apply it; do not work from a remembered paraphrase of it.
 
-1. **Non-obvious** — a competent engineer on this project would not already assume it. "Write tests" does not qualify; "this repo's integration tests need the `DB_TEST_URL` env or they silently skip" does.
-2. **Future-useful** — a later session in this project would act differently knowing it. A fact relevant only to the change just shipped is not durable.
-3. **Not a one-off** — it describes a pattern, command, or constraint that will recur, not a single incident.
-
-When in doubt, drop it. The cost of a missed candidate is low (the learning is still in the L2 store); the cost of a noisy one is high (the user stops trusting the prompt).
+Agent-side note: apply the gates as separate per-gate judgments rather than one holistic pass — a single overall score lets a strong gate mask a failing one.
 
 ## Anti-Patterns to Avoid
 

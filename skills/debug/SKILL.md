@@ -462,7 +462,7 @@ emit_rejection_if_signal \
 
 ### 3.4 Suggest improvements (project scope only, routes)
 
-After L2 emit, follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`. Debug runs typically surface:
+After L2 emit, follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`. Apply that file's §Candidate bar to every draft candidate before routing (four gates + significance floor + cap; zero candidates is the common outcome). Debug runs typically surface:
 
 | Insight category | Target | layer |
 |---|---|---|

@@ -2,6 +2,7 @@
 
 ## Contents
 
+- §Candidate bar — four binary gates + significance floor + cap (worth-gating; runs before target-routing)
 - §Routing table — improvement type → target file
 - §Decision logic when target is ambiguous
 - §ADR target — when to use it (sparingly)
@@ -9,7 +10,37 @@
 - §Reflection-agent feed — how to source candidates (agent vs inline)
 - §Presentation — how to surface the routed suggestion
 
-When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, classify it by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
+When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
+
+## Candidate bar
+
+A rule is a permanent tax: it loads into every future session and dilutes compliance with every rule already in place (§"Why code rules go to `.claude/rules/`, not CLAUDE.md" below carries the budget arithmetic for CLAUDE.md — the same economics apply to every rule target). The reflection step is therefore not asked to "find something": an open-ended improvement pass returns candidates even when the work taught nothing — the same over-reporting effect documented for reviewers — so **zero candidates is the correct and common outcome**.
+
+The bar gates WORTH; the §Routing table below routes TARGET (the §"Decision logic when target is ambiguous" ladder resolves only ambiguous targets). Bar first, routing second — a candidate that fails the bar never survives to the routed output.
+
+### Four binary gates — all must pass
+
+Run each gate as its own binary judgment, and write the reasoning before the verdict. When a gate is uncertain, it fails — a borderline rule taxes every future session, while a dropped candidate costs nothing because the underlying observation can still be emitted as a learning.
+
+1. **Evidence** — the candidate cites what grounds it. What counts as evidence depends on the candidate's source:
+   - **Task-derived** (a /implement, /review, /refactor, or /debug run): a concrete incident from this task — an observed failure, a user correction, or real wasted-time friction — with a citation (file:line, the finding, or the correction itself). A smooth run yields no task-derived candidates — these lessons are extracted from failures, not from things that went fine.
+   - **Discovery-derived** (/onboard's just-authored map, /plan's just-approved spec): the verified fact itself is the evidence — cite its source (the map section / spec section that states it) AND the gate-4 dedup verdict (`ADD`, or `UPDATE` when an existing rule is stale or partial). Discovery sources have no failures to cite; their bar is verified + not already fully covered by a rule file, and they remain subject to gates 2-4 like any other candidate.
+2. **Counterfactual** — without this rule, a competent future session would plausibly repeat the failure or pay the cost again. Drop what the agent gets right or cheaply derives at the moment it matters — standard engineering practice, base-model knowledge, a fact one obvious file read away. Keep what it would otherwise re-derive every session: build/test/lint commands and stack identity are derivable from the code, but re-derivation each session is exactly the recurring cost a CLAUDE.md line removes — which is why the §Routing table sends commands there. This is the official CLAUDE.md line test: "would removing this cause mistakes? If not, cut it."
+3. **Generality** — the rule is statable as `WHEN <condition> → <action>` where the WHEN-clause matches situations beyond the just-finished task. Restate the lesson one level up; if it cannot be restated above the specific scenario, it is an episodic learning at most, never a rule.
+4. **Dedup verdict** — grep `CLAUDE.md`, `.claude/rules/*`, and `.geniro/instructions/*` for the candidate's keywords and emit an explicit verdict: `ADD` (nothing covers it), `UPDATE <file:line>` (an existing rule covers it partially — propose amending that rule, not adding a sibling), or `NOOP` (already covered — drop). NOOP is the expected default.
+
+### Significance floor
+
+Every surviving candidate carries `Significance: critical | general`:
+
+- `critical` — prevents recurrence of a CRITICAL/HIGH-class failure per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
+- `general` — the WHEN-clause spans most future tasks of its kind across the project.
+
+A candidate that is neither critical nor general is dropped — it never becomes a rule candidate. No separate routing is needed: the underlying observation still rides the owning skill's own learnings-emit step.
+
+### Cap
+
+At most 3 candidates per run. On overflow keep the 3 highest-significance and drop the rest (their observations still ride the owning skill's own learnings-emit step — no separate routing). Same-significance ties keep the strongest Evidence. The cap is a forcing function — ranking is the filter: being forced to keep only the strongest 3 exposes which candidates were padding.
 
 ## Routing table
 
@@ -39,7 +70,7 @@ Apply in order — first match wins:
 5. **Is it an architectural decision that is hard to reverse AND surprising without context AND the result of genuine trade-offs (including a refactor candidate explicitly REJECTED with rationale)?** → **ADR** (`docs/adr/` or `docs/decisions/` — see ADR rules below)
 6. **Is it a reusable technical insight (gotcha, lightweight architectural decision, surprising coupling)?** → **Knowledge** (`.geniro/knowledge/learnings.jsonl` — path resolved per `_shared/primary-worktree.md`)
 7. **Is it a user preference or correction about how to collaborate?** → **Memory** (native auto-memory)
-8. **Uncertain** → default to **Knowledge** (lowest risk, still searchable)
+8. **Uncertain TARGET** → default to **Knowledge** (lowest risk, still searchable). This step resolves target ambiguity only — a candidate of uncertain WORTH already failed the §Candidate bar and never reaches the ladder, so it must not survive here as a learnings-targeted suggestion.
 
 ## ADR target — when to use it (sparingly)
 
@@ -113,15 +144,15 @@ The three are complementary, not overlapping. Choose based on the trigger you wa
 Two ways to source the improvement candidates that feed §Presentation. Match the source to how rich the change signal is:
 
 - **Reflection agent** — when the task produced a fresh diff or a finding set worth an independent read (`/implement` Phase 3, `/refactor` Phase 3, `/review` Phase 6). Spawn `${CLAUDE_PLUGIN_ROOT}/agents/reflection-agent.md` to synthesize candidates in an isolated context. An isolated read beats orchestrator-inline synthesis here: the orchestrator just authored the change, so it carries the same blind spots; a fresh agent catches durable lessons the author's own reasoning skips.
-- **Inline** — when the orchestrator already holds the whole artifact it just authored and there is no fresh diff to discover (`/plan`'s approved spec, `/onboard`'s codebase map). Draft the candidates inline against the routing table above. A separate agent re-reading a self-authored artifact adds cost without the anti-anchoring benefit, so inline is the right call there.
+- **Inline** — when the orchestrator already holds the whole artifact it just authored and there is no fresh diff to discover (`/plan`'s approved spec, `/onboard`'s codebase map). Draft the candidates inline against the §Candidate bar + routing table above. A separate agent re-reading a self-authored artifact adds cost without the anti-anchoring benefit, so inline is the right call there.
 
 ### Spawn slots (reflection-agent mode)
 
-Pass the agent: **mode** (`implement` | `refactor` | `review`), **the change** (diff summary + changed files; for review, the kept findings + their diff), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns deduped, significance-gated candidates per its Output Format; it never writes.
+Pass the agent: **mode** (`implement` | `refactor` | `review`), **the change** (diff summary + changed files; for review, the kept findings + their diff), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns candidates that passed the §Candidate bar per its Output Format; it never writes.
 
 ### Anchor + echo (both sources)
 
-Run the improvement step as a **named step sequenced before the skill's ship/finalize prompt**, not as trailing prose after the deliverable — a silent step after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). After the step runs, echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired. When the candidate list is empty, skip §Presentation silently (no echo, no prompt).
+Run the improvement step as a **named step sequenced before the skill's ship/finalize prompt**, not as trailing prose after the deliverable — a silent step after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). After the step runs, echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired. The echo is unconditional, including at N=0: zero is the majority outcome, so a silent zero is indistinguishable from a dropped step. When the candidate list is empty, skip only the §Presentation prompt — the echo still fires.
 
 ### Coexistence with recurrence rule-capture
 
@@ -132,4 +163,4 @@ A candidate tagged `Recurrence-eligible: yes` restates a learning already seen 3
 
 ## Presentation
 
-For each improvement, draft `target / file / change / why`. Present via `AskUserQuestion` with header "Improvements" and options `Apply all` / `Review one-by-one` / `Skip`. Group by target so the user sees what goes where. If no improvements found, skip silently. On a `Skip` or an explicit decline, log it via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`) so the declined suggestion does not re-surface next run. Writes happen only after approval — for `.geniro/instructions/` targets, hand off to `/geniro:instructions create`; for CLAUDE.md / `.claude/rules/` / ADR / learnings, the orchestrator writes via the atomic state helpers.
+For each improvement, draft `target / file / change / why`. Present via `AskUserQuestion` with header "Improvements" and options `Apply all` / `Review one-by-one` / `Skip`. Group by target so the user sees what goes where; render each candidate with its `Significance:` tag and its Evidence citation from the §Candidate bar, so the user judges the incident behind the proposal, not just the proposal. If no improvements found, skip the prompt — an empty list never opens an `AskUserQuestion`, but the `Reviewed for improvements: 0 candidate(s)` echo still fires (per §"Anchor + echo"). On a `Skip` or an explicit decline, log it via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`) so the declined suggestion does not re-surface next run. Writes happen only after approval — for `.geniro/instructions/` targets, hand off to `/geniro:instructions create`; for CLAUDE.md / `.claude/rules/` / ADR / learnings, the orchestrator writes via the atomic state helpers.
