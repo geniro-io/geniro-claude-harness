@@ -2,7 +2,7 @@
 
 Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) raises **quality** — recall (find more) and precision (validate more reliably) — by multiplying the reviewer and verifier fan-out and running it inside an internal `Workflow(...)`. It does NOT raise speed: under the Workflow concurrency cap (`min(16, cores-2)` concurrent agents per workflow) running each dimension 3× does not shrink wall-clock, it only deepens coverage at roughly 3-5× the token cost. Deep mode is opt-in for exactly this reason — it is not the default.
 
-Deep mode is an orthogonal axis to Standard/TDD: it sets the boolean `deep-mode: true` and composes with either posting mode (`--deep --tdd` is valid). It changes HOW MANY reviewer/verifier passes run and how their results aggregate — it does NOT change the Reporter boundary, the posted-set semantics, the action-gate options, or the `atomic_state_write` contract.
+Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verifier passes run and how their results aggregate — it does NOT change the Reporter boundary, the posted-set semantics, the action-gate options, or the `atomic_state_write` contract.
 
 **Cross-skill common contract.** The rules `/geniro:review`, `/geniro:plan`, and `/geniro:implement` share — the activation pattern, the mandatory Workflow mitigations, the fail-safe ladder, and the boundary-preservation rules — are canonicalized in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md`. This file keeps its review-specific layers (§2 recall, §3 precision) inline; where it overlaps the shared contract (§4 mitigations, §6 fail-safe, §9 anti-rationalization), the shared file is the canonical statement.
 
@@ -22,10 +22,10 @@ Deep mode is an orthogonal axis to Standard/TDD: it sets the boolean `deep-mode:
 
 ## 1. Activation + state
 
-- **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`), like `--tdd`.
-- **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ asks review depth as its own question (Q1) — "Standard" / "Deep — 3× passes + 3-vote verify". Picking Deep sets the boolean. Depth is a separate question from author-tests (Q2), so Deep composes with either TDD choice.
-- **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` — a dedicated category so the session-restore hook re-applies it independently of `tdd_mode_choice`.
-- **Composition:** deep mode is independent of Standard/TDD. `deep-mode: true` + `mode: tdd` runs the 3× / 3-vote fan-out AND authors failing tests; the two never conflict.
+- **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`), like `--simplify`.
+- **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ asks review depth — "Standard" / "Deep — 3× passes + 3-vote verify". Picking Deep sets the boolean.
+- **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` so the session-restore hook re-applies it on a compaction-resume.
+- **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the 3-vote survivors whenever eligible findings exist; the two never conflict.
 
 When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (single reviewer batch, single per-finding verifier) — deep mode adds no overhead to standard runs.
 
@@ -131,7 +131,7 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 - **Reporter boundary** — reviewers/verifiers are read-only; no `Edit`/`Write`/`git`/`gh` mutation. The workflow produces findings + verdicts, nothing else.
 - **Atomic state writes** — the orchestrator (NOT the workflow agents) owns every `atomic_state_write` to state.md and the handoff. Workflow agents return data; they never write `.geniro/` state.
 - **Action gate** — deep mode does not add or change action-gate options. The canonical 4 options and the `report_status: final` precondition (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) bind unchanged.
-- **No-ship** — deep mode never pushes or fixes. The TDD authored-test push carve-out (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1) is the only sanctioned write, and it is independent of deep mode.
+- **No-ship** — deep mode never pushes or fixes. The authored-test push carve-out (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1) is the only sanctioned write, and it is independent of deep mode.
 
 ---
 
@@ -139,7 +139,7 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 
 **`--deep` on a trivial diff.** Deep mode still runs (the user asked for it). The cost is real but bounded; the Action gate / triage-out of trivial files (§12 size triage) still applies, so a formatting-only diff is triaged out before the fan-out.
 
-**`--deep --tdd` together.** Both apply: 3× / 3-vote fan-out AND failing-test authoring. The deep verification runs first (Phase 4.2); the test-gate (Phase 4.3) runs on the survivors of the 3-vote, so authored tests target majority-confirmed findings only — a strict improvement.
+**`--deep` with test authoring approved at the Phase 4.3 gate.** Both apply: 3× / 3-vote fan-out AND failing-test authoring. The deep verification runs first (Phase 4.2); the test-gate (Phase 4.3) runs on the survivors of the 3-vote, so authored tests target majority-confirmed findings only — a strict improvement.
 
 **Round-2+ re-run with `--deep`.** Prior-round findings feed the reviewer prompts as today; the 3× passes run against the same prior-context. `deep-mode` persists in `approvals[]` so a resumed/re-run session keeps the choice.
 

@@ -10,6 +10,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### `--tdd` / `--standard` flags removed from `/geniro:review`
+
+The Standard/TDD mode axis is gone from `/geniro:review`. The post-review test-confirmation gate is now the only test question: it fires automatically in every run whose kept findings include testable ones, offering to author failing tests for them — your approval gates the authoring, and the Failing-tests gate still gates any commit/push of the authored tests. Passing `--tdd` or `--standard` no longer changes behavior (test authoring never filtered the posted finding set, so the post set is unchanged). The `mode:` frontmatter field and `- Mode:` summary line are dropped from new review handoffs; values persisted by older runs (`mode: tdd` / `mode: standard`, `tdd_mode_choice` approvals) are read by no consumer and are ignored harmlessly.
+
+**Action required:** None — remove `--tdd` / `--standard` from any saved command aliases, actions, or notes that invoke `/geniro:review`; the flags are now inert.
+
+**Auto-detect:** N/A — flag removal with no project-state impact; stale `mode:` values in pre-update handoff files are ignored and disappear when `/geniro:review` next overwrites the handoff.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — behavior-preserving removal; old state-file values degrade to no-ops.
+
+---
+
 ### New gate-render guard hard-blocks blind decision questions
 
 `hooks/enforce-gate-render.sh` is a new PreToolUse hard-block (exit 2) on the `AskUserQuestion` tool. A decision question that references content "above" (in the question text, option labels, or option descriptions) while the current turn contains no visible assistant message is blocked — the user would be answering blind, violating the message-first gate contract (`skills/_shared/gate-rendering.md`). A block is NOT a user denial: the stderr message instructs the model to write the full gate render as an ordinary chat message and then re-ask the same question. The hook reverse-scans the transcript back to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race) and fails open on missing jq (loud), missing transcript, cap overflow, or a garbage transcript.

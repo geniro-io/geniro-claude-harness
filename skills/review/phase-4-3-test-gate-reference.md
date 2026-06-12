@@ -55,14 +55,14 @@ The rule is intentionally prose-based and decided at orchestrator-evaluation tim
 
 ## 3. Step 2 — User-approval gate (mandatory before any agent spawn)
 
-This gate is its own `AskUserQuestion` call fired during stratify (per §1 Firing phase) — never batched into the Phase 6 Action gate's AUQ, never deferred to end-of-run. Use `AskUserQuestion` (do NOT print options as plain text). When the state-file `mode:` is `tdd`, render the first option's label with literal ` (Recommended)` suffix; in Standard mode, render without the suffix. The gate itself is non-negotiable in every mode.
+This gate is its own `AskUserQuestion` call fired during stratify (per §1 Firing phase) — never batched into the Phase 6 Action gate's AUQ, never deferred to end-of-run. Use `AskUserQuestion` (do NOT print options as plain text). The gate itself is non-negotiable — it fires on every run where the eligible set is non-empty.
 
-**The 3-option set is canonical and rendered verbatim — all three, every run.** Do not drop "Let me pick which findings" because few findings are eligible; do not add an improvised `(Recommended)` to "Skip" or to any option. The only `(Recommended)` marker is the documented one: the FIRST option's label gains the ` (Recommended)` suffix when `mode: tdd`, and no suffix otherwise. No other marker placement is valid.
+**The 3-option set is canonical and rendered verbatim — all three, every run.** Do not drop "Let me pick which findings" because few findings are eligible; do not add an improvised `(Recommended)` to "Skip" or to any option — no option carries a `(Recommended)` suffix.
 
 - **Header:** "Test-gate"
 - **Question:** "Author failing tests to confirm review findings? Tests that pass today demote the corresponding finding to ## Filtered (kept visible, not deleted). The skill never writes tests without your approval."
 - **Options (render all three, verbatim):**
-- "Author tests for all eligible findings" — this first option's literal label gains a ` (Recommended)` suffix when `mode: tdd`; no suffix in Standard mode
+- "Author tests for all eligible findings" — never carries a `(Recommended)` suffix
 - "Let me pick which findings" — always present; never dropped when the eligible set is small
 - "Skip — don't author tests" — never carries a `(Recommended)` suffix
 
@@ -98,7 +98,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 """)
 ```
 
-**Overflow caveat (10-test author cap).** The agent authors at most 10 tests. When the eligible set exceeds 10, the un-authored findings still post normally — TDD is additive, never reductive — and the orchestrator surfaces a `## Caveats` note naming them: `N testable findings exceeded the 10-test author cap and post without a failing-test line.`
+**Overflow caveat (10-test author cap).** The agent authors at most 10 tests. When the eligible set exceeds 10, the un-authored findings still post normally — test authoring is additive, never reductive — and the orchestrator surfaces a `## Caveats` note naming them: `N testable findings exceeded the 10-test author cap and post without a failing-test line.`
 
 ---
 

@@ -126,7 +126,6 @@ task_slug: review-<branch>
 phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
 status: <in-progress|done|failed>
 report_status: <draft|final>          # whole-report lifecycle — see state-tier-spec.md /geniro:review producer fields (missing reads as final)
-mode: <standard|tdd>
 deep-mode: <true|false>               # --deep fan-out (3x passes + 3-vote); missing reads as false
 round: <int>
 risk-tier: <standard|high>
@@ -163,7 +162,6 @@ open_questions:                       # MUST be present; MAY be empty []
 ## Summary
 - Branch: <branch>
 - Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1 (a `/geniro:review`-only path; omitted when the review covered the whole PR)
-- Mode: <standard|tdd>
 - Round: <N>
 - Risk-tier: <standard|high>
 - Dimensions spawned: [<list>]
@@ -300,7 +298,7 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 
 When more than 4 PRODUCT-DECISION findings exist OR a single finding's `Options:` carries `(more-options-exist: chain-follow-up)`: chain `AskUserQuestion` calls per cap-extension pattern.
 
-Always-WAIT in every mode. If empty answer returns, fall back to plain text and re-ask — never default to the reviewer's synthesis.
+Always-WAIT. If empty answer returns, fall back to plain text and re-ask — never default to the reviewer's synthesis.
 
 Skip entirely when zero PRODUCT-DECISION findings remain after the Phase 3 §3.3 KEEP/FILTER judgment.
 
@@ -429,8 +427,8 @@ Fires when `## Authored Tests` section is non-empty. Firing order conditional pe
 - **Question:** "How should the N failing tests authored during the test-confirmation step be handled? They are AI-authored — review before merging. If you just chose to post findings as a Draft PR review, the comment bodies reference these test files by path — pushing them to the PR's branch is what makes those references resolve for PR reviewers."
 
 **Options:**
-- "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add.`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. **Recommended in Standard mode and in TDD mode without a PR ref** — except when user selected "Post" in Action gate, in which case commit+push is Recommended.
-- "Commit + push to current branch's upstream" — same as commit-only, then `git push`. **Recommended in TDD mode when a PR ref is present, and also Recommended in any mode when user selected "Post"** — load-bearing, not cosmetic.
+- "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add.`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. **Recommended** — except when user selected "Post" in Action gate, in which case commit+push is Recommended.
+- "Commit + push to current branch's upstream" — same as commit-only, then `git push`. **Recommended when user selected "Post" in Action gate** (the posted comment bodies reference the test files by path; pushing makes those references resolve) — load-bearing, not cosmetic.
 - "Leave uncommitted" — tests stay on disk for user to review and stage manually.
 
 Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
@@ -517,7 +515,7 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 ### 7.3 Step 3 — Per-finding gate
 
-Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — Step 3.5 is mode-independent and applies no filter). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
+Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — Step 3.5 is test-gate-independent and applies no filter). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
 - **Chat render (first):** render the finding to chat per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — a self-contained block instantiating that template. The posting loop over ≥2 eligible findings is a decision queue, so each render opens with the tracker (`✔ Decision 1 — <short tag> · ● Decision 2 of N — <short tag> · ○ …`; the denominator is the eligible-finding count after the §7.1 filter). The user decides whether to post from an explained finding, not a side-box snippet.
@@ -535,9 +533,9 @@ Full explanation above. Post this finding to the PR as an inline comment, or ski
 
 After loop completes (or user picked "Stop posting"), aggregated post set is the union of "Post" picks. If empty, treat as Skip and proceed without firing `gh api` POST.
 
-### 7.4 Step 3.5 — Post-set (mode-independent)
+### 7.4 Step 3.5 — Post-set (test-gate-independent)
 
-The posted set is the same in Standard and TDD mode: every kept finding posts, apart from the §7.1 exclusions — which apply identically in both modes. TDD mode is purely additive — it authors failing tests for the testable findings and appends a `**Failing test:** \`<path>\`` line to each `[CONFIRMED-BY-TEST]` finding (per §7.6) — but it never removes a finding from the post set. There is no mode-dependent filter here.
+Every kept finding posts, apart from the §7.1 exclusions. The test-confirmation gate never filters the posted finding set — when it authored failing tests, each `[CONFIRMED-BY-TEST]` finding gains a `**Failing test:** \`<path>\`` line (per §7.6), but no finding is ever removed from the post set. There is no test-dependent filter here.
 
 This step is retained as a no-op so the surrounding `§7.x` section numbers stay stable — removing it would renumber `§7.5` onward and break the cross-references that point at those sections.
 

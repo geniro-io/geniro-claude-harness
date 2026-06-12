@@ -4,7 +4,7 @@ Reference file for the `/geniro:review --simplify` flag. When `--simplify` is pr
 
 /geniro:review is a Reporter — every entry in the tables below is a finding to flag and a recommendation to attach, never an edit to apply. The reviewer-agent emits findings (severity + decision-type + evidence + suggested-fix); the user (or `/geniro:implement`) applies the suggested fix later. Read the "What to flag" column as "report this pattern, recommend this change."
 
-Severity reconciliation: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `--tdd` or `risk-tier: high`).
+Severity reconciliation: P1 → HIGH, P2 → MEDIUM, P3 → informational (filtered out of Phase 4 unless `risk-tier: high`).
 
 NOT a new dimension — folds into existing dims. Users wanting auto-applied fixes pipe `/geniro:review --simplify` output to `/geniro:implement`.
 

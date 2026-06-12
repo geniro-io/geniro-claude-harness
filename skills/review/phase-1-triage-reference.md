@@ -18,7 +18,7 @@ State.md `phase: triage` during this phase.
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
 - §9 Step 0.7 — Risk-tier stratification
 - §10 Step 0.8 — Memory layer load
-- §11 Mode AUQ — review depth + author-tests
+- §11 Mode AUQ — review depth
 - §12 Size triage
 
 ---
@@ -31,13 +31,13 @@ Sub-step order: **read prior approvals** (0-pre, before any detection) → **pas
 
 ### 0-pre — Read prior approvals (FIRST, before passive detection)
 
-On a compaction-resume or a Round 2+ re-run of /geniro:review on the same branch, the prior round already persisted the user's workspace, depth, and tests choices. Read them BEFORE passive detection (0a) and any workspace action — detecting fresh and acting first is how a live Round 2 run created a worktree at a default location while the user's Round 1 pick named a different one, silently relocating an approved workspace.
+On a compaction-resume or a Round 2+ re-run of /geniro:review on the same branch, the prior round already persisted the user's workspace and depth choices. Read them BEFORE passive detection (0a) and any workspace action — detecting fresh and acting first is how a live Round 2 run created a worktree at a default location while the user's Round 1 pick named a different one, silently relocating an approved workspace.
 
 1. Resolve the prior state/handoff for this branch (`<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, plus the resumed `state.md` on a compaction-resume). When neither exists, this is a first run — skip to 0a with no inherited picks.
-2. Read these `approvals[]` categories: `review_workspace_setup` (workspace location/action), `deep_mode_choice` (review depth), `tdd_mode_choice` (author-tests). Each recorded pick is **binding** for this run.
+2. Read these `approvals[]` categories: `review_workspace_setup` (workspace location/action), `deep_mode_choice` (review depth). Each recorded pick is **binding** for this run.
 3. **Honor the recorded workspace location exactly** — re-enter the same worktree path the prior round approved; do not substitute a different location. The persisted pick names a specific tree, not just "use a worktree": re-applying it at a fresh default location is the silent-relocation failure this sub-step prevents.
 4. **Re-ask only when the recorded pick no longer applies** — the approved worktree was deleted, or the branch moved off the commit it was created from. In that case fire the workspace AUQ fresh (the Case-mismatch UX below still governs); a stale pick is re-decided, never silently swapped for a default.
-5. When a workspace pick is inherited, narrate one line so the inheritance is visible: `Continuing the workspace/depth/tests choices you approved in the previous round: <workspace pick>, <depth pick>, <tests pick>.` Then skip the 0b decision tree's AUQ branches (the workspace decision is already made) and proceed to execute the inherited workspace action in 0d. `deep_mode_choice` / `tdd_mode_choice` re-apply to the depth/tests axes (the Mode AUQ at §11 reads `approvals[]` and skips re-prompting answered axes).
+5. When a workspace pick is inherited, narrate one line so the inheritance is visible: `Continuing the workspace/depth choices you approved in the previous round: <workspace pick>, <depth pick>.` Then skip the 0b decision tree's AUQ branches (the workspace decision is already made) and proceed to execute the inherited workspace action in 0d. `deep_mode_choice` re-applies to the depth question (the Mode AUQ at §11 reads `approvals[]` and skips re-prompting when depth is already answered).
 
 ### 0a — Detect current context (passive)
 
@@ -424,17 +424,11 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 ---
 
-## 11. Mode AUQ — review depth + author-tests
+## 11. Mode AUQ — review depth
 
-Depth (Standard vs Deep) and author-tests (TDD on/off) are independent axes — depth controls how many reviewer/verifier passes run (`deep-mode` boolean); TDD controls whether failing tests are additionally authored on top of whatever depth runs (`mode` enum). Surface them as TWO questions, not one combined option list, so each axis is chosen on its own — Deep+TDD is pickable, and "Standard" is unambiguous (it is only ever the depth label, never the author-tests choice).
+Depth (Standard vs Deep) controls how many reviewer/verifier passes run (`deep-mode` boolean).
 
-After triage, surface the two questions in ONE `AskUserQuestion` call (do NOT print options as plain text). Per-axis flag suppression decides which questions fire:
-
-- **Q1 (review depth)** fires when `$ARGUMENTS` lacks `--deep`. A `--deep` flag pre-resolves depth to Deep, so Q1 is skipped.
-- **Q2 (author tests)** fires when `$ARGUMENTS` lacks both `--tdd` and `--standard`. Either flag pre-resolves the TDD axis (`--tdd` → author tests; `--standard` → review only), so Q2 is skipped.
-- When both axes are flag-resolved, fire no AUQ. When both questions fire, they go in the same `AskUserQuestion` call (two questions, answered together).
-
-**Q1 — review depth:**
+After triage, surface the depth question via `AskUserQuestion` (do NOT print options as plain text). It fires when `$ARGUMENTS` lacks `--deep` — a `--deep` flag pre-resolves depth to Deep, so no AUQ fires.
 
 - **Header:** "Review depth"
 - **Question:** "How deep should the review go?"
@@ -442,19 +436,9 @@ After triage, surface the two questions in ONE `AskUserQuestion` call (do NOT pr
 - "Standard" — one reviewer pass per dimension; findings filtered and verified once.
 - "Deep — 3× passes + 3-vote verify" — runs each check 3× and verifies findings with a 3-agent majority vote; higher quality (finds more, validates more reliably) at higher token cost. Posts the same finding set as Standard.
 
-**Q2 — author tests (TDD):**
+Neither option carries a `(Recommended)` suffix — depth is a per-run pick where the alternative is only costlier, never safer (Deep authors no fix), so the user weighs cost against thoroughness each run. If the question is dismissed (empty answer), default to the cheaper value: Standard (`deep-mode: false`).
 
-- **Header:** "Author tests"
-- **Question:** "Also author failing tests for the findings?"
-- **Options:**
-- "No — review only" — posts all kept findings; the option to author failing tests is still offered per run when some are testable.
-- "Yes — also author failing tests" — posts all kept findings AND auto-authors failing tests for the testable ones, appends a failing-test line to each test-confirmed finding, and offers to commit + push the authored tests to the reviewed branch.
-
-Neither question carries a `(Recommended)` suffix — depth and TDD are both per-run picks where the alternative is only costlier, never safer (Deep authors no fix; TDD authors and runs tests), so the user weighs cost against thoroughness each run. If a question is dismissed (empty answer), default that axis to its cheaper value: Q1 → Standard (`deep-mode: false`), Q2 → review only (`mode: standard`).
-
-Persist each pick independently: Q1 → frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`; Q2 → frontmatter `mode: <tdd|standard>` + `approvals[]` category `tdd_mode_choice`. The two categories are separate so the session-restore hook re-applies depth and TDD independently on a compaction-resume. Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/review/tdd-mode-reference.md` for what TDD mode adds, edge cases, and the failing-test contract scope.
+Persist the pick: frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`, so the session-restore hook re-applies depth on a compaction-resume. Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 
 ---
 

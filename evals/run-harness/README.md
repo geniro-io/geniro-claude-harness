@@ -58,7 +58,7 @@ node --import tsx src/driver.ts --skill geniro:plan --cwd "$PLAN_REPO" \
 # 4. Drive /review against the planted-bug fixture
 REVIEW_REPO=$(bash fixtures/build-review-fixture.sh | tail -1)
 node --import tsx src/driver.ts --skill geniro:review --cwd "$REVIEW_REPO" \
-  --out runs/review-1 --max-turns 500 --prompt "main..HEAD --standard"
+  --out runs/review-1 --max-turns 500 --prompt "main..HEAD"
 ```
 
 Each run writes `runs/<id>/`: `meta.json` (invocation + provenance), `transcript.jsonl`

@@ -76,7 +76,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Real defects (those are MEDIUM+)
 - Cosmetic suggestions that hide a substantive problem (a "could be more readable" finding that masks a hidden bug is MEDIUM, not LOW)
 
-The plugin has no separate NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion". Per §5 below, LOW findings are written to `## Deferred — sub-threshold` for awareness and do not reach the PR-comment surface in standard mode — with one exception: a LOW finding whose `Decision Type` is `PRODUCT-DECISION` is kept and surfaced regardless of severity (it names the user's call, not the reviewer's), per §5 Path B.
+The plugin has no separate NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion". Per §5 below, LOW findings are written to `## Deferred — sub-threshold` for awareness and do not reach the PR-comment surface — with one exception: a LOW finding whose `Decision Type` is `PRODUCT-DECISION` is kept and surfaced regardless of severity (it names the user's call, not the reviewer's), per §5 Path B.
 
 ---
 
@@ -173,7 +173,7 @@ ELSE DEFER to ## Deferred — sub-threshold (state.md body, NOT PR comment)
 
 Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence-Block drops to `## Deferred — sub-threshold` regardless of convergence or confidence score.
 
-Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80). High tier (`risk-tier: high`) relaxes signal #4 to `confidence ≥ 70`. Other signals (convergence, Evidence-Block, pre-resolved) unchanged across tiers. `--tdd` affects neither §4.1 admission nor §4.2 verification — both run identically in every mode; it only controls §4.3 test authoring and the additive post set.
+Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80). High tier (`risk-tier: high`) relaxes signal #4 to `confidence ≥ 70`. Other signals (convergence, Evidence-Block, pre-resolved) unchanged across tiers. The §4.3 test-confirmation gate affects neither §4.1 admission nor §4.2 verification — test authoring runs after the finding set is fixed and never filters it.
 
 Rationale:
 
@@ -189,7 +189,7 @@ The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor 
 
 ## 6. Per-dim calibration variants
 
-Per-dim criteria files may tighten this rubric (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` caps at HIGH and suppresses LOW; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md` maps P1/P2/P3 to HIGH/MEDIUM/informational, P3 filtered unless `--tdd` or `risk-tier: high`) but must not loosen it — loosening lets sub-threshold findings surface past the shared gate. Specifically:
+Per-dim criteria files may tighten this rubric (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` caps at HIGH and suppresses LOW; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md` maps P1/P2/P3 to HIGH/MEDIUM/informational, P3 filtered unless `risk-tier: high`) but must not loosen it — loosening lets sub-threshold findings surface past the shared gate. Specifically:
 
 - A criteria file MUST NOT classify documentation / PR-description / cosmetic suggestions above LOW
 - A criteria file MUST NOT widen CRITICAL beyond the §1 inclusion list
