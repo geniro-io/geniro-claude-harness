@@ -15,6 +15,7 @@
   - Step 9: Gather the criteria body
   - Step 10: Write the file
   - Step 11: Confirm
+- Worked example — an adversarial reviewer for high-risk paths (a complete, copy-adaptable `review-extra/adversarial.md`).
 
 Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-11). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer.
 
@@ -195,4 +196,53 @@ and confirm findings appear and look right. Edit with
 `/geniro:instructions edit review-extra {{slug}}`, validate the whole directory
 with `/geniro:instructions validate`, or delete with
 `/geniro:instructions delete review-extra {{slug}}`.
+```
+
+## Worked example — an adversarial reviewer for high-risk paths
+
+Use this reviewer when diffs touch domains where failure is expensive — auth, billing, data mutations, external integrations. The `paths:` globs gate it to the project's own high-risk directories, which is more accurate than any generic risk heuristic — adapt the globs below to where those domains actually live in your repo. Over-flagging is absorbed before it reaches the user: findings from this reviewer flow through the same admission gate and per-finding verification as the built-in dimensions, so a speculative attack chain that fails verification is filtered out.
+
+Copy-adapt this as `.geniro/instructions/review-extra/adversarial.md` (`model:` is omitted, so the reviewer inherits the session tier):
+
+```markdown
+---
+slug: adversarial
+description: Attacks diffs in high-risk domains (auth, billing, data mutations) by hunting reachable failure paths the author did not consider. Skip for unit-level edge cases and vulnerability-checklist hits — the bugs and security reviewers own those.
+paths:
+- "**/auth/**"
+- "**/billing/**"
+- "**/api/**"
+severity-default: HIGH
+---
+
+# Criteria
+
+Attack the diff; do not evaluate it. Assume the change is wrong and hunt for the
+reachable path that proves it, using three attack techniques in priority order.
+
+What to flag:
+- Assumption violations — an input or system state the changed logic does not
+  handle, reachable from a real entry point (e.g., a payment-webhook retry that
+  arrives after the subscription row was deleted and hits the new billing branch).
+- Cross-boundary composition breaks — a changed output (return shape, status
+  code, event payload, persisted row) feeding an UNCHANGED consumer that still
+  assumes the old shape. Cite both sides: the changed producer and the unchanged
+  consumer.
+- Abuse cases — a hostile-but-authenticated caller misusing the change within
+  permissions it legitimately holds (e.g., replaying a discount-application
+  request to stack credits the UI would never issue).
+
+Every finding must cite the full reachable path: entry point → concrete trigger →
+outcome delta versus pre-change behavior. A hypothesis that cannot name its
+trigger is not a finding — do not emit it.
+
+Budget: cap at 6 findings per run, deepest attack chains first. For diffs under
+~50 changed lines, emit only what would score CRITICAL or HIGH.
+
+What to NOT flag:
+- Unit-level boundary, null, or type-coercion cases — the bugs reviewer owns those.
+- Classic vulnerability-class checklist hits (injection, XSS, hardcoded secrets) —
+  the security reviewer owns those.
+- Anything deterministically reproducible as a failing test today — emit it tagged
+  [TESTABLE] instead of arguing it as an attack chain, so the test gate picks it up.
 ```

@@ -187,7 +187,7 @@ options:
     description: "Zero new infra; memory spike on large datasets (major risk)."
 ```
 
-The `Recommended` marker reflects the §4.2 stress-test ranking — an approach with a blocking feasibility risk is never Recommended. User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`. The unsignaled (non-recommended) picks fire L2 emit via `emit-rejection.sh` when the picked label diverges from the recommended label.
+The `Recommended` marker reflects the §4.2 stress-test ranking — an approach with a verified blocking feasibility risk is never Recommended. User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`. The unsignaled (non-recommended) picks fire L2 emit via `emit-rejection.sh` when the picked label diverges from the recommended label.
 
 ---
 

@@ -10,6 +10,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — gets ONE fr
 - §3.5 — Resolve embedded "confirm / verify" asks
 - §3.6 — Actionability bar (reachable + behavior delta required for `confirmed`)
 - §4 — Spawn batch shape
+- §4.5 — Spawn-failure fail-open (orchestrator-assigned `unverified`)
 - §5 — Result aggregation and demotion rules
 - §6 — Anti-rationalization
 
@@ -52,7 +53,7 @@ Rationale: independent verifiers that do not see each other's outputs cannot anc
 The verifier emits exactly one structured response:
 
 ```yaml
-validation: confirmed | refuted | clarified
+validation: confirmed | refuted | clarified   # a fourth value, unverified, exists but is orchestrator-assigned (§4.5) — a verifier never emits it
 recommended_action: fix-now | testable | product-decision | intent-check | drop
 confidence: 1 | 2 | 3 | 4 | 5
 evidence: "<exact quote from cited file:line OR caller chain that confirms/refutes>"
@@ -63,6 +64,7 @@ Field semantics:
 - `validation: confirmed` — the cited code exhibits the defect AND the defect is actionable (§3.6); original decision-type stands.
 - `validation: refuted` — EITHER the cited code does not exhibit the claimed defect (verifier read the file and disagrees), OR the defect exists but is not actionable (§3.6 — unreachable under current config, or a normal/safe pattern with no behavior delta).
 - `validation: clarified` — the finding is correct but the recommended action differs from the original reviewer's; verifier's `recommended_action` overrides.
+- `validation: unverified` — orchestrator-assigned only (§4.5), when the verifier failed to spawn after retry or returned nothing parseable; a verifier never emits this value.
 - `recommended_action` reuses the plugin's existing 4-way taxonomy (fix-now / testable / product-decision / intent-check) plus `drop` for refuted findings.
 - `confidence` 1-5 coarse scale: 1 = 'low — could be wrong', 5 = 'certain — direct evidence'.
 - `evidence` must be a literal quote from the cited file or caller chain. "I agree" / "looks correct" / paraphrases are insufficient — refuse the output and re-prompt the verifier.
@@ -127,6 +129,21 @@ Critical: ALL verifier spawns fire in ONE assistant response, same assistant tur
 
 ---
 
+## 4.5 Spawn-failure fail-open
+
+A verifier can fail to produce a verdict at all: the spawn errors out even after the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, or it returns output with no parseable `validation:` value after the one empty-result retry (inherit tier). The finding then lands in none of the §3 outcome buckets, and an unmarked `Validation:` would read as `confirmed` to every consumer via the legacy back-compat rule — masking "nobody checked this" as "this was checked". The orchestrator instead assigns an explicit disposition:
+
+- `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "verifier did not run — spawn failed after retry"`, `Recommended-action` mirroring the finding's original Decision Type.
+- The finding stays kept — fail-open, mirroring the Phase 1.5 mechanical pre-pass and Phase 4.3 test-gate doctrine: a tooling failure never deletes a finding the reviewers already paid for.
+- It is excluded from any PR post set and surfaced under `## Caveats`: "N findings could not be independently verified — the verifier agent failed to run; they are kept in the report but will not be posted to the PR."
+- Write a state.md `## Errors` entry via `atomic_state_write`: `phase: stratify`, `error: verifier-spawn-failed`, plus the affected finding IDs.
+
+Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for verify-finding spawns — the orchestrator holds the full reviewer bundle, which is exactly the anchoring context the §2 isolation contract forbids, so an inline self-check would be an anchored confirmation, not a verification. `unverified` states the truth instead: this finding was never independently checked.
+
+`unverified` is orchestrator-assigned only — a verifier agent never emits it. Consumer-side semantics (legal `m6-v2` value; kept, not postable, one-line warning) live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`.
+
+---
+
 ## 5. Result aggregation and demotion rules
 
 After all verifiers return, the orchestrator processes results:
@@ -148,7 +165,7 @@ After all verifiers return, the orchestrator processes results:
 | "Verifier confidence:1 — silently demote severity to MEDIUM instead of refuting." | `confidence: 1` with no contradicting evidence means the verifier is uncertain; emit `validation: clarified, confidence: 1` and let the orchestrator decide. Silently demoting severity hides the uncertainty from the consumer. |
 | "All §4.1 survivors verified takes too many spawns — sample top-N instead." | The verifier explicitly drops tier-scaling AND severity-scaling. Parallel-spawn invariant: wall-time is ~max(spawn-time) regardless of N. Token cost is bounded by the §4.1 multi-signal gate, which is already tight (MEDIUM requires Evidence-Block + ≥60 confidence). If finding count is high, that signals tightening Phase 4.1, not under-verifying. Sampling reintroduces the failure mode the empirical-reproduction pass exists to eliminate. |
 | "CRITICAL findings are reliable by definition — skip verification for CRITICALs." | CRITICALs can be admitted under §4.1 signals #1 (convergence) / #3 (criteria pre-resolved) / #4 (confidence ≥80) without an explicit Evidence-Block — a convergent CRITICAL with weak quoting is exactly the case empirical reproduction catches. Skipping verification for CRITICALs because they "look right" is sycophancy at maximum stake: a confirmed-without-evidence CRITICAL lands on the PR, gates `/geniro:implement` Phase 1, and surfaces to the user as load-bearing. Verify every survivor. |
-| "MEDIUM verification is overkill — these are paper cuts." | MEDIUMs that survive §4.1 carry an Evidence-Block per signal #2 (mandatory for MEDIUM) — they cite a concrete code slice (code-anchored) or a verbatim plan/PR fragment (sentinel `File`) worth re-reading. The risk is the opposite of overkill: an unverified MEDIUM with `validation: refuted` (had the verifier run) propagates to `## Filtered` would-be entries on the PR. The verifier is the mechanism that distinguishes "the reviewer misread the code" from "the defect is real" at MEDIUM stake. Don't pre-judge which severities deserve grounding — let the verifier ground them. |
+| "MEDIUM verification is overkill — these are paper cuts." | MEDIUMs that survive §4.1 carry an Evidence-Block per signal #2 (mandatory for MEDIUM) — they cite a concrete code slice (code-anchored) or a verbatim plan/PR fragment (sentinel `File`) worth re-reading. The risk is the opposite of overkill: a MEDIUM that skips verification — but that the verifier would have refuted had it run — lands on the PR as exactly the false positive `## Filtered` exists to hold back. The verifier is the mechanism that distinguishes "the reviewer misread the code" from "the defect is real" at MEDIUM stake. Don't pre-judge which severities deserve grounding — let the verifier ground them. |
 | "The finding's `suggested-fix:` reads sensible — confirm without re-reading code." | The suggested-fix being sensible is independent of whether the defect exists. Verification reads the cited code AND the caller grep; the suggested-fix is not evidence of the defect. |
 | "The finding says 'confirm both migrations ship together' — that's the author's call, I'll pass it through." | If "ship together" means "both are in this PR's diff", that's checkable: read the changed-file list (§3.5). Resolve it and state the fact via `validation: clarified`. Only the part that isn't in git — did it deploy to an environment independently? — stays as a note. Leaving a checkable "confirm X" in a posted finding offloads your job onto the reader. |
 | "The cited pattern is real, so confirm it." | Existence is not actionability (§3.6). Ask: with the gating flag / gate / role in its CURRENT production state, does this change produce a different outcome than before the PR? If the path is unreachable or the value equals pre-PR, it is noise — refute it (`not-actionable`). A real-but-unreachable finding posted to the PR is the false positive this bar exists to kill. |

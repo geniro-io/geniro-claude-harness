@@ -32,10 +32,11 @@ Recall dedup runs BEFORE the §4.2 critics, so a duplicated approach never consu
 
 ## 3. Precision — Phase 4 feasibility critics (3× + majority)
 
-Standard §4.2 spawns tier-scaled critics (Trivial skip / Medium 1 comparative / Big 1-per-approach), and a single `blocking` verdict demotes an approach. Deep mode overrides the tier-scaling: **every candidate approach gets 3 independent `codebase-research-agent` critics**, and the feasibility verdict is by majority:
+Standard §4.2 spawns tier-scaled critics (Trivial skip / Medium 1 comparative / Big 1-per-approach), and a single verified `blocking` verdict demotes an approach. Deep mode overrides the tier-scaling: **every candidate approach gets 3 independent `codebase-research-agent` critics**, and the feasibility verdict is by majority:
 
 - Each critic independently stress-tests its assigned approach against the codebase (the same `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` as standard §4.2), returning per-approach risks classified `blocking | major | minor`.
 - An approach is demoted from `Recommended`-eligible only when **≥2 of its 3 critics** return a `blocking` risk — a lone blocking call no longer demotes (it may be a hallucinated blocker); record it as a `major` caveat instead.
+- Apply the standard §4.2 evidence bar per vote before tallying: a `blocking` vote without a verifying `file:line` citation counts as `major` and does not count toward the ≥2-blocking threshold; a no-risks vote without its `Checked:` line abstains.
 - If ≥2 critics flag blocking on EVERY candidate, loop back to Phase 3 with a tighter scope question (the standard all-blocked rule, now majority-gated).
 - Parse-fail = abstain; quorum < 2 → one fresh single-pass critic for that approach (deep-mode.md §5).
 

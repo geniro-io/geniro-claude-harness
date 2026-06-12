@@ -10,6 +10,24 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### `Validation:` enum on m6-v2 review handoffs gains `unverified`
+
+The per-finding `Validation:` field in `.geniro/state/handoff/from-review-<branch>.md` admits a fourth value, `unverified` — orchestrator-assigned when the Phase 4.2 per-finding verifier fails to spawn after retry (never agent-emitted). The finding stays in the report (fail-open), is excluded from the PR post set, and is surfaced under `## Caveats`. A pre-update consumer reading a post-update handoff treats `unverified` as a value outside its three-value enum at the Pre-Post guard and aborts the post — fail-loud, no silent corruption.
+
+**Action required:** None for current installs. If a PR post aborts on an unexpected `Validation:` value, the consuming session is running an older plugin version — update it (or re-run `/geniro:review` after resolving the failed verifier spawn) and retry.
+
+**Auto-detect:**
+
+```bash
+grep -l "Validation: unverified" .geniro/state/handoff/from-review-*.md 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — update the plugin in the consuming session, or re-run `/geniro:review` to regenerate the handoff once verifier spawns succeed.
+
+**Severity:** LOW — cross-version skew only; the Pre-Post guard fails loud at the posting boundary.
+
+---
+
 ### State-helper enforcement now hard-blocks direct writes to `.geniro/` state paths (incl. Bash-side)
 
 `hooks/enforce-state-helper.sh` flips from warn-mode to hard-block, and now also covers the `Bash` tool. Direct `Edit`/`Write`/`MultiEdit` to a canonical state path under `.geniro/` (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`) is blocked (exit 2), as are Bash-side writes into the same paths (redirection `>`/`>>`, `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=`). Reads stay allowed, commands invoking the sanctioned helpers (`atomic_state_write` / `atomic_state_append`) are allowed, and paths under `.geniro/state/tdd/` are exempt (the TDD-order hook writes that file via its own mktemp + mv procedure). The prior warn-mode let a consumer session ignore 42 warnings in one run; the block makes the contract enforceable.
@@ -135,7 +153,7 @@ fi
 
 ### `/review` handoff per-finding body gains verification fields (schema m6-v1 → m6-v2)
 
-`/geniro:review` Phase 4.2 was rewritten to spawn one fresh `reviewer-agent` per HIGH-severity finding (no tier-scaling — ALL HIGHs verified). Each verifier emits `Validation: confirmed | refuted | clarified`, `Recommended-action`, `Verification-confidence` (0-100), and `Verification-evidence` (literal file:line quote). These 4 fields persist into the T2 handoff per-finding body schema. The `geniro_schema_version` field in `.geniro/state/handoff/from-review-<branch>.md` bumps from `m6-v1` to `m6-v2`; downstream consumers (Phase 6 §7.0 fail-closed guard, /implement Phase 1 Step 12) accept both. Legacy `m6-v1` handoffs read by an `m6-v2` consumer treat the 4 missing fields on HIGH findings as `Validation: confirmed + warn` (mirrors the `step0_status: pending` back-compat pattern).
+`/geniro:review` Phase 4.2 was rewritten to spawn one fresh `reviewer-agent` per HIGH-severity finding (no tier-scaling — ALL HIGHs verified). Each verifier emits `Validation: confirmed | refuted | clarified`, `Recommended-action`, `Verification-confidence` (1-5 coarse scale), and `Verification-evidence` (literal file:line quote). (A fourth `Validation:` value, `unverified`, was added later — orchestrator-assigned when the verifier failed to spawn, never agent-emitted; see the dedicated entry above.) These 4 fields persist into the T2 handoff per-finding body schema. The `geniro_schema_version` field in `.geniro/state/handoff/from-review-<branch>.md` bumps from `m6-v1` to `m6-v2`; downstream consumers (Phase 6 §7.0 fail-closed guard, /implement Phase 1 Step 12) accept both. Legacy `m6-v1` handoffs read by an `m6-v2` consumer treat the 4 missing fields on HIGH findings as `Validation: confirmed + warn` (mirrors the `step0_status: pending` back-compat pattern).
 
 A new `regressions` reviewer dimension is added as the 8th always-fire dim (between `conventions` and the conditional dims). Catches unintended deletes + behavior changes outside stated intent. Spec.md / PR body / commit messages serve as intent source; when absent, behavior-mutating hunks emit INTENT-CHECK findings for the user to confirm at the §3 Step 0 gate.
 

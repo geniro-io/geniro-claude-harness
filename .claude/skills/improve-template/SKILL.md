@@ -136,21 +136,21 @@ Agent(prompt="""
 Read `ARCHITECTURE.md` and search for sections relevant to:
 {{issue description from Step 1}}
 
-This is a 354KB best-practices guide covering 14 production frameworks.
+This is a ~220-line consolidated decision record — one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules). Each section lists key rulings as bullets with file-path citations.
 Search strategy:
-1. Grep for keywords related to the issue
-2. Read the Table of Contents (first 60 lines) to identify relevant sections
-3. Read each relevant section fully
-4. Extract specific recommendations, patterns, and anti-patterns
+1. Read the file fully — it is short; no grep or ToC sampling needed
+2. Extract every decision, invariant, or operational rule that constrains or informs the issue
+3. When a decision cites a `_shared/` helper or skill file, read that target for the full contract
+4. If survey-depth evidence is needed (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is available via `git show 3bb0857~1:report.md` — it was removed from the working tree when the docs were consolidated
 
 For each finding, provide:
-- Section name and line range in ARCHITECTURE.md
-- The specific recommendation or pattern
+- Section name and line range in ARCHITECTURE.md (or the cited helper file)
+- The specific decision or rule
 - How it applies to our issue
 - Whether our template already follows it or not
 
 Return findings as a structured table. Do NOT suggest implementation — research only.
-""", description="Research: ARCHITECTURE.md patterns")
+""", description="Research: ARCHITECTURE.md decisions")
 
 Agent(prompt="""
 ## Task: Codebase Exploration
@@ -201,7 +201,7 @@ For each finding, assess yourself:
 
 **Evidence quality:**
 - **Strong:** documented in official Claude Code docs, proven in production framework, or demonstrated by screenshot/error
-- **Moderate:** pattern used by 2+ frameworks in ARCHITECTURE.md, or logical extension of documented behavior
+- **Moderate:** backed by a recorded decision in ARCHITECTURE.md, used by 2+ frameworks in the historical survey (`git show 3bb0857~1:report.md`), or a logical extension of documented behavior
 - **Weak:** single blog post, theoretical benefit, "should work" reasoning
 - **Rejected:** no evidence, contradicts known limitations, or speculative
 

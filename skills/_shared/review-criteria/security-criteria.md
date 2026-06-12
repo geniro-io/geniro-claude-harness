@@ -1,6 +1,6 @@
 # Security Review Criteria
 
-OWASP-aligned security analysis: injection attacks, authentication/authorization, secrets management, crypto, input validation, and data exposure.
+OWASP-aligned security analysis: injection attacks, authentication/authorization, secrets management, crypto, input validation, data exposure, and cross-boundary composition / abuse cases.
 
 ## Contents
 
@@ -225,6 +225,46 @@ git diff -- '*.eslintrc*' '.semgrepignore' '.gitleaksignore' '.bandit' '.rubocop
 
 Emit HIGH severity by default. When the suppression carries a documented justification with a linked tracker issue AND the suppressed rule is narrow (single rule, single line), demote to MEDIUM.
 
+### 10. Composition & Abuse Cases
+
+This check covers failures that exist only when changed code COMPOSES with its surroundings or is misused by a hostile-but-authenticated user. Single-hunk vulnerability-class hits (injection, authn/authz bypass, secrets, crypto, validation) belong to §1-§9 above; deterministic unit-level edge cases (null, boundary, type coercion) belong to `bugs-criteria.md`. Anything reproducible as a failing test should carry `[TESTABLE]` so the test-confirmation gate can pick it up.
+
+**Cross-boundary composition.** Module A's output reaches module B as input that violates B's precondition — e.g., a changed sanitizer now emits a format an unchanged consumer assumed it never would.
+
+For each changed symbol whose output crosses a module boundary:
+
+1. Grep the working tree (read-only) for its 1-hop consumers: `Grep(pattern="\\bSymbolName\\b", output_mode="files_with_matches", glob="<project-language-glob>")`.
+2. For each consumer, read the input assumption at the call site — the validation it performs or skips, the format it parses, the invariant its logic relies on.
+3. Emit only when the changed output can concretely violate that assumption — cite both the producer change and the consumer assumption `path:line`.
+
+**Example trigger.** Diff changes `sanitizeFilename()` at `src/upload/sanitize.ts:31` to allow Unicode; unchanged consumer `buildStoragePath()` at `src/storage/path.ts:58` concatenates the result into a shell command, assuming the old ASCII-only contract. Emit: composed injection across the changed/unchanged boundary.
+
+**Example skip.** Diff changes a sanitizer's output format; the only consumer re-validates with its own allowlist before use (grep confirms the guard line). The consumer's precondition holds independently of the producer — no finding.
+
+**Cascade construction.** A multi-step failure chain where each link is individually defensible but the composed chain produces a security outcome. Emit only when EVERY link is cited `file:line` and reachable under current configuration (flags, gates, roles) — a chain with even one unverified link is not a finding; it is speculation the per-finding verifier will refute.
+
+**Example trigger.** Link 1: a new debug endpoint echoes request headers (`src/api/debug.ts:14`, mounted unconditionally). Link 2: the proxy config forwards the internal auth header (`config/proxy.ts:9`). Link 3: that header carries a session-scoped token (`src/auth/middleware.ts:44`). All three links cited and live under current config → token-disclosure chain, emit.
+
+**Example skip.** Same chain, but link 1's endpoint is mounted only when `NODE_ENV !== 'production'` — the chain is unreachable under production config. Do not emit the cascade; if the gating itself is fragile, that is a §7 configuration finding, not a chain.
+
+**Abuse cases.** Feature misuse by an authenticated user acting WITHIN their granted permissions — quota or resource exhaustion through a legitimate endpoint, workflow-order abuse (calling steps out of sequence to skip a charge or a check), privilege-adjacent feature combinations. Distinct from §2 above, which covers permission BYPASS; here the permissions hold and the harm comes from how the feature is used.
+
+For each new or changed user-facing capability, ask what a hostile user with valid credentials gains by calling it repeatedly, out of order, or in combination with their other granted capabilities — then check whether a limit, ordering guard, or invariant blocks that gain.
+
+**Example trigger.** Diff adds a "duplicate project" endpoint with no rate or count limit (`src/api/project.ts:88`); duplication copies attached storage. An authenticated free-tier user can exhaust storage cost-free by looping the call. Emit `[TESTABLE]`: a test can loop the endpoint and assert quota enforcement.
+
+**Example skip.** The same endpoint sits behind the platform's per-user rate limiter (grep confirms the middleware on the route) and duplication counts against the existing storage-quota check. The abuse path is already bounded — no finding.
+
+**Severity.** Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1 — this check only tightens them, never loosens:
+
+- CRITICAL only when the composed chain itself lands in the severity-calibration.md §1 inclusion list (concrete exploit path, data loss) — never for chain plausibility alone.
+- HIGH requires every link cited `file:line` AND reachable under current configuration.
+- MEDIUM requires the Evidence-Block as usual.
+
+Every finding must cite the full reachable path — entry point → trigger → outcome delta — so it pre-aligns with the per-finding verifier's actionability bar instead of feeding it refutation work.
+
+**Volume guard.** Prefer depth over breadth: a handful of composition findings per run, highest-severity chains first. An exhaustive list of speculative chains is the over-flagging failure the admission gate then has to absorb.
+
 ## Output Format
 
 Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
@@ -255,6 +295,11 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - Check if using framework-provided security mechanisms
 - Don't flag if using framework's recommended patterns
 
+7. **Composition routing** — Not every composed-looking failure belongs in §10
+- Deterministically test-reproducible edge case (null/boundary/coercion) → route to the bugs/tests dimensions
+- Classic single-hunk vulnerability-class hit → the matching section in §1-§9
+- Chain with any unverified link → not emitted at all; an uncited link is speculation, not evidence
+
 ## Stack-Agnostic Patterns
 
 Works across languages/frameworks:
@@ -279,6 +324,7 @@ Works across languages/frameworks:
 - [ ] Dependencies checked for vulnerabilities
 - [ ] No debug/development code in production
 - [ ] Suppression directives (`# noqa`, `# nosec`, eslint-disable, config-level rule off) carry inline justification and do not hide unrelated active risk
+- [ ] Composed findings (changed output → unchanged consumer, cascade chains, authenticated abuse) cite every link `file:line` and are reachable under current configuration
 
 ## Severity Guidelines
 

@@ -1,6 +1,6 @@
 # TDD Mode Reference
 
-TDD mode is an opt-in variant of `/geniro:review` that is **purely additive**. It runs the full Standard review — every kept finding is reported and posted exactly as in Standard mode — and, on top of that, auto-authors failing tests for the findings a test can reproduce (Phase 4.3), tags those findings `[CONFIRMED-BY-TEST]` with a `**Failing test:** <path>` line, and offers to commit + push the authored tests to the reviewed branch. TDD never removes a finding from the report or the PR post set; it only adds test evidence. It does NOT change the Phase 4.3 safety invariant — the skill MUST `AskUserQuestion` before spawning `adversarial-tester-agent` in every mode. Mode flips defaults, never gates.
+TDD mode is an opt-in variant of `/geniro:review` that is **purely additive**. It runs the full Standard review — every kept finding is reported, and the post set matches Standard mode exactly (including the same §7.1 exclusions) — and, on top of that, auto-authors failing tests for the findings a test can reproduce (Phase 4.3), tags those findings `[CONFIRMED-BY-TEST]` with a `**Failing test:** <path>` line, and offers to commit + push the authored tests to the reviewed branch. TDD never removes a finding from the report or the PR post set; it only adds test evidence. It does NOT change the Phase 4.3 safety invariant — the skill MUST `AskUserQuestion` before spawning `adversarial-tester-agent` in every mode. Mode flips defaults, never gates.
 
 **Cycle procedure body lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`** (single source of truth for RED → GREEN → REFACTOR, the state-file contract, and the PreToolUse hook enforcement). This file's scope is the review-specific framing — which findings are eligible for failing-test authoring and the edge cases. When `adversarial-tester-agent` authors a failing test for a seeded finding (Phase 4.3 Step 3), the test-authoring procedure follows the canonical cycle in tdd-cycle.md — this file does NOT re-state the RED/GREEN/REFACTOR steps.
 
@@ -8,7 +8,7 @@ TDD mode is an opt-in variant of `/geniro:review` that is **purely additive**. I
 
 | Behavior | Standard mode | TDD mode |
 |---|---|---|
-| Posted findings set | All kept findings | All kept findings — identical; TDD does not filter the post set |
+| Posted findings set | All kept findings (minus the §7.1 exclusions) | Identical — same kept set, same §7.1 exclusions; TDD does not filter the post set |
 | Phase 4.3 gate fires | Always when eligible findings exist | Always when eligible findings exist (gate is non-negotiable) |
 | Phase 4.3 "Author tests for all eligible findings" option | Unmarked | Marked `(Recommended)` |
 | `**Failing test:** <path>` body line on a finding | Only if a test was authored + confirmed | Same — appended to every `[CONFIRMED-BY-TEST]` finding |
@@ -54,6 +54,6 @@ Pushing the authored tests to the reviewed branch is the one sanctioned write `/
 | Your reasoning | Why it's wrong |
 |---|---|
 | "TDD mode is on, the user obviously wants tests authored — skip the Phase 4.3 AUQ this time" | Mode flips the Recommended highlight, not the gate. The Phase 4.3 invariant ("the skill MUST NEVER spawn the agent without explicit user approval") is non-negotiable in every mode. The two-step gate (skill asks, then on YES spawn) is the only rationalization-resistant variant. |
-| "TDD mode means I should drop the un-testable findings from the PR" | TDD is additive — it never removes a finding. Every kept finding posts in both modes; TDD only appends test evidence to the ones a test reproduced. Filtering the post set was the old reductive behavior this mode no longer has. |
+| "TDD mode means I should drop the un-testable findings from the PR" | TDD is additive — it never removes a finding. The post set is identical in both modes (same §7.1 exclusions); TDD only appends test evidence to the ones a test reproduced. Filtering the post set was the old reductive behavior this mode no longer has. |
 | "TDD mode is on, the user obviously wants tests committed and pushed — skip the Phase 6 'Failing tests' AUQ" | `git push` is an external write to a public surface. The push is gated by the explicit "Commit + push" pick; TDD only flips that option's Recommended suffix, never the gate. Only authored TEST files push — never a fix. |
 | "TDD mode is just a shortcut for 'always run Phase 4.3 on all findings' — drop the AUQ entirely when `mode: tdd`" | The Phase 4.3 "Pick" branch is still meaningful in TDD mode (the user may want to test a subset, e.g., only CRITICAL findings). Mode flips the Recommended option; it does not collapse the option set. |
