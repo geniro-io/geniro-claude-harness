@@ -55,6 +55,16 @@
             "statusMessage": "Checking for linter/formatter config weakening..."
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-gate-render.sh",
+            "statusMessage": "Checking the question has its context message..."
+          }
+        ]
       }
     ],
     "Stop": [

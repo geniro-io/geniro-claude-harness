@@ -10,6 +10,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### New gate-render guard hard-blocks blind decision questions
+
+`hooks/enforce-gate-render.sh` is a new PreToolUse hard-block (exit 2) on the `AskUserQuestion` tool. A decision question that references content "above" (in the question text, option labels, or option descriptions) while the current turn contains no visible assistant message is blocked — the user would be answering blind, violating the message-first gate contract (`skills/_shared/gate-rendering.md`). A block is NOT a user denial: the stderr message instructs the model to write the full gate render as an ordinary chat message and then re-ask the same question. The hook reverse-scans the transcript back to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race) and fails open on missing jq (loud), missing transcript, cap overflow, or a garbage transcript.
+
+**Action required:** None for typical installs — questions preceded by their context message pass untouched. If a workflow legitimately fires bare "above"-referencing questions, add `gate-render` to `.geniro/safety.json` `allow_patterns`.
+
+**Auto-detect:** N/A — only reveals itself when a blocked question occurs (fail-loud); the hook output prints the exact bypass ID to add.
+
+**Auto-fix:** Manual-only — render the gate message before re-asking, or add `gate-render` to `.geniro/safety.json` `allow_patterns` to opt out.
+
+**Severity:** LOW — fail-loud with a recovery directive; the model re-renders and re-asks, and no data loss is possible.
+
+---
+
 ### `Validation:` enum on m6-v2 review handoffs gains `unverified`
 
 The per-finding `Validation:` field in `.geniro/state/handoff/from-review-<branch>.md` admits a fourth value, `unverified` — orchestrator-assigned when the Phase 4.2 per-finding verifier fails to spawn after retry (never agent-emitted). The finding stays in the report (fail-open), is excluded from the PR post set, and is surfaced under `## Caveats`. A pre-update consumer reading a post-update handoff treats `unverified` as a value outside its three-value enum at the Pre-Post guard and aborts the post — fail-loud, no silent corruption.

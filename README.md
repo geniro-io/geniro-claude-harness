@@ -247,7 +247,10 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions trio + CLAUDE.md so context survives compaction |
 | **Evidence-on-completion** | `Stop` hook (warn-only) — scans last assistant message for completion phrases that lack an Evidence Block |
 | **TDD-order enforcement** | PreToolUse `Edit\|Write` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files |
-| **State-helper enforcement** | PreToolUse warn-mode — surfaces when a direct `Edit`/`Write` targets a canonical state path; suggests `atomic_state_write` |
+| **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
+| **Security pattern scan** | PreToolUse `Edit\|Write` (hard-block) — regex scan of edit content for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
+| **Config-weakening guard** | PreToolUse `Edit\|Write` (hard-block) — blocks edits to an existing linter/formatter/type-checker config (eslint, prettier, biome, ruff, tsconfig, golangci); first-time creation stays allowed |
+| **Gate-render enforcement** | PreToolUse `AskUserQuestion` (hard-block) — blocks a decision question that references content "above" when no visible message precedes it in the turn, so approval gates can't fire blind |
 
 ## Updating
 

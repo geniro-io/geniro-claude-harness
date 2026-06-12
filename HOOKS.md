@@ -15,7 +15,7 @@ The status messages set on each `hooks.json` entry (e.g. `"Checking for destruct
 
 ## Hook scripts
 
-The plugin ships 9 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 11 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
@@ -23,8 +23,10 @@ The plugin ships 9 safety / lifecycle hooks, 1 sourced utility library, and 2 No
 | [`block-dangerous-git.sh`](hooks/block-dangerous-git.sh) | PreToolUse `Bash` | exit 2 = block | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
 | [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
 | [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
-| [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write` | warn-mode (block in a future release) | Warns on direct Edit/Write to canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`; suggests `atomic_state_write` / `atomic_state_append` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
+| [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write\|MultiEdit` AND `Bash` | exit 2 = block | Blocks direct writes to canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`. The Bash branch catches shell-side writes into the same paths — redirection (`>`, `>>`, `>\|`), `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=` (reads stay allowed); commands invoking `atomic_state_write` / `atomic_state_append` pass. Suggests the helpers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
+| [`enforce-gate-render.sh`](hooks/enforce-gate-render.sh) | PreToolUse `AskUserQuestion` | exit 2 = block | Blocks a gate question that references content "above" when the current turn contains no visible assistant message — the user would be answering blind. Reverse-scans the transcript to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race); fails open on missing jq (loud), missing transcript, cap overflow, or garbage transcript. A block is NOT a user denial — stderr instructs render-then-re-ask (bypass: `gate-render`) |
 | [`security-pattern-check.sh`](hooks/security-pattern-check.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Cheap regex scan for high-signal security anti-patterns in file content (eval/exec, pickle, yaml.load, shell=True, curl\|sh, TLS bypass, XSS sinks, weak crypto). Per-pattern bypass: `sec-eval-exec`, `sec-pickle`, `sec-yaml-unsafe`, `sec-shell-injection`, `sec-curl-pipe-sh`, `sec-tls-bypass`, `sec-xss-sink`, `sec-weak-crypto`. Scope-limited to applicable file extensions per pattern. Logic-level issues (authz bypass, IDOR, race conditions) are not regex-detectable and require `/geniro:review`. |
+| [`block-config-weakening.sh`](hooks/block-config-weakening.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to an EXISTING linter/formatter/type-checker config file (eslint, prettier, biome, ruff, tsconfig, golangci) — editing an established config to silence a check hides the underlying issue instead of fixing the source. First-time creation of such a config is allowed; backup/disabled copies (`*.bak`, `*.old`, ...) stay editable. Bypass: `config-weakening`. |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); skips state.md candidates already in a terminal `phase:`/`status:` during resolution, so a finished task is never surfaced as resumable AND cannot shadow an in-flight task on the same branch in a later resolution tier; pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Also runs L2 auto-archive. Read-only on state.md; the only writes are `learnings.jsonl` (auto-archive flip) + `.archive-stale.{hash,lock}`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
@@ -107,13 +109,56 @@ Each pattern is scoped to applicable file extensions — Python's `pickle.loads`
 
 **What this hook does NOT catch:** logic-level vulnerabilities (authorization bypass, IDOR, race conditions, mass assignment, JWT `alg: none`, business-logic flaws). Regex cannot see semantics. Run `/geniro:review` for the LLM-driven review that catches those.
 
+### block-config-weakening.sh
+
+**Event:** PreToolUse `Edit|Write`. **Stdin:** `jq -r '.tool_input.file_path // .tool_input.notebook_path // ""'`. **Block exit:** `exit 2`.
+
+Blocks edits to an EXISTING linter / formatter / type-checker config file. Editing an established config to silence a check (disable a rule, loosen `tsconfig` strictness, add an ignore entry) hides the underlying issue instead of fixing the source. First-time creation of such a config is allowed — only edits to a file already on disk are blocked.
+
+**Matched config files** (by basename):
+
+- ESLint: `.eslintrc`, `.eslintrc.*`, `eslint.config.*`
+- Prettier: `.prettierrc`, `.prettierrc.*`, `prettier.config.*`
+- Biome: `biome.json`, `biome.jsonc`
+- Ruff: `ruff.toml`, `.ruff.toml`
+- TypeScript: `tsconfig.json`, `tsconfig.*.json`
+- golangci-lint: `.golangci.yml`, `.golangci.yaml`, `.golangci.toml`
+
+Backup / disabled copies (`*.bak`, `*.disabled`, `*.old`, `*.orig`, `*.save`, `*~`) are never the live config and stay editable.
+
+**Scope is deliberately file-tool-only:** a shell-side weakening (`sed -i` on `tsconfig.json`, `>> .eslintignore`) is NOT caught here — detecting "this shell write weakens a config" from a command string is coarse and false-positive-prone, so that surface is left to `/geniro:review` (which reads the resulting diff against the rules). Same posture as `security-pattern-check` and `enforce-tdd-order`.
+
+**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `config-weakening` skips the guard (e.g. the project legitimately needs to tune an established eslint/tsconfig/ruff/biome/golangci config). Fails open loudly (emits a `systemMessage`) if jq is missing.
+
 ### enforce-state-helper.sh
 
-**Event:** PreToolUse `Edit|Write`. **Block exit:** warn-mode initially; flips to exit-2 hard-block in a future release.
+**Event:** PreToolUse `Edit|Write|MultiEdit` AND `Bash` (registered under both matchers in `hooks.json`; the script branches on `tool_name`). **Block exit:** `exit 2`.
 
-Detects direct `Edit` / `Write` calls against canonical state paths and suggests routing through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (`atomic_state_write` for plain files, `atomic_state_append` for JSONL). Protected prefixes: `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`.
+Blocks direct `Edit` / `Write` / `MultiEdit` calls against canonical state paths and suggests routing through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (`atomic_state_write` for plain files, `atomic_state_append` for JSONL) — direct calls truncate-and-rewrite, so a reader during the window sees a partial file. Protected prefixes: `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/` (plus `.geniro/.geniro-state.json`).
 
-**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `enforce-state-helper` skips the warning (and the future hard-block).
+**Bash branch:** extracts write targets the file-tool matcher never sees — redirection targets (`>`, `>>`, `>|`), `tee` arguments, file arguments of an in-place `sed -i` span, `cp`/`mv` destinations (a `cp`/`mv` whose SOURCE is already under `.geniro/` is a housekeeping rename/copy of helper-written content and stays allowed), and `dd of=` targets — then runs the same path check against each (reads stay allowed). Heredoc bodies and quoted string literals are scrubbed first (they are data, not writes). Commands invoking the sanctioned helpers (`atomic_state_write` / `atomic_state_append`) pass — they write via their own mktemp + mv.
+
+**Exemptions:** `.geniro/state/tdd/` (the TDD-order hook's state file is a documented exception written via its own mktemp + mv procedure, per `skills/_shared/tdd-cycle.md` §State file contract), coordination locks (`*.lock`), the fingerprint JSON, atomic-write temp files, editor swap/backup files, and deterministically-transient T1 subagent outputs (`.kr-out.md` and siblings, `.research-<facet>.md`, `notes.md`, `playwright-verify.png`). A write under `.geniro/state/` that matches no canonical layout (`state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, `state/handoff/from-<producer>-<branch>.md`, `state/tdd/state-<slug>.md`) gets an extra hint — ad-hoc files there are invisible to the validator and session-restore.
+
+**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `enforce-state-helper` skips the block. Fails open loudly (emits a `systemMessage`) if jq is missing.
+
+### enforce-gate-render.sh
+
+**Event:** PreToolUse `AskUserQuestion`. **Stdin:** `.tool_input.questions[]` (question text, option labels, option descriptions) and `.transcript_path`. **Block exit:** `exit 2`.
+
+Mechanical backstop for the message-first gate contract (`skills/_shared/gate-rendering.md`): a decision question that points at content "above" must be preceded by a visible assistant message in the current turn, or the user is answering blind. Prompt-level render guards leak under drift; this hook enforces the contract at the tool boundary.
+
+**Trigger:** the standalone word "above" — case-insensitive and word-bounded, so "abovementioned" does not match — anywhere across every question's text, option labels, and option descriptions, combined with no visible assistant text in the current turn.
+
+**Turn detection:** reverse-scans the transcript JSONL (newest first) back to the last real user message. An assistant record with non-whitespace text (string content, or a content array with a non-whitespace text block) is a render → allow. A user record with non-whitespace text (same two shapes) marks the start of turn with no render found → block. User records that are only tool_result blocks are mid-turn tool feedback and are scanned past, as are system / summary / progress / malformed lines. The scan caps at 2000 records.
+
+**Lazy-flush retry:** the harness writes transcript lines with a lazy flush (~100ms), so the in-flight turn's text block may not be on disk yet. Before blocking, the hook sleeps 0.4s and re-scans once; only a second no-render verdict blocks.
+
+**Fail-open cases:** missing jq (loud — emits a `systemMessage` telling the user the guard is NOT running), missing or unreadable `transcript_path`, scan-cap overflow with no decision, garbage transcript (bad lines are skipped via `fromjson?` and never kill the stream).
+
+**A block is NOT a user denial:** the stderr message tells the model this is an automated plugin guard — do not stop, do not treat the question as answered. Recovery: write the full gate render as an ordinary chat message, then call AskUserQuestion again with the same options.
+
+**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `gate-render` skips the guard.
 
 ### geniro-check-update.js
 
