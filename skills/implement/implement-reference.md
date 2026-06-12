@@ -358,9 +358,9 @@ else:
 1. Do NOT silently push or claim completion.
 2. **Render the unresolved findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — a separate, already-emitted chat message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 unresolved findings, open the message with the decision-queue progress tracker (`✔` decided · `●` deciding now · `○` ahead — one stop per finding with a short plain-English tag). Each finding gets the visual-form block: the `### 🧭 Decision needed:` title, the `**In one sentence:**` opener, a conversational lead expanding what the code does and what the concern is, `**Why it matters:**` with its evidence cite, and a visual per the same contract's §Finding-type visual map. The per-dimension findings summary lives in this render — never inside the question.
 3. Then fire the lean `AskUserQuestion` (header: `"Resolve findings"`) with these options:
-   - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). Caller resumes via `/geniro:debug` using state.md as a T2 handoff.
+   - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal; run §Cleanup's transient cleanup first). Caller resumes via `/geniro:debug` using state.md as a T2 handoff.
    - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
-   - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
+   - **C) Abort** — state.md transitions to `phase: aborted` (terminal; run §Cleanup's transient cleanup first). Work uncommitted on disk for manual takeover.
 
    The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Single-finding gate — apply that section; don't restate it here.
 4. State.md records `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
@@ -393,7 +393,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 8. **Cleanup.** If step 1 spawned a dev server (PID recorded), send `kill -TERM <pid>`; if still alive after 3s, escalate with `kill -KILL <pid>`. NEVER kill servers the user had running before verification — only clean up what this step spawned.
 
-**Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, render them to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — the issue list as a mini-table (risk · symptom you'd see · severity, the risk-finding shape from the same contract's §Finding-type visual map), each issue described in plain English with the screenshot it appears in referenced by path — then fire the lean `AskUserQuestion` with options: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal).
+**Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, render them to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — the issue list as a mini-table (risk · symptom you'd see · severity, the risk-finding shape from the same contract's §Finding-type visual map), each issue described in plain English with the screenshot it appears in referenced by path — then fire the lean `AskUserQuestion` with options: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal; run §Cleanup's transient cleanup first).
 
 ---
 
@@ -413,7 +413,7 @@ Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a c
 
 The user can always type a custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back to ship-mode AUQ.
-- **"Don't push"** (via Other; semantically equivalent to the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses step 3's push, not the upstream commit.
+- **"Don't push"** (via Other; semantically equivalent to the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal; run §Cleanup's transient cleanup first). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses step 3's push, not the upstream commit.
 
 **Approvals-persistence protocol (step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /geniro:review or /geniro:debug handoff (re-resolve per Step 3's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
@@ -443,11 +443,11 @@ emit_rejection_if_signal \
 
 | Modifier in $ARGUMENTS | Effect |
 |---|---|
-| "don't push" / "no push" / "commit only" | Commit succeeds, no push. State.md → `phase: ship-committed-only` (terminal). Skip ship-mode AUQ. |
+| "don't push" / "no push" / "commit only" | Commit succeeds, no push. State.md → `phase: ship-committed-only` (terminal; run §Cleanup's transient cleanup first). Skip ship-mode AUQ. |
 | "draft only" / "draft PR" / "open draft" | Push + `gh pr create --draft`. State.md → `phase: done`. Skip ship-mode AUQ. |
 | "ready PR" / "ready-for-review" / "non-draft PR" | Push + `gh pr create` (ready-for-review). State.md → `phase: done`. Skip ship-mode AUQ. |
 | "open PR" / "create PR" / "with PR" (no `draft` or `ready` qualifier) | Does NOT skip the AUQ and does NOT silently pick ready-for-review. Fires the ship-mode AUQ so the recommended draft default is surfaced — a bare "open PR" intent is ambiguous between draft and ready, so it routes through the gate rather than defaulting to the visible ready-for-review path. |
-| "stop after review" | Exit Phase 3 BEFORE commit. Surface clean review status as the deliverable. State.md → `phase: self-review-only` (terminal). |
+| "stop after review" | Exit Phase 3 BEFORE commit. Surface clean review status as the deliverable. State.md → `phase: self-review-only` (terminal; run §Cleanup's transient cleanup first). |
 
 ---
 
@@ -520,20 +520,24 @@ Treat each bullet as an imperative to execute in order, honoring any `AskUserQue
 
 ### Cleanup
 
-Run cleanup directly (no agent needed). The T1 / T1.5 split contract keeps durable artifacts on disk and deletes only transient subagent outputs.
+Run the transient cleanup directly (no agent needed). The T1 / T1.5 split contract keeps durable artifacts on disk and deletes only transient subagent outputs. This procedure runs at Ship step 8 on the ship path AND immediately before the terminal `phase:` write on every other terminal path (`aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only`) — leftover transients in a finished task-dir resurface as recurring migration-walk warnings on every `/geniro:update`, so cleanup is part of completing the task, not a postscript. `rm -f` is idempotent, so files not yet created on early-exit paths are a no-op.
 
-**Transient outputs — DELETE at Ship** (T1 ephemeral):
+**Transient outputs — DELETE at terminal exit** (T1 ephemeral):
 
 ```bash
 rm -f "<task-dir>"/.kr-out.md \
       "<task-dir>"/.ce-out.md \
       "<task-dir>"/.tr-out.md \
       "<task-dir>"/.adversarial-out.md \
+      "<task-dir>"/.spec-challenge-out.md \
+      "<task-dir>"/.research-*.md \
       "<task-dir>"/notes.md \
       "<task-dir>"/playwright-verify.png
 ```
 
-These files were used once by the orchestrator or subagents during the run; they're dead weight after Ship.
+These files were used once by the orchestrator or subagents during the run; they're dead weight once the task reaches a terminal state. The `.research-*.md` glob covers the `codebase-research-agent` report and `/plan`'s per-facet research files left in the same task-dir — `/plan`'s own terminal phase is read-only, so this cleanup is where they get removed.
+
+After the rm, echo `Cleaned up transient working files from <task-dir>` — one plain line; this is the in-session signal the pre-terminal check in Ship step 9 looks for.
 
 **Durable artifacts — PRESERVE** (T1.5 task-bound durable):
 
@@ -590,6 +594,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated.
 - [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] Ship report emitted to chat BEFORE the terminal `phase:` transition — Evidence Block with what shipped, commit SHA / branch / PR URL quoted from tool output, test Verdict, review-round found/fixed summary, deferred items (Commit + Push + PR §"Step 5").
+- [ ] Transient working files cleaned from the task-dir before the terminal `phase:` write (§Cleanup) — leftovers in a finished task-dir resurface as recurring migration warnings on every plugin update.
 - [ ] Trailing bookkeeping writes (memory index, terminal state, tracker) that failed were surfaced and retried once; if still failing, the stale record was called out in chat so it never silently contradicts the open PR (Commit + Push + PR §"Step 6").
 - [ ] `non-resumable-actions[]` frontmatter updated for every external side-effect (`git push`, `gh pr create`).
 - [ ] Staged set matched this run's CHANGED_FILES — production files modified outside that set were confirmed via AUQ, not silently folded in; after ship, `git status` shows no unexpected leftover/duplicate copies of the shipped work.

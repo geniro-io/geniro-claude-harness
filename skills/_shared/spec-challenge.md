@@ -42,7 +42,7 @@ Caller invokes:
 
 The caller receives back:
 - A verdict (per §7, MODE-specific).
-- The scratch report at `<TASK_DIR>/.spec-challenge-out.md` (transient working file — the caller cleans it at phase exit per the plugin's ship-cleanup contract).
+- The scratch report at `<TASK_DIR>/.spec-challenge-out.md` (transient working file — `/geniro:implement`'s terminal-exit cleanup removes it as part of the T1 rm set, and the `/geniro:update` migration walk sweeps leftovers from interrupted runs).
 - In plan mode: a list of keep-with-modifications fixes to fold into the spec.
 - In implement mode: either a silent clean-pass note OR a fired AskUserQuestion (per §8).
 

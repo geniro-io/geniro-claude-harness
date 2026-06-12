@@ -27,18 +27,18 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
-| **T1 — TASK ephemeral** | Transient subagent outputs / scratch (no frontmatter) | Created mid-run; deleted at Phase Ship | cwd-relative | path-scoped via `<task-dir>` |
+| **T1 — TASK ephemeral** | Transient subagent outputs / scratch (no frontmatter) | Created mid-run; deleted at the owning run's terminal exit | cwd-relative | path-scoped via `<task-dir>` |
 | **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/geniro:review` spec-compliance, `/geniro:implement` Adjustment Routing, `/geniro:debug`, `/geniro:refactor`) | Created at Phase 0; **survives Phase Ship** | cwd-relative | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
 | **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
-**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter (subagent reports — `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `.research-out.md`, and per-facet `.research-<facet>.md` from `/plan`; ad-hoc scratch `notes.md`; screenshots `playwright-verify.png`). They never pass through `validate_state_file`. T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships. The Phase-Ship cleanup contract `rm -f`s ONLY the T1 ephemeral list; T1.5 durable files persist for skill chains.
+**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter (subagent reports — `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `.research-out.md`, per-facet `.research-<facet>.md` from `/plan`, and the spec-challenge scratch `.spec-challenge-out.md`; ad-hoc scratch `notes.md`; screenshots `playwright-verify.png` — canonical list: the §T1 table below). They never pass through `validate_state_file`. T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships. The terminal-exit cleanup contract `rm -f`s ONLY the T1 ephemeral list — `/geniro:implement` runs it before every terminal `phase:` write (Ship and every other terminal transition); T1.5 durable files persist for skill chains.
 
 ---
 
 ## Path roots
 
-### T1 — ephemeral transient outputs (no frontmatter; deleted at Ship)
+### T1 — ephemeral transient outputs (no frontmatter; deleted at terminal exit)
 
 | Path | Producer |
 |---|---|
@@ -48,10 +48,11 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | `.geniro/planning/<task-dir>/.adversarial-out.md` | adversarial-tester-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.research-out.md` | codebase-research-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
+| `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
 | `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
 | `.geniro/planning/<task-dir>/playwright-verify.png` | Pre-Ship Visual Verification screenshot |
 
-These files do NOT carry frontmatter and are NEVER validated via `validate_state_file`. They are cleaned mechanically at Phase Ship via targeted `rm -f`.
+These files do NOT carry frontmatter and are NEVER validated via `validate_state_file`. They are cleaned mechanically via targeted `rm -f` before every terminal `phase:` write of the owning run (Ship and all other terminal transitions); leftovers from interrupted runs are swept by the `/geniro:update` migration walk.
 
 ### T1.5 — three valid layouts (producer-bound; survives Ship)
 
@@ -81,7 +82,7 @@ These files do NOT carry frontmatter and are NEVER validated via `validate_state
 
 ### No ad-hoc state files under `.geniro/state/`
 
-Every file under `.geniro/state/` conforms to one of the canonical layouts above: `state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, `state/handoff/from-<producer>-<branch>.md`, or the documented `state/tdd/state-<slug>.md` exception. A free-form file dropped directly under `.geniro/state/` (observed in the wild: `ci-201-verification-tracker.md` with no frontmatter) is invisible to `validate_state_file`, to the SessionStart restore hook, and to the Phase-Ship cleanup contracts — none of those know to look for it, so it neither resumes nor gets cleaned. Route a working note like that to `.geniro/planning/<task-dir>/` (the scratch tier) instead, where the cleanup contract reaches it.
+Every file under `.geniro/state/` conforms to one of the canonical layouts above: `state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, `state/handoff/from-<producer>-<branch>.md`, or the documented `state/tdd/state-<slug>.md` exception. A free-form file dropped directly under `.geniro/state/` (observed in the wild: `ci-201-verification-tracker.md` with no frontmatter) is invisible to `validate_state_file`, to the SessionStart restore hook, and to the terminal-exit cleanup contract — none of those know to look for it, so it neither resumes nor gets cleaned. Route a working note like that to `.geniro/planning/<task-dir>/` (the scratch tier) instead, where the cleanup contract reaches it.
 
 Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never manufacture a second `.geniro/` root inside a linked worktree. The resolver exists precisely so multi-worktree checkouts converge on the primary worktree's root; a split root fragments the file set the restore hook can discover, so a task started under one root cannot resume against the other.
 

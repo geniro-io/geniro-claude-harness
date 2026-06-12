@@ -177,7 +177,7 @@ validate_state_file() {
     T1|T1.5)
       # T1 and T1.5 share frontmatter shape — both require
       # phase/status/non-resumable-actions. They differ in lifecycle:
-      # T1 is deleted at Phase Ship; T1.5 survives for downstream consumer skills.
+      # T1 is deleted at the owning run's terminal exit; T1.5 survives for downstream consumer skills.
       # Scalar fields (phase, status) must be non-empty.
       # `non-resumable-actions` is a block-list — key-presence sufficient
       # (`non-resumable-actions: []` and multi-line block forms both pass).

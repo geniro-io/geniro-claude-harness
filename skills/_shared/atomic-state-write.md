@@ -31,10 +31,10 @@
 | T2 handoff (`.geniro/state/handoff/from-*.md`) | `atomic_state_write` |
 | T3 CRUD (`instructions/*.md`, `actions/*.md`, `workflow/*.md`, `planning/_*.md`) | `atomic_state_write` (with caller-side mtime check — see below) |
 | T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` |
-| T1 ephemeral transient outputs (`.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `notes.md`, `playwright-verify.png`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at Ship |
+| T1 ephemeral transient outputs (canonical list: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1 — e.g. `.kr-out.md`, `.research-*.md`, `playwright-verify.png`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at the owning run's terminal exit |
 | Reading state — no helper needed | use `Read` tool directly |
 
-**Do not** use the built-in `Write` or `Edit` tools on `.geniro/` state paths. The `enforce-state-helper.sh` PreToolUse hook warns on direct writes (and will hard-block once block-mode is enabled).
+**Do not** use the built-in `Write` or `Edit` tools on `.geniro/` state paths. The `enforce-state-helper.sh` PreToolUse hook hard-blocks direct writes (exit 2), covering `Edit`/`Write`/`MultiEdit` and Bash-side writes alike.
 
 ---
 

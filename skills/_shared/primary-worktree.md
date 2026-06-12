@@ -9,7 +9,7 @@ The default plugin `.gitignore` keeps `.geniro/*` out of git (only `workflow/`, 
 - **(a) Writes lost on worktree removal.** When `/geniro:implement`'s workspace-setup question (Step 0) picks the Git-worktree option, `EnterWorktree` switches the session into `.claude/worktrees/<dir>/` — every cwd-relative `.geniro/<x>` write lands in the worktree's gitignored tree and is destroyed when the user removes the worktree at session end.
 - **(b) Authored content invisible to fresh linked worktrees.** Even when the worktree is fresh and persistent, the primary worktree's authored content (`.geniro/instructions/<scope>.md`, `.geniro/workflow/<kind>.md`, `.geniro/actions/<slug>.md`) is NOT propagated by `git worktree add` because those paths are gitignored at the project level (negation is a default; project-side `.git/info/exclude` may override). The main repo's `.geniro/<x>` never receives the write, and the linked worktree never sees the read.
 
-This affects every artifact designed to outlive the current task. Task-local state (planning/<task-dir>/* — transient scratch like notes.md is cleaned at Phase 3 ship-cleanup; durable design artifacts like spec.md/state.md survive Ship) is unaffected and stays cwd-relative.
+This affects every artifact designed to outlive the current task. Task-local state (planning/<task-dir>/* — transient scratch like notes.md is cleaned at the owning run's terminal exit; durable design artifacts like spec.md/state.md survive) is unaffected and stays cwd-relative.
 
 ## The resolver
 
@@ -67,7 +67,7 @@ These are intended to outlive any single task. The resolver applies to both read
 
 These are intentionally ephemeral with the current task. Promoting them to the resolver would introduce false durability where none is wanted.
 
-- `.geniro/planning/<task-dir>/*` — transient scratch (notes.md, the `.kr-out.md`/`.ce-out.md`/`.tr-out.md` subagent outputs) is removed at `/geniro:implement` Phase 3 ship-cleanup; the durable design artifacts (spec.md, state.md, plan-*.md, milestone-*.md) survive Ship per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` so the user retains them for audit or re-runs. Both classes stay cwd-relative — neither is cross-session.
+- `.geniro/planning/<task-dir>/*` — transient scratch (notes.md, the `.kr-out.md`/`.ce-out.md`/`.tr-out.md` subagent outputs) is removed at `/geniro:implement`'s terminal exit (before every terminal `phase:` write, Ship included); the durable design artifacts (spec.md, state.md, plan-*.md, milestone-*.md) survive the cleanup per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` so the user retains them for audit or re-runs. Both classes stay cwd-relative — neither is cross-session.
 - `.geniro/state/refactor/<slug>/state.md`, `.geniro/state/debug/<slug>/state.md`, `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md` — within-skill resume-from-compaction state, branch-scoped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`. Each is deleted at its skill's cleanup phase.
 
 If a within-skill state file is later promoted to cross-session use, add it to the cross-session table above.
