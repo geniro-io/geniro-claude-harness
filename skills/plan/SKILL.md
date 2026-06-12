@@ -95,6 +95,8 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
+**Turn-completion check (canonical, un-numbered).** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check: never stop on a statement of intent or an announced-but-unfired question — at every gate the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard, and an answered question is continued with the next action, never a silent stop.
+
 `## Tool log` schema (selective logging): entry shape is the single source of truth in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §1.3 Echo contract — fields `ts` / `tool` / `detail` / `status` plus `summary` (Agent) or `result_ref` (Write). Each entry written via `atomic_state_write`. AUQ calls do NOT need logging — `approvals[]` is the structured record.
 
 ---

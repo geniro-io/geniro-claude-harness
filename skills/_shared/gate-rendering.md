@@ -8,6 +8,7 @@ This file is the single source of truth for the visual language. Calling contrac
 
 - When this applies — which gates render in this language
 - Visual rendering language — the five elements every gate message carries
+- Turn-completion guard — the render is not a gate until the question has fired
 - Explain-further option — the reading-aid option pattern
 - Lean-question conventions — generic AskUserQuestion conventions for the lean question
 - Why this exists — the rationale
@@ -64,6 +65,18 @@ request ──▸ buildQuery() ──▸ WHERE archived=false ──▸ archived
 ```
 
 The lean question that follows carries only the title, the `path:lines`, and the option selectors.
+
+## Turn-completion guard
+
+The two-step shape leaves a seam between its steps: the render is emitted as its own message, and the lean question follows. A gate is not rendered until the question has actually fired — close the seam in the same pass:
+
+- **After the render message exists, the immediate next action is the lean `AskUserQuestion`.** Never come to rest with the render emitted but the question unfired, and never close on a statement of intent ("I'll now ask which option you prefer"). Control returns to the user only through the question itself — a render with no question silently stalls the flow until the user types something, and whatever the render promised never happens.
+- **Before stopping anywhere in a gate flow, re-read the last emitted message.** If it is the gate render, or text announcing a question or action not yet taken, fire the question (or take the action) now instead of stopping.
+- **The render is visible message text, never internal reasoning.** Reasoning produced while deliberating is invisible to the user; a render that was only "thought through" does not exist on their screen. Emit it as an ordinary chat message — the render-exists check (per-finding-question.md §Single-finding gate, "Scrub before the AUQ fires") verifies the immediately-preceding assistant message IS the render.
+
+This guard is the inverse of the separate-message rule: that rule forbids cramming the render and the question into one assistant message; this one forbids emitting the render and then stopping without the question. Both exist because the underlying model has a documented early-stopping failure mode — deep into a long session it can end on a text-only statement of intent without issuing the corresponding tool call. Gates sit exactly on that seam, so the question-fire is part of the render's own action, not a follow-up that can be dropped.
+
+The same applies after the question is answered: an answered gate is continued, not abandoned. The next message acknowledges the decision or starts the decided work — never a silent stop on the answer.
 
 ## Explain-further option
 

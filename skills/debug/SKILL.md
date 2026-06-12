@@ -46,6 +46,8 @@ The invariants apply unchanged:
 7. **Errors → structured observations.** Failed `git diff`, denied permission, `adversarial-tester-agent` "agent not found" ladder fallback all become structured `## Tool log` entries before being acted on.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
+**Turn-completion check (canonical, un-numbered).** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check: never stop on a statement of intent or an announced-but-unfired question — at every gate the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard, and an answered question is continued with the next action, never a silent stop.
+
 `## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped. **Deep mode** (opt-in, default off): `--deep` (or the Phase 0 Debug-depth chooser when `--deep` is absent) deepens Phase 1 hypothesis generation (3× fan-out + dedup) and Phase 2 fix/reproduction verification (3 verifiers, majority vote) per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — higher quality at higher token cost, no change to gates or the no-ship boundary.
 
 ---
