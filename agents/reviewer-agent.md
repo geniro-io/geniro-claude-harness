@@ -194,7 +194,7 @@ evidence: "<literal quote from cited file:line or caller chain>"
 
 Field semantics:
 - `validation: confirmed` — the cited code exhibits the defect AND the defect is ACTIONABLE (see actionability bar below). Both halves required.
-- `validation: refuted` — EITHER the cited code does NOT exhibit the claimed defect (quote the contradicting line), OR the defect exists but is not actionable. Set `recommended_action: drop`.
+- `validation: refuted` — EITHER the cited code does NOT exhibit the claimed defect (quote the contradicting line), OR the defect exists but is not actionable, OR the claimed-new effect is already produced by a pre-existing path with the same inputs (quote that path — the finding's delta is overstated). Set `recommended_action: drop`.
 - `validation: clarified` — finding is correct but recommended action differs; `recommended_action` overrides original decision-type
 - `confidence` — 1 (uncertain) to 5 (direct evidence in quoted code)
 - `evidence` — a literal quote from the cited file or caller chain; "I agree" or a paraphrase lets an unverified claim slip past the verifier, so it is insufficient.

@@ -602,7 +602,7 @@ On user picks "Approve":
  ```yaml
  non-resumable-actions:
  - action: git-commit
- completed-at: <ISO-8601 UTC>
+ completed-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)  # live clock read in the same write call — never model-supplied (atomic-state-write.md §Timestamp sourcing)
  commit-sha: <sha>
  files: [".geniro/planning/<slug>/spec.md"]
  ```

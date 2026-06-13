@@ -93,6 +93,8 @@ This is the calibration `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibrati
 - When the pattern exists but no actionable path does, emit `validation: refuted`, `recommended_action: drop`, and an `evidence` line stating the reachability result (e.g. `flag useProposalV2 OFF in prod → the new V2 write block is unreachable; getRejectionHubspotValue(null)==='No'==pre-PR → zero delta`). The orchestrator files it under `## Filtered` with reason `not-actionable`.
 - Reason from the code and config, NOT from the finding's framing. A confident reviewer description of a real pattern is not evidence that the pattern is reachable.
 
+**Parity test for effect-claims.** When a finding's impact claim has the shape "X newly enters / newly triggers path P" (dispatch, digest, notification, fanout, billing — any effect-claim), check whether P was already reachable with the same inputs BEFORE the PR — grep the pre-existing callers / columns / predicates that feed P. If an existing path already produces the claimed effect, the delta is overstated: emit `refuted` (zero-delta), or `clarified` with the impact framing downgraded when a genuine residual delta remains. Either way, `evidence` must quote the pre-existing path (file:line) — the same literal-quote standard as the rest of this bar.
+
 A non-actionable finding is always `refuted` (`not-actionable`), never `clarified` — `clarified` presupposes the finding is actionable and merely needs a different recommended action, so it must not be the escape hatch for a finding that should be dropped.
 
 A real server-side pattern that is unreachable under the production flag state is exactly what this bar refutes without the user having to prompt a re-check.
@@ -169,6 +171,7 @@ After all verifiers return, the orchestrator processes results:
 | "The finding's `suggested-fix:` reads sensible — confirm without re-reading code." | The suggested-fix being sensible is independent of whether the defect exists. Verification reads the cited code AND the caller grep; the suggested-fix is not evidence of the defect. |
 | "The finding says 'confirm both migrations ship together' — that's the author's call, I'll pass it through." | If "ship together" means "both are in this PR's diff", that's checkable: read the changed-file list (§3.5). Resolve it and state the fact via `validation: clarified`. Only the part that isn't in git — did it deploy to an environment independently? — stays as a note. Leaving a checkable "confirm X" in a posted finding offloads your job onto the reader. |
 | "The cited pattern is real, so confirm it." | Existence is not actionability (§3.6). Ask: with the gating flag / gate / role in its CURRENT production state, does this change produce a different outcome than before the PR? If the path is unreachable or the value equals pre-PR, it is noise — refute it (`not-actionable`). A real-but-unreachable finding posted to the PR is the false positive this bar exists to kill. |
+| "The fanout/handler is new code, so its effects are new — confirmed." | New code ≠ new effect. Parity-check the EFFECT: if a pre-existing path already produced the same downstream outcome with the same inputs, the finding's impact claim is overstated — quote that path and refute or downgrade. |
 
 ---
 

@@ -11,7 +11,7 @@ Per-dimension checklists for `/audit-plugin`. Each dimension defines its file sc
 - D3 — Stale rules & dead references
 - D4 — Authoring-rules compliance
 - D5 — Logic & syntax correctness
-- D6 — Over-complication
+- D6 — Over-complication & instruction bloat
 - D7 — Magic numbers & duplicated constants
 - D8 — Safety & test coverage
 - Do-not-flag list (endorsed patterns)
@@ -129,20 +129,23 @@ Tier mapping: hard exclusions / hard structure breaches → T2; prose-guideline 
 
 Tier mapping: bypassable guard / data-loss path → T0; behavioral bug → T1; latent-but-unreachable → T4.
 
-## D6 — Over-complication
+## D6 — Over-complication & instruction bloat
 
-**Scope:** `skills/`, `agents/`. **Method:** LLM reviewer. The goal is REMOVAL candidates — every finding proposes deleting or collapsing something.
+**Scope:** `skills/`, `agents/`. **Method:** LLM reviewer. The goal is REMOVAL/COMPRESSION candidates — every finding proposes one concrete action: delete, shorten, merge, move to a sibling reference file, or convert a deterministic constraint to a hook/script. Apply the per-line test to every candidate: "would removing this make Claude err?" If not, it is weight without payload. Target signal density, not raw line count — see `${CLAUDE_PLUGIN_ROOT}/.claude/rules/skill-prose.md` §Token budget awareness for the why (long instructions measurably degrade adherence; mid-file rules are the least-followed).
 
 Checks:
 1. **Restatements.** Same rationale stated ≥2× within one file; "in other words" summaries; rule text duplicating an anti-rationalization row.
 2. **Hedges** without a condition ("may or may not", "depending on the situation").
 3. **Collapsible steps.** Adjacent steps that always run together with no decision between them; sub-step trees deeper than the decision structure warrants.
 4. **Dead anti-rationalization rows.** Rows defending against a failure mode the current design makes impossible (e.g., the step it polices was removed).
-5. **Example overload.** >3 examples per concept; near-identical examples teaching one pattern.
-6. **Over-specified procedure.** Instructions narrating what the model would do anyway (re-explaining standard tools, spelling out trivial substeps); Definition-of-Done lists restating every body step instead of exit gates.
-7. **Token-budget pressure.** SKILL.md detail that belongs in a sibling reference file (multi-paragraph explanations of one step, inline pseudo-code duplicated from a reference).
+5. **Example & option overload.** >3 examples per concept or near-identical examples teaching one pattern; option lists offering >2 choices with no stated default → collapse to one default + one escape hatch.
+6. **Model-known instruction.** Text re-explaining standard tool behavior or general competence the model already has ("read before editing", "write clean code") — delete, or convert a hard constraint to a hook. This is the per-line test's most common failure.
+7. **Over-specified procedure.** Instructions narrating what the model would do anyway (spelling out trivial substeps); Definition-of-Done lists restating every body step instead of exit gates.
+8. **Cross-file duplicated rules.** The SAME rule (prose, not a constant — D7 owns constants) stated in ≥2 files. Keep one canonical home; others cite it with `§`. A duplicate that has DRIFTED reads as a contradiction.
+9. **Appended-patch contradiction.** A later note / "NOTE:" / exception / caveat that patches or narrows an earlier rule in the same file instead of being folded into it — the later text silently overrides the earlier (recency wins) or forces reconciliation. Rewrite the original to be correct on its own; delete the patch.
+10. **Token-budget pressure.** SKILL.md detail that belongs in a sibling reference file (multi-paragraph explanations of one step, inline pseudo-code duplicated from a reference) — propose a MOVE, not a cut.
 
-Tier mapping: T4 by default; pure-style items → T5. Never propose trimming load-bearing content to hit a line cap — flag the cap breach as advisory and propose a content MOVE, not a cut.
+Tier mapping: T4 by default; pure-style items → T5; a duplicated rule that has drifted into a contradiction → T1. Every removal carries regression risk — propose, never auto-cut; state what behavior would change if the deletion is wrong. Never trim load-bearing content to hit a line cap: flag the cap breach as advisory and propose a content MOVE, not a cut.
 
 ## D7 — Magic numbers & duplicated constants
 

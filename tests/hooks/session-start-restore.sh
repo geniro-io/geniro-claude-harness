@@ -318,6 +318,35 @@ echo "$ac" | grep -q "release-tagged (tag: v1.85.0, completed:" \
   && pass "Block 5: release-tagged structured rendering" \
   || fail "Block 5: release-tagged not rendered correctly"
 
+# pr-comment-amended rendering (review post-posting overturn reconciliation).
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: review
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: action-gate
+status: in-progress
+non-resumable-actions:
+  - action: pr-comment-amended
+    pr-ref: owner/repo#2811
+    comment-id: 123456789
+    kind: delete
+    completed-at: 2026-05-19T14:50:00Z
+---
+
+body
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q "pr-comment-amended (pr: owner/repo#2811, comment-id: 123456789, kind: delete, completed:" \
+  && pass "Block 5: pr-comment-amended structured rendering" \
+  || fail "Block 5: pr-comment-amended not rendered correctly"
+
 # ---------------------------------------------------------------------------
 # 10. Block 5b — Errors (resolved filter)
 # ---------------------------------------------------------------------------

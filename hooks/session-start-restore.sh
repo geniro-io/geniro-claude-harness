@@ -422,6 +422,8 @@ _render_non_resumable_block() {
         "  - git-commit (commit-sha: \(.["commit-sha"] // "?"), completed: \($c))"
       elif $a == "pr-review-comment-batch" then
         "  - pr-review-comment-batch (pr: \(.["pr-ref"] // "?"), finding-count: \(.["finding-count"] // "?"), completed: \($c))"
+      elif $a == "pr-comment-amended" then
+        "  - pr-comment-amended (pr: \(.["pr-ref"] // "?"), comment-id: \(.["comment-id"] // "?"), kind: \(.kind // "?"), completed: \($c)) — a posted PR comment was already edited/withdrawn; do not repeat"
       else
         "  - \($a) (completed: \($c))"
       end

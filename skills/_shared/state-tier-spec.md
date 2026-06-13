@@ -139,7 +139,7 @@ approvals:
 
 ### `non-resumable-actions[]` action enum
 
-Each entry is `{action, completed-at, <action-specific-fields>}`. The `action` value is one of a fixed enum so the SessionStart restore hook (`hooks/session-start-restore.sh`) can render a per-action resume warning — producers emit the literal string and the hook string-matches it. This table is the single source; add a new value here and to the hook's renderer in lockstep.
+Each entry is `{action, completed-at, <action-specific-fields>}`, where `completed-at` is a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) interpolated in the same write call, never model-supplied (per `atomic-state-write.md` §Timestamp sourcing). The `action` value is one of a fixed enum so the SessionStart restore hook (`hooks/session-start-restore.sh`) can render a per-action resume warning — producers emit the literal string and the hook string-matches it. This table is the single source; add a new value here and to the hook's renderer in lockstep.
 
 | `action` | Emitted by | Action-specific fields |
 |---|---|---|
@@ -147,6 +147,7 @@ Each entry is `{action, completed-at, <action-specific-fields>}`. The `action` v
 | `pr-created` | `/geniro:implement` | `pr`, `url` |
 | `pr-comment-posted` | `/geniro:implement` | `pr`, `comment-id` |
 | `pr-review-comment-batch` | `/geniro:review` | `pr-ref`, `finding-count`, `comment-ids` |
+| `pr-comment-amended` | `/geniro:review` (review-handoff.md §7.9) | `pr-ref`, `comment-id`, `kind: edit\|reply\|delete` |
 | `git-commit` | `/geniro:plan`, `/geniro:implement` | `commit-sha` |
 | `slack-notify-sent` | `/geniro:actions` | `channel`, `ts` |
 | `release-tagged` | `/geniro:actions` | `tag` |

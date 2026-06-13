@@ -18,7 +18,7 @@ State.md `phase: action-gate` during this phase.
 - §4 — Action gate (consolidated decision)
 - §5 — Round-N escalation
 - §6 — Failing-tests gate
-- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with four invariants → 7.8 posting-failure semantics)
+- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with four invariants → 7.9 post-posting overturn reconciliation)
 - §8 — Empty-answer handling (universal)
 - §9 — Terminal state mapping
 
@@ -44,7 +44,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip.
-4. **Failing tests:** fires once when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests. Firing order relative to Action gate conditional:
+4. **Failing tests:** fires once per gate-chain pass when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests; a later chat-text commit/push request re-fires it (§6). Firing order relative to Action gate conditional:
 - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
 - **Action != Post OR `## Authored Tests` empty:** Failing-tests fires AFTER Action gate's path completes.
 
@@ -110,6 +110,8 @@ Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-revie
 
 The canonical handoff is a one-shot producer→consumer artifact; /geniro:review extends it with `phase:` / `status:` / `round:` / `approvals[]` so a compaction mid-run can recover. The file behaves as a handoff AT REST (after Phase 5 persist) and as a working state file DURING THE RUN.
 
+The heredoc below is quoted (`<<'EOF'`) so the `${CLAUDE_PLUGIN_ROOT}` and `$(…)` tokens inside placeholder descriptions stay literal. Substitute every `<…>` placeholder with a real value before the write — and for time-bearing fields (`timestamp:`, every `completed-at:`) substitute a live clock read computed as `date -u +%Y-%m-%dT%H:%M:%SZ` in the same Bash call, never a model-supplied or rounded value (a quoted heredoc will NOT interpolate `$(date …)`, so it must be substituted, not pasted as the literal command; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Timestamp sourcing).
+
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
@@ -164,7 +166,7 @@ open_questions:                       # MUST be present; MAY be empty []
 - Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1 (a `/geniro:review`-only path; omitted when the review covered the whole PR)
 - Round: <N>
 - Risk-tier: <standard|high>
-- Dimensions spawned: [<list>]
+- Dimensions spawned: [<the ACTUAL set — dimensions with a recorded structured reviewer result (the `actual` set from `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.0 post-spawn verification), naming any declared-but-skipped dimension with its skip reason; never sourced from the SKILL.md dimension grid>]
 - Mechanical pre-pass: [lint:N, schema:M, secrets:K]
 - Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
 
@@ -183,7 +185,7 @@ open_questions:                       # MUST be present; MAY be empty []
 <list, surfaced for user awareness>
 
 ## Filtered
-<!-- Findings demoted out of ## Findings: verifier-refuted (reason: refuted-by-verifier), not-actionable (real-but-unreachable per the §3.6 actionability bar in finding-verification.md), test-challenged (`[CHALLENGED-BY-TEST]`), already-resolved-on-PR, or Phase 3 convention-filtered. Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, test-challenged, already-resolved-on-pr, overturned-after-post, convention-filtered). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
 
 ## Authored Tests
@@ -419,15 +421,15 @@ Persist user pick to `approvals[]` with category `round_n_escalation`, written v
 
 ## 6. Failing-tests gate
 
-This is the commit-POLICY gate — it decides whether to commit/push the tests already authored. It is distinct from the test-AUTHORING gate that offered to write those tests during stratify (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md` §3). The authoring gate fires earlier (Phase 4 stratify) and populates `## Authored Tests`; this gate fires here in Phase 6 only when that section is non-empty. Do not conflate the two.
+This is the commit-POLICY gate — it decides whether to commit/push the tests already authored, and it fires unconditionally whenever the handoff's `## Authored Tests` section is non-empty, even when the Action gate already completed or the session is wrapping up. A chat-text request to commit or push the authored tests — at any later point — is answered by firing THIS gate, never by executing directly: chat text is never a gate. It is distinct from the test-AUTHORING gate that offered to write those tests during stratify (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md` §3) and populated `## Authored Tests`. Do not conflate the two.
 
-Fires when `## Authored Tests` section is non-empty. Firing order conditional per gate chain.
+Firing order relative to the Action gate is conditional per the gate chain (§2).
 
 - **Header:** "Failing tests"
-- **Question:** "How should the N failing tests authored during the test-confirmation step be handled? They are AI-authored — review before merging. If you just chose to post findings as a Draft PR review, the comment bodies reference these test files by path — pushing them to the PR's branch is what makes those references resolve for PR reviewers."
+- **Question:** "How should the N failing tests authored during the test-confirmation step be handled? They are AI-authored — review before merging. They fail by design, so once pushed the branch's checks will stay red until the findings are fixed or the tests are removed. If you just chose to post findings as a Draft PR review, the comment bodies reference these test files by path — pushing them to the PR's branch is what makes those references resolve for PR reviewers."
 
 **Options:**
-- "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add.`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. **Recommended** — except when user selected "Post" in Action gate, in which case commit+push is Recommended.
+- "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. **Recommended** — except when user selected "Post" in Action gate, in which case commit+push is Recommended.
 - "Commit + push to current branch's upstream" — same as commit-only, then `git push`. **Recommended when user selected "Post" in Action gate** (the posted comment bodies reference the test files by path; pushing makes those references resolve) — load-bearing, not cosmetic.
 - "Leave uncommitted" — tests stay on disk for user to review and stage manually.
 
@@ -587,7 +589,7 @@ Each comment object:
 ```yaml
 non-resumable-actions:
 - action: pr-review-comment-batch
-completed-at: <ISO-8601>
+completed-at: <live clock read — $(date -u +%Y-%m-%dT%H:%M:%SZ) interpolated in the same write call, never a model-supplied or rounded value; atomic-state-write.md §Timestamp sourcing>
 pr-ref: <owner>/<repo>#<num>
 finding-count: <N>
 comment-ids: [<id1>, <id2>,...]
@@ -651,6 +653,18 @@ stage: pr-review-comment-post
 error: <verbatim gh stderr>
 consequence: post-aborted-no-state-mutation
 ```
+
+### 7.9 Post-posting overturn reconciliation
+
+Fires when an in-session re-check (a user challenge, later analysis) overturns or re-grades a finding carrying `[POSTED-TO-PR]`.
+
+**State reconciliation — mandatory and immediate, never a conditional chat offer.** Via `atomic_state_write`, move the finding to `## Filtered` with `reason: overturned-after-post` (or, for a re-grade, annotate the new grade on its line). Preserve the original severity so the user can re-elevate, and keep the `posted-to-pr: <url>` reference on the line so the external comment stays traceable.
+
+**PR-side write — gated.** Editing, replying to, or deleting the posted comment is an external effect: offer it through its own one-question gate. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy, the withdraw/downgrade option must NOT carry "(Recommended)" unless the overturn is itself verifier-confirmed. AFTER the PR-side write succeeds, append a `non-resumable-actions[]` entry (`action: pr-comment-amended`, `pr-ref`, `comment-id`, `kind: edit|reply|delete`, `completed-at` a live clock read interpolated in the same write call — full schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum) — write after the side-effect succeeds, consistent with §7.5 and implement/SKILL.md.
+
+| Rationalization | Why it is wrong |
+|---|---|
+| "I corrected the finding in chat — the user knows, the handoff can stay as-is." | The handoff is what downstream consumers and resumed sessions read; an overturned finding left marked `[POSTED-TO-PR]` + kept presents a refuted claim as live. Reconcile the state file in the same turn as the overturn. |
 
 ---
 

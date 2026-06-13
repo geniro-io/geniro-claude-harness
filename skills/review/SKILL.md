@@ -520,7 +520,7 @@ If Phase 6 user picks "Post Draft PR" option, post the finding list as a PENDING
 ```yaml
 non-resumable-actions:
 - action: pr-review-comment-batch
-completed-at: <ISO-8601>
+completed-at: $(date -u +%Y-%m-%dT%H:%M:%SZ) # live clock interpolated in the same write call — never model-supplied (atomic-state-write.md §Timestamp sourcing)
 pr-ref: <owner>/<repo>#<num>
 finding-count: <N>
 comment-ids: [<id1>, <id2>,...]
@@ -556,7 +556,7 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
    - `"Skip — keep findings on disk"` — append ` (Recommended)` when CRITICAL=0 AND HIGH≤1.
 
    Full AskUserQuestion shape (literal block), descriptions, and severity-driven recommendation rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4. Persist user pick to `approvals[]` with category `action_gate` via `atomic_state_write` (never a raw write on the handoff path).
-4. **Failing-tests gate** when state.md `## Authored Tests` non-empty.
+4. **Failing-tests gate** — fires unconditionally whenever state.md `## Authored Tests` is non-empty (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6). A chat request to commit/push authored tests — whenever it arrives — re-fires this gate instead of executing directly.
 
 Operational rules:
 
@@ -614,6 +614,7 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | "I'll spawn the adversarial-tester-agent and ask the user to confirm later." | Inline-after-action gates rationalize into "this counts as approval". The Phase 4.3 invariant is `AskUserQuestion` BEFORE spawning, not after. The two-step gate (ask → on YES, spawn) is the only rationalization-resistant variant. |
 | "The findings look obviously postable — I'll just batch-post to the PR and tell the user after." | Posting to a PR is an external write to a public surface. Phase 6 Action gate's "Post" selection IS the consent — without it, ambiguity that should have been resolved gets pushed onto the PR author or downstream reviewer. |
 | "Eligible findings exist and the user clearly wants tests — author them without the Phase 4.3 question." | The test-confirmation gate fires whenever eligible findings exist, and authoring without the user's explicit `test_gate_choice` pick is forbidden. No prior signal — an earlier round's approval, the depth pick, an emphatic ask for thoroughness — substitutes for this run's pick. Empty-answer fallback re-asks rather than auto-defaults. |
+| "The user told me in chat to push the authored tests — that's explicit consent, I'll just run git push." | Chat text is never a gate. Authored-test pushes route ONLY through the Phase 6 Failing-tests gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6; reporter-boundary.md §1 triple-scope). Fire the gate and act on its pick — the gate render is what makes the consent auditable and persisted to `approvals[]`. |
 | "I'll auto-update Linear status from /geniro:review when findings are critical — saves the user a step." | /geniro:review is a Reporter. Linear `update_issue` / `create_comment` are external side-effect writes; only /geniro:plan and /geniro:implement run them per their workflow contracts. /geniro:review's MCP surface is read-only (`get_issue` / `list_issues`) per ACI. The Open Questions schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 lets /geniro:review surface ambiguity without mutating tracker state. |
 | "Inline LINEAR CONTEXT into every dim — more context = better review." | Cross-reviewer convergence anti-pattern: LINEAR CONTEXT helps spec-compliance (rubric source), pr-metadata (title-divergence check), architecture (parent-epic linkage), and regressions (intent classification). Other dims see it as noise that biases their per-file rubric. The narrow 4-dim distribution is the documented pattern. |
 | "Regressions dim feels redundant with spec-compliance — skip it on PRs that have a spec." | spec-compliance covers diff-omits-spec-item; regressions covers diff-exceeds-stated-intent. They're inverse directions, not duplicates. Regressions also fires on spec-less PRs where spec-compliance can't (matches user mental model: catch unintended changes broadly). |
