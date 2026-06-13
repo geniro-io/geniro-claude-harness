@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""find-code-threads scan engine.
+"""find-threads scan engine.
 
-Enumerate code-bearing Claude session logs across every config-dir root, optionally
-filter + rank them by a content query, and print one tab-separated row per surviving thread.
+Enumerate work-bearing Claude session logs across every config-dir root — threads that
+edited code, ran a skill, or spawned a subagent — optionally filter + rank them by a
+content query, and print one tab-separated row per surviving thread.
 
 Why Python and not a shell pipeline:
   - grep skips .jsonl logs that embed base64 images as "binary" unless forced (-a); a single
@@ -18,11 +19,13 @@ Roots scanned (a thread's session logs live under <config-dir>/projects/):
   3. every path in EXTRA_ROOTS below    (fixed extra config dirs — add yours here)
 
 Usage:
-  python3 scan.py                 # list mode: every code-bearing thread, grouped-sort
+  python3 scan.py                 # list mode: every work-bearing thread (edited + read-only), grouped-sort
   python3 scan.py <query...>      # search mode: keep threads matching the query, ranked best-first
+  python3 scan.py --code-only     # restrict to code-editing threads (the legacy behavior); combines with a query
 
 Output columns (TSV):
-  mtime  date  oversize  turns  relevance  hits  label  title  path  snippet
+  mtime  date  oversize  kind  turns  relevance  hits  label  title  path  snippet
+    - kind: "edited" (calls a code-edit tool) | "read-only" (spawns a subagent / invokes a Skill but never edits code).
     - list mode:   relevance=0, hits=0, snippet="" ; sorted by label asc, then newest-first.
     - search mode: relevance = the most query terms that co-occur in one ~160-char window (the
                    proximity score) ; hits = total term occurrences ; a thread is kept only when the
@@ -38,8 +41,9 @@ EXTRA_ROOTS = [
 ]
 
 CODE_SIGNAL = re.compile(r'"name":"(?:Edit|Write|MultiEdit|NotebookEdit)"')
+WORK_SIGNAL = re.compile(r'"name":"(?:Agent|Task|Skill)"')  # read-only agentic work: a spawned subagent or a Skill tool call
 OVERSIZE_BYTES = 5 * 1024 * 1024          # /analyze-thread's hard cap
-SIGNAL_SCAN_CAP = 20 * 1024 * 1024        # scan at most 20 MB for the code-edit signal
+SIGNAL_SCAN_CAP = 20 * 1024 * 1024        # scan at most 20 MB for the work signals
 TITLE_SCAN_CAP = 2 * 1024 * 1024          # the ai-title line can sit ~1.5 MB deep
 PROMPT_SCAN_CAP = 800 * 1024              # first real user prompt lives in the opening events
 SEARCH_SCAN_CAP = 12 * 1024 * 1024        # body bytes scanned for query matches (bounds huge logs)
@@ -68,9 +72,14 @@ def read_head(path, n):
         return ""
 
 
-def has_code_signal(path, size):
-    # Read in chunks, stop at the first edit-tool call (most code threads edit early).
+def classify_thread(path, size):
+    # Return the thread's kind: "edited" (calls a code-edit tool), "read-only" (spawns a
+    # subagent or invokes a Skill but never edits code), or None (neither — trivial chat, dropped).
+    # A code-edit short-circuits ("edited" dominates); "read-only" is declared only after the full
+    # cap scan finds no edit, so an editing thread is never mislabelled read-only because a spawn
+    # happened to appear first.
     cap = min(size, SIGNAL_SCAN_CAP)
+    work = False
     try:
         with open(path, "rb") as fh:
             read = 0
@@ -82,11 +91,13 @@ def has_code_signal(path, size):
                 read += len(chunk)
                 text = tail + chunk.decode("utf-8", "ignore")
                 if CODE_SIGNAL.search(text):
-                    return True
+                    return "edited"
+                if not work and WORK_SIGNAL.search(text):
+                    work = True
                 tail = text[-64:]  # carry a boundary so a split signal still matches
     except OSError:
-        return False
-    return False
+        return None
+    return "read-only" if work else None
 
 
 def iter_user_texts(blob):
@@ -143,7 +154,7 @@ def title_of(path):
     m = re.search(r"<command-name>([^<]+)</command-name>", head)
     if m:
         return m.group(1).strip()[:100]
-    return "(code thread — no title)"
+    return "(thread — no title)"
 
 
 def turns_of(path):
@@ -220,7 +231,9 @@ def search_score(path, terms):
 
 
 def main():
-    terms = [a.lower() for a in sys.argv[1:] if a.strip()]
+    # --code-only is a flag, not a search term; everything else is a query term.
+    code_only = "--code-only" in sys.argv[1:]
+    terms = [a.lower() for a in sys.argv[1:] if a.strip() and a != "--code-only"]
     rows = []
     for root in roots():
         for path in glob.glob(os.path.join(root, "*", "*.jsonl")):
@@ -228,7 +241,10 @@ def main():
                 st = os.stat(path)
             except OSError:
                 continue
-            if not has_code_signal(path, st.st_size):
+            kind = classify_thread(path, st.st_size)
+            if kind is None:
+                continue
+            if code_only and kind != "edited":
                 continue
             mtime = int(st.st_mtime)
             label = " ".join(label_of(path).split())
@@ -246,12 +262,12 @@ def main():
             date = time.strftime("%Y-%m-%d", time.localtime(mtime))
             oversize = 1 if st.st_size > OVERSIZE_BYTES else 0
             turns = turns_of(path)
-            rows.append((mtime, date, oversize, turns, relevance, hits, label, title, path, snippet))
+            rows.append((mtime, date, oversize, kind, turns, relevance, hits, label, title, path, snippet))
 
     if terms:
-        rows.sort(key=lambda r: (-r[4], -r[5], -r[0]))   # relevance desc, hits desc, newest
+        rows.sort(key=lambda r: (-r[5], -r[6], -r[0]))   # relevance desc, hits desc, newest
     else:
-        rows.sort(key=lambda r: (r[6], -r[0]))           # label asc, newest-first
+        rows.sort(key=lambda r: (r[7], -r[0]))           # label asc, newest-first
 
     try:
         for r in rows:
