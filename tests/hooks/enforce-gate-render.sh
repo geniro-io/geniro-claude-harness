@@ -9,6 +9,12 @@
 #   - "ABOVE" uppercase still gates (case-insensitive) → block.
 #   - "above" only in the second question of a two-question call → block.
 #   - "above" question + assistant text render in the turn → allow.
+#   - Finding-ID + finding co-text (no "above") on a render-less turn → block.
+#   - Benign F5/M2 tokens with no co-text on a render-less turn → allow unscanned.
+#   - Finding-ID + parenthesized-severity co-text (only trigger) → block.
+#   - PRODUCT-DECISION shorthand (no "above") on a render-less turn → block.
+#   - Same finding-bearing question WITH an assistant render → allow.
+#   - Lean workspace/depth question (no shorthand, no "above") → allow unscanned.
 #   - Assistant string-shaped content with text counts as a render → allow.
 #   - "above" question + tool_use-only assistant record → block.
 #   - Render earlier in the turn with tool traffic after it → allow.
@@ -83,6 +89,70 @@ expect_block "'ABOVE' uppercase on a render-less turn → block" "$(run_q 'Full 
 # ===== Render present: [user text] → [assistant text] =====
 { user_text; asst_text 'Here is the finding digest with evidence and visuals.'; } > "$TR"
 expect_allow "'above' question with render in turn → allow" "$(run_q 'Full explanation above. Approve?' "$TR")"
+
+# ===== Finding-gate shorthand (no "above"): the PR-2091 blind-gate pattern =====
+# A real /review open-decision gate carried finding IDs + convergence wording but
+# never said "above". The (a)-only guard let it slip; branch (b) now catches it.
+
+# Finding-ID + finding-gate co-text on a render-less turn → block.
+# This question carries the finding-ID tokens (F5/F6) AND the co-text words
+# "Findings" + "converged", so it satisfies the compound finding-ID branch (and
+# the convergence shorthand branch independently).
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "finding-ID + co-text (F5, 'Findings', converged) on a render-less turn → block" \
+  "$(run_q 'Findings F5 and F6 (converged x3): how should I handle them?' "$TR")"
+
+# Benign F/M tokens with NO finding-gate co-text → allow unscanned (the W1 fix).
+# A bare F5/M2 token collides with load-balancer models, version tags, etc. The
+# finding-ID branch now requires co-text, so these no longer block. They would
+# have blocked before the fix (render-less transcript, finding-ID token present).
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "benign 'F5 load balancer' token, no co-text → allow unscanned" \
+  "$(run_q 'Deploy to: F5 load balancer or direct?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "benign 'version M2' token, no co-text → allow unscanned" \
+  "$(run_q 'Bump to version M2 of the schema?' "$TR")"
+
+# Finding-ID + parenthesized-severity co-text, with NO "above"/PRODUCT-DECISION/
+# converge → block. Proves the new co-text branch still catches a real
+# open-decision gate that can ONLY be matched by finding-ID + co-text.
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "finding-ID + parenthesized severity '(MEDIUM, ...)' (only trigger) → block" \
+  "$(run_q 'F5 (MEDIUM, security): create/update accept any file UUID — fix now or defer?' "$TR")"
+
+# PRODUCT-DECISION shorthand on a render-less turn → block.
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "PRODUCT-DECISION shorthand on a render-less turn → block" \
+  "$(run_q 'This is a PRODUCT-DECISION: pick a resolution.' "$TR")"
+
+# Same finding-bearing question WITH a render → allow (properly-rendered gate).
+{ user_text; asst_text 'Finding digest: F5 is X because Y; F6 converged across 3 reviewers.'; } > "$TR"
+expect_allow "finding-ID shorthand (F5) with render in turn → allow" \
+  "$(run_q 'Findings F5 and F6 (converged x3): how should I handle them?' "$TR")"
+
+# ===== Lean workspace/depth question (zero-false-positive guard) =====
+# No "above", no finding-ID, no PRODUCT-DECISION, no convergence wording, and the
+# severity word "Deep"/options carry no trigger token → must exit 0 unscanned,
+# regardless of transcript state (here: render-less, which would block if scanned).
+run_lean() {
+  jq -nc --arg t "$1" \
+    '{tool_name:"AskUserQuestion", transcript_path:$t,
+      tool_input:{questions:[{question:"Where should the review run?",
+        options:[{label:"Create review worktree"},{label:"Review in current location"}]}]}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+run_depth() {
+  jq -nc --arg t "$1" \
+    '{tool_name:"AskUserQuestion", transcript_path:$t,
+      tool_input:{questions:[{question:"How deep should the review go?",
+        options:[{label:"Standard"},{label:"Deep - 3x passes + 3-vote verify"}]}]}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "lean workspace question (no shorthand, no 'above') → allow unscanned" "$(run_lean "$TR")"
+expect_allow "lean review-depth question (severity word 'Deep' not a trigger) → allow unscanned" "$(run_depth "$TR")"
 
 # ===== Assistant string-shaped content with text is a render =====
 { user_text; asst_string 'Here is the digest rendered as plain string content.'; } > "$TR"
@@ -160,7 +230,7 @@ jq -nc --arg t "$TR" \
     tool_input:{questions:[{question:"Full explanation above. Approve?", options:[{label:"Approve"}]}]}}' \
   | bash "$HOOK" 2>"$ERR_ACTUAL" >/dev/null || true
 cat > "$ERR_EXPECTED" <<'EOF'
-Gate render missing: this question references content "above", but no visible assistant message exists in the current turn — the user would be answering blind.
+Gate render missing: this gate question needs a rendered chat block the user can see, but no visible assistant message exists in the current turn — the user would be answering blind.
 This is an automated plugin guard (gate-render), NOT a user denial. Do not stop, and do not treat the question as answered.
 Recovery: (1) write the full gate render as an ordinary chat message — the digest, evidence, and visuals the question refers to; (2) then call AskUserQuestion again with the same options.
 Project bypass: add "gate-render" to allow_patterns in .geniro/safety.json.

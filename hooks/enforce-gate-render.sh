@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # enforce-gate-render.sh — PreToolUse AskUserQuestion, HARD-BLOCK (exit 2).
-# Blocks a gate question that references content "above" when the current turn
-# contains no visible assistant text — the user would be answering blind.
+# Blocks a gate question that needs a rendered chat block the user can see when
+# the current turn contains no visible assistant text — the user would be
+# answering blind. Catches BOTH a question that references content "above" AND
+# one that carries finding-gate evidence shorthand without the "above" reference:
+# a PRODUCT-DECISION tag, convergence wording, or a finding-ID (F5/M1b) when it
+# is paired with finding-gate co-text (a parenthesized severity, or the words
+# finding/reviewer/severity) — a bare finding-ID alone is too collision-prone.
 # Prompt-level render guards leak under drift; this is the mechanical backstop.
 # Bypass: .geniro/safety.json allow_patterns: ["gate-render"].
 set -euo pipefail
@@ -52,11 +57,45 @@ QTEXT=$(printf '%s' "$INPUT" | jq -r '
     | (.question // ""), (.options[]?.label // ""), (.options[]?.description // "")]
   | join(" ")' 2>/dev/null || echo "")
 
-# Only gate questions that point at content "above" — templated gate questions
-# do ("Full explanation above." / "Approve the spec summarized above?");
-# legitimately-bare lean questions never reference "above".
-if ! printf '%s' "$QTEXT" | grep -qiE '(^|[^[:alnum:]_])above([^[:alnum:]_]|$)'; then
-  exit 0
+# Proceed to the transcript scan when EITHER trigger matches; only when NEITHER
+# does, exit 0 (unscanned). Two branches catch two ways a gate fires blind:
+#   (a) the question points at content "above" — templated gate questions do
+#       ("Full explanation above." / "Approve the spec summarized above?").
+#   (b) the question carries finding-gate evidence shorthand without "above" —
+#       a real /review open-decision gate fired with finding IDs and
+#       convergence wording but no "above", so the (a)-only guard let it slip
+#       (the recorded forbidden evasion: "strip the 'above' reference").
+# Shorthand tokens are chosen for low false positives on benign lean questions:
+# a PRODUCT-DECISION tag and convergence wording (converge/converged/
+# convergence) fire on their own. A finding-ID token (uppercase F/M + digits +
+# optional trailing lowercase letter, e.g. F5/F12/M1b — matched case-SENSITIVELY
+# so stray lowercase words don't trip it) does NOT fire alone: a bare F/M-digit
+# token collides with load-balancer models ("F5 load balancer"), function keys
+# ("Press F5"), racing series ("F1 racing API"), version tags ("version M2"),
+# branch names ("feature/F12-login"), and form fields ("form field F3"), so the
+# token alone is not high-precision. It scans only with finding-gate co-text:
+# a severity word immediately after an open paren (the way findings render
+# severity, e.g. "(MEDIUM, security)"), OR the words finding/findings, reviewer,
+# severity/severities. The co-text requirement is what keeps this branch's
+# false-positive rate near zero while still catching a real open-decision gate
+# like "F5 (MEDIUM, security): …". Bare severity words (HIGH / MEDIUM / LOW) are
+# deliberately NOT a standalone trigger — they appear in too many benign
+# questions (workspace-setup / review-depth choosers); they count only as
+# co-text adjacent to a finding-ID + open paren. Legitimately-bare lean
+# questions match no branch.
+ABOVE_RE='(^|[^[:alnum:]_])above([^[:alnum:]_]|$)'
+SHORTHAND_RE='(PRODUCT-DECISION|[Cc]onverg)'
+FINDING_ID_RE='(^|[^[:alnum:]_])[FM][0-9]+[a-z]?([^[:alnum:]_]|$)'
+FINDING_CTX_RE='\((CRITICAL|HIGH|MEDIUM|LOW)|finding|reviewer|severit'
+if   printf '%s' "$QTEXT" | grep -qiE "$ABOVE_RE"; then
+  : # branch (a): references content "above" → scan
+elif printf '%s' "$QTEXT" | grep -qiE "$SHORTHAND_RE"; then
+  : # branch (b): PRODUCT-DECISION / convergence shorthand → scan
+elif printf '%s' "$QTEXT" | grep -qE "$FINDING_ID_RE" \
+  && printf '%s' "$QTEXT" | grep -qiE "$FINDING_CTX_RE"; then
+  : # branch (b): finding-ID token (case-sensitive F/M) + finding-gate co-text → scan
+else
+  exit 0  # neither trigger → unscanned
 fi
 
 TRANSCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.transcript_path // ""' 2>/dev/null || echo "")
@@ -129,7 +168,7 @@ if [ "$VERDICT" != "USERTEXT" ]; then
 fi
 
 cat >&2 <<'EOF'
-Gate render missing: this question references content "above", but no visible assistant message exists in the current turn — the user would be answering blind.
+Gate render missing: this gate question needs a rendered chat block the user can see, but no visible assistant message exists in the current turn — the user would be answering blind.
 This is an automated plugin guard (gate-render), NOT a user denial. Do not stop, and do not treat the question as answered.
 Recovery: (1) write the full gate render as an ordinary chat message — the digest, evidence, and visuals the question refers to; (2) then call AskUserQuestion again with the same options.
 Project bypass: add "gate-render" to allow_patterns in .geniro/safety.json.
