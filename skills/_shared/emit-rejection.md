@@ -10,7 +10,7 @@
 - §Example flow
 - §Behaviors to cover
 
-**Status:** Authoritative for converting AUQ rejection-signal picks into cross-session L2 entries. Called by skills that surface choice AUQs where the user can explicitly reject a suggestion (e.g., approach selection, ship-mode confirmation, action risk-class gate).
+**Status:** Authoritative for converting AUQ rejection-signal picks into cross-session L2 entries. Called by skills that surface choice AUQs where the user can explicitly reject a suggestion (e.g., approach selection, ship-mode confirmation).
 
 ## Relationship to `approvals[]`
 
@@ -33,7 +33,7 @@ emit_rejection_if_signal \
 **Args:**
 - `<producer>` — emitting skill ID (e.g., `/geniro:plan`)
 - `<scope>` — file/module/topic context (or `global`)
-- `<auq_category>` — approvals[] category (e.g., `approach_choice`, `ship_mode`, `risk_class_high`)
+- `<auq_category>` — approvals[] category (e.g., `approach_choice`, `ship_mode`, `improvement_candidate`)
 - `<suggestion>` — what the user was offered (one line)
 - `<picked>` — what the user picked (label of selected option)
 - `[recommended]` — optional; the option marked `(Recommended)` if any
@@ -62,7 +62,6 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 |---|---|---|
 | /geniro:plan | Phase 4 approach selection AUQ | producer=/geniro:plan, scope=<topic>, auq_category=approach_choice, suggestion=<approach name>, picked=<user's choice>, recommended=<recommended approach if any> |
 | /geniro:implement | Phase 3 ship-mode AUQ | producer=/geniro:implement, scope=<branch-or-topic>, auq_category=ship_mode, suggestion=<offered ship mode>, picked=<user's choice>, recommended=<recommended ship mode> |
-| /geniro:actions | run-mode risk-class confirm AUQ | producer=/geniro:actions, scope=actions/<slug>, auq_category=risk_class_<low\|medium\|high>, suggestion=Run <slug> action, picked=<user's choice>, recommended=Run |
 
 **Optional:** any skill with an AUQ that has a clear "yes/no" or "recommended/alternative" semantic can invoke this helper. Skills with only-informational AUQs (e.g., section-by-section confirm) should not invoke — no rejection signal there.
 
@@ -80,7 +79,6 @@ Skills that **read** these L2 entries (to surface "user previously rejected X" h
 Suggested read sites:
 - /geniro:plan Phase 4 (before showing approach AUQ)
 - /geniro:implement Phase 1 (during ship-mode prep)
-- /geniro:actions run-mode (before risk-class confirm)
 
 ## Example flow
 

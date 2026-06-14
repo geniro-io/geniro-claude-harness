@@ -1,6 +1,6 @@
 ---
 name: geniro:actions
-description: "Use when scaffolding a reusable workflow-helper (Slack/PR/release automations) or invoking a previously-created action. Stored at .geniro/actions/. Run-mode gates execution by risk_class (low/medium/high). Skip for editing core Geniro skills — edit the plugin repo directly."
+description: "Use when scaffolding a reusable workflow-helper (Slack/PR/release automations) or invoking a previously-created action. Stored at .geniro/actions/. Run-mode executes the action directly — invoking it is the authorization, so no confirmation is asked. Skip for editing core Geniro skills — edit the plugin repo directly."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
@@ -18,7 +18,7 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 | `list` | show, view, ls, current | Print the table of installed actions |
 | `create` | new, scaffold, make, add | Interview-driven scaffold for a new action |
 | `edit` | change, modify, update, tweak, adjust | Open an existing action for external editing, then re-validate |
-| `run` | invoke, exec, execute, do | Read an action file and follow its steps inline (AUQ-gated by `risk_class`) |
+| `run` | invoke, exec, execute, do | Read an action file and follow its steps inline (no confirmation — invoking the action is the authorization) |
 | `delete` | remove, rm, drop | Remove an action file (with confirmation) |
 | `validate` | check, lint | Lint frontmatter and body against the rule set |
 
@@ -29,8 +29,8 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 ## Loop invariants
 
 1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
-2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written); every `run` preceded by an AUQ-gate matching `risk_class`.
-3. Permission before side-effect — `risk_class: medium|high` gates execution via AUQ; `risk_class: low` skips the gate but respects per-step tool-allowlist if declared.
+2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written). `run` is not preceded by a confirmation gate — invoking `/geniro:actions run <name>` authorizes the run.
+3. Invoking authorizes execution — `run` fires the action's steps directly regardless of `risk_class`; the user already chose to run it, so re-asking "are you sure?" would only repeat a decision they made. The per-step tool-allowlist is still respected (Phase 5.4 intersection), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body still fires.
 4. Bounded structured results — `list` renders a frontmatter-only table; the `description` field is the only free text shown and is already capped at create-validation time, so no separate body truncation applies.
 5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
 6. Observations not assumed success — each step in `run` mode checks return status; failed step transitions to `failed` with step number captured.
@@ -55,7 +55,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 **Run mode tool gating:** the effective tool surface is the intersection of the `/geniro:actions` skill's own `allowed-tools` (SKILL.md frontmatter) with the action's frontmatter `allowed-tools:` field. Phase 5.4 applies this intersection before any step runs.
 
-Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`) — these are then AUQ-gated by `risk_class` per the run-mode risk-class gate (Phase 5.3).
+Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); these run with no confirmation gate — the action author scopes them via `allowed-tools`, and invoking the action authorizes them. `risk_class` labels their blast radius for the listing / delete-warning / lint, not for a run-time prompt (Phase 5.3).
 
 ## Termination case → state mapping
 
@@ -63,7 +63,6 @@ Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`) �
 |---|---|
 | User cancelled at any AUQ | `aborted: user cancelled at <step>` |
 | Slug resolution failed after 3 AUQ retries | `aborted: slug unresolved after 3 AUQ rounds` |
-| Run-mode AUQ rejected (risk_class:high, user picked Cancel) | `aborted: user rejected high-risk action <slug>` |
 | Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
 | Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>` |
@@ -206,10 +205,10 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 **Q4 — Test cases (optional):** "Include a brief 'how to test it' note?"
 - `Yes — add 1–2 test cases`, `Skip`
 
-**Q5 — Risk class:** "What is the risk class for this action?"
-- `low` — Pure read operations: read files, list dirs, aggregate data, display info. No network, no file mutation outside cwd. Runs with no AUQ confirmation.
-- `medium` — Local file mutation, git commit (no push), tests with side effects (DB seed, integration test). External reads (HTTP GET). Runs with 1-click confirm.
-- `high` — External sends (Slack/PR/email), git push, npm publish, docker push, cloud mutations, file deletion outside `.geniro/`. Runs with explicit Cancel-default confirm.
+**Q5 — Risk class:** "What is the risk class for this action?" (`risk_class` labels the action's blast radius for the listing, the delete-confirmation warning, and lint — it does not add a run-time confirmation; an action the user invoked is never re-confirmed.)
+- `low` — Pure read operations: read files, list dirs, aggregate data, display info. No network, no file mutation outside cwd.
+- `medium` — Local file mutation, git commit (no push), tests with side effects (DB seed, integration test). External reads (HTTP GET).
+- `high` — External sends (Slack/PR/email), git push, npm publish, docker push, cloud mutations, file deletion outside `.geniro/`.
 
 **Recommended option (per scaffold heuristic, based on Q3):**
 
@@ -311,31 +310,11 @@ Call **Phase 5.0**. Phase 5.0 handles empty-input, exact-slug, free-text, and ma
 
 Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`, `allowed-tools`, `external-send`, `argument-hint`, `created`). Hold body steps in memory for Phase 5.4.
 
-### Phase 5.3: Risk-class AUQ gate
+### Phase 5.3: No run-confirmation gate
 
-Read action's frontmatter `risk_class`:
+`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 5.4. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 7), the validate lint rules (Phase 8), and the L2 learning tag (Phase 5.5) — it no longer gates execution.
 
-- **`risk_class: low`** — Skip AUQ. Proceed to Phase 5.4.
-- **`risk_class: medium`** — AUQ:
-- **Question:** "Run action `<slug>` (medium risk)?"
-- **Options:** `Run` (Recommended) / `Cancel`
-- If Cancel → failed (user aborted).
-- **`risk_class: high`** — AUQ with **Cancel-as-recommended** default (forces explicit Run pick):
-- **Question:** "Run action `<slug>` (HIGH risk — confirm explicitly)?"
-- **Options:** `Cancel` (Recommended) / `Run anyway`
-- If Cancel → failed.
-
-**Approvals[] persistence does NOT apply to run mode.** Risk-class AUQs are context-dependent (re-ask each run intentionally; "did I confirm `slack-release-ping` last week" must NOT auto-confirm this week).
-
-**L2 emit on rejection signal:** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once:
-
-```bash
-emit_rejection_if_signal \
-"/geniro:actions" "actions/<slug>" "risk_class_<low|medium|high>" \
-"Run action <slug>" "<picked label>" "<recommended label>"
-```
-
-`<recommended label>` is the option carrying `(Recommended)` — `Run` for medium, `Cancel` for high. Helper detects rejection signal (picks containing `Cancel`) and emits L2 `user_rejected_suggestion` ONLY when signal fires. Acceptance (`Run` picked when recommended OR no rejection keyword) is a no-op. Cross-session signal: future /geniro:actions runs of the same slug surface "user rejected this action N times". This is distinct from approvals[], which is intentionally skipped in run mode.
+The remaining WAIT points in run mode are operational, not confirmational, and stay in place: the cross-worktree confirmation (Phase 5.0 Step 2 — answers "use the copy from another worktree?"), the free-text picker (Phase 5.0 Step 3 — answers "which action?"), the tool-scope gap AUQ (Phase 5.4 — fires only when a step needs a tool outside the allowlist intersection), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body. None of these is an "are you sure you want to run this?" prompt.
 
 ### Phase 5.4: Execute inline (tool-scope intersection)
 
@@ -512,9 +491,8 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 | "The five interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
 | "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
 | "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
-| "I'll skip the risk_class AUQ if the user already confirmed last week" | No — risk-class decisions are context-dependent. Re-ask each run. The approvals[] persistence applies to one-time decisions (e.g., $ARGUMENTS disambiguation), NOT runtime confirmations. |
 | "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
-| "I'll allow `--skip-confirm` flag to bypass the risk-class gate" | No — explicit anti-pattern. If user wants no-AUQ, they pick `risk_class: low` on create. Bypass would defeat the safety net. |
+| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — the run-confirmation gate was deliberately removed. Invoking `/geniro:actions run <slug>` is the authorization; re-introducing an "are you sure?" AUQ contradicts that explicit choice. `risk_class` is metadata now (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
 | "I'll re-use Phase 4 Step 6's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
@@ -530,7 +508,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 
 - [ ] Intent parsed from `$ARGUMENTS` (or default to `list`)
 - [ ] If `create`: 5-question interview completed, draft previewed and approved, file written, all 10 validation checks passed
-- [ ] If `run`: action file located and read, risk_class AUQ fired (medium/high), action steps executed inline within tool-scope intersection
+- [ ] If `run`: action file located and read, action steps executed inline within tool-scope intersection (no run-confirmation gate — invoking the action is the authorization)
 - [ ] If `delete`: confirmed via AUQ before removal (high-risk warning added if applicable)
 - [ ] If `edit`: target resolved (or refused if main-worktree), absolute path printed, AUQ "Done" gate fired, Phase 4 Step 6 checks (1-10) re-run on Done, file NOT deleted on validation failure
 - [ ] If `validate`: 13-rule lint executed; CRITICAL/HIGH cause non-zero exit

@@ -198,7 +198,7 @@ Stateless CRUD over `.geniro/instructions/` (L4 procedural layer).
 
 Stateless CRUD + runner over `.geniro/actions/`.
 
-- `risk_class` (low/medium/high) is mandatory frontmatter. Run-mode gate: low = no AUQ, medium = 1-click confirm, high = Cancel-as-recommended.
+- `risk_class` (low/medium/high) is mandatory frontmatter. Run mode executes the action directly — invoking it is the authorization, so no confirmation fires; `risk_class` is metadata for the list view, delete warning, and lint.
 - Tool-scope intersection in run mode: action's `allowed-tools` ∩ skill's `allowed-tools`.
 - L2 `discovery` emit fires on successful runs where `external-send: true`.
 - Any action calling `mcp__github__*`, network, or `Bash(curl ...)` must declare `risk_class: high`.

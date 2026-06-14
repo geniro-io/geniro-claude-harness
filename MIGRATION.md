@@ -10,6 +10,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### `/geniro:actions run` no longer asks for confirmation
+
+The run-mode risk-class confirmation gate is removed. Previously `/geniro:actions run <name>` confirmed before executing — a 1-click prompt for `medium` actions and a Cancel-default prompt for `high` actions. Now every action runs directly: invoking `/geniro:actions run <name>` IS the authorization, so no "are you sure?" prompt fires regardless of `risk_class`. The `risk_class` frontmatter field is unchanged and still required — it now drives only the `list` Risk column, the `delete` high-risk warning, the validate lint rules, and the L2 learning tag. Operational WAIT points are unaffected (cross-worktree confirmation, free-text action picker, tool-scope gap prompt, and any `[AUQ]`/`## Confirm:` checkpoint an action author placed inside the body). The run-mode rejection-signal emit to `learnings.jsonl` is also removed (there is no longer a confirmation to reject).
+
+**Action required:** None — existing actions and their `risk_class:` values keep working as-is; the only change is that runs no longer prompt.
+
+**Auto-detect:** N/A — behavior change in the shipped skill with no project-state impact.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — removes a prompt; no schema, state, or user-file change.
+
+---
+
 ### `--tdd` / `--standard` flags removed from `/geniro:review`
 
 The Standard/TDD mode axis is gone from `/geniro:review`. The post-review test-confirmation gate is now the only test question: it fires automatically in every run whose kept findings include testable ones, offering to author failing tests for them — your approval gates the authoring, and the Failing-tests gate still gates any commit/push of the authored tests. Passing `--tdd` or `--standard` no longer changes behavior (test authoring never filtered the posted finding set, so the post set is unchanged). The `mode:` frontmatter field and `- Mode:` summary line are dropped from new review handoffs; values persisted by older runs (`mode: tdd` / `mode: standard`, `tdd_mode_choice` approvals) are read by no consumer and are ignored harmlessly.

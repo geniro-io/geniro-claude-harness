@@ -196,7 +196,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:actions` — Custom workflow-helper management
 
-3-phase stateless CRUD + runner over `.geniro/actions/`. 6 operations: list / create / edit / run / delete / validate. `risk_class: low | medium | high` mandatory frontmatter field; run-mode AUQ ladder gates by risk class (`low` skips AUQ, `medium` 1-click confirm, `high` Cancel-as-recommended default). `validate` mode shares the rule set with `/instructions validate review-extra`. L2 `discovery` emit on successful runs with `external-send: true`.
+3-phase stateless CRUD + runner over `.geniro/actions/`. 6 operations: list / create / edit / run / delete / validate. `risk_class: low | medium | high` mandatory frontmatter field; run mode executes the action directly with no confirmation gate — invoking it is the authorization, and `risk_class` is metadata for the list view, delete warning, and lint. `validate` mode shares the rule set with `/instructions validate review-extra`. L2 `discovery` emit on successful runs with `external-send: true`.
 
 ```
 /geniro:actions list                                       # show all custom actions
