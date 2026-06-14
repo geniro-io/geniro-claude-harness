@@ -141,7 +141,7 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 
 **`--deep` with test authoring approved at the Phase 4.3 gate.** Both apply: 3× / 3-vote fan-out AND failing-test authoring. The deep verification runs first (Phase 4.2); the test-gate (Phase 4.3) runs on the survivors of the 3-vote, so authored tests target majority-confirmed findings only — a strict improvement.
 
-**Round-2+ re-run with `--deep`.** Prior-round findings feed the reviewer prompts as today; the 3× passes run against the same prior-context. `deep-mode` persists in `approvals[]` so a resumed/re-run session keeps the choice.
+**Round-2+ re-run.** Prior-round findings feed the reviewer prompts as today. Depth is re-asked on a fresh re-run — via the §7 re-review gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7) — because a fresh `/geniro:review` re-invocation never inherits the prior round's `deep_mode_choice`; only a compaction-resume of an in-flight run re-applies it. Passing `--deep` on the re-run pre-resolves depth to Deep as on any run.
 
 **Workflow unavailable in the runtime** (SDK / cron with no Workflow tool). Fail-safe ladder rung 1 — run single-pass, note the caveat. Deep mode degrades to standard rather than erroring.
 
