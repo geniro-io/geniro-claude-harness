@@ -28,8 +28,6 @@ State.md `phase: action-gate` during this phase.
 
 /geniro:review does not apply fixes. The Phase 6 handoff message never includes "I'll fix these now" language. The fix path routes to /geniro:implement (manual, or via the Phase 6 handoff line).
 
-`--simplify` flag does NOT change this. The flag biases Phase 2 reviewer attention but the output is still a finding list for consumption by other skills.
-
 **Skip Phase 6 entirely when:**
 - Zero actionable findings remain (CRITICAL + HIGH + MEDIUM all zero after Phase 4.2).
 
@@ -139,7 +137,6 @@ pr-body: <verbatim body|null>
 plan-context-ref: <abs-path|null>
 linear-task-ref: <ENG-123|null>
 linear-parent-ref: <ENG-100|null>
-simplify-mode: <true|false>
 resolved-threads-snapshot: [<path:line entries|null>]
 pr-bot-comments-snapshot: [<path:line entries|null>]   # read by §7.1 dedup check 2
 pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3

@@ -24,6 +24,24 @@ The Standard/TDD mode axis is gone from `/geniro:review`. The post-review test-c
 
 ---
 
+### `--simplify` flag removed from `/geniro:review`
+
+The `--simplify` flag (and its `simplify-mode` handoff field) is gone from `/geniro:review`. The reuse / quality / efficiency lens it added is now covered by the always-on review dimensions — architecture (reuse, premature abstraction), conventions (modal-pattern drift), optimizations (efficiency), and guidelines (naming, dead code) — at their standard thresholds. Applying a simplification is downstream work (`/geniro:implement` or `/geniro:refactor`), not part of producing a review. Passing `--simplify` no longer changes behavior (it is read as ordinary argument text and ignored); the dedicated `simplify-criteria.md` reference file is removed.
+
+**Action required:** None — remove `--simplify` from any saved command aliases, actions, or `.geniro/instructions/review*.md` rules that invoke `/geniro:review`; the flag is now inert. A project that relied on the aggressive simplify thresholds still gets the same finding classes from the standard dimensions at their normal thresholds.
+
+**Auto-detect:**
+
+```bash
+grep -rl -- '--simplify' .geniro/instructions/ .geniro/actions/ 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — drop the now-inert `--simplify` token from the matched instruction/action files.
+
+**Severity:** LOW — behavior-preserving removal; the flag degrades to a no-op and the simplify lens persists via the standard dimensions.
+
+---
+
 ### New gate-render guard hard-blocks blind decision questions
 
 `hooks/enforce-gate-render.sh` is a new PreToolUse hard-block (exit 2) on the `AskUserQuestion` tool. A decision question that references content "above" (in the question text, option labels, or option descriptions) while the current turn contains no visible assistant message is blocked — the user would be answering blind, violating the message-first gate contract (`skills/_shared/gate-rendering.md`). A block is NOT a user denial: the stderr message instructs the model to write the full gate render as an ordinary chat message and then re-ask the same question. The hook reverse-scans the transcript back to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race) and fails open on missing jq (loud), missing transcript, cap overflow, or a garbage transcript.
@@ -381,7 +399,7 @@ Adds `risk_class: low` right after the opening `---` of each affected action's f
 
 Skills dropped in the consolidation: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`. Their `.geniro/instructions/<scope>.md` files are no longer loaded by any skill.
 
-**Action required:** Per-file decide: (a) migrate the rules content to the replacement skill's instruction file (mapping in CLAUDE.md "Skills deleted" section: `/follow-up` → `/implement`; `/learnings` → auto-step in `/implement` Phase 3; `/deep-simplify` → `/review --simplify`; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
+**Action required:** Per-file decide: (a) migrate the rules content to the replacement skill's instruction file (mapping in CLAUDE.md "Skills deleted" section: `/follow-up` → `/implement`; `/learnings` → auto-step in `/implement` Phase 3; `/deep-simplify` → `/review` standard dimensions; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
 
 **Auto-detect:** `ls .geniro/instructions/{brainstorm,decompose,follow-up,deep-simplify,features,learnings,cleanup,vendor}.md 2>/dev/null`
 

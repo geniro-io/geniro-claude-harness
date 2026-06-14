@@ -22,7 +22,7 @@ Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verif
 
 ## 1. Activation + state
 
-- **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`), like `--simplify`.
+- **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`).
 - **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ asks review depth — "Standard" / "Deep — 3× passes + 3-vote verify". Picking Deep sets the boolean.
 - **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` so the session-restore hook re-applies it on a compaction-resume.
 - **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the 3-vote survivors whenever eligible findings exist; the two never conflict.

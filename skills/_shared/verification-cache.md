@@ -48,7 +48,7 @@ Single-writer means the cache file has one writer per orchestrator run; if an or
 
 | Rationalization | Counter |
 |---|---|
-| "Phase 5 simplify reported PASS, Phase 6 can skip the re-run." | Only if no `Edit`/`Write` happened between Phase 5 reporting and Phase 6 entry. Check `mtime_ceiling` against current file mtimes before honoring. |
+| "Phase 5 review reported PASS, Phase 6 can skip the re-run." | Only if no `Edit`/`Write` happened between Phase 5 reporting and Phase 6 entry. Check `mtime_ceiling` against current file mtimes before honoring. |
 | "I'll trust the subagent's PASS report without re-checking the file mtime." | The orchestrator MUST verify the cache wasn't invalidated by a post-cache mutation. The subagent reports the state at its exit; the orchestrator owns the state from then on. |
 | "The fixer agent only touched test files, the build cache is still valid." | Any mutation invalidates — the build/lint/test triad is atomic. Test-only edits can still break lint or compilation. Re-run the full triad. |
 | "I'll cache PASS even though the agent timed out — the partial output looked clean." | Non-clean exit = no cache. Absence of FAIL in partial output is not evidence of PASS. |

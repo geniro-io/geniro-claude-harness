@@ -25,7 +25,7 @@ When a plugin subagent is invoked in a context without an interactive orchestrat
 | Task nature | Fallback model |
 |---|---|
 | Mechanical edit, template-based doc patching, rubric-based review (guidelines), CLI orchestration, structured PASS/FAIL classification, dedup checks, observation extraction | `haiku` |
-| Code reasoning, implementation, bugs/security/architecture/tests/optimizations/conventions/design review, spec compliance, simplify pass, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
+| Code reasoning, implementation, bugs/security/architecture/tests/optimizations/conventions/design review, spec compliance, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
 | Architecture design, multi-file planning, deep hypothesis-driven debugging, threat modeling, novel-domain greenfield work | `opus` |
 
 ## Escalation signals (orchestrator-side advisory)

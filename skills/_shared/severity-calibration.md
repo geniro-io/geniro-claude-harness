@@ -162,7 +162,7 @@ KEEP IF:
     AND (
       convergence_count >= 2                                                # multi-dim agreement
       OR (Evidence-Block present AND properly formatted AND confidence >= 60)  # code-grounded citation
-      OR (criteria-file-marked-pre-resolved, e.g. simplify P1/P2)           # explicit overrides
+      OR (criteria-file-marked-pre-resolved, e.g. regressions signal-table HIGH)  # explicit overrides
       OR confidence >= 80                                                   # advisory fallback
     )
   )
@@ -179,7 +179,7 @@ Rationale:
 
 - `convergence_count >= 2`: when two or more independent dims flag the same finding, that agreement is a stronger signal than any single dim's self-rated confidence — multiple reviewers converging measurably lifts precision on real defects.
 - `Evidence-Block resolves` (with confidence ≥ 60 floor): a code-grounded citation is the strongest defense against false positives; the confidence floor screens out low-conviction citations.
-- Pre-resolved markers: explicit overrides preserve existing simplify P1/P2 / regressions-criteria signal-table semantics
+- Pre-resolved markers: explicit overrides preserve existing regressions-criteria signal-table semantics
 - Confidence >= 80: kept as a fallback path, no longer the primary gate
 - `Decision Type == PRODUCT-DECISION` (Path B): decision-type (who-decides) is orthogonal to severity (impact-if-wrong). A PRODUCT-DECISION is a call the reviewer cannot close, so the user must see it regardless of severity — mirroring `/geniro:refactor`'s always-WAIT PRODUCT-DECISION escalation. Path B keeps severity as scored (a LOW PRODUCT-DECISION stays LOW — admission by decision-type, NOT the severity inflation §2 forbids) and skips the §4.2 verifier (a trade-off is not a defect-to-confirm).
 
@@ -189,7 +189,7 @@ The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor 
 
 ## 6. Per-dim calibration variants
 
-Per-dim criteria files may tighten this rubric (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` caps at HIGH and suppresses LOW; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md` maps P1/P2/P3 to HIGH/MEDIUM/informational, P3 filtered unless `risk-tier: high`) but must not loosen it — loosening lets sub-threshold findings surface past the shared gate. Specifically:
+Per-dim criteria files may tighten this rubric (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` caps at HIGH and suppresses LOW) but must not loosen it — loosening lets sub-threshold findings surface past the shared gate. Specifically:
 
 - A criteria file MUST NOT classify documentation / PR-description / cosmetic suggestions above LOW
 - A criteria file MUST NOT widen CRITICAL beyond the §1 inclusion list

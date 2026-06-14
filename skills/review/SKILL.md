@@ -1,10 +1,10 @@
 ---
 name: geniro:review
-description: "Use when a comprehensive code review of pending changes (a diff, branch, or PR) is needed. Reporter workflow: triage, a cheap mechanical pre-pass, then parallel single-dimension reviewers (bugs, security, architecture, tests, regressions, conventions, and more, plus any custom ones) whose findings are filtered and individually verified, then persisted. Emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/geniro:implement, or you manually) apply the fixes — review never edits code itself. Resolves any needs-your-decision questions before offering the handoff. Optional --simplify folds reuse/quality/efficiency criteria into the existing dimensions. When the review finds testable bugs, it offers to author failing tests for them (gated by your approval). Optional --deep runs each check three times and verifies findings with a 3-agent majority vote (higher quality, higher cost)."
+description: "Use when a comprehensive code review of pending changes (a diff, branch, or PR) is needed. Reporter workflow: triage, a cheap mechanical pre-pass, then parallel single-dimension reviewers (bugs, security, architecture, tests, regressions, conventions, and more, plus any custom ones) whose findings are filtered and individually verified, then persisted. Emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/geniro:implement, or you manually) apply the fixes — review never edits code itself. Resolves any needs-your-decision questions before offering the handoff. When the review finds testable bugs, it offers to author failing tests for them (gated by your approval). Optional --deep runs each check three times and verifies findings with a 3-agent majority vote (higher quality, higher cost)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch, EnterWorktree, ExitWorktree, Workflow]
-argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--simplify] [--deep]"
+argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep]"
 ---
 
 # Code Review Skill
@@ -24,7 +24,7 @@ Comprehensive code review using parallel multi-agent analysis.
 
 You are a **coordinator**. You delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself — you read files only to gather context and verify agent findings.
 
-`/geniro:review` is a **Reporter** — it does not apply fixes. The Phase 6 handoff message omits 'I'll fix these now' language, because that phrasing implies a fixer responsibility this skill does not have. Findings persist to a handoff file; downstream consumers (`/geniro:implement`, manual user action) apply fixes. The `--simplify` flag does NOT change this. Running `/geniro:review` under a dynamic `Workflow(...)` / ultracode does NOT relax it either — a workflow wrapper parallelizes the reviewer fan-out, not the Reporter contract; full boundary at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+`/geniro:review` is a **Reporter** — it does not apply fixes. The Phase 6 handoff message omits 'I'll fix these now' language, because that phrasing implies a fixer responsibility this skill does not have. Findings persist to a handoff file; downstream consumers (`/geniro:implement`, manual user action) apply fixes. Running `/geniro:review` under a dynamic `Workflow(...)` / ultracode does NOT relax it either — a workflow wrapper parallelizes the reviewer fan-out, not the Reporter contract; full boundary at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 ---
 
@@ -127,7 +127,7 @@ Summary of what Phase 1 does:
 12. **Mode AUQ** — one question: review depth (Standard / Deep). Fires unless `--deep` is in `$ARGUMENTS` (the flag pre-resolves depth to Deep). Persist the pick → frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`. Full chooser shape + deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §11 + `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 13. **Size triage** — classify files Trivial / Substantive when diff >8 files or >400 LOC. Controls Phase 2 Standard vs Batched mode.
 
-Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, plus `deep-mode` (from the Mode AUQ pick or `--deep` parse) and `simplify-mode` (from the `--simplify` parse) when those steps ran; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
+Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, plus `deep-mode` (from the Mode AUQ pick or `--deep` parse) when that step ran; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
 Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr diff` / `gh pr view` / `mcp__linear__*` reads). For codebase-research side queries inside this phase (e.g., locating a pattern across the wider repo when scoring peer-PR overlap), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
@@ -318,20 +318,6 @@ Surface any `status: failed` entries by their plain-English dim name (e.g., "PR 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` (conditional per §2.8)
 - Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (≤10 per project)
 
-### 2.4 `--simplify` flag weighting
-
-When `$ARGUMENTS` contains `--simplify` (semantic parse — matches `simplify`, `--simplify`, `simplify mode`), Phase 2 prepends simplify criteria onto 5 of the built-in dimensions:
-
-- **architecture** reviewer — Reuse criteria (existing abstractions, duplicate logic, premature abstraction).
-- **conventions** reviewer — repo-modal-pattern aggressive mode (lower ≥80% siblings threshold to ≥60%).
-- **guidelines** reviewer — Quality criteria (naming clarity, docs noise, dead code).
-- **bugs** reviewer — Quality bug-class extensions (defensive code that masks bugs, redundant null checks).
-- **optimizations** reviewer — Efficiency criteria (verbose loops, unnecessary allocations, sync I/O in async paths).
-
-Pre-pend body read from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md`.
-
-The flag biases existing reviewers' attention; it does not add new dimensions, change output schema, or alter the reporter-mode handoff contract.
-
 ### 2.5 UI-file detection rule (design dim trigger)
 
 A file is a UI file per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule. Design dimension skipped when no changed file matches.
@@ -423,7 +409,7 @@ When `missing` is empty, proceed directly to §4.1.
 KEEP rule (admit to Phase 5 stratify into `## Findings`) — a finding is kept when EITHER admission path holds. **Path A — severity-gated** (also admits to the Phase 4.2 verifier): `severity >= MEDIUM` AND ONE OF:
 1. `convergence_count >= 2` — finding raised by 2+ independent reviewer dims (k-review pattern; cross-dim agreement beats any single dim's self-rating). `convergence_count` is set during §3.1 dedup.
 2. `Evidence-Block present AND properly formatted` AND `confidence >= 60` — cites a real file:line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Properly formatted" = Evidence-Block fence OR file:line pattern + ≥2 quoted lines — OR, for a sentinel-`File` finding (`File: SPEC-COMPLIANCE` / `File: PR-METADATA`, path-less by design), a verbatim quoted plan/PR fragment in `Evidence:` (a fenced quote or ≥2 quoted lines) standing in for the code citation these dimensions structurally lack (mechanical check at §4.1 entry on each finding's `Evidence:` field; false on missing; orchestrator does NOT re-read the cited file — Phase 4.2 verifier handles that for every §4.1 survivor).
-3. Pre-resolved override marker — tagged by a criteria file as pre-resolved priority (e.g., `simplify-criteria.md` P1/P2; `regressions-criteria.md` signal-table-flagged HIGH).
+3. Pre-resolved override marker — tagged by a criteria file as pre-resolved priority (e.g., `regressions-criteria.md` signal-table-flagged HIGH).
 4. `confidence >= 80` — advisory fallback for findings without convergence or evidence. High tier (`risk-tier: high`) relaxes this to `confidence >= 70` (matches the legacy threshold); other signals unchanged.
 
 Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence drops to `## Deferred — sub-threshold` regardless of convergence or confidence score. A sentinel-`File` MEDIUM finding (spec-compliance / pr-metadata) satisfies signal #2 via the quoted plan/PR-fragment form above, so it reaches the Phase 4.2 path-less verifier rather than being deferred — its grounding is the verbatim fragment, not a code line.
@@ -465,10 +451,6 @@ Summary:
 - Spawn ONE adversarial-tester-agent with eligible findings as hypothesis seeds. Orchestrator's independent re-run IS the gate; never trust the agent's red/green claim alone.
 - Demote-don't-delete: green tests demote findings to `## Filtered` with `[CHALLENGED-BY-TEST]` tag; original severity preserved for re-elevation.
 - Fail-open: agent failures surface "test-gate fail-open" under `## Caveats` + write `## Errors` entry.
-
-### 4.4 `--simplify` flag interaction
-
-`--simplify` does NOT change Phase 4 thresholds or validator behavior. Simplify severities map P1→HIGH, P2→MEDIUM, P3→informational (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/simplify-criteria.md`): P1/P2 pass through Phase 4 like native HIGH/MEDIUM findings; P3 is filtered out of Phase 4 unless risk-tier:high.
 
 ---
 
@@ -561,7 +543,6 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
 Operational rules:
 
 - **Reporter behavior** — no fix loop inside /geniro:review. /geniro:implement self-review (5-dim parallel) is a separate skill with a separate contract.
-- **`--simplify`** does NOT change handoff shape (still reporter).
 - **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
 - **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`, OR any kept CRITICAL/HIGH/MEDIUM finding still carries `Validation: refuted` (it should have been filtered at Phase 4.2), OR the report is still `report_status: draft` (the §3.5 finalize step never ran). Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3) being skipped under drift.
 ---
@@ -639,4 +620,4 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] The report was finalized (`report_status: draft→final`) only after the decision gate cleared; on Post, `[POSTED-TO-PR]` idempotency markers were persisted.
 - [ ] The reflection echo (`Reviewed for improvements: <N> candidate(s)`, including at zero) was emitted before the Action gate AUQ fired (per the Suggest-improvements step).
 - [ ] The Action gate fired (always-WAIT); the user pick persisted to `approvals[]`; the round-N escalation gate fired when round ≥3.
-- [ ] `--simplify` / `--deep` honored when present; test authoring (when approved at the test-confirmation gate) stayed additive — it never filtered the posted finding set.
+- [ ] `--deep` honored when present; test authoring (when approved at the test-confirmation gate) stayed additive — it never filtered the posted finding set.
