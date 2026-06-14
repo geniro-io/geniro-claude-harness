@@ -786,7 +786,11 @@ if [ -f "$_learnings_log" ]; then
   _auto_enabled="true"
   _safety_file=$(find_safety_json 2>/dev/null || true)
   if [ -n "$_safety_file" ] && [ -f "$_safety_file" ]; then
-    _opt=$(jq -r '.memory.auto_archive_stale // true' "$_safety_file" 2>/dev/null)
+    # Resolve with an explicit `== false` test, not jq's `//` default operator:
+    # `//` treats a boolean `false` as empty and falls through to the default,
+    # so a defaulted read of this key would never honor an explicit `false`
+    # (a real opt-out bug this form replaced).
+    _opt=$(jq -r 'if .memory.auto_archive_stale == false then "false" else "true" end' "$_safety_file" 2>/dev/null)
     if [ "$_opt" = "false" ]; then
       _auto_enabled="false"
     fi

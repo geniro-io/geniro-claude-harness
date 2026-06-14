@@ -899,6 +899,26 @@ echo "$sm" | grep -q "verified: 2/2 (100%)" \
   || fail "coverage should emit systemMessage on cold startup — '$sm'"
 
 # ---------------------------------------------------------------------------
+# 21. memory.auto_archive_stale opt-out must actually disable. jq's `//` treats
+#     a boolean `false` as empty and falls through to the default, so a
+#     `.memory.auto_archive_stale // true` resolver would never disable the
+#     feature. Guard the explicit `== false` resolver against regressing.
+# ---------------------------------------------------------------------------
+if grep -q 'auto_archive_stale // true' "$HOOK"; then
+  fail "hook reintroduced the broken 'auto_archive_stale // true' opt-out (jq // eats boolean false)"
+else
+  pass "hook uses the explicit == false opt-out resolver (no // true)"
+fi
+
+_resolve_optout() { jq -r 'if .memory.auto_archive_stale == false then "false" else "true" end' 2>/dev/null; }
+echo '{ "memory": { "auto_archive_stale": false } }' | _resolve_optout | grep -qx "false" \
+  && pass "auto_archive_stale:false resolves to disabled" \
+  || fail "auto_archive_stale:false must resolve to disabled — the // true bug regressed"
+echo '{ "memory": {} }' | _resolve_optout | grep -qx "true" \
+  && pass "absent auto_archive_stale defaults to enabled" \
+  || fail "absent auto_archive_stale should default to enabled"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
