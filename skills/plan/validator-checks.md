@@ -82,9 +82,11 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Rule:** section 9 (Validation) has body content; either references a test type (`unit`, `integration`, `e2e`) OR specifies a manual-verification procedure.
 
-**Heuristic:** body-non-empty + keyword/regex match.
+**Sub-rule (`verify:` shape, optional field):** if a section 9 criterion carries a `verify:` field, it must be a non-empty command string. Shape-only — the validator never executes the command; /geniro:implement runs it at end-of-phase. A criterion without `verify:` is unaffected (the field is optional; absent = prose-only verification).
 
-**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., 'manual: navigate to /login, click OAuth button, verify redirect')."
+**Heuristic:** body-non-empty + keyword/regex match; for each `verify:` occurrence, assert the remainder of the line is non-empty after trimming whitespace.
+
+**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., 'manual: navigate to /login, click OAuth button, verify redirect'). If a criterion declares `verify:`, give it a non-empty command (or drop the empty `verify:` line)."
 
 ### 9. `stopping_condition`
 

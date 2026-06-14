@@ -428,6 +428,27 @@ grep -qE '`kind`' "$REPO_ROOT/skills/plan/spec-template.md" \
   && pass "C2 /plan spec-template still defines all 4 required workflow_refs per-entry keys" \
   || fail "C2 /plan spec-template.md per-entry required-key shape drifted"
 
+# C2b (B1 seam): the optional per-criterion `verify:` field must stay documented on BOTH ends —
+# producer (spec-template §9 documents it + the validator pins its shape) and consumer (/implement
+# runs it). A doc edit that drops either end silently breaks the spec→implement acceptance-check seam.
+grep -qE '`?verify:`?' "$REPO_ROOT/skills/plan/spec-template.md" \
+  && grep -qE 'verify:' "$REPO_ROOT/skills/plan/validator-checks.md" \
+  && grep -qE 'verify:' "$REPO_ROOT/skills/implement/implement-reference.md" \
+  && pass "C2b /plan documents optional section-9 verify: + validator pins its shape + /implement consumes it" \
+  || fail "C2b verify: seam drifted — spec-template / validator-checks / implement-reference must all name the field"
+
+# C2c (validator count honesty): the documented check count in the H1 must equal the number of
+# numbered `### N.` check headers AND the highest number enumerated in the §Contents list, so adding
+# or folding a check can never leave the count lying (it also pins ARCHITECTURE.md's mirrored count).
+_vc_h1_count="$(grep -m1 -oE '[0-9]+ checks' "$REPO_ROOT/skills/plan/validator-checks.md" | grep -oE '[0-9]+')"
+_vc_header_count="$(grep -cE '^### [0-9]+\.' "$REPO_ROOT/skills/plan/validator-checks.md")"
+_vc_contents_max="$(grep -oE '\b[0-9]+ `[a-z_]+`' "$REPO_ROOT/skills/plan/validator-checks.md" | grep -oE '^[0-9]+' | sort -n | tail -1)"
+if [ "$_vc_h1_count" = "$_vc_header_count" ] && [ "$_vc_h1_count" = "$_vc_contents_max" ]; then
+  pass "C2c validator-checks count honest (H1=$_vc_h1_count, headers=$_vc_header_count, contents-max=$_vc_contents_max)"
+else
+  fail "C2c validator-checks count drift — H1=$_vc_h1_count headers=$_vc_header_count contents-max=$_vc_contents_max"
+fi
+
 grep -qE 'from-review-' "$REPO_ROOT/skills/review/SKILL.md" \
   && grep -qE 'open_questions' "$REPO_ROOT/skills/review/SKILL.md" \
   && pass "C3 /review (producer) still writes from-review-<branch>.md with open_questions[]" \

@@ -207,6 +207,27 @@ else:
 
 Build the digest from the structured `.tr-out.md` report, never raw test stdout (the token-cost rule above). The lean AUQ that follows carries only the title and the three options from the SKILL.md Phase 2 escalation step.
 
+### Per-criterion `verify:` commands
+
+A spec authored by /geniro:plan may attach an optional `verify: <command>` line to a section 9 (Validation) criterion (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §9). It is the acceptance check for that one criterion — distinct from the project-wide TEST_COMMAND that `test-runner-agent` runs. After the end-of-phase suite reaches `ALL_GREEN`, the orchestrator runs each `verify:` command once and attaches the result as evidence.
+
+```
+for each section-9 criterion carrying a `verify:` line:        # spec-driven runs only
+  result = Bash(<verify command>)                              # orchestrator's own Bash, NOT test-runner-agent
+  classify result on the SAME verdict taxonomy:
+    exit 0                              → ALL_GREEN  (record + continue)
+    non-zero assertion-style exit       → HAS_FAILURES
+    connection-refused / server-down    → INFRA_ERROR
+    blocked by a safety PreToolUse hook → INFRA_ERROR          (never a silent skip — surface the block)
+  any HAS_FAILURES or INFRA_ERROR → route into the Step 6 escalation digest above (the SAME message-first AUQ)
+```
+
+- **Orchestrator runs it, not `test-runner-agent`.** The runner agent's single-command leaf contract is a deliberate safety boundary — its anti-rationalization forbids it orchestrating multiple commands. Phase 2 already grants the orchestrator Bash, so it runs the `verify:` strings directly. No agent-report schema change, so no lockstep cost on the agent side.
+- **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
+- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Test-failure escalation digest (name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"); the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run.
+- **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly. `verify:` is a body-level field, not frontmatter, so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
+- **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and persist the outcome to state.md `## Tool log` via `atomic_state_write`.
+
 ---
 
 ## Phase 3: Self-review reviewer-agent template
@@ -593,6 +614,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] State.md frontmatter `phase:` is a terminal state `done` / `ship-committed-only` / `self-review-only` / `debug-handoff` / `aborted`.
 - [ ] Spec source resolved — either a spec.md / plan.md / DESIGN_DOC frontmatter file was loaded, OR inline-task mode wrote a `## Inline Plan` to state.md.
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures`).
+- [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
 - [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated.
 - [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] Ship report emitted to chat BEFORE the terminal `phase:` transition — Evidence Block with what shipped, commit SHA / branch / PR URL quoted from tool output, test Verdict, review-round found/fixed summary, deferred items (Commit + Push + PR §"Step 5").

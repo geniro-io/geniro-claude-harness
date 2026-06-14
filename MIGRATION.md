@@ -10,6 +10,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### spec.md section 9 gains an optional per-criterion `verify:` command
+
+`/geniro:plan` specs may now attach an optional `verify: <shell command>` line to a section 9 (Validation) criterion — a single acceptance command for that criterion, distinct from the project-wide test suite. After the end-of-phase suite goes green, `/geniro:implement` runs each `verify:` command once (via its own Bash, not `test-runner-agent`), classifies the result on the existing `{ALL_GREEN, HAS_FAILURES, INFRA_ERROR}` verdict taxonomy, and attaches the result as evidence; a failing `verify:` routes into the same message-first escalation prompt so the human stays the ship decider. The field is OPTIONAL and backward-compatible — a spec with no `verify:` line behaves exactly as before (prose-only verification). The validator (`validator-checks.md` check #8 `validation_method`) gains a shape-only sub-rule: a present `verify:` must be a non-empty command string; it never executes the command. `verify:` is a body-level field (not frontmatter), so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
+
+**Action required:** None — existing specs without `verify:` keep working unchanged. New `/geniro:plan` runs may add `verify:` lines per criterion; `/geniro:implement` picks them up organically.
+
+**Auto-detect:** N/A — additive optional field (absent `verify:` = prior behavior); nothing to detect in an existing install.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — additive optional spec field with graceful absence handling; no schema-version bump, no state migration.
+
+---
+
 ### `/geniro:actions run` no longer asks for confirmation
 
 The run-mode risk-class confirmation gate is removed. Previously `/geniro:actions run <name>` confirmed before executing — a 1-click prompt for `medium` actions and a Cancel-default prompt for `high` actions. Now every action runs directly: invoking `/geniro:actions run <name>` IS the authorization, so no "are you sure?" prompt fires regardless of `risk_class`. The `risk_class` frontmatter field is unchanged and still required — it now drives only the `list` Risk column, the `delete` high-risk warning, the validate lint rules, and the L2 learning tag. Operational WAIT points are unaffected (cross-worktree confirmation, free-text action picker, tool-scope gap prompt, and any `[AUQ]`/`## Confirm:` checkpoint an action author placed inside the body). The run-mode rejection-signal emit to `learnings.jsonl` is also removed (there is no longer a confirmation to reject).
