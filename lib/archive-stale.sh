@@ -129,8 +129,28 @@ archive_stale_learnings() {
     echo "archive-stale: jq failed counting stale entries in $log" >&2
     return 2
   fi
+
+  # Verification-coverage line: the fraction of the live (non-deprecated) L2
+  # corpus whose trust is `verified`, surfaced read-only for the human. Computed
+  # over the same $processed stream (it carries .trust and .deprecated) before
+  # the stale_count==0 early-return, so the number prints whether or not anything
+  # was archived. Absent trust folds into `inferred` ((.trust // "inferred")) to
+  # match the score-formula and query-learnings normalization — there is no
+  # phantom "absent" bucket. n/a guards the zero-live divide-by-zero.
+  local coverage_line
+  coverage_line=$(printf '%s\n' "$processed" \
+    | jq -sr '
+        [.[] | select((.deprecated // false) == false)] as $live
+        | ($live | length) as $total
+        | ([$live[] | select((.trust // "inferred") == "verified")] | length) as $verified
+        | if $total == 0 then "coverage: n/a"
+          else "coverage: verified \($verified)/\($total) (\(($verified * 100 / $total) | round)%)"
+          end' 2>/dev/null)
+  [ -z "$coverage_line" ] && coverage_line="coverage: n/a"
+
   if [ "$stale_count" -eq 0 ]; then
     echo "archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + access_count==0)" >&2
+    echo "archive-stale: $coverage_line" >&2
     return 1
   fi
 
@@ -143,6 +163,7 @@ archive_stale_learnings() {
   if [ "$dry_run" = "true" ]; then
     echo "archive-stale: $stale_count stale candidate(s) (dry-run — no changes written):" >&2
     printf '%s\n' "$by_type" >&2
+    echo "archive-stale: $coverage_line" >&2
     echo "" >&2
     echo "Run without --dry-run to flip deprecated:true on these entries." >&2
     return 0
@@ -185,6 +206,7 @@ archive_stale_learnings() {
 
   echo "archive-stale: flipped deprecated:true on $stale_count entries:" >&2
   printf '%s\n' "$by_type" >&2
+  echo "archive-stale: $coverage_line" >&2
   echo "" >&2
   echo "All entries preserved on-disk (audit trail). Re-run safe (idempotent — already-deprecated entries skipped)." >&2
   return 0

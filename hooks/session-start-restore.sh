@@ -849,6 +849,43 @@ Opt-out: set \`memory.auto_archive_stale: false\` in .geniro/safety.json."
   fi
 fi
 
+# Verification-coverage suffix — the fraction of the live (non-deprecated) L2
+# corpus whose trust is `verified`, surfaced read-only on the systemMessage.
+# Computed INDEPENDENTLY of the archiver (which only runs past the 5000-line
+# threshold, so its coverage line would near-never surface on small repos) via a
+# cheap jq tally over the same primary-worktree learnings.jsonl. Absent trust
+# folds into `inferred` ((.trust // "inferred")) to match the score-formula and
+# query-learnings normalization. n/a guards the zero-live divide-by-zero. Opt-out
+# via safety.json memory.show_coverage (default ON), mirroring auto_archive_stale.
+COVERAGE_SUFFIX=""
+if [ -f "$_learnings_log" ]; then
+  _coverage_enabled="true"
+  _cov_safety_file=$(find_safety_json 2>/dev/null || true)
+  if [ -n "$_cov_safety_file" ] && [ -f "$_cov_safety_file" ]; then
+    # Test for an explicit `false` rather than `// true` — jq's `//` treats the
+    # boolean `false` as empty and falls through to the default, so `// true`
+    # could never read an opt-out the user actually set to false.
+    _cov_opt=$(jq -r 'if .memory.show_coverage == false then "false" else "true" end' "$_cov_safety_file" 2>/dev/null)
+    if [ "$_cov_opt" = "false" ]; then
+      _coverage_enabled="false"
+    fi
+  fi
+
+  if [ "$_coverage_enabled" = "true" ]; then
+    _cov=$(jq -Rsr '
+      [splits("\n") | select(length > 0) | fromjson?
+       | select((.deprecated // false) == false)] as $live
+      | ($live | length) as $total
+      | ([$live[] | select((.trust // "inferred") == "verified")] | length) as $verified
+      | if $total == 0 then "n/a"
+        else "\($verified)/\($total) (\(($verified * 100 / $total) | round)%)"
+        end' "$_learnings_log" 2>/dev/null)
+    if [ -n "$_cov" ]; then
+      COVERAGE_SUFFIX="$_cov"
+    fi
+  fi
+fi
+
 # Block 6 — resume protocol. The cold-startup branch
 # (no active task) emits no "active task" block — i.e., the 7-step
 # resume protocol is suppressed entirely. Loader-refresh advice still
@@ -927,12 +964,17 @@ SYSTEM_MESSAGE="Geniro: restoring context (source: $SOURCE, active: $_active_lab
 if [ "${ARCHIVED_COUNT:-0}" -gt 0 ]; then
   SYSTEM_MESSAGE="$SYSTEM_MESSAGE · auto-archived: $ARCHIVED_COUNT"
 fi
+if [ -n "$COVERAGE_SUFFIX" ]; then
+  SYSTEM_MESSAGE="$SYSTEM_MESSAGE · verified: $COVERAGE_SUFFIX"
+fi
 
 # Suppression rule: cold startup with no active task → no systemMessage spam.
-# Exception: auto-archive event (ARCHIVED_COUNT > 0) overrides suppression —
-# user wants to know maintenance happened.
+# Exception: auto-archive event (ARCHIVED_COUNT > 0) OR a coverage line overrides
+# suppression — the user wants maintenance / memory-health signals even on a cold
+# start.
 emit_system_message=true
-if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ] && [ "${ARCHIVED_COUNT:-0}" -eq 0 ]; then
+if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ] \
+   && [ "${ARCHIVED_COUNT:-0}" -eq 0 ] && [ -z "$COVERAGE_SUFFIX" ]; then
   emit_system_message=false
 fi
 

@@ -852,6 +852,53 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 20. Verification-coverage suffix on systemMessage — present when learnings.jsonl
+#     has live entries; absent when safety.json sets memory.show_coverage: false.
+# ---------------------------------------------------------------------------
+
+# 20a. Coverage suffix appears (default ON). Live set: 2 entries, 1 verified -> 50%.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+{
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"v1"}'
+  printf '%s\n' '{"type":"discovery","trust":"inferred","dedup_key":"i1"}'
+} > "$sandbox/.geniro/knowledge/learnings.jsonl"
+
+out=$(run_hook compact "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+echo "$sm" | grep -q "verified: 1/2 (50%)" \
+  && pass "coverage suffix present on systemMessage (default ON)" \
+  || fail "coverage suffix missing/wrong — '$sm'"
+
+# 20b. Opt-out via memory.show_coverage:false suppresses the suffix.
+mkdir -p "$sandbox/.geniro"
+cat > "$sandbox/.geniro/safety.json" <<'EOF'
+{ "memory": { "show_coverage": false } }
+EOF
+out=$(run_hook compact "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "verified:"; then
+  fail "coverage suffix should be suppressed when show_coverage:false — '$sm'"
+else
+  pass "coverage suffix suppressed when memory.show_coverage:false"
+fi
+
+# 20c. Coverage overrides cold-startup systemMessage suppression — a fresh repo
+#      with no active task but a learnings.jsonl still emits the memory-health line.
+sandbox="$TMPDIR_BASE/cov-cold-$$"
+mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+{
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"v1"}'
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"v2"}'
+} > "$sandbox/.geniro/knowledge/learnings.jsonl"
+
+out=$(run_hook startup "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+echo "$sm" | grep -q "verified: 2/2 (100%)" \
+  && pass "coverage overrides cold-startup suppression (systemMessage emitted)" \
+  || fail "coverage should emit systemMessage on cold startup — '$sm'"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

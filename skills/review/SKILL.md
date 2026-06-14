@@ -420,6 +420,8 @@ DEFER rule (write to `## Deferred — sub-threshold` for user awareness; do NOT 
 - `severity < MEDIUM` AND `Decision Type != PRODUCT-DECISION` — deferred per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5. (A LOW `PRODUCT-DECISION` is kept via Path B above, never deferred — its visibility is the user's call to make, not severity's to suppress.)
 - `severity >= MEDIUM` that fails ALL FOUR signals above.
 
+The admission gate is unchanged by the carried-over tier. A repeat finding that re-surfaces unchanged on a re-run is still ADMITTED by this gate — the `repeat-of-prior-round` marker (set at re-review detection per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7) is a presentation router consumed by Phase 5 stratify, not an admission filter. Demoting it to a visible collapsed digest is a Phase 5 presentation step, never a higher bar here. Raising the admission bar for repeats would make a user's prior MEDIUM vanish — the documented anti-pattern (users notice when their MEDIUMs vanish).
+
 ### 4.2 Per-finding empirical-reproduction verification
 
 Every Path-A survivor of Phase 4.1 — CRITICAL, HIGH, AND MEDIUM — gets ONE fresh `reviewer-agent` spawn in verify-finding mode (parallel batch, single assistant turn). No tier-scaling, no severity-scaling within Path A — every severity-gated survivor is verified regardless of `risk-tier`. When `deep-mode: true`, each survivor gets 3 independent verifiers aggregated by 2/3 majority (parse-fail = abstain; quorum < 2 → single-pass fail-safe) per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3 — the per-verifier contract is unchanged, only the vote count differs. A finding admitted by §4.1 Path B alone (a LOW `PRODUCT-DECISION`) carries no Evidence-Block to re-read and routes to the §3 open-decision gate rather than defect-confirmation — so it skips this step. The §4.1 multi-signal gate already constrains the survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM per §4.1; Loop Invariant #6 mandates Evidence at every kept severity), so every code-anchored survivor has a concrete file:line for the verifier to re-read. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice — see the path-less branch below.
@@ -457,6 +459,10 @@ Summary:
 ## Phase 5 — Persist & Emit
 
 State.md `phase: persist`.
+
+### 5.0 Carried-over stratification (re-run repeat findings)
+
+On a round ≥2 re-run where the user picked the collapse option at the re-review gate (the "Repeat findings" question, `approvals[]` category `rereview_repeat_handling`), demote each admitted finding carrying the `repeat-of-prior-round` marker into a collapsed `## Carried-over from round N` digest — a sibling of `## Deferred — sub-threshold`. A repeat that strengthened this round — fresh cross-reviewer convergence, a newly-reachable code path, or a per-finding verifier `confirmed` verdict absent last round — PROMOTES back to active `## Findings`. Genuinely-new findings keep the standard §4.1 admission gate and render in active `## Findings`. The marker drives which section a finding renders in, never whether it renders: a demoted finding is never dropped, stays in the handoff body, and keeps every gate it had (a needs-your-decision finding still fires the open-decision gate; an `open_questions[]`-linked finding keeps its entry; it stays in the Post drill's eligible set). Skipped entirely when the user kept every repeat in the main list, or on a first review / fresh-PR round (no prior round to carry over from). Full mechanics — what demotes, the promote signals, gate preservation, and the section render — at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7.1.
 
 ### 5.1 Handoff file write
 
