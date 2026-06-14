@@ -231,6 +231,38 @@ else
 fi
 rm -f .geniro/planning/.codebase-map.lock
 
+# A FRESH held lock still blocks (rc=11) — the reclaim must not steal a live lock.
+new_sandbox
+: > .geniro/planning/.codebase-map.lock   # mtime = now, well within the stale window
+set +e
+update_semantic --file codebase-map --append "x" 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 11 ]; then
+  pass "fresh held lock still blocks (rc=11) — reclaim does not steal a live lock"
+else
+  fail "fresh lock should rc=11; got $rc"
+fi
+rm -f .geniro/planning/.codebase-map.lock
+
+# A STALE held lock (mtime older than the 600s window) is reclaimed, the write
+# succeeds, and the lock is released. Guards the SIGKILL/crash wedge: without
+# reclaim the lock would pin every future L3 write at rc=11 forever.
+new_sandbox
+: > .geniro/planning/.codebase-map.lock
+touch -t 202001010000 .geniro/planning/.codebase-map.lock   # backdate to 2020 → stale
+set +e
+update_semantic --file codebase-map --append "- reclaimed after stale lock" 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 0 ] \
+   && grep -q 'reclaimed after stale lock' .geniro/planning/_CODEBASE_MAP.md \
+   && [ ! -f .geniro/planning/.codebase-map.lock ]; then
+  pass "stale lock (>600s) is reclaimed, write succeeds, lock released"
+else
+  fail "stale-lock reclaim: rc=$rc, lock-exists=$([ -f .geniro/planning/.codebase-map.lock ] && echo yes || echo no)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

@@ -130,9 +130,11 @@ slug="$(_geniro_branch_slug "$branch")"
 # done via `phase:` alone. `status:` is the coarse fallback (setup/debug/review
 # advance it; it also absorbs model-drift values like `completed`, which is not
 # in the documented in-progress|done|failed enum but was observed in the wild).
-# The `*-escalated` paused phases are deliberately absent from the sets — those
-# represent in-flight work waiting on the user and must still resume.
-TERMINAL_PHASES="done aborted routed failed ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted verify-summary-only reverted adr-documented map-truncated present-summary-only"
+# Bare `escalated` (review's terminal phase) is terminal; the membership test
+# is whole-word (space-padded `case` match), so the hyphenated `*-escalated`
+# paused phases (verify-escalated, phase-2-escalated, ...) do NOT match it —
+# they represent in-flight work waiting on the user and must still resume.
+TERMINAL_PHASES="done aborted routed failed escalated ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted verify-summary-only reverted adr-documented map-truncated present-summary-only"
 TERMINAL_STATUSES="done completed failed aborted routed"
 
 # Extract one scalar frontmatter value (line-anchored, between the first two

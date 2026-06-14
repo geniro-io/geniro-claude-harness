@@ -117,6 +117,17 @@ expect_allow "git add (no -f) .geniro/ allowed" "$(run_cmd 'git add .geniro/acti
 expect_allow "git worktree list allowed"        "$(run_cmd 'git worktree list')"
 expect_allow "empty command fails open"         "$(run_cmd '')"
 
+# ===== quote scrub: rm-as-DATA in another command's string does NOT block, =====
+# ===== but a REAL quoted rm operand still blocks. =====
+expect_allow "echo mentioning rm -rf .geniro/ allowed"      "$(run_cmd 'echo "do not rm -rf .geniro/"')"
+expect_allow "commit -m mentioning rm -rf .geniro allowed"  "$(run_cmd 'git commit -m "remove the rm -rf .geniro stuff"')"
+expect_allow "single-quoted echo of rm -rf .geniro allowed" "$(run_cmd "echo 'rm -rf .geniro'")"
+# A REAL rm with a quoted operand still blocks — the rm token is outside the quote.
+expect_block "real rm -rf .geniro/ (unquoted) still blocks"  "$(run_cmd 'rm -rf .geniro/')"
+expect_block "real rm -rf \".geniro/\" (quoted operand) still blocks" "$(run_cmd 'rm -rf ".geniro/"')"
+expect_block "real rm -rf '\''.geniro/'\'' (quoted operand) still blocks" "$(run_cmd "rm -rf '.geniro/'")"
+expect_block "real rm -rf \".geniro/instructions/\" still blocks" "$(run_cmd 'rm -rf ".geniro/instructions/"')"
+
 # ===== per-project bypass =====
 mkdir -p "$TMPDIR_BASE/bypass/.geniro"
 printf '%s\n' '{"allow_patterns":["rm-geniro-tree"]}' > "$TMPDIR_BASE/bypass/.geniro/safety.json"

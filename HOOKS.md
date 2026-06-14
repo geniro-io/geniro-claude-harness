@@ -19,14 +19,14 @@ The plugin ships 11 safety / lifecycle hooks, 1 sourced utility library, and 2 N
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
-| [`file-protection.sh`](hooks/file-protection.sh) | PreToolUse `Edit\|Write\|MultiEdit` AND `Bash` | exit 2 = block | Blocks writes to `.env`, lock files, keys, credentials. The Bash branch catches shell-side writes into the same protected paths — redirection (`>`, `>>`, `>\|`), `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=` (reads stay allowed). Bypass: `write-env`, `write-git-internal`, `write-lockfile`, `write-cert-key`, `write-credentials`, `write-tfstate`, `write-vault` |
-| [`block-dangerous-git.sh`](hooks/block-dangerous-git.sh) | PreToolUse `Bash` | exit 2 = block | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
+| [`file-protection.sh`](hooks/file-protection.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` | exit 2 = block | Blocks writes to `.env`, lock files, keys, credentials. The Bash branch catches shell-side writes into the same protected paths — redirection (`>`, `>>`, `>\|`), `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=` (reads stay allowed). Bypass: `write-env`, `write-git-internal`, `write-lockfile`, `write-cert-key`, `write-credentials`, `write-tfstate`, `write-vault` |
+| [`block-dangerous-git.sh`](hooks/block-dangerous-git.sh) | PreToolUse `Bash` | exit 2 = block | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec) |
 | [`block-geniro-deletion.sh`](hooks/block-geniro-deletion.sh) | PreToolUse `Bash` | exit 2 = block | Blocks bulk deletion of `.geniro/` (bypass: `rm-geniro-tree`, `rm-geniro-subdir`, `rm-geniro-state-subdir`, `find-geniro-delete`, `worktree-remove-with-state`, `git-add-force-geniro`) |
-| [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
-| [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write\|MultiEdit` AND `Bash` | exit 2 = block | Blocks direct writes to canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`. The Bash branch catches shell-side writes into the same paths — redirection (`>`, `>>`, `>\|`), `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=` (reads stay allowed); commands invoking `atomic_state_write` / `atomic_state_append` pass. Suggests the helpers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
-| [`enforce-gate-render.sh`](hooks/enforce-gate-render.sh) | PreToolUse `AskUserQuestion` | exit 2 = block | Blocks a gate question that references content "above" when the current turn contains no visible assistant message — the user would be answering blind. Reverse-scans the transcript to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race); fails open on missing jq (loud), missing transcript, cap overflow, or garbage transcript. A block is NOT a user denial — stderr instructs render-then-re-ask (bypass: `gate-render`) |
-| [`security-pattern-check.sh`](hooks/security-pattern-check.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Cheap regex scan for high-signal security anti-patterns in file content (eval/exec, pickle, yaml.load, shell=True, curl\|sh, TLS bypass, XSS sinks, weak crypto). Per-pattern bypass: `sec-eval-exec`, `sec-pickle`, `sec-yaml-unsafe`, `sec-shell-injection`, `sec-curl-pipe-sh`, `sec-tls-bypass`, `sec-xss-sink`, `sec-weak-crypto`. Scope-limited to applicable file extensions per pattern. Logic-level issues (authz bypass, IDOR, race conditions) are not regex-detectable and require `/geniro:review`. |
-| [`block-config-weakening.sh`](hooks/block-config-weakening.sh) | PreToolUse `Edit\|Write` | exit 2 = block | Blocks edits to an EXISTING linter/formatter/type-checker config file (eslint, prettier, biome, ruff, tsconfig, golangci) — editing an established config to silence a check hides the underlying issue instead of fixing the source. First-time creation of such a config is allowed; backup/disabled copies (`*.bak`, `*.old`, ...) stay editable. Bypass: `config-weakening`. |
+| [`enforce-tdd-order.sh`](hooks/enforce-tdd-order.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` | exit 2 = block | Blocks edits to non-test files when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED` (bypass: `tdd-order`) |
+| [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` | exit 2 = block | Blocks direct writes to canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`. The Bash branch catches shell-side writes into the same paths — redirection (`>`, `>>`, `>\|`), `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=` (reads stay allowed); commands invoking `atomic_state_write` / `atomic_state_append` pass. Suggests the helpers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
+| [`enforce-gate-render.sh`](hooks/enforce-gate-render.sh) | PreToolUse `AskUserQuestion` | exit 2 = block | Blocks a gate question fired with no visible assistant message in the current turn — the user would be answering blind — on either of two triggers: it references content "above", OR it carries finding-gate evidence shorthand (a PRODUCT-DECISION tag, convergence wording, or a finding-ID like `F5`/`M1b` with finding-gate co-text). Reverse-scans the transcript to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race); fails open on missing jq (loud), missing transcript, cap overflow, or garbage transcript. A block is NOT a user denial — stderr instructs render-then-re-ask (bypass: `gate-render`) |
+| [`security-pattern-check.sh`](hooks/security-pattern-check.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` | exit 2 = block | Cheap regex scan for high-signal security anti-patterns in file content (eval/exec, pickle, yaml.load, shell=True, curl\|sh, TLS bypass, XSS sinks, weak crypto). Per-pattern bypass: `sec-eval-exec`, `sec-pickle`, `sec-yaml-unsafe`, `sec-shell-injection`, `sec-curl-pipe-sh`, `sec-tls-bypass`, `sec-xss-sink`, `sec-weak-crypto`. Scope-limited to applicable file extensions per pattern. Logic-level issues (authz bypass, IDOR, race conditions) are not regex-detectable and require `/geniro:review`. |
+| [`block-config-weakening.sh`](hooks/block-config-weakening.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` | exit 2 = block | Blocks edits to an EXISTING linter/formatter/type-checker config file (eslint, prettier, biome, ruff, tsconfig, golangci) — editing an established config to silence a check hides the underlying issue instead of fixing the source. First-time creation of such a config is allowed; backup/disabled copies (`*.bak`, `*.old`, ...) stay editable. Bypass: `config-weakening`. |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); skips state.md candidates already in a terminal `phase:`/`status:` during resolution, so a finished task is never surfaced as resumable AND cannot shadow an in-flight task on the same branch in a later resolution tier; pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Also runs L2 auto-archive. Read-only on state.md; the only writes are `learnings.jsonl` (auto-archive flip) + `.archive-stale.{hash,lock}`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
@@ -35,7 +35,7 @@ The plugin ships 11 safety / lifecycle hooks, 1 sourced utility library, and 2 N
 
 ### file-protection.sh
 
-**Event:** PreToolUse `Edit|Write|MultiEdit` AND `Bash` (registered under both matchers in `hooks.json`; the script branches on `tool_name`). **Stdin:** `.tool_input.file_path` for the file tools; `.tool_input.command` for Bash. **Block exit:** `exit 2`.
+**Event:** PreToolUse `Edit|Write|MultiEdit|NotebookEdit` AND `Bash` (registered under both matchers in `hooks.json`; the script branches on `tool_name`). **Stdin:** `.tool_input.file_path` (or `.tool_input.notebook_path` for NotebookEdit) for the file tools; `.tool_input.command` for Bash. **Block exit:** `exit 2`.
 
 **Bash branch:** extracts write targets the file-tool matcher never sees — redirection targets (`>`, `>>`, `>|`), `tee` arguments, file arguments of an in-place `sed -i` span (the sed SCRIPT token is skipped — it is code, not a path), `cp`/`mv` destinations (the last non-flag token — copying FROM a protected file is a read and stays allowed), and `dd of=` targets — then runs the same pattern set against each. Heredoc bodies and quoted string literals are scrubbed first (they are data, so `echo "see > .env"` and a doc heredoc mentioning `> .env` stay allowed); the trade-off is that a deliberately QUOTED redirect target (`> ".env"`) is a documented miss. fd-dups (`>&2`) and `/dev/null` never match.
 
@@ -57,9 +57,38 @@ Implementation: case-insensitive pattern match via lowercase conversion; exit 2 
 
 **Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
 
-Blocks destructive git operations by pattern ID: `force-push`, `force-push-with-lease`, `reset-hard`, `branch-delete-force`, `clean-fd`, `checkout-mass-discard`, `restore-mass-discard`, `update-ref-delete`, `filter-branch`. Pads the command with whitespace, joins backslash-newline continuations, and collapses newlines so flag matchers (e.g. `[[:space:]]-f[[:space:]]`) hit reliably even at start/end of string or inside multi-line commands. Git GLOBAL options (`git -C <path> push`, `git -c k=v push`, `--git-dir`/`--work-tree`, pager flags) are stripped before matching, so they cannot break the `git <subcommand>` adjacency the matchers rely on. Checkout/restore matchers block a standalone `.` / `./` / `*` pathspec with or without `--` (`git checkout .`, `git checkout HEAD -- .`); `git clean` dry-run spans (`-n`/`--dry-run`) are previews and stay allowed, evaluated per-span so a dry span cannot mask a destructive sibling in the same command.
+Blocks destructive git operations by pattern ID: `force-push`, `force-push-with-lease`, `reset-hard`, `branch-delete-force`, `clean-fd`, `checkout-mass-discard`, `restore-mass-discard`, `update-ref-delete`, `filter-branch`, `push-delete`. The `push-delete` pattern blocks remote-branch deletion — both `git push <remote> --delete <branch>` and the colon delete-refspec form `git push origin :branch` — which the local `branch-delete-force` matcher never saw. Pads the command with whitespace, joins backslash-newline continuations, and collapses newlines so flag matchers (e.g. `[[:space:]]-f[[:space:]]`) hit reliably even at start/end of string or inside multi-line commands. Git GLOBAL options (`git -C <path> push`, `git -c k=v push`, `--git-dir`/`--work-tree`, pager flags) are stripped before matching, so they cannot break the `git <subcommand>` adjacency the matchers rely on. Checkout/restore matchers block a standalone `.` / `./` / `*` pathspec with or without `--` (`git checkout .`, `git checkout HEAD -- .`); `git clean` dry-run spans (`-n`/`--dry-run`) are previews and stay allowed, evaluated per-span so a dry span cannot mask a destructive sibling in the same command.
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist).
+
+### block-geniro-deletion.sh
+
+**Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
+
+Prevents bulk deletion of `.geniro/`, which holds user-authored persistent state (instructions, actions, workflow, `_FEATURES.md`, learnings, planning artifacts). A single accidental `rm -rf .geniro/` destroys all of it. Joins backslash-newline continuations, pads, and collapses newlines (mirrors `block-dangerous-git.sh`); strips git GLOBAL options so `git -C <path> worktree remove` and `git -C <path> add -f .geniro/...` cannot evade the matchers; and blanks quoted-string literals that merely MENTION `rm` (e.g. `echo "do not rm -rf .geniro/"`) so a doc reference is not mistaken for a real delete.
+
+**Allowed by design (NOT blocked):** `rm -f <single-file>` at any depth (required by skills' state cleanup), and `rm -rf .geniro/<top>/<sub>/` with 3+ path segments (task-dir / slug-scoped trees), plus single-file deletes under `.geniro/state/` (`.geniro/state/<file>.<ext>`) and 4+ segment slug-scoped state files.
+
+**Blocked by default** (each evaluated per-rm-span and per-arg so a deep arg cannot mask a shallow sibling):
+
+- `rm-geniro-tree` — whole-tree `rm -rf .geniro/`, including absolute / `$PWD/` / `../`-prefixed spellings, prefix globs (`.gen*`, `.geniro*`), trailing globs (`.geniro/*`), and doubled-slash forms.
+- `rm-geniro-subdir` — `rm -rf .geniro/<single-segment>/` (e.g. `.geniro/instructions/`), including `..`-escape forms.
+- `rm-geniro-state-subdir` — `rm -rf .geniro/state/<skill>/` directory wipes (parallel-branch slug files still in flight).
+- `find-geniro-delete` — `find … .geniro … -delete`, `-exec rm`, and `| xargs rm` bulk-walk spellings.
+- `worktree-remove-with-state` — `git worktree remove` (worktrees often hold un-routed `.geniro/` state).
+- `git-add-force-geniro` — `git add -f` / `--force` on `.geniro/` paths (force-adding ignored files surfaces them in the IDE Source Control panel, where a single "Discard All Changes" click becomes a one-click data-loss vector; track `.geniro/` subdirs via `.gitignore` negation instead).
+
+**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]`. On block, the error message names the pattern ID and the exact `safety.json` snippet to add. Fails open loudly (emits a `systemMessage`) if jq is missing.
+
+### enforce-tdd-order.sh
+
+**Event:** PreToolUse `Edit|Write|MultiEdit|NotebookEdit`. **Stdin:** `jq -r '.tool_input.file_path // .tool_input.notebook_path // ""'`. **Block exit:** `exit 2`.
+
+Enforces the test-first cycle: when `.geniro/state/tdd/state-<slug>.md` shows `phase: RED`, an `Edit`/`Write` against a production-code file is blocked — author the failing test before the production code. Test files stay editable (that is the file you are supposed to be writing in RED). If the state file is absent, the skill has not opted in to TDD, so the hook exits 0 — no surprise blocks.
+
+The branch slug is derived per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, single-sourced in `lib/branch-slug.sh` with an inline fallback so the hook still works on a vendored install without `lib/`. The state lookup resolves the nearest project root (the directory holding `.geniro/`) walking up from cwd; TDD state is task-local, so a linked worktree keeps its OWN `.geniro/state/tdd/` and the lookup deliberately does NOT redirect to the primary worktree. Test-file detection matches `__tests__/`, `tests/` / `test/` directories, `*.spec.*`, `*_test.go`, and anchored filename conventions (`test_*`, `*-test.*`, `*.test.*`) — production files that merely contain the substring "test" (`contestant.ts`, `testimonials.tsx`) are not mistaken for tests.
+
+**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `tdd-order` skips the block. Fails open loudly (emits a `systemMessage`) if jq is missing.
 
 ### session-start-restore.sh
 
@@ -82,7 +111,7 @@ Emits an `additionalContext` block-set:
 
 ### security-pattern-check.sh
 
-**Event:** PreToolUse `Edit|Write`. **Stdin:** `jq -r '.tool_input.file_path // ""'` and `jq -r '.tool_input.content // .tool_input.new_string // ""'`. **Block exit:** `exit 2`.
+**Event:** PreToolUse `Edit|Write|MultiEdit|NotebookEdit`. **Stdin:** `jq -r '.tool_input.file_path // ""'` and `jq -r '.tool_input.content // .tool_input.new_string // ""'`. **Block exit:** `exit 2`.
 
 Cheap regex scan for high-signal, low-false-positive security anti-patterns in the content about to land in the file. Catches the obvious string-level wins at edit time without the LLM-cost of an ambient Stop-hook review.
 
@@ -111,7 +140,7 @@ Each pattern is scoped to applicable file extensions — Python's `pickle.loads`
 
 ### block-config-weakening.sh
 
-**Event:** PreToolUse `Edit|Write`. **Stdin:** `jq -r '.tool_input.file_path // .tool_input.notebook_path // ""'`. **Block exit:** `exit 2`.
+**Event:** PreToolUse `Edit|Write|MultiEdit|NotebookEdit`. **Stdin:** `jq -r '.tool_input.file_path // .tool_input.notebook_path // ""'`. **Block exit:** `exit 2`.
 
 Blocks edits to an EXISTING linter / formatter / type-checker config file. Editing an established config to silence a check (disable a rule, loosen `tsconfig` strictness, add an ignore entry) hides the underlying issue instead of fixing the source. First-time creation of such a config is allowed — only edits to a file already on disk are blocked.
 
@@ -132,7 +161,7 @@ Backup / disabled copies (`*.bak`, `*.disabled`, `*.old`, `*.orig`, `*.save`, `*
 
 ### enforce-state-helper.sh
 
-**Event:** PreToolUse `Edit|Write|MultiEdit` AND `Bash` (registered under both matchers in `hooks.json`; the script branches on `tool_name`). **Block exit:** `exit 2`.
+**Event:** PreToolUse `Edit|Write|MultiEdit|NotebookEdit` AND `Bash` (registered under both matchers in `hooks.json`; the script branches on `tool_name`). **Block exit:** `exit 2`.
 
 Blocks direct `Edit` / `Write` / `MultiEdit` calls against canonical state paths and suggests routing through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (`atomic_state_write` for plain files, `atomic_state_append` for JSONL) — direct calls truncate-and-rewrite, so a reader during the window sees a partial file. Protected prefixes: `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/` (plus `.geniro/.geniro-state.json`).
 
@@ -148,7 +177,10 @@ Blocks direct `Edit` / `Write` / `MultiEdit` calls against canonical state paths
 
 Mechanical backstop for the message-first gate contract (`skills/_shared/gate-rendering.md`): a decision question that points at content "above" must be preceded by a visible assistant message in the current turn, or the user is answering blind. Prompt-level render guards leak under drift; this hook enforces the contract at the tool boundary.
 
-**Trigger:** the standalone word "above" — case-insensitive and word-bounded, so "abovementioned" does not match — anywhere across every question's text, option labels, and option descriptions, combined with no visible assistant text in the current turn.
+**Trigger (two branches; either, combined with no visible assistant text in the current turn):**
+
+- **(a) "above"-reference** — the standalone word "above", case-insensitive and word-bounded so "abovementioned" does not match, anywhere across every question's text, option labels, and option descriptions. Templated gate questions ("Full explanation above." / "Approve the spec summarized above?") hit this branch.
+- **(b) finding-gate evidence shorthand without "above"** — a real `/review` open-decision gate can fire with finding IDs and convergence wording but no "above", which the (a)-only guard let slip (the recorded evasion: "strip the 'above' reference"). A `PRODUCT-DECISION` tag or convergence wording (`converge` / `converged` / `convergence`) fires on its own. A finding-ID token (case-sensitive uppercase F/M + digits + optional trailing lowercase letter, e.g. `F5` / `M1b`) fires only with finding-gate co-text — a severity word right after an open paren (`(MEDIUM, security)`), or the words finding / findings / reviewer / severity — because the bare token alone collides with load-balancer models, function keys, and version tags.
 
 **Turn detection:** reverse-scans the transcript JSONL (newest first) back to the last real user message. An assistant record with non-whitespace text (string content, or a content array with a non-whitespace text block) is a render → allow. A user record with non-whitespace text (same two shapes) marks the start of turn with no render found → block. User records that are only tool_result blocks are mid-turn tool feedback and are scanned past, as are system / summary / progress / malformed lines. The scan caps at 2000 records.
 

@@ -49,9 +49,25 @@ _us_resolve_target() {
   esac
 }
 
+# Stale-lock window: a lock older than this (seconds) is presumed abandoned by a
+# crashed/killed holder and reclaimed. Mirrors archive-stale.sh's 600s reclaim.
+_US_STALE_LOCK_SECS=600
+
 # O_EXCL-style lock acquisition. Returns 0 on acquire, non-zero if held.
+# Before acquiring, reclaim a stale lock whose mtime is older than the stale
+# window — a SIGKILL/crash while holding the lock leaves the file behind with no
+# RETURN trap to clear it, which would wedge every future L3 write at rc=11
+# forever. The reclaim removes the abandoned lock, then the O_EXCL create retries.
 _us_acquire_lock() {
   local path="$1"
+  if [ -f "$path" ]; then
+    local lock_mtime now
+    lock_mtime=$(stat -c %Y "$path" 2>/dev/null || stat -f %m "$path" 2>/dev/null || echo 0)
+    now=$(date +%s)
+    if [ $(( now - lock_mtime )) -gt "$_US_STALE_LOCK_SECS" ]; then
+      rm -f "$path" 2>/dev/null
+    fi
+  fi
   # `set -C` (noclobber) makes `:>` fail if the file exists.
   (set -C; : > "$path") 2>/dev/null
 }
@@ -145,6 +161,13 @@ update_semantic() {
   # caller's own RETURN trap.
   trap 'rm -f "$lock_path"; trap - RETURN' RETURN
 
+  # A SIGINT/SIGTERM mid-write would skip the RETURN trap and leave the lock (and
+  # any in-flight mktemp) behind. Clean both on interrupt so the next write isn't
+  # wedged at rc=11. _us_inflight_tmp is set when the replace branch creates its
+  # temp file; empty otherwise.
+  local _us_inflight_tmp=""
+  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM RETURN' INT TERM
+
   local rc=0
   case "$op" in
     append)
@@ -171,6 +194,7 @@ update_semantic() {
           echo "update_semantic: mktemp failed" >&2
           return 71
         }
+        _us_inflight_tmp="$tmp"
         # END exits 3 (not awk's own fatal-error code 2) for a clean no-match,
         # so a genuine awk runtime failure is not mistaken for "nothing matched".
         rewritten=$(awk -v p="$arg1" -v r="$arg2" '

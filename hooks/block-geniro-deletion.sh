@@ -67,6 +67,17 @@ PADDED=" ${JOINED//$'\n'/ } "
 # guard stays self-contained for vendored installs).
 PADDED=$(printf '%s' "$PADDED" | sed -E 's/git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--work-tree(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--namespace(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--exec-path(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--config-env(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--attr-source(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g')
 
+# Blank quoted-string literals that CONTAIN an `rm` word — these are rm mentions
+# inside another command's string argument (`echo "do not rm -rf .geniro/"`,
+# `git commit -m "remove the rm -rf .geniro stuff"`), not real rm commands, so the
+# rm-span extractor below must not treat them as deletes. A REAL quoted operand
+# (`rm -rf ".geniro/"`) is left intact because its rm token sits OUTSIDE the
+# quote — the quote holds only the path, which carries no standalone `rm` word —
+# so the data-loss guard still fires on it. The `rm` boundary is non-word chars
+# (or quote edge) on both sides, so a path segment like `charm-data` or `term`
+# inside the operand is not mistaken for the rm command. POSIX ERE, BSD/GNU safe.
+PADDED=$(printf '%s' "$PADDED" | sed -E "s/'([^']*[^[:alnum:]_])?rm([^[:alnum:]_][^']*)?'/ /g; s/\"([^\"]*[^[:alnum:]_])?rm([^[:alnum:]_][^\"]*)?\"/ /g")
+
 find_safety_json() {
   local dir="$PWD"
   while [ "$dir" != "/" ]; do

@@ -79,7 +79,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 
 ### Model tier symmetry
 
-Every plugin subagent inherits your orchestrator's model tier. If you're running Claude Code on Opus, your code reviewers run on Opus. If you're on Sonnet for cost control, all subagents run on Sonnet. You set the tier once at session start with `/model`; the plugin doesn't second-guess. The two carve-outs (`/geniro:setup` verification subagent on Sonnet under a NO-Write/Edit tool budget, and the haiku-tier UI-preview mechanical describer) are explicit safety/cost contracts documented in `skills/_shared/model-tiering.md`.
+Every plugin subagent inherits your orchestrator's model tier. If you're running Claude Code on Opus, your code reviewers run on Opus. If you're on Sonnet for cost control, all subagents run on Sonnet. You set the tier once at session start with `/model`; the plugin doesn't second-guess. The two carve-outs (`/geniro:setup` verification subagent on Sonnet under a NO-Write/Edit tool budget, and the haiku-tier `/geniro:implement` documentation-patcher that mechanically rewrites stale doc references) are explicit safety/cost contracts documented in `skills/_shared/model-tiering.md`.
 
 ### Typical workflow
 
@@ -116,7 +116,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:plan` — Spec-first planning
 
-10-phase loop (mode-detect → explore → visual-companion → clarify ≤5 questions → 2-3 approaches → grouped approval → write → mechanical validate → user approve → hand-off). Produces an approved `spec.md` in `.geniro/planning/<task-dir>/` with goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for) and optional `workflow_refs[]` tracker linkage (m5-v2). Phase 2 Visual Companion for UI-shaped tasks emits a textual UI preview before any code is written; Phase 5 groups section approval into 3 dependency-ordered cluster gates (Goal & scope / Approach & steps / Safety & done) instead of one prompt per section — each cluster authored as a unit and rendered to a full chat message in a friendly visual language (a progress tracker showing where you are in the approval journey, a one-sentence summary of what you're deciding, an in/out scope map / steps flow diagram / done-condition checklist, and plain-English per-section explanations with evidence cites), then gated by ONE lean AskUserQuestion per cluster (Approve all / Explain a section further / Revise specific sections / Cancel — Explain gives a deeper walkthrough before you decide); the chat message is the rendering surface (the AUQ `preview` side-box is too small for digests, code, and diagrams), which drops the questions you answer at Phase 5 from ~11 to 3. Phase 3 batches independent clarifying questions into one call. Phase 4 stress-tests the generated approaches with independent codebase-grounded critic agents (tier-scaled) before recommending one, so the Recommended marker reflects feasibility evidence rather than the author's confidence. Milestone-mode for Big tasks emits sibling `milestone-N.md` files.
+12-phase loop (mode-detect → problem-discovery (`--prd` only) → explore → visual-companion → clarify ≤5 questions → 2-3 approaches → grouped approval → write → mechanical validate → spec-challenge → user approve → hand-off). Produces an approved `spec.md` in `.geniro/planning/<task-dir>/` with goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for) and optional `workflow_refs[]` tracker linkage (m5-v2). Phase 2 Visual Companion for UI-shaped tasks emits a textual UI preview before any code is written; Phase 5 groups section approval into 3 dependency-ordered cluster gates (Goal & scope / Approach & steps / Safety & done) instead of one prompt per section — each cluster authored as a unit and rendered to a full chat message in a friendly visual language (a progress tracker showing where you are in the approval journey, a one-sentence summary of what you're deciding, an in/out scope map / steps flow diagram / done-condition checklist, and plain-English per-section explanations with evidence cites), then gated by ONE lean AskUserQuestion per cluster (Approve all / Explain a section further / Revise specific sections / Cancel — Explain gives a deeper walkthrough before you decide); the chat message is the rendering surface (the AUQ `preview` side-box is too small for digests, code, and diagrams), which drops the questions you answer at Phase 5 from ~11 to 3. Phase 3 batches independent clarifying questions into one call. Phase 4 stress-tests the generated approaches with independent codebase-grounded critic agents (tier-scaled) before recommending one, so the Recommended marker reflects feasibility evidence rather than the author's confidence. Milestone-mode for Big tasks emits sibling `milestone-N.md` files.
 
 ```
 /geniro:plan add user authentication with JWT tokens
@@ -222,7 +222,7 @@ When invoked from a linked git worktree, `run` falls back to the main worktree's
 
 ## Skills deleted
 
-The previous surface had 18 skills. The current 11-skill set absorbed or dropped 8:
+The previous surface had 19 skills. The current 11-skill set absorbed or dropped 8:
 
 | Deleted | Replacement |
 |---|---|
@@ -242,15 +242,15 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | Hook | Protection |
 |------|-----------|
 | **File protection** | Blocks writes to `.env`, `*.key`, `*.pem`, lock files, credentials, `*.tfstate`, `*.vault*` |
-| **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch |
+| **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec, bypass `push-delete`) |
 | **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/`, `git worktree remove`, `git add -f` on `.geniro/` paths |
 | **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions trio + CLAUDE.md so context survives compaction |
 | **Evidence-on-completion** | `Stop` hook (warn-only) — scans last assistant message for completion phrases that lack an Evidence Block |
-| **TDD-order enforcement** | PreToolUse `Edit\|Write` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files |
-| **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
-| **Security pattern scan** | PreToolUse `Edit\|Write` (hard-block) — regex scan of edit content for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
-| **Config-weakening guard** | PreToolUse `Edit\|Write` (hard-block) — blocks edits to an existing linter/formatter/type-checker config (eslint, prettier, biome, ruff, tsconfig, golangci); first-time creation stays allowed |
-| **Gate-render enforcement** | PreToolUse `AskUserQuestion` (hard-block) — blocks a decision question that references content "above" when no visible message precedes it in the turn, so approval gates can't fire blind |
+| **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files |
+| **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
+| **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — regex scan of edit content for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
+| **Config-weakening guard** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — blocks edits to an existing linter/formatter/type-checker config (eslint, prettier, biome, ruff, tsconfig, golangci); first-time creation stays allowed |
+| **Gate-render enforcement** | PreToolUse `AskUserQuestion` (hard-block) — blocks a question that references content "above" OR carries finding-gate evidence shorthand (a PRODUCT-DECISION tag, convergence wording, or a finding-ID like `F5`/`M1b`) when no visible message precedes it in the turn, so decision gates can't fire blind |
 
 ## Updating
 
@@ -269,7 +269,7 @@ geniro-claude-plugin/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # 11-skill canonical inventory
-├── agents/                      # 6 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / test-runner)
+├── agents/                      # 7 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / reflection / test-runner)
 ├── skills/                      # 11 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning
@@ -284,7 +284,7 @@ geniro-claude-plugin/
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
 │                                # load-custom-instructions, query/emit-learnings, etc.)
-├── hooks/                       # 7 safety hooks + statusline + update check
+├── hooks/                       # 10 safety hooks + statusline + update check
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer

@@ -693,6 +693,36 @@ echo "$ac" | grep -q "Active task detected" \
   && pass "escalated phase: still surfaced as active (terminal gate did not over-match)" \
   || fail "escalated phase: should still resume — 'Active task detected' missing"
 
+# 15d. Terminal via bare `phase: escalated` (review's terminal phase, written
+#      without a guaranteed terminal `status:`). Must NOT surface as resumable.
+#      Pairs with 15c: the whole-word terminal gate catches `escalated` but
+#      leaves the hyphenated `*-escalated` paused phases resumable.
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: review
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: escalated
+status: in-progress
+non-resumable-actions: []
+---
+
+## Phase log
+- escalated after max rounds
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+if echo "$ac" | grep -q "Active task detected"; then
+  fail "terminal phase=escalated: Block 1 should NOT say 'Active task detected'"
+else
+  pass "terminal phase=escalated: Block 1 omits 'Active task detected'"
+fi
+
 # ---------------------------------------------------------------------------
 # 16. Malformed / empty stdin → graceful default (no crash, valid JSON, exit 0).
 #     jq parse failures fall back to source=compact with cwd unchanged; under

@@ -293,7 +293,7 @@ Print the updated confirmed list (including newly-promoted UNCERTAIN items). Fir
 
 ### Step 4: Emit the handoff
 
-If the user chose either of the first two options, write `.geniro/state/handoff/from-analyze-thread-<branch>.md` via `atomic_state_write`. Handoff shape (matches the contract `/improve-template` reads):
+If the user chose either of the first two options, write `.geniro/state/handoff/from-analyze-thread-<branch>.md` via `atomic_state_write`. Emit each kept finding as a machine-readable `open_questions[]` frontmatter entry per the T2 contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 (each entry needs `id` / `source` / `question` / `status`; `severity` + `suggested_action` are producer-specific extensions). The body `## Open questions` block is a human-readable mirror only — the frontmatter array is the source of truth a consumer parses.
 
 ```yaml
 ---
@@ -302,20 +302,29 @@ producer: analyze-thread
 schema-version: 1
 branch: <current branch>
 timestamp: <ISO-8601 UTC>
+consumer: improve-template
 source_thread: <path>
 findings_count: <N>
+open_questions:
+  - id: q1
+    source: <check_id>                 # the check that surfaced the finding, e.g. A1
+    question: "<one-line finding summary>"
+    context: |                         # OPTIONAL — 2-6 line problem framing
+      <category> — <what the trace shows>. Suggested target: <file>.
+    related_findings: []               # finding has no /review F-id; leave empty
+    severity: <blocker|warning|nit>    # producer-specific extension
+    suggested_action: <one sentence — usually "rewrite instruction at <anchor>" or "add anti-rationalization row" or "extend Phase N gate">
+    status: unresolved
+  # (one entry per kept finding: q2, q3, ...)
 ---
 
 ## Open questions
-- [ ] finding #1: <check_id> — <category> — <one-line>. Target: <file>. Evidence: events <range>.
-  status: unresolved
-  severity: <blocker|warning|nit>
-  suggested_action: <one sentence — usually "rewrite instruction at <anchor>" or "add anti-rationalization row" or "extend Phase N gate">
+- [ ] q1 (<check_id> — <category>): <one-line>. Target: <file>. Evidence: events <range>. Suggested action: <one sentence>.
 
-(one block per kept finding)
+(one bullet per kept finding, mirroring the frontmatter entry by `id`)
 ```
 
-`/improve-template` Phase 1 reads this handoff (per its Step 12 consumer-side gate) and routes each finding to its appropriate flow (Phase 1-fast / full pipeline depending on complexity).
+`/improve-template` reads this handoff when invoked with the `process-handoff` argument (Mode Detection → Complexity Gate handoff-ingestion path) and routes each parsed finding to its appropriate flow (Phase 1-fast / full pipeline depending on complexity).
 
 ### Step 5: If "launch now", invoke /improve-template
 

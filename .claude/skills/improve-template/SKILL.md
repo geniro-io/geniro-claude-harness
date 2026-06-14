@@ -51,12 +51,25 @@ On skill start: compute `<slug>` per the helper § Slug rules, then `Glob(".geni
 
 ## Mode Detection (before Complexity Gate)
 
-Detect whether the user wants to **fix/improve an existing skill** (default mode) or **author a new skill** (`create-skill` mode). Triggers for create-skill mode:
+Detect which of three modes the request wants — **process-handoff** (consume findings from `/analyze-thread`), **create-skill** (author a new skill), or **fix/improve an existing skill** (default mode). Check in this order:
 
+**process-handoff mode.** Triggers when `$ARGUMENTS` matches `process-handoff`, `process handoff`, or `process handoff from analyze-thread`. Route to the **handoff-ingestion path** below — it reads the `/analyze-thread` findings file and feeds each finding through the existing Complexity Gate, so it does not skip the normal pipeline.
+
+**create-skill mode.** Triggers when:
 - `$ARGUMENTS` matches `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill`
 - `$ARGUMENTS` describes a capability that does not yet exist (no SKILL.md matches the named scope)
 
 If create-skill mode is detected, route to the **create-skill flow** below — skip the Complexity Gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
+
+Otherwise default to **improve-existing-skill mode** (Complexity Gate → Phase 1).
+
+### Handoff-ingestion path (process-handoff mode)
+
+1. Resolve the branch (`git branch --show-current`) and read `.geniro/state/handoff/from-analyze-thread-<branch>.md`. If absent, report that no handoff exists for this branch and ask the user to name the area to improve instead (falls back to improve-existing-skill mode).
+2. Parse the frontmatter `open_questions[]` array — each entry carries `id` / `source` (the check that surfaced it) / `question` / `severity` / `suggested_action` / `status`. Skip entries already `status: resolved` or `wontfix`.
+3. For each unresolved finding, run the **Complexity Gate** below to classify it (obvious bug fix → Phase 1-fast; targeted improvement or open-ended → full pipeline). The `suggested_action` and any `context` framing seed the Step 1 request-parse; the `source` check and `findings_count` set the scope.
+4. Group findings that touch the same file into one implementation unit (Phase 4 grouping) rather than running the whole pipeline per finding.
+5. After the changes land and the user ships them (Phase 6), the consumed handoff is stale — note it for the user; do not re-process it on a later run.
 
 ---
 

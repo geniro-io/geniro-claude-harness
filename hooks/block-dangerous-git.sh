@@ -14,9 +14,9 @@
 #     "allow_patterns": ["force-push-with-lease", "clean-fd"]
 #   }
 #
-# Pattern IDs: force-push, force-push-with-lease, reset-hard, branch-delete-force,
-#              clean-fd, checkout-mass-discard, restore-mass-discard,
-#              update-ref-delete, filter-branch
+# Pattern IDs: force-push, force-push-with-lease, push-delete, reset-hard,
+#              branch-delete-force, clean-fd, checkout-mass-discard,
+#              restore-mass-discard, update-ref-delete, filter-branch
 
 set -euo pipefail
 
@@ -34,6 +34,29 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
+# Heredoc bodies are DATA, not shell syntax — a `git push --force` mentioned
+# inside one is text, not a command. Drop body lines (between <<TAG / <<-TAG /
+# <<'TAG' and the closing TAG) before any matching; the line carrying the <<
+# operator itself is kept. Mirrors file-protection.sh.
+SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
+  hd {
+    line = $0
+    if (dash) sub(/^\t+/, "", line)   # <<- strips leading TABS from the terminator
+    if (line == tag) hd = 0
+    next
+  }
+  match($0, /<<-?["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+    tag = substr($0, RSTART, RLENGTH)
+    dash = (tag ~ /^<<-/)
+    sub(/^<<-?/, "", tag)
+    gsub(/["'\'']/, "", tag)
+    hd = 1
+    print
+    next
+  }
+  { print }
+')
+
 # Pad the command with leading/trailing whitespace so flag matchers like
 # [[:space:]]-f[[:space:]] reliably hit -f even at start/end of string.
 # Join backslash-newline line continuations first (the shell glues them into one
@@ -45,8 +68,15 @@ fi
 # span of the relevant git subcommand (up to the next &/;/| separator) so a flag
 # from a separate command chained after it (e.g. `git branch --list && gcc -DFOO`,
 # `git clean -n && tar -fd`) does not false-positive.
-JOINED="${COMMAND//\\$'\n'/ }"
+JOINED="${SCRUBBED//\\$'\n'/ }"
 PADDED=" ${JOINED//$'\n'/ } "
+
+# Quoted string literals are also DATA, not commands. A destructive git pattern
+# inside an echo arg, a `git commit -m` message, or any other quoted string
+# (`echo "run git push --force later"`) must not block — a real git subcommand is
+# never wrapped in quotes. Blank single- AND double-quoted literals before the
+# matchers run. Mirrors file-protection.sh.
+PADDED=$(printf '%s' "$PADDED" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
 
 # Strip git GLOBAL options (`git -C <path> push`, `git -c k=v push`, --git-dir/
 # --work-tree/--namespace, pager flags) so the subcommand matchers below see
@@ -122,6 +152,27 @@ if ! is_allowed "force-push"; then
   # Plus-prefixed refspec (e.g. `git push origin +main`) forces the push with no flag.
   if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]][+][^[:space:]]+'; then
     block "force-push" "git push with a +refspec (e.g. +main) force-overwrites remote history"
+  fi
+fi
+
+# 2b. push-delete — remote-branch deletion via `git push <remote> --delete/-d
+#     <branch>` or the colon delete-refspec (`git push origin :branch`). Bounded
+#     to the `git push` span so a -d/--delete from a chained command can't false-
+#     positive. The lone `-d` form is matched as a standalone short flag (combined
+#     clusters like -df are not a valid push delete spelling); the colon refspec
+#     matches a token whose source side is empty (`:dst`).
+if ! is_allowed "push-delete"; then
+  PUSH_SPAN=$(echo "$PADDED" | grep -oE 'git[[:space:]]+push[^&;|]*' || true)
+  if [ -n "$PUSH_SPAN" ]; then
+    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]--delete([[:space:];&|]|$)'; then
+      block "push-delete" "git push --delete removes a branch on the remote"
+    fi
+    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]-d([[:space:];&|]|$)'; then
+      block "push-delete" "git push -d removes a branch on the remote"
+    fi
+    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]:[^[:space:];&|]+'; then
+      block "push-delete" "git push with a :refspec (e.g. origin :branch) deletes that branch on the remote"
+    fi
   fi
 fi
 

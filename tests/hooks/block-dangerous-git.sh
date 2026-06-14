@@ -135,6 +135,26 @@ expect_allow "clean -nfd (dry-run) allowed"            "$(run_cmd 'git clean -nf
 expect_allow "clean --dry-run -fd allowed"             "$(run_cmd 'git clean --dry-run -fd')"
 expect_block "clean -n && clean -fd still blocked"     "$(run_cmd 'git clean -n && git clean -fd')"
 
+# ===== quote / heredoc scrub: destructive pattern as DATA does not block =====
+expect_allow "echo mentioning force-push allowed"     "$(run_cmd 'echo "remember to git push --force later"')"
+expect_allow "commit -m mentioning checkout allowed"  "$(run_cmd 'git commit -m "git checkout . is dangerous"')"
+expect_allow "commit -m mentioning reset --hard allowed" "$(run_cmd "git commit -m 'do not run git reset --hard here'")"
+expect_allow "heredoc body mentioning force-push allowed" "$(run_cmd 'cat <<EOF
+git push --force origin main
+EOF')"
+# A real destructive command (unquoted) still blocks after the scrub.
+expect_block "real force-push still blocks after scrub" "$(run_cmd 'git push --force origin main')"
+expect_block "real bare-dot checkout still blocks after scrub" "$(run_cmd 'git checkout .')"
+
+# ===== push-delete (remote-branch deletion) =====
+expect_block "push --delete blocked"            "$(run_cmd 'git push origin --delete feature-x')"
+expect_block "push -d blocked"                  "$(run_cmd 'git push origin -d feature-x')"
+expect_block "push colon-refspec blocked"       "$(run_cmd 'git push origin :feature-x')"
+expect_allow "plain push (no delete) allowed"   "$(run_cmd 'git push origin main')"
+expect_allow "push -u origin main allowed"      "$(run_cmd 'git push -u origin main')"
+# A src:dst refspec push (not a delete — source side is non-empty) must not block.
+expect_allow "push src:dst refspec allowed"     "$(run_cmd 'git push origin main:main')"
+
 # ===== per-project bypass =====
 mkdir -p "$TMPDIR_BASE/bypass/.geniro"
 printf '%s\n' '{"allow_patterns":["force-push"]}' > "$TMPDIR_BASE/bypass/.geniro/safety.json"
@@ -146,6 +166,13 @@ expect_block "reset --hard still blocked (not in allowlist)" "$(run_cmd 'git res
 mkdir -p "$TMPDIR_BASE/bypass/sub/deeper"
 cd "$TMPDIR_BASE/bypass/sub/deeper" || exit 1
 expect_allow "bypass honored from a nested subdir (walk-up)" "$(run_cmd 'git push --force origin main')"
+cd "$TMPDIR_BASE" || exit 1
+# push-delete honors its own bypass key.
+mkdir -p "$TMPDIR_BASE/bypass-pd/.geniro"
+printf '%s\n' '{"allow_patterns":["push-delete"]}' > "$TMPDIR_BASE/bypass-pd/.geniro/safety.json"
+cd "$TMPDIR_BASE/bypass-pd" || exit 1
+expect_allow "push --delete allowed via push-delete bypass" "$(run_cmd 'git push origin --delete feature-x')"
+expect_allow "push :refspec allowed via push-delete bypass" "$(run_cmd 'git push origin :feature-x')"
 cd "$TMPDIR_BASE" || exit 1
 # Malformed safety.json must fail safe — the guard still blocks.
 mkdir -p "$TMPDIR_BASE/badjson/.geniro"

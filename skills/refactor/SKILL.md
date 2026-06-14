@@ -92,7 +92,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 If any delegated agent fails (timeout, error, empty/garbage result): retry once with the same prompt. If the retry also fails:
 - **Smell detection and smell evidence** run orchestrator-inline and cannot fail separately — failures bubble up as normal orchestrator errors (Read / Grep / Glob unavailable would halt the skill).
-- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue (the ≥30% blocked → AUQ gate fires in Phase 2 §2.3). Catastrophic Edit failures (filesystem error) → revert all changes (`git checkout -- .` with user confirmation) and escalate to user with failure context.
+- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue (the ≥30% blocked → AUQ gate fires in Phase 2 §2.3). Catastrophic Edit failures (filesystem error) → revert the refactor's changes (`git restore --source=HEAD -- <each path from git diff --name-only>` — targeted paths, never a bare `.`, which the git-guardrail hook blocks; with user confirmation) and escalate to user with failure context.
 - **Phase 3 reviewer-agent:** note the failure in the completion summary and proceed (fail-open); warn the user that independent review did not complete.
 
 ---
@@ -314,7 +314,7 @@ Model tier note: the orchestrator's session tier runs the loop. HIGH-risk plan s
 After execution returns, count BLOCKED-to-executed ratio (post-user-rejection denominator: approved plan steps minus user-rejected HIGH-risk steps). **If ≥30% BLOCKED:** stop and escalate in two steps per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — render the run outcome to a chat message first (`**In one sentence:**` opener + a blocked-steps mini-table: step · what blocked it · retries used), then fire the lean `AskUserQuestion` header "Stuck":
 
 - **Keep what worked and escalate the rest** — proceed to Phase 3 with blocked-steps list noted; user runs `/geniro:implement` separately for blocked items. state.md → `phase: verify` with `## Accepted Blocks` body section.
-- **Revert all changes** — `git checkout -- .` (with user confirmation). state.md → `phase: reverted` (terminal).
+- **Revert all changes** — `git restore --source=HEAD -- <each path from git diff --name-only>` (targeted paths, never a bare `.`, which the git-guardrail hook blocks; with user confirmation). state.md → `phase: reverted` (terminal).
 - **Force-continue (not recommended)** — proceed to Phase 3 with blocked work treated as accepted. state.md → `phase: verify`.
 
 Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `phase: apply-escalated` with timestamp + blocked-ratio + blocked-steps list before AUQ; transitions per user pick. The open-question render surfaces this on resume.
@@ -323,7 +323,7 @@ Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `
 
 After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change guarantee held.
 
-If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git checkout -- .` after explicit user confirmation. state.md → `phase: reverted` (terminal).
+If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git restore --source=HEAD -- <each path from git diff --name-only>` (targeted paths, never a bare `.`, which the git-guardrail hook blocks) after explicit user confirmation. state.md → `phase: reverted` (terminal).
 
 If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
@@ -360,7 +360,7 @@ A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor
 Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per its § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per § Finding-type visual map — then fire the lean `AskUserQuestion`. 4 fixed options (ADR-eligibility determines whether 4th option included):
 
 1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: routed` (terminal — recovery treats as complete; the decision was handed to /geniro:implement). Without a terminal write here the run would resume re-surfacing an already-resolved escalation.
-2. **Revert this refactor and start over** — `git checkout -- .` with user confirmation. state.md → `reverted` (terminal).
+2. **Revert this refactor and start over** — `git restore --source=HEAD -- <each path from git diff --name-only>` (targeted paths, never a bare `.`, which the git-guardrail hook blocks) with user confirmation. state.md → `reverted` (terminal).
 3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
 4. **(ADR-eligible only)** **Document as ADR** — spawn a focused ADR-drafting agent (OMIT `model=` — inherits the orchestrator's session tier per the canonical model-tiering rule and the table row in the Subagent Model Tiering section) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
 
@@ -498,7 +498,7 @@ T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categor
 **Phase 3 (Verify):**
 - Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
 - Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only), focused ADR-drafting agent (if PRODUCT-DECISION ADR path picked).
-- Allowed: `git checkout -- .` (orchestration-level revert) — exception to git-write constraint.
+- Allowed: targeted per-file revert via `git restore --source=HEAD -- <each changed path>` (orchestration-level revert; list the specific changed paths, NEVER a bare `.` or `*` — the git-guardrail hook blocks the mass-discard form) — exception to git-write constraint.
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.
 
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
@@ -509,7 +509,7 @@ T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categor
 
 ## Git Constraint
 
-Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: `git checkout -- .` is permitted in Phase 2 / Phase 3 for reverting failed changes — this is an orchestration-level revert, not a version-control operation.
+Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert a failed transformation in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <each changed path>`, listing only the specific paths the step touched — this is an orchestration-level revert, not a version-control operation. NEVER use a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside the current step.
 
 ---
 
@@ -529,7 +529,7 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 | "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Hard kill caps abort legitimate complex refactors mid-stride. The skill is quality-first — no hard kill caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
 | "Auto-promote a recorded discovery into a project rule when refactor completes." | Phase 3 §3.5 offers to capture it via `/geniro:instructions create` and only when the same pattern has recurred (`recurrence_count >= 3`) — do NOT auto-write the rule. The user authors and curates project rules; auto-promotion creates noise + drift. |
-| "Bypass `git guardrail` hooks if a needed `git stash` / `git checkout -- .` step blocks." | The hooks fail-closed for a reason. `git checkout -- .` (revert path) is explicitly permitted per § ACI per-phase. Other git mutations stay blocked. If a specific guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
+| "The revert step needs `git checkout -- .` / `git restore .`, but the guard blocks it — I'll bypass the hook or run `git stash`." | The mass-discard form is blocked because a bare `.` / `*` pathspec wipes every uncommitted change, not just the failed step. The working revert path the guard allows is targeted: `git restore --source=HEAD -- <each changed path>`, listing only the paths the step touched (per § ACI per-phase / § Git Constraint). Use that — don't bypass the hook or stash. If some other guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
 | "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
 | "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
 
