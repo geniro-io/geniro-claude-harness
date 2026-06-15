@@ -136,9 +136,12 @@ archive_stale_learnings() {
   # number is identical dry-run vs real-run on the same corpus and represents
   # "current live coverage before this run's archiving". (A real run merges
   # {deprecated: true} onto the just-flipped stale entries in $processed, which
-  # would otherwise shrink the live denominator vs the dry-run report.) This
-  # matches how hooks/session-start-restore.sh tallies coverage off the on-disk
-  # file. Prints before the stale_count==0 early-return, so the number surfaces
+  # would otherwise shrink the live denominator vs the dry-run report.) So this
+  # line is the pre-archive live-set coverage, identical dry-run vs real-run for
+  # THIS helper. hooks/session-start-restore.sh computes its own coverage
+  # independently off the on-disk file at hook time (which, after a real
+  # archiving session, is the post-flip set), so the two are not guaranteed to
+  # report the identical number. Prints before the stale_count==0 early-return, so the number surfaces
   # whether or not anything was archived. Absent trust folds into `inferred`
   # ((.trust // "inferred")) to match the score-formula and query-learnings
   # normalization — there is no phantom "absent" bucket. n/a guards the

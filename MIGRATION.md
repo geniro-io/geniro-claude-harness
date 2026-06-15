@@ -24,6 +24,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ---
 
+### `/geniro:review` re-runs can collapse unchanged repeat findings into a Carried-over section
+
+A round ≥2 `/geniro:review` re-run now offers a "Repeat findings" choice at the re-review gate: move unchanged repeats (issues raised in an earlier round and never fixed, surfacing identically this round) into a collapsed `## Carried-over from round <N>` handoff section, or keep every repeat in the main findings list. The choice routes presentation only — under either pick every repeat stays in the report and in the handoff, and a repeat that strengthened since last round (fresh convergence, a newly-reachable code path, or a verifier confirmation absent before) still promotes back to the active `## Findings` list. The pick persists as a new `approvals[]` category `rereview_repeat_handling`. A first review or fresh-PR round has no prior round to carry over from, so the section and the choice never appear there.
+
+**Action required:** None — first-review and fresh-PR runs are unaffected; the new section and gate only appear on a round ≥2 re-run, and the collapse is opt-in per run.
+
+**Auto-detect:** N/A — additive `/geniro:review` behavior, no existing install state to migrate.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — additive re-review behavior with an opt-in section and a new approvals category; no schema-version bump, no state migration.
+
+---
+
 ### `/geniro:actions run` no longer asks for confirmation
 
 The run-mode risk-class confirmation gate is removed. Previously `/geniro:actions run <name>` confirmed before executing — a 1-click prompt for `medium` actions and a Cancel-default prompt for `high` actions. Now every action runs directly: invoking `/geniro:actions run <name>` IS the authorization, so no "are you sure?" prompt fires regardless of `risk_class`. The `risk_class` frontmatter field is unchanged and still required — it now drives only the `list` Risk column, the `delete` high-risk warning, the validate lint rules, and the L2 learning tag. Operational WAIT points are unaffected (cross-worktree confirmation, free-text action picker, tool-scope gap prompt, and any `[AUQ]`/`## Confirm:` checkpoint an action author placed inside the body). The run-mode rejection-signal emit to `learnings.jsonl` is also removed (there is no longer a confirmation to reject).
