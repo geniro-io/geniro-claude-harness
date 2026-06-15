@@ -898,6 +898,26 @@ echo "$sm" | grep -q "verified: 2/2 (100%)" \
   && pass "coverage overrides cold-startup suppression (systemMessage emitted)" \
   || fail "coverage should emit systemMessage on cold startup — '$sm'"
 
+# 20d. Empty (0-byte) learnings.jsonl on cold startup → NO coverage suffix and
+#      no systemMessage. The coverage block guards on `[ -s ]` (non-empty), so an
+#      empty file folds to "no coverage" instead of computing "n/a" — a non-empty
+#      string that would otherwise defeat cold-startup suppression and fire a
+#      bogus `verified: n/a` line with zero learnings.
+sandbox="$TMPDIR_BASE/cov-empty-$$"
+mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+: > "$sandbox/.geniro/knowledge/learnings.jsonl"   # 0-byte file
+
+out=$(run_hook startup "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "verified:"; then
+  fail "empty learnings.jsonl emitted a coverage suffix — '$sm'"
+else
+  pass "empty learnings.jsonl: no coverage suffix (no verified: n/a spam)"
+fi
+[ -z "$sm" ] \
+  && pass "empty learnings.jsonl on cold startup: systemMessage suppressed" \
+  || fail "empty learnings.jsonl on cold startup: systemMessage should be suppressed — '$sm'"
+
 # ---------------------------------------------------------------------------
 # 21. memory.auto_archive_stale opt-out must actually disable. jq's `//` treats
 #     a boolean `false` as empty and falls through to the default, so a

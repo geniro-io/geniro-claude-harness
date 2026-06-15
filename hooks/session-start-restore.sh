@@ -861,8 +861,13 @@ fi
 # folds into `inferred` ((.trust // "inferred")) to match the score-formula and
 # query-learnings normalization. n/a guards the zero-live divide-by-zero. Opt-out
 # via safety.json memory.show_coverage (default ON), mirroring auto_archive_stale.
+# The `-s` guard (non-empty) matters beyond avoiding wasted work: an empty
+# learnings.jsonl yields "n/a", a non-empty string that would defeat the
+# cold-startup suppression clause below ([ -z "$COVERAGE_SUFFIX" ]) and fire a
+# bogus `verified: n/a` systemMessage with zero learnings. Treat a 0-byte file
+# as "no coverage to report" — same as an absent file.
 COVERAGE_SUFFIX=""
-if [ -f "$_learnings_log" ]; then
+if [ -f "$_learnings_log" ] && [ -s "$_learnings_log" ]; then
   _coverage_enabled="true"
   _cov_safety_file=$(find_safety_json 2>/dev/null || true)
   if [ -n "$_cov_safety_file" ] && [ -f "$_cov_safety_file" ]; then

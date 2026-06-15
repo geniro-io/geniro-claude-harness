@@ -132,20 +132,26 @@ archive_stale_learnings() {
 
   # Verification-coverage line: the fraction of the live (non-deprecated) L2
   # corpus whose trust is `verified`, surfaced read-only for the human. Computed
-  # over the same $processed stream (it carries .trust and .deprecated) before
-  # the stale_count==0 early-return, so the number prints whether or not anything
-  # was archived. Absent trust folds into `inferred` ((.trust // "inferred")) to
-  # match the score-formula and query-learnings normalization — there is no
-  # phantom "absent" bucket. n/a guards the zero-live divide-by-zero.
+  # over the PRE-FLIP on-disk $log — NOT the post-flip $processed stream — so the
+  # number is identical dry-run vs real-run on the same corpus and represents
+  # "current live coverage before this run's archiving". (A real run merges
+  # {deprecated: true} onto the just-flipped stale entries in $processed, which
+  # would otherwise shrink the live denominator vs the dry-run report.) This
+  # matches how hooks/session-start-restore.sh tallies coverage off the on-disk
+  # file. Prints before the stale_count==0 early-return, so the number surfaces
+  # whether or not anything was archived. Absent trust folds into `inferred`
+  # ((.trust // "inferred")) to match the score-formula and query-learnings
+  # normalization — there is no phantom "absent" bucket. n/a guards the
+  # zero-live divide-by-zero.
   local coverage_line
-  coverage_line=$(printf '%s\n' "$processed" \
-    | jq -sr '
-        [.[] | select((.deprecated // false) == false)] as $live
+  coverage_line=$(jq -Rsr '
+        [splits("\n") | select(length > 0) | fromjson?
+         | select((.deprecated // false) == false)] as $live
         | ($live | length) as $total
         | ([$live[] | select((.trust // "inferred") == "verified")] | length) as $verified
         | if $total == 0 then "coverage: n/a"
           else "coverage: verified \($verified)/\($total) (\(($verified * 100 / $total) | round)%)"
-          end' 2>/dev/null)
+          end' "$log" 2>/dev/null)
   [ -z "$coverage_line" ] && coverage_line="coverage: n/a"
 
   if [ "$stale_count" -eq 0 ]; then
