@@ -182,6 +182,10 @@ open_questions:                       # MUST be present; MAY be empty []
 ## Deferred — sub-threshold
 <list, surfaced for user awareness>
 
+## Carried-over from round N
+<!-- Present only on a round >=2 re-review where the user picked the collapse option at the re-review gate. Holds unchanged repeat findings demoted from ## Findings per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7.1 — each keeps its full per-finding body block, severity, gates, and place in the handoff; only its rendering section changed. A demoted needs-your-decision finding still carries step0_status: pending here (§3 / §7.0 read it); a demoted finding stays in the Post drill's eligible set (§7.1). Omitted entirely on a first review or when the user kept every repeat in ## Findings. -->
+<list, or empty>
+
 ## Filtered
 <!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, test-challenged, already-resolved-on-pr, overturned-after-post, convention-filtered). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
@@ -466,7 +470,7 @@ This §7.0 check is the fail-closed second line of defense for ALL FOUR invarian
 
 **Procedure:**
 
-1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`. Read the `## Findings` body section and parse each finding's `Severity:`, `Decision Type:`, `step0_status:`, AND `Validation:` fields.
+1. Read state.md frontmatter via `Bash: cat ... | head` and parse `open_questions[]`. Read the `## Findings` body section AND — when present (a round ≥2 re-review where the user collapsed unchanged repeats) — the `## Carried-over from round N` section, parsing each finding's `Severity:`, `Decision Type:`, `step0_status:`, AND `Validation:` fields in BOTH. A demoted needs-your-decision finding lives in `## Carried-over from round N` while still pending, so a guard that read only `## Findings` would miss it and post an undecided finding to the PR.
 2. Build four filter lists: (a) `open_questions[]` entries with `status: unresolved`; (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`; (c) findings with `Severity: CRITICAL | HIGH | MEDIUM` AND (`Validation: refuted` OR `Validation:` set to a value outside the `confirmed | refuted | clarified | unverified` enum — `unverified` is legal and handled per-finding at §7.1, never a whole-phase abort); (d) frontmatter `report_status` explicitly set to `draft` (missing reads as `final` — not a violation).
 3. If any of the four lists is non-empty:
    - Surface a one-line chat warning naming the count of each non-empty list (e.g., `"Can't post yet: 2 open questions still need your answer + 1 finding needs a decision from you + 1 finding the verifier couldn't confirm."`) and the first 1-2 affected items.
@@ -484,7 +488,7 @@ This guard exists because posting a draft PR review with unresolved ambiguity, m
 
 ### 7.1 Step 1.5 — Already-on-PR dedup (post-set filter)
 
-The post-drill's eligible-finding set is every unposted finding across BOTH `## Findings` (kept CRITICAL / HIGH / MEDIUM + any LOW `PRODUCT-DECISION` admitted via §4.1 Path B) and `## Deferred — sub-threshold` (LOW awareness items) — once the user has chosen to post, severity no longer gates postability. This step removes from the post set findings that already exist on the PR, so the user isn't asked to re-raise what's already there.
+The post-drill's eligible-finding set is every unposted finding across `## Findings` (kept CRITICAL / HIGH / MEDIUM + any LOW `PRODUCT-DECISION` admitted via §4.1 Path B), `## Deferred — sub-threshold` (LOW awareness items), AND `## Carried-over from round N` (unchanged repeats the user collapsed at a round ≥2 re-review gate; present only then) — once the user has chosen to post, severity no longer gates postability, and a carried-over finding is postable exactly like a deferred one. A carried-over finding the user later chooses to post can reach the PR, and any exclusion of it is surfaced (`## Filtered` `reason:`, or `Validation: unverified` kept-in-place) like every other finding's. This step removes from the post set findings that already exist on the PR, so the user isn't asked to re-raise what's already there.
 
 Safety invariant: every exclusion is surfaced — tagged and moved to `## Filtered` with a `reason:`, or (for verification exclusions) kept in `## Findings` with `Validation: unverified` as the recorded reason — never silently dropped. The user sees exactly what was withheld and why, so §7.4's completeness guarantee holds.
 
