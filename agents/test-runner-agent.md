@@ -2,7 +2,7 @@
 name: test-runner-agent
 description: "Executes the project's pre-resolved TEST_COMMAND once and returns a structured pass/fail summary with up to 15 failure snippets. Use at end-of-phase test runs and inside fix-retry loops so the raw test stdout (typically 50K+ tokens) never reaches the orchestrator's main context."
 tools: [Bash, Read, Grep]
-model: inherit
+model: sonnet
 maxTurns: 50
 ---
 

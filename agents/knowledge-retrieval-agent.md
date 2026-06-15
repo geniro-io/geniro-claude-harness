@@ -2,7 +2,7 @@
 name: knowledge-retrieval-agent
 description: "Read-only past-knowledge search. Use at Phase 1 of an implementation, debug, or refactor task to retrieve relevant past learnings, project-snapshot rows, prior review/debug handoffs, and prior plan-*.md files for the same task. Returns a condensed bullet report (≤3K chars) with file:line citations."
 tools: [Read, Glob, Grep, Bash]
-model: inherit
+model: sonnet
 maxTurns: 40
 ---
 

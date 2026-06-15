@@ -4,11 +4,11 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 
 ## The rule
 
-**Plugin-defined subagents inherit orchestrator tier by default.** Frontmatter declares `model: inherit`; spawn sites **OMIT the `model=` argument**. Rationale: the user explicitly chose their orchestrator tier (Opus / Sonnet / Haiku) at session start; subagents should symmetrically match that choice rather than hardcoding a cheaper tier. The user owns the cost / quality trade-off at session level — plugin paternalism ("I'll force Sonnet for cost containment") is the documented anti-pattern.
+**Plugin-defined subagents inherit orchestrator tier by default.** Frontmatter declares `model: inherit` (except the mechanical-agent carve-outs in category 3 below, which declare a concrete cheaper tier); spawn sites **OMIT the `model=` argument** in every case — the agent's frontmatter `model:` governs (inherit-agents resolve to the orchestrator tier; carve-out agents resolve to their declared tier). Rationale: the user explicitly chose their orchestrator tier (Opus / Sonnet / Haiku) at session start; subagents should symmetrically match that choice rather than hardcoding a cheaper tier. The user owns the cost / quality trade-off at session level — plugin paternalism ("I'll force Sonnet for cost containment") is the documented anti-pattern.
 
 The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="inherit"` at the call site fails input validation with "Invalid tool parameters". Propagate `inherit` by **OMITTING the runtime arg** — Claude Code's Agent tool resolver picks up the orchestrator's tier when `model=` is unset.
 
-**Hardcoded tier is allowed in two narrow categories:**
+**Hardcoded tier is allowed in three narrow categories:**
 
 1. **User-authored custom reviewers** (`.geniro/instructions/review-extra/<slug>.md` with an explicit `model:` field). That's the user's own opt-in — their declaration overrides inherit. Absent declaration in custom-reviewer frontmatter = inherit (NOT a hidden default to Sonnet).
 
@@ -17,6 +17,12 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
    - `skills/setup/SKILL.md` verification subagent → `model="sonnet"` — runs under a tightly constrained tool budget (`[Read, Bash, Glob, Grep]` — no Write/Edit); the hardcoded floor is the safety contract, not the model preference.
 
    Both sites carry an inline comment justifying the exemption. Any new hardcode requires the same justification. A hardcoded tier is a speed/cost preference, not a hard requirement — apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` so the spawn degrades to inherit (then inline) when the target tier is unavailable in the runtime (e.g. a Haiku spawn from a 1M-context Opus/Sonnet session returns `0 tokens`, since Haiku has no 1M-context variant).
+
+3. **Plugin-defined mechanical / recoverable-evidence agents** that declare a concrete cheaper tier in their OWN frontmatter (so every spawn site still OMITs `model=` and the frontmatter governs — the universal spawn-site rule is unchanged):
+   - `agents/test-runner-agent.md` → `model: sonnet` — runs the test command and parses stdout into a fixed `{ALL_GREEN|HAS_FAILURES|INFRA_ERROR}` verdict plus capped failure snippets. No hypothesis generation or judgment: the orchestrator re-decides from the verdict and re-greps the saved log, so output quality does not scale with orchestrator intelligence. Pure mechanics.
+   - `agents/knowledge-retrieval-agent.md` → `model: sonnet` — mechanical search-and-cite across the memory layers; its one relevance filter is a one-line, hard-capped, citation-recoverable gate, so a weaker model's failure mode is bounded padding (which the orchestrator filters via the citations), not missed knowledge.
+
+   Both pin **`sonnet`, never `haiku`**: the fallback tier table below would place these mechanical workloads at haiku, but Haiku 4.5 has no 1M-context variant, so a haiku-frontmatter agent returns `0 tokens` when spawned from a 1M-context Opus/Sonnet session. Sonnet is the safe floor. These are deliberate cost optimizations on genuinely mechanical agents — distinct from the reviewer / codebase-research / codebase-explorer / reflection / adversarial-tester agents, whose output quality scales with orchestrator intelligence and which therefore stay `inherit` (pinning those cheaper is the paternalism anti-pattern below).
 
 ## Tier table — fallback for runtimes without an orchestrator
 

@@ -53,7 +53,7 @@ If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task
 
 ## Phase 1: Subagent spawn template
 
-Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, TWO `Agent(...)` tool calls. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` (both agents declare `model: inherit`).
+Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, TWO `Agent(...)` tool calls. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
 ### Knowledge-Retrieval spawn
 
@@ -141,7 +141,7 @@ When ≥1 signal matches, emit: `"Spec touches <matched signals> — consider ru
 
 ## Phase 2: test-runner-agent spawn template
 
-Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=`. Apply the registration-degradation ladder.
+Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=` — test-runner-agent declares `model: sonnet` in frontmatter (mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Apply the registration-degradation ladder.
 
 The orchestrator pre-resolves these slots:
 
