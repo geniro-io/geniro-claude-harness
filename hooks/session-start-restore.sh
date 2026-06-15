@@ -861,11 +861,15 @@ fi
 # folds into `inferred` ((.trust // "inferred")) to match the score-formula and
 # query-learnings normalization. n/a guards the zero-live divide-by-zero. Opt-out
 # via safety.json memory.show_coverage (default ON), mirroring auto_archive_stale.
-# The `-s` guard (non-empty) matters beyond avoiding wasted work: an empty
-# learnings.jsonl yields "n/a", a non-empty string that would defeat the
-# cold-startup suppression clause below ([ -z "$COVERAGE_SUFFIX" ]) and fire a
-# bogus `verified: n/a` systemMessage with zero learnings. Treat a 0-byte file
-# as "no coverage to report" — same as an absent file.
+# The `-s` guard (non-empty) avoids wasted work on a 0-byte file, but size alone
+# is insufficient: a non-empty learnings.jsonl whose every entry is
+# `deprecated: true` still computes $total == 0 over the live set and yields the
+# "n/a" sentinel — a non-empty string that would defeat the cold-startup
+# suppression clause below ([ -z "$COVERAGE_SUFFIX" ]) and fire a bogus
+# `verified: n/a` systemMessage. So the assignment below filters the "n/a"
+# sentinel out (not just the 0-byte case): COVERAGE_SUFFIX is set only for a real
+# ratio. Treat both an empty file and an all-deprecated corpus as "no coverage to
+# report".
 COVERAGE_SUFFIX=""
 if [ -f "$_learnings_log" ] && [ -s "$_learnings_log" ]; then
   _coverage_enabled="true"
@@ -889,7 +893,7 @@ if [ -f "$_learnings_log" ] && [ -s "$_learnings_log" ]; then
       | if $total == 0 then "n/a"
         else "\($verified)/\($total) (\(($verified * 100 / $total) | round)%)"
         end' "$_learnings_log" 2>/dev/null)
-    if [ -n "$_cov" ]; then
+    if [ -n "$_cov" ] && [ "$_cov" != "n/a" ]; then
       COVERAGE_SUFFIX="$_cov"
     fi
   fi
@@ -974,7 +978,7 @@ if [ "${ARCHIVED_COUNT:-0}" -gt 0 ]; then
   SYSTEM_MESSAGE="$SYSTEM_MESSAGE · auto-archived: $ARCHIVED_COUNT"
 fi
 if [ -n "$COVERAGE_SUFFIX" ]; then
-  SYSTEM_MESSAGE="$SYSTEM_MESSAGE · verified: $COVERAGE_SUFFIX"
+  SYSTEM_MESSAGE="$SYSTEM_MESSAGE · memory verified: $COVERAGE_SUFFIX"
 fi
 
 # Suppression rule: cold startup with no active task → no systemMessage spam.

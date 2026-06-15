@@ -866,7 +866,7 @@ mkdir -p "$sandbox/.geniro/knowledge"
 
 out=$(run_hook compact "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-echo "$sm" | grep -q "verified: 1/2 (50%)" \
+echo "$sm" | grep -q "memory verified: 1/2 (50%)" \
   && pass "coverage suffix present on systemMessage (default ON)" \
   || fail "coverage suffix missing/wrong — '$sm'"
 
@@ -894,7 +894,7 @@ mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git che
 
 out=$(run_hook startup "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-echo "$sm" | grep -q "verified: 2/2 (100%)" \
+echo "$sm" | grep -q "memory verified: 2/2 (100%)" \
   && pass "coverage overrides cold-startup suppression (systemMessage emitted)" \
   || fail "coverage should emit systemMessage on cold startup — '$sm'"
 
@@ -917,6 +917,29 @@ fi
 [ -z "$sm" ] \
   && pass "empty learnings.jsonl on cold startup: systemMessage suppressed" \
   || fail "empty learnings.jsonl on cold startup: systemMessage should be suppressed — '$sm'"
+
+# 20e. Non-empty ALL-DEPRECATED learnings.jsonl on cold startup → NO coverage
+#      suffix and no systemMessage. The file is non-empty (passes `[ -s ]`), but
+#      every entry is deprecated, so the live set is empty and coverage computes
+#      the "n/a" sentinel. The assignment filters "n/a" out, so COVERAGE_SUFFIX
+#      stays empty and cold-startup suppression holds — no bogus `verified: n/a`.
+sandbox="$TMPDIR_BASE/cov-alldep-$$"
+mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+{
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"d1","deprecated":true}'
+  printf '%s\n' '{"type":"discovery","trust":"inferred","dedup_key":"d2","deprecated":true}'
+} > "$sandbox/.geniro/knowledge/learnings.jsonl"
+
+out=$(run_hook startup "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "verified:"; then
+  fail "all-deprecated learnings.jsonl emitted a coverage suffix — '$sm'"
+else
+  pass "all-deprecated learnings.jsonl: no coverage suffix (no verified: n/a spam)"
+fi
+[ -z "$sm" ] \
+  && pass "all-deprecated learnings.jsonl on cold startup: systemMessage suppressed" \
+  || fail "all-deprecated learnings.jsonl on cold startup: systemMessage should be suppressed — '$sm'"
 
 # ---------------------------------------------------------------------------
 # 21. memory.auto_archive_stale opt-out must actually disable. jq's `//` treats
