@@ -10,6 +10,34 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### spec.md section 9 gains an optional per-criterion `verify:` command
+
+`/geniro:plan` specs may now attach an optional `verify: <shell command>` line to a section 9 (Validation) criterion — a single acceptance command for that criterion, distinct from the project-wide test suite. After the end-of-phase suite goes green, `/geniro:implement` runs each `verify:` command once (via its own Bash, not `test-runner-agent`), classifies the result on the existing `{ALL_GREEN, HAS_FAILURES, INFRA_ERROR}` verdict taxonomy, and attaches the result as evidence; a failing `verify:` routes into the same message-first escalation prompt so the human stays the ship decider. The field is OPTIONAL and backward-compatible — a spec with no `verify:` line behaves exactly as before (prose-only verification). The validator (`validator-checks.md` check #8 `validation_method`) gains a shape-only sub-rule: a present `verify:` must be a non-empty command string; it never executes the command. `verify:` is a body-level field (not frontmatter), so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
+
+**Action required:** None — existing specs without `verify:` keep working unchanged. New `/geniro:plan` runs may add `verify:` lines per criterion; `/geniro:implement` picks them up organically.
+
+**Auto-detect:** N/A — additive optional field (absent `verify:` = prior behavior); nothing to detect in an existing install.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — additive optional spec field with graceful absence handling; no schema-version bump, no state migration.
+
+---
+
+### `/geniro:review` re-runs can collapse unchanged repeat findings into a Carried-over section
+
+A round ≥2 `/geniro:review` re-run now offers a "Repeat findings" choice at the re-review gate: move unchanged repeats (issues raised in an earlier round and never fixed, surfacing identically this round) into a collapsed `## Carried-over from round <N>` handoff section, or keep every repeat in the main findings list. The choice routes presentation only — under either pick every repeat stays in the report and in the handoff, and a repeat that strengthened since last round (fresh convergence, a newly-reachable code path, or a verifier confirmation absent before) still promotes back to the active `## Findings` list. The pick persists as a new `approvals[]` category `rereview_repeat_handling`. A first review or fresh-PR round has no prior round to carry over from, so the section and the choice never appear there.
+
+**Action required:** None — first-review and fresh-PR runs are unaffected; the new section and gate only appear on a round ≥2 re-run, and the collapse is opt-in per run.
+
+**Auto-detect:** N/A — additive `/geniro:review` behavior, no existing install state to migrate.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — additive re-review behavior with an opt-in section and a new approvals category; no schema-version bump, no state migration.
+
+---
+
 ### `/geniro:actions run` no longer asks for confirmation
 
 The run-mode risk-class confirmation gate is removed. Previously `/geniro:actions run <name>` confirmed before executing — a 1-click prompt for `medium` actions and a Cancel-default prompt for `high` actions. Now every action runs directly: invoking `/geniro:actions run <name>` IS the authorization, so no "are you sure?" prompt fires regardless of `risk_class`. The `risk_class` frontmatter field is unchanged and still required — it now drives only the `list` Risk column, the `delete` high-risk warning, the validate lint rules, and the L2 learning tag. Operational WAIT points are unaffected (cross-worktree confirmation, free-text action picker, tool-scope gap prompt, and any `[AUQ]`/`## Confirm:` checkpoint an action author placed inside the body). The run-mode rejection-signal emit to `learnings.jsonl` is also removed (there is no longer a confirmation to reject).

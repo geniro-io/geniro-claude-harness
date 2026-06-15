@@ -852,6 +852,172 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 20. Verification-coverage suffix on systemMessage — present when learnings.jsonl
+#     has live entries; absent when safety.json sets memory.show_coverage: false.
+# ---------------------------------------------------------------------------
+
+# 20a. Coverage suffix appears (default ON). Live set: 2 entries, 1 verified -> 50%.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+{
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"v1"}'
+  printf '%s\n' '{"type":"discovery","trust":"inferred","dedup_key":"i1"}'
+} > "$sandbox/.geniro/knowledge/learnings.jsonl"
+
+out=$(run_hook compact "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+echo "$sm" | grep -q "memory verified: 1/2 (50%)" \
+  && pass "coverage suffix present on systemMessage (default ON)" \
+  || fail "coverage suffix missing/wrong — '$sm'"
+
+# 20b. Opt-out via memory.show_coverage:false suppresses the suffix.
+mkdir -p "$sandbox/.geniro"
+cat > "$sandbox/.geniro/safety.json" <<'EOF'
+{ "memory": { "show_coverage": false } }
+EOF
+out=$(run_hook compact "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "verified:"; then
+  fail "coverage suffix should be suppressed when show_coverage:false — '$sm'"
+else
+  pass "coverage suffix suppressed when memory.show_coverage:false"
+fi
+
+# 20c. Coverage overrides cold-startup systemMessage suppression — a fresh repo
+#      with no active task but a learnings.jsonl still emits the memory-health line.
+sandbox="$TMPDIR_BASE/cov-cold-$$"
+mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+{
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"v1"}'
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"v2"}'
+} > "$sandbox/.geniro/knowledge/learnings.jsonl"
+
+out=$(run_hook startup "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+echo "$sm" | grep -q "memory verified: 2/2 (100%)" \
+  && pass "coverage overrides cold-startup suppression (systemMessage emitted)" \
+  || fail "coverage should emit systemMessage on cold startup — '$sm'"
+
+# 20d. Empty (0-byte) learnings.jsonl on cold startup → NO coverage suffix and
+#      no systemMessage. The coverage block guards on `[ -s ]` (non-empty), so an
+#      empty file folds to "no coverage" instead of computing "n/a" — a non-empty
+#      string that would otherwise defeat cold-startup suppression and fire a
+#      bogus `verified: n/a` line with zero learnings.
+sandbox="$TMPDIR_BASE/cov-empty-$$"
+mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+: > "$sandbox/.geniro/knowledge/learnings.jsonl"   # 0-byte file
+
+out=$(run_hook startup "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "verified:"; then
+  fail "empty learnings.jsonl emitted a coverage suffix — '$sm'"
+else
+  pass "empty learnings.jsonl: no coverage suffix (no verified: n/a spam)"
+fi
+[ -z "$sm" ] \
+  && pass "empty learnings.jsonl on cold startup: systemMessage suppressed" \
+  || fail "empty learnings.jsonl on cold startup: systemMessage should be suppressed — '$sm'"
+
+# 20e. Non-empty ALL-DEPRECATED learnings.jsonl on cold startup → NO coverage
+#      suffix and no systemMessage. The file is non-empty (passes `[ -s ]`), but
+#      every entry is deprecated, so the live set is empty and coverage computes
+#      the "n/a" sentinel. The assignment filters "n/a" out, so COVERAGE_SUFFIX
+#      stays empty and cold-startup suppression holds — no bogus `verified: n/a`.
+sandbox="$TMPDIR_BASE/cov-alldep-$$"
+mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git checkout -q -b "fresh" 2>/dev/null || exit 1
+{
+  printf '%s\n' '{"type":"discovery","trust":"verified","dedup_key":"d1","deprecated":true}'
+  printf '%s\n' '{"type":"discovery","trust":"inferred","dedup_key":"d2","deprecated":true}'
+} > "$sandbox/.geniro/knowledge/learnings.jsonl"
+
+out=$(run_hook startup "$sandbox")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "verified:"; then
+  fail "all-deprecated learnings.jsonl emitted a coverage suffix — '$sm'"
+else
+  pass "all-deprecated learnings.jsonl: no coverage suffix (no verified: n/a spam)"
+fi
+[ -z "$sm" ] \
+  && pass "all-deprecated learnings.jsonl on cold startup: systemMessage suppressed" \
+  || fail "all-deprecated learnings.jsonl on cold startup: systemMessage should be suppressed — '$sm'"
+
+# ---------------------------------------------------------------------------
+# 21. memory.auto_archive_stale opt-out must actually disable. jq's `//` treats
+#     a boolean `false` as empty and falls through to the default, so a
+#     `.memory.auto_archive_stale // true` resolver would never disable the
+#     feature. Guard the explicit `== false` resolver against regressing.
+# ---------------------------------------------------------------------------
+if grep -q 'auto_archive_stale // true' "$HOOK"; then
+  fail "hook reintroduced the broken 'auto_archive_stale // true' opt-out (jq // eats boolean false)"
+else
+  pass "hook uses the explicit == false opt-out resolver (no // true)"
+fi
+
+# Behavioral half — drive the ACTUAL hook resolver, not a local copy. Build a
+# corpus that exceeds the auto-archive line threshold (lowered via the env knob,
+# the same pattern test 18 uses) and contains an archivable stale entry, so
+# auto-archive WOULD fire. The opt-out is the only thing that should suppress it,
+# so a regression of the hook's real `== false` resolver flips these assertions.
+#
+# Stale entry: ts in 2020 (age » 180d), trust inferred, access_count 0,
+# recurrence_count 1 → score « 0.1 (matches lib/archive-stale.sh criteria, same
+# corpus shape as tests/memory/archive-stale.sh). A fresh control keeps the
+# total over the threshold without itself being archivable.
+write_archivable_corpus() {
+  {
+    printf '%s\n' '{"producer":"/debug","scope":"x","summary":"stale one","tags":["bug"],"type":"diagnosis","ts":"2020-01-01T00:00:00Z","trust":"inferred","access_count":0,"recurrence_count":1,"dedup_key":"opt-stale1"}'
+    printf '{"producer":"/debug","scope":"x","summary":"fresh one","tags":["bug"],"type":"diagnosis","ts":"%s","trust":"verified","access_count":0,"recurrence_count":1,"dedup_key":"opt-fresh1"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } > "$1"
+}
+
+# 21a. Default ON (no safety.json) → real hook archives the stale entry and the
+#      systemMessage carries the `auto-archived: N` suffix. The on-disk flip is
+#      the deterministic signal; the suffix is the user-visible observable.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+write_archivable_corpus "$sandbox/.geniro/knowledge/learnings.jsonl"
+# cd into the sandbox: the hook's safety.json resolver walks up from $PWD, so the
+# opt-out check in 21b must see this sandbox's tree, not a sibling's.
+cd "$sandbox" || exit 1
+out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbox/.geniro/knowledge/learnings.jsonl")
+[ "$dep" = "true" ] \
+  && pass "default-ON: real hook flips the stale entry to deprecated on disk" \
+  || fail "default-ON: real hook should archive the stale entry (deprecated=true); got deprecated=$dep"
+echo "$sm" | grep -Eq 'auto-archived: [1-9][0-9]*' \
+  && pass "default-ON: systemMessage carries the auto-archived: N suffix" \
+  || fail "default-ON: real hook should show auto-archived: N — '$sm'"
+
+# 21b. Opt-out ON via safety.json → real hook's `== false` resolver disables
+#      auto-archive, so NO `auto-archived:` suffix appears. Fresh sandbox so the
+#      opt-out (not run 21a's already-flipped entry or the hash gate) is the only
+#      thing that can suppress archival.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge" "$sandbox/.geniro"
+write_archivable_corpus "$sandbox/.geniro/knowledge/learnings.jsonl"
+cat > "$sandbox/.geniro/safety.json" <<'EOF'
+{ "memory": { "auto_archive_stale": false } }
+EOF
+# cd in so the hook's $PWD-anchored safety.json walk-up finds THIS opt-out file.
+cd "$sandbox" || exit 1
+out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "auto-archived:"; then
+  fail "opt-out: auto_archive_stale:false must suppress archival via the real hook resolver — '$sm'"
+else
+  pass "opt-out genuinely disables auto-archive via the real hook (no auto-archived suffix)"
+fi
+# Confirm the stale entry was left untouched on disk (opt-out skipped the run,
+# not merely the suffix) — the entry must NOT be flipped to deprecated:true.
+dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbox/.geniro/knowledge/learnings.jsonl")
+[ "$dep" = "false" ] \
+  && pass "opt-out leaves the stale entry un-archived on disk (deprecated still false)" \
+  || fail "opt-out should leave the entry un-archived; deprecated=$dep"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

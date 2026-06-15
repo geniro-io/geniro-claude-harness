@@ -288,6 +288,29 @@ grep -n "workaround\|temporary\|quick fix" file.js
 - Difficult to create isolated test contexts
 - External API calls in core logic
 
+### 9. Spec done-condition progress (when PLAN CONTEXT present)
+
+When a plan / spec is attached to this review, the spec's "Done Condition" names an observable signal that defines completion (e.g., "all 5 acceptance tests green", "feature ships behind flag AND telemetry shows ≥1 successful use", "PR approved by stakeholder X"). Beyond checking that the diff stays inside the stated scope, ask whether the diff **achieves, or visibly progresses toward, that done signal** — not just whether it touches the named files. A change can land every scoped file and still carry no artifact moving toward the completion signal (the test the signal names was never written, the telemetry the signal expects is never emitted).
+
+This is a **static diff-inspection check only — no command execution.** Read the diff against the stated signal; do not run the test suite or any other command to confirm the signal (that runtime confirmation is a separate concern, owned elsewhere). The point here is: does the diff contain the *artifact* the signal would need?
+
+**Single-source the signal ontology.** The observable-signal definitions (test-green / telemetry-shows / approval / shipped-to patterns) and the per-signal detection guidance live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §"10. Done Condition Met". Read that section for the signal taxonomy; do not re-derive or copy the patterns here — the dedicated dimension owns the canonical ontology and a copy would drift.
+
+**How to detect:**
+1. Confirm PLAN CONTEXT carries structured frontmatter (`geniro_kind: design-doc`) so the Done Condition has a citable section anchor. If it does not — unstructured / prose-only PLAN CONTEXT — **skip this check silently**: emit nothing (no finding, no `open_questions[]` entry). An unstructured plan has no citable Done-Condition anchor, so the static §9 check has nothing to verify against; upgrading the plan to the structured `geniro_kind: design-doc` schema re-enables the check.
+2. With structured context, read the Done Condition's observable signal (per the ontology in spec-compliance-criteria.md §10).
+3. Check whether the diff carries the artifact that signal needs — the new/updated assertions for a test-based signal, the metric/log emission at the named boundary for a telemetry-based signal, the wiring for a flag-gated signal. **Anchor the finding to the real production code location that lacks the artifact**, not to the plan fragment: the function or branch the named test would exercise but doesn't, the boundary in the source where the expected metric/log is never emitted, the flag-check site that was never wired. Cite that code path as the finding's `File:line` (structurally like the §1.6 mirror-gap finding, which anchors at an existing code path whose mirror is missing). Anchoring to a code location — not a spec excerpt — is what lets the finding survive `/geniro:review`'s drop-on-no-`file:line` filter; a finding whose only citation is the plan text gets suppressed.
+4. Classify the divergence before flagging it (the spec is the primary intent rubric but a fallible artifact). If the diff looks like it deliberately and correctly departed from a stale or wrong Done Condition — the signal references a file / endpoint / behavior the live code contradicts — this is a possibly-stale-spec case, not an implementation gap: route it to needs-intent-confirmation (`[INTENT-CHECK]`) at MEDIUM, not an implementation defect, mirroring how the dedicated spec-compliance dimension separates a code-defect from a spec-defect (spec-compliance-criteria.md §"Spec-premise validation"). Otherwise, when the signal still holds and the diff simply carries nothing moving toward it, surface the gap at HIGH.
+
+**Red flags:**
+- The Done Condition names "all acceptance tests green" but the diff adds no test asserting the named behavior.
+- The Done Condition names a telemetry / log signal but the diff emits no metric or log at the relevant boundary.
+- The Done Condition names a flag-gated rollout but the diff has no flag wiring.
+
+**Finding text:** "The plan's completion signal is `<signal>`, but `<code path at File:line>` — the function the named test would exercise / the boundary where the expected metric is emitted / the flag-check site — carries no artifact moving toward it: `<what's missing>`." Anchor the finding at that production `File:line` and cite the spec's Done Condition fragment verbatim as the rubric. Severity caps at HIGH here (per the Severity Guidelines below, this dimension never emits CRITICAL); a possibly-stale-spec divergence caps at MEDIUM with `[INTENT-CHECK]`.
+
+This check **complements** the dedicated spec-compliance dimension rather than duplicating it. In `/geniro:review`, spec-compliance runs as its own reviewer and owns the fuller Done-Condition audit (it is the canonical owner of the section-11 ontology). This subsection is the compact form that runs in review contexts which do NOT spawn a separate spec-compliance dimension (e.g., `/geniro:implement` Phase 3 self-review), so the done-signal-progress class is still caught there. In `/geniro:review`, the spec-compliance dimension and this §9 check may each independently surface the same done-condition gap as two SEPARATE findings — expected, harmless overlap, not a merge: spec-compliance anchors its finding with the `File: SPEC-COMPLIANCE` sentinel while this dimension anchors at the production code path that lacks the artifact, so the two carry different `File:line` dedup keys and never merge into one. Surface yours regardless. In `/geniro:implement` Phase 3 (no separate spec-compliance reviewer), this subsection is the only place the gap is caught.
+
 ## Output Format
 
 Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
@@ -347,6 +370,7 @@ Works across languages/frameworks:
 - [ ] Technical debt is documented/addressed
 - [ ] Code is designed to be testable
 - [ ] Patterns align with codebase standards
+- [ ] When a plan is attached, the change carries an artifact moving toward its stated completion signal
 
 ## Severity Guidelines
 

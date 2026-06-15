@@ -786,7 +786,11 @@ if [ -f "$_learnings_log" ]; then
   _auto_enabled="true"
   _safety_file=$(find_safety_json 2>/dev/null || true)
   if [ -n "$_safety_file" ] && [ -f "$_safety_file" ]; then
-    _opt=$(jq -r '.memory.auto_archive_stale // true' "$_safety_file" 2>/dev/null)
+    # Resolve with an explicit `== false` test, not jq's `//` default operator:
+    # `//` treats a boolean `false` as empty and falls through to the default,
+    # so a defaulted read of this key would never honor an explicit `false`
+    # (a real opt-out bug this form replaced).
+    _opt=$(jq -r 'if .memory.auto_archive_stale == false then "false" else "true" end' "$_safety_file" 2>/dev/null)
     if [ "$_opt" = "false" ]; then
       _auto_enabled="false"
     fi
@@ -846,6 +850,52 @@ Opt-out: set \`memory.auto_archive_stale: false\` in .geniro/safety.json."
       # mkdir failed → another tab owns the lock; silent skip.
     fi
     # hash unchanged → no new entries since last archive; silent skip.
+  fi
+fi
+
+# Verification-coverage suffix — the fraction of the live (non-deprecated) L2
+# corpus whose trust is `verified`, surfaced read-only on the systemMessage.
+# Computed INDEPENDENTLY of the archiver (which only runs past the 5000-line
+# threshold, so its coverage line would near-never surface on small repos) via a
+# cheap jq tally over the same primary-worktree learnings.jsonl. Absent trust
+# folds into `inferred` ((.trust // "inferred")) to match the score-formula and
+# query-learnings normalization. n/a guards the zero-live divide-by-zero. Opt-out
+# via safety.json memory.show_coverage (default ON), mirroring auto_archive_stale.
+# The `-s` guard (non-empty) avoids wasted work on a 0-byte file, but size alone
+# is insufficient: a non-empty learnings.jsonl whose every entry is
+# `deprecated: true` still computes $total == 0 over the live set and yields the
+# "n/a" sentinel — a non-empty string that would defeat the cold-startup
+# suppression clause below ([ -z "$COVERAGE_SUFFIX" ]) and fire a bogus
+# `verified: n/a` systemMessage. So the assignment below filters the "n/a"
+# sentinel out (not just the 0-byte case): COVERAGE_SUFFIX is set only for a real
+# ratio. Treat both an empty file and an all-deprecated corpus as "no coverage to
+# report".
+COVERAGE_SUFFIX=""
+if [ -f "$_learnings_log" ] && [ -s "$_learnings_log" ]; then
+  _coverage_enabled="true"
+  _cov_safety_file=$(find_safety_json 2>/dev/null || true)
+  if [ -n "$_cov_safety_file" ] && [ -f "$_cov_safety_file" ]; then
+    # Test for an explicit `false` rather than `// true` — jq's `//` treats the
+    # boolean `false` as empty and falls through to the default, so `// true`
+    # could never read an opt-out the user actually set to false.
+    _cov_opt=$(jq -r 'if .memory.show_coverage == false then "false" else "true" end' "$_cov_safety_file" 2>/dev/null)
+    if [ "$_cov_opt" = "false" ]; then
+      _coverage_enabled="false"
+    fi
+  fi
+
+  if [ "$_coverage_enabled" = "true" ]; then
+    _cov=$(jq -Rsr '
+      [splits("\n") | select(length > 0) | fromjson?
+       | select((.deprecated // false) == false)] as $live
+      | ($live | length) as $total
+      | ([$live[] | select((.trust // "inferred") == "verified")] | length) as $verified
+      | if $total == 0 then "n/a"
+        else "\($verified)/\($total) (\(($verified * 100 / $total) | round)%)"
+        end' "$_learnings_log" 2>/dev/null)
+    if [ -n "$_cov" ] && [ "$_cov" != "n/a" ]; then
+      COVERAGE_SUFFIX="$_cov"
+    fi
   fi
 fi
 
@@ -927,12 +977,17 @@ SYSTEM_MESSAGE="Geniro: restoring context (source: $SOURCE, active: $_active_lab
 if [ "${ARCHIVED_COUNT:-0}" -gt 0 ]; then
   SYSTEM_MESSAGE="$SYSTEM_MESSAGE · auto-archived: $ARCHIVED_COUNT"
 fi
+if [ -n "$COVERAGE_SUFFIX" ]; then
+  SYSTEM_MESSAGE="$SYSTEM_MESSAGE · memory verified: $COVERAGE_SUFFIX"
+fi
 
 # Suppression rule: cold startup with no active task → no systemMessage spam.
-# Exception: auto-archive event (ARCHIVED_COUNT > 0) overrides suppression —
-# user wants to know maintenance happened.
+# Exception: auto-archive event (ARCHIVED_COUNT > 0) OR a coverage line overrides
+# suppression — the user wants maintenance / memory-health signals even on a cold
+# start.
 emit_system_message=true
-if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ] && [ "${ARCHIVED_COUNT:-0}" -eq 0 ]; then
+if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ] \
+   && [ "${ARCHIVED_COUNT:-0}" -eq 0 ] && [ -z "$COVERAGE_SUFFIX" ]; then
   emit_system_message=false
 fi
 

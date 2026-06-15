@@ -12,6 +12,9 @@
 #   - --dry-run reports but does NOT write.
 #   - Malformed line -> refuse rewrite (rc=2), file left intact (audit trail).
 #   - Non-numeric GENIRO_DECAY_TAU_DAYS -> rc=2.
+#   - Verification-coverage line: verified/total over the live (non-deprecated)
+#     set, present on the report; n/a on an empty corpus; printed even when 0
+#     entries are stale.
 
 set -uo pipefail
 
@@ -132,6 +135,75 @@ set -e
 [ "$rc" -eq 2 ] \
   && pass "non-numeric GENIRO_DECAY_TAU_DAYS -> rc=2" \
   || fail "bad tau should rc=2; got $rc"
+
+# ===== Verification-coverage line: identical dry-run vs real-run number =====
+# The corpus has 4 entries; dep1 is already deprecated. Coverage is tallied over
+# the PRE-FLIP on-disk log in BOTH modes, so the number is identical dry-vs-real:
+# the live set is {stale1(inferred), fresh1(verified), acc1(inferred)} = 3 live,
+# 1 verified -> 33%. (Tallying over the post-flip $processed stream would have
+# shrunk the real-run denominator to 2 live -> 50%; that drift is the L1 bug.)
+new_sandbox
+write_corpus
+set +e
+cov_out=$(archive_stale_learnings 2>&1 >/dev/null)
+rc=$?
+set -e
+[ "$rc" -eq 0 ] \
+  && pass "coverage real run -> rc=0" \
+  || fail "coverage real run should rc=0; got $rc"
+if printf '%s' "$cov_out" | grep -q 'coverage: verified 1/3 (33%)'; then
+  pass "coverage line: verified 1/3 (33%) over the pre-flip live set (real run)"
+else
+  fail "coverage line wrong/missing: $(printf '%s' "$cov_out" | grep -i coverage || echo '(none)')"
+fi
+
+# ===== Coverage prints even when 0 entries are stale (rc=1 early-return path) =====
+# A re-run finds nothing new stale (everything stale is already deprecated) but
+# the coverage line must still surface — it rides BEFORE the stale_count==0
+# early-return. The on-disk log now has stale1 flipped, so the live set is
+# {fresh1(verified), acc1(inferred)} = 2 live, 1 verified -> 50%.
+set +e
+cov_out=$(archive_stale_learnings 2>&1 >/dev/null)
+rc=$?
+set -e
+[ "$rc" -eq 1 ] \
+  && pass "coverage when nothing stale -> rc=1 (idempotent re-run)" \
+  || fail "re-run should rc=1; got $rc"
+if printf '%s' "$cov_out" | grep -q 'coverage: verified 1/2 (50%)'; then
+  pass "coverage line prints on the 0-stale early-return path"
+else
+  fail "coverage line missing on the 0-stale path: $(printf '%s' "$cov_out" | grep -i coverage || echo '(none)')"
+fi
+
+# ===== Empty (all-deprecated) live set -> coverage: n/a (no 0/0) =====
+new_sandbox
+{
+  printf '%s\n' '{"producer":"/debug","scope":"x","summary":"dep a","tags":["bug"],"type":"diagnosis","ts":"2020-01-01T00:00:00Z","trust":"verified","access_count":5,"recurrence_count":1,"deprecated":true,"dedup_key":"depa"}'
+  printf '%s\n' '{"producer":"/debug","scope":"x","summary":"dep b","tags":["bug"],"type":"diagnosis","ts":"2020-01-01T00:00:00Z","trust":"inferred","access_count":5,"recurrence_count":1,"deprecated":true,"dedup_key":"depb"}'
+} > "$LOG"
+set +e
+cov_out=$(archive_stale_learnings 2>&1 >/dev/null)
+set -e
+if printf '%s' "$cov_out" | grep -q 'coverage: n/a'; then
+  pass "empty live set -> coverage: n/a (never 0/0)"
+else
+  fail "empty live set should report n/a: $(printf '%s' "$cov_out" | grep -i coverage || echo '(none)')"
+fi
+
+# ===== Coverage on the --dry-run report — SAME number as the real run =====
+new_sandbox
+write_corpus
+set +e
+cov_out=$(archive_stale_learnings --dry-run 2>&1 >/dev/null)
+set -e
+# Dry-run tallies the PRE-flip live set: 3 live, 1 verified -> 33%. Identical to
+# the real-run number above (both compute off the on-disk log) — that dry==real
+# consistency is the L1 fix; dry-run previously reported 50% on this same corpus.
+if printf '%s' "$cov_out" | grep -q 'coverage: verified 1/3 (33%)'; then
+  pass "coverage line present on --dry-run report (same 1/3 as real run)"
+else
+  fail "coverage line missing on --dry-run: $(printf '%s' "$cov_out" | grep -i coverage || echo '(none)')"
+fi
 
 # ===== Direct invocation takes the rewrite lock =====
 new_sandbox

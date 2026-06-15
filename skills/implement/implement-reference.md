@@ -179,7 +179,9 @@ The Phase 2 fix loop uses the structured `test-runner-agent` output (NOT raw std
 retry = 1
 while retry ≤ 3:
   read <task-dir>/.tr-out.md
-  if Verdict == ALL_GREEN → exit Phase 2 → Phase 3
+  if Verdict == ALL_GREEN → run ALL section-9 verify: commands (spec-driven runs only);
+                            on any verify failure/refusal → Step 6 escalation (one digest naming every failed/refused criterion)
+                            else → exit Phase 2 → Phase 3
   if Verdict == INFRA_ERROR → escalate AUQ immediately (don't retry blind)
   inspect the structured Failures list
   edit code (or test) to address top-priority failures
@@ -195,17 +197,68 @@ else:
 
 **Tool log persistence.** Every `test-runner-agent` spawn outcome (Verdict + log-file path) is persisted to state.md `## Tool log` via `atomic_state_write`. Routine Read/Edit/Bash on local files do NOT need logging.
 
-**Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing tests)`.
+**Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing Phase 2 checks)` — source-neutral, since the escalation covers both a failing test suite AND a failing/refused spec `verify:` acceptance check.
 
-**Test-failure escalation digest (render before the escalation AUQ).** When the Phase 2 escalation fires (retry exhaust, infrastructure error, or an early not-converging trigger), render a failure digest to chat as its own message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ. The digest carries:
+**Phase 2 check-failure escalation digest (render before the escalation AUQ).** When the Phase 2 escalation fires, render a failure digest to chat as its own message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ. The escalation has two failure sources, and the digest + the lean AUQ's `header:` MUST name the right one — a `verify:`-command failure rendered under a "Test failure" frame with test-specific options mislabels what failed and what the user is deciding:
 
-- `### 🧭 Decision needed:` with a plain-English one-line title (e.g. "3 fix attempts spent — the date-parsing tests are still failing").
+| Failure source | When | AUQ `header:` | Digest framing |
+|---|---|---|---|
+| Project test suite | retry exhaust, `INFRA_ERROR`, or an early not-converging trigger on the suite | `"Test failure"` | "the date-parsing tests are still failing" |
+| Spec acceptance check (`verify:` command) | a section-9 criterion's `verify:` command returned `HAS_FAILURES` / `INFRA_ERROR` (see "Per-criterion `verify:` commands" below) | `"Acceptance check failed"` | "the acceptance check the spec attached (its `verify:` command) failed" |
+
+A run that hits BOTH sources (a `verify:` failure after a green suite) uses the neutral header `"Checks failed"` (plain-English, no phase-number — the both-source case still has to pass the fresh-user test) and the digest names both. The three options are unchanged across all three headers — hand off to a debug investigation / accept as a documented limitation / stop — and stay accurate for either source.
+
+The digest carries:
+
+- `### 🧭 Decision needed:` with a plain-English one-line title — name the source (e.g. "3 fix attempts spent — the date-parsing tests are still failing", or "The spec's acceptance check (its `verify:` command) failed").
 - `**In one sentence:**` what this decision settles — hand the failure to a debug investigation, accept it as a documented limitation, or stop.
-- A conversational lead: what failed in plain English — which behavior the failing tests check and what the fix attempts changed; for an early trigger, state the plain-English stall reason (never the raw signal name).
-- `**Why it matters:**` why this blocks the phase — the self-review that follows assumes green tests, so proceeding past these failures means the review reads code the suite says is broken (evidence: the test-runner report's Command / Exit code / Summary block).
-- The failing-test names as a `☐` checklist — the test-finding shape from the same contract's §Finding-type visual map — capped at the test-runner report's reported failures.
+- A conversational lead: what failed in plain English. For a test-suite failure, which behavior the failing tests check and what the fix attempts changed; for a `verify:`-command failure, which spec criterion the command checks and that it ran once and did not pass (acceptance checks are single-shot, not iterated). For an early trigger, state the plain-English stall reason (never the raw signal name).
+- `**Why it matters:**` why this blocks the phase — for a test-suite failure, the self-review that follows assumes green tests, so proceeding means the review reads code the suite says is broken; for a `verify:` failure, the spec's own acceptance criterion is unmet, so the run does not yet satisfy the spec's Done Condition (evidence: the failing command's Command / Exit code / Summary block, or the test-runner report's same block).
+- The failing items as a `☐` checklist — the failing-test names (test-suite source) OR the failed `verify:` criteria named by their plain-English intent (acceptance-check source), the test-finding shape from the same contract's §Finding-type visual map — capped at the reported failures.
 
-Build the digest from the structured `.tr-out.md` report, never raw test stdout (the token-cost rule above). The lean AUQ that follows carries only the title and the three options from the SKILL.md Phase 2 escalation step.
+Build the test-suite digest from the structured `.tr-out.md` report, never raw test stdout (the token-cost rule above); build the `verify:`-command digest from the command's captured Command / Exit code / Summary. The lean AUQ that follows carries only the title, the source-appropriate header above, and the three options from the SKILL.md Phase 2 escalation step.
+
+### Per-criterion `verify:` commands
+
+A spec authored by /geniro:plan may attach an optional `verify: <command>` line to a section 9 (Validation) criterion (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §9). It is the acceptance check for that one criterion — distinct from the project-wide TEST_COMMAND that `test-runner-agent` runs. After the end-of-phase suite reaches `ALL_GREEN`, the orchestrator runs each `verify:` command once and attaches the result as evidence.
+
+**Cardinality — run ALL commands, then escalate ONCE.** Run every section-9 `verify:` command and collect the failed/refused set BEFORE escalating, then fire one Step 6 escalation whose `☐` checklist names every failed/refused criterion. The Step 6 escalation fires a blocking AUQ whose options all transition the phase, so it cannot return mid-loop to iterate the rest — a per-criterion "escalate then continue the loop" shape would leave a spec with two failing criteria undefined. Collect-all-then-escalate-once guarantees the user sees the complete failure set in one decision.
+
+```
+failed_or_refused = []                                          # collect across ALL criteria first
+for each section-9 criterion carrying a `verify:` line:         # spec-driven runs only
+  if command tokens contain a ship / deploy / external-state-mutation verb:   # side-effect screen — see below
+    add {criterion, reason: "refused — side-effect"} to failed_or_refused     # never run it, never silently skip it
+    continue                                                    # skip executing THIS command, keep collecting
+  result = Bash(<verify command>)                               # orchestrator's own Bash, NOT test-runner-agent
+  classify result on the SAME verdict taxonomy:
+    exit 0                              → ALL_GREEN  (record + continue)
+    non-zero assertion-style exit       → HAS_FAILURES → add {criterion, reason} to failed_or_refused
+    connection-refused / server-down    → INFRA_ERROR  → add {criterion, reason} to failed_or_refused
+    blocked by a safety PreToolUse hook → INFRA_ERROR  → add {criterion, reason} to failed_or_refused  (never a silent skip — surface the block)
+
+if failed_or_refused is non-empty:
+  fire ONE Phase 2 check-failure escalation digest above (the SAME message-first AUQ) using its
+  acceptance-check header/framing, with EVERY entry in failed_or_refused named in the `☐` checklist
+else:
+  exit Phase 2 → Phase 3
+```
+
+**Side-effect screen — refuse to auto-run a ship / deploy `verify:` command.** Before executing each `verify:` command, inspect its tokens. If the command contains an external-state-mutation / ship / deploy verb, do NOT run it — skip executing THIS command and add it to the collected failed/refused set (keep collecting the rest), then it surfaces in the single Step 6 escalation with the plain-English reason: "the spec's acceptance check would push/ship/deploy, which /geniro:implement won't run on its own before the ship gate — run it yourself or remove it from the spec." Frame it exactly like the `INFRA_ERROR` path (the acceptance check could not run; the user stays the ship decider) — the three options are unchanged. Never silently skip it (a quiet skip hides that an acceptance check was refused) and never execute it (executing is the violation).
+
+This screen is needed because a `verify:` command runs at the Phase 2 green exit — BEFORE self-review and BEFORE the commit-grade Ship AUQ. The safety PreToolUse hooks block force-push / branch-delete / `.geniro/` deletion, but they do NOT block a plain `git push`, `gh pr create`, or a `./deploy.sh` invocation — so a spec carrying `verify: gh pr create --fill` (or a deploy script) would otherwise ship the change with no Ship AUQ and no record of the irreversible action. That violates Loop-Invariant #3 (never ship without the gate). The screen is a doctrine guard, not a sandbox — a high-signal mutation-verb check on the command string, not an exhaustive side-effect analyzer. Match these verb families (case-insensitive, whole-token):
+
+- **Source publish:** `git push` (any form, including `git push --delete`), `gh pr create`, `gh pr merge`, `git commit`.
+- **Deploy / release:** `deploy`, `release`, `publish`, `helm install`, `helm upgrade`, plus deploy-CLI invocations (`kubectl apply`, `terraform apply`, `serverless deploy`, `vercel --prod`, `netlify deploy`, `fly deploy`) and any project deploy/release script named in CLAUDE.md.
+
+A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `ruff check`, `tsc --noEmit`, a read-query) carries none of these verbs and runs normally.
+
+
+- **Orchestrator runs it, not `test-runner-agent`.** The runner agent's single-command leaf contract is a deliberate safety boundary — its anti-rationalization forbids it orchestrating multiple commands. Phase 2 already grants the orchestrator Bash, so it runs the `verify:` strings directly. No agent-report schema change, so no lockstep cost on the agent side.
+- **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
+- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Checks failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason — never silently skipped, never executed.
+- **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly. `verify:` is a body-level field, not frontmatter, so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
+- **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and persist the outcome to state.md `## Tool log` via `atomic_state_write`.
 
 ---
 
@@ -403,6 +456,8 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 **Step 3 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
 
+**Done-Condition annotation (spec-driven runs).** Before building the AUQ, on a run that resolved a real spec.md, parse the spec's section 11 (Done Condition) and apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md`. For each clause that is machine-checkable (matches the validator's stopping-condition ontology) AND affirmatively unsatisfied against the evidence the helper maps, prepend one plain-English line to the AUQ's question text so the user decides with their own completion criterion in view — e.g. "The spec's done-condition lists 'PR approved' — that's not true yet. Ship anyway?". This is advisory and skip-when-clean: when every machine-checkable clause is satisfied (or section 11 carries only free-text clauses), add nothing and proceed silently — the gate never fires with nothing to decide, mirroring the spec fact-check's restraint. Un-parseable / free-text clauses stay human-eyeball-only — never auto-graded, the guard against false-nags. The annotation rides the existing Ship AUQ's question text; it never adds a clause to the option-label allowlist below and never changes the draft-vs-commit-grade push classification — a satisfied Done Condition still routes through the unchanged commit-grade gate. It can only open the gate with more context, never close it or read as ship authorization. This is the ship-time clause-grader to the static diff-check the `architecture`/spec-compliance reviewer dimension runs in Phase 3; both read section 11. Stack any Done-Condition lines with the `## Accepted Failures` / `## Accepted Findings` disclosure below — both feed the same question text.
+
 Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a canonical allowlist — present them verbatim in the AUQ; never paraphrase, merge, or collapse them (e.g., never combine "Open draft PR (Recommended)" and "Open PR" into a single "open PR" / "Commit + push + open PR" label). "Open draft PR (Recommended)" must always appear as a distinct selectable option so the safe default is surfaced. (Mirrors the canonical-option-allowlist rule in /geniro:review's action gate.)
 
 - **Label:** `"Open draft PR (Recommended)"` / **Description:** `"git push then gh pr create --draft. Safest default — lets you review before marking ready."`
@@ -591,6 +646,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] State.md frontmatter `phase:` is a terminal state `done` / `ship-committed-only` / `self-review-only` / `debug-handoff` / `aborted`.
 - [ ] Spec source resolved — either a spec.md / plan.md / DESIGN_DOC frontmatter file was loaded, OR inline-task mode wrote a `## Inline Plan` to state.md.
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures`).
+- [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
 - [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated.
 - [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] Ship report emitted to chat BEFORE the terminal `phase:` transition — Evidence Block with what shipped, commit SHA / branch / PR URL quoted from tool output, test Verdict, review-round found/fixed summary, deferred items (Commit + Push + PR §"Step 5").

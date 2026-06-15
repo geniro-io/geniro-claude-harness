@@ -428,6 +428,42 @@ grep -qE '`kind`' "$REPO_ROOT/skills/plan/spec-template.md" \
   && pass "C2 /plan spec-template still defines all 4 required workflow_refs per-entry keys" \
   || fail "C2 /plan spec-template.md per-entry required-key shape drifted"
 
+# C2b (B1 seam): the optional per-criterion `verify:` field must stay documented on BOTH ends —
+# producer (spec-template §9 documents it + the validator pins its shape) and consumer (/implement
+# runs it). A doc edit that drops either end silently breaks the spec→implement acceptance-check seam.
+grep -qE '`?verify:`?' "$REPO_ROOT/skills/plan/spec-template.md" \
+  && grep -qE 'verify:' "$REPO_ROOT/skills/plan/validator-checks.md" \
+  && grep -qE 'verify:' "$REPO_ROOT/skills/implement/implement-reference.md" \
+  && pass "C2b /plan documents optional section-9 verify: + validator pins its shape + /implement consumes it" \
+  || fail "C2b verify: seam drifted — spec-template / validator-checks / implement-reference must all name the field"
+
+# C2d (verify: shape rule): the validator documents that a section-9 `verify:` field must be a non-empty
+# command string — "the remainder of the line is non-empty after trimming whitespace" (validator-checks.md
+# §verify: shape). C2b only proves the field is named on all three ends; this exercises the SHAPE heuristic
+# itself with an accept/reject fixture pair (mirrors A4/A5 present-vs-malformed), so a bare `verify:` can't
+# slip through untested. The one-line check below is the documented trim-then-non-empty heuristic verbatim.
+if printf 'verify: pnpm test\n' | sed -E 's/^.*verify:[[:space:]]*//' | grep -qE '.' \
+  && ! printf 'verify:   \n'    | sed -E 's/^.*verify:[[:space:]]*//' | grep -qE '.'; then
+  pass "C2d verify: shape heuristic accepts a non-empty command, rejects a bare/whitespace-only verify:"
+else
+  fail "C2d verify: shape heuristic drifted — non-empty command must accept AND bare verify: must reject"
+fi
+
+# C2c (validator count honesty): the documented check count in the H1 must equal the number of
+# numbered `### N.` check headers AND the §Contents list must enumerate the contiguous sequence
+# 1..N (no gaps, no duplicates), so adding/folding/dropping a check can never leave the count lying
+# (it also pins ARCHITECTURE.md's mirrored count). A bare max-of-list check is vacuous — dropping a
+# MIDDLE §Contents entry leaves the highest entry intact, so the contiguity compare is what guards it.
+_vc_h1_count="$(grep -m1 -oE '[0-9]+ checks' "$REPO_ROOT/skills/plan/validator-checks.md" | grep -oE '[0-9]+')"
+_vc_header_count="$(grep -cE '^### [0-9]+\.' "$REPO_ROOT/skills/plan/validator-checks.md")"
+_vc_contents_seq="$(grep -oE '\b[0-9]+ `[a-z_]+`' "$REPO_ROOT/skills/plan/validator-checks.md" | grep -oE '^[0-9]+' | sort -n | tr '\n' ' ')"
+_vc_expected_seq="$(seq 1 "$_vc_h1_count" | tr '\n' ' ')"
+if [ "$_vc_h1_count" = "$_vc_header_count" ] && [ "$_vc_contents_seq" = "$_vc_expected_seq" ]; then
+  pass "C2c validator-checks count honest (H1=$_vc_h1_count, headers=$_vc_header_count, contents-seq contiguous 1..$_vc_h1_count)"
+else
+  fail "C2c validator-checks count drift — H1=$_vc_h1_count headers=$_vc_header_count contents-seq=[$_vc_contents_seq] expected=[$_vc_expected_seq]"
+fi
+
 grep -qE 'from-review-' "$REPO_ROOT/skills/review/SKILL.md" \
   && grep -qE 'open_questions' "$REPO_ROOT/skills/review/SKILL.md" \
   && pass "C3 /review (producer) still writes from-review-<branch>.md with open_questions[]" \

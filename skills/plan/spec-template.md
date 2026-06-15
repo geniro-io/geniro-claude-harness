@@ -126,7 +126,9 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 
 ## 9. Validation
 
-<Body describing how to verify the implementation worked. References test types (unit/integration/e2e) or a manual verification procedure.>
+<Body describing how to verify the implementation worked. References test types (unit/integration/e2e) or a manual verification procedure.
+
+A criterion MAY carry an optional `verify: <shell command>` line — a single executable command that proves that one criterion (e.g. `verify: pnpm --filter api test:contract`, `verify: curl -fsS localhost:3000/healthz`). /geniro:implement runs each `verify:` command once at the end of its implementation phase and attaches the result as evidence. Omit `verify:` for any criterion checked by hand or by the project-wide test suite — absent `verify:` is the default and keeps today's prose-only behavior. When present, `verify:` must be a non-empty command string. A `verify:` command must be a READ-ONLY acceptance check (tests, health probes, lint, type-check, a read-only query) — NOT a ship / deploy / side-effecting command. /geniro:implement screens each command and refuses to auto-run any that pushes, opens a PR, or deploys (`git push` / `gh pr create` / `deploy` / `release`, etc.), because it runs before the ship gate; a ship/deploy `verify:` is surfaced for you to run yourself or remove.>
 
 ## 10. Rollback-Recovery
 
