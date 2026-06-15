@@ -953,13 +953,69 @@ else
   pass "hook uses the explicit == false opt-out resolver (no // true)"
 fi
 
-_resolve_optout() { jq -r 'if .memory.auto_archive_stale == false then "false" else "true" end' 2>/dev/null; }
-echo '{ "memory": { "auto_archive_stale": false } }' | _resolve_optout | grep -qx "false" \
-  && pass "auto_archive_stale:false resolves to disabled" \
-  || fail "auto_archive_stale:false must resolve to disabled — the // true bug regressed"
-echo '{ "memory": {} }' | _resolve_optout | grep -qx "true" \
-  && pass "absent auto_archive_stale defaults to enabled" \
-  || fail "absent auto_archive_stale should default to enabled"
+# Behavioral half — drive the ACTUAL hook resolver, not a local copy. Build a
+# corpus that exceeds the auto-archive line threshold (lowered via the env knob,
+# the same pattern test 18 uses) and contains an archivable stale entry, so
+# auto-archive WOULD fire. The opt-out is the only thing that should suppress it,
+# so a regression of the hook's real `== false` resolver flips these assertions.
+#
+# Stale entry: ts in 2020 (age » 180d), trust inferred, access_count 0,
+# recurrence_count 1 → score « 0.1 (matches lib/archive-stale.sh criteria, same
+# corpus shape as tests/memory/archive-stale.sh). A fresh control keeps the
+# total over the threshold without itself being archivable.
+write_archivable_corpus() {
+  {
+    printf '%s\n' '{"producer":"/debug","scope":"x","summary":"stale one","tags":["bug"],"type":"diagnosis","ts":"2020-01-01T00:00:00Z","trust":"inferred","access_count":0,"recurrence_count":1,"dedup_key":"opt-stale1"}'
+    printf '{"producer":"/debug","scope":"x","summary":"fresh one","tags":["bug"],"type":"diagnosis","ts":"%s","trust":"verified","access_count":0,"recurrence_count":1,"dedup_key":"opt-fresh1"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } > "$1"
+}
+
+# 21a. Default ON (no safety.json) → real hook archives the stale entry and the
+#      systemMessage carries the `auto-archived: N` suffix. The on-disk flip is
+#      the deterministic signal; the suffix is the user-visible observable.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+write_archivable_corpus "$sandbox/.geniro/knowledge/learnings.jsonl"
+# cd into the sandbox: the hook's safety.json resolver walks up from $PWD, so the
+# opt-out check in 21b must see this sandbox's tree, not a sibling's.
+cd "$sandbox" || exit 1
+out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbox/.geniro/knowledge/learnings.jsonl")
+[ "$dep" = "true" ] \
+  && pass "default-ON: real hook flips the stale entry to deprecated on disk" \
+  || fail "default-ON: real hook should archive the stale entry (deprecated=true); got deprecated=$dep"
+echo "$sm" | grep -Eq 'auto-archived: [1-9][0-9]*' \
+  && pass "default-ON: systemMessage carries the auto-archived: N suffix" \
+  || fail "default-ON: real hook should show auto-archived: N — '$sm'"
+
+# 21b. Opt-out ON via safety.json → real hook's `== false` resolver disables
+#      auto-archive, so NO `auto-archived:` suffix appears. Fresh sandbox so the
+#      opt-out (not run 21a's already-flipped entry or the hash gate) is the only
+#      thing that can suppress archival.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge" "$sandbox/.geniro"
+write_archivable_corpus "$sandbox/.geniro/knowledge/learnings.jsonl"
+cat > "$sandbox/.geniro/safety.json" <<'EOF'
+{ "memory": { "auto_archive_stale": false } }
+EOF
+# cd in so the hook's $PWD-anchored safety.json walk-up finds THIS opt-out file.
+cd "$sandbox" || exit 1
+out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "auto-archived:"; then
+  fail "opt-out: auto_archive_stale:false must suppress archival via the real hook resolver — '$sm'"
+else
+  pass "opt-out genuinely disables auto-archive via the real hook (no auto-archived suffix)"
+fi
+# Confirm the stale entry was left untouched on disk (opt-out skipped the run,
+# not merely the suffix) — the entry must NOT be flipped to deprecated:true.
+dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbox/.geniro/knowledge/learnings.jsonl")
+[ "$dep" = "false" ] \
+  && pass "opt-out leaves the stale entry un-archived on disk (deprecated still false)" \
+  || fail "opt-out should leave the entry un-archived; deprecated=$dep"
 
 # ---------------------------------------------------------------------------
 # Summary
