@@ -179,7 +179,9 @@ The Phase 2 fix loop uses the structured `test-runner-agent` output (NOT raw std
 retry = 1
 while retry ≤ 3:
   read <task-dir>/.tr-out.md
-  if Verdict == ALL_GREEN → run section-9 verify: commands (spec-driven runs only) → exit Phase 2 → Phase 3
+  if Verdict == ALL_GREEN → run ALL section-9 verify: commands (spec-driven runs only);
+                            on any verify failure/refusal → Step 6 escalation (one digest naming every failed/refused criterion)
+                            else → exit Phase 2 → Phase 3
   if Verdict == INFRA_ERROR → escalate AUQ immediately (don't retry blind)
   inspect the structured Failures list
   edit code (or test) to address top-priority failures
@@ -195,7 +197,7 @@ else:
 
 **Tool log persistence.** Every `test-runner-agent` spawn outcome (Verdict + log-file path) is persisted to state.md `## Tool log` via `atomic_state_write`. Routine Read/Edit/Bash on local files do NOT need logging.
 
-**Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing tests)`.
+**Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing Phase 2 checks)` — source-neutral, since the escalation covers both a failing test suite AND a failing/refused spec `verify:` acceptance check.
 
 **Phase 2 check-failure escalation digest (render before the escalation AUQ).** When the Phase 2 escalation fires, render a failure digest to chat as its own message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ. The escalation has two failure sources, and the digest + the lean AUQ's `header:` MUST name the right one — a `verify:`-command failure rendered under a "Test failure" frame with test-specific options mislabels what failed and what the user is deciding:
 
@@ -204,7 +206,7 @@ else:
 | Project test suite | retry exhaust, `INFRA_ERROR`, or an early not-converging trigger on the suite | `"Test failure"` | "the date-parsing tests are still failing" |
 | Spec acceptance check (`verify:` command) | a section-9 criterion's `verify:` command returned `HAS_FAILURES` / `INFRA_ERROR` (see "Per-criterion `verify:` commands" below) | `"Acceptance check failed"` | "the acceptance check the spec attached (its `verify:` command) failed" |
 
-A run that hits BOTH sources (a `verify:` failure after a green suite) uses the neutral header `"Phase 2 check failed"` and the digest names both. The three options are unchanged across all three headers — hand off to a debug investigation / accept as a documented limitation / stop — and stay accurate for either source.
+A run that hits BOTH sources (a `verify:` failure after a green suite) uses the neutral header `"Checks failed"` (plain-English, no phase-number — the both-source case still has to pass the fresh-user test) and the digest names both. The three options are unchanged across all three headers — hand off to a debug investigation / accept as a documented limitation / stop — and stay accurate for either source.
 
 The digest carries:
 
@@ -220,22 +222,29 @@ Build the test-suite digest from the structured `.tr-out.md` report, never raw t
 
 A spec authored by /geniro:plan may attach an optional `verify: <command>` line to a section 9 (Validation) criterion (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §9). It is the acceptance check for that one criterion — distinct from the project-wide TEST_COMMAND that `test-runner-agent` runs. After the end-of-phase suite reaches `ALL_GREEN`, the orchestrator runs each `verify:` command once and attaches the result as evidence.
 
+**Cardinality — run ALL commands, then escalate ONCE.** Run every section-9 `verify:` command and collect the failed/refused set BEFORE escalating, then fire one Step 6 escalation whose `☐` checklist names every failed/refused criterion. The Step 6 escalation fires a blocking AUQ whose options all transition the phase, so it cannot return mid-loop to iterate the rest — a per-criterion "escalate then continue the loop" shape would leave a spec with two failing criteria undefined. Collect-all-then-escalate-once guarantees the user sees the complete failure set in one decision.
+
 ```
-for each section-9 criterion carrying a `verify:` line:        # spec-driven runs only
+failed_or_refused = []                                          # collect across ALL criteria first
+for each section-9 criterion carrying a `verify:` line:         # spec-driven runs only
   if command tokens contain a ship / deploy / external-state-mutation verb:   # side-effect screen — see below
-    DO NOT execute → route into the Phase 2 check-failure escalation digest above (the SAME message-first AUQ)
-                     using its acceptance-check header/framing + the screen's plain-English reason
-    continue                                                   # never run it, never silently skip it
-  result = Bash(<verify command>)                              # orchestrator's own Bash, NOT test-runner-agent
+    add {criterion, reason: "refused — side-effect"} to failed_or_refused     # never run it, never silently skip it
+    continue                                                    # skip executing THIS command, keep collecting
+  result = Bash(<verify command>)                               # orchestrator's own Bash, NOT test-runner-agent
   classify result on the SAME verdict taxonomy:
     exit 0                              → ALL_GREEN  (record + continue)
-    non-zero assertion-style exit       → HAS_FAILURES
-    connection-refused / server-down    → INFRA_ERROR
-    blocked by a safety PreToolUse hook → INFRA_ERROR          (never a silent skip — surface the block)
-  any HAS_FAILURES or INFRA_ERROR → route into the Phase 2 check-failure escalation digest above (the SAME message-first AUQ) using its acceptance-check header/framing
+    non-zero assertion-style exit       → HAS_FAILURES → add {criterion, reason} to failed_or_refused
+    connection-refused / server-down    → INFRA_ERROR  → add {criterion, reason} to failed_or_refused
+    blocked by a safety PreToolUse hook → INFRA_ERROR  → add {criterion, reason} to failed_or_refused  (never a silent skip — surface the block)
+
+if failed_or_refused is non-empty:
+  fire ONE Phase 2 check-failure escalation digest above (the SAME message-first AUQ) using its
+  acceptance-check header/framing, with EVERY entry in failed_or_refused named in the `☐` checklist
+else:
+  exit Phase 2 → Phase 3
 ```
 
-**Side-effect screen — refuse to auto-run a ship / deploy `verify:` command.** Before executing each `verify:` command, inspect its tokens. If the command contains an external-state-mutation / ship / deploy verb, do NOT run it — route it into the same Phase 2 check-failure escalation (the message-first digest + lean AUQ) with the plain-English reason: "the spec's acceptance check would push/ship/deploy, which /geniro:implement won't run on its own before the ship gate — run it yourself or remove it from the spec." Frame it exactly like the `INFRA_ERROR` path (the acceptance check could not run; the user stays the ship decider) — the three options are unchanged. Never silently skip it (a quiet skip hides that an acceptance check was refused) and never execute it (executing is the violation).
+**Side-effect screen — refuse to auto-run a ship / deploy `verify:` command.** Before executing each `verify:` command, inspect its tokens. If the command contains an external-state-mutation / ship / deploy verb, do NOT run it — skip executing THIS command and add it to the collected failed/refused set (keep collecting the rest), then it surfaces in the single Step 6 escalation with the plain-English reason: "the spec's acceptance check would push/ship/deploy, which /geniro:implement won't run on its own before the ship gate — run it yourself or remove it from the spec." Frame it exactly like the `INFRA_ERROR` path (the acceptance check could not run; the user stays the ship decider) — the three options are unchanged. Never silently skip it (a quiet skip hides that an acceptance check was refused) and never execute it (executing is the violation).
 
 This screen is needed because a `verify:` command runs at the Phase 2 green exit — BEFORE self-review and BEFORE the commit-grade Ship AUQ. The safety PreToolUse hooks block force-push / branch-delete / `.geniro/` deletion, but they do NOT block a plain `git push`, `gh pr create`, or a `./deploy.sh` invocation — so a spec carrying `verify: gh pr create --fill` (or a deploy script) would otherwise ship the change with no Ship AUQ and no record of the irreversible action. That violates Loop-Invariant #3 (never ship without the gate). The screen is a doctrine guard, not a sandbox — a high-signal mutation-verb check on the command string, not an exhaustive side-effect analyzer. Match these verb families (case-insensitive, whole-token):
 
@@ -247,7 +256,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 - **Orchestrator runs it, not `test-runner-agent`.** The runner agent's single-command leaf contract is a deliberate safety boundary — its anti-rationalization forbids it orchestrating multiple commands. Phase 2 already grants the orchestrator Bash, so it runs the `verify:` strings directly. No agent-report schema change, so no lockstep cost on the agent side.
 - **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
-- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Phase 2 check failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason — never silently skipped, never executed.
+- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Checks failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason — never silently skipped, never executed.
 - **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly. `verify:` is a body-level field, not frontmatter, so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
 - **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and persist the outcome to state.md `## Tool log` via `atomic_state_write`.
 
