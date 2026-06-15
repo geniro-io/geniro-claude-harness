@@ -413,7 +413,7 @@ A finding lacking the `repeat-of-prior-round` marker — i.e. genuinely new this
 - A demoted finding referenced by an `open_questions[]` entry keeps that entry; the open-question gate chain (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 Pre-gate, the Pre-Post guard §7.0, and the /geniro:implement consumer-side resolution) is unchanged.
 - A demoted finding stays in the Post drill's eligible set (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.1) exactly as `## Deferred — sub-threshold` items do — once the user chooses to post, the carried-over digest is postable like any other section. The marker-not-filter rule extends to every gate: demotion changes which section the user reads it in, never whether a gate fires for it.
 
-**Section render.** `## Carried-over from round N` opens with one plain-English sentence ("These N issues were raised in an earlier review round and weren't fixed; they're unchanged, so they're grouped here rather than repeated in the main list."), then the per-finding body blocks. The handoff `## Summary` `Disposition:` line gains a `<C> carried-over` count alongside `<D> deferred`.
+**Section render.** `## Carried-over from round <N>` (substitute the actual round number for `<N>`) opens with one plain-English sentence ("These <C> issues were raised in an earlier review round and weren't fixed; they're unchanged, so they're grouped here rather than repeated in the main list."), where `<C>` is the carried-over count defined in the Disposition clause below; then the per-finding body blocks. The handoff `## Summary` `Disposition:` line gains a `<C> carried-over` count alongside `<D> deferred`.
 
 ---
 

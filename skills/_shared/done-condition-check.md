@@ -10,7 +10,7 @@ Spec-driven runs only. When the run resolved a real `spec.md`, parse its section
 
 ## Clause classification
 
-A section-11 clause is **machine-checkable** when it matches the validator's stopping-condition ontology (single-sourced in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` §9 `stopping_condition` and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §10 — do not re-define the regex set; it lives there). The ontology covers these signal shapes:
+A section-11 clause is **machine-checkable** when it matches the validator's stopping-condition ontology — defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` §9 `stopping_condition` (the spec-time gate); `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §10 and this helper reference it. Do not re-define the regex set. The ontology covers these signal shapes:
 
 - tests pass / green
 - PR approved / merged
