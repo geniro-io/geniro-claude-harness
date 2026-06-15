@@ -166,7 +166,7 @@ open_questions:                       # MUST be present; MAY be empty []
 - Dimensions spawned: [<the ACTUAL set — dimensions with a recorded structured reviewer result (the `actual` set from `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.0 post-spawn verification), naming any declared-but-skipped dimension with its skip reason; never sourced from the SKILL.md dimension grid>]
 - Mechanical pre-pass: [lint:N, schema:M, secrets:K]
 - Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
-- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred
+- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred · <C> carried-over (<C> populated only on a round >=2 re-review where the user collapsed unchanged repeats into `## Carried-over from round <N>`; omit the clause when <C> is zero — defined by `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7.1)
 
 ## Findings
 
@@ -182,7 +182,7 @@ open_questions:                       # MUST be present; MAY be empty []
 ## Deferred — sub-threshold
 <list, surfaced for user awareness>
 
-## Carried-over from round N
+## Carried-over from round <N>
 <!-- Present only on a round >=2 re-review where the user picked the collapse option at the re-review gate. Holds unchanged repeat findings demoted from ## Findings per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7.1 — each keeps its full per-finding body block, severity, gates, and place in the handoff; only its rendering section changed. A demoted needs-your-decision finding still carries step0_status: pending here (§3 / §7.0 read it); a demoted finding stays in the Post drill's eligible set (§7.1). Omitted entirely on a first review or when the user kept every repeat in ## Findings. -->
 <list, or empty>
 
@@ -243,7 +243,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 
 ---
 
-**Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding under the handoff's `## Findings` body renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff:
+**Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff. A finding lives under the handoff's `## Findings` body OR — on a round >=2 re-review where the user collapsed unchanged repeats — under `## Carried-over from round <N>`; the block shape is identical in both sections, so a consumer that builds an AUQ from a finding must parse both (a demoted needs-your-decision finding keeps its full block and its pending decision in `## Carried-over from round <N>`):
 
 ```markdown
 ### F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR] <short title>
@@ -294,6 +294,8 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 
 **For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
+Read the `## Findings` body section AND — when present (a round >=2 re-review where the user collapsed unchanged repeats) — the `## Carried-over from round <N>` section, scanning each finding's `Decision Type:` and `step0_status:` fields in BOTH (mirroring the §7.0 guard's dual-section read). A demoted needs-your-decision finding lives in `## Carried-over from round <N>` while still `step0_status: pending`, so a gate that read only `## Findings` would silently skip its open-decision prompt and let an undecided finding ship — fire this gate for a carried-over PRODUCT-DECISION exactly as for one in `## Findings`.
+
 1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). For CRITICAL / HIGH / MEDIUM findings, check the `Validation:` field before firing the AUQ — four cases. `confirmed` or `clarified` → proceed. `Validation: refuted` should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. `Validation: unverified` (the verifier never ran — spawn failed after retry, per finding-verification.md §4.5) → proceed with the AUQ but surface a one-line warning that the finding was not independently verified; the decision is the user's either way, so the missing verification is disclosed, not blocking. A missing `Validation:` (legacy handoff per §2 back-compat) is treated as `confirmed` — proceed with the AUQ but surface the one-line warning.
 2. **Render the finding to chat first.** Before any `AskUserQuestion` fires, render the finding to chat as a self-contained block instantiating the § Message-first rendering template at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The render must be a SEPARATE, already-emitted assistant message that exists BEFORE the AUQ fires — same-turn text does not satisfy the contract; honor the render-exists check ("Scrub before the AUQ fires") in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate. The decision queue for its tracker is the kept PRODUCT-DECISION finding set (tracker only when ≥2 remain). Expand any reviewer shorthand so the question stands on its own. Build the chat block from the finding's `options:` sub-list and body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) per the spec's § Source-field map. The option set also carries the "Explain further" reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (writes no decision, consumes no round cap; surfaces via the § Cap-extension chained call when decision options fill 4 slots).
 
@@ -314,7 +316,7 @@ Skip entirely when zero PRODUCT-DECISION findings remain after the Phase 3 §3.3
 
 The handoff written in Phase 5.1 carries `report_status: draft`. After §2.5 (Pre-gate) and §3 (open-decision gate) clear, and BEFORE the §4 Action gate offers the handoff, flip it to `final`:
 
-1. Re-verify every `open_questions[]` entry is `{resolved, wontfix}` and every PRODUCT-DECISION finding is `step0_status: {resolved, wontfix}` — the same invariants §7.0 re-reads. If any is still `unresolved` / `pending`, loop back to the owning gate; do NOT finalize.
+1. Re-verify every `open_questions[]` entry is `{resolved, wontfix}` and every PRODUCT-DECISION finding is `step0_status: {resolved, wontfix}` — the same invariants §7.0 re-reads. Scan PRODUCT-DECISION findings in the `## Findings` body section AND — when present (a round >=2 re-review where the user collapsed unchanged repeats) — the `## Carried-over from round <N>` section, mirroring the §7.0 guard's dual-section read; a demoted needs-your-decision finding sits in the carried-over section while still `step0_status: pending`, so reading only `## Findings` would finalize over an open decision. If any entry/finding is still `unresolved` / `pending`, loop back to the owning gate; do NOT finalize.
 2. Set frontmatter `report_status: final` via `atomic_state_write`.
 
 This is a re-verify-plus-one-field-flip, NOT a re-bake — the per-finding decisions already persisted in §3 step 4. The field exists so the §4 Action gate's handoff option and the §7.0 public-post guard can assert the report is no longer provisional: a report still at `draft` means a decision gate did not clear, and the handoff would route an un-finalized report. Keep this step — a future "simplification" pass that strips it silently re-opens the gap the user reported (the handoff offered before their decisions land).
