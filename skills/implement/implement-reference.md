@@ -197,15 +197,24 @@ else:
 
 **Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing tests)`.
 
-**Test-failure escalation digest (render before the escalation AUQ).** When the Phase 2 escalation fires (retry exhaust, infrastructure error, or an early not-converging trigger), render a failure digest to chat as its own message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ. The digest carries:
+**Phase 2 check-failure escalation digest (render before the escalation AUQ).** When the Phase 2 escalation fires, render a failure digest to chat as its own message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ. The escalation has two failure sources, and the digest + the lean AUQ's `header:` MUST name the right one — a `verify:`-command failure rendered under a "Test failure" frame with test-specific options mislabels what failed and what the user is deciding:
 
-- `### 🧭 Decision needed:` with a plain-English one-line title (e.g. "3 fix attempts spent — the date-parsing tests are still failing").
+| Failure source | When | AUQ `header:` | Digest framing |
+|---|---|---|---|
+| Project test suite | retry exhaust, `INFRA_ERROR`, or an early not-converging trigger on the suite | `"Test failure"` | "the date-parsing tests are still failing" |
+| Spec acceptance check (`verify:` command) | a section-9 criterion's `verify:` command returned `HAS_FAILURES` / `INFRA_ERROR` (see "Per-criterion `verify:` commands" below) | `"Acceptance check failed"` | "the acceptance check the spec attached (its `verify:` command) failed" |
+
+A run that hits BOTH sources (a `verify:` failure after a green suite) uses the neutral header `"Phase 2 check failed"` and the digest names both. The three options are unchanged across all three headers — hand off to a debug investigation / accept as a documented limitation / stop — and stay accurate for either source.
+
+The digest carries:
+
+- `### 🧭 Decision needed:` with a plain-English one-line title — name the source (e.g. "3 fix attempts spent — the date-parsing tests are still failing", or "The spec's acceptance check (its `verify:` command) failed").
 - `**In one sentence:**` what this decision settles — hand the failure to a debug investigation, accept it as a documented limitation, or stop.
-- A conversational lead: what failed in plain English — which behavior the failing tests check and what the fix attempts changed; for an early trigger, state the plain-English stall reason (never the raw signal name).
-- `**Why it matters:**` why this blocks the phase — the self-review that follows assumes green tests, so proceeding past these failures means the review reads code the suite says is broken (evidence: the test-runner report's Command / Exit code / Summary block).
-- The failing-test names as a `☐` checklist — the test-finding shape from the same contract's §Finding-type visual map — capped at the test-runner report's reported failures.
+- A conversational lead: what failed in plain English. For a test-suite failure, which behavior the failing tests check and what the fix attempts changed; for a `verify:`-command failure, which spec criterion the command checks and that it ran once and did not pass (acceptance checks are single-shot, not iterated). For an early trigger, state the plain-English stall reason (never the raw signal name).
+- `**Why it matters:**` why this blocks the phase — for a test-suite failure, the self-review that follows assumes green tests, so proceeding means the review reads code the suite says is broken; for a `verify:` failure, the spec's own acceptance criterion is unmet, so the run does not yet satisfy the spec's Done Condition (evidence: the failing command's Command / Exit code / Summary block, or the test-runner report's same block).
+- The failing items as a `☐` checklist — the failing-test names (test-suite source) OR the failed `verify:` criteria named by their plain-English intent (acceptance-check source), the test-finding shape from the same contract's §Finding-type visual map — capped at the reported failures.
 
-Build the digest from the structured `.tr-out.md` report, never raw test stdout (the token-cost rule above). The lean AUQ that follows carries only the title and the three options from the SKILL.md Phase 2 escalation step.
+Build the test-suite digest from the structured `.tr-out.md` report, never raw test stdout (the token-cost rule above); build the `verify:`-command digest from the command's captured Command / Exit code / Summary. The lean AUQ that follows carries only the title, the source-appropriate header above, and the three options from the SKILL.md Phase 2 escalation step.
 
 ### Per-criterion `verify:` commands
 
@@ -219,12 +228,12 @@ for each section-9 criterion carrying a `verify:` line:        # spec-driven run
     non-zero assertion-style exit       → HAS_FAILURES
     connection-refused / server-down    → INFRA_ERROR
     blocked by a safety PreToolUse hook → INFRA_ERROR          (never a silent skip — surface the block)
-  any HAS_FAILURES or INFRA_ERROR → route into the Step 6 escalation digest above (the SAME message-first AUQ)
+  any HAS_FAILURES or INFRA_ERROR → route into the Phase 2 check-failure escalation digest above (the SAME message-first AUQ) using its acceptance-check header/framing
 ```
 
 - **Orchestrator runs it, not `test-runner-agent`.** The runner agent's single-command leaf contract is a deliberate safety boundary — its anti-rationalization forbids it orchestrating multiple commands. Phase 2 already grants the orchestrator Bash, so it runs the `verify:` strings directly. No agent-report schema change, so no lockstep cost on the agent side.
 - **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
-- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Test-failure escalation digest (name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"); the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run.
+- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Phase 2 check failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run.
 - **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly. `verify:` is a body-level field, not frontmatter, so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
 - **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and persist the outcome to state.md `## Tool log` via `atomic_state_write`.
 
