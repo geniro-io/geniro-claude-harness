@@ -98,8 +98,8 @@ echo "$ac" | grep -q "Resume steps:" \
   && pass "compact: Block 6 resume protocol header" \
   || fail "compact: Block 6 missing"
 
-echo "$sm" | grep -q "active: feature-x · phase: implement · non-resumable: 0" \
-  && pass "compact: systemMessage shape (active/phase/non-resumable)" \
+echo "$sm" | grep -q "active task: feature-x · skill: /implement · branch: feature/x · phase: implement · non-resumable: 0" \
+  && pass "compact: systemMessage shape (task/skill/branch/phase/non-resumable)" \
   || fail "compact: systemMessage shape wrong — '$sm'"
 
 # ---------------------------------------------------------------------------
@@ -234,7 +234,7 @@ EOF
 
 out=$(run_hook compact "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-echo "$sm" | grep -q "active: different-name · phase: rewrite" \
+echo "$sm" | grep -q "active task: different-name · skill: /refactor · branch: feature/y · phase: rewrite" \
   && pass "tier-2 fallback: branch grep finds non-slug task-dir" \
   || fail "tier-2 fallback failed — sm='$sm'"
 
@@ -1016,6 +1016,87 @@ dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbo
 [ "$dep" = "false" ] \
   && pass "opt-out leaves the stale entry un-archived on disk (deprecated still false)" \
   || fail "opt-out should leave the entry un-archived; deprecated=$dep"
+
+# ---------------------------------------------------------------------------
+# 22. Tier-2 staleness gate — a branch-matched candidate untouched past
+#     GENIRO_RESUME_STALE_DAYS is NOT surfaced (an abandoned /plan on a
+#     long-lived branch like `main` stops resurfacing on every session); a fresh
+#     one still is; the env knob set to 0 disables the gate. Tier-2 only (an exact
+#     slug match is never gated). Uses file mtime, so a freshly-written fixture is
+#     "fresh" regardless of its frontmatter timestamp.
+# ---------------------------------------------------------------------------
+
+# 22a. Stale Tier-2 candidate (mtime backdated well past the cutoff) → suppressed.
+sandbox="$TMPDIR_BASE/stale-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "main" 2>/dev/null || exit 1
+mkdir -p .geniro/planning/ghost-plan
+cat > .geniro/planning/ghost-plan/state.md <<'EOF'
+---
+tier: T1
+producer: plan
+schema-version: 1
+branch: main
+timestamp: 2026-05-19T15:00:00Z
+phase: clarify
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+touch -t 202501010000 .geniro/planning/ghost-plan/state.md
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if echo "$ac" | grep -q "Active task detected"; then
+  fail "stale Tier-2 candidate should NOT be surfaced (mtime past cutoff)"
+else
+  pass "stale Tier-2 candidate suppressed (past GENIRO_RESUME_STALE_DAYS)"
+fi
+
+# 22b. Same candidate, fresh mtime → surfaced (gate only skips stale ones).
+touch .geniro/planning/ghost-plan/state.md
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+echo "$ac" | grep -q "Active task detected" \
+  && pass "fresh Tier-2 candidate still surfaced (gate only skips stale)" \
+  || fail "fresh Tier-2 candidate should be surfaced"
+
+# 22c. GENIRO_RESUME_STALE_DAYS=0 disables the gate → stale candidate surfaces.
+touch -t 202501010000 .geniro/planning/ghost-plan/state.md
+out=$(printf '{"source":"startup","cwd":"%s"}' "$sandbox" \
+  | GENIRO_RESUME_STALE_DAYS=0 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+echo "$ac" | grep -q "Active task detected" \
+  && pass "GENIRO_RESUME_STALE_DAYS=0 disables the staleness gate (stale candidate surfaces)" \
+  || fail "GENIRO_RESUME_STALE_DAYS=0 should disable the staleness gate"
+
+# 22d. Tier-1 (exact slug match) is NEVER staleness-gated — a stale task-dir whose
+#      name equals the branch slug must still resume.
+sandbox="$TMPDIR_BASE/tier1-stale-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "feature/z" 2>/dev/null || exit 1
+mkdir -p .geniro/planning/feature-z
+cat > .geniro/planning/feature-z/state.md <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/z
+timestamp: 2026-05-19T15:00:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+touch -t 202501010000 .geniro/planning/feature-z/state.md
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+echo "$ac" | grep -q "Active task detected" \
+  && pass "Tier-1 exact slug match resumes even when stale (never gated)" \
+  || fail "Tier-1 exact slug match should not be staleness-gated"
 
 # ---------------------------------------------------------------------------
 # Summary

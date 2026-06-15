@@ -219,6 +219,17 @@ fi
 # §"Artifacts NOT in scope") AND $GENIRO_ROOT-rooted singleton/cross-session
 # state (covers /setup state.md plus any future singleton layouts). Dedup by
 # absolute path so the cwd-IS-primary case doesn't double-count.
+#
+# Staleness gate (Tier 2 ONLY): Tier 1 is an exact slug/path match — a strong
+# signal the user is actively on this task's branch — so it is never gated. Tier 2
+# matches only on the recorded `branch:` field, a far weaker signal: a `/plan` run
+# is authored on `main` (the feature branch is cut later, at /implement) and so
+# records `branch: main`; left at a non-terminal phase it would otherwise
+# resurface on EVERY future `main` session indefinitely. So skip a Tier-2
+# candidate whose state file has not been touched within the cutoff window. Uses
+# file mtime (already read portably here for the mtime tiebreak) rather than the
+# frontmatter `timestamp:`, which is producer-written and sometimes a rounded
+# placeholder. Set GENIRO_RESUME_STALE_DAYS=0 to disable the gate (always resume).
 _state_candidates() {
   {
     find ./.geniro/planning -maxdepth 2 -name 'state.md' -type f 2>/dev/null
@@ -236,11 +247,26 @@ _state_candidates() {
 # terminal-candidate filter above) — one parse shape for branch/phase/status.
 
 if [ -z "$state_file" ]; then
+  _resume_stale_days="${GENIRO_RESUME_STALE_DAYS:-14}"
+  case "$_resume_stale_days" in ''|*[!0-9]*) _resume_stale_days=14 ;; esac
+  _now_epoch=$(date +%s 2>/dev/null || echo 0)
+  _stale_cutoff_secs=$(( _resume_stale_days * 86400 ))
+
   while IFS= read -r _candidate; do
     [ -z "$_candidate" ] && continue
     _fm_branch="$(_fm_scalar_quick "$_candidate" branch)"
     if [ -n "$_fm_branch" ] && [ "$_fm_branch" = "$branch" ] \
        && ! _is_terminal_candidate "$_candidate"; then
+      # Staleness gate — skip a branch-matched candidate untouched past the
+      # cutoff so an abandoned task on a long-lived branch (typically a /plan
+      # left on `main`) stops resurfacing. Fail-open: a failed `date`/`stat`
+      # (epoch 0) leaves the candidate eligible.
+      if [ "$_resume_stale_days" -gt 0 ] && [ "$_now_epoch" -gt 0 ]; then
+        _cand_mtime=$(stat -c %Y "$_candidate" 2>/dev/null || stat -f %m "$_candidate" 2>/dev/null || echo 0)
+        if [ "$_cand_mtime" -gt 0 ] && [ "$(( _now_epoch - _cand_mtime ))" -gt "$_stale_cutoff_secs" ]; then
+          continue
+        fi
+      fi
       state_file="$_candidate"
       break
     fi
@@ -293,6 +319,7 @@ active_skill=""
 spec_file=""
 phase=""
 status=""
+recorded_branch=""
 non_resumable_count=0
 
 _fm_scalar() {
@@ -538,6 +565,7 @@ if [ -n "$state_file" ] && [ -f "$state_file" ]; then
   spec_file="$(_fm_scalar "$state_file" spec-file)"
   phase="$(_fm_scalar "$state_file" phase)"
   status="$(_fm_scalar "$state_file" status)"
+  recorded_branch="$(_fm_scalar "$state_file" branch)"
   non_resumable_count="$(_fm_block_list_count "$state_file" non-resumable-actions)"
   [ -z "$non_resumable_count" ] && non_resumable_count=0
 fi
@@ -570,6 +598,7 @@ if [ -n "$state_file" ]; then
     spec_file=""
     phase=""
     status=""
+    recorded_branch=""
     non_resumable_count=0
     validation_status="not-applicable"
     validation_error=""
@@ -973,7 +1002,17 @@ if [ -n "$phase" ]; then
   _phase_label="$phase"
 fi
 
-SYSTEM_MESSAGE="Geniro: restoring context (source: $SOURCE, active: $_active_label · phase: $_phase_label · non-resumable: $non_resumable_count)"
+# The task-dir basename (often a ticket slug like `ci-302-...`) reads like a git
+# branch but is a directory name — a frequent source of "why is this strange
+# branch restoring?" confusion. Spell out the producer skill and the branch the
+# task is bound to so the resume line is unambiguous about what is resuming and
+# on which branch (a /plan authored on `main` shows `branch: main`).
+if [ -n "$active_skill" ]; then
+  _task_segment="active task: $_active_label · skill: /$active_skill · branch: ${recorded_branch:-?} · phase: $_phase_label"
+else
+  _task_segment="active task: $_active_label · phase: $_phase_label"
+fi
+SYSTEM_MESSAGE="Geniro: restoring context (source: $SOURCE · $_task_segment · non-resumable: $non_resumable_count)"
 if [ "${ARCHIVED_COUNT:-0}" -gt 0 ]; then
   SYSTEM_MESSAGE="$SYSTEM_MESSAGE · auto-archived: $ARCHIVED_COUNT"
 fi
