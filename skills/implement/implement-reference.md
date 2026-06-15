@@ -179,7 +179,7 @@ The Phase 2 fix loop uses the structured `test-runner-agent` output (NOT raw std
 retry = 1
 while retry ≤ 3:
   read <task-dir>/.tr-out.md
-  if Verdict == ALL_GREEN → exit Phase 2 → Phase 3
+  if Verdict == ALL_GREEN → run section-9 verify: commands (spec-driven runs only) → exit Phase 2 → Phase 3
   if Verdict == INFRA_ERROR → escalate AUQ immediately (don't retry blind)
   inspect the structured Failures list
   edit code (or test) to address top-priority failures
