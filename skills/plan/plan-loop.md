@@ -483,13 +483,24 @@ Content: schema (11 sections) + frontmatter with goal block + optional `workflow
 
 Set `geniro_schema_version: m5-v2` whenever `workflow_refs:` is present — the Phase 7 validator only shape-checks `workflow_refs` on m5-v2, so an m5-v1 spec carrying the field would escape validation. For pure inline-task /geniro:plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
 
-Use the `Write` tool. `/geniro:plan` writes only spec/state artifacts under `.geniro/planning/**` and `.geniro/state/**`; the skill's frontmatter `allowed-tools` omits `Edit`, so the only write surface is `Write` to those planning paths.
+Write spec.md (and state.md / each `milestone-N.md`) via `atomic_state_write` — source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, then feed the full file content on stdin via a heredoc, the same helper used for every state.md write. The `enforce-state-helper` hook hard-blocks a direct `Edit`/`Write` to anything under `.geniro/planning/**` or `.geniro/state/**`, so the helper is the only working write path for these artifacts; the skill's frontmatter `allowed-tools` also omits `Edit`:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
+atomic_state_write ".geniro/planning/<slug>/spec.md" <<'EOF'
+---
+<spec frontmatter>
+---
+
+<spec body — 11 sections>
+EOF
+```
 
 After writing spec.md, append a `## Tool log` entry to state.md via `atomic_state_write`:
 
 ```yaml
 - ts: 2026-05-17T11:08:00Z
- tool: Write
+ tool: atomic_state_write
  detail: ".geniro/planning/<slug>/spec.md"
  status: ok
  result_ref: "<bytes-count>"
@@ -508,7 +519,7 @@ If milestone-mode was picked in Phase 5, Phase 6 writes the top-level spec.md AN
 If Phase 6 is re-entered after compaction, the model:
 1. Reads state.md `approvals[]` — every `section_<id>` approval is present per Phase 5.
 2. Re-authors spec.md content from the persisted approvals.
-3. Re-writes spec.md (overwrite — `Write`, not `Edit`, since this is idempotent regeneration).
+3. Re-writes spec.md (overwrite via `atomic_state_write`, since this is idempotent regeneration).
 4. Re-appends a `## Tool log` entry with note `(re-entry — post-compaction regeneration)`.
 
 ---
@@ -559,7 +570,7 @@ This fires on every plan regardless of effort tier — no Trivial skip. Cost sta
 ### 7.5.2 Verdict handling
 
 - **keep** (clean) — surface a one-line advisory note (top challenge observation, if any) and transition `phase: user-approve` to Phase 8.
-- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`Write` mechanism (§6.1; idempotent regeneration, `Write` not `Edit`), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 accept-as-is / re-revise / abort AUQ. The human then approves a hardened spec.
+- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`atomic_state_write` mechanism (§6.1; idempotent regeneration), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 accept-as-is / re-revise / abort AUQ. The human then approves a hardened spec.
 - **re-plan** (the approach itself is refuted) — re-enter approach selection. Transition `phase: approaches` and re-run Phase 4 (re-run Phase 3 first if the refutation invalidates a clarifying answer), inlining the challenge's evidence into the §4.1 approach synthesis and the §4.2 stress-test `PRE_INLINED_CONTEXT`.
 
 ### 7.5.3 Advisory + fail-open
@@ -594,7 +605,7 @@ Max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 �
 On user picks "Approve":
 
 1. **Persist approval** to `approvals[]` with category `final_approve`.
-2. **Flip spec.md `lifecycle: draft` → `lifecycle: approved`** in spec.md frontmatter via a fresh Write (idempotent regeneration — the only field changing is `lifecycle:`). Per design-doc lifecycle marker.
+2. **Flip spec.md `lifecycle: draft` → `lifecycle: approved`** in spec.md frontmatter via a fresh `atomic_state_write` that rewrites the whole spec (idempotent regeneration — the only field changing is `lifecycle:`; an in-place `Edit` is hard-blocked by the `enforce-state-helper` hook on `.geniro/planning/**`). Per design-doc lifecycle marker.
 3. **`git commit`** fires HERE (NOT in Phase 6):
  - `git add .geniro/planning/<slug>/spec.md` + every sibling `milestone-N.md`
  - `git commit -m "plan: <task-slug> — <one-line summary from section 1 Objective>"`
@@ -689,7 +700,7 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 | "My §4.1 approaches are well-reasoned — the §4.2 stress-test is redundant overhead" | The model that authored the approaches shares their blind spots; ranking them in the same context re-confirms its own bias rather than testing it. An independent codebase-grounded critic catches blockers the author cannot see from generation context alone — hidden coupling, a previously-rejected shape in L2, a convention conflict — which is the load-bearing reason `Recommended` is set from evidence, not self-confidence. It is tier-scaled (skipped on Trivial) so the cost lands only where a wrong approach is expensive. The critic's verdicts are themselves claims: a `blocking` call demotes only after its citation verifies on read, and a no-risks report without its checked-surfaces account is absence of investigation, not evidence of feasibility. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Compaction mid-Phase-5 loses 5 AUQs of user input — that data-loss is exactly what `approvals[]` persistence prevents, so it is non-negotiable. |
-| "I'll `Write` outside `.geniro/planning/**` to save a step — /geniro:plan can touch source directly" | /geniro:plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended `Write` target is the planning task-dir; writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
+| "I'll write a file outside `.geniro/planning/**` to save a step — /geniro:plan can touch source directly" | /geniro:plan never writes source. The frontmatter `allowed-tools` omits `Edit`, and the only intended write target is the planning task-dir (spec.md / state.md via `atomic_state_write`); writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
 | "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work" | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |
 | "Handoff should add a separate backlog-capture step for backlog discipline" | The committed spec.md on disk IS the backlog entry — no extra capture step or menu pick needed. Not running the printed `/geniro:implement` command is how a spec stays parked. |
 | "Auto-default empty AUQ answer to the Recommended option" | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |

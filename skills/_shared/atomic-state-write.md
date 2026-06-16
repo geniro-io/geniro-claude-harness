@@ -178,7 +178,7 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 - Without atomic writes, direct `Edit`/`Write` calls truncate-and-rewrite, leaving a window where reader sees half-written file.
 - Fix: every state path goes through this helper. `tmp + fsync + rename + fsync-dir` guarantees either pre- or post-state, never partial.
 
-The PreToolUse hook `enforce-state-helper.sh` (warn-mode initially, block-mode after migration completes) catches sites that bypass the helper.
+The PreToolUse hook `enforce-state-helper.sh` (hard-block — exit 2) catches sites that bypass the helper.
 
 ---
 
@@ -195,7 +195,7 @@ The PreToolUse hook `enforce-state-helper.sh` (warn-mode initially, block-mode a
 
 ## Bypass — power users
 
-Add `enforce-state-helper` to `.geniro/safety.json` `allow_patterns` to silence the warning hook for the current project:
+Add `enforce-state-helper` to `.geniro/safety.json` `allow_patterns` to bypass the hook for the current project:
 
 ```json
 {
