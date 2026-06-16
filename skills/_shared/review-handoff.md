@@ -104,7 +104,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 ## 2.6 Handoff file template (written in Phase 5.1)
 
-Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write` — never a direct Edit/Write on the canonical state path (the `enforce-state-helper` hook warn-flags direct writes initially and flips to a hard-block in a future release). `<PRIMARY_ROOT>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write` — never a direct Edit/Write on the canonical state path (the `enforce-state-helper` hook hard-blocks direct writes to the canonical state path). `<PRIMARY_ROOT>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 
 The canonical handoff is a one-shot producer→consumer artifact; /geniro:review extends it with `phase:` / `status:` / `round:` / `approvals[]` so a compaction mid-run can recover. The file behaves as a handoff AT REST (after Phase 5 persist) and as a working state file DURING THE RUN.
 

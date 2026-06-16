@@ -88,7 +88,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 
 1. **One result per tool call.** Every AskUserQuestion / Write / Bash / Agent spawn produces exactly one structured result. Failed AUQ (empty-answer bug) → fall back to plain-text re-ask; never auto-default.
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Path-based detection (design-doc-detect.md) validates file existence before treating $ARGUMENTS as a path.
-3. **Permission before side-effect.** Phase 6 `Write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — enforced by the plan-mode mutation guard (frontmatter `allowed-tools` minus `Edit`; PreToolUse Bash guard allows `Write` only under `.geniro/planning/**` or `.geniro/state/**`).
+3. **Permission before side-effect.** Phase 6 `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — the frontmatter `allowed-tools` omits `Edit`, and the `enforce-state-helper` PreToolUse hook hard-blocks any direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so every state write routes through `atomic_state_write`.
 4. **Bounded and structured tool results.** Phase 1 research-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 5. **Escalation gates, not silent abort.** Phase 7 validator 3-round → AUQ. Phase 8 user-revision 3-round → AUQ. Phase 3 ≤5 questions → consolidation forced. NO Class-A hard kill caps.
 6. **Final answer grounded in observations.** Phase 5 section content cites Phase 1 explore findings (`file:line` references), not generic prose — the Phase 7 validator includes a "citations present" check that fails an uncited section.
@@ -150,7 +150,7 @@ deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); m
 
 When `deep-mode: true`, Phase 4 and Phase 7.5 run their deeper paths via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it. When `--deep` is absent, a Standard/Deep depth question folds into the Phase 3 clarify AUQ (skipped on a Trivial task → flag-only there); pick Deep there to set `deep-mode: true`.
 
-**Write contract.** Every state.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, never direct `Edit`/`Write` on canonical state paths — the State-helper enforcement hook warns now and flips to hard-block in a future release. The plan-mode mutation guard restricts Write tool to `.geniro/planning/**` OR `.geniro/state/**` while a /geniro:plan run is active.
+**Write contract.** Every state.md AND spec.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, never direct `Edit`/`Write` on canonical state paths — the `enforce-state-helper` hook hard-blocks such direct writes. The frontmatter `allowed-tools` omits `Edit`, and the hook hard-blocks direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so both artifacts are written through the helper while a /geniro:plan run is active.
 
 **Validation before resume.** When Phase 0 detects a pre-existing state.md (resume path), pre-flight via `validate_state_file`:
 
@@ -177,8 +177,8 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 1.4 (conditional) | matching tracker MCP (`mcp__linear__get_issue`, etc.) | read external | fires only when `$ARGUMENTS` carries a tracker URL/ID; payload → state.md `## Workflow Refs` |
 | Phase 1.4 (conditional) | `atomic_state_write` | write T1.5 | state.md `## Workflow Refs` body section |
 | Phase 2 (conditional) | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` | helper procedure | fires only when UI trigger matches; approved description → state.md `## UI Preview` |
-| Phase 6 | `atomic_state_write` | write T1.5 | state.md `## Tool log` after spec.md Write |
-| Phase 6 | `Write` | write T1.5 | spec.md frontmatter `workflow_refs[]` copied from state.md `## Workflow Refs` when present |
+| Phase 6 | `atomic_state_write` | write T1.5 | state.md `## Tool log` after the spec.md write |
+| Phase 6 | `atomic_state_write` | write T1.5 | spec.md frontmatter `workflow_refs[]` copied from state.md `## Workflow Refs` when present |
 | Phase 7 (hard-fail) | `atomic_state_write` | write T1.5 | state.md `## Open Questions` |
 | Phase 8.4 | `atomic_state_write` | write T1.5 | state.md `non-resumable-actions[]` after git commit |
 | Phase 8.5 (conditional) | `emit_learning` | write L2 | `decision` type when Phase 4 had ≥2 approaches with trade-off |
@@ -196,8 +196,8 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) | All mutations |
 | Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn, OMIT `model=` — inherits orchestrator tier per `ui-preview-gate.md`) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
-| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / Write (state.md only via atomic_state_write) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only — OMIT `model=`) | Edit / mutating Bash |
-| Phase 6 (Write spec) | Write (scoped to `.geniro/planning/**` by guard) / atomic_state_write (state.md) | Edit / mutating Bash |
+| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only — OMIT `model=`) | Edit / mutating Bash |
+| Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) | Edit / direct Write / mutating Bash |
 | Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
 | Phase 7.5 (Spec challenge, always-on) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn — OMIT `model=`) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
@@ -236,7 +236,7 @@ Do NOT reintroduce these anti-patterns:
 | "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work." | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |
 | "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects." | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
-| "Plan-mode mutation guard is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field + PreToolUse Bash guard are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
+| "The state-write enforcement is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field (omits `Edit`) + the `enforce-state-helper` PreToolUse hook (hard-blocks direct `Edit`/`Write` to canonical state paths) are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
 | "5 clarifying questions is too few for complex tasks." | Phase 3 ≤5 is a quality-first signal. >5 means Phase 1 underspecified OR the task is too vague. Force consolidation — better questions, not more questions. |
 | "11-section spec.md schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
 | "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | 3-round escalation cap. On round 3, AUQ surfaces to user with "accept as-is" option. User has agency at all times. |
