@@ -246,29 +246,31 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff. A finding lives under the handoff's `## Findings` body OR — on a round >=2 re-review where the user collapsed unchanged repeats — under `## Carried-over from round <N>`; the block shape is identical in both sections, so a consumer that builds an AUQ from a finding must parse both (a demoted needs-your-decision finding keeps its full block and its pending decision in `## Carried-over from round <N>`):
 
 ```markdown
-### F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR] <short title>
-- **Severity:** CRITICAL | HIGH | MEDIUM | LOW
-- **File:** path/to/file.ts:42-48
-- **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
-- **Cause:** ROOT-CAUSE | SYMPTOM | UNKNOWN
-- **Confidence:** NN%
-- **Origin:** llm:<dim> | mechanical:<check>
-- **Why this matters:** <1-sentence impact, verbatim from reviewer-agent output>
-- **Suggested fix:** <concrete improvement text, verbatim — synthesis form for PRODUCT-DECISION>
-- **Evidence:**
-  ```<lang>
-  <2-5 lines from reviewer-agent Evidence: codeblock>
-  ```
-  OR (command-based form): `Command:` / `Exit code:` / `Tail (last 3 lines):`
-- **Validation:** `confirmed | refuted | clarified | unverified` [every kept finding — CRITICAL / HIGH / MEDIUM; emitted by Phase 4.2 per-finding verifier, except `unverified`, which only the orchestrator assigns when the verifier failed to spawn (finding-verification.md §4.5); ABSENT on LOW (which never enters Phase 4.2)]
-- **Recommended-action:** `fix-now | testable | product-decision | intent-check | drop` [every kept finding — verifier override; when `Validation: clarified`, this field supersedes the original `Decision Type:` for downstream routing]
-- **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [every kept finding — coarse 1-5 scale, distinct from the LLM `Confidence: NN%` field above]
-- **Verification-evidence:** `"<literal quote from cited file:line or caller chain>"` [every kept finding — verifier's grounding citation, distinct from the reviewer's `Evidence:` codeblock above]
-- **Options:** [PRODUCT-DECISION only — omit for other types]
-  - `<option-id>`: `<short label>` — `<one-line trade-off>`
-- **Recommendation:** <option-id> — <one-sentence rationale> [PRODUCT-DECISION only]
-- **step0_status:** `pending | resolved | wontfix` [PRODUCT-DECISION only — omit for other types]
+- [ ] **F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR] <short title>** · <SEVERITY>
+  - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
+  - **File:** path/to/file.ts:42-48
+  - **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
+  - **Cause:** ROOT-CAUSE | SYMPTOM | UNKNOWN
+  - **Confidence:** NN%
+  - **Origin:** llm:<dim> | mechanical:<check>
+  - **Why this matters:** <1-sentence impact, verbatim from reviewer-agent output>
+  - **Suggested fix:** <concrete improvement text, verbatim — synthesis form for PRODUCT-DECISION>
+  - **Evidence:**
+    ```<lang>
+    <2-5 lines from reviewer-agent Evidence: codeblock>
+    ```
+    OR (command-based form): `Command:` / `Exit code:` / `Tail (last 3 lines):`
+  - **Validation:** `confirmed | refuted | clarified | unverified` [every kept finding — CRITICAL / HIGH / MEDIUM; emitted by Phase 4.2 per-finding verifier, except `unverified`, which only the orchestrator assigns when the verifier failed to spawn (finding-verification.md §4.5); ABSENT on LOW (which never enters Phase 4.2)]
+  - **Recommended-action:** `fix-now | testable | product-decision | intent-check | drop` [every kept finding — verifier override; when `Validation: clarified`, this field supersedes the original `Decision Type:` for downstream routing]
+  - **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [every kept finding — coarse 1-5 scale, distinct from the LLM `Confidence: NN%` field above]
+  - **Verification-evidence:** `"<literal quote from cited file:line or caller chain>"` [every kept finding — verifier's grounding citation, distinct from the reviewer's `Evidence:` codeblock above]
+  - **Options:** [PRODUCT-DECISION only — omit for other types]
+    - `<option-id>`: `<short label>` — `<one-line trade-off>`
+  - **Recommendation:** <option-id> — <one-sentence rationale> [PRODUCT-DECISION only]
+  - **step0_status:** `pending | resolved | wontfix` [PRODUCT-DECISION only — omit for other types]
 ```
+
+**The `- [ ]` checkbox is the addressed-tracker (presentation-only).** Every finding is written unchecked (`- [ ]`); the engineer ticks it (`- [x]`) by hand as they resolve that finding — working findings one at a time, in any order, whether they fix each directly or run /geniro:implement. It is a tracking aid for the person acting on the report: no gate, consumer, or guard reads its checked state — they parse the `- **<Field>:**` sub-fields and the frontmatter — and it is never carried into a posted PR comment (the §7.6 pre-POST scrub composes comment bodies fresh, so a report checkbox never reaches GitHub). The `· <SEVERITY>` suffix on the title line mirrors the `Severity:` sub-field for at-a-glance scanning down a long list; the sub-field stays the canonical value the §3 / §7.0 gates read. A handoff written before this rendering existed shows the finding header as `### F<n> — <title>` rather than a checkbox item — it is the same block carrying the same fields, so consumers parse by the `- **<Field>:**` labels and the frontmatter, never by the header shape.
 
 The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 4 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
 
