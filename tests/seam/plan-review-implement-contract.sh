@@ -327,10 +327,10 @@ open_questions:
 
 ### CRITICAL
 
-### F1 — [NEW] SQL injection in getUser
-- **Severity:** CRITICAL
-- **Decision Type:** PRODUCT-DECISION
-- **step0_status:** resolved
+- [ ] **F1 — [NEW] SQL injection in getUser** · CRITICAL
+  - **Severity:** CRITICAL
+  - **Decision Type:** PRODUCT-DECISION
+  - **step0_status:** resolved
 
 ## Open Questions
 
@@ -394,9 +394,9 @@ open_questions: []
 
 ## Findings
 
-### F1 — [NEW] ambiguous behaviour change
-- **Decision Type:** PRODUCT-DECISION
-- **step0_status:** pending
+- [ ] **F1 — [NEW] ambiguous behaviour change**
+  - **Decision Type:** PRODUCT-DECISION
+  - **step0_status:** pending
 EOF
 [ "$(_seam_final_no_pending_pd "$TMPDIR_BASE/from-review-pending-pd.md")" = "violation" ] \
   && pass "B4 final report with a pending PRODUCT-DECISION step0_status → violation caught (review-internal)" \
