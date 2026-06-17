@@ -249,7 +249,6 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files |
 | **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
 | **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — regex scan of edit content for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
-| **Config-weakening guard** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — blocks edits to an existing linter/formatter/type-checker config (eslint, prettier, biome, ruff, tsconfig, golangci); first-time creation stays allowed |
 | **Gate-render enforcement** | PreToolUse `AskUserQuestion` (hard-block) — blocks a question that references content "above" OR carries finding-gate evidence shorthand (a PRODUCT-DECISION tag, convergence wording, or a finding-ID like `F5`/`M1b`) when no visible message precedes it in the turn, so decision gates can't fire blind |
 
 ## Updating
@@ -284,7 +283,7 @@ geniro-claude-plugin/
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
 │                                # load-custom-instructions, query/emit-learnings, etc.)
-├── hooks/                       # 10 safety hooks + statusline + update check
+├── hooks/                       # 9 safety hooks + statusline + update check
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer

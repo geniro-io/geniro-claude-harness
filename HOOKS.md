@@ -15,7 +15,7 @@ The status messages set on each `hooks.json` entry (e.g. `"Checking for destruct
 
 ## Hook scripts
 
-The plugin ships 11 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 9 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
@@ -26,7 +26,6 @@ The plugin ships 11 safety / lifecycle hooks, 1 sourced utility library, and 2 N
 | [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` | exit 2 = block | Blocks direct writes to canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`. The Bash branch catches shell-side writes into the same paths — redirection (`>`, `>>`, `>\|`), `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=` (reads stay allowed); commands invoking `atomic_state_write` / `atomic_state_append` pass. Suggests the helpers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
 | [`enforce-gate-render.sh`](hooks/enforce-gate-render.sh) | PreToolUse `AskUserQuestion` | exit 2 = block | Blocks a gate question fired with no visible assistant message in the current turn — the user would be answering blind — on either of two triggers: it references content "above", OR it carries finding-gate evidence shorthand (a PRODUCT-DECISION tag, convergence wording, or a finding-ID like `F5`/`M1b` with finding-gate co-text). Reverse-scans the transcript to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race); fails open on missing jq (loud), missing transcript, cap overflow, or garbage transcript. A block is NOT a user denial — stderr instructs render-then-re-ask (bypass: `gate-render`) |
 | [`security-pattern-check.sh`](hooks/security-pattern-check.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` | exit 2 = block | Cheap regex scan for high-signal security anti-patterns in file content (eval/exec, pickle, yaml.load, shell=True, curl\|sh, TLS bypass, XSS sinks, weak crypto). Per-pattern bypass: `sec-eval-exec`, `sec-pickle`, `sec-yaml-unsafe`, `sec-shell-injection`, `sec-curl-pipe-sh`, `sec-tls-bypass`, `sec-xss-sink`, `sec-weak-crypto`. Scope-limited to applicable file extensions per pattern. Logic-level issues (authz bypass, IDOR, race conditions) are not regex-detectable and require `/geniro:review`. |
-| [`block-config-weakening.sh`](hooks/block-config-weakening.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` | exit 2 = block | Blocks edits to an EXISTING linter/formatter/type-checker config file (eslint, prettier, biome, ruff, tsconfig, golangci) — editing an established config to silence a check hides the underlying issue instead of fixing the source. First-time creation of such a config is allowed; backup/disabled copies (`*.bak`, `*.old`, ...) stay editable. Bypass: `config-weakening`. |
 | [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); skips state.md candidates already in a terminal `phase:`/`status:` during resolution, so a finished task is never surfaced as resumable AND cannot shadow an in-flight task on the same branch in a later resolution tier; pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Also runs L2 auto-archive. Read-only on state.md; the only writes are `learnings.jsonl` (auto-archive flip) + `.archive-stale.{hash,lock}`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
@@ -137,27 +136,6 @@ Each pattern is scoped to applicable file extensions — Python's `pickle.loads`
 ```
 
 **What this hook does NOT catch:** logic-level vulnerabilities (authorization bypass, IDOR, race conditions, mass assignment, JWT `alg: none`, business-logic flaws). Regex cannot see semantics. Run `/geniro:review` for the LLM-driven review that catches those.
-
-### block-config-weakening.sh
-
-**Event:** PreToolUse `Edit|Write|MultiEdit|NotebookEdit`. **Stdin:** `jq -r '.tool_input.file_path // .tool_input.notebook_path // ""'`. **Block exit:** `exit 2`.
-
-Blocks edits to an EXISTING linter / formatter / type-checker config file. Editing an established config to silence a check (disable a rule, loosen `tsconfig` strictness, add an ignore entry) hides the underlying issue instead of fixing the source. First-time creation of such a config is allowed — only edits to a file already on disk are blocked.
-
-**Matched config files** (by basename):
-
-- ESLint: `.eslintrc`, `.eslintrc.*`, `eslint.config.*`
-- Prettier: `.prettierrc`, `.prettierrc.*`, `prettier.config.*`
-- Biome: `biome.json`, `biome.jsonc`
-- Ruff: `ruff.toml`, `.ruff.toml`
-- TypeScript: `tsconfig.json`, `tsconfig.*.json`
-- golangci-lint: `.golangci.yml`, `.golangci.yaml`, `.golangci.toml`
-
-Backup / disabled copies (`*.bak`, `*.disabled`, `*.old`, `*.orig`, `*.save`, `*~`) are never the live config and stay editable.
-
-**Scope is deliberately file-tool-only:** a shell-side weakening (`sed -i` on `tsconfig.json`, `>> .eslintignore`) is NOT caught here — detecting "this shell write weakens a config" from a command string is coarse and false-positive-prone, so that surface is left to `/geniro:review` (which reads the resulting diff against the rules). Same posture as `security-pattern-check` and `enforce-tdd-order`.
-
-**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `config-weakening` skips the guard (e.g. the project legitimately needs to tune an established eslint/tsconfig/ruff/biome/golangci config). Fails open loudly (emits a `systemMessage`) if jq is missing.
 
 ### enforce-state-helper.sh
 

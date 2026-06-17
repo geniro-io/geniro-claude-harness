@@ -48,11 +48,6 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/security-pattern-check.sh",
             "statusMessage": "Scanning for security anti-patterns..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-config-weakening.sh",
-            "statusMessage": "Checking for linter/formatter config weakening..."
           }
         ]
       },

@@ -562,7 +562,7 @@ Operational rules:
 | Phase 5 | Write (scoped to `.geniro/state/handoff/**`), `Bash` (conditional — `gh api POST /pulls/N/reviews` with `event` omitted; see §5.4), `emit-learning` helper | Direct edits outside scope blocked by hooks; never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES`, and never the submit endpoint `gh api POST /pulls/N/reviews/<id>/events` (publishing a pending review is the user's action) |
 | Phase 6 | AskUserQuestion, Agent (reflection-agent — read-only, §3.7 improvement suggestions) | No Edit/Write on project files (reporter never mutates source/rules; instruction-scoped improvements route to `/geniro:instructions create`) |
 
-Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletion guard, state-helper enforcement, plus security-pattern-scan and config-weakening on any Edit/Write.
+Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletion guard, state-helper enforcement, plus security-pattern-scan on any Edit/Write.
 
 ---
 
