@@ -10,6 +10,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### `config-weakening` safety hook removed
+
+The `block-config-weakening.sh` PreToolUse hook — which hard-blocked edits to an existing linter / formatter / type-checker config file (eslint / prettier / biome / ruff / tsconfig / golangci) so a check could not be silenced at edit time — has been removed, along with its `config-weakening` allowlist pattern ID. Editing those config files is no longer guarded at edit time, so intentional config tuning no longer needs a bypass; `/geniro:review` still flags a config change that weakens a rule when it reads the resulting diff.
+
+**Action required:** Optional — if your project's `.geniro/safety.json` `allow_patterns` lists `config-weakening`, that entry is now an inert no-op and can be removed. Leaving it in place causes no harm.
+
+**Auto-detect:** `grep -l 'config-weakening' .geniro/safety.json 2>/dev/null`
+
+**Auto-fix:** Manual-only — remove the `"config-weakening"` string from `.geniro/safety.json` `allow_patterns` if present (a user-file JSON edit; left in place it is harmless).
+
+**Severity:** LOW — the hook lived in the plugin (auto-removed on update); the only user-side residue is an inert allowlist entry.
+
+---
+
 ### spec.md section 9 gains an optional per-criterion `verify:` command
 
 `/geniro:plan` specs may now attach an optional `verify: <shell command>` line to a section 9 (Validation) criterion — a single acceptance command for that criterion, distinct from the project-wide test suite. After the end-of-phase suite goes green, `/geniro:implement` runs each `verify:` command once (via its own Bash, not `test-runner-agent`), classifies the result on the existing `{ALL_GREEN, HAS_FAILURES, INFRA_ERROR}` verdict taxonomy, and attaches the result as evidence; a failing `verify:` routes into the same message-first escalation prompt so the human stays the ship decider. The field is OPTIONAL and backward-compatible — a spec with no `verify:` line behaves exactly as before (prose-only verification). The validator (`validator-checks.md` check #8 `validation_method`) gains a shape-only sub-rule: a present `verify:` must be a non-empty command string; it never executes the command. `verify:` is a body-level field (not frontmatter), so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
