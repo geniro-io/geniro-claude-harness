@@ -77,8 +77,9 @@ REFACTOR is optional but strongly preferred. Skip with explicit IDLE; do not lea
 1. **Refactor either the test or the production code** — preserve test intent. Allowed moves: rename a poorly-named local, extract a duplicated helper, collapse a redundant conditional. Forbidden: changing a test's assertion to make a refactored implementation pass.
 2. **Run the FULL test suite** (NOT just the cycle's one test). The point of REFACTOR is to verify the change preserves all existing behavior, not just the just-added behavior.
 3. **Verify all tests still GREEN.** If any test reddens, `git stash` the refactor and continue to next cycle; refactor in a follow-up.
-4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. The Evidence Block is the same schema regardless of phase.
-5. **Update state file:** `## phase\nREFACTOR` during the refactor, then `## phase\nIDLE` on completion. The IDLE write is mandatory — without it the hook continues gating Edit|Write under the assumption a cycle is still in flight.
+4. **Apply the assertion-completeness & spec-coverage checks** from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §"Assertion completeness & spec coverage" to the test this cycle authored: does it assert everything its name claims, does it cover the spec behavior the cycle targets, and is it redundant with a sibling test the cycle just added? RED proved the test *discriminates*; this proves it *covers what it claims*. Tighten the assertion or add the missing one before IDLE — a test that passed RED can still under-assert the behavior the cycle was for.
+5. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. The Evidence Block is the same schema regardless of phase.
+6. **Update state file:** `## phase\nREFACTOR` during the refactor, then `## phase\nIDLE` on completion. The IDLE write is mandatory — without it the hook continues gating Edit|Write under the assumption a cycle is still in flight.
 
 ## Hook enforcement
 
@@ -109,6 +110,7 @@ A consumer skill correctly applies the TDD cycle when:
 - [ ] RED phase wrote an Evidence Block showing exit code != 0 with a real assertion-failure signature.
 - [ ] GREEN phase wrote an Evidence Block showing exit code == 0 for the new test AND the full suite.
 - [ ] REFACTOR phase (if entered) ran the full test suite, not just the cycle's test.
+- [ ] REFACTOR phase (if entered) applied the assertion-completeness & spec-coverage checks to the cycle's test before the IDLE write.
 - [ ] State file ends at `## phase\nIDLE` when the cycle completes; never left at GREEN or REFACTOR.
 - [ ] State file written atomically via mktemp + mv -f; never via direct `>` redirect.
 - [ ] Subagents did not write the state file; orchestrator is the single writer.

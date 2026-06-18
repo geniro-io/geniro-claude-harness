@@ -434,6 +434,12 @@ The Always-WAIT contract applies: empty `AskUserQuestion` answer = upstream bug,
 
 ---
 
+## Phase 3: Test-quality gate
+
+After the bounded fix loop converges (clean exit or accepted findings), and before the Ship sub-step, run the test-quality gate when this run authored or changed test files — full contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md`. It surfaces the fresh `tests`-reviewer audit of the new tests (claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, weak assertions) as a visible decision: a clean audit records a one-line ship-report confirmation and asks nothing; open findings render message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering", then a lean AskUserQuestion (header: `Test quality`) offers tighten-all / pick / ship-as-is. No new agent spawn — the gate consumes the tests-dimension output already collected in the fix loop. Advisory and fail-open: it never blocks Ship and never overrides the Ship-mode AUQ.
+
+---
+
 ## Phase 3 — Ship sub-step
 
 ### Pre-Ship Visual Verification

@@ -10,6 +10,7 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 - Common False Positives
 - Stack-Agnostic Patterns
 - Litmus Test (The Deletion Test)
+- Assertion completeness & spec coverage
 - Test Deletions in the Diff (Inverse Deletion Test)
 - Review Checklist
 - Severity Guidelines
@@ -359,6 +360,43 @@ If the answer is yes, the test is worthless — it's testing mocks, trivial wiri
 - Tests where removing `expect` lines doesn't cause failure
 - "Smoke tests" that import a module and assert `!== undefined`
 
+## Assertion completeness & spec coverage
+
+The Deletion Test above catches a test that asserts *nothing real*. This section catches the subtler failures: a test that asserts *less than it claims*, a behavior the spec required that *no test covers*, and *two new tests that pin the same thing*. These are the checks a careful author runs by hand after writing tests — run them on every newly-authored or modified test.
+
+### Claimed scope vs asserted scope
+
+A test's name, description, and comments are a promise about what it verifies. When the promise names two or more behaviors but the assertions exercise only one, the test gives false confidence — it reads as covering X and Y, but a regression in Y ships green.
+
+- For each new/changed test, list the behaviors its name + description claim (`processes_and_validates_order` claims processing AND validation; `returns_401_and_logs_attempt` claims the status AND the log).
+- Confirm at least one assertion exercises each claimed behavior. An assertion on the processing result with none on the validation path is a claimed-vs-asserted mismatch.
+- Flag when the assertions cover a strict subset of the behaviors the name/description enumerates. The fix is to add the missing assertion OR narrow the name to match what the test actually checks — never leave the name over-promising.
+
+**Red flags:**
+- Test named for multiple behaviors (`and`, `then`, commas, `+`) with assertions for only one.
+- A docstring/comment listing N expectations; fewer than N assertions in the body.
+- Assertion count lower than the number of distinct outcomes the test sets up in its Arrange phase.
+
+### Spec-coverage traceability
+
+The coverage checks in §8 look for tests of changed *code paths*. This check looks for tests of *required behaviors* — the gap a code-path scan misses, because the spec can require a behavior the diff never branched on.
+
+When a spec / plan is in context (spec.md section 9 Validation criteria, section 2 In-Scope behaviors, or the section-11 Done Condition; or a PR/plan acceptance-criteria list), map each enumerated behavior to a covering test. Apply the keyword-anchor traceability mechanism from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §"Tests for Stated Acceptance Criteria" (derive 2–4 anchors per criterion, grep the run's test files, flag any criterion whose anchors appear in no test) — scoped to the tests authored or changed in this run.
+
+- Flag any spec-enumerated behavior with no covering assertion. Severity tracks the criterion's blast radius (critical-path behavior → HIGH; routine → MEDIUM).
+- When no spec/plan is in context (inline-task runs), this check is a silent no-op — there is no enumerated behavior set to map against.
+
+**Red flag:** a behavior the spec lists as in-scope or as a Done-Condition / acceptance criterion, with no test in the diff that references it.
+
+### Redundancy among newly-authored tests
+
+The Inverse Deletion Test below guards *deleted* tests from silent coverage loss. The forward complement: two tests *added in the same run* that pin the same cause path AND the same outcome are redundant — the second adds maintenance cost without adding coverage.
+
+- Compare new tests pairwise by cause path (the Arrange setup + the branch/guard the Act activates), not by assertion shape alone — the same outcome via different cause paths is NOT redundant (see the Inverse Deletion Test's cause-path doctrine below).
+- Flag as redundant only when cause path AND outcome both match. Recommend consolidating into one test; never silently delete — the author may have intended a parameterized case.
+
+**Red flag:** two new tests with identical Arrange shape, the same activated branch, and the same assertion — one is a copy that drifted.
+
 ## Test Deletions in the Diff (Inverse Deletion Test)
 
 The existing Litmus Test (above) evaluates a TEST'S strength by mentally deleting the PRODUCTION code. Apply the inverse direction when the diff DELETES one or more tests: evaluate the test's intent by checking what scenario it pinned.
@@ -419,6 +457,9 @@ This is the inverse of mutation testing: instead of mutating the code to see wha
 - [ ] Flaky tests are identified and fixed
 - [ ] Test setup is clear and maintainable
 - [ ] Litmus test: deleting core logic would cause test failure
+- [ ] Each test asserts everything its name/description claims (no "tests X and Y" with only X asserted)
+- [ ] Every spec-required behavior (section 9 / Done Condition / acceptance criteria) has a covering test
+- [ ] No two newly-authored tests pin the same cause path and outcome
 
 ## Severity Guidelines
 

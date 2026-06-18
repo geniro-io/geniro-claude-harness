@@ -374,7 +374,7 @@ open_questions:
 
 ### CRITICAL
 
-- [ ] **F1 — [NEW] SQL injection in getUser** · CRITICAL
+- [ ] F1 — [NEW] **SQL injection in getUser** · CRITICAL
   - **Severity:** CRITICAL
   - **Decision Type:** PRODUCT-DECISION
   - **step0_status:** resolved
@@ -441,7 +441,7 @@ open_questions: []
 
 ## Findings
 
-- [ ] **F1 — [NEW] ambiguous behaviour change**
+- [ ] F1 — [NEW] **ambiguous behaviour change**
   - **Decision Type:** PRODUCT-DECISION
   - **step0_status:** pending
 EOF

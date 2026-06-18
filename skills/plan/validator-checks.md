@@ -74,7 +74,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Rule:** frontmatter `checkpoints` is a non-empty list if section 6 (Steps) has ≥5 steps. Each checkpoint must reference a step-N anchor or section-name that exists.
 
-**Heuristic:** step-count via numbered-list parsing; for each checkpoint entry, verify `step_anchor` resolves to an actual step.
+**Heuristic:** step-count by counting the section's checkbox items (`- [ ] N.` lines), equivalently the `<!-- step-N -->` anchors — not a bare leading digit, since steps render as `- [ ] N. …` checkboxes; for each checkpoint entry, verify `step_anchor` resolves to an actual step.
 
 **Fix hint on fail:** "Spec has ≥5 steps but no checkpoints defined. Add at least one `{step_anchor: step-N, name:...}` entry for a natural pause point (e.g., after DB migration or test gate)."
 

@@ -111,10 +111,10 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 
 ## 6. Steps
 
-<Numbered list of implementation steps. Each step:
-- has a 1-line description
+<Checklist of implementation steps — each step is a markdown checkbox, written unchecked, that the person building ticks off as it lands (often building one step at a time). Each step:
+- renders as `- [ ] N. <1-line description>` — the unchecked `- [ ]` checkbox, then the literal step number, then the description
 - cites ≥1 file:line reference (Phase 1 explore-grounded)
-- has optional anchor `<!-- step-N -->` for checkpoint/approval-required references>
+- keeps its optional `<!-- step-N -->` anchor for checkpoint/approval-required references>
 
 ## 7. Tools Required
 
@@ -181,7 +181,12 @@ Layout:
 
 The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3 (Scope — Excluded); the success metrics seed section 9 (Validation) and section 11 (Done Condition).
 
-**Section 6 (Steps):** Each step cites ≥1 file:line reference unless it's a meta-step (e.g., "Step 1: Create new branch"). Phase 7 validator check #3 enforces this.
+**Section 6 (Steps):** Each step is written as an unchecked markdown checkbox — `- [ ] N. <description> <!-- step-N -->` — so the person building can tick `- [ ]` → `- [x]` by hand as each step lands (a workflow that suits building one step at a time). The checkbox is a tracking aid only — like /geniro:review's finding checkbox, no validator or downstream consumer reads its checked state, and /geniro:implement never edits spec.md to tick it (the spec is the user's upstream artifact). Keep the literal `N.` step number and the `<!-- step-N -->` anchor — checkpoints and the Phase 7 step-count check (check #7) resolve steps by them, not by a bare leading digit. Each step cites ≥1 file:line reference unless it's a meta-step (e.g., "Create new branch"); Phase 7 validator check #3 enforces this and matches the citation anywhere on the line, so the `- [ ] N.` prefix does not affect it. Example:
+
+```markdown
+- [ ] 1. Add `entryPoint` enum (`constants.ts:12`) and `ContextBundle` types (`context-bundle.types.ts:1`). <!-- step-1 -->
+- [ ] 2. Widen the contract in `context-assembler.interface.ts:3-9` (`+userId`, `+entryPoint`). <!-- step-2 -->
+```
 
 **Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 handoff-resolution step). Use "none" if /geniro:implement may run autonomously start-to-finish.
 
@@ -192,7 +197,7 @@ The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3
 ## Milestone-mode
 
 If Phase 5 milestone-mode was picked, Phase 6 emits:
-- `spec.md` — top-level with section 6 "Steps" listing milestone names (not raw steps) + a body section `## Milestones` indexing the sibling files.
+- `spec.md` — top-level with section 6 "Steps" listing milestone names as the same `- [ ] N. <milestone name>` checkboxes (not raw steps) + a body section `## Milestones` indexing the sibling files.
 - `milestone-1.md`, `milestone-2.md`, …, each with its own 11-section schema scoped to the milestone.
 
 Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md.

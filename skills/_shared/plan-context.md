@@ -58,7 +58,7 @@ Sections expected:
 | 3 | Scope — Excluded | Bullet list of explicitly-out-of-scope items |
 | 4 | Assumptions | Conditional preconditions |
 | 5 | Risks | Risks + mitigations |
-| 6 | Steps | Numbered execution steps |
+| 6 | Steps | Execution steps as a checklist (`- [ ] N. …`) |
 | 7 | Tools Required | CLI binaries / libraries / MCP connectors needed |
 | 8 | Approval Points | Where mid-execution AUQ fires |
 | 9 | Validation | Test types / manual verification |
