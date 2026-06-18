@@ -232,7 +232,7 @@ Build the test-suite digest from the structured `.tr-out.md` report, never raw t
 
 ### Per-criterion `verify:` commands
 
-A spec authored by /geniro:plan may attach an optional `verify: <command>` line to a section 9 (Validation) criterion (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §9). It is the acceptance check for that one criterion — distinct from the project-wide TEST_COMMAND that `test-runner-agent` runs. After the end-of-phase suite reaches `ALL_GREEN`, the orchestrator runs each `verify:` command once and attaches the result as evidence.
+A spec authored by /geniro:plan may attach an optional `verify: <command>` line to a section 9 (Validation) criterion (the spec field /geniro:plan authors; its read-only doctrine is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4). It is the acceptance check for that one criterion — distinct from the project-wide TEST_COMMAND that `test-runner-agent` runs. After the end-of-phase suite reaches `ALL_GREEN`, the orchestrator runs each `verify:` command once and attaches the result as evidence.
 
 **Cardinality — run ALL commands, then escalate ONCE.** Run every section-9 `verify:` command and collect the failed/refused set BEFORE escalating, then fire one Step 6 escalation whose `☐` checklist names every failed/refused criterion. The Step 6 escalation fires a blocking AUQ whose options all transition the phase, so it cannot return mid-loop to iterate the rest — a per-criterion "escalate then continue the loop" shape would leave a spec with two failing criteria undefined. Collect-all-then-escalate-once guarantees the user sees the complete failure set in one decision.
 

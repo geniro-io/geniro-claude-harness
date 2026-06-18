@@ -112,7 +112,7 @@ A sibling whose status the fetch did not return is still rendered without a stat
 The helper returns two things:
 
 1. **The TASK CHAIN CONTEXT block** (§5) for prompt injection into the caller's research / analysis subagents. Both halves contribute to the block.
-2. **`ENRICHED_REFS`** — the Half-A structured fields for `/geniro:plan` to persist: `parent_ref.{title, status, scope}` + `siblings[]` + `chain_fetched_at`, shaped per the canonical tracker-linkage schema in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §`workflow_refs[]` per-entry shape (the m5-v3 chain-enrichment fields). Only Half A feeds `ENRICHED_REFS`.
+2. **`ENRICHED_REFS`** — the Half-A structured fields for `/geniro:plan` to persist: `parent_ref.{title, status, scope}` + `siblings[]` + `chain_fetched_at`, shaped per the canonical tracker-linkage schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` (the m5-v3 chain-enrichment fields). Only Half A feeds `ENRICHED_REFS`.
 
 The milestone half (Half B) is never persisted — it is re-derived from disk on every run because the `milestone-N.md` files are the durable source of truth, and persisting a stale snapshot would drift from them.
 

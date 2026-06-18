@@ -70,7 +70,7 @@ For each load-bearing fact:
 
 ## 4. Read-only screening rule
 
-This is the canonical home for data-source screening. It applies the same read-only doctrine the spec `verify:` field uses — defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §9 and enforced by `/geniro:implement` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Side-effect screen"). The screen is a high-signal mutation-verb check on the source, not a sandbox.
+This is the canonical home for the read-only doctrine that governs anything the plugin auto-runs from a declared source. The spec `verify:` acceptance command and the `/geniro:implement` side-effect screen apply the same doctrine, but it is defined HERE rather than imported from a skill's files. The screen is a high-signal mutation-verb check on the source, not a sandbox.
 
 | Source kind | Run when | Skip with caveat when |
 |---|---|---|

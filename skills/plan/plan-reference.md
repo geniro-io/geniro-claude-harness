@@ -53,11 +53,11 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 - `m5-v2` — adds optional `workflow_refs[]`. Field absent ⇔ no tracker linkage; field present ⇔ Phase 7 check #14 validates structure.
 - `m5-v3` — adds optional related-task chain enrichment to `workflow_refs[]` entries (parent epic title/status/scope + sibling sub-tasks with statuses + `chain_fetched_at`). Field present ⇔ /geniro:plan fetched the chain; absent ⇔ not fetched. All of m5-v1/m5-v2/m5-v3 are accepted downstream.
 
-**Per-entry shape:** see `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §`workflow_refs[]` per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
+**Per-entry shape:** see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
 
-**Mutation responsibility:** `/geniro:plan` is a tracker reader only — Phase 1.4 fetches issue context to inform planning, Phase 6 copies the cached payload into spec.md frontmatter; both are local-write only, never POST to the tracker. Tracker mutation is owned by `/geniro:implement` (kickoff + Ship); the other consumers of `workflow_refs[]` document their own read-only behavior.
+**Mutation responsibility:** `/geniro:plan` is a tracker reader only — Phase 1.4 fetches issue context to inform planning, Phase 6 copies the cached payload into spec.md frontmatter; both are local-write only, never POST to the tracker. Cross-skill mutation ownership (who may transition status, who may never create artifacts) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Mutation responsibility.
 
-**Staleness:** downstream readers re-fetch per the `fetched_at` staleness window defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` (§`workflow_refs[]` per-entry shape). Cached `title` / `suggested_branch` / `status` fields let /geniro:implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
+**Staleness:** downstream readers re-fetch per the `fetched_at` staleness window defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` (§Per-entry shape). Cached `title` / `suggested_branch` / `status` fields let /geniro:implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
 
 **Graceful degrade:** workflow file lookup is cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When the file is absent from BOTH locations, Phase 7 check #14 returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
 

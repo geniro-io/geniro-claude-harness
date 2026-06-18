@@ -467,14 +467,16 @@ grep -qE 'm5-v1.*absent' "$REPO_ROOT/skills/review/SKILL.md" \
   || fail "C1 /review SKILL.md no longer documents the m5-v1→absent / m5-v2 / m5-v3 acceptance rule"
 
 # C2: require the 4 required keys BACKTICK-WRAPPED (the per-entry shape table `| `kind` | yes |` …), not
-# bare substrings — mangling a key name in the required-key table then fails this guard (a bare substring
-# survives because the same key also appears un-backticked in the YAML example — review finding).
-grep -qE '`kind`' "$REPO_ROOT/skills/plan/spec-template.md" \
-  && grep -qE '`issue_id`' "$REPO_ROOT/skills/plan/spec-template.md" \
-  && grep -qE '`url`' "$REPO_ROOT/skills/plan/spec-template.md" \
-  && grep -qE '`fetched_at`' "$REPO_ROOT/skills/plan/spec-template.md" \
-  && pass "C2 /plan spec-template still defines all 4 required workflow_refs per-entry keys" \
-  || fail "C2 /plan spec-template.md per-entry required-key shape drifted"
+# bare substrings — mangling a key name in the required-key table then fails this guard. The canonical
+# per-entry shape lives in the shared schema file (relocated out of spec-template to fix a cross-skill
+# reference-graph inversion); spec-template now cites it and keeps only the un-backticked YAML example.
+WF_SCHEMA="$REPO_ROOT/skills/_shared/workflow-refs-schema.md"
+grep -qE '`kind`' "$WF_SCHEMA" \
+  && grep -qE '`issue_id`' "$WF_SCHEMA" \
+  && grep -qE '`url`' "$WF_SCHEMA" \
+  && grep -qE '`fetched_at`' "$WF_SCHEMA" \
+  && pass "C2 shared workflow-refs schema defines all 4 required per-entry keys" \
+  || fail "C2 workflow-refs-schema.md per-entry required-key shape drifted"
 
 # C2b (B1 seam): the optional per-criterion `verify:` field must stay documented on BOTH ends —
 # producer (spec-template §9 documents it + the validator pins its shape) and consumer (/implement
