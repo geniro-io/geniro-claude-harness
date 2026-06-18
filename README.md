@@ -79,7 +79,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 
 ### Model tier symmetry
 
-Every plugin subagent inherits your orchestrator's model tier. If you're running Claude Code on Opus, your code reviewers run on Opus. If you're on Sonnet for cost control, all subagents run on Sonnet. You set the tier once at session start with `/model`; the plugin doesn't second-guess. The two carve-outs (`/geniro:setup` verification subagent on Sonnet under a NO-Write/Edit tool budget, and the haiku-tier `/geniro:implement` documentation-patcher that mechanically rewrites stale doc references) are explicit safety/cost contracts documented in `skills/_shared/model-tiering.md`.
+Every plugin subagent inherits your orchestrator's model tier by default. If you're running Claude Code on Opus, your code reviewers run on Opus. If you're on Sonnet for cost control, your reasoning subagents run on Sonnet. You set the tier once at session start with `/model`; the plugin doesn't second-guess. The carve-outs are explicit safety/cost contracts documented in `skills/_shared/model-tiering.md`: the `test-runner-agent` and `knowledge-retrieval-agent` pin Sonnet (purely mechanical work), the `/geniro:setup` verification subagent pins Sonnet under a NO-Write/Edit tool budget, and the `/geniro:implement` documentation-patcher pins Haiku to mechanically rewrite stale doc references.
 
 ### Typical workflow
 

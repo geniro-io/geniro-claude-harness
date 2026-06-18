@@ -170,6 +170,16 @@ Mechanical backstop for the message-first gate contract (`skills/_shared/gate-re
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `gate-render` skips the guard.
 
+### require-evidence-on-completion.sh
+
+**Event:** Stop `*`. **Stdin:** `.last_assistant_message` (with a `.transcript_path` fallback that reverse-scans for the last assistant record). **Block exit:** never blocks — warn-only (`exit 0` + stderr).
+
+Scans the last assistant message for completion-claim phrases ("shipped", "all tests pass", "ready to ship", "Done!") that are not backed by an Evidence Block, and emits a stderr reminder citing `skills/_shared/evidence-standard.md`. A genuine tool-only turn (no assistant text to scan) exits silently. Stop hooks fire roughly 50-80% of the time, so this is a soft reminder layer, not enforcement — the goal is to nudge the model toward attaching evidence to completion claims, not to block.
+
+**Fail-open cases:** missing jq, missing/unreadable transcript, or an unparseable message — all exit 0 (a convenience reminder must never wedge the session).
+
+**Per-project allowlist:** walks up from cwd for `.geniro/safety.json` `allow_patterns[]`; pattern ID `evidence-stop` skips the warning.
+
 ### geniro-check-update.js
 
 **Event:** SessionStart. **Block exit:** never blocks. **Timeout:** 5s.

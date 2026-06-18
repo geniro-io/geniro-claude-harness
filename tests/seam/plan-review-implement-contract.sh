@@ -83,12 +83,14 @@ _seam_workflow_refs_status() {
 # Per-entry required-key check (mirrors validator-checks #14, which validates PER ENTRY, not per block).
 # Reads the workflow_refs block on stdin; rc 0 iff EVERY entry has all 4 required keys. A block-level
 # key-presence grep would mis-classify a multi-entry list where only a LATER entry omits a key as present.
-# Caveat: an optional `parent_ref:`'s nested kind/issue_id/url keys count toward the enclosing entry
-# (parent_ref is rare; the fixtures don't exercise it).
+# Only a COLUMN-0 dash (`^-`) starts a new workflow_refs[] entry; the m5-v3 chain-enrichment fields nest a
+# `parent_ref:` map and an indented `siblings:` list under an entry, and those nested keys/dashes count
+# toward the enclosing entry rather than opening spurious entries (a sibling carries issue_id but no url —
+# treating it as its own entry would false-flag a valid m5-v3 spec as malformed).
 _seam_workflow_refs_entries_ok() {
   awk '
     function flush() { if (started && !(hk && hi && hu && hf)) bad=1 }
-    /^[[:space:]]*-[[:space:]]/  { flush(); started=1; hk=hi=hu=hf=0 }
+    /^-[[:space:]]/               { flush(); started=1; hk=hi=hu=hf=0 }
     /(^|[[:space:]])kind:/        { hk=1 }
     /(^|[[:space:]])issue_id:/    { hi=1 }
     /(^|[[:space:]])url:/         { hu=1 }
@@ -296,6 +298,51 @@ EOF
   && pass "A6 multi-entry, all entries complete → PRESENT" \
   || fail "A6 complete multi-entry mis-parsed (got: $(_seam_workflow_refs_status "$TMPDIR_BASE/spec-multi-ok.md"))"
 
+# A7: m5-v3 chain-enrichment spec (parent_ref.title/status/scope + siblings[] + chain_fetched_at) → PRESENT.
+# Pins that the chain-enrichment fields added by #43 do not break the parser; the entry still carries the
+# 4 required keys, and the new optional fields are additive. A reader that only accepts m5-v1/m5-v2 would
+# drop a real m5-v3 spec to prose-mode — this fixture is the contract guard for that schema bump.
+cat > "$TMPDIR_BASE/spec-chain-v3.md" <<'EOF'
+---
+tier: T1.5
+producer: plan
+schema-version: 1
+branch: ci-303-parallelize
+timestamp: 2026-05-26T10:42:13Z
+geniro_kind: design-doc
+geniro_schema_version: m5-v3
+task_slug: ci-303
+lifecycle: draft
+workflow_refs:
+- kind: linear
+  issue_id: CI-303
+  url: https://linear.app/manifestlabs/issue/CI-303/parallelize
+  fetched_at: 2026-05-26T10:42:13Z
+  title: "Parallelize Case Radar backfill"
+  status: Todo
+  parent_ref:
+    kind: linear
+    issue_id: CI-300
+    url: https://linear.app/manifestlabs/issue/CI-300/epic
+    title: "Case Radar performance epic"
+    status: In Progress
+    scope: "Cut backfill latency below 5 min."
+  siblings:
+  - issue_id: CI-301
+    title: "Per-user job partitioning"
+    status: Done
+  chain_fetched_at: 2026-05-26T10:42:15Z
+---
+
+# Parallelize Case Radar backfill
+
+## 1. Objective
+Speed up backfill.
+EOF
+[ "$(_seam_workflow_refs_status "$TMPDIR_BASE/spec-chain-v3.md")" = "present" ] \
+  && pass "A7 m5-v3 chain-enrichment spec → workflow_refs PRESENT (schema bump parses)" \
+  || fail "A7 m5-v3 chain spec mis-parsed (got: $(_seam_workflow_refs_status "$TMPDIR_BASE/spec-chain-v3.md"))"
+
 # ===========================================================================
 # Part B — /review → /implement : open_questions[] handoff seam
 # ===========================================================================
@@ -414,9 +461,10 @@ EOF
 # m5-v1 drops that phrasing and fails this guard (bare-token greps survive the inversion — review finding).
 grep -qE 'm5-v1.*absent' "$REPO_ROOT/skills/review/SKILL.md" \
   && grep -qE 'm5-v2' "$REPO_ROOT/skills/review/SKILL.md" \
+  && grep -qE 'm5-v3' "$REPO_ROOT/skills/review/SKILL.md" \
   && grep -qE 'workflow_refs' "$REPO_ROOT/skills/review/SKILL.md" \
-  && pass "C1 /review still documents m5-v1 → treat-as-absent + m5-v2 workflow_refs acceptance" \
-  || fail "C1 /review SKILL.md no longer documents the m5-v1→absent / m5-v2 acceptance rule"
+  && pass "C1 /review still documents m5-v1→absent + m5-v2/m5-v3 workflow_refs acceptance" \
+  || fail "C1 /review SKILL.md no longer documents the m5-v1→absent / m5-v2 / m5-v3 acceptance rule"
 
 # C2: require the 4 required keys BACKTICK-WRAPPED (the per-entry shape table `| `kind` | yes |` …), not
 # bare substrings — mangling a key name in the required-key table then fails this guard (a bare substring

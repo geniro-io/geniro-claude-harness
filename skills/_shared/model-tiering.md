@@ -2,6 +2,17 @@
 
 Single source of truth for picking a `model=` when spawning subagents from any skill in this plugin.
 
+## Contents
+
+- The rule — inherit by default; OMIT `model=`; the three hardcoded-tier categories
+- Tier table — fallback for runtimes without an orchestrator
+- Escalation signals (orchestrator-side advisory)
+- Runtime escalation (Sonnet → Opus on failure)
+- Hard rules
+- maxTurns convention
+- How skills reference this
+- Anti-rationalization
+
 ## The rule
 
 **Plugin-defined subagents inherit orchestrator tier by default.** Frontmatter declares `model: inherit` (except the mechanical-agent carve-outs in category 3 below, which declare a concrete cheaper tier); spawn sites **OMIT the `model=` argument** in every case — the agent's frontmatter `model:` governs (inherit-agents resolve to the orchestrator tier; carve-out agents resolve to their declared tier). Rationale: the user explicitly chose their orchestrator tier (Opus / Sonnet / Haiku) at session start; subagents should symmetrically match that choice rather than hardcoding a cheaper tier. The user owns the cost / quality trade-off at session level — plugin paternalism ("I'll force Sonnet for cost containment") is the documented anti-pattern.
