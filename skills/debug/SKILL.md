@@ -154,7 +154,7 @@ Past diagnoses:
 These get surfaced on hypothesis formation so that the orchestrator does NOT re-form a hypothesis equivalent to an already-ruled-out one without explicit re-justification.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md`. Echo lines per each helper's mandatory echo contract.
 
-5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept both `geniro_schema_version: m5-v1` (treat field as absent) and `m5-v2` (read the field if present). Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. Read-only — /geniro:debug never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
+5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept `geniro_schema_version: m5-v1` (treat field as absent), `m5-v2`, and `m5-v3` (read the field if present). Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. On `m5-v3` the cached parent-epic status and sibling sub-task statuses are also available to prime hypotheses (e.g. a sibling already shipped a related fix, so the regression may live in shared code), still read-only. Read-only — /geniro:debug never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 
 ### 1.2 Observe & repro
 

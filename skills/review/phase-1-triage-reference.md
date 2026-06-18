@@ -421,7 +421,7 @@ This is a best-effort heuristic over the retained `prior-round-summary` — it p
 Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
-1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is either `m5-v1` OR `m5-v2` → structured-section parser (11 sections + frontmatter goal-state; `m5-v2` additionally exposes `workflow_refs[]` if present).
+1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is `m5-v1` OR `m5-v2` OR `m5-v3` → structured-section parser (11 sections + frontmatter goal-state; `m5-v2` and `m5-v3` additionally expose `workflow_refs[]` if present, and `m5-v3` enriches each entry with parent-epic + sibling chain context).
 2. Else fall back to prose detection with ~3000-char cap.
 
 PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn prompts (Phase 2). Other dimensions don't see it.

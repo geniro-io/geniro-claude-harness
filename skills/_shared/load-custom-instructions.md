@@ -58,7 +58,7 @@ Compute the load set from `LOAD_TIER`:
 For each file in the load set, in order:
 
 1. Call the **Read** tool on `.geniro/instructions/<file>` (cwd-relative).
-2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary). Skip step 2a.
+2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present). Skip step 2a.
 2a. **If Read errors with file-not-found AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
 3. **If file is still not found** (cwd missing AND fallback missing or unavailable): treat as a silent skip — no error, no warning, just the missing-file echo line.
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
@@ -74,19 +74,20 @@ After each Read attempt (or sequence of attempts including the primary-worktree 
 
 Three formats:
 
-- **On Read success (cwd):** `Loaded <filename> (<N> rules, <M> constraints).`
-- **On Read success (primary-worktree fallback fired):** `Loaded <filename> from primary worktree (<N> rules, <M> constraints).` — signals to the user that cwd is stale relative to the main worktree's checkout.
+- **On Read success (cwd):** `Loaded <filename> (<N> rules, <M> constraints[, <D> data sources]).`
+- **On Read success (primary-worktree fallback fired):** `Loaded <filename> from primary worktree (<N> rules, <M> constraints[, <D> data sources]).` — signals to the user that cwd is stale relative to the main worktree's checkout.
 - **On file-not-found (both cwd and fallback, or fallback unavailable):** `No <filename> found — skipping.`
 
 Examples (verbatim):
 
 ```
 Loaded global.md (3 rules, 2 constraints).
+Loaded global.md (3 rules, 2 constraints, 2 data sources).
 Loaded implement.md from primary worktree (2 rules, 1 constraint).
 No code-style.md found — skipping.
 ```
 
-If a file has zero rules or zero constraints, still emit the line with the literal `0` count. Do NOT abbreviate to `Loaded global.md.` — always include the parenthetical.
+If a file has zero rules or zero constraints, still emit the line with the literal `0` count. Do NOT abbreviate to `Loaded global.md.` — always include the rules + constraints parenthetical. Append `, <D> data sources` to the parenthetical only when the file carries a `## Data Sources` block (it is optional, unlike rules/constraints — omit the clause entirely when the block is absent).
 
 ## Mid-pipeline refresh
 

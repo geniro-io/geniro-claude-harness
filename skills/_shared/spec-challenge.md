@@ -88,6 +88,7 @@ Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-is
 - The cited code slice — read the file at the claim's `file:line` and inline it, using the slice cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region within the same cap.
 - 1-hop caller grep — `grep -rn "<symbol>"` for the cited symbol, capped per §2.
 - 1-2 sibling tests for the same symbol — grep `test/ tests/ __tests__/ spec/`, capped per §2.
+- **A matching declared-source result, when one applies.** Some claims assert state that lives outside the code — a tracker status, a DB row, a deploy / feature-live flag (the `workflow_refs[]` linked-ticket constraints of §3 (Stage A) item 4 and any Section 4 assumption about external state). For those, code is not the maximum source. Before the spawn, the orchestrator applies `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`: if the project declares a `## Data Sources` entry whose `confirms:` hint matches the claim's domain, the orchestrator pre-runs that read-only-screened source and inlines its result into THIS verifier's evidence alongside the code slice. The verifier then confirms the claim against the maximum applicable set — code plus the declared source — not code alone. This is additional evidence to the same verifier, NOT a new verifier per source: the one-verifier-per-claim bound (§3) is unchanged. Fail-open — a source that's unavailable, can't be screened read-only, or errors is omitted with a one-line caveat in the verifier's input, never blocks the spawn. A code-only claim with no matching declared source runs exactly as before.
 
 Each verifier does NOT receive other claims, the orchestrator's reasoning, or which spec section the claim came from beyond what it needs — isolated context prevents anchoring and sycophancy (the documented multi-judge failure mode).
 
@@ -109,7 +110,7 @@ Compose the verifier prompt to reuse `agents/reviewer-agent.md` verify-finding m
 
 Spawn via the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:reviewer-agent` → bare → general-purpose-with-body). OMIT `model=` so verifiers inherit the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Send ALL verifier spawns in ONE assistant response — separate turns serialize execution and double wall-time; the parallel-spawn invariant applies here exactly as in `/geniro:review` Phase 4.2.
 
-Aggregate: any `refuted` claim is a defect; `clarified` is a soft defect (the spec's framing needs a fix); `confirmed` claims pass. Record each result in the scratch report.
+Aggregate: any `refuted` claim is a defect; `clarified` is a soft defect (the spec's framing needs a fix); `confirmed` claims pass. A claim that no source — code or declared — could confirm is recorded as unverified/unconfirmed (handled by the existing disposition, never silently accepted as fact). Record each result in the scratch report.
 
 ### Deep mode — 3× verify + majority (`DEEP: true`)
 

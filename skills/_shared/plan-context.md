@@ -36,12 +36,12 @@ Read the first 20 lines of the candidate file. If frontmatter contains:
 
 ```yaml
 geniro_kind: design-doc
-geniro_schema_version: m5-v1   # or m5-v2 — both accepted
+geniro_schema_version: m5-v1   # or m5-v2 / m5-v3 — all accepted
 ```
 
-→ switch to **structured-section parser**. Both `m5-v1` and `m5-v2` carry the same 11-section body schema; `m5-v2` additionally exposes `workflow_refs[]` in frontmatter (`/geniro:plan` writes m5-v2 by default when a tracker reference is fetched). Downstream readers MUST accept either version.
+→ switch to **structured-section parser**. All of `m5-v1`, `m5-v2`, and `m5-v3` carry the same 11-section body schema; `m5-v2` and `m5-v3` expose `workflow_refs[]` in frontmatter (`/geniro:plan` writes them by default when a tracker reference is fetched), and `m5-v3` additionally enriches each `workflow_refs[]` entry with parent-epic + sibling chain context (parent title/status/scope, sibling sub-task statuses, a `chain_fetched_at` timestamp). Downstream readers MUST accept all three versions.
 
-If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` → fall back to **prose mode**.
+If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` / `m5-v3` → fall back to **prose mode**.
 
 ---
 
