@@ -466,7 +466,7 @@ After triage, surface the depth question via `AskUserQuestion` (do NOT print opt
 - **Question:** "How deep should the review go?"
 - **Options:**
 - "Standard" — one reviewer pass per dimension; findings filtered and verified once.
-- "Deep — 3× passes + 3-vote verify" — runs each check 3× and verifies findings with a 3-agent majority vote; higher quality (finds more, validates more reliably) at higher token cost. Posts the same finding set as Standard.
+- "Deep — multi-angle review + extra verification" — reviews each check from several angles and verifies findings with a majority vote, escalated only where the call is contested; higher quality (finds more, validates more reliably) at higher token cost. Posts the same finding set as Standard.
 
 Neither option carries a `(Recommended)` suffix — depth is a per-run pick where the alternative is only costlier, never safer (Deep authors no fix), so the user weighs cost against thoroughness each run. If the question is dismissed (empty answer), default to the cheaper value: Standard (`deep-mode: false`).
 

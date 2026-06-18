@@ -126,7 +126,7 @@ task_slug: review-<branch>
 phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
 status: <in-progress|done|failed>
 report_status: <draft|final>          # whole-report lifecycle — see state-tier-spec.md /geniro:review producer fields (missing reads as final)
-deep-mode: <true|false>               # --deep fan-out (3x passes + 3-vote); missing reads as false
+deep-mode: <true|false>               # --deep fan-out (angle-diverse passes + gated verify); missing reads as false
 round: <int>
 risk-tier: <standard|high>
 pr-ref: <owner/repo#num|null>

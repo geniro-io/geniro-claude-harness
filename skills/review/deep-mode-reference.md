@@ -1,6 +1,6 @@
 # Deep Mode Reference
 
-Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) raises **quality** — recall (find more) and precision (validate more reliably) — by multiplying the reviewer and verifier fan-out and running it inside an internal `Workflow(...)`. It does NOT raise speed: under the Workflow concurrency cap (`min(16, cores-2)` concurrent agents per workflow) running each dimension 3× does not shrink wall-clock, it only deepens coverage at roughly 3-5× the token cost. Deep mode is opt-in for exactly this reason — it is not the default.
+Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) raises **quality** — recall (find more) and precision (validate more reliably) — by multiplying the reviewer and verifier fan-out and running it inside an internal `Workflow(...)`. It does NOT raise speed: under the Workflow concurrency cap (`min(16, cores-2)` concurrent agents per workflow) the extra passes do not shrink wall-clock, they only deepen coverage at higher token cost. Two efficiency refinements keep that cost from being a flat 3× multiplier — **angle-diverse recall** (each per-dim pass searches a distinct region, not an identical re-run) and **signal-gated precision** (one verifier on the clear majority, the full 3-vote only where the call is contested). Deep mode is opt-in for exactly this reason — it is not the default.
 
 Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verifier passes run and how their results aggregate — it does NOT change the Reporter boundary, the posted-set semantics, the action-gate options, or the `atomic_state_write` contract.
 
@@ -9,8 +9,8 @@ Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verif
 ## Contents
 
 - §1 — Activation + state
-- §2 — Recall layer (Phase 2: 3× reviewer passes per dimension)
-- §3 — Precision layer (Phase 4.2: 3-vote majority verification)
+- §2 — Recall layer (Phase 2: 3 angle-diverse reviewer passes per dimension)
+- §3 — Precision layer (Phase 4.2: signal-gated majority verification)
 - §4 — The Workflow scripts (shape + mandatory mitigations)
 - §5 — Convergence-dedup rule (load-bearing)
 - §6 — Fail-safe ladder
@@ -23,43 +23,52 @@ Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verif
 ## 1. Activation + state
 
 - **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`).
-- **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ asks review depth — "Standard" / "Deep — 3× passes + 3-vote verify". Picking Deep sets the boolean.
+- **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ asks review depth — "Standard" / "Deep — multi-angle review + extra verification". Picking Deep sets the boolean.
 - **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` so the session-restore hook re-applies it on a compaction-resume.
-- **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the 3-vote survivors whenever eligible findings exist; the two never conflict.
+- **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the verified survivors whenever eligible findings exist; the two never conflict.
 
 When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (single reviewer batch, single per-finding verifier) — deep mode adds no overhead to standard runs.
 
 ---
 
-## 2. Recall layer — Phase 2: 3× reviewer passes per dimension
+## 2. Recall layer — Phase 2: 3 angle-diverse reviewer passes per dimension
 
-When `deep-mode: true`, Phase 2 replaces the single parallel reviewer batch with a `Workflow(...)` call that runs **each declared dimension 3×** and aggregates in-script:
+When `deep-mode: true`, Phase 2 replaces the single parallel reviewer batch with a `Workflow(...)` call that runs **each declared dimension under 3 distinct angles** and aggregates in-script:
 
-- The declared dimension set is unchanged — every always-fire + triggered-conditional + custom dimension from the §2.1 grid (still recorded in `spawn_dims_declared[]`; the `§4.0` verification gate still checks the declared SET, treating 3× as a multiplier on each declared dim, not a new dim).
-- For each dimension, the workflow spawns 3 independent `reviewer-agent` passes (parallel), each with the same pre-inlined context the single-pass spawn uses (diff, criteria, mechanical pre-pass findings, the dim's context slots).
-- The workflow **unions + dedups the 3 passes of one dimension into a single per-dim finding set** before returning — see §5. Returns, per dimension, the deduped findings list as raw JSON text.
+- The declared dimension set is unchanged — every always-fire + triggered-conditional + custom dimension from the §2.1 grid (still recorded in `spawn_dims_declared[]`; the `§4.0` verification gate still checks the declared SET, treating the 3 angles as a multiplier on each declared dim, not a new dim).
+- For each dimension, the workflow spawns 3 independent `reviewer-agent` passes (parallel), each with the same pre-inlined context the single-pass spawn uses (diff, criteria, mechanical pre-pass findings, the dim's context slots), but each scoped to a DISTINCT angle so the passes search near-disjoint regions rather than re-running one identical prompt:
+  - **A — common path:** the most likely defects of this dimension on the typical code path.
+  - **B — boundaries and error paths:** rare inputs, boundary conditions, exception/error handling, resource lifecycle, concurrency.
+  - **C — interaction:** how this dimension's concerns couple with the rest of the diff and the surrounding code — callers of changed symbols, sibling/parallel paths, flags and config.
+
+  These angles are dimension-agnostic (they apply to `bugs`, `security`, `architecture`, … alike), so the angle instruction is a short prefix on the existing per-dim prompt — no per-dimension angle table to maintain.
+- The workflow **unions + dedups the 3 angle passes of one dimension into a single per-dim finding set** before returning — see §5. Returns, per dimension, the deduped findings list as raw JSON text.
 - The orchestrator reads the workflow result and proceeds to Phase 3 (orchestrator-side dedup + cross-dim convergence) exactly as in standard mode, but over the deeper per-dim sets.
 
-**Why 3× raises recall:** a single reviewer pass is non-deterministic — it surfaces a subset of the issues in its dimension. Three independent passes surface overlapping-but-different subsets; their union catches issues any single pass missed. This is the recall lever the user asked for.
+**Why angle-diverse passes raise recall efficiently:** three identical passes rely only on sampling temperature to scatter — they harvest the tail of one distribution, so much of what they return overlaps and is discarded at dedup. Three angle-scoped passes search where the others do not, so each pass buys new territory at the same token cost — higher recall per token. When 2 of 3 angles independently surface the same issue, that cross-angle agreement is a stronger within-dim reliability signal than three identical clones agreeing (recorded as `seen-in: N/3 angles` per §5).
 
 The Workflow tool returns its result to the orchestrator and the orchestrator resumes Phase 3 on completion. State.md `phase: llm-spawn` persists across the workflow call so a mid-workflow compaction resumes correctly (the workflow itself is resumable via its runId; the skill re-reads its result).
 
 ---
 
-## 3. Precision layer — Phase 4.2: 3-vote majority verification
+## 3. Precision layer — Phase 4.2: signal-gated majority verification
 
-When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, unchanged) gets **3 independent verifiers** instead of 1, run inside a `Workflow(...)`, aggregated by majority:
+When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, unchanged) is verified inside a `Workflow(...)`, but the vote count is **gated by signal** — one verifier on the clear majority, the full 3-vote majority only on contested or high-stakes findings:
 
-- Each verifier receives the same isolated input the single-pass verifier gets (the single finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2) — NOT the other verifiers' outputs (independence is load-bearing).
-- Each verifier emits the same structured result (`validation: confirmed | refuted | clarified`, `recommended_action`, `confidence`, `evidence`) as raw JSON text.
-- **Majority rule (of 3):** count `confirmed` and `clarified` as "stands" votes, `refuted` as "drop" votes.
+- **First vote (always).** Run ONE independent verifier on the finding — the same isolated input the single-pass verifier gets (the single finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2), NOT any other verifier's output (independence is load-bearing). It emits the standard structured result (`validation: confirmed | refuted | clarified`, `recommended_action`, `confidence`, `evidence`) as raw JSON text.
+- **Escalate to 3** (run 2 more independent verifiers, then majority) when ANY of:
+  - the first vote's `confidence < 70` — a low-confidence vote is the unreliable one the majority exists to backstop;
+  - the first vote is `refuted` AND the finding's `convergence_count >= 2` — the verdict contradicts the cross-dimension agreement that admitted it, exactly the contested case majority arbitrates;
+  - the finding is CRITICAL or HIGH AND the first vote is `refuted` — one vote never drops a high-stakes finding.
+- **Accept the single vote** (no escalation) otherwise: a high-confidence first vote that agrees with the upstream signal — a `confirmed`/`clarified` of any survivor, or a `refuted` of a lone (`convergence_count < 2`) MEDIUM finding. The cross-dim convergence that admitted the finding already corroborates a confirm, so the lone verifier is not the only evidence; a lone low-stakes refute is cheap to act on if wrong.
+- **Majority rule when escalated (of 3):** count `confirmed` and `clarified` as "stands" votes, `refuted` as "drop" votes.
   - ≥2 "drop" votes → the finding is **refuted** → demote to `## Filtered` (`reason: refuted-by-majority-verify`).
   - otherwise → the finding **stands**; adopt the majority `recommended_action` (if the stands-votes split between `confirmed` and `clarified`, take `clarified` when ≥2 verifiers returned a non-original action, else `confirmed`).
-- **Abstain = parse failure.** A verifier whose raw output won't parse into the schema **abstains** — it counts toward neither "stands" nor "drop". Abstention never demotes a finding.
-- **Quorum.** If fewer than 2 verifiers returned a parseable vote (≥2 abstained), there is no majority → **fail-safe**: run ONE fresh single-pass verifier (the current Phase 4.2 behavior) and take its verdict. Note `verification: deep-mode quorum fail-safe (single-pass)` in the finding's `Verification-evidence`. If that single-pass verifier also fails to spawn or returns nothing parseable, apply the standard spawn-failure fail-open — the orchestrator assigns `Validation: unverified` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5 (finding kept, excluded from the PR post set, surfaced under `## Caveats`).
-- **Persist into existing fields — no schema bump.** Write the majority verdict to the finding's existing `Validation` field and the vote tally + abstain count to `Verification-evidence` (e.g. `3-vote: 2 confirmed / 1 refuted / 0 abstain → confirmed`). Do NOT add new per-finding schema fields — the consumer (`/geniro:implement` Step 12, §7.0 guard) reads `Validation` unchanged.
+- **Abstain = parse failure.** A verifier whose raw output won't parse into the schema **abstains** — it counts toward neither "stands" nor "drop", and never demotes a finding. A first-vote abstention triggers escalation (run the other 2); if all 3 abstain, quorum fails.
+- **Quorum.** If fewer than 2 verifiers returned a parseable vote on an escalated finding (≥2 abstained), there is no majority → **fail-safe**: run ONE fresh single-pass verifier and take its verdict. Note `verification: deep-mode quorum fail-safe (single-pass)` in the finding's `Verification-evidence`. If that single-pass verifier also fails to spawn or returns nothing parseable, apply the standard spawn-failure fail-open — the orchestrator assigns `Validation: unverified` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5 (finding kept, excluded from the PR post set, surfaced under `## Caveats`).
+- **Persist into existing fields — no schema bump.** Write the verdict to the finding's existing `Validation` field; record the vote path in `Verification-evidence` — `1-vote (corroborated): confirmed, conf 88` for the accepted-single path, `3-vote: 2 confirmed / 1 refuted / 0 abstain → confirmed` for the escalated path. Do NOT add new per-finding schema fields — the consumer (`/geniro:implement` Step 12, §7.0 guard) reads `Validation` unchanged.
 
-**Why 3-vote raises precision:** a single verifier can hallucinate — false-confirm a non-bug or false-refute a real one (the documented multi-judge failure mode). A majority of 3 independent verifiers tolerates one bad vote, so a single hallucination can no longer flip a finding's disposition.
+**Why signal-gating preserves precision while cutting votes:** a single verifier can hallucinate — false-confirm a non-bug or false-refute a real one (the documented multi-judge failure mode). The 3-vote majority tolerates one bad vote, but only the contested dispositions actually need that tolerance: a confirm that agrees with cross-dim convergence is already corroborated by independent producers, and a lone low-stakes refute is cheap if wrong. Spending the extra 2 votes only where the first vote is low-confidence, contradicts upstream agreement, or would drop a high-stakes finding keeps the hallucination-tolerance exactly where a flipped disposition is costly — at roughly `N + 2·(contested fraction)·N` votes instead of `3N`.
 
 ---
 
@@ -70,26 +79,33 @@ Deep mode invokes the Workflow tool from inside the skill — sanctioned because
 **Recall script (Phase 2) — shape:**
 
 ```
-phase('Deep review — 3x passes')
+phase('Deep review — angle-diverse passes')
+const ANGLES = ['common-path', 'boundaries-and-errors', 'interaction']   // §2: 3 distinct, dimension-agnostic angles
 const passes = await pipeline(
   DIMENSIONS,                                  // the declared §2.1 set
-  d => parallel([0,1,2].map(i =>               // 3 independent passes per dim
-    () => agent(reviewerPrompt(d, i), { label: `${d.slug}:pass${i}`, phase: 'Deep review — 3x passes' })
+  d => parallel(ANGLES.map(angle =>            // 3 angle-scoped passes per dim — each searches a distinct region
+    () => agent(reviewerPrompt(d, angle), { label: `${d.slug}:${angle}`, phase: 'Deep review — angle-diverse passes' })
   )),
-  (threePasses, d) => dedupeWithinDim(threePasses, d)   // union + dedup IN-SCRIPT → one per-dim set
+  (anglePasses, d) => dedupeWithinDim(anglePasses, d)   // union + dedup IN-SCRIPT → one per-dim set (seen-in: N/3 angles)
 )
 return passes                                  // per-dim deduped findings (raw JSON text from agents, parsed in-script)
 ```
 
-**Vote script (Phase 4.2) — shape:**
+**Vote script (Phase 4.2) — shape (signal-gated per §3):**
 
 ```
-phase('Deep verify — 3-vote')
-const verdicts = await parallel(SURVIVORS.map(f => () =>
-  parallel([0,1,2].map(i => () => agent(verifierPrompt(f, i), { label: `verify:${f.id}:v${i}`, phase: 'Deep verify — 3-vote' })))
-    .then(votes => ({ id: f.id, verdict: majority(votes) }))   // majority() parses raw JSON defensively; parse-fail = abstain
-))
+phase('Deep verify — signal-gated')
+const verdicts = await parallel(SURVIVORS.map(f => () => (async () => {
+  const first = parseVote(await agent(verifierPrompt(f, 0), { label: `verify:${f.id}:v0`, phase: 'Deep verify — signal-gated' }))
+  if (!needsEscalation(first, f)) return { id: f.id, verdict: first }       // high-confidence + agrees with upstream → accept 1 vote
+  const rest = await parallel([1,2].map(i => () =>                          // contested / high-stakes → full 3-vote majority
+    agent(verifierPrompt(f, i), { label: `verify:${f.id}:v${i}`, phase: 'Deep verify — signal-gated' })))
+  return { id: f.id, verdict: majority([first, ...rest]) }                  // majority() parses defensively; parse-fail = abstain
+})()))
 return verdicts
+// needsEscalation(first, f) = first abstained (parse-fail) OR first.confidence < 70
+//   OR (first.validation === 'refuted' && f.convergence_count >= 2)
+//   OR (first.validation === 'refuted' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'))
 ```
 
 **Mandatory mitigations (every deep workflow MUST observe):**
@@ -104,11 +120,11 @@ return verdicts
 
 ## 5. Convergence-dedup rule (load-bearing)
 
-`convergence_count` (Phase 4.1 signal #1; Phase 5.3 ≥3 pitfall auto-emit) counts **distinct dimensions** that reported the same issue — it is a cross-reviewer agreement signal. Three passes of ONE dimension finding the same issue is the SAME reviewer agreeing with itself, NOT cross-dim convergence.
+`convergence_count` (Phase 4.1 signal #1; Phase 5.3 ≥3 pitfall auto-emit) counts **distinct dimensions** that reported the same issue — it is a cross-reviewer agreement signal. The 3 angle passes of ONE dimension finding the same issue is one dimension's own passes agreeing, NOT cross-dim convergence.
 
-Therefore: **dedup the 3 passes of a dimension into a single per-dim finding set BEFORE Phase 3 computes cross-dim convergence.** The recall script (§4) does this in-script (`dedupeWithinDim`) so the per-dim set the orchestrator receives already collapses intra-dim duplicates. If this dedup is skipped, three passes of `bugs` finding the same defect would inflate its `convergence_count` to 3 and trip the §4.1 gate (and the pitfall auto-emit) on a single reviewer's repeated output — deep mode would game its own quality gate.
+Therefore: **dedup the 3 angle passes of a dimension into a single per-dim finding set BEFORE Phase 3 computes cross-dim convergence.** The recall script (§4) does this in-script (`dedupeWithinDim`) so the per-dim set the orchestrator receives already collapses intra-dim duplicates. If this dedup is skipped, three angle passes of `bugs` finding the same defect would inflate its `convergence_count` to 3 and trip the §4.1 gate (and the pitfall auto-emit) on a single dimension's repeated output — deep mode would game its own quality gate.
 
-Intra-dim dedup match: same file + overlapping line range + same defect class. When 2 of 3 passes agree, keep the finding once (note `seen-in: 2/3 passes` in its body as a within-dim reliability signal — distinct from cross-dim `convergence_count`).
+Intra-dim dedup match: same file + overlapping line range + same defect class. When 2 of 3 angle passes agree, keep the finding once (note `seen-in: 2/3 angles` in its body as a within-dim reliability signal — distinct from cross-dim `convergence_count`).
 
 ---
 
@@ -118,7 +134,7 @@ Current single-pass behavior is the **floor** — deep mode is never weaker than
 
 1. **Workflow errors / returns unparseable aggregate / agent registration fails** → fall back to the standard single-pass Phase 2 batch (or single-pass Phase 4.2 verifier). Surface a plain-English `## Caveats` note — `Deep review couldn't run the extra passes for the <reviewing|verifying> step — fell back to a single pass.` (map the `llm-spawn` phase → "reviewing", `stratify` → "verifying"); keep the storage enum only in the `## Errors` body entry (`phase: <llm-spawn|stratify>`, `error: deep-workflow-failed`, `consequence: single-pass-fallback`).
 2. **Per-finding vote quorum fails** (≥2 verifiers abstained) → single fresh single-pass verifier for that finding (§3).
-3. **A single pass within a dimension fails** → the dimension still returns the union of the surviving passes (2 or 1); note the reduced pass count in `## Caveats`. Never drop the dimension.
+3. **A single angle pass within a dimension fails** → the dimension still returns the union of the surviving angle passes (2 or 1); note the reduced angle count in `## Caveats`. Never drop the dimension.
 
 Fail-safe is silent-degrade-with-a-caveat, never a hard stop — a review that ran shallower than requested is still a valid review.
 
@@ -139,7 +155,7 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 
 **`--deep` on a trivial diff.** Deep mode still runs (the user asked for it). The cost is real but bounded; the Action gate / triage-out of trivial files (§12 size triage) still applies, so a formatting-only diff is triaged out before the fan-out.
 
-**`--deep` with test authoring approved at the Phase 4.3 gate.** Both apply: 3× / 3-vote fan-out AND failing-test authoring. The deep verification runs first (Phase 4.2); the test-gate (Phase 4.3) runs on the survivors of the 3-vote, so authored tests target majority-confirmed findings only — a strict improvement.
+**`--deep` with test authoring approved at the Phase 4.3 gate.** Both apply: the angle-diverse / signal-gated fan-out AND failing-test authoring. The deep verification runs first (Phase 4.2); the test-gate (Phase 4.3) runs on the survivors of the gated verification, so authored tests target verified findings only — a strict improvement.
 
 **Round-2+ re-run.** Prior-round findings feed the reviewer prompts as today. Depth is re-asked on a fresh re-run — via the §7 re-review gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7) — because a fresh `/geniro:review` re-invocation never inherits the prior round's `deep_mode_choice`; only a compaction-resume of an in-flight run re-applies it. Passing `--deep` on the re-run pre-resolves depth to Deep as on any run.
 
@@ -151,8 +167,10 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "Deep mode runs everything 3× in parallel, so the review finishes faster." | Parallelism does not reduce wall-clock under the `min(16, cores-2)` cap — 3× the agents fill the same concurrency waves (no speedup) or spill into more waves (slowdown). Deep mode is a thoroughness lever, NOT a latency lever. Sell it as quality, never speed. |
-| "Three passes of the bugs dim all found it — that's convergence_count 3, admit it past the gate." | Three passes of ONE dimension is one reviewer agreeing with itself, not cross-dim convergence. Dedup intra-dim BEFORE computing cross-dim convergence (§5), or deep mode games its own Phase 4.1 gate. |
+| "The deep passes run in parallel, so the review finishes faster." | Parallelism does not reduce wall-clock under the `min(16, cores-2)` cap — the extra agents fill the same concurrency waves (no speedup) or spill into more waves (slowdown). Deep mode is a thoroughness lever, NOT a latency lever. Sell it as quality, never speed. |
+| "Three angle passes of the bugs dim all found it — that's convergence_count 3, admit it past the gate." | The 3 angle passes of ONE dimension agreeing is that dimension agreeing with itself, not cross-dim convergence. Dedup intra-dim BEFORE computing cross-dim convergence (§5), or deep mode games its own Phase 4.1 gate. |
+| "Re-run each dimension's reviewer prompt 3× identically — that's the recall lever." | Identical passes only scatter by sampling temperature: high overlap, heavy dedup churn, low marginal recall per pass. Scope each pass to a distinct angle (common-path / boundaries-and-errors / interaction) so each buys new territory at the same cost; cross-angle agreement is also a stronger within-dim signal than identical clones (§2). |
+| "Run one verifier per survivor in deep mode — the §4.1 gate already vetted them, that saves the most tokens." | The single-vote path is gated by signal, not blanket (§3): a first vote with `confidence < 70`, a `refuted` of a finding with `convergence_count >= 2`, or any `refuted` of a CRITICAL/HIGH finding escalates to the full 3. Blanket single-vote re-opens the single-hallucination flip the majority prevents. |
 | "I'm inside a Workflow now, so the no-Edit / no-push boundary is just guidance." | The workflow parallelizes the fan-out, not the contract. Every Reporter invariant binds inside every workflow step (§7). The contract evaporating under the wrapper is the documented failure this rule prevents. |
 | "Use agent({schema}) for the votes — structured output is cleaner." | The StructuredOutput tool-call drops ~⅔ of the time on long/converged agents, silently losing votes. Return raw JSON text and parse defensively; a parse failure is an abstention, not a refute. |
 | "Two verifiers abstained (parse-failed) and one refuted — that's a majority to drop." | Abstentions count toward neither side. One refute out of one parseable vote is NOT a majority — quorum failed, so fail-safe to a single fresh single-pass verifier. Never demote a finding on abstentions. |

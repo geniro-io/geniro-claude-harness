@@ -8,7 +8,7 @@ Plan-specific layers of the opt-in `--deep` quality mode. The cross-skill contra
 
 - §1 — Activation
 - §2 — Recall: Phase 4 approach panel
-- §3 — Precision: Phase 4 feasibility critics (3× + majority)
+- §3 — Precision: Phase 4 feasibility critics (signal-gated majority)
 - §4 — Precision: Phase 7.5 spec-challenge (3× verify)
 - §5 — Workflow shape
 - §6 — Fail-safe
@@ -30,17 +30,18 @@ Standard Phase 4.1 synthesizes the Phase 1 explore + Phase 3 answers into 2-3 ap
 
 Recall dedup runs BEFORE the §4.2 critics, so a duplicated approach never consumes a critic slot twice.
 
-## 3. Precision — Phase 4 feasibility critics (3× + majority)
+## 3. Precision — Phase 4 feasibility critics (signal-gated majority)
 
-Standard §4.2 spawns tier-scaled critics (Trivial skip / Medium 1 comparative / Big 1-per-approach), and a single verified `blocking` verdict demotes an approach. Deep mode overrides the tier-scaling: **every candidate approach gets 3 independent `codebase-research-agent` critics**, and the feasibility verdict is by majority:
+Standard §4.2 spawns tier-scaled critics (Trivial skip / Medium 1 comparative / Big 1-per-approach), and a single verified `blocking` verdict demotes an approach. Deep mode overrides the tier-scaling with a **signal-gated** majority: one critic per approach on the clear case, escalating to 3 with majority only where a demotion is actually at stake.
 
-- Each critic independently stress-tests its assigned approach against the codebase (the same `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` as standard §4.2), returning per-approach risks classified `blocking | major | minor`.
-- An approach is demoted from `Recommended`-eligible only when **≥2 of its 3 critics** return a `blocking` risk — a lone blocking call no longer demotes (it may be a hallucinated blocker); record it as a `major` caveat instead.
-- Apply the standard §4.2 evidence bar per vote before tallying: a `blocking` vote without a verifying `file:line` citation counts as `major` and does not count toward the ≥2-blocking threshold; a no-risks vote without its `Checked:` line abstains.
-- If ≥2 critics flag blocking on EVERY candidate, loop back to Phase 3 with a tighter scope question (the standard all-blocked rule, now majority-gated).
-- Parse-fail = abstain; quorum < 2 → one fresh single-pass critic for that approach (deep-mode.md §5).
+- **First critic (always).** Run ONE independent `codebase-research-agent` critic per candidate approach (the same `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` as standard §4.2), returning per-approach risks classified `blocking | major | minor`.
+- **Accept the single critic** when it returns NO `blocking` risk (with its `Checked:` line present) — a clean approach needs no second opinion to stay `Recommended`-eligible.
+- **Escalate to 3 critics** (then majority) when the first critic returns a `blocking` risk — a demotion is now at stake, so it must clear the majority bar: the approach is demoted from `Recommended`-eligible only when **≥2 of 3 critics** return a `blocking` risk. A lone blocking call no longer demotes (it may be a hallucinated blocker); record it as a `major` caveat instead.
+- **Evidence bar per vote** (applied before tallying): a `blocking` vote without a verifying `file:line` citation counts as `major` and does not count toward the ≥2-blocking threshold; a no-risks vote without its `Checked:` line abstains — and on the first critic, an abstention triggers escalation rather than acceptance.
+- If ≥2 critics flag blocking on EVERY candidate, loop back to Phase 3 with a tighter scope question (the standard all-blocked rule, majority-gated).
+- Parse-fail = abstain; quorum < 2 on an escalated approach → one fresh single-pass critic for that approach (deep-mode.md §5).
 
-Majority matters here because §4.2's purpose is to make the `Recommended` marker reflect feasibility evidence, not author confidence — and a single critic that hallucinates a blocker would otherwise demote the best approach.
+Majority matters where a demotion is at stake — §4.2's purpose is to make the `Recommended` marker reflect feasibility evidence, not author confidence, and a single critic that hallucinates a blocker would otherwise demote the best approach. A clean first critic needs no escalation, so the extra votes are spent only on the approaches a demotion actually threatens.
 
 ## 4. Precision — Phase 7.5 spec-challenge (3× verify)
 
@@ -60,13 +61,16 @@ const candidates = (await parallel(LENSES.map(lens => () =>
 ))).filter(Boolean).flatMap(parseApproaches)         // raw JSON → approach objects; parse-fail drops that lens
 const ranked = scoreAndDedup(candidates)              // in-script: dedup near-identical, rank on the four axes (feasibility/blast-radius/reversibility/cost)
 
-phase('Deep critics — 3x feasibility')
-const critiques = await parallel(top3(ranked).map(a => () =>
-  parallel([0,1,2].map(i => () =>
-    agent(criticPrompt(a, i), { label: `critic:${a.slug}:v${i}`, phase: 'Deep critics — 3x feasibility' })))
-    .then(votes => ({ slug: a.slug, verdict: majorityFeasibility(votes) }))   // ≥2 blocking → blocking; parse-fail = abstain
-))
+phase('Deep critics — signal-gated feasibility')
+const critiques = await parallel(top3(ranked).map(a => () => (async () => {
+  const firstRaw = await agent(criticPrompt(a, 0), { label: `critic:${a.slug}:v0`, phase: 'Deep critics — signal-gated feasibility' })
+  if (!firstFlagsBlocking(firstRaw)) return { slug: a.slug, verdict: feasibilityOf([firstRaw]) }   // clean first critic → accept 1
+  const rest = await parallel([1,2].map(i => () =>                                                  // blocking flagged → majority of 3
+    agent(criticPrompt(a, i), { label: `critic:${a.slug}:v${i}`, phase: 'Deep critics — signal-gated feasibility' })))
+  return { slug: a.slug, verdict: majorityFeasibility([firstRaw, ...rest]) }                        // ≥2 blocking → blocking; parse-fail = abstain
+})()))
 return { ranked: top3(ranked), critiques }
+// firstFlagsBlocking(raw): parse defensively → true if parse-failed (abstain → escalate) OR a blocking risk carrying its file:line citation
 ```
 
 Each generator/critic prompt re-asserts the read-only contract (no Edit/Write/git; the orchestrator owns the spec write and all `atomic_state_write`), per deep-mode.md §6. OMIT `model=` at every spawn.
@@ -87,4 +91,5 @@ Each degrades with a plain-English caveat, never a hard stop. Phase 7.5 is alrea
 | "The panel generated 4 approaches — present all 4 in the §4.3 AUQ so the user sees everything." | The AUQ cap and the gate-frugality contract still hold: render the top 2-3 ranked, deduped candidates. The panel widens the FIELD searched, not the number of options the user weighs. Dumping 4-plus options is the click-fatigue the gate contract prevents. |
 | "Three generators happened to land on the same approach — that's strong signal, rank it highest." | Three lenses converging on one mechanism is correlated generation, not independent feasibility evidence. Dedup it to ONE candidate before scoring (§2); the feasibility signal comes from the §3 critics, not from generator agreement. |
 | "One critic called the approach blocking — demote it, that's the safe choice." | In deep mode a single blocking vote does not demote — it takes ≥2 of 3 (§3). A lone hallucinated blocker demoting the best approach is exactly the failure majority-voting prevents; record the lone call as a `major` caveat and let the user see it. |
+| "Run one critic per approach in deep mode to save cost — the panel already ranked them." | The single-critic path is gated, not blanket: a first critic that flags a `blocking` risk escalates to the majority of 3 (§3), because a demotion is then at stake and one hallucinated blocker must not sink the best approach. Acceptance on one critic happens only when it flags NO blocker. Blanket single-critic re-opens the lone-hallucinated-blocker failure the majority prevents. |
 | "Deep mode should also write the spec 3× and pick the best draft." | Deep mode is scoped to ANALYSIS — wider approach search (recall) and harder fact-checking (precision). The spec WRITE is single-author by design; multiplying it would fork the durable artifact and break the section-approval gate. The quality lever is the approach panel + the spec-challenge, not redundant spec drafts. |
