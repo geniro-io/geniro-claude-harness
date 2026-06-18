@@ -74,7 +74,7 @@ This is the canonical home for data-source screening. It applies the same read-o
 
 | Source kind | Run when | Skip with caveat when |
 |---|---|---|
-| Shell command (backticked) | SELECT-shaped / read-only query, health probe, read-only CLI (`get` / `list` / `describe` / `cat` / `grep`) | It carries any mutating verb — `INSERT` / `UPDATE` / `DELETE` / `DROP` / `ALTER` / `TRUNCATE` / `CREATE`; `git push` / `gh pr` / `git commit`; `deploy` / `release` / `publish`; `rm`; `>` / `>>` redirection; `tee`; in-place `sed -i`. A SQL source that is not SELECT-shaped is mutating-by-default. |
+| Shell command (backticked) | SELECT-shaped / read-only query, health probe, read-only CLI (`get` / `list` / `describe` / `cat` / `grep`) | It carries any mutating verb — `INSERT` / `UPDATE` / `DELETE` / `DROP` / `ALTER` / `TRUNCATE` / `CREATE`; `git push` / `gh pr` / `git commit`; `deploy` / `release` / `publish`; `rm`; `>` / `>>` redirection; `tee`; in-place `sed -i`. Also skip when the command hides its real action so the verb check can't see it: command substitution (`$(...)` / backticks), a query read from an opaque source (`psql -f <file>` / `psql -c "$(...)"`), or a wrapped CLI whose verb you cannot screen (`<tool> sync` / `<tool> apply`). An un-screenable command is mutating-by-default, exactly as a non-SELECT-shaped SQL source is. |
 | MCP tool | The tool is a read tool — `get` / `query` / `list` / `read` / `search` semantics | It mutates (create / update / delete / send / deploy). |
 | Action | A low- or medium-risk action whose body is read-only | A high-risk action OR one whose body mutates external state. Read its `risk_class` and body before running. |
 
@@ -86,7 +86,7 @@ A skipped source emits the §7 caveat and the fact falls back to whatever source
 |---|---|---|
 | **confirmed** | ≥1 applicable source agrees and NO source conflicts. | Use the fact normally; echo notes the agreeing-source count. |
 | **conflicting** | Two applicable sources disagree on the fact. | Surface a plain-English notice; gate to the user where a decision hinges on it. Never silently pick one. |
-| **unconfirmed** | No applicable source could check the fact (none had a matching hint, or all that did were skipped/errored). | Mark "unconfirmed" in the narrative/report. NEVER present the fetched/assumed value as established fact. |
+| **unconfirmed** | No applicable source could check the fact (none had a matching hint, or all that did were skipped/errored). | Mark "unconfirmed" in the narrative/report — never present the fetched/assumed value as established fact, since assuming it is the exact failure this primitive prevents. |
 
 ## 6. Fail-open
 

@@ -76,7 +76,7 @@ Render each fact by the helper's outcome:
 - **Conflicting** across sources → surface the conflict to the user in plain English and render the fact with the conflict noted (e.g. `In Progress (conflict: prod-db shows shipped)`).
 - **Unconfirmed** — no source could corroborate it → mark it `unconfirmed` in the TASK CHAIN CONTEXT block. This extends the facts-only doctrine: today a status the fetch did not return is omitted; now a fetched status that no declared source could corroborate — when declared sources exist that should cover that fact's domain — is ALSO marked `unconfirmed` rather than presented as bare fact.
 
-Fail-open: no declared `## Data Sources` block, or a source errors / fails its read-only screen → fall back to the single-fetch value with a one-line plain-English caveat (e.g. `Couldn't double-check the related-ticket statuses against a project data source — showing the tracker fetch as-is.`); never block assembly. Read-only throughout — this sub-step only reads sources, never mutates a tracker, DB, or deploy state.
+Fail-open per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §6: when a *declared* source errors or fails its read-only screen, drop that source and fall back to whatever sources did return, with a one-line plain-English caveat (e.g. `Couldn't double-check the related-ticket statuses against a project data source — showing the tracker fetch as-is.`). When there is simply no `## Data Sources` block, the tracker fetch is itself the built-in source — render the statuses normally with no caveat (absence is the normal case, not a degraded one). Never block assembly. Read-only throughout — this sub-step only reads sources, never mutates a tracker, DB, or deploy state.
 
 ## 5. Assembly — the TASK CHAIN CONTEXT block + facts-only rule
 
@@ -114,7 +114,7 @@ The helper returns two things:
 1. **The TASK CHAIN CONTEXT block** (§5) for prompt injection into the caller's research / analysis subagents. Both halves contribute to the block.
 2. **`ENRICHED_REFS`** — the Half-A structured fields for `/geniro:plan` to persist: `parent_ref.{title, status, scope}` + `siblings[]` + `chain_fetched_at`, shaped per the canonical tracker-linkage schema in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §`workflow_refs[]` per-entry shape (the m5-v3 chain-enrichment fields). Only Half A feeds `ENRICHED_REFS`.
 
-The milestone half (Half B) is NEVER persisted — it is re-derived from disk on every run because the `milestone-N.md` files are the durable source of truth and persisting a stale snapshot would drift from them.
+The milestone half (Half B) is never persisted — it is re-derived from disk on every run because the `milestone-N.md` files are the durable source of truth, and persisting a stale snapshot would drift from them.
 
 ## 7. Caller persistence note
 
