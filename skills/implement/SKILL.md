@@ -1,6 +1,6 @@
 ---
 name: geniro:implement
-description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship. Optional --deep deepens two phases — a 3× self-review with 3-vote majority verification of findings, and a 3× fact-check of the spec's cited claims before editing (higher quality, higher cost)."
+description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship. Optional --deep deepens two phases — a multi-angle self-review with verification escalated only where the call is contested, and a 3× fact-check of the spec's cited claims before editing (higher quality, higher cost)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, EnterWorktree, ExitWorktree, Workflow]
@@ -246,7 +246,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 
 | Phase | Allowed | Blocked |
 |---|---|---|
-| **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (`git status`, `gh pr view`, `git worktree add`, `git checkout -b`, and the Step 0 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent`, plus the read-only spec-claim verifier spawns fired by the Step 12.5 spec-challenge gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md`; Workflow (`deep-mode: true` only — the internal 3× / 3-vote fan-out for the Phase 1 spec-check and Phase 3 self-review, OMIT `model=`) | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
+| **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (`git status`, `gh pr view`, `git worktree add`, `git checkout -b`, and the Step 0 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent`, plus the read-only spec-claim verifier spawns fired by the Step 12.5 spec-challenge gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md`; Workflow (`deep-mode: true` only — the internal deep fan-out for the Phase 1 spec-check and Phase 3 self-review, OMIT `model=`) | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
 | **Phase 1 subagents** | Per agent frontmatter `tools:` whitelist — see `agents/knowledge-retrieval-agent.md` and `agents/codebase-explorer-agent.md` | Edit / Write (except their own OUTPUT_PATH); Agent (leaf agents, no nesting) |
 | **Phase 2 (Implement) inner loop** | Read / Grep / Glob / Edit / Write / Bash (incl. test runs); `test-runner-agent` spawn at end-of-phase | `git push`, `gh pr create`, `gh pr comment`, Phase 3 agent types |
 | **Phase 2 test-runner-agent** | Bash (one test-suite invocation), Read, Grep — enforced by `agents/test-runner-agent.md` frontmatter | Edit / Write on source code; git mutation; destructive Bash; Agent (leaf agent) |
@@ -347,7 +347,7 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 | `worktree` / `new-worktree` | Force worktree creation path. |
 | `no-worktree` / `here` | Force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
 | `--no-adversarial` | Disables Phase 3 adversarial-tester spawn for this run (skips the 6th slot in Round 1). |
-| `--deep` / `deep` | Sets `deep-mode: true` — deepens Phase 1 (3× spec fact-check) and Phase 3 (3× self-review passes + 3-vote finding verification) via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. Persist to `approvals[]` category `deep_mode_choice`. |
+| `--deep` / `deep` | Sets `deep-mode: true` — deepens Phase 1 (3× spec fact-check) and Phase 3 (angle-diverse self-review passes + signal-gated finding verification) via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. Persist to `approvals[]` category `deep_mode_choice`. |
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
 
@@ -413,8 +413,8 @@ multiSelect: false
 options:
   - label: "Standard"
     description: "One spec fact-check pass and one self-review pass."
-  - label: "Deep — 3× fact-check + 3-vote verify"
-    description: "3× spec fact-check before editing plus a 3× self-review with 3-vote finding verification; higher quality at higher token cost."
+  - label: "Deep — 3× fact-check + multi-angle self-review"
+    description: "3× spec fact-check before editing plus a multi-angle self-review with verification escalated only where the call is contested; higher quality at higher token cost."
 ```
 
 Question 3 joins the Step 0c AUQ batch whenever that AUQ fires and `--deep` is absent. Neither option carries `(Recommended)` — Deep is costlier, not safer. A `--deep` flag pre-resolves depth to Deep, so Question 3 is skipped; an empty answer defaults to Standard (`deep-mode: false`). On the auto-continue / resume paths where the Step 0 AUQ does not fire (decision-tree rules 1-3), depth stays flag-only — re-prompting for depth on continuing work adds friction, the `--deep` flag is always available, and on resume `deep-mode` was already persisted on the original run. Counts toward the batch-exceeds-4 chain rule above.
@@ -615,7 +615,7 @@ PHASE 2 (sequential, single-context):
 
 1. **Round 1 parallel spawn IS the Phase 3 review mechanism — reviewer-agents + 1 adversarial-tester-agent in the SAME assistant response.** Multiple `Agent(...)` tool uses in one message. An inline "self-review summary" the orchestrator writes from its own context does NOT satisfy Phase 3: it shares every assumption the implementer just made, so it cannot deliver the independent, anchoring-bias-free read the spawned reviewer-agents (fresh isolated contexts) exist to provide. The fresh parallel spawn fires regardless of how well the orchestrator believes it understands the change. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` at every spawn site (every agent declares `model: inherit`).
 
-   **Deep-mode branch (`deep-mode: true`).** Run Round 1 via the deep self-review `Workflow(...)` instead of the single parallel batch below — each reviewer dimension 3× (union + dedup per dim), then a 3-vote majority verification of each deduped finding, per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md` §3-4. Only majority-confirmed findings enter the fix loop; the `adversarial-tester-agent` stays a single spawn. Fail-safe to the standard single-pass batch below if the workflow errors (deep-mode-reference §7). Fix-loop rounds 2-3 run single-pass regardless. Everything below describes the standard single-pass Round 1.
+   **Deep-mode branch (`deep-mode: true`).** Run Round 1 via the deep self-review `Workflow(...)` instead of the single parallel batch below — each reviewer dimension under 3 angles (union + dedup per dim), then a signal-gated verification of each deduped finding, per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md` §3-4. Only verified findings enter the fix loop; the `adversarial-tester-agent` stays a single spawn. Fail-safe to the standard single-pass batch below if the workflow errors (deep-mode-reference §7). Fix-loop rounds 2-3 run single-pass regardless. Everything below describes the standard single-pass Round 1.
 
    - **reviewer-agents** — one per dimension. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". Dimensions: `bugs` / `security` / `architecture` / `tests` / `code-quality`. The `architecture` dim covers docs-staleness AND spec-compliance. See reference.md §"The reviewer dimensions" for full criteria-file mapping.
 
