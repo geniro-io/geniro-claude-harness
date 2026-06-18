@@ -86,7 +86,13 @@ The stable scope set:
 
 ## Constraints
 - Hard limits
+
+## Data Sources
+<!-- Optional. Read-only sources to cross-check load-bearing facts against. -->
+- **<label>** (confirms: <what kind of fact>) — `<read-only shell command>` OR MCP tool `<name>` OR action `<name>`
 ```
+
+The optional `## Data Sources` section declares read-only sources the verification step in `/geniro:plan` and `/geniro:implement` cross-checks load-bearing facts against (related-task chain statuses + the spec's cited claims). Each entry is a label + a `(confirms: <fact kind>)` hint + ONE source: a backticked read-only shell command, an MCP tool name, or an action name. The full contract — discovery, read-only screening, the max-source cross-check, and per-fact outcomes — lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`. Applies to `global` and the per-skill scopes; absent = no declared sources (verification falls back to the built-in code / git / tracker sources).
 
 ## File Structure: review-extra
 
@@ -303,7 +309,33 @@ Each scope gets a **scope-specific scaffold** with example Rules to make the emp
 ## Constraints
 
 - Maximum PR size: 500 lines changed (warn user if exceeded; do not block)
+
+## Data Sources
+<!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
+<!-- - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."` -->
+<!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
 ```
+
+**`global.md` scaffold:**
+
+```markdown
+# Custom Instructions
+
+## Rules
+
+- (none — add project-wide rules here)
+
+## Constraints
+
+- (none — add project-wide hard limits here)
+
+## Data Sources
+<!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
+<!-- - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."` -->
+<!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
+```
+
+Include the commented `## Data Sources` stub in the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the stub entries commented — an empty block is the safe default.
 
 Use `AskUserQuestion` after showing the scaffold:
 
@@ -397,6 +429,15 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 |---|---|
 | `review-extra/<slug>.md` | Frontmatter parses YAML; `slug` matches filename; `slug` not a built-in dimension; `description` one line ≤250 chars; `description` describes intent (LOW preference); `model` in `{haiku, sonnet, opus, inherit}` if present (matches `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §validation); `paths` is a list if present; `severity-default` in `{CRITICAL, HIGH, MEDIUM, LOW}` if present; `requires-context` is a non-empty string if present |
 | `code-style.md` | At least 1 rule under `## Rules` — LOW warning if empty (no-op file) |
+
+**`## Data Sources` lint rules** (applied to `global.md` and per-skill scopes when a `## Data Sources` section is present):
+
+| Rule | Severity |
+|---|---|
+| A shell-command entry carries a mutating verb (`INSERT` / `UPDATE` / `DELETE` / `DROP` / `ALTER` / `TRUNCATE` / `CREATE`; `git push` / `gh pr` / `git commit`; `deploy` / `release` / `publish`; `rm`; `>` / `>>` redirection; `tee`; in-place `sed -i`; or a SQL command that is not SELECT-shaped) | HIGH — a mutating data-source command could run against production. Emit: "Data Sources entry `<label>` carries a mutating command — sources must be read-only (the verification step runs them automatically). Make it a read-only query or remove it (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §read-only screening)." |
+| A malformed entry — no source (missing the backticked command / MCP-tool name / action name), or no `(confirms: ...)` hint | MEDIUM — the entry can't be used. Emit: "Data Sources entry `<label>` is missing a source or a `(confirms: ...)` hint — each entry needs a label, a `(confirms: <fact kind>)` hint, and exactly one read-only source." |
+
+The HIGH severity matches the spec `verify:` read-only doctrine: a data-source shell command runs unattended during fact verification, so a mutating one is the same prod-risk class the `/geniro:implement` side-effect screen guards. `## Data Sources` is optional — absence is not a finding.
 
 **description lint rules** (applied to `review-extra/<slug>.md` frontmatter `description:` field only):
 

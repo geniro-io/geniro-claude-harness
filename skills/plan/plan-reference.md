@@ -6,7 +6,7 @@ Companion reference for less-common usage paths of `/geniro:plan`. The main flow
 
 - DESIGN_DOC mode — no refine path
 - Concrete example + visual per section type (Phase 5 cluster chat-message substrate)
-- workflow_refs[] usage notes (m5-v2 schema)
+- workflow_refs[] usage notes (m5-v2 / m5-v3 schema)
 - Edge cases (empty $ARGUMENTS, milestone-mode, code-references, compaction, validator hard-fail, concurrent runs)
 - Cross-references (shared rules consumed)
 
@@ -44,13 +44,14 @@ The example + visual close out each section in the chat message, below the diges
 
 ---
 
-## workflow_refs[] usage notes (m5-v2)
+## workflow_refs[] usage notes (m5-v2 / m5-v3)
 
 Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHub Issues / Asana) when `$ARGUMENTS` carries a URL/ID. Phase 6 copies the fetched payload from state.md `## Workflow Refs` into spec.md frontmatter `workflow_refs[]`. Downstream consumers (/geniro:implement Step 0, /geniro:review Phase 1, /geniro:debug Phase 1, /geniro:refactor Phase 1) read this field.
 
 **Schema-version compatibility:**
 - `m5-v1` — legacy schema, no `workflow_refs[]`. Still valid for inline-task /geniro:plan with no tracker linkage.
 - `m5-v2` — adds optional `workflow_refs[]`. Field absent ⇔ no tracker linkage; field present ⇔ Phase 7 check #14 validates structure.
+- `m5-v3` — adds optional related-task chain enrichment to `workflow_refs[]` entries (parent epic title/status/scope + sibling sub-tasks with statuses + `chain_fetched_at`). Field present ⇔ /geniro:plan fetched the chain; absent ⇔ not fetched. All of m5-v1/m5-v2/m5-v3 are accepted downstream.
 
 **Per-entry shape:** see `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §`workflow_refs[]` per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
 

@@ -24,7 +24,7 @@ schema-version: 1 # required
 branch: <git-branch> # required
 timestamp: <ISO-8601 UTC> # required
 geniro_kind: design-doc # design-doc-detect.md contract — required marker
-geniro_schema_version: m5-v2 # schema version (m5-v2 adds workflow_refs[])
+geniro_schema_version: m5-v3 # schema version — set to m5-v3 ONLY when >=1 chain-enrichment field is present (parent_ref.title|status|scope, siblings, chain_fetched_at); else m5-v2 (workflow_refs[] w/o enrichment) or m5-v1 (no workflow_refs[])
 task_slug: <slug> # extension
 topic: <one-sentence-topic> # extension
 mode: <IDEA|DESIGN_DOC> # extension
@@ -42,6 +42,17 @@ workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / A
     kind: linear
     issue_id: CI-300
     url: https://linear.app/...
+    title: "Case Radar performance epic" # optional (m5-v3) — epic title
+    status: In Progress # optional (m5-v3) — epic status
+    scope: "Cut Case Radar backfill latency below 5 min across all tenants." # optional (m5-v3) — short epic scope, <=280 chars, trimmed at a sentence boundary
+  siblings: # optional (m5-v3) — depth-1 sibling sub-tasks under the same parent; <=8 entries; omit key when none
+  - issue_id: CI-301
+    title: "Add per-user job partitioning"
+    status: Done
+  - issue_id: CI-302
+    title: "Backfill progress telemetry"
+    status: In Progress
+  chain_fetched_at: 2026-05-26T10:42:15Z # optional (m5-v3) — when the related-task chain was fetched; staleness-checked INDEPENDENTLY of fetched_at
 budget: # goal-state block — start
   max_files_to_edit: <int|null>
   max_lines_changed: <int|null>
@@ -64,7 +75,7 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 **Field origins:**
 - `tier` → `timestamp`: required base.
 - `geniro_kind` → `lifecycle`: schema markers + extensions.
-- `workflow_refs`: optional tracker linkage (m5-v2). Omitted from frontmatter when no tracker was linked (pure inline-task /geniro:plan); downstream skills treat absence as "no tracker linkage".
+- `workflow_refs`: optional tracker linkage (m5-v2). Omitted from frontmatter when no tracker was linked (pure inline-task /geniro:plan); downstream skills treat absence as "no tracker linkage". The m5-v3 chain-enrichment fields (`parent_ref.title`/`status`/`scope`, `siblings[]`, `chain_fetched_at`) are optional additions written by the related-task chain context helper (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`); their absence is m5-v2-equivalent.
 - `budget` → `tools_required`: goal-state block embedded in frontmatter.
 
 **`workflow_refs[]` per-entry shape:**
@@ -77,8 +88,13 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 | `fetched_at` | yes | ISO-8601 UTC. Staleness check — downstream skills re-fetch if > 1 hour old. |
 | `title`, `suggested_branch`, `status` | no | Cache of last-fetched payload. /geniro:implement Step 0 uses these to pre-fill AUQ defaults without re-fetching. |
 | `parent_ref` | no | Epic/parent linkage. /geniro:review Phase 1 peer-PR scout uses this for `linear_bonus` ranking. Same per-entry shape recursively. |
+| `parent_ref.title` | no (m5-v3) | Parent epic title — primes the related-task chain context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`. |
+| `parent_ref.status` | no (m5-v3) | Parent epic status at chain-fetch time. |
+| `parent_ref.scope` | no (m5-v3) | Short epic scope sentence, ≤280 chars, trimmed at a sentence boundary. |
+| `siblings` | no (m5-v3) | Depth-1 sibling sub-tasks under the same parent — list of `{issue_id (required), title (optional), status (optional)}`. ≤8 entries, block ≤~1200 chars; omit the key when there are none. Primes the related-task chain context. |
+| `chain_fetched_at` | no (m5-v3) | ISO-8601 UTC. When the related-task chain enrichment was fetched — staleness-checked INDEPENDENTLY of `fetched_at` (/geniro:implement re-fetches the chain if > 1 hour old). |
 
-**Schema-version compatibility:** `geniro_schema_version: m5-v1` (legacy, no `workflow_refs`) and `m5-v2` (this template) are both valid downstream. Readers accept both; strict validators (e.g., `validator-checks.md` check #14) verify the field shape only on `m5-v2`.
+**Schema-version compatibility:** `geniro_schema_version: m5-v1` (legacy, no `workflow_refs`), `m5-v2` (`workflow_refs[]` without chain enrichment), and `m5-v3` (chain-enrichment fields present) are ALL valid downstream. Every reader that accepts `m5-v1` OR `m5-v2` must also accept `m5-v3` — the m5-v3 additions are purely additive and optional, so a reader rejecting an `m5-v3` value would fall back to prose-mode and lose the structured tracker linkage. Strict validators (e.g., `validator-checks.md` check #14) verify the field shape on `m5-v2` OR `m5-v3`; the check is skipped on legacy `m5-v1`.
 
 **`status:` namespace note.** The state-tier schema reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
 

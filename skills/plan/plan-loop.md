@@ -191,7 +191,7 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 
 Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium` (default) or `very thorough` for Big-tier subsystem facets.
 
-All spawns in a single assistant response per the parallel-spawn rule. Per-spawn output schema: `[{file, lines, observation}]`; cap ~4000 chars (truncate with marker).
+All spawns in a single assistant response per the parallel-spawn rule, each additionally receiving the §1.4 "TASK CHAIN CONTEXT" block (when present) as added context so the spec is grounded in where this task sits in the larger chain of work. Per-spawn output schema: `[{file, lines, observation}]`; cap ~4000 chars (truncate with marker).
 
 ### 1.3 Echo contract
 
@@ -234,9 +234,19 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
     kind: linear
     issue_id: CI-300
     url: ...
+    title: "Case Radar performance epic"    # chain enrichment (§1.4 step 4)
+    status: In Progress                      # chain enrichment
+    scope: "Cut backfill latency below 5 min."  # chain enrichment, ≤280 chars
+  siblings:                                  # chain enrichment, ≤8 entries, omit when none
+  - issue_id: CI-301
+    title: "..."
+    status: Done
+  chain_fetched_at: 2026-05-26T10:42:15Z     # chain enrichment, independent staleness from fetched_at
 ```
 
 3. The fetched payload feeds Phase 1 research-agent prompts (existing behavior) AND becomes the canonical source for Phase 6 frontmatter copy. Skipped when `$ARGUMENTS` carries no tracker reference — pure inline-task /geniro:plan emits a spec.md without `workflow_refs[]`.
+
+4. **Assemble the related-task chain.** After the current issue resolves, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: plan) with the fetched ref(s) + the task-dir to gather the chain of related work — the parent epic (title / status / scope), the sibling sub-tasks (each with its status), and neighboring milestone files on disk — and to derive the done-before / where-we-are / what's-next narrative. The helper also cross-checks each load-bearing chain fact against the project's declared `## Data Sources` (read-only, fail-open) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`, marking any status no source can confirm as unconfirmed and surfacing conflicts rather than assuming a single fetch. Merge the helper's `ENRICHED_REFS` (the tracker half: `parent_ref.{title,status,scope}` + `siblings[]` + `chain_fetched_at`) into the state.md `## Workflow Refs` block via `atomic_state_write`. Stay read-only on the tracker — never mutate the parent or siblings. Fail-open: on MCP unregistered/timeout, skip enrichment, log a `## Errors` entry, and continue. Hold the helper's assembled "TASK CHAIN CONTEXT" block in context for the §1.2 research-agent prompts; the milestone half is derived fresh each run and is never persisted.
 
 ### 1.5 Transition to Phase 2
 
@@ -481,7 +491,12 @@ Content: schema (11 sections) + frontmatter with goal block + optional `workflow
 
 **Frontmatter assembly — `workflow_refs[]`:** copy state.md `## Workflow Refs` block (populated by Phase 1.4) into spec.md frontmatter `workflow_refs:` field verbatim (YAML re-emission). Skip when state.md `## Workflow Refs` is empty / absent — `workflow_refs:` is then omitted from spec.md frontmatter entirely (the field is OPTIONAL per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §workflow_refs).
 
-Set `geniro_schema_version: m5-v2` whenever `workflow_refs:` is present — the Phase 7 validator only shape-checks `workflow_refs` on m5-v2, so an m5-v1 spec carrying the field would escape validation. For pure inline-task /geniro:plan with no tracker linkage, `m5-v1` and `m5-v2` are both valid (downstream readers accept both).
+Set the schema version from what the copied `workflow_refs[]` actually carry:
+- `m5-v3` when any copied entry carries a chain-enrichment field — `parent_ref.title`, `parent_ref.status`, `parent_ref.scope`, `siblings[]`, or `chain_fetched_at` (populated by Phase 1.4's chain assembly).
+- `m5-v2` when `workflow_refs:` is present but carries no enrichment field (a plain tracker fetch with no chain).
+- `m5-v1` / `m5-v2` both stay valid for pure inline-task /geniro:plan with no tracker linkage; downstream readers accept all three.
+
+The Phase 7 validator shape-checks `workflow_refs` on m5-v2 OR m5-v3, so an m5-v1 spec carrying the field would escape validation — never emit m5-v1 when `workflow_refs:` is present.
 
 Write spec.md (and state.md / each `milestone-N.md`) via `atomic_state_write` — source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, then feed the full file content on stdin via a heredoc, the same helper used for every state.md write. The `enforce-state-helper` hook hard-blocks a direct `Edit`/`Write` to anything under `.geniro/planning/**` or `.geniro/state/**`, so the helper is the only working write path for these artifacts; the skill's frontmatter `allowed-tools` also omits `Edit`:
 
@@ -668,14 +683,14 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 - [ ] state.md created at `.geniro/planning/<slug>/state.md` via `atomic_state_write` with frontmatter.
 - [ ] Phase 0.5 problem-discovery interview ran ONLY when `--prd` was passed (`prd_mode: true`); six dimensions captured (problem / evidence / target user + job / hypothesis / success metrics / MoSCoW), each persisted to `approvals[]` (`prd_<dim>`) + synthesized to state.md `## Problem Framing`; skipped silently when `--prd` absent (no behavior change).
 - [ ] Phase 1 loaded L4 + L3 + L2 (full tier); per-spawn Echo contract entries persisted to `## Tool log`.
-- [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs` (skipped when no tracker reference).
+- [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs`; the related-task chain was assembled via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: plan) with the tracker half (parent epic + siblings + `chain_fetched_at`) merged into `## Workflow Refs` and the "TASK CHAIN CONTEXT" block held for the research spawns; fail-open on MCP unavailable (skipped when no tracker reference).
 - [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
 - [ ] Phase 3 rendered any non-trivial option consequences to a chat message, then batched independent clarifying questions into one `AskUserQuestion` call (≤4 per call, dependent questions fired sequentially), ≤5 questions total, with lean options; each answer persisted to `approvals[]`.
 - [ ] Phase 4 rendered the 2-3 approaches to a chat message in the Visual rendering language (progress tracker + one-sentence opener + per-approach plain-English summary, ASCII diagram, what-changes file list, trade-off, stress-test verdict), then fired ONE lean AUQ with Recommended first; pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
 - [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a verified-blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); clean verdicts carried a `Checked:` account (else noted "stress-test inconclusive"); critique verdicts carried into the Phase 4 chat message + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
 - [ ] Phase 5 grouped the fixed 11-section schema into 3 dependency-ordered clusters (Goal & scope / Approach & steps / Safety & done); authored cluster-by-cluster in order; rendered each cluster in the Visual rendering language (progress tracker + one-sentence opener + cluster visual + icon-headed friendly digest per section with concrete example), then gated it with ONE lean AUQ (Approve all / Explain a section further / Revise specific sections → picker / Cancel); Explain rounds wrote no approvals and did not count toward revision rounds; each section pick persisted to `approvals[]` category `section_<id>` (no `cluster_<id>` category introduced).
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
-- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v2` when `workflow_refs[]` is present; `## Problem & Evidence` written from state.md `## Problem Framing` ONLY when `prd_mode: true` (omitted on normal specs).
+- [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v3` when chain-enriched, else `m5-v2` when `workflow_refs[]` is present; `## Problem & Evidence` written from state.md `## Problem Framing` ONLY when `prd_mode: true` (omitted on normal specs).
 - [ ] Phase 6 did NOT auto-commit.
 - [ ] Phase 7 mechanical validator ran the full check set defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 7.5 spec challenge ran on every plan (no Trivial skip) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).

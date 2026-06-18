@@ -134,15 +134,24 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ### 14. `workflow_refs_consistency`
 
-**Rule:** for each entry in frontmatter `workflow_refs[]` (m5-v2 only — skipped on legacy `m5-v1` specs), a matching workflow file exists at either `./.geniro/workflow/<kind>.md` (cwd-local) OR `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (primary fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Per-entry required fields `kind`, `issue_id`, `url`, `fetched_at` are non-empty.
+**Rule:** for each entry in frontmatter `workflow_refs[]` (m5-v2 or m5-v3 — skipped on legacy `m5-v1` specs), a matching workflow file exists at either `./.geniro/workflow/<kind>.md` (cwd-local) OR `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (primary fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Per-entry required fields `kind`, `issue_id`, `url`, `fetched_at` are non-empty.
 
-**Heuristic:** YAML parse `workflow_refs[]`; for each entry, `test -f ./.geniro/workflow/<kind>.md || test -f <PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (cwd-first, primary-fallback) + field-presence check. Skip the check entirely when `geniro_schema_version: m5-v1` OR `workflow_refs:` is absent.
+**m5-v3 chain-enrichment shape sub-checks (SHAPE-ONLY, key-presence-guarded):** when the m5-v3 fields are present on an entry, verify their shape — never their values, which are free-form fetched payload:
+- Each `siblings[]` entry has a non-empty `issue_id` (the only required sibling sub-field; `title` / `status` are optional and unchecked).
+- `chain_fetched_at` is non-empty when the key is present.
+- `parent_ref.title` / `status` / `scope` are free-form optional cached payload — no check.
 
-**Status semantics:** this check returns `warn` (not `fail`) when a referenced workflow file is missing from BOTH locations — the workflow file may legitimately appear later in the project lifecycle (early-stage repos often link to trackers before authoring workflow files). Downstream skills skip workflow on-task-start hooks for unresolved kinds and continue. Field-presence violations (missing `kind` / `issue_id` / `url` / `fetched_at`) return `fail` — the entry is structurally broken.
+These sub-checks run on m5-v2 OR m5-v3 specs, guarded by key-presence (an entry without `siblings` / `chain_fetched_at` skips them), and never run on m5-v1.
+
+**Heuristic:** YAML parse `workflow_refs[]`; for each entry, `test -f ./.geniro/workflow/<kind>.md || test -f <PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (cwd-first, primary-fallback) + field-presence check. Skip the check entirely when `geniro_schema_version: m5-v1` OR `workflow_refs:` is absent. Inside the per-entry loop, when the entry carries `siblings`, assert each sibling has a non-empty `issue_id`; when it carries `chain_fetched_at`, assert it is non-empty.
+
+**Status semantics:** this check returns `warn` (not `fail`) when a referenced workflow file is missing from BOTH locations — the workflow file may legitimately appear later in the project lifecycle (early-stage repos often link to trackers before authoring workflow files). Downstream skills skip workflow on-task-start hooks for unresolved kinds and continue. Field-presence violations (missing `kind` / `issue_id` / `url` / `fetched_at`, or a `siblings[]` entry missing `issue_id`) return `fail` — the entry is structurally broken.
 
 **Fix hint on warn:** "spec.md `workflow_refs[]` references kind '<kind>' but `.geniro/workflow/<kind>.md` does not exist in cwd or primary worktree — downstream skills will skip workflow on-task-start hooks for this ref. Create the workflow file (see existing `linear.md` as template) OR remove the `workflow_refs` entry from spec.md frontmatter."
 
 **Fix hint on fail:** "Entry <N> in `workflow_refs[]` is missing required field `<field>`. Re-run /geniro:plan with the tracker URL/ID in $ARGUMENTS so Phase 1 can re-fetch, OR hand-edit the entry to add the field."
+
+**Fix hint on fail (sibling shape):** "Entry <N> siblings[<M>] is missing required field issue_id — re-run /geniro:plan with the tracker URL/ID so Phase 1 can re-fetch the chain, OR remove the malformed sibling entry."
 
 ---
 

@@ -55,6 +55,14 @@ If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task
 
 Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, TWO `Agent(...)` tool calls. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
+### Related-task chain priming
+
+Before spawning, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: implement) to assemble the related-task chain context — the surrounding chain of work that places this task in its done-before / where-we-are / what's-next narrative. Source the tracker half from the spec frontmatter `workflow_refs[]` when present (already enriched by `/geniro:plan` on its newest spec format); when the chain's tracker fetch is stale (older than 1 hour) or absent, the helper refreshes it via MCP (fail-open). Source the milestone half from disk — when `/geniro:implement` is invoked on a `milestone-N.md`, the helper reads the sibling `milestone-*.md` files and the parent `spec.md` to place this milestone in the chain (what shipped before, what is next).
+
+The helper returns a plain-English "TASK CHAIN CONTEXT" block. Inline it into BOTH spawn prompts via the `TASK_CHAIN_CONTEXT` slot below. Fail-open: when the helper returns empty (no tracker chain and no milestones), omit the slot from both prompts.
+
+Read-only: `/geniro:implement` never mutates tracker / parent / sibling state from this step. Its existing status transition at Step 0c is unchanged and separate.
+
 ### Knowledge-Retrieval spawn
 
 The orchestrator MUST have resolved `PRIMARY_ROOT` per Phase 1 entry preamble (see SKILL.md §PHASE 1) before substituting the literal `<PRIMARY_ROOT>/` token in these slots. Without that compute, the spawn template ships literal placeholder paths to the agents.
@@ -70,6 +78,7 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 | `HANDOFF_DIR` | `<PRIMARY_ROOT>/.geniro/state/handoff/` |
 | `TASK_DESCRIPTION` | First ~200 chars of `$ARGUMENTS` or `spec.title` |
 | `INFERRED_TAGS` | Tag list inferred by the orchestrator from task description (e.g., `react,auth,bug`) |
+| `TASK_CHAIN_CONTEXT` | The related-task chain block from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`, or omitted when empty |
 | `OUTPUT_PATH` | `<task-dir>/.kr-out.md` |
 
 ```
@@ -81,6 +90,7 @@ TASK_PLANNING_ROOT: [absolute path]
 HANDOFF_DIR: [absolute path]
 TASK_DESCRIPTION: [pre-inlined]
 INFERRED_TAGS: [comma-separated list]
+TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the structured
@@ -99,6 +109,7 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 | `SPEC_CONTENT` | Pre-inlined `spec.md` body (or `## Inline Plan` from state.md for inline-task mode) |
 | `RULES_DIR` | `.claude/rules/` (absolute path under WORKTREE) |
 | `SEMANTIC_MAP` | Pre-inlined `_CODEBASE_MAP.md` body (~2K tokens) |
+| `TASK_CHAIN_CONTEXT` | Same related-task chain block (or omitted when empty) — gives the explorer the surrounding chain of work |
 | `OUTPUT_PATH` | `<task-dir>/.ce-out.md` |
 
 ```
@@ -107,6 +118,7 @@ WORKTREE: [absolute path]
 SPEC_CONTENT: [pre-inlined spec.md body]
 RULES_DIR: [absolute path to .claude/rules/]
 SEMANTIC_MAP: [pre-inlined _CODEBASE_MAP.md body]
+TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the
@@ -257,7 +269,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 - **Orchestrator runs it, not `test-runner-agent`.** The runner agent's single-command leaf contract is a deliberate safety boundary — its anti-rationalization forbids it orchestrating multiple commands. Phase 2 already grants the orchestrator Bash, so it runs the `verify:` strings directly. No agent-report schema change, so no lockstep cost on the agent side.
 - **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
 - **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Checks failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason — never silently skipped, never executed.
-- **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly. `verify:` is a body-level field, not frontmatter, so it is independent of `geniro_schema_version` (m5-v1 / m5-v2).
+- **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly. `verify:` is a body-level field, not frontmatter, so it is independent of `geniro_schema_version` (m5-v1 / m5-v2 / m5-v3).
 - **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and persist the outcome to state.md `## Tool log` via `atomic_state_write`.
 
 ---
