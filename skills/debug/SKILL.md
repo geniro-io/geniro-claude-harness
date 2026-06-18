@@ -246,7 +246,7 @@ Persist to state.md `## Root Cause` body section.
 
 ### 1.7 Stall escalation gate
 
-When the hypothesis loop fails to converge — defined as **5 inconclusive hypothesis tests across all hypotheses** — fire the stall gate before declaring the bug unsolvable:
+When the hypothesis loop fails to converge — defined as **5 inconclusive hypothesis tests across all hypotheses** (enough attempts for the scientific-method loop to isolate a cause, few enough that a genuinely stuck investigation surfaces to the user before more turns are burned) — fire the stall gate before declaring the bug unsolvable:
 
 1. **Do not silently report "cannot determine cause".**
 2. Apply the 8-category diagnose-by-missing-component taxonomy (`## Stall Diagnosis Taxonomy` below).
