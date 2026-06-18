@@ -235,6 +235,10 @@ Decision Type and severity are orthogonal: a HIGH-severity finding can be `[FIX-
 - Only report if you have specific evidence in the code
 - False positives waste engineer time and erode trust in review
 
+### No-action observations
+- A finding must call for an action — a fix, a test, or a decision. If your conclusion is "this is fine" / "no change needed" / a neutral informational note, it is not a finding: put it under Dimension Summary → "Notable clean areas", or leave it out
+- A no-action comment posted to a PR is noise the author cannot act on — it reads as review for its own sake and dilutes the findings that do need attention
+
 ### Assumption Over Evidence
 - "This looks like it could be a problem" is not a finding
 - Every finding needs a specific file, line number, and code snippet
