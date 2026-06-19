@@ -8,6 +8,8 @@
 # is paired with finding-gate co-text (a parenthesized severity, or the words
 # finding/reviewer/severity) — a bare finding-ID alone is too collision-prone.
 # Prompt-level render guards leak under drift; this is the mechanical backstop.
+# Also blocks a single call that batches >=2 product-decision findings as separate
+# questions (the tabbed F3/F4/F5 prompt) — those resolve one finding per call.
 # Bypass: .geniro/safety.json allow_patterns: ["gate-render"].
 set -euo pipefail
 
@@ -87,6 +89,47 @@ ABOVE_RE='(^|[^[:alnum:]_])above([^[:alnum:]_]|$)'
 SHORTHAND_RE='(PRODUCT-DECISION|[Cc]onverg)'
 FINDING_ID_RE='(^|[^[:alnum:]_])[FM][0-9]+[a-z]?([^[:alnum:]_]|$)'
 FINDING_CTX_RE='\((CRITICAL|HIGH|MEDIUM|LOW)|finding|reviewer|severit'
+
+# ===== Finding-batching guard (shape-based, render-independent) =====
+# Product-decision gates resolve ONE finding per call (per review-handoff.md §3
+# / per-finding-question.md §Single-finding gate). A call whose questions[] holds
+# ≥2 entries that EACH read like a product-decision gate is the tabbed F3/F4/F5
+# batch — block it regardless of render state, because no single chat render can
+# precede a multi-finding call. The signal is per-question: count questions
+# individually matching the same finding-gate shorthand the render guard uses
+# (PRODUCT-DECISION / convergence, OR finding-ID + co-text). /plan's clarifying
+# batch (≤4 questions carrying none of that) does not match.
+QCOUNT=$(printf '%s' "$INPUT" | jq -r '.tool_input.questions | length' 2>/dev/null || echo 0)
+if [ "${QCOUNT:-0}" -ge 2 ]; then
+  # One line per question: its question text + option labels + descriptions, with
+  # newlines flattened so each question stays on a single grep line.
+  PER_Q=$(printf '%s' "$INPUT" | jq -r '
+    .tool_input.questions[]?
+    | ([(.question // ""), (.options[]?.label // ""), (.options[]?.description // "")] | join(" "))
+    | gsub("[\n\r]+"; " ")' 2>/dev/null || echo "")
+  DECISION_Q=0
+  while IFS= read -r q_line; do
+    [ -z "$q_line" ] && continue
+    if printf '%s' "$q_line" | grep -qiE "$SHORTHAND_RE"; then
+      DECISION_Q=$((DECISION_Q + 1))
+    elif printf '%s' "$q_line" | grep -qE "$FINDING_ID_RE" \
+      && printf '%s' "$q_line" | grep -qiE "$FINDING_CTX_RE"; then
+      DECISION_Q=$((DECISION_Q + 1))
+    fi
+  done <<EOF_PERQ
+$PER_Q
+EOF_PERQ
+  if [ "$DECISION_Q" -ge 2 ]; then
+    cat >&2 <<'EOF'
+Batched product-decision gate: this AskUserQuestion carries multiple findings as separate questions in one call (the tabbed F3/F4/F5 prompt). Product-decision findings are resolved one at a time — one AskUserQuestion call per finding, each preceded by its own rendered chat block with that finding's evidence and visual.
+This is an automated plugin guard (gate-render), NOT a user denial. Do not treat the question as answered.
+Recovery: fire one AskUserQuestion per finding in sequence — render finding 1 to chat, ask it, collect the answer, then render and ask finding 2, and so on.
+Project bypass: add "gate-render" to allow_patterns in .geniro/safety.json.
+EOF
+    exit 2
+  fi
+fi
+
 if   printf '%s' "$QTEXT" | grep -qiE "$ABOVE_RE"; then
   : # branch (a): references content "above" → scan
 elif printf '%s' "$QTEXT" | grep -qiE "$SHORTHAND_RE"; then

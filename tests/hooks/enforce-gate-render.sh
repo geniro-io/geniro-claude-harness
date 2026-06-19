@@ -28,6 +28,9 @@
 #   - Block stderr is byte-exact against the recovery directive.
 #   - Non-AskUserQuestion input (defensive) → allow.
 #   - safety.json gate-render bypass.
+#   - Batched ≥2 product-decision findings in one call → block regardless of render.
+#   - One product-decision + one benign question (render present) → allow (not a batch).
+#   - /plan-style clarifying batch (≥2 questions, no finding shorthand) → allow unscanned.
 #
 # Each block case costs ~0.4s (the hook's lazy-flush retry sleep) — expected.
 
@@ -252,6 +255,69 @@ cd "$TMPDIR_BASE/byp" || exit 1
 { user_text; asst_tooluse; } > "$TR"
 expect_allow "gate-render bypass on a blocking fixture → allow" "$(run_q 'Full explanation above. Approve?' "$TR")"
 cd "$TMPDIR_BASE" || exit 1
+
+# ===== Finding-batching guard: ≥2 product-decision questions in one call → block =====
+# Two PRODUCT-DECISION questions batched into one call is the tabbed F3/F4/F5
+# prompt — blocked regardless of render state (shape violation, not render).
+run_batch_pd() {
+  jq -nc '{tool_name:"AskUserQuestion",
+    tool_input:{questions:[
+      {question:"F3 is a PRODUCT-DECISION: docstring over-promise — how to resolve?", options:[{label:"Reword"},{label:"Leave as-is"}]},
+      {question:"F4 is a PRODUCT-DECISION: config split — how to resolve?", options:[{label:"Inline"},{label:"Keep split"}]}]}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "two PRODUCT-DECISION questions batched in one call → block" "$(run_batch_pd)"
+
+# Three finding-ID + co-text questions batched (the screenshot's exact shape) → block.
+run_batch_fid() {
+  jq -nc '{tool_name:"AskUserQuestion",
+    tool_input:{questions:[
+      {question:"F3 (LOW, architecture): over-promise in the docstring — your call?", options:[{label:"Reword"},{label:"Refactor"}]},
+      {question:"F4 (LOW, architecture): provider mcpUrl split across two files — your call?", options:[{label:"Inline"},{label:"Keep"}]},
+      {question:"F5 (LOW, architecture): PR thread still open — confirm intent?", options:[{label:"Confirm"},{label:"Reopen"}]}]}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "three finding-ID+co-text questions batched (F3/F4/F5) → block" "$(run_batch_fid)"
+
+# A render present does NOT rescue a batched product-decision call — shape wins.
+{ user_text; asst_text 'Digest: F3 over-promise; F4 config split — full evidence here.'; } > "$TR"
+run_batch_pd_tr() {
+  jq -nc --arg t "$1" '{tool_name:"AskUserQuestion", transcript_path:$t,
+    tool_input:{questions:[
+      {question:"F3 is a PRODUCT-DECISION: docstring over-promise — how to resolve?", options:[{label:"Reword"},{label:"Leave as-is"}]},
+      {question:"F4 is a PRODUCT-DECISION: config split — how to resolve?", options:[{label:"Inline"},{label:"Keep split"}]}]}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "batched product-decisions block even WITH a render present → block" "$(run_batch_pd_tr "$TR")"
+
+# Two-question call where only ONE carries product-decision shorthand → batching
+# guard does not fire; with a render present the existing logic allows.
+{ user_text; asst_text 'Digest: F3 over-promise — evidence and visual here.'; } > "$TR"
+run_one_pd_one_benign() {
+  jq -nc --arg t "$1" '{tool_name:"AskUserQuestion", transcript_path:$t,
+    tool_input:{questions:[
+      {question:"F3 is a PRODUCT-DECISION: docstring over-promise — how to resolve?", options:[{label:"Reword"},{label:"Leave as-is"}]},
+      {question:"Pick a branch name for the follow-up?", options:[{label:"A"},{label:"B"}]}]}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_allow "one product-decision + one benign question, render present → allow (not a batch)" "$(run_one_pd_one_benign "$TR")"
+
+# /plan-style clarifying batch: ≥2 questions, NO product-decision shorthand →
+# allow unscanned even on a render-less turn (the false-positive guard).
+{ user_text; asst_tooluse; } > "$TR"
+run_plan_clarify() {
+  jq -nc --arg t "$1" '{tool_name:"AskUserQuestion", transcript_path:$t,
+    tool_input:{questions:[
+      {question:"Which database should the feature use?", options:[{label:"Postgres"},{label:"SQLite"}]},
+      {question:"Should the endpoint be paginated?", options:[{label:"Yes"},{label:"No"}]}]}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_allow "plan-style clarifying batch (no finding shorthand) → allow unscanned" "$(run_plan_clarify "$TR")"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

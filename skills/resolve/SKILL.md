@@ -44,7 +44,7 @@ You are a read-only spec producer. You read an open pull request's unresolved re
 |---|---|
 | Verifier fan-out | Tier-scaled per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — Trivial: orchestrator-inline; Small/Medium: one verifier per `fix`/`wontfix` item; Big: signal-gated per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 precision layer (escalate only on a contested verdict) |
 | Spec-challenge | One verifier per cited claim in the produced spec — always-on, advisory, fail-open (Phase 4) |
-| Clarify AUQ | ≤4 questions per call; chain past the cap per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension |
+| Clarify AUQ | ONE item per call, fired in sequence (never multiple items batched into one call's `questions[]`); the § Cap-extension chains only a single item's >4 OPTIONS, never the item count |
 | Rounds | Single pass — `/resolve` produces once; re-invoke on the same PR re-triages only new/unresolved threads (#4) |
 
 ## Memory I/O
@@ -59,7 +59,7 @@ You are a read-only spec producer. You read an open pull request's unresolved re
 |---|---|---|
 | Phase 1 (Triage) | Read / Grep / Glob / Bash (`gh pr view`, `gh api graphql` / `gh pr checks` read side of `pr-threads.md`; `atomic_state_write`) / AskUserQuestion (no-PR fallback) | Edit / Write / any `gh` write / mutating Bash |
 | Phase 2 (Analyze & Verify) | Read / Grep / Glob / Bash (read-only repro, test runs) / Agent (`reviewer-agent` verify-finding — OMIT `model=`) / atomic_state_write | Edit / Write on source / `gh` write |
-| Phase 3 (Clarify) | Read / AskUserQuestion / atomic_state_write | Edit / Write on source |
+| Phase 3 (Clarify) | Read / AskUserQuestion / Agent (`reviewer-agent` verify-finding on a Challenge pick — OMIT `model=`) / atomic_state_write | Edit / Write on source |
 | Phase 4 (Emit) | Read / Grep / Bash (read-only; `atomic_state_write` for spec + handoff) / Agent (spec-claim verifier — OMIT `model=`) | Edit / Write on source / `gh` write / `git push` |
 
 ---
@@ -88,10 +88,10 @@ Verdict rubric + the verify/reproduce detail: `resolve-reference.md` §2.
 
 ## PHASE 3: CLARIFY
 
-For `needs-clarification` items only (skip the phase when none):
+For `needs-clarification` items only (skip the phase when none). Each ambiguous item is its own gate — render it, ask, collect the answer, then move to the next; never batch items into one `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate ("One finding per call"; the `gate-render` hook hard-blocks a batched gate).
 
-1. Render each ambiguous item as a **self-contained chat message** — the comment, the code it points at, why it is ambiguous, and the options — in the shared visual language per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. The message is the rendering surface; the AUQ `preview` side-box is too small.
-2. Fire ONE lean AskUserQuestion per item (chain past the 4-cap per the Budgets table). Persist each pick to `approvals[]` (category `comment_clarification`) and write the resolved answer into the item's `open_questions[]` entry, setting `related_comments: [<thread_id>]` so the question traces back to the comment that raised it; a deferred item stays `status: unresolved` and travels to `/geniro:implement` for re-gating.
+1. Render each ambiguous item as a **self-contained chat message** — the comment, the code it points at, why it is ambiguous, a visual (the code path or before/after it concerns, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Finding-type visual map), and the options — in the shared visual language per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. The message is the rendering surface; the AUQ `preview` side-box is too small.
+2. Fire ONE lean AskUserQuestion for that one item, then collect the answer before rendering the next. The option set is the item's interpretations plus two aids: an **"Explain further"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (renders a deeper walkthrough, re-fires the same question, writes nothing, consumes no cap), and a **"Challenge this comment"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Challenge-finding option — picking it spawns one fresh `reviewer-agent` in verify-finding mode (the Phase 2 re-verify mechanism; OMIT `model=`) primed with the user's objection to re-check whether the comment is valid and reachable, re-renders the item with the verdict, then re-fires; a `refuted` result reclassifies the item to `wontfix` (with the evidence-backed push-back draft) and drops its gate. When the item's interpretations plus these aids exceed 4 slots, chain per the § Cap-extension — never drop an interpretation to make room. Persist each pick to `approvals[]` (category `comment_clarification`) and write the resolved answer into the item's `open_questions[]` entry, setting `related_comments: [<thread_id>]` so the question traces back to the comment that raised it; a deferred item stays `status: unresolved` and travels to `/geniro:implement` for re-gating.
 
 ## PHASE 4: EMIT
 
