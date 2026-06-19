@@ -1,6 +1,6 @@
 ---
 name: audit-plugin
-description: "Use when auditing the geniro-claude-plugin repo as a whole — skills, agents, hooks, lib helpers, rules, and docs — for cross-file consistency, stale references, authoring-rule compliance, logic and shell correctness, over-complication, magic numbers, and safety/coverage gaps. Runs a deterministic pre-pass, then parallel dimension reviewers, re-verifies every finding against the cited lines, and writes a tiered report to design/. Skip for fixing one known issue (/improve-template) or reviewing a pending code diff (/code-review)."
+description: "Use when auditing the geniro-claude-plugin repo as a whole — skills, agents, hooks, lib helpers, rules, and docs — for cross-file consistency, stale references, authoring-rule compliance, logic and shell correctness, over-complication, magic numbers, and safety/coverage gaps. Runs a deterministic pre-pass, then parallel dimension reviewers, re-verifies every finding against the cited lines, and writes a tiered report to the local-only design/scratch/. Skip for fixing one known issue (/improve-template) or reviewing a pending code diff (/code-review)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
@@ -17,7 +17,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 2. **Phase 1 — Mechanical pre-pass.** Run the D1 deterministic battery (tests, lint, shellcheck, wiring greps). Output: machine findings + candidate lists that seed the reviewers.
 3. **Phase 2 — Parallel dimension reviewers.** Spawn up to 8 reviewers (D2-D8, with D5 split into markdown + shell) in ONE response.
 4. **Phase 3 — Merge, verify, filter.** Dedupe, count convergence, re-read every cited line, drop unverifiable and do-not-flag items, assign tiers.
-5. **Phase 4 — Report.** Write `design/plugin-audit-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and summarize in chat.
+5. **Phase 4 — Report.** Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and summarize in chat.
 6. **Phase 5 — Action gate.** AskUserQuestion: fix now / pick / report only. Approved fixes go through implementation subagents, then the mechanical battery re-runs to verify. Cleanup + commit offer.
 
 ## Loop invariants
@@ -56,7 +56,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
    - Repo-local: `.claude/rules/*.md`, `.claude/skills/**/*.md`.
    - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
    - Tests: `tests/**` (coverage map input for D8). `design/` and `evals/` are out of scope unless `$ARGUMENTS` names them.
-3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and the do-not-flag list from `.claude/skills/audit-plugin/dimensions-reference.md`. If prior dated audit reports exist (`design/plugin-audit-2*.md` — date-named reports only, not companions like `plugin-audit-PROGRESS.md`), read the most recent one's health summary — patterns it endorses extend the do-not-flag list, and its open findings get a "still open?" re-check tag in Phase 3.
+3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and the do-not-flag list from `.claude/skills/audit-plugin/dimensions-reference.md`. If prior dated audit reports exist (`design/scratch/plugin-audit-2*.md` — date-named reports only, not companions like `plugin-audit-PROGRESS.md`; the whole `design/scratch/` area is gitignored, so this only finds reports from prior runs ON THIS MACHINE — a fresh clone starts without prior-audit context, which is fine), read the most recent one's health summary — patterns it endorses extend the do-not-flag list, and its open findings get a "still open?" re-check tag in Phase 3.
 4. **Write the state checkpoint** to `.geniro/state/audit-plugin/<slug>/state.md` — slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules; audit-plugin is not in that helper's enumerated producer set but adopts its contract shape verbatim. Write via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — direct Write to `.geniro/state/` paths trips the state-helper hook), with the full T1.5 YAML frontmatter starting on line 1: `tier: T1.5`, `producer: audit-plugin`, `schema-version: 1`, `branch`, `worktree`, `timestamp`, `phase`, `status`, `non-resumable-actions: []` (plain-text header lines before the `---` fence fail `validate_state_file`). Checkpoint after every phase with: phase completed, scope, dimensions selected, finding counts.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
@@ -121,7 +121,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 4 — Report
 
-Write `design/plugin-audit-<YYYY-MM-DD>.md` via Write (design/ is not a `.geniro/` state path) with this structure, mirroring the established audit-report format:
+Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/` is a gitignored local-only working area — not a `.geniro/` state path, so the Write tool is correct here and the state-helper hook does not apply; `mkdir -p design/scratch` first if it does not exist) with this structure, mirroring the established audit-report format:
 
 1. **Header** — date, scope, reviewer topology (which dimensions ran, sharding).
 2. **Health summary** — what's strong and must NOT be over-corrected (feeds the next run's do-not-flag list).
@@ -170,7 +170,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - [ ] Phase 1 battery ran; output captured in checkpoint
 - [ ] Selected reviewers spawned in one response; outputs collected
 - [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt)
-- [ ] Report written to `design/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list
+- [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked
 - [ ] State cleaned up; commit offered
 

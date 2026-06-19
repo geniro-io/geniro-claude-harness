@@ -35,6 +35,7 @@ We especially welcome:
 - **Test with real projects** — install the template, run `/setup`, and verify the generated output makes sense
 - **Follow existing patterns** — look at how existing agents/skills are structured before creating new ones
 - **Update ARCHITECTURE.md** — if your change affects design decisions, update the consolidated architecture reference
+- **Keep working docs local** — plans, research notes, audit reports, and other throwaway design artifacts go in `design/scratch/` (gitignored, never committed). Skills that generate such docs (e.g. `/audit-plugin`) write them there; nothing in the tracked tree should depend on them
 
 ### Code Style
 
