@@ -112,7 +112,7 @@ This skill has no hard kill caps. All limits are escalation gates that surface t
 | Phase 3 clarifying-question count | ≤5 total (independent questions batched into one AUQ call, ≤4 per call; dependent ones sequenced) | plan-loop.md | Force consolidation OR proceed with stated assumptions. |
 | Phase 7 → Phase 6 auto-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
-| Phase 1 research-agent output size | ~4K chars per agent | invariant #4 | Truncation with marker, not abort. |
+| Phase 1 research-agent output size | ~4000 chars per agent | invariant #4 | Truncation with marker, not abort. |
 
 **Architecture constraints (design intent, not budget):**
 - Parallel research spawns per Phase 1: 1-4 (effort-tier-scaled per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`).

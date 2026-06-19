@@ -13,7 +13,7 @@ Sources for every number below: Anthropic [Skill best-practices](https://platfor
 | File class | Target | Hard ceiling | What to do on overflow |
 |---|---|---|---|
 | `skills/<slug>/SKILL.md` body (after frontmatter) | ≤ 500 lines | ~700 lines | Move detailed templates / pseudo-code / contracts to a sibling `*-reference.md`; SKILL.md keeps the workflow narrative + step bullets + invariants + anti-rationalization. |
-| Reference file (`*-reference.md`) | ≤ 600 lines | no ceiling | Split by phase / concern. Add TOC at the top if file > 100 lines (see §TOC rule). |
+| Reference file (`*-reference.md`) | ≤ 600 lines | no ceiling | Split by phase / concern. Add TOC at the top if file > 100 lines (see §Reference graph). |
 | Agent file (`agents/*.md`) | ≤ 250 lines | ~400 lines | Move slot tables and worked examples to `agents/<name>-reference.md`. |
 
 500 lines is the cross-source-confirmed target, not a strict cap. Don't trim load-bearing content to hit a number. Move detail to a reference file instead.
@@ -98,13 +98,3 @@ Before committing edits to `skills/**/*.md` or `agents/**/*.md`, walk this check
 5. **No pseudo-code duplication.** If you added a pseudo-code block (`while`, `if`, `for` in a fenced block), grep the sibling reference file. If it lives there too, point to it from SKILL.md instead of inlining.
 6. **Anti-rationalization table ≤ 15 rows.** `sed -n '/^## Anti-rationalization/,/^## /p' <file> | grep -cE '^\|'` — subtract 2 (header + separator) and check.
 7. **Frontmatter description** is third-person, "Use when …" form, ≤1024 chars.
-
-## Migration audit — remaining work
-
-Don't hardcode current line/row counts here — they go stale the moment a file is edited. Derive them on demand with the §Pre-commit verification greps:
-
-- **Over-target SKILL.md files:** `wc -l skills/*/SKILL.md` — anything over the 500-line target (700 hard ceiling) needs detail moved to a sibling `*-reference.md`. The orchestrator-heavy skills (review, debug, implement, setup) sit closest to the ceiling and are the first to re-examine.
-- **Anti-rationalization tables:** confirm each is ≤15 rows via the §Pre-commit verification grep.
-- **Reference files > 100 lines lacking a TOC:** add a 5-15 line "Contents" block right after the H1 per §Reference graph.
-
-New edits self-enforce via the §Pre-commit verification checklist.

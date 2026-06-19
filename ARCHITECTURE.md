@@ -133,6 +133,19 @@ Reporter-only (never applies fixes, never mutates tracker status — that is `/p
 
 ---
 
+## /resolve
+
+Read-only PR-feedback producer; mirrors the reporter-only boundary of `/review` (`allowed-tools` omits Edit/Write — never edits code, never posts to the PR).
+
+- 4 phases: Fetch & Triage → Analyze & Verify → Clarify → Emit.
+- Reads an open PR's unresolved review threads (human + bot) AND failing CI checks via the read side of `_shared/pr-threads.md` (the shared PR-comment/CI I/O contract; the write side lives in `/implement`). Each item is classified by intent, verified against the code, and assigned a verdict (`fix` / `answer-only` / `needs-clarification` / `wontfix`); each `fix`/`wontfix` is adversarially re-verified (`reviewer-agent` verify-finding, tier-scaled, signal-gated on Big per `_shared/deep-mode.md`). CI items become spec Steps only (no thread to resolve).
+- Ambiguous items render message-first then a lean AUQ (`_shared/gate-rendering.md`) → `open_questions[]`.
+- Emits a comment-keyed `spec.md` (standard 11-section schema + a `## Comment Resolution Map` body section) and a T2 handoff `from-resolve-<branch>.md` carrying `open_questions[]` + a `comment_resolutions[]` array (schema owned by `_shared/state-tier-spec.md`, lockstep with `/implement`) + `pr-ref` / `pr-head-sha`.
+- `/implement` consumes the handoff, applies the fixes, and at its Ship sub-step re-verifies each fix landed, then — action-gated — posts the drafted replies + resolves the threads via the `pr-threads.md` write side (the only external GitHub write in the feature).
+- State.md uses the session-bound subdir layout `.geniro/state/resolve/<slug>/state.md`.
+
+---
+
 ## Build-vs-buy library reuse (cross-skill)
 
 `skills/_shared/library-reuse-audit.md` is the canonical external-library build-vs-buy procedure — the registry counterpart to the in-repo `existing-abstraction-audit.md`, firing only after an in-repo NO-ANALOGUE result. Three modes: `plan` (fold "adopt library X" into approach design; the approach approval is the planning-time confirmation), `implement` (research candidates on the codebase-explorer's NO-ANALOGUE components at Phase 1 Step 8.5, then a message-first confirmation gate before any adoption — `approvals[]` category `library_adoption`), and `review` (the architecture dimension §7.5 flags reinvented-wheel code, tagged `[PRODUCT-DECISION]`, detection-only). Decisions: candidate discovery uses a top-level `general-purpose` web-research spawn (OMIT `model=`); the check is tier-gated (skip Trivial); the review side EXTENDS architecture-criteria rather than adding a new always-fire dimension (matching the /deep-simplify reuse-lens-absorption precedent). Safety: every candidate's existence is verified against the real registry before it is shown or written into a spec — language models hallucinate roughly 1-in-20 package names persistently and registrably ("slopsquatting"), so the confirmation gate is a supply-chain control, not just UX; never auto-install (installs go through the package manager; lockfile writes stay hook-protected). Language-agnostic: the ecosystem is detected from lockfiles (npm / PyPI / crates / Go / Maven / RubyGems); an npm-only assumption is a bug.

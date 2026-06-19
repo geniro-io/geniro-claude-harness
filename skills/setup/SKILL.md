@@ -597,13 +597,12 @@ validate_rounds: 1
 
 ## Definition of Done
 
-- [ ] Phase 0: Template source located (plugin root or explicit path)
-- [ ] Phase 1: Mode detected (init/re-run); codebase analyzed; project documentation scanned; L2 prior queries surfaced
-- [ ] Phase 2: Detection confirmed; codebase ambiguities resolved; optional integrations configured
-- [ ] Phase 3: Migration sweep (re-run only) applied auto-fixes; CLAUDE.md generated (project-specific only — no geniro plugin info); .gitignore updated; statusline installed
-- [ ] Phase 4: Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4); L2 `discovery` emit fired
-- [ ] Phase 5: Final report printed; onboard AUQ offered (init only); state file deleted on success path
+These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
+
 - [ ] Generated CLAUDE.md contains ZERO geniro-specific content (no skill tables, no path rules, no hooks, no updating instructions)
+- [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
+- [ ] L2 `discovery` emit fired
+- [ ] State file deleted on the success path
 - [ ] All user interactions used `AskUserQuestion`
 - [ ] If re-run mode + plugin-version delta: restart-session warning emitted
 

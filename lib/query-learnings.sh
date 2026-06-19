@@ -279,10 +279,25 @@ record_access() {
   # default — without `trap - RETURN` it would linger in the caller's shell),
   # mirroring update-semantic.sh.
   local lock="$root/.geniro/knowledge/.archive-stale.lock"
+  # Pre-acquire stale-lock reclaim: a SIGKILL/crash while another rewriter held
+  # the lock leaves the dir behind with no trap to clear it, which would wedge
+  # this counter bump for up to the TTL. Reclaim an abandoned lock whose mtime
+  # age exceeds the TTL, then the mkdir below retries. The 600s TTL mirrors the
+  # reclaim window in update-semantic.sh / archive-stale.sh.
+  if [ -d "$lock" ]; then
+    local lock_mtime
+    lock_mtime=$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null || echo 0)
+    if [ $(( $(date +%s) - lock_mtime )) -gt 600 ]; then
+      rmdir "$lock" 2>/dev/null
+    fi
+  fi
   if ! mkdir "$lock" 2>/dev/null; then
     return 0
   fi
   trap 'rmdir "$lock" 2>/dev/null; trap - RETURN' RETURN
+  # A SIGINT/SIGTERM mid-rewrite would skip the RETURN trap and orphan the lock
+  # for up to the TTL. Release it on interrupt too, mirroring update-semantic.sh.
+  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN' INT TERM
 
   local tmp="${log}.tmp.$$"
   # Read raw and `fromjson?` per line: a malformed line yields no output for that

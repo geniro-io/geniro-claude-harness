@@ -3,7 +3,7 @@ name: geniro:debug
 description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, Workflow]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Workflow]
 argument-hint: "[bug description | verify <diff-range> | verify last changes] [--deep]"
 ---
 
@@ -40,7 +40,7 @@ The invariants apply unchanged:
 1. **One result per tool call.** Adversarial Mode parallel-spawn → each spawn must return a structured result; dead spawn → `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` semantic parse; PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
 3. **Permission before side-effect.** State.md writes via `atomic_state_write`. /geniro:debug performs NO `git push` / `gh pr create` — debug never ships code. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-4. **Bounded and structured tool results.** `adversarial-tester-agent` output ≤4K chars per finding block; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
+4. **Bounded and structured tool results.** `adversarial-tester-agent` output ~4000 chars per finding block; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 5. **Escalation gates, not silent abort.** stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate to user via AUQ. Never silently fabricate a conclusion.
 6. **Final answer grounded in observations.** Evidence Standard for hypothesis confirmation — every Result: field in `## Hypotheses` MUST cite an artifact kind 1-5 per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Symptom matches" is correlation, not causation; not allowed.
 7. **Errors → structured observations.** Failed `git diff`, denied permission, `adversarial-tester-agent` "agent not found" ladder fallback all become structured `## Tool log` entries before being acted on.
@@ -442,23 +442,7 @@ At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnos
 - **`retry_failure_sequence`** (fires at Phase 2 exit, conditional on `fix_attempts >= 2`) — captures the failed fix-attempt chain with required `ext.{phase, attempts, resolution}`. Single-attempt exits do not emit. See §2.5 for the payload schema and emit logic.
 - **NOT emitted :** `pitfall` (/geniro:refactor + /geniro:review own), `convention` (/geniro:implement self-review owns), `decision` (/geniro:plan owns), `discovery` (/geniro:refactor + /geniro:onboard + /geniro:investigate own).
 
-- **Offer to capture a recurring diagnosis as a project rule:** when the emitted diagnosis carries `recurrence_count >= 3` (this exact root cause has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen diagnoses do not warrant a rule.
-
-  0. **Read back the recurrence count.** `emit-learning` appends silently and echoes nothing, so the count is not available from the emit return. Re-query to read it: `query-learnings --type diagnosis --include-superseded` filtered to the just-written `dedup_key`, and read `recurrence_count` off the matched entry. Gate the steps below on that value — skip the offer entirely if it is below 3.
-  1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `debug.md`, `code-style.md`) for the diagnosis's root-cause keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
-  2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring diagnosis summary and recurrence count in the description. Options (plain-English labels):
-     - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
-     - **Refine, then save as a rule** — same handoff; the user reshapes the wording before saving.
-     - **Merge into an existing rule** — same handoff; the user folds it into a related rule.
-     - **Don't save** — decline; nothing is written.
-  3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the diagnosis category (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
-  4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:
-
-```bash
-emit_rejection_if_signal \
-"/geniro:debug" "debug/<scope>" "promote_diagnosis_to_rule" \
-"Capture recurring diagnosis as project rule" "<picked label>"
-```
+- **Offer to capture a recurring diagnosis as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: diagnosis`, the debug scope routing (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks), and rejection args `"/geniro:debug" "debug/<scope>" "promote_diagnosis_to_rule"`. The helper reads the just-emitted diagnosis's `recurrence_count` back via `query-learnings` and gates the offer on `>= 3`.
 
 ### 3.4 Suggest improvements (project scope only, routes)
 
@@ -581,7 +565,7 @@ T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `de
 
 **Phase 3 (Ship):**
 - Allowed: Read / Write (T2 handoff persistence via `atomic_state_write`), `emit-learning` helper invocation, `AskUserQuestion`.
-- Explicitly blocked: `git commit`, `git push`, `gh pr create`, Agent spawns. Debug NEVER ships code.
+- Explicitly blocked: `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
 **Adversarial Mode (A4 spawn):**
 - `adversarial-tester-agent` runs under the spawn-agent ladder.
@@ -646,22 +630,17 @@ Binary search / git bisect / profiling — full procedure + per-language profile
 
 ## Definition of Done
 
-For each debug session, confirm the checklist for the mode that ran.
+These are the load-bearing exit gates and safety invariants for the mode that ran — the checks that, if skipped, make the investigation unsound or the no-ship boundary unsafe. Per-phase mechanics (context loading, hypothesis recording, feedback-loop construction) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
 
 ### Scientific Mode
 
 - [ ] Bug reproduced consistently with clear steps
-- [ ] feedback loop built: command + expected output + captured artifact recorded in state.md `## Feedback Loop`; re-run cost ≤30s preferred; 3-run determinism check passed
-- [ ] Custom instructions, project snapshot, and past learnings loaded at the start of investigation
-- [ ] All hypotheses recorded in state.md `## Hypotheses`
-- [ ] Each hypothesis has a test plan and result citing artifact per Evidence Standard
-- [ ] Root cause identified and confirmed (not guessed), tagged `[ROOT-CAUSE]`
-- [ ] Proposed fix is minimal, targeted, written as a text patch (NOT applied to source)
-- [ ] When multiple valid fix paths exist, multi-path fix gate fired (Always-WAIT) — user chose the path
-- [ ] Proposed fix verified against root cause via reverted experiments / monkey-patch
-- [ ] Reproduction test authored at project's normal test path, F→P verified, survives Cleanup — OR escape hatch invoked with user-recorded alternative regression guard in state.md "Reproduction Decision"
-- [ ] Findings summary presented to user in chat AND persisted to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` via `atomic_state_write` before the escalation question
-- [ ] Escalation decision made via AskUserQuestion with options referencing the state file by path
+- [ ] Root cause confirmed AND cited per Evidence Standard (not guessed), tagged `[ROOT-CAUSE]`
+- [ ] Reproduction test authored at project's normal test path, F→P verified, survives Cleanup — OR escape hatch invoked with the user-recorded alternative regression guard in state.md "Reproduction Decision"
+- [ ] Proposed fix written as a text patch, NOT applied to source (no-ship boundary held)
+- [ ] When multiple valid fix paths exist, the multi-path fix gate fired (Always-WAIT) — user chose the path
+- [ ] Findings handoff persisted to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` via `atomic_state_write` BEFORE the escalation question
+- [ ] Escalation decision made via AskUserQuestion
 - [ ] All experimental edits to non-test source reverted before handoff
 - [ ] L2 emit fired with `diagnosis` type + `ext.{symptom, root_cause, fix}`; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
 - [ ] Cleanup completed
@@ -670,12 +649,9 @@ For each debug session, confirm the checklist for the mode that ran.
 
 - [ ] Diff scope resolved (range + file list recorded in state.md `## Diff Scope`)
 - [ ] Skip conditions checked (and explicitly reported if skipped)
-- [ ] Project test framework detected from CLAUDE.md / package.json / pyproject.toml
 - [ ] `adversarial-tester-agent` spawned with all 6 context-isolation slots pre-inlined
 - [ ] Report written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`
-- [ ] Authored tests independently re-run by orchestrator (1× per test)
-- [ ] F→P-confirmed tests retained; any passing-today tests deleted
-- [ ] Adversarial Findings summary (A6) presented to user in chat
+- [ ] Authored tests independently re-run by the orchestrator; F→P-confirmed tests retained, any passing-today tests deleted
 - [ ] Escalation decision made via AskUserQuestion (or no-bugs-found exit if zero red tests → terminal `adversarial-aborted`)
 - [ ] Authored test files left on disk (NOT reverted — unlike scientific-method experiments)
 - [ ] Cleanup completed (`from-debug-adversarial-<branch>.md` may remain as audit trail)
