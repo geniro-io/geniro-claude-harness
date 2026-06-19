@@ -1,0 +1,103 @@
+# PR review-thread + CI I/O — shared contract
+
+Single source for reading unresolved PR review threads and failing CI checks, and for writing replies / resolving threads. `/geniro:resolve` calls the **read side** (Phase 1); `/geniro:implement` calls the **write side** (Ship sub-step). The I/O logic lives here so the two skills never drift on the `gh` shapes or the thread-node-id ↔ numeric-comment-id mapping.
+
+## Contents
+
+- §1 — Resolve the PR ref
+- §2 — Read side: unresolved review threads
+- §3 — Read side: failing CI checks
+- §4 — Write side: reply to a thread
+- §5 — Write side: resolve a thread
+- §6 — MCP fallback + fail-open
+- §7 — Caller contract
+
+---
+
+## 1. Resolve the PR ref
+
+The caller passes a PR ref (`#N` / URL) or asks this helper to detect it from the branch:
+
+```bash
+gh pr view --json number,url,headRefOid,headRefName,baseRefName,title,body 2>/dev/null
+```
+
+A non-zero exit (no PR for the branch, `gh` unavailable, no GitHub remote) is **fail-open**: the caller surfaces a plain-English caveat and asks the user for a PR ref rather than aborting. Capture `number` (N), the `owner/repo` (from the URL or `gh repo view --json owner,name`), and `headRefOid` (the head SHA — pin it so a later push can be diffed against the state read here).
+
+## 2. Read side: unresolved review threads
+
+One GraphQL call returns every review thread with its node id (for §5 resolve), the top comment's numeric id (for §4 reply), author, body, and location:
+
+```bash
+gh api graphql -F owner="$OWNER" -F repo="$REPO" -F number="$N" -f query='
+query($owner:String!,$repo:String!,$number:Int!){
+  repository(owner:$owner,name:$repo){
+    pullRequest(number:$number){
+      reviewThreads(first:100){
+        pageInfo{ hasNextPage endCursor }
+        nodes{
+          id isResolved isOutdated path line
+          comments(first:20){ nodes{ databaseId author{login} body } }
+        }
+      }
+      reviews(first:50){ nodes{ state body author{login} submittedAt } }
+    }
+  }
+}'
+```
+
+- **Keep only `isResolved == false` threads** — already-resolved threads are skipped (idempotency; a re-run never re-triages a closed thread).
+- **Humans AND bots both kept.** Bot logins keep their suffix (`coderabbitai[bot]`, `greptile-apps[bot]`, `sourcery-ai[bot]`, `codeant-ai[bot]`); tag the item `is_bot: true` for the verifier's prior context, but do NOT filter them out.
+- Per thread, capture: `thread_id` (the `id` — a `PRRT_…` node id), `comment_id` (the FIRST comment's `databaseId` — the reply anchor), `author`, `path`, `line`, and the concatenated comment bodies (the thread conversation).
+- `reviews[]` with `state: CHANGES_REQUESTED` carry a summary `body` not tied to a thread — surface them as context items (no `thread_id`; they cannot be resolved via API, only the author dismisses a formal review).
+- Paginate on `pageInfo.hasNextPage` (typical PR: 1-3 calls).
+
+## 3. Read side: failing CI checks
+
+```bash
+gh pr checks "$N" --json name,state,bucket,link,startedAt 2>/dev/null
+```
+
+- **Failing = `bucket == "fail"`** (covers `FAILURE` / `ERROR` / `TIMED_OUT` / `CANCELLED` conclusions). Skip `pass` / `pending` / `skipping`.
+- For each failing check, pull its output for the verifier — title + summary, and annotations when present (best-effort; a check with no annotation has `path: null`):
+
+```bash
+gh api "/repos/$OWNER/$REPO/commits/$HEAD_SHA/check-runs" \
+  --jq '.check_runs[] | select(.conclusion=="failure" or .conclusion=="timed_out") | {id,name,output:{title:.output.title,summary:.output.summary}}'
+gh api "/repos/$OWNER/$REPO/check-runs/$CHECK_RUN_ID/annotations" \
+  --jq '.[] | {path,start_line,annotation_level,message}' 2>/dev/null   # best-effort
+```
+
+A CI item carries no `thread_id` — a check goes green on the next push, there is nothing to resolve. CI items become spec fix-Steps only; they get NO `comment_resolutions[]` entry (§7).
+
+## 4. Write side: reply to a thread
+
+Post the drafted reply as a reply to the thread's top comment:
+
+```bash
+gh api --method POST "/repos/$OWNER/$REPO/pulls/$N/comments/$COMMENT_ID/replies" \
+  -f body="$REPLY_DRAFT"
+```
+
+`$COMMENT_ID` is the numeric `databaseId` captured in §2. Never echo a token; `gh` reads auth from its own store.
+
+## 5. Write side: resolve a thread
+
+```bash
+gh api graphql -F threadId="$THREAD_ID" -f query='
+mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}){ thread{ isResolved } } }'
+```
+
+Resolve ONLY a thread whose fix landed and whose verdict is `fix` (`resolve_after_fix: true`). A `wontfix` thread gets a reply (§4) but stays OPEN — resolving it would hide the disagreement from the reviewer, whose call it is to accept the push-back or not.
+
+## 6. MCP fallback + fail-open
+
+When the GitHub MCP server is registered, the read side MAY use `mcp__github__pull_request_read` and consume `reviewThreads[]` + `reviews[]` from its payload instead of the §2 `gh` call — same fields. There is no MCP equivalent for §4/§5 writes in the base server, so the write side always uses `gh`.
+
+Every call here is **fail-open**: a failed read sets the affected snapshot to null and the caller proceeds with a caveat (a resolve run with no thread data degrades to "nothing to triage"); a failed write marks that `comment_resolutions[]` entry `status: skipped` and reports it — never a hard stop, never a silent success.
+
+## 7. Caller contract
+
+- **Read side (`/geniro:resolve` Phase 1):** read-only. The skill's `allowed-tools` excludes Edit/Write; this helper's read calls are the skill's only `gh` use.
+- **Write side (`/geniro:implement` Ship sub-step):** an external write to a public surface — the caller MUST gate it behind an `AskUserQuestion` (the action gate), exactly like `gh pr create` / `git push`. This helper performs the write; it does NOT own the gate. After a successful write, the caller appends a `pr-comment-posted` entry to state.md `non-resumable-actions[]`.
+- **Schema:** the read side populates, and the write side consumes, the handoff `comment_resolutions[]` array defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields. `thread_id` flows to §5, `comment_id` to §4, `verify:` / `fix_step_anchor` decide whether the fix landed before a resolve.

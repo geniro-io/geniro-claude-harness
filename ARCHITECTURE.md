@@ -133,6 +133,12 @@ Reporter-only (never applies fixes, never mutates tracker status — that is `/p
 
 ---
 
+## Build-vs-buy library reuse (cross-skill)
+
+`skills/_shared/library-reuse-audit.md` is the canonical external-library build-vs-buy procedure — the registry counterpart to the in-repo `existing-abstraction-audit.md`, firing only after an in-repo NO-ANALOGUE result. Three modes: `plan` (fold "adopt library X" into approach design; the approach approval is the planning-time confirmation), `implement` (research candidates on the codebase-explorer's NO-ANALOGUE components at Phase 1 Step 8.5, then a message-first confirmation gate before any adoption — `approvals[]` category `library_adoption`), and `review` (the architecture dimension §7.5 flags reinvented-wheel code, tagged `[PRODUCT-DECISION]`, detection-only). Decisions: candidate discovery uses a top-level `general-purpose` web-research spawn (OMIT `model=`); the check is tier-gated (skip Trivial); the review side EXTENDS architecture-criteria rather than adding a new always-fire dimension (matching the /deep-simplify reuse-lens-absorption precedent). Safety: every candidate's existence is verified against the real registry before it is shown or written into a spec — language models hallucinate roughly 1-in-20 package names persistently and registrably ("slopsquatting"), so the confirmation gate is a supply-chain control, not just UX; never auto-install (installs go through the package manager; lockfile writes stay hook-protected). Language-agnostic: the ecosystem is detected from lockfiles (npm / PyPI / crates / Go / Maven / RubyGems); an npm-only assumption is a bug.
+
+---
+
 ## /debug (M7)
 
 3 phases: Investigate → Propose → Ship (escalates to `/implement`).

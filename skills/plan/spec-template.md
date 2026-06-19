@@ -145,6 +145,7 @@ Body sections beyond the 11 (allowed):
 - `## Considered Alternatives` — captured from Phase 4. Always present if Phase 4 ran with ≥2 approaches.
 - `## Milestones` — captured from Phase 5 milestone-mode. Present only if milestone-mode was picked.
 - `## Problem & Evidence` — captured from the Phase 0.5 problem-discovery interview. **Optional** — present only when `/geniro:plan --prd` ran (`prd_mode: true`); absent on every normal spec. The Phase 7 validator treats it as allowed-optional, so a normal spec without it still passes the schema check.
+- `## Comment Resolution Map` — captured by `/geniro:resolve` (`producer: resolve`). **Optional** — present only on a resolve-produced spec, mapping each PR review comment to its verdict + fix Step; absent on every `/geniro:plan` spec. Allowed-optional, so a plan spec without it still passes.
 
 ## Per-section content guidance
 

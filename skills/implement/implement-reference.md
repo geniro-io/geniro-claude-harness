@@ -9,6 +9,8 @@ This file contains templates, examples, and detailed procedures referenced by SK
 - Phase 1: $ARGUMENTS semantic-parse table
 - Phase 1: Spec discovery walk-list
 - Phase 1: Subagent spawn template
+- Phase 1: Library reuse audit (build-vs-buy)
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` — build-vs-buy external-library reuse audit
 - Phase 2: test-runner-agent spawn template
 - Phase 2: Implement — error-handling
 - Phase 3: Self-review reviewer-agent template
@@ -148,6 +150,23 @@ After reading the Codebase-Explorer report, the orchestrator scans `spec.md` for
 | Async / queue / background job | `\b(async\|queue\|worker\|scheduler\|cron\|background)\b` |
 
 When ≥1 signal matches, emit: `"Spec touches <matched signals> — consider running on Opus tier if not already (current: <tier>)."` Log a `## Tool log` entry `escalation_signals: [...]`.
+
+---
+
+## Phase 1: Library reuse audit (build-vs-buy)
+
+**When it fires.** After the codebase-explorer output is read (Step 8), for each `NO-ANALOGUE` component in the explorer's reuse inventory, when `change_scope` ∈ {small, medium, big}. Skip trivial scope, and skip silently when the project has no package manifest — there is nothing to install into.
+
+**What it does.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` with MODE: implement:
+- Detect the project's ecosystem language-agnostically — from the project snapshot (`_project.md`) or a lockfile/manifest glob (e.g. `package.json`, `requirements.txt`, `go.mod`, `Cargo.toml`, `Gemfile`).
+- Spawn ONE top-level `general-purpose` web-research agent (WebSearch + WebFetch, OMIT `model=`) to find and rank 2-3 candidate libraries in that ecosystem, then run the existence-verify + disqualifier funnel.
+- Render a message-first confirmation gate. "Keep hand-written" is the non-Recommended default — never auto-recommend a dependency.
+
+**Safety.** Existence-verify every candidate against the real registry before showing it to the user (anti-slopsquatting — a hallucinated package name must never reach the gate). Never auto-install; an adopted library installs through the package manager at Phase 2, where lockfile writes stay hook-protected.
+
+**Persistence and flow.** The user's pick persists to state.md `approvals[]` category `library_adoption`. An adopted library becomes a Phase 2 install-and-integrate todo. A decline emits a `user_rejected_suggestion` learning via `emit-rejection.sh`. Fail-open on any research or registry error — write a line to state.md `## Errors`, note it to the user, and proceed; a failed audit never blocks the run.
+
+**Spec already names a library.** When the spec (carried from `/geniro:plan`) already names a candidate, the audit re-verifies that named library — existence plus health — before confirming it, since a spec can go stale between planning and implementation.
 
 ---
 
@@ -665,6 +684,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 
 - [ ] State.md frontmatter `phase:` is a terminal state `done` / `ship-committed-only` / `self-review-only` / `debug-handoff` / `aborted`.
 - [ ] Spec source resolved — either a spec.md / plan.md / DESIGN_DOC frontmatter file was loaded, OR inline-task mode wrote a `## Inline Plan` to state.md.
+- [ ] Phase 1 ran the build-vs-buy library-reuse audit on NO-ANALOGUE components (skip trivial); any library adoption was user-confirmed via the gate.
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures`).
 - [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
 - [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated.

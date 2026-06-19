@@ -1,0 +1,103 @@
+# /geniro:resolve — reference
+
+Phase detail and schemas for `/geniro:resolve`. The skill body (`SKILL.md`) holds the workflow; this file holds the item inventory, the verdict rubric, and the two output schemas. The `gh` command shapes live once in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` — this file references them, never re-states them.
+
+## Contents
+
+- §1 — Inventory item schema (Phase 1)
+- §2 — Verdict rubric + verify/reproduce (Phase 2)
+- §3 — Spec `## Comment Resolution Map` (Phase 4)
+- §4 — Handoff `comment_resolutions[]` (Phase 4)
+
+---
+
+## 1. Inventory item schema (Phase 1)
+
+The read side of `pr-threads.md` (§2 threads, §3 checks) returns raw GraphQL / `gh pr checks` JSON. Phase 1 normalizes it into one item list. Each item:
+
+```yaml
+- item_id: r1                  # stable local anchor (r = review-comment, c = ci-check)
+  source: review-comment       # review-comment | ci-check
+  thread_id: <PRRT_…|null>     # review-comment: the thread node id; ci-check: null
+  comment_id: <numeric|null>   # review-comment: top comment databaseId; ci-check: null
+  author: <login|null>         # review-comment author; ci-check: null
+  is_bot: <bool>               # coderabbitai[bot] / greptile-apps[bot] / … → true
+  path: <file|null>            # cited file; ci-check: annotation path if any, else null
+  line: <int|null>
+  body: |                      # review-comment: the thread conversation; ci-check: check output
+    <verbatim text>
+  verdict:                     # filled in Phase 2
+  reply_draft:                 # filled in Phase 2 (review-comment only)
+  verify:                      # filled in Phase 4 (fix items)
+  fix_step_anchor:             # filled in Phase 4 (fix items)
+```
+
+Build rules:
+- Collapse a multi-comment thread to ONE item — concatenate the comment bodies into `body`, keep the FIRST comment's `databaseId` as `comment_id` (the reply anchor) and the thread `id` as `thread_id`.
+- Drop threads with `isResolved == true` (idempotency).
+- A `CHANGES_REQUESTED` formal review with no inline thread becomes an item with `thread_id: null` (it cannot be resolved via API) — verdict `answer-only` at most.
+- Group items by `path` so Phase 2 verifies neighbours together; CI items with `path: null` form their own group.
+
+## 2. Verdict rubric + verify/reproduce (Phase 2)
+
+Per item, after reading the cited code and attempting a repro:
+
+| Verdict | When | Reply draft | Downstream |
+|---|---|---|---|
+| `fix` | The comment names a real, reachable issue in the current head; you can state what + how to fix | "Addressed in <one-line summary of the fix>." | Becomes a spec Step; `comment_resolutions[]` with `resolve_after_fix: true` |
+| `answer-only` | The comment asks a question that needs a reply but no code change | The answer, grounded in the code | `comment_resolutions[]` with `verdict: answer-only`, `resolve_after_fix: false` |
+| `needs-clarification` | The intended change is ambiguous — two or more plausible reads | — (deferred to Phase 3) | An `open_questions[]` entry; resolved answer may later become a `fix` |
+| `wontfix` | The comment is mistaken, stale, already-fixed, or out of PR scope | The evidence-backed push-back (cite the code that refutes it) | `comment_resolutions[]` with `verdict: wontfix`, `resolve_after_fix: false` (reply, leave thread open) |
+
+**Verify each `fix`/`wontfix`** (invariant #2). Spawn `reviewer-agent` verify-finding mode treating the comment as the finding (the cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2). Tier-scaled per the SKILL.md Budgets table; on Big, signal-gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 (one verifier, escalate to 3 only on a contested verdict). Aggregate:
+- A `fix` the verifier **refutes** (the issue is not real / not reachable / already fixed) demotes to `wontfix` (draft the push-back) or drops if clearly stale.
+- A `wontfix` the verifier **refutes** (the comment is actually right) re-opens as `needs-clarification` or `fix`.
+
+**Reproduce** before marking `fix`:
+- A bug-claim → construct a concrete failing case or name the exact trigger path. A claim that cannot be reproduced is evidence for `wontfix`, not `fix`.
+- A `ci-check` → run the failing command locally when the check name/output makes it derivable (`test:unit` → the project test command scoped to the failing file). A locally-reproduced failure confirms the `fix`; a green local run flags an environment-only / flaky check → `answer-only` ("passes locally; likely flaky/env").
+
+## 3. Spec `## Comment Resolution Map` (Phase 4)
+
+Appended to the standard 11-section `spec.md` as an allowed extra body section. Human-readable; the `comment_resolutions[]` array (§4) mirrors its review-comment rows.
+
+```markdown
+## Comment Resolution Map
+
+| # | Source | Author | Location | Verdict | What & how to fix (or push-back) | Resolves via |
+|---|--------|--------|----------|---------|----------------------------------|--------------|
+| 1 | review-comment | coderabbitai[bot] | api/users.ts:42 | fix | Guard the null deref before the map() | step-3 |
+| 2 | review-comment | alice | api/users.ts:88 | wontfix | Intentional — the caller already validates; cite L70-74 | — |
+| 3 | review-comment | bob | api/users.ts:12 | answer-only | Yes, the retry is bounded at 3 (L9) | — |
+| 4 | ci-check | — | test:unit (users.spec) | fix | Update the fixture for the new field | step-5 |
+```
+
+- Every `fix` row maps to a Step in §6 (`Resolves via step-N`) and a §9 `verify:` criterion.
+- `wontfix` / `answer-only` rows have no Step (`Resolves via —`) — they produce only a reply.
+- The drafted reply text for each row is NOT in this table (it can be long) — it lives in the handoff `comment_resolutions[].reply_draft`.
+
+## 4. Handoff `comment_resolutions[]` (Phase 4)
+
+The canonical schema is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields (change in lockstep with `/geniro:implement`). Shape, for authoring reference:
+
+```yaml
+comment_resolutions:                 # in from-resolve-<branch>.md frontmatter · MAY be []
+  - thread_id: PRRT_kwDOExample      # → pr-threads.md §5 resolveReviewThread
+    comment_id: 1234567890           # → pr-threads.md §4 reply endpoint
+    source: review-comment           # only review-comment items appear here (CI items do not — #5)
+    author: coderabbitai[bot]
+    path: api/users.ts
+    line: 42
+    verdict: fix                     # fix | answer-only | wontfix
+    reply_draft: |
+      Addressed in <commit> — guarded the null deref before the map(); see api/users.ts:42.
+    resolve_after_fix: true          # fix → true; answer-only / wontfix → false
+    verify: "pnpm test users.spec"   # passes ⇒ the fix landed (mirrors spec §9); null if none
+    fix_step_anchor: step-3          # the spec Step that implements it; null for answer-only/wontfix
+    status: pending                  # pending | posted | skipped (set by /geniro:implement)
+```
+
+`/geniro:implement` consumption (its Ship sub-step):
+1. For `verdict: fix` — re-verify the fix landed (run `verify:`, else confirm `fix_step_anchor`'s files are in the pushed diff). Not landed → `status: skipped`, thread untouched.
+2. Action-gate the batch (one AskUserQuestion), then via `pr-threads.md` write side post `reply_draft` (§4) and, for `resolve_after_fix: true`, resolve the thread (§5). `wontfix` posts the reply but never resolves.
+3. Mark `status: posted`; append a `pr-comment-posted` entry to state.md `non-resumable-actions[]`.

@@ -126,9 +126,9 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 ### 13. `schema_completeness`
 
-**Rule:** all 11 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 11 + the optional body sections `## Considered Alternatives`, `## Milestones`, and `## Problem & Evidence`. The three optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); a normal spec omits it and still passes.
+**Rule:** all 11 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 11 + the optional body sections `## Considered Alternatives`, `## Milestones`, `## Problem & Evidence`, and `## Comment Resolution Map`. The optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); `## Comment Resolution Map` appears only on `/geniro:resolve`-produced specs; a normal spec omits both and still passes.
 
-**Heuristic:** parse all `## ` top-level headers; compare to the canonical list (11 required + 3 allowed-optional). A header outside that set fails; a missing optional section does not.
+**Heuristic:** parse all `## ` top-level headers; compare to the canonical list (11 required + 4 allowed-optional). A header outside that set fails; a missing optional section does not.
 
 **Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: '<canonical-header>'. Got: '<actual>'."
 

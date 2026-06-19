@@ -267,6 +267,22 @@ grep -n "workaround\|temporary\|quick fix" file.js
 - Code that duplicates existing patterns elsewhere — "elsewhere" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces helper `<name>` at `<file:line>` — current change reimplements it inline, consider reusing or coordinating"
 - **Linear parent-epic awareness** — when the `LINEAR CONTEXT:` slot shows a non-`none` parent + sibling sub-tasks AND `PEER-PR CONTEXT:` lists a sibling PR carrying one of those sub-task IDs, flag architectural divergence between parallel sub-tasks of the same epic. Valid finding shape: "Parent epic <ENG-100> distributes work across <current PR sub-task X> and <sibling PR #N sub-task Y>; the two PRs adopt incompatible <data model | API contract | layer boundary> for the shared epic surface — coordinate before either lands". Severity HIGH when the divergence creates a runtime contract collision; MEDIUM otherwise.
 
+### 7.5 Reinvented-wheel / build-vs-buy
+
+Hand-written code that materially reimplements what a maintained, widely-adopted external library already solves — the ecosystem-level counterpart to §7's "code that duplicates existing patterns elsewhere." Check in-repo reuse first (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`); this is the next lens out — the ecosystem, not the repo.
+
+**Common shapes:** hand-rolled date/timezone math, retry-with-backoff, debounce/throttle, deep-merge, slugify, CSV / JSON-Schema / URL parsing, validation, HTTP clients — and the security-sensitive domains where a library is near-mandatory: crypto, password hashing, auth / token handling, HTML sanitization, untrusted-input parsing.
+
+**How to detect:**
+- A new module that implements a standardized, complex, or security-sensitive behavior from scratch when the project's ecosystem has an established package for it.
+- Read the project's manifest (`package.json` / `pyproject.toml` / `Cargo.toml` / `go.mod` / `Gemfile`) to learn the ecosystem and whether a library for this is already a dependency the diff ignored — the dependency being present but hand-rolled anyway is the stronger finding.
+
+**Red flags:**
+- Hand-written crypto / auth / password hashing / token verification of any kind — the strongest case; the "never roll your own crypto" consensus is near-absolute because a single subtle change breaks an otherwise-secure algorithm.
+- A non-trivial, standardized problem (timezones, unicode, parsing) reimplemented inline.
+
+**Finding shape:** tag `[PRODUCT-DECISION]` — adopting a library is the user's call, so it surfaces regardless of severity. Carry an `Options:` block (adopt a library / keep hand-written / extract an in-repo helper). Severity MEDIUM typical; HIGH only when the hand-written code carries real correctness or security risk a battle-tested library would remove; never CRITICAL (a runtime defect in the hand-rolled code is owned by the bugs / security dimension). The candidate-research half — which packages, with links and health signals — belongs to `/geniro:implement`; the reviewer points the direction. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: review.
+
 ### 8. Testing Architecture
 - Code designed to be difficult to test
 - Heavy use of mocks indicates poor design
@@ -368,6 +384,7 @@ Works across languages/frameworks:
 - [ ] Error handling follows patterns
 - [ ] No obvious performance red flags
 - [ ] Technical debt is documented/addressed
+- [ ] No non-trivial functionality hand-written that an established external library already solves (build-vs-buy)
 - [ ] Code is designed to be testable
 - [ ] Patterns align with codebase standards
 - [ ] When a plan is attached, the change carries an artifact moving toward its stated completion signal
@@ -377,6 +394,6 @@ Works across languages/frameworks:
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
 - **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is the rare CRITICAL path, and even then the finding is logged under the bugs or optimizations dimension that owns the runtime defect.
-- **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap (per §1.7) where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist.
-- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap (per §1.7) contained to one module and guarded by convention at each use site today.
+- **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap (per §1.7) where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist; hand-rolled crypto / auth / parsing a battle-tested library would secure (per §7.5 reinvented-wheel).
+- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap (per §1.7) contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier).
 - **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; documentation or PR-description nits about an architectural area.

@@ -221,7 +221,7 @@ open_questions:
 
 **Producer responsibilities:**
 - Initialize `open_questions: []` in the handoff frontmatter; never use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
-- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
+- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `related_comments`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body; `related_comments` is the `/geniro:resolve`-producer equivalent — it links a question to the review-thread `thread_id`(s) that raised it.
 - **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich, self-contained chat explanation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust. Producer-side context is cheaper to author once than to reconstruct downstream.
 - When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
@@ -274,6 +274,39 @@ authored_tests:
 - Read `authored_tests[]` before falling back to body-string parsing. The shared consumer protocol at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` codifies the prefer-frontmatter / fallback-to-body order.
 - Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
 - The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only Edit/Write blocker for /geniro:implement Phase 1.
+
+**`/geniro:resolve` producer-specific `comment_resolutions` array (T2 handoff only):**
+
+The `from-resolve-<branch>.md` handoff (`producer: resolve`, `consumer: implement`) carries, alongside the common `open_questions[]`, one entry per review-comment item whose verdict produces a reply. `/geniro:implement` reads it at its Ship sub-step to post the drafted replies and resolve the threads. The `## Comment Resolution Map` body section is the human-readable mirror; this array is the source of truth. CI-check items do NOT appear here — a failing check has no thread to resolve and goes green on the next push; it lives only in the spec Steps.
+
+```yaml
+comment_resolutions:                 # MAY be []; only review-comment items appear
+  - thread_id: PRRT_kwDOExample      # reviewThread node id — for the resolveReviewThread mutation
+    comment_id: 1234567890           # top comment databaseId — for the reply endpoint
+    source: review-comment           # always review-comment here
+    author: coderabbitai[bot]        # bot logins keep their suffix
+    path: api/users.ts               # cited location (null when the comment is not line-anchored)
+    line: 42
+    verdict: fix                     # fix | answer-only | wontfix
+    reply_draft: |                   # the text to post on the thread
+      Addressed in <commit> — guarded the null deref; see api/users.ts:42.
+    resolve_after_fix: true          # fix → true (post + resolve); answer-only / wontfix → false (post only)
+    verify: "pnpm test users.spec"   # passes ⇒ the fix landed (mirrors the spec §9 criterion); null if none
+    fix_step_anchor: step-3          # the spec Step that implements the fix; null for answer-only / wontfix
+    status: pending                  # pending | posted | skipped (set by the consumer)
+```
+
+**Producer responsibilities (`/geniro:resolve`):**
+- Initialize `comment_resolutions: []` even when empty, so the consumer distinguishes "no replies by design" from "field absent in a non-resolve handoff".
+- One entry per review-comment item with verdict `fix` / `answer-only` / `wontfix`. `needs-clarification` items go to `open_questions[]` instead (resolved later, they may re-enter as a `fix`).
+- `verdict: fix` MUST set `resolve_after_fix: true`, a `fix_step_anchor` pointing at the spec Step, and a `verify:` mirroring that Step's §9 acceptance check (or null when none exists). `wontfix` / `answer-only` set `resolve_after_fix: false` and null `fix_step_anchor` / `verify`.
+- The I/O shapes for the eventual reply + resolve live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` (write side).
+
+**Consumer responsibilities (`/geniro:implement`):**
+- Parse `comment_resolutions[]` at Phase 1 Step 12 alongside `open_questions[]`; stash it for the Ship sub-step. It is NOT an Edit/Write gate — only `open_questions[]` blocks editing.
+- At the Ship sub-step, for each `verdict: fix` entry, re-verify the fix landed (run `verify:`, else confirm `fix_step_anchor`'s files are in the pushed diff). Not landed → set `status: skipped`, never resolve.
+- Gate the batch behind ONE AskUserQuestion (external write, like `git push`), then via `pr-threads.md` write side post `reply_draft` and resolve the thread when `resolve_after_fix: true`. Mark `status: posted`; append a `pr-comment-posted` entry to `non-resumable-actions[]`.
+- A handoff with no `comment_resolutions[]` (any non-resolve producer) skips the Ship sub-step entirely.
 
 ---
 
