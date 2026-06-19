@@ -2,7 +2,7 @@
 
 Canonical contract for the start-of-work synchronization gate. Work should begin on the freshest default branch: new branches/worktrees are cut from the latest default-branch tip, and a branch already in progress is offered an update before the next chunk of work begins.
 
-Consumers: `/geniro:implement` (both modes), `/geniro:plan`, `/geniro:debug`, `/geniro:refactor` (continue mode only — these three work in place and do not create branches).
+Consumers: `/geniro:implement` (both modes), `/geniro:plan`, `/geniro:debug`, `/geniro:refactor` (continue mode only — these three work in place and do not create branches), and `/geniro:resolve` (FRESH-CONTINUE only — works in place against an open PR, comparing against the PR's base branch rather than the repo default; see §2).
 
 ## Contents
 
@@ -56,6 +56,8 @@ fi
 ```
 
 When the fetch fails, surface one line so the user knows freshness is best-effort: `"Couldn't reach the remote — comparing against your local <DEFAULT_BRANCH> instead."` Then proceed with the local `BASE`.
+
+A PR-scoped caller (`/geniro:resolve`) substitutes the PR's `baseRefName` (from `gh pr view`) for `DEFAULT_BRANCH` above — a PR's freshness is measured against the branch it merges into, which may not be the repo default. Everything else (the §4 catch-up offer, merge/rebase/skip, the §5/§6 dirty-tree and conflict handling) is unchanged.
 
 ## 3. Mode FRESH-BASE — cut from the latest default
 

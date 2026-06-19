@@ -5,6 +5,7 @@ Phase detail and schemas for `/geniro:resolve`. The skill body (`SKILL.md`) hold
 ## Contents
 
 - §1 — Inventory item schema (Phase 1)
+- §1.5 — Workspace sync: local checkout → PR head (Phase 1)
 - §2 — Verdict rubric + verify/reproduce (Phase 2)
 - §3 — Spec `## Comment Resolution Map` (Phase 4)
 - §4 — Handoff `comment_resolutions[]` (Phase 4)
@@ -38,6 +39,31 @@ Build rules:
 - A `CHANGES_REQUESTED` formal review with no inline thread becomes an item with `thread_id: null` (it cannot be resolved via API) — verdict `answer-only` at most.
 - Group items by `path` so Phase 2 verifies neighbours together; CI items with `path: null` form their own group.
 
+## 1.5 Workspace sync: local checkout → PR head (Phase 1)
+
+The first of the two Phase 1 sync offers (the second — branch vs its base — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`). The comments are anchored to the PR head (`pr-head-sha` = `headRefOid`); if the local tree sits on a different commit, the verifier reads code the comments do not describe.
+
+```bash
+LOCAL_HEAD="$(git rev-parse HEAD 2>/dev/null)"
+# pr-head-sha captured in Phase 1 Step 1 from gh pr view --json headRefOid
+```
+
+- `LOCAL_HEAD == pr-head-sha` → already on the PR head; skip silently, no question.
+- Differs → fire ONE AskUserQuestion:
+
+```
+header: "Update to PR"
+question: "Your checkout is on a different commit than the PR's latest (<short pr-head-sha>). Check out the PR's latest commit before triaging the comments?"
+options:
+  - "Check out the PR head (Recommended)"  -> gh pr checkout <number>
+  - "Keep my current checkout"             -> no git action
+```
+
+- `gh pr checkout <number>` handles both cases — on the PR branch but behind (fast-forwards), or not on the PR branch at all (creates/switches to it). It refuses on a dirty tree; when `git status --porcelain` is non-empty, chain the §5 dirty-tree offer from `branch-freshness.md` (stash → checkout → pop) rather than forcing it.
+- Fail-open: any non-zero `gh`/`git` exit → surface a one-line caveat ("Couldn't switch to the PR head — triaging against your current checkout; some comments may reference code you don't have locally.") and proceed. Persist the pick to `approvals[]` (category `branch_freshness`).
+
+Run this BEFORE the branch-vs-base offer (Step 2b): land on the PR head first, then bring that up to date with the base.
+
 ## 2. Verdict rubric + verify/reproduce (Phase 2)
 
 Per item, after reading the cited code and attempting a repro:
@@ -49,7 +75,7 @@ Per item, after reading the cited code and attempting a repro:
 | `needs-clarification` | The intended change is ambiguous — two or more plausible reads | — (deferred to Phase 3) | An `open_questions[]` entry; resolved answer may later become a `fix` |
 | `wontfix` | The comment is mistaken, stale, already-fixed, or out of PR scope | The evidence-backed push-back (cite the code that refutes it) | `comment_resolutions[]` with `verdict: wontfix`, `resolve_after_fix: false` (reply, leave thread open) |
 
-**Verify each `fix`/`wontfix`** (invariant #2). Spawn `reviewer-agent` verify-finding mode treating the comment as the finding (the cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2). Tier-scaled per the SKILL.md Budgets table; on Big, signal-gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 (one verifier, escalate to 3 only on a contested verdict). Aggregate:
+**Verify each `fix`/`wontfix`** (invariant #2). Spawn a fresh `reviewer-agent` in verify-finding mode for every `fix`/`wontfix` item — no small-PR carve-out — treating the comment as the finding (the cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2). The tier (SKILL.md Budgets table) sets the vote count, not whether the verifier runs: one verifier vote by default; on Big, signal-gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 to 3 votes only on a contested verdict. Spawn one file's verifiers in parallel (one assistant turn). Aggregate:
 - A `fix` the verifier **refutes** (the issue is not real / not reachable / already fixed) demotes to `wontfix` (draft the push-back) or drops if clearly stale.
 - A `wontfix` the verifier **refutes** (the comment is actually right) re-opens as `needs-clarification` or `fix`.
 
