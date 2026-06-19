@@ -33,3 +33,9 @@ node_modules/
 # The ledger (evals/history.jsonl + evals/HISTORY.md), price-map, suites, and harness
 # ARE committed; only the bulky per-run capture is ignored.
 evals/runs/
+
+# design/scratch/ — local-only working docs (plans / research / fix-pass progress).
+# Drop any throwaway design note here; no tooling reads it. Dated audit reports
+# (design/plugin-audit-<date>.md) stay in design/ and committed — /audit-plugin reads
+# the latest for cross-run do-not-flag + open-finding continuity.
+design/scratch/
