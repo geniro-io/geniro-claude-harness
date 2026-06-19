@@ -23,6 +23,16 @@ Usage:
   python3 scan.py <query...>      # search mode: keep threads matching the query, ranked best-first
   python3 scan.py --code-only     # restrict to code-editing threads (the legacy behavior); combines with a query
 
+Query matching (see _term_positions):
+  - issue key (CI-317 / CI317):   separator-insensitive — both spellings find the canonical `ci-317`.
+  - bare 3-6 digit number (2649): read as a PR reference (pull/2649, #2649, pr-2649), so it ignores
+                                  the same digits inside UUIDs / token counts; raw-number fallback only
+                                  when the thread has no PR-style reference at all.
+  - anything else:                literal substring, lowercased.
+  Multiple terms are OR-matched and ranked by how tightly they co-occur, so a multi-term query
+  (`CI-315 CI-316 cw_case`) unions a whole feature's threads — a single ticket key only finds threads
+  that name it, missing the sibling-ticket and feature-named work that makes up the rest of the epic.
+
 Output columns (TSV):
   mtime  date  oversize  kind  turns  relevance  hits  label  title  path  snippet
     - kind: "edited" (calls a code-edit tool) | "read-only" (spawns a subagent / invokes a Skill but never edits code).
@@ -178,6 +188,7 @@ def _positions(low, needle, cap=4000):
 
 
 PR_NUM = re.compile(r"^\d{3,6}$")
+ISSUE_KEY = re.compile(r"^([a-z]{2,})[-_ ]?(\d+)$")  # Linear/Jira key: CI-317, CI317, abc-1234
 
 
 def _term_positions(low, term):
@@ -189,6 +200,16 @@ def _term_positions(low, term):
         pos = [m.start() for m in pat.finditer(low)]
         if pos:
             return pos
+        return _positions(low, term)
+    # An issue-key term matches separator-insensitively: a query typed `CI317` (or `CI 317`) still
+    # finds the canonical hyphenated `ci-317` spelling, and vice versa. Without this the literal
+    # `ci317` never matches a body that only ever writes `ci-317`, so the whole ticket's work is
+    # invisible — the failure that hid an entire epic. The leading boundary keeps the key from
+    # matching inside a base64 blob or a longer id (the source of phantom single-hit matches).
+    m = ISSUE_KEY.match(term)
+    if m:
+        pat = re.compile(r"(?<![a-z0-9])" + re.escape(m.group(1)) + r"[-_ ]?" + m.group(2) + r"(?!\d)")
+        return [mm.start() for mm in pat.finditer(low)]
     return _positions(low, term)
 
 
