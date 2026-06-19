@@ -5,7 +5,7 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 ## Contents
 
 1. state.md frontmatter — initial template (Phase 0.3)
-2. Phase 3 clarifying AUQ — message-first, batched independent, sequenced dependents
+2. Phase 3 clarifying AUQ — message-first, one question at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 4. Phase 5 cluster AUQ — message-first cluster approval (3 dependency-ordered gates) + milestone-mode
 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
@@ -52,14 +52,16 @@ Three optional body sections — `## Workflow Refs` (populated in Phase 1.4), `#
 
 ---
 
-## 2. Phase 3 clarifying AUQ — message-first, batched independent, sequenced dependents
+## 2. Phase 3 clarifying AUQ — message-first, one question at a time
 
-Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract"). When an option's consequence needs more than a one-line `description` (code anchor / config diff / behavior trace), render those consequences to a chat message FIRST, then fire a LEAN batched AUQ. Batch independent questions into ONE call (≤4 per call); sequence only a genuine dependency (one answer changes another's options).
+Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract"). Ask the clarifying questions **one at a time, in sequence** — one `AskUserQuestion` call per question, never a multi-question batch. Before each question, render its framing to a chat message FIRST, then fire a LEAN single-question AUQ. Size the framing to the question: a one-line orientation when every option is self-explanatory, a full per-option consequence breakdown (code anchor / config diff / behavior trace) when an option's consequence needs more than its one-line `description`.
 
-Chat message rendered before the AUQ (two independent questions):
+One question at a time (over batching) because each question gets its own focused explanation, a later question can adapt to — or drop entirely on — an earlier answer, and it matches the Phase 5 cluster-gate experience. The cost is more round-trips than a batch; that is the deliberate trade for per-question clarity. Generate the full ≤5 question set up front (§3.1) so the sequence has a known length, but ask them one by one — after each answer, re-check whether a still-pending question is now moot or needs reworded options.
+
+Chat message rendered before the FIRST question:
 
 ```markdown
-Two things to confirm before I lock the approach:
+First decision before I lock the approach:
 
 **Auth method** — how should the new endpoint authenticate?
 - JWT (existing middleware) — adds `@UseGuards(JwtAuthGuard)`; reads the token from the
@@ -67,14 +69,9 @@ Two things to confirm before I lock the approach:
 - Session cookie — adds `@UseGuards(SessionGuard)`; reads the `session_id` cookie;
   mirrors `/auth/session.spec.ts`; same 401 shape.
 - Skip — record assumption "endpoint uses JWT (default)" in the Assumptions section for /geniro:implement to verify.
-
-**Rate limit** — enforce a per-user rate limit?
-- Yes — reuse `RateLimitGuard` (src/common/rate-limit.guard.ts:18); 60 req/min/user; 429 on exceed.
-- No — unlimited; matches sibling read-only endpoints.
-- Skip — record assumption "no rate limit" in the Assumptions section.
 ```
 
-Then the LEAN batched AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted:
+Then the LEAN single-question AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted:
 
 ```yaml
 questions:
@@ -87,6 +84,12 @@ questions:
         description: "@UseGuards(SessionGuard); reads session_id cookie."
       - label: "Skip — assume JWT"
         description: "Recorded as an assumption for /geniro:implement to verify."
+```
+
+After the user answers, persist it (below), then render the next question's framing and fire its own single-question AUQ — e.g. the rate-limit decision:
+
+```yaml
+questions:
   - header: "Rate limit"
     question: "Should the endpoint enforce a per-user rate limit?"
     options:
@@ -98,9 +101,9 @@ questions:
         description: "Recorded as an assumption."
 ```
 
-These two questions are independent — auth method does not change the rate-limit options — so they ship in one call. A dependent pair (e.g., "Which datastore?" → then "Which migration tool?" whose options depend on the datastore pick) fires sequentially instead. When every option is self-explanatory in one line, skip the message and fire the AUQ directly. The ≤5-total cap holds across calls; chain a second call if more than 4 independent questions exist rather than dropping or merging any.
+The ≤5-total cap holds across the sequence. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — sequencing exists precisely to let one answer reshape what follows.
 
-Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. A batched call returns all its answers at once — append one entry per answer before proceeding past the batch:
+Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. Append the entry for each answer before rendering the next question:
 
 ```yaml
 approvals:
@@ -112,9 +115,9 @@ approvals:
     asked_in_phase: clarify
 ```
 
-### 2a. Planning-depth question (folded into this batch when `--deep` is absent)
+### 2a. Planning-depth question (asked last in the sequence when `--deep` is absent)
 
-When `$ARGUMENTS` does not carry `--deep`, append a planning-depth question as its OWN independent question in the Phase 3 batch above (it never depends on a clarifying answer, so it batches within the ≤4-per-call cap; chain past the cap if needed). This depth question does not count toward the ≤5-total clarification cap — it is a mode question, not a clarification. When `--deep` is present, depth is already Deep — skip this question. No `(Recommended)` marker: Deep is costlier, not safer.
+When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question as the LAST question in the Phase 3 sequence above — its own single-question AUQ, after every clarifying question is answered. It never depends on a clarifying answer, so it goes last by convention (a mode question, asked once the substance is settled). This depth question does not count toward the ≤5-total clarification cap — it is a mode question, not a clarification. When `--deep` is present, depth is already Deep — skip this question. No `(Recommended)` marker: Deep is costlier, not safer.
 
 ```yaml
 - header: "Plan depth"

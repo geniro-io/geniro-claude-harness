@@ -69,7 +69,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 0.5 | Problem discovery (opt-in — fires only with `--prd`: problem-first interview before explore, feeds the spec's optional `## Problem & Evidence` section) | §"Phase 0.5 — Problem discovery" |
 | 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
-| 3 | Clarifying questions (≤5 total — non-trivial option consequences rendered to a chat message first, independent ones batched into one lean AUQ, dependent ones sequenced), plus the Standard/Deep depth question when `--deep` is absent | §"Phase 3 — Clarifying questions" |
+| 3 | Clarifying questions (≤5 total — asked one at a time in sequence, each preceded by a message-first framing sized to the question, then a lean single-question AUQ; a later question can adapt to or drop on an earlier answer), plus the Standard/Deep depth question asked last when `--deep` is absent | §"Phase 3 — Clarifying questions" |
 | 4 | Approaches (2-3 rendered to a chat message in the shared visual language — progress tracker, plain-English digest, diagrams — then ONE lean AUQ with Recommended first; when an approach involves non-trivial code an external library could own (effort tier Small/Medium/Big — skip Trivial), folds a build-vs-buy option into the approach trade-offs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: plan — verified candidate libraries with links; the approach approval is the confirmation, the binding install confirmation is deferred to /geniro:implement; `--deep`: judge-panel approach search + 3× feasibility critics with majority vote — `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`) | §"Phase 4 — Approaches" |
 | 5 | Cluster approval (fixed 11-section schema grouped into 3 dependency-ordered clusters; each cluster rendered in the visual language — progress tracker, one-sentence opener, scope/steps/done visuals, friendly per-section digests — then ONE lean AUQ — Approve all / Explain a section further / Revise specific sections / Cancel; milestone-mode) | §"Phase 5 — Section approval" |
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
@@ -109,7 +109,7 @@ This skill has no hard kill caps. All limits are escalation gates that surface t
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Phase 3 clarifying-question count | ≤5 total (independent questions batched into one AUQ call, ≤4 per call; dependent ones sequenced) | plan-loop.md | Force consolidation OR proceed with stated assumptions. |
+| Phase 3 clarifying-question count | ≤5 total (asked one at a time in sequence — one single-question AUQ each) | plan-loop.md | Force consolidation OR proceed with stated assumptions. |
 | Phase 7 → Phase 6 auto-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | 3 | plan-loop.md | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | ~4000 chars per agent | invariant #4 | Truncation with marker, not abort. |
@@ -119,7 +119,7 @@ This skill has no hard kill caps. All limits are escalation gates that surface t
 - spec.md section count: exactly 11.
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
-**Rationale.** The ≤3 AUQ gates guideline applies to /geniro:implement, NOT /geniro:plan. /geniro:plan is a **clarification-heavy** skill — its job IS to ask questions. Rich content is rendered to chat messages (the Gate presentation contract); each gate then fires ONE lean question: Phase 3 ≤5 questions in 1-2 batched calls + Phase 4 ×1 + Phase 5 ×3 (one per cluster, not per section) + Phase 8 ×1 → ~6-7 lean AUQ calls typical. Collapsing Phase 5 from one question per section to one per cluster drops the questions the user answers there from ~11 to 3; Explain-further rounds add re-asks only when the user requests them.
+**Rationale.** The ≤3 AUQ gates guideline applies to /geniro:implement, NOT /geniro:plan. /geniro:plan is a **clarification-heavy** skill — its job IS to ask questions. Rich content is rendered to chat messages (the Gate presentation contract); each gate then fires ONE lean question: Phase 3 ≤5 questions asked one at a time (one single-question AUQ each, each preceded by its own framing) + Phase 4 ×1 + Phase 5 ×3 (one per cluster, not per section) + Phase 8 ×1 → ~9-10 lean AUQ calls typical. Phase 3 trades a batch's fewer round-trips for per-question clarity (focused explanation + answers that reshape later questions); Phase 5 stays one-per-cluster (not one-per-section), keeping the questions the user answers there at 3 not ~11. Explain-further rounds add re-asks only when the user requests them.
 
 ---
 
@@ -148,7 +148,7 @@ deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); m
 ---
 ```
 
-When `deep-mode: true`, Phase 4 and Phase 7.5 run their deeper paths via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it. When `--deep` is absent, a Standard/Deep depth question folds into the Phase 3 clarify AUQ (skipped on a Trivial task → flag-only there); pick Deep there to set `deep-mode: true`.
+When `deep-mode: true`, Phase 4 and Phase 7.5 run their deeper paths via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it. When `--deep` is absent, a Standard/Deep depth question is asked as the last question in the Phase 3 clarify sequence (skipped on a Trivial task → flag-only there); pick Deep there to set `deep-mode: true`.
 
 **Write contract.** Every state.md AND spec.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, never direct `Edit`/`Write` on canonical state paths — the `enforce-state-helper` hook hard-blocks such direct writes. The frontmatter `allowed-tools` omits `Edit`, and the hook hard-blocks direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so both artifacts are written through the helper while a /geniro:plan run is active.
 
