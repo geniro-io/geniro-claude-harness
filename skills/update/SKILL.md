@@ -34,7 +34,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project
 | Phase | Allowed | Forbidden |
 |---|---|---|
 | `pre-check` | `Read`, `Bash` (`cat`, `grep`, `python3 -c "json.load"`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent`, all `mcp__*` |
-| `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update`, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
+| `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
 | `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
 | `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
@@ -130,7 +130,7 @@ fi
 
 attempt=1
 while [ $attempt -le 4 ]; do
-if claude plugin update geniro-claude-plugin@geniro-claude-harness 2>&1 | tee /tmp/geniro-plugin-update.log; then
+if claude plugin update geniro-claude-plugin@geniro-claude-harness --scope user 2>&1 | tee /tmp/geniro-plugin-update.log; then
 break
 fi
 echo "Plugin update attempt $attempt failed; retrying in $((2 ** attempt))s..." >&2
@@ -142,6 +142,34 @@ echo "ERROR: plugin update failed after 4 retries — abort." >&2
 exit 1
 fi
 ```
+
+Pass `--scope user` explicitly. The plugin is meant to be available in every directory, which is the user (global) scope — the install record that the global `enabledPlugins` entry in `settings.json` resolves against. Updating without the flag lets the CLI target whichever scope matches the current working directory; when a project-scoped install record exists for the cwd, the user-scope record gets dropped and the plugin then loads only in that one project (it disappears everywhere else). Pinning the scope keeps the global install authoritative.
+
+### Step 1.5 — Restore the global install if it went missing
+
+After the update, confirm a `user`-scope install record still exists. A prior update run (before the `--scope user` pin) may have left the plugin project-scoped only — in which case it loads nowhere except that one project. Re-install at user scope to repair it:
+
+```bash
+# Re-resolve REGISTRY — each Bash call runs in a fresh shell, so the Phase 1 definition does not survive.
+REGISTRY="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
+
+HAS_USER_SCOPE=$(python3 -c "
+import json
+try:
+    d = json.load(open('$REGISTRY'))
+    entry = d['plugins'].get('geniro-claude-plugin@geniro-claude-harness', [])
+    print('yes' if any(e.get('scope') == 'user' for e in entry) else 'no')
+except Exception:
+    print('unknown')
+")
+
+if [ "$HAS_USER_SCOPE" = "no" ]; then
+  echo "[repair] no global install record found — restoring user-scope install so the plugin loads in every directory." >&2
+  claude plugin install geniro-claude-plugin@geniro-claude-harness --scope user 2>&1 | tee /tmp/geniro-plugin-repair.log || true
+fi
+```
+
+When the repair runs, tell the user in plain English that the plugin's global install was restored — it had been left available in only one project, and is now back in every directory.
 
 ### Step 2 — Discover new plugin path
 
@@ -157,7 +185,10 @@ import json, sys
 try:
 d = json.load(open('$REGISTRY'))
 entry = d['plugins'].get('geniro-claude-plugin@geniro-claude-harness', [])
-print(entry[0]['installPath'] if entry else '')
+# Prefer the user-scope (global) install — the one this skill keeps authoritative.
+# Fall back to the first record only if no user-scope entry exists.
+chosen = next((e for e in entry if e.get('scope') == 'user'), entry[0] if entry else None)
+print(chosen['installPath'] if chosen else '')
 except Exception as e:
 print(f'PARSE_ERROR: {e}', file=sys.stderr)
 sys.exit(1)

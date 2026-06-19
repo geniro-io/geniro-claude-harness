@@ -8,8 +8,10 @@ Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
 ```bash
 claude plugin marketplace add geniro-io/geniro-claude-harness
-claude plugin install geniro-claude-plugin
+claude plugin install geniro-claude-plugin --scope user
 ```
+
+`--scope user` installs the plugin globally so it's available in every directory (this is the default, but pinning it keeps the install global). Avoid `--scope project` for the plugin itself — a project-scoped install loads only inside that one project, and on the next update it can shadow the global install record and make the plugin disappear from your other directories. To share the marketplace with teammates instead, use the project-scoped marketplace config below — not a project-scoped plugin install.
 
 ### For your team (project-scoped)
 
