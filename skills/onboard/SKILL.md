@@ -411,16 +411,10 @@ Express App (index.ts)
 
 ## Definition of Done
 
-For each onboarding, confirm:
+These are the load-bearing exit gates — the invariants that, if skipped, make the onboarding incomplete or unsafe. The 8-section map content is enforced by the §2 template, not re-listed here.
 
 - [ ] `_CODEBASE_MAP.md` created at `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
-- [ ] Project Overview section completed
-- [ ] Directory Structure documented with key folders
 - [ ] At least 3 critical paths traced and documented
-- [ ] Architecture Patterns identified and listed
-- [ ] Conventions and defaults recorded
-- [ ] Tech Debt & Notes section completed
-- [ ] Entry Points listed (how to run, test, deploy)
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use `--focus` for large repos)
 - [ ] L3 `_CODEBASE_MAP.md` updated via `update-semantic`
 - [ ] L2 `discovery` emit fired per trigger conditions

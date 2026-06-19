@@ -64,7 +64,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 ├── planning/               # specs, plans, _CODEBASE_MAP.md, _FEATURES.md, _project.md, _focus-*.md
 │   └── <task-dir>/         # task-bound: spec.md, plan.md, state.md, milestone-N.md
 ├── state/                  # session-bound + handoff
-│   ├── <skill>/<slug>/state.md  # /debug, /refactor, /onboard, /investigate
+│   ├── <skill>/<slug>/state.md  # /debug, /refactor, /onboard, /investigate, /resolve
 │   ├── setup/state.md      # /setup singleton
 │   └── handoff/            # inter-skill: from-<producer>-<branch>.md
 ├── knowledge/              # learnings.jsonl (L2 episodic) + session summaries
@@ -104,11 +104,11 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 - **Rules persist** — `/geniro:instructions` manages `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + per-skill file + `code-style.md`, with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
 - **State survives compaction** — long pipelines checkpoint to T1 state files (`<task-dir>/state.md` or `state/<skill>/<slug>/state.md`); the SessionStart hook re-injects them after every `compact|resume|startup` event. Within-skill state files are slug-scoped per `skills/_shared/within-skill-state-handoff.md` so parallel sessions on different branches don't clobber each other.
 
-## Skills (11 total)
+## Skills (12 total)
 
 ### `/geniro:setup` — AI-driven project setup
 
-4-phase singleton bootstrap (Detect → Interview → Generate → Validate). Scans codebase via lockfile/config presence; interviews you for preferences that can't be auto-detected; generates a **thin-map** CLAUDE.md. Phase 3 split methodology: sections >40 LOC default to spin out to `.geniro/docs/<topic>.md`. Phase 4 verification subagent + 3-retry escalation loop. L2 `discovery` emit on done.
+4-phase singleton bootstrap (Detect → Interview → Generate → Validate). Scans codebase via lockfile/config presence; interviews you for preferences that can't be auto-detected; generates a **thin-map** CLAUDE.md (tech stack / commands / conventions / domain context). To keep it thin, detail is preferred in `.geniro/docs/<topic>.md` rather than inline — every inline section has to justify why it belongs in CLAUDE.md instead of a spin-out doc. Phase 4 verification subagent + 3-retry escalation loop. L2 `discovery` emit on done.
 
 ```
 /geniro:setup
@@ -116,7 +116,7 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 
 ### `/geniro:plan` — Spec-first planning
 
-12-phase loop (mode-detect → problem-discovery (`--prd` only) → explore → visual-companion → clarify ≤5 questions → 2-3 approaches → grouped approval → write → mechanical validate → spec-challenge → user approve → hand-off). Produces an approved `spec.md` in `.geniro/planning/<task-dir>/` with goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for) and optional `workflow_refs[]` tracker linkage (m5-v2). Phase 2 Visual Companion for UI-shaped tasks emits a textual UI preview before any code is written; Phase 5 groups section approval into 3 dependency-ordered cluster gates (Goal & scope / Approach & steps / Safety & done) instead of one prompt per section — each cluster authored as a unit and rendered to a full chat message in a friendly visual language (a progress tracker showing where you are in the approval journey, a one-sentence summary of what you're deciding, an in/out scope map / steps flow diagram / done-condition checklist, and plain-English per-section explanations with evidence cites), then gated by ONE lean AskUserQuestion per cluster (Approve all / Explain a section further / Revise specific sections / Cancel — Explain gives a deeper walkthrough before you decide); the chat message is the rendering surface (the AUQ `preview` side-box is too small for digests, code, and diagrams), which drops the questions you answer at Phase 5 from ~11 to 3. Phase 3 batches independent clarifying questions into one call. Phase 4 stress-tests the generated approaches with independent codebase-grounded critic agents (tier-scaled) before recommending one, so the Recommended marker reflects feasibility evidence rather than the author's confidence. Milestone-mode for Big tasks emits sibling `milestone-N.md` files.
+12-phase loop (mode-detect → problem-discovery (`--prd` only) → explore → visual-companion → clarify ≤5 questions → 2-3 approaches → grouped approval → write → mechanical validate → spec-challenge → user approve → hand-off). Produces an approved `spec.md` in `.geniro/planning/<task-dir>/` with goal-state frontmatter (budget / checkpoints / forbidden_actions / approval_required_for) and optional `workflow_refs[]` tracker linkage. Phase 2 Visual Companion for UI-shaped tasks emits a textual UI preview before any code is written; Phase 5 groups section approval into 3 dependency-ordered cluster gates (Goal & scope / Approach & steps / Safety & done) instead of one prompt per section — each cluster authored as a unit and rendered to a full chat message in a friendly visual language (a progress tracker showing where you are in the approval journey, a one-sentence summary of what you're deciding, an in/out scope map / steps flow diagram / done-condition checklist, and plain-English per-section explanations with evidence cites), then gated by ONE lean AskUserQuestion per cluster (Approve all / Explain a section further / Revise specific sections / Cancel — Explain gives a deeper walkthrough before you decide); the chat message is the rendering surface (the AUQ `preview` side-box is too small for digests, code, and diagrams), which drops the questions you answer at Phase 5 from ~11 to 3. Phase 3 batches independent clarifying questions into one call. Phase 4 stress-tests the generated approaches with independent codebase-grounded critic agents (tier-scaled) before recommending one, so the Recommended marker reflects feasibility evidence rather than the author's confidence. Milestone-mode for Big tasks emits sibling `milestone-N.md` files.
 
 ```
 /geniro:plan add user authentication with JWT tokens
@@ -141,6 +141,15 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 /geniro:review src/auth/ src/middleware/      # review specific files/dirs
 /geniro:review HEAD~3..HEAD                   # review a commit range
 /geniro:review #1234                          # PR review with draft-review posting gate
+```
+
+### `/geniro:resolve` — PR-feedback triage to fix-plan
+
+Read-only PR-feedback triage → fix-plan producer (4-phase loop: Fetch & Triage → Analyze & Verify → Clarify → Emit). Reads an open PR's unresolved review threads (human + bot) AND failing CI checks via `_shared/pr-threads.md`; per item classifies intent, verifies it against the code, reproduces the bug-claim / CI failure, and assigns a verdict (fix / answer-only / needs-clarification / wontfix), with each fix/wontfix adversarially re-verified. Ambiguous items render as a self-contained chat explanation before a lean question. Emits a comment-keyed `spec.md` (standard schema + a `## Comment Resolution Map` section) and a hand-off carrying `open_questions[]` + a `comment_resolutions[]` array, which `/geniro:implement` consumes to apply the fixes and — action-gated, at its Ship step — post the drafted replies + resolve the threads. **Never edits code, never posts to the PR** (the read-only producer boundary; `allowed-tools` omits Edit/Write).
+
+```
+/geniro:resolve #1234                         # triage an open PR's feedback into a fix plan
+/geniro:resolve                               # infer the PR from the current branch
 ```
 
 ### `/geniro:debug` — Scientific-method bug investigation

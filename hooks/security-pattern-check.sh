@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# security-pattern-check.sh — PreToolUse Edit|Write
+# security-pattern-check.sh — PreToolUse Edit|Write|MultiEdit|NotebookEdit
 #
 # Cheap regex scan for high-signal, low-false-positive security anti-patterns
 # in file content. Hard-block (exit 2) on pattern hit; per-pattern bypass via

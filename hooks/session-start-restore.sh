@@ -840,6 +840,8 @@ if [ -f "$_learnings_log" ]; then
       if [ -d "$_lock_dir" ]; then
         _lock_mtime=$(stat -c %Y "$_lock_dir" 2>/dev/null || stat -f %m "$_lock_dir" 2>/dev/null || echo 0)
         _lock_age=$(( $(date +%s) - _lock_mtime ))
+        # 600s mirrors the stale-lock reclaim TTL in update-semantic.sh
+        # (_US_STALE_LOCK_SECS) and archive-stale.sh's direct-run reclaim.
         if [ "$_lock_age" -gt 600 ]; then
           rmdir "$_lock_dir" 2>/dev/null
         fi

@@ -63,7 +63,7 @@ This skill has no hard kill caps. Same model as other skills.
 | Per-step retry (orchestrator-inline Blocked Step Protocol) | 3 | | Mark BLOCKED, continue to next step |
 | Session-level blocked ratio | 30% (post-rejection denominator) | | AUQ — keep what worked & escalate / revert / force-continue. User picks. |
 | Phase 3 fix-loop | 1 round | | Re-spawn reviewer once; if still failing, AUQ (escalate / accept / abort). |
-| Reviewer output size | ~4K chars per dim | invariant #4 | Truncation with marker. |
+| Reviewer output size | ~4000 chars per dim | invariant #4 | Truncation with marker. |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -422,24 +422,7 @@ At Phase 3 exit:
 - **NOT emitted :** `diagnosis` (/geniro:debug owns); `convention` (/geniro:implement self-review owns); `decision` (/geniro:plan owns).
 - **Echo + ordering:** after a successful emit, echo `Recorded learning: <summary>` to the user, and fire the emit before declaring Phase 3 done — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". A silent emit trailing the phase's done declaration is the documented drop vector.
 
-**Read back the recurrence count.** `emit-learning` returns nothing on success — it does not echo the entry's `recurrence_count`. To obtain it, after the emit re-query via `query-learnings --include-superseded` filtered by the just-written entry's `dedup_key`, and read `recurrence_count` from the matching record.
-
-**Offer to capture a recurring pattern as a project rule:** when the read-back `recurrence_count >= 3` (this exact pattern has now been recorded three or more times — a real recurring pattern, not a one-off), offer to turn it into a project rule. Below the threshold, surface nothing — single or twice-seen entries do not warrant a rule.
-
-1. **Dedupe check first.** Grep the existing project rules under `.geniro/instructions/` (`global.md`, `refactor.md`, `code-style.md`) for the entry's keywords. If a rule already covers this pattern, skip the offer entirely — surface a one-line note that an existing rule already covers it and continue.
-2. **Otherwise, ask.** Fire an `AskUserQuestion` (header "Capture as rule") — question: "This pattern has come up repeatedly — want to capture it as a project rule?" with the recurring entry summary and recurrence count in the description. Options (plain-English labels):
-   - **Save as a project rule** — hand off to `/geniro:instructions create` so the user authors the rule there.
-   - **Refine, then save as a rule** — same handoff; the user reshapes the wording before saving.
-   - **Merge into an existing rule** — same handoff; the user folds it into a related rule.
-   - **Don't save** — decline; nothing is written.
-3. **On a save / refine / merge pick:** hand off to `/geniro:instructions create` — the user authors the rule there. Suggest a starting scope from the entry context (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks). Do NOT auto-write any instruction file — the user stays the source of truth for project rules.
-4. **Log a decline.** After the AUQ resolves (any outcome), source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke once; the helper no-ops unless the pick is an explicit decline ("Don't save" or cancel), so a future run does not re-offer a rule the user has already passed on. Pass no recommended arg — the three accept options ("Refine, then save as a rule" / "Merge into an existing rule") are not rejections:
-
-```bash
-emit_rejection_if_signal \
-"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule" \
-"Capture recurring pattern as project rule" "<picked label>"
-```
+**Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back via `query-learnings` and gates the offer on `>= 3`.
 
 ### 3.6 Suggest improvements (project scope only, routes)
 
@@ -543,25 +526,15 @@ Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level
 
 ## Definition of Done
 
-- [ ] L4 / L3 / L2 layers loaded at Phase 1 entry
-- [ ] All tests pass before and after each change
-- [ ] Tier classified per canonical effort-scaling
-- [ ] Hard escalation signals checked
-- [ ] Smell detection + smell evidence ran orchestrator-inline (Medium+ only)
-- [ ] Plan built and presented in chat; HIGH-risk steps gated via AUQ
-- [ ] The orchestrator executes the plan, one transformation at a time
-- [ ] ≥30% blocked → stuck AUQ fired (User picks; never silent abort)
-- [ ] Final regression run captured as Evidence Block
-- [ ] Diff sanity check ran
-- [ ] Independent reviewer + custom reviewers ran (Medium+ only)
+These are the load-bearing exit gates and safety invariants — the checks that, if skipped, break the zero-behavior-change guarantee or the no-ship boundary. Per-phase mechanics (tier classification, smell detection, plan building) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
+
+- [ ] Tests green before AND after the run — baseline captured (Phase 1) and final regression run captured as an Evidence Block (Phase 2 §2.4); the zero-behavior-change guarantee held
 - [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT) — refactor's zero-behavior-change guarantee means multi-path findings are NOT fixed in-skill
 - [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → "Findings remain" AUQ
-- [ ] MEDIUM findings noted in completion summary; proceeded
-- [ ] Completion summary presented in chat
+- [ ] ≥30% blocked → stuck AUQ fired (user picks; never silent abort)
 - [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
-- [ ] Improvements suggested per routes
-- [ ] Cleanup completed
 - [ ] No `git commit` / `git push` / `gh pr create` — diff stays uncommitted (user or /geniro:implement ships)
+- [ ] Cleanup completed
 
 ---
 
