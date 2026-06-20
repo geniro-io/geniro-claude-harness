@@ -1,10 +1,10 @@
 ---
 name: geniro:plan
-description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → grill (decision-tree clarification) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly. Optional --deep deepens the analysis — a wider approach search plus a 3-vote majority verification of the spec's cited claims (higher quality, higher cost)."
+description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → grill (decision-tree clarification) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly. Optional --deep deepens the analysis — a wider approach search plus a 3-vote majority verification of the spec's cited claims (higher quality, higher cost). Optional --artifact builds a live, auto-updating visual artifact of the plan as it develops."
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch, Workflow]
 model: inherit
-argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep]"
+argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
 ---
 
 # /geniro:plan — Spec-first planning
@@ -65,7 +65,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 | Phase | Purpose | Plan-loop section |
 |---|---|---|
-| 0 | Mode detect (also detects the opt-in `--prd` and `--deep` flags) | §"Phase 0 — Mode detect" |
+| 0 | Mode detect (also detects the opt-in `--prd`, `--deep`, and `--artifact` flags; asks the visual-artifact opt-in question when `--artifact` is absent, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) | §"Phase 0 — Mode detect" |
 | 0.5 | Problem discovery (opt-in — fires only with `--prd`: problem-first interview before explore, feeds the spec's optional `## Problem & Evidence` section) | §"Phase 0.5 — Problem discovery" |
 | 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
@@ -145,8 +145,13 @@ task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
 prd_mode: true                   # optional, present only when --prd was passed (Phase 0)
 deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); missing reads as false
+artifact_mode: true              # optional, present only when the user opted into the visual artifact (Phase 0 question or --artifact)
+artifact_status: pending|live|unavailable  # optional, present only in artifact mode — publish lifecycle state
+artifact_url: "<url>"            # optional, present once the page is published live
 ---
 ```
+
+The visual-artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; the captured `claude.ai` URL persists in state.md so a later session re-targets the same page instead of publishing a duplicate.
 
 When `deep-mode: true`, Phase 4 and Phase 7.5 run their deeper paths via an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it. When `--deep` is absent, a Standard/Deep depth question is asked as the last question in the Phase 3 clarify sequence (skipped on a Trivial task → flag-only there); pick Deep there to set `deep-mode: true`.
 
@@ -194,7 +199,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) | All mutations |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) | Edit / Write outside state.md |
+| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish (when artifact mode is on, via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn, OMIT `model=` — inherits orchestrator tier per `ui-preview-gate.md`) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 4 top-level `general-purpose` web-research spawn for library candidates — WebSearch + WebFetch, OMIT `model=`) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only — OMIT `model=`) | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) | Edit / direct Write / mutating Bash |
@@ -218,7 +223,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Detect mode / Problem discovery (--prd only) / Explore codebase / Visual companion / Grill the design decisions / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The problem-discovery item is marked completed-skipped when `--prd` was not passed; Phase 2 is marked completed-skipped when the UI trigger doesn't fire.
+2. **TodoWrite checklist.** Add: Detect mode / Problem discovery (--prd only) / Offer the plan artifact / Explore codebase / Visual companion / Grill the design decisions / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The problem-discovery item is marked completed-skipped when `--prd` was not passed; Phase 2 is marked completed-skipped when the UI trigger doesn't fire; the plan-artifact item is marked completed-skipped when the user declines the opt-in or the session can't publish.
 
 3. **Begin Phase 0.** Execute `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` end-to-end.
 
