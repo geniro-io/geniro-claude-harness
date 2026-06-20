@@ -5,6 +5,7 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 ## Contents
 
 1. state.md frontmatter — initial template (Phase 0.3)
+1b. Artifact opt-in question — Phase 0, asked once when `--artifact` is absent
 2. Phase 3 grill AUQ — message-first, one question at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 4. Phase 5 cluster AUQ — message-first cluster approval (3 dependency-ordered gates) + milestone-mode
@@ -32,6 +33,9 @@ task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
 prd_mode: true                               # optional, present only when --prd was passed (Phase 0.1)
 deep-mode: <true|false>                      # optional, set by the --deep flag (Phase 0.1); missing reads as false
+artifact_mode: true                          # optional, present only when the user opted in / --artifact was passed (Phase 0)
+artifact_status: pending|live|unavailable    # optional, present only when artifact_mode is true; pending until first publish, live once published, unavailable when this session can't publish
+artifact_url: "<claude.ai url>"              # optional, present only when artifact_status is live
 ---
 
 # State: <topic>
@@ -48,7 +52,39 @@ deep-mode: <true|false>                      # optional, set by the --deep flag 
 ## Open Questions
 ```
 
-Three optional body sections — `## Workflow Refs` (populated in Phase 1.4), `## UI Preview` (populated in Phase 2 when triggered), and `## Problem Framing` (populated in Phase 0.5 when `--prd` was passed) — are written in those earlier phases and assembled into the spec body alongside the 11 sections approved in Phase 5. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `spec-challenge` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise. The optional `deep-mode` key is set in Phase 0.1 when `$ARGUMENTS` carries `--deep`; a missing value reads as `false`. This is the single-source-of-truth template — `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md` and `plan-loop.md` §0.3 mirror it and must carry the same field set.
+Three optional body sections — `## Workflow Refs` (populated in Phase 1.4), `## UI Preview` (populated in Phase 2 when triggered), and `## Problem Framing` (populated in Phase 0.5 when `--prd` was passed) — are written in those earlier phases and assembled into the spec body alongside the 11 sections approved in Phase 5. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `spec-challenge` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise. The optional `deep-mode` key is set in Phase 0.1 when `$ARGUMENTS` carries `--deep`; a missing value reads as `false`. The optional artifact keys are set at Phase 0 when the user opts into the visual plan artifact (the `--artifact` flag, or the §1b opt-in question when the flag is absent): `artifact_mode: true` marks the run as artifact-on, `artifact_status` tracks the publish state (`pending` → `live` → or `unavailable`), and `artifact_url` holds the captured `claude.ai` link once the page is live; all three are absent when artifact mode is off. The full artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`. This is the single-source-of-truth template — `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md` and `plan-loop.md` §0.3 mirror it and must carry the same field set.
+
+---
+
+## 1b. Artifact opt-in question (Phase 0, asked once when `--artifact` is absent)
+
+Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Mirrors the shape of the §2a planning-depth question — its own single-question AUQ, no `(Recommended)` marker (the page is a richer surface, not a safer plan). Question text and the two option labels are taken verbatim from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § The opt-in question, which owns them:
+
+```yaml
+- header: "Visual plan"
+  question: "Build a live visual artifact of this plan as it develops? It publishes a private, auto-updating page to claude.ai."
+  options:
+    - label: "Yes — build it and keep it updated"
+      description: "Publishes a private, auto-updating page to claude.ai and revises it as planning proceeds."
+    - label: "No — keep planning in chat only"
+      description: "Plan in chat with no page."
+```
+
+Empty answer → default OFF: artifact mode stays off and no artifact fields are written, consistent with how the §2a depth question defaults to Standard. On the "Yes" pick, the run is in artifact mode — set `artifact_mode: true` and `artifact_status: pending` in the §1 frontmatter; on "No", leave all artifact fields absent.
+
+Persist the pick to state.md frontmatter `approvals[]` with category `artifact_choice` so a resume after compaction doesn't re-ask:
+
+```yaml
+approvals:
+  - category: artifact_choice
+    prompt: "Build a live visual artifact of this plan as it develops? It publishes a private, auto-updating page to claude.ai."
+    options: ["Yes — build it and keep it updated", "No — keep planning in chat only"]
+    picked: "Yes — build it and keep it updated"
+    at: 2026-05-17T10:45:00Z
+    asked_in_phase: mode-detect
+```
+
+The full artifact lifecycle (availability detection, create, per-phase update, URL persistence, unavailable/skip handling) is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; this section owns only the opt-in question template and the choice that gets persisted.
 
 ---
 

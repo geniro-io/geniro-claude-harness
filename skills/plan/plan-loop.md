@@ -63,6 +63,8 @@ State.md `phase: mode-detect` during this phase. Light cost — a single design-
 
 **`--deep` flag detection (opt-in).** Semantic-parse `$ARGUMENTS` for `--deep` / `deep` / `deep mode` the same way; strip the token before mode detection. Carry it forward and write `deep-mode: true` into the §0.3 initial frontmatter (false/omitted when absent), and persist the activation to `approvals[]` category `deep_mode_choice`. `deep-mode` deepens Phase 4 (judge-panel approach search + 3× feasibility critics) and Phase 7.5 (3× claim verification) per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; it is orthogonal to `--prd` (both may be passed). When absent, those phases run their standard single-pass paths unless the user picks Deep in the Phase 3 depth question (folded into the clarify AUQ — see §Phase 3 and `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2). On a Trivial task that skips Phase 3, depth stays flag-only.
 
+**`--artifact` flag detection (opt-in).** If `$ARGUMENTS` contains the token `--artifact`, note it and strip the token before mode detection. state.md does not exist yet — carry the flag forward and write `artifact_mode: true` + `artifact_status: pending` into the §0.3 initial frontmatter. The flag turns on the live visual plan artifact (per the §0.2.5 opt-in step and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`); when the flag is present, skip the §0.2.5 opt-in question — the flag is the opt-in. When `--artifact` is absent, the §0.2.5 question decides whether artifact mode turns on.
+
 Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged. Returns:
 
 - **IDEA(topic)** — free-form text; proceeds to Phase 1 with topic as initial context.
@@ -88,13 +90,17 @@ Fire `AskUserQuestion` with:
 
 **On "Cancel"** → exit immediately. Surface terminal message: "Cancelled before planning started".
 
+### 0.2.5 Visual artifact opt-in
+
+After mode resolves (IDEA or DESIGN_DOC) and before the §0.3 state.md write. When the `--artifact` flag was present in §0.1, skip this question — the flag is the opt-in, the run is in artifact mode. When the flag was absent, fire the single opt-in `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § The opt-in question (formal template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b). On the "Yes" pick (or flag present) the run is in artifact mode — the §0.3 frontmatter gets `artifact_mode: true` + `artifact_status: pending`; on "No" artifact mode stays off and no artifact fields are written. Persist the pick to `approvals[]` category `artifact_choice` so a resume doesn't re-ask.
+
 ### 0.3 Task-dir + state.md creation
 
 After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); plus `artifact_mode: true` and `artifact_status: pending` written together when artifact mode is on (the `--artifact` flag was present OR the §0.2.5 opt-in answered Yes), both omitted otherwise; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
 4. **Transition.** Branch on the `--prd` flag from §0.1: when it was present, set `phase: problem-discovery` via `atomic_state_write` and proceed to Phase 0.5; otherwise set `phase: explore` and proceed to Phase 1. Phase 0.5 itself sets `phase: explore` on completion (§0.5.4), so a `--prd` run flows through problem-discovery then rejoins the normal loop at Phase 1.
 
 ### 0.4 Cancel handling
@@ -252,6 +258,8 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
 
 Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring. State.md `phase: visual-companion` written before Phase 2 entry (`phase: clarify` if Phase 2 trigger doesn't fire).
 
+**Visual plan artifact — first publish.** When `artifact_mode: true`, build the live page now so it grows from the first phase: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Availability detection & create`, passing the task-dir, the plan title, and the planning-journey stops. After it returns, persist the result via `atomic_state_write` per the helper's § URL persistence — `artifact_status: live` + `artifact_url` on a returned `claude.ai` URL, or `artifact_status: unavailable` when no URL comes back (the helper shows the one-time skip notice and the later Update calls then skip). Skip this whole step when `artifact_mode` is unset.
+
 **Skip to Phase 4 if Trivial:** when effort tier is Trivial AND research returned 0-1 findings AND topic is a narrow text-edit, Phases 2 + 3 are skipped. Write a one-line note to state.md `## Open Questions`: "Phases 2-3 skipped — trivial task, no ambiguity surfaced".
 
 ---
@@ -340,6 +348,8 @@ At a checkpoint, render a running summary to a chat message — resolved decisio
 Persist each checkpoint decision to `approvals[]` category `grill_checkpoint` via `atomic_state_write` before continuing.
 
 **Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. On termination, render a closing summary — resolved decisions, deferred work, and any unaddressed risks — and hold it in context: it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition). Then ask the planning-depth question (§3.2) when `--deep` is absent, and transition to Phase 4. The checkpoint and termination summary templates are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+
+**Visual plan artifact — decision log.** When `artifact_mode: true` and the page is not recorded unavailable (`artifact_status` is not `unavailable`), on termination revise the page with the resolved decisions: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: clarify and the content just produced` (the decision log). The Update call reads `artifact_url` from state.md frontmatter when present, so a resumed/compacted session revises the same page rather than creating a duplicate.
 
 ---
 
@@ -442,6 +452,8 @@ Why rejected: violates new boundary established in Q3 2026 architecture review.
 
 `## Considered Alternatives` is copied to spec.md body verbatim in Phase 6. /geniro:implement reads but not gates on it.
 
+**Visual plan artifact — approach.** When `artifact_mode: true` and the page is not recorded unavailable, after the approach pick persists revise the page with the chosen approach + the considered alternatives: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: approach and the content just produced`. The call reads the saved `artifact_url` from state.md when present, so a resumed session revises the same page.
+
 ---
 
 ## Phase 5 — Section approval
@@ -494,7 +506,7 @@ Per cluster, apply the Gate presentation contract:
 
 4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). On "Approve all", append one entry per section in the cluster (`picked: approve`); on "Revise", record the revised sections distinctly (`picked: revised: <summary>`); "Explain a section further" persists nothing — only Approve/Revise picks write entries. The cluster is a presentation grouping only — no `cluster_<id>` category; per-section persistence granularity is unchanged, so compaction re-author (§6.4) and the SessionStart restore hook need no change.
 
-5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6.
+5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6. When `artifact_mode: true` and the page is not recorded unavailable, after a cluster's section picks persist revise the page with that cluster's approved sections: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: sections and the content just produced` — the call reads the saved `artifact_url` from state.md so a resumed session revises the same page.
 
 **Tier-scaling.** For Trivial/Small tasks, sections 4 / 5 / 10 may be "none — task scope precludes" — noted in the cluster message, never a separate decision. At Trivial tier the clusters may collapse to 1-2 gates (the progress tracker then shows the collapsed stops); the default 3-cluster grouping applies to Medium/Big.
 
@@ -549,6 +561,8 @@ After writing spec.md, append a `## Tool log` entry to state.md via `atomic_stat
  status: ok
  result_ref: "<bytes-count>"
 ```
+
+**Visual plan artifact — spec.** When `artifact_mode: true` and the page is not recorded unavailable, after spec.md is written revise the page with the written plan (steps / validation / done conditions): `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: spec and the content just produced`. The call reads the saved `artifact_url` from state.md when present, so a resumed session revises the same page.
 
 ### 6.2 NO auto-commit
 
@@ -661,7 +675,8 @@ On user picks "Approve":
  commit-sha: <sha>
  files: [".geniro/planning/<slug>/spec.md"]
  ```
-5. **Transition to Phase 9** (`phase: handoff`).
+5. **Finalize the visual plan artifact.** When `artifact_mode: true` and the page is not recorded unavailable, revise the page to its approved state — status badge to approved, every tracker stop done: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: approval and the content just produced`. The call reads the saved `artifact_url` from state.md when present, so a resumed session finalizes the same page.
+6. **Transition to Phase 9** (`phase: handoff`).
 
 If commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), surface a structured error to user — do NOT proceed to Phase 9 with a stale state. Fall back to escalation with the error inlined.
 
