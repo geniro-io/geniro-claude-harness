@@ -5,7 +5,7 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 ## Contents
 
 1. state.md frontmatter — initial template (Phase 0.3)
-2. Phase 3 clarifying AUQ — message-first, one question at a time
+2. Phase 3 grill AUQ — message-first, one question at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 4. Phase 5 cluster AUQ — message-first cluster approval (3 dependency-ordered gates) + milestone-mode
 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
@@ -52,11 +52,11 @@ Three optional body sections — `## Workflow Refs` (populated in Phase 1.4), `#
 
 ---
 
-## 2. Phase 3 clarifying AUQ — message-first, one question at a time
+## 2. Phase 3 grill AUQ — message-first, one question at a time
 
-Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract"). Ask the clarifying questions **one at a time, in sequence** — one `AskUserQuestion` call per question, never a multi-question batch. Before each question, render its framing to a chat message FIRST, then fire a LEAN single-question AUQ. Size the framing to the question: a one-line orientation when every option is self-explanatory, a full per-option consequence breakdown (code anchor / config diff / behavior trace) when an option's consequence needs more than its one-line `description`.
+Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract"). Phase 3 is a decision-tree grill — walk the design's open decisions depth-first (plan-loop §3.1). Ask the grill questions **one at a time** — one `AskUserQuestion` call per question, never a multi-question batch. Before each question, render its framing to a chat message FIRST, then fire a LEAN single-question AUQ. Size the framing to the question: a one-line orientation when every option is self-explanatory, a full per-option consequence breakdown (code anchor / config diff / behavior trace) when an option's consequence needs more than its one-line `description`. Give a recommended answer for every question (Recommended-first option).
 
-One question at a time (over batching) because each question gets its own focused explanation, a later question can adapt to — or drop entirely on — an earlier answer, and it matches the Phase 5 cluster-gate experience. The cost is more round-trips than a batch; that is the deliberate trade for per-question clarity. Generate the full ≤5 question set up front (§3.1) so the sequence has a known length, but ask them one by one — after each answer, re-check whether a still-pending question is now moot or needs reworded options.
+One question at a time (over batching) because each answer reshapes the tree frontier — a still-pending child can become moot or need reworded options. Do NOT pre-generate a fixed question list; regenerate the next question from the live tree after each answer. The cost is more round-trips than a batch; that is the deliberate trade for per-question clarity and a frontier that adapts to each answer.
 
 Chat message rendered before the FIRST question:
 
@@ -101,7 +101,7 @@ questions:
         description: "Recorded as an assumption."
 ```
 
-The ≤5-total cap holds across the sequence. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — sequencing exists precisely to let one answer reshape what follows.
+There is no fixed question cap — the grill runs until the spec-shaping branches resolve, bounded by the §2b checkpoint gate. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — depth-first walking exists precisely to let one answer reshape what follows.
 
 Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. Append the entry for each answer before rendering the next question:
 
@@ -115,9 +115,9 @@ approvals:
     asked_in_phase: clarify
 ```
 
-### 2a. Planning-depth question (asked last in the sequence when `--deep` is absent)
+### 2a. Planning-depth question (asked once at grill wrap-up when `--deep` is absent)
 
-When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question as the LAST question in the Phase 3 sequence above — its own single-question AUQ, after every clarifying question is answered. It never depends on a clarifying answer, so it goes last by convention (a mode question, asked once the substance is settled). This depth question does not count toward the ≤5-total clarification cap — it is a mode question, not a clarification. When `--deep` is present, depth is already Deep — skip this question. No `(Recommended)` marker: Deep is costlier, not safer.
+When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question once at grill wrap-up (§2b termination) — its own single-question AUQ, after the substance is settled. It never depends on a clarifying answer, so it goes last by convention (a mode question). This depth question is exempt from the §2b checkpoint cadence — it is a mode question, not a clarification, and never triggers a wrap-up. When `--deep` is present, depth is already Deep — skip this question. No `(Recommended)` marker: Deep is costlier, not safer.
 
 ```yaml
 - header: "Plan depth"
@@ -142,6 +142,56 @@ approvals:
     at: 2026-05-17T10:50:00Z
     asked_in_phase: clarify
 ```
+
+### 2b. Checkpoint gate and termination summary
+
+No fixed cap bounds the grill (§2 above) — instead pause for a checkpoint whichever comes first: a full design branch resolves, OR ~6 questions have been asked since the last checkpoint (plan-loop §3.4). At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
+
+Chat message rendered before the checkpoint AUQ:
+
+```markdown
+Quick checkpoint — 6 decisions in, here's where we are:
+
+**Resolved**
+- Auth: JWT via existing middleware
+- Rate limit: 60 req/min/user (reuse RateLimitGuard)
+- Storage: append to the existing events table (no new table)
+
+**Deferred / assumed**
+- Backfill ordering — assuming newest-first unless you say otherwise
+
+**Still open to walk**
+- Failure handling (retries / dead-letter)
+- Admin visibility (in scope at all?)
+```
+
+Then the LEAN AUQ — `preview` omitted (the summary is the message above):
+
+```yaml
+header: "Checkpoint"
+question: "Keep grilling the open branches, or wrap up here?"
+options:
+  - label: "Keep grilling"                         # Recommended while open branches remain
+    description: "Continue the walk through failure handling + admin visibility."
+  - label: "Wrap up now"
+    description: "Stop; the open branches become stated assumptions in the spec."
+  - label: "Skip remaining with stated assumptions"
+    description: "Same as wrap-up, but I name the skipped branches in Assumptions for /geniro:implement to verify."
+```
+
+Persist each checkpoint decision to `approvals[]` category `grill_checkpoint`:
+
+```yaml
+approvals:
+  - category: grill_checkpoint
+    prompt: "Keep grilling the open branches, or wrap up here?"
+    options: ["Keep grilling", "Wrap up now", "Skip remaining with stated assumptions"]
+    picked: "Keep grilling"
+    at: 2026-05-17T11:05:00Z
+    asked_in_phase: clarify
+```
+
+**Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. Render a closing summary (resolved decisions / deferred work / unaddressed risks) and hold it in context — it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition). Then ask the §2a planning-depth question when `--deep` is absent, and transition to Phase 4.
 
 ---
 

@@ -12,7 +12,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 - Phase 0.5 — Problem discovery (opt-in, `--prd`)
 - Phase 1 — Explore
 - Phase 2 — Visual Companion (UI-conditional)
-- Phase 3 — Clarifying questions
+- Phase 3 — Grill (decision-tree clarification)
 - Phase 4 — Approaches
 - Phase 5 — Section approval
 - Phase 6 — Write spec.md
@@ -33,7 +33,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 ## Gate presentation contract
 
-Every gate that presents rich, multi-part content — Phase 0.5 problem-discovery, Phase 3 clarifying questions, Phase 4 approaches, Phase 5 section approval, Phase 8 final approval — follows a two-step shape: **render to chat first, then fire a lean question.**
+Every gate that presents rich, multi-part content — Phase 0.5 problem-discovery, Phase 3 grill questions, Phase 4 approaches, Phase 5 section approval, Phase 8 final approval — follows a two-step shape: **render to chat first, then fire a lean question.**
 
 1. **Render the content as a SEPARATE chat message FIRST.** Write the full detail to chat as its own already-emitted assistant message, in the Visual rendering language below — progress tracker, one-sentence opener, friendly digest blocks, concrete code examples, and the per-unit visual (especially section 6 Steps and Phase 4 data-flow). It must exist before the question fires; the render and the AUQ tool call must never share one assistant turn (same-turn text may not display, and a question pointing at "the message above" with no such message obtains an uninformed approval). This message is where the user reads and understands the plan — full width, persists in scrollback.
 
@@ -294,26 +294,33 @@ If the user picks "Adjust the plan instead" at any revision round of ui-preview-
 
 ---
 
-## Phase 3 — Clarifying questions
+## Phase 3 — Grill (decision-tree clarification)
 
 State.md `phase: clarify` during this phase.
 
-### 3.1 Question generation
+This phase is a decision-tree grill: walk the design's open decisions depth-first, one question at a time, until the branches that shape the spec resolve. It replaces a flat fixed-size question list — a real plan is a tree of dependent decisions, so resolving a parent decision reshapes (or removes) its children, which means the question set cannot be enumerated up front.
 
-Model identifies up to 5 highest-leverage ambiguities from:
+### 3.1 Build the decision tree
+
+Build the tree from:
 - Phase 1 research findings ("found 3 auth flows — which one is the integration surface?")
-- L2 query-learnings ("prior decision favored Approach X — does it apply here?")
+- L2 query-learnings ("a prior decision favored Approach X — does it apply here?")
 - L4 code-style rules
+- the Phase 0.5 problem framing when `--prd` was passed
 
-Questions MUST be grounded in Phase 1 findings. Generic "what tech stack?" questions are forbidden — the model can answer those from L3 `_project.md`.
+Root = the feature. Branches = its major design axes (data model, integration surface, failure handling, UX, scope edges). A child decision that only matters under a particular parent answer hangs off that parent.
+
+**Codebase-first.** Before asking anything the code can answer, read it — for a multi-file question spawn `codebase-research-agent` (invariant #8). Ask only what the code cannot settle: a question answerable from L3 `_project.md` ("what test runner?") is forbidden — answer it silently and move on.
+
+**Walk depth-first.** Pick the highest-leverage unresolved branch, drill it to its leaves in parent→child order, then backtrack to the next branch. Depth-first keeps each line of questioning coherent instead of scattering across unrelated axes.
 
 ### 3.2 AUQ shape — message-first, one question at a time
 
-Apply the Gate presentation contract. Ask the clarifying questions one at a time, in sequence — one `AskUserQuestion` call per question, never a multi-question batch. Before each question render its framing to a chat message first, sized to the question: a one-line orientation when every option is self-explanatory, a short per-option consequence block (a code anchor, config diff, or behavior trace) when an option's consequence needs more than its one-line `description`. Then fire the lean single-question AUQ with short labels + one-line `description`s.
+Apply the Gate presentation contract. Ask one question at a time — one `AskUserQuestion` call per question, never a multi-question batch. Before each question render its framing to a chat message first, sized to the question: a one-line orientation when every option is self-explanatory, a short per-option consequence block (a code anchor, config diff, or behavior trace) when an option's consequence needs more than its one-line `description`. Then fire the lean single-question AUQ with short labels + one-line `description`s. Give a recommended answer for every question (Recommended-first option) — the user is confirming a default, not authoring from scratch.
 
-One question per call, not a batch, because each question gets its own focused explanation, a later question can adapt to — or drop on — an earlier answer, and it matches the Phase 5 cluster-gate experience; the cost is more round-trips, which is the deliberate trade for per-question clarity. Each question uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. Generate the full ≤5 question set up front (§3.1) so the sequence length is known, but ask them one by one — after each answer, re-check whether a still-pending question is now moot (drop it) or needs reworded options. The ≤5-total cap (§3.4) holds across the sequence. Full literal example with the per-question chat message + single-question AUQ in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+One question per call, not a batch, because each answer reshapes the tree frontier: a still-pending child can become moot (drop it) or need reworded options. Do NOT pre-generate a fixed question list — regenerate the next question from the live tree after each answer. Each question uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. The grill is uncapped but bounded by the §3.4 checkpoint gate. Full literal example with the per-question chat message + single-question AUQ in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
-When `--deep` is absent, ask the planning-depth question (Standard / Deep) as the LAST question in the sequence — its own single-question AUQ, after every clarifying question is answered. The depth question is a mode question, not a clarifying ambiguity, so it does NOT count toward the ≤5-total clarification cap in §3.4 and never forces consolidation or drop of a real clarification. When `--deep` is present, depth is already Deep, so skip the question. Persist the pick to frontmatter `deep-mode` and `approvals[]` category `deep_mode_choice`; an empty answer defaults to Standard (`deep-mode: false`). Phase 3 is skipped on Trivial tasks, so on Trivial depth stays flag-only. The exact AUQ shape is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+When `--deep` is absent, ask the planning-depth question (Standard / Deep) once at grill wrap-up (§3.4) — its own single-question AUQ, after the substance is settled. The depth question is a mode question, not a clarifying ambiguity, so it is exempt from the §3.4 checkpoint cadence and never triggers a wrap-up. When `--deep` is present, depth is already Deep, so skip the question. Persist the pick to frontmatter `deep-mode` and `approvals[]` category `deep_mode_choice`; an empty answer defaults to Standard (`deep-mode: false`). Phase 3 is skipped on Trivial tasks (§1.5), so on Trivial depth stays flag-only. The exact AUQ shape is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 ### 3.3 Persistence
 
@@ -321,9 +328,18 @@ Each answered question → append entry to state.md frontmatter `approvals[]` vi
 
 On compaction-resume, the SessionStart re-injector renders `approvals[]` and the model re-reads it to skip already-answered questions.
 
-### 3.4 Cap exhaustion
+### 3.4 Checkpoint gate and termination
 
-If a 6th clarification arises, force consolidation OR proceed to Phase 4 with stated assumptions. The 5-question cap is a quality-first signal — more than 5 means Phase 1 underspecified OR the topic is too vague for a single /geniro:plan session.
+There is no fixed question cap — the grill runs until the spec-shaping branches resolve. To keep it bounded without a hard number, pause for a checkpoint whichever comes first: a full design branch resolves, OR ~6 questions have been asked since the last checkpoint. This is an escalation gate, not an abort — consistent with the clarification-heavy budget framing, which caps no total AUQ count; the user, not a fixed number, decides when to stop.
+
+At a checkpoint, render a running summary to a chat message — resolved decisions, deferred items, and the open branches still to walk — then fire ONE lean AUQ:
+- **Keep grilling** (Recommended while open branches remain) — continue the walk.
+- **Wrap up now** — stop; remaining open branches become stated assumptions.
+- **Skip remaining branches with stated assumptions** — same as wrap-up, but name the skipped branches explicitly in the Assumptions section for /geniro:implement to verify.
+
+Persist each checkpoint decision to `approvals[]` category `grill_checkpoint` via `atomic_state_write` before continuing.
+
+**Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. On termination, render a closing summary — resolved decisions, deferred work, and any unaddressed risks — and hold it in context: it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition). Then ask the planning-depth question (§3.2) when `--deep` is absent, and transition to Phase 4. The checkpoint and termination summary templates are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 ---
 
@@ -698,7 +714,7 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 - [ ] Phase 1 loaded L4 + L3 + L2 (full tier); per-spawn Echo contract entries persisted to `## Tool log`.
 - [ ] Phase 1.4 fetched `workflow_refs` via the matching MCP when `$ARGUMENTS` carried a tracker reference; payload persisted to state.md `## Workflow Refs`; the related-task chain was assembled via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: plan) with the tracker half (parent epic + siblings + `chain_fetched_at`) merged into `## Workflow Refs` and the "TASK CHAIN CONTEXT" block held for the research spawns; fail-open on MCP unavailable (skipped when no tracker reference).
 - [ ] Phase 2 (Visual Companion) fired only when UI trigger matched; approved description persisted to state.md `## UI Preview` (skipped when no trigger).
-- [ ] Phase 3 asked the clarifying questions one at a time — each preceded by a message-first framing sized to the question, then a lean single-question `AskUserQuestion` — ≤5 questions total, dropping any pending question an earlier answer made moot; each answer persisted to `approvals[]` before the next question.
+- [ ] Phase 3 grilled the design as a depth-first decision-tree walk — one question at a time, each preceded by a message-first framing then a lean single-question `AskUserQuestion` with a recommended answer, regenerating the frontier after each answer (dropping any child an earlier answer made moot); no fixed cap, with a summarize-and-continue checkpoint AUQ every ~6 questions or at branch completion; each answer and each `grill_checkpoint` decision persisted to `approvals[]` before continuing; a termination summary held for Phase 4/5.
 - [ ] Phase 4 rendered the 2-3 approaches to a chat message in the Visual rendering language (progress tracker + one-sentence opener + per-approach plain-English summary, ASCII diagram, what-changes file list, trade-off, stress-test verdict), then fired ONE lean AUQ with Recommended first; pick persisted to `approvals[]`; other approaches captured to `## Considered Alternatives`.
 - [ ] Phase 4 ran the independent stress-test (Trivial: skipped; Medium: 1 critic; Big: 1 per approach) before ranking; a verified-blocking-risk approach was demoted from Recommended (or Phase 3 re-entered if all blocked); clean verdicts carried a `Checked:` account (else noted "stress-test inconclusive"); critique verdicts carried into the Phase 4 chat message + `## Considered Alternatives`; critic-spawn failures logged to `## Errors` (fail-open).
 - [ ] Phase 4 considered build-vs-buy for non-trivial components (effort tier Small/Medium/Big — skipped Trivial and projects with no package manifest); any library folded into an approach was existence-verified per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` (MODE: plan) and carried into the spec's Approach/Steps prose; no separate adoption AUQ fired (approach approval is the confirmation); research/registry errors failed open.
@@ -733,5 +749,5 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 | "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work" | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |
 | "Handoff should add a separate backlog-capture step for backlog discipline" | The committed spec.md on disk IS the backlog entry — no extra capture step or menu pick needed. Not running the printed `/geniro:implement` command is how a spec stays parked. |
 | "Auto-default empty AUQ answer to the Recommended option" | Forbidden. Empty answer = upstream Claude Code bug; fall back to plain-text re-ask. Auto-default silently mutates user intent. |
-| "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /geniro:plan has bounded gates (Phase 3 ≤5 questions, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
+| "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /geniro:plan has bounded gates (Phase 3 grill checkpoint, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4" | Hooks fail for a reason. Investigate root cause, not bypass. CLAUDE.md-level prohibition; honors it. |
