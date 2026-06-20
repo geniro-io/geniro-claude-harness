@@ -51,7 +51,8 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 **Schema-version compatibility:**
 - `m5-v1` — legacy schema, no `workflow_refs[]`. Still valid for inline-task /geniro:plan with no tracker linkage.
 - `m5-v2` — adds optional `workflow_refs[]`. Field absent ⇔ no tracker linkage; field present ⇔ Phase 7 check #14 validates structure.
-- `m5-v3` — adds optional related-task chain enrichment to `workflow_refs[]` entries (parent epic title/status/scope + sibling sub-tasks with statuses + `chain_fetched_at`). Field present ⇔ /geniro:plan fetched the chain; absent ⇔ not fetched. All of m5-v1/m5-v2/m5-v3 are accepted downstream.
+- `m5-v3` — adds optional related-task chain enrichment to `workflow_refs[]` entries (parent epic title/status/scope + sibling sub-tasks with statuses + `chain_fetched_at`). Field present ⇔ /geniro:plan fetched the chain; absent ⇔ not fetched.
+- `m5-v4` — adds the optional `launch_config` block (`/geniro:plan`'s pre-set of `/geniro:implement`'s launch settings; canonical `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`). Carries `workflow_refs[]` identically to m5-v3. All of m5-v1/m5-v2/m5-v3/m5-v4 are accepted downstream.
 
 **Per-entry shape:** see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
 
