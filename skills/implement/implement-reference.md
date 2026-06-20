@@ -533,7 +533,7 @@ emit_rejection_if_signal \
 
 **Step 6 — Trailing bookkeeping writes must not contradict what shipped.** Post-ship bookkeeping (a memory-index update, an `atomic_state_write` of the terminal state, a tracker status transition) runs after the ship report. When such a write FAILS — e.g. an `Edit` rejected by its Read-before-Edit precondition, or a tracker MCP timeout — do not end the run leaving a record that contradicts the ship that already happened (the real failure mode: an index asserting the task is "not implemented" while the PR is open). Surface the failure in plain English, fix the precondition (Read the file, then Edit), and retry the write ONCE. If the retry also fails, say so explicitly in chat — "the project record still shows this as not-shipped; the PR is open at <url> — update the record manually" — so the user knows the bookkeeping is stale and the actual ship state is the PR, not the record.
 
-**Inline modifiers from $ARGUMENTS** (semantic parsing per Phase 1 table) override the ship-mode AUQ deterministically:
+**Inline modifiers from $ARGUMENTS** (semantic parsing per Phase 1 table) override the ship-mode AUQ deterministically. A spec `launch_config.ship_mode` (read at Phase 1 Step 0g per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) pre-answers the AUQ via the same mechanism: `commit-no-push` → "don't push", `draft-pr` → "draft only", `ready-for-review` → "ready-for-review", `stop-after-review` → "stop after review". The commit-grade safeguards (default / shared-branch push, or a handoff-reached open-PR update) still gate regardless of the pre-set.
 
 | Modifier in $ARGUMENTS | Effect |
 |---|---|

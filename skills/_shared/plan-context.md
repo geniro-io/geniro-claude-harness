@@ -36,12 +36,12 @@ Read the first 20 lines of the candidate file. If frontmatter contains:
 
 ```yaml
 geniro_kind: design-doc
-geniro_schema_version: m5-v1   # or m5-v2 / m5-v3 — all accepted
+geniro_schema_version: m5-v1   # or m5-v2 / m5-v3 / m5-v4 — all accepted
 ```
 
-→ switch to **structured-section parser**. All of `m5-v1`, `m5-v2`, and `m5-v3` carry the same 11-section body schema; `m5-v2` and `m5-v3` expose `workflow_refs[]` in frontmatter (`/geniro:plan` writes them by default when a tracker reference is fetched), and `m5-v3` additionally enriches each `workflow_refs[]` entry with parent-epic + sibling chain context (parent title/status/scope, sibling sub-task statuses, a `chain_fetched_at` timestamp). Downstream readers MUST accept all three versions.
+→ switch to **structured-section parser**. All of `m5-v1`, `m5-v2`, `m5-v3`, and `m5-v4` carry the same 11-section body schema; `m5-v2` and `m5-v3` expose `workflow_refs[]` in frontmatter (`/geniro:plan` writes them by default when a tracker reference is fetched), and `m5-v3` additionally enriches each `workflow_refs[]` entry with parent-epic + sibling chain context (parent title/status/scope, sibling sub-task statuses, a `chain_fetched_at` timestamp). `m5-v4` adds the optional `launch_config` block — `/geniro:plan`'s pre-set of `/geniro:implement`'s launch settings (workspace / deep mode / branch-freshness / ship mode; canonical `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`), absent = `/implement` asks interactively. Every block is additive-optional. Downstream readers MUST accept all four versions.
 
-If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` / `m5-v3` → fall back to **prose mode**.
+If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` / `m5-v3` / `m5-v4` → fall back to **prose mode**.
 
 ---
 

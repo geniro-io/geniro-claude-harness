@@ -24,7 +24,7 @@ schema-version: 1 # required
 branch: <git-branch> # required
 timestamp: <ISO-8601 UTC> # required
 geniro_kind: design-doc # design-doc-detect.md contract — required marker
-geniro_schema_version: m5-v3 # schema version — set to m5-v3 ONLY when >=1 chain-enrichment field is present (parent_ref.title|status|scope, siblings, chain_fetched_at); else m5-v2 (workflow_refs[] w/o enrichment) or m5-v1 (no workflow_refs[])
+geniro_schema_version: m5-v3 # schema version — set to m5-v4 when launch_config is present; m5-v3 when >=1 chain-enrichment field is present (parent_ref.title|status|scope, siblings, chain_fetched_at); else m5-v2 (workflow_refs[] w/o enrichment) or m5-v1 (no workflow_refs[]); m5-v1..v4 all valid downstream
 task_slug: <slug> # extension
 topic: <one-sentence-topic> # extension
 mode: <IDEA|DESIGN_DOC> # extension
@@ -69,6 +69,11 @@ approval_required_for: # advisory: step_anchors flagged for a user-approval paus
   - step-3
   - step-9
 tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in env — goal-state end
+launch_config: # optional, SEPARATE block (NOT goal-state) — present only when the user pre-defined /geniro:implement settings at plan time (m5-v4). Absent block = /geniro:implement asks its Step 0 setup questions interactively.
+  workspace: new-branch # new-branch | current-branch | worktree | here
+  deep_mode: false # true | false
+  branch_freshness: rebase # merge | rebase | skip
+  ship_mode: draft-pr # commit-no-push | draft-pr | ready-for-review | stop-after-review
 ---
 ```
 
@@ -77,8 +82,9 @@ tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in en
 - `geniro_kind` → `lifecycle`: schema markers + extensions.
 - `workflow_refs`: optional tracker linkage (m5-v2). Omitted from frontmatter when no tracker was linked (pure inline-task /geniro:plan); downstream skills treat absence as "no tracker linkage". The m5-v3 chain-enrichment fields (`parent_ref.title`/`status`/`scope`, `siblings[]`, `chain_fetched_at`) are optional additions written by the related-task chain context helper (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`); their absence is m5-v2-equivalent.
 - `budget` → `tools_required`: goal-state block embedded in frontmatter.
+- `launch_config`: optional, SEPARATE block (NOT part of the goal-state block — goal-state encodes the task's constraints; `launch_config` encodes how `/geniro:implement` is invoked). Written at Phase 8 approval, inside the same approval-time spec rewrite that flips `lifecycle: draft` → `lifecycle: approved`, only when the user opts into pre-defining `/geniro:implement` settings; `/geniro:implement` reads it at Step 0 and skips the corresponding setup questions, treating an absent block as "ask interactively". Bumps `geniro_schema_version` to `m5-v4` when present. Canonical contract (shape, enums, version rule, doctrine boundary): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
 
-**`workflow_refs[]` per-entry shape + schema-version compatibility:** canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` — the per-entry required/optional fields (`kind` / `issue_id` / `url` / `fetched_at` required; the optional cache + m5-v3 chain-enrichment fields), the m5-v1/m5-v2/m5-v3 version rule, and the tracker mutation-responsibility note. /geniro:plan writes the frontmatter shown in the example above; the structured field is the cross-skill contract every consumer reads from that shared schema.
+**`workflow_refs[]` per-entry shape + schema-version compatibility:** canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` — the per-entry required/optional fields (`kind` / `issue_id` / `url` / `fetched_at` required; the optional cache + m5-v3 chain-enrichment fields), the m5-v1/m5-v2/m5-v3/m5-v4 version rule (m5-v4 carries `workflow_refs[]` identically; see line 85 for its `launch_config` block), and the tracker mutation-responsibility note. /geniro:plan writes the frontmatter shown in the example above; the structured field is the cross-skill contract every consumer reads from that shared schema.
 
 **`status:` namespace note.** The state-tier schema reserves `status:` for state lifecycle (`in-progress|done|failed`). design-doc lifecycle uses a distinct key (`lifecycle:` — values `draft|approved|superseded`) to avoid clash. State-tracking already handled via the state.md sibling file, so spec.md doesn't need the spec's `status:` field. Phase 8 flips `lifecycle: draft` → `lifecycle: approved` on user-approve.
 

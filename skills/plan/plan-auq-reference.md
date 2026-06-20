@@ -10,6 +10,7 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 4. Phase 5 cluster AUQ — message-first cluster approval (3 dependency-ordered gates) + milestone-mode
 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
+5b. Phase 8 launch-config AUQ — pre-define implement settings (opt-in)
 
 ---
 
@@ -438,3 +439,98 @@ options:
 On Approve pick: spec.md `lifecycle: draft` → `approved` flip; `git commit` fires (NOT in Phase 6); `non-resumable-actions[]` updated with the commit SHA; transition to Phase 9.
 
 On Revision pick: max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, escalation AUQ "Revision limit reached" fires with options "Accept as-is" / "Re-revise (kick fresh cycle)" / "Abort".
+
+---
+
+## 5b. Phase 8 launch-config AUQ — pre-define implement settings (opt-in)
+
+Fires at the very end of planning — Phase 8, AFTER the user approves the spec (§5 above) and BEFORE the §8.4 git commit. Skipped entirely when `$ARGUMENTS` modifiers already set these (workspace / depth / branch-handling / ship modifiers). It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
+
+Two steps: a gate question, then (only on "Yes") a batched capture.
+
+### Step 1 — gate question
+
+A lean single-question AUQ. The gate question never auto-defaults — an empty answer is re-asked, not defaulted, because opting in is a real choice (unlike the per-field defaults in Step 2, which presuppose a "Yes"):
+
+```yaml
+header: "Implement setup"
+question: "Pre-define the implementation settings now, so /implement can run on its own?"
+options:
+  - label: "Yes — set them now"
+    description: "Pick the workspace, depth, branch handling, and ship mode here; /implement skips those questions and runs on its own."
+  - label: "No — /implement will ask when it runs"
+    description: "Leave the settings unset; /implement asks them interactively at start, exactly as it does today."
+```
+
+On "No" → write no `launch_config:` block; persist the declined gate answer to `approvals[]` (Step 3) and proceed to §8.4 with the spec unchanged. On "Yes" → fire Step 2.
+
+### Step 2 — batched capture (only on "Yes")
+
+ONE batched AUQ (up to 4 questions). Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, Standard (`deep_mode: false`), `rebase`, `draft-pr`.
+
+```yaml
+questions:
+  - header: "Workspace"
+    question: "Where should /implement do the work?"
+    options:
+      - label: "New branch"                  # Recommended → workspace: new-branch
+        description: "Cut a fresh branch from the latest default branch."
+      - label: "Current branch"
+        description: "Work in place on the current branch."
+      - label: "Worktree"
+        description: "Cut a separate worktree so the current checkout is untouched."
+      - label: "Here"
+        description: "Work in the current directory as-is, no branch change."
+  - header: "Depth"
+    question: "How deep should the implementation review go?"
+    options:
+      - label: "Standard"                     # Recommended → deep_mode: false
+        description: "Single self-review pass; standard cost."
+      - label: "Deep"
+        description: "Multi-angle self-review plus a pre-edit fact-check; higher quality, higher cost."
+  - header: "Branch handling"
+    question: "If the branch is behind the default branch, how should /implement catch it up?"
+    options:
+      - label: "Rebase"                       # Recommended → branch_freshness: rebase
+        description: "Replay your commits on top of the latest default branch."
+      - label: "Merge"
+        description: "Merge the latest default branch into yours."
+      - label: "Skip"
+        description: "Leave the branch as-is; don't update it before working."
+  - header: "Ship mode"
+    question: "How should /implement finish — what should it do at ship time?"
+    options:
+      - label: "Draft PR"                     # Recommended → ship_mode: draft-pr
+        description: "Push and open a draft pull request."
+      - label: "PR ready for review"
+        description: "Push and open a pull request marked ready for review."
+      - label: "Commit only, don't push"
+        description: "Commit locally; don't push or open a PR."
+      - label: "Stop after review"
+        description: "Stop before any commit or push."
+```
+
+Map the picks to the `launch_config:` block values (`workspace` / `deep_mode` / `branch_freshness` / `ship_mode`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"The block". Hold the block for the §8.4 spec rewrite.
+
+### Step 3 — persistence
+
+Append one entry to state.md `approvals[]` with category `launch_config` via `atomic_state_write` — mirror the `deep_mode_choice` shape (§2a above), recording the gate answer and, on "Yes", the captured fields:
+
+```yaml
+approvals:
+  - category: launch_config
+    prompt: "Pre-define the implementation settings now, so /implement can run on its own?"
+    options: ["Yes — set them now", "No — /implement will ask when it runs"]
+    picked: "Yes — set them now"
+    launch_config:
+      workspace: new-branch
+      deep_mode: false
+      branch_freshness: rebase
+      ship_mode: draft-pr
+    at: 2026-05-17T11:20:00Z
+    asked_in_phase: user-approve
+```
+
+On "No", omit the `launch_config:` sub-block and record `picked: "No — /implement will ask when it runs"`.
+
+Doctrine: these four fields pre-answer SETUP only. They do NOT pre-authorize the new-dependency adoption gate, the runaway-scope / budget escalation, the handoff open-questions gate, or the spec-challenge-on-drift gate — each of those still fires on its own real trigger during `/geniro:implement` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety").

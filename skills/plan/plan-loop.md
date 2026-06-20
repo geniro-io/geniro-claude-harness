@@ -654,16 +654,30 @@ Phase 8 closes the loop with a final whole-spec approval. Apply the Gate present
 ### 8.3 Revision-round escalation
 
 Max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, fire escalation AUQ with header "Revision limit reached":
-- **Accept as-is** — final answer; run the §8.4 post-approve steps (commit, then Phase 9 prints the implement command).
+- **Accept as-is** — final answer; route through §8.3.5 (the launch-config offer — this is a user-acceptance-to-commit path, same as an §8.2 Approve) and then run the §8.4 post-approve steps (commit, then Phase 9 prints the implement command).
 - **Re-revise (kick fresh cycle)** — full round-1 restart; rare.
 - **Abort** — terminal `aborted` + `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
+
+### 8.3.5 Launch config — pre-define implement settings (opt-in)
+
+Fires after the user accepts the spec for commit — via the §8.2 "Approve" pick OR the §8.3 "Accept as-is" revision-wall terminal (never on Request changes / Abort / Re-revise), and ONLY when `$ARGUMENTS` did not already set these via modifiers (workspace / depth / branch-handling / ship modifiers). This step pre-answers the four `/geniro:implement` setup questions at plan time so `/implement` runs on its own — the full field semantics, enum values, and the doctrine boundary live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`; do not restate them here.
+
+1. **Ask the launch-config gate question** per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5b — "Pre-define the implementation settings now, so /geniro:implement can run on its own?" The gate question never auto-defaults; an empty answer is re-asked.
+
+2. **On "No"** — write no `launch_config:` block. The spec carries no pre-set; `/geniro:implement` asks its setup questions interactively as it does today. Proceed to §8.4 with the spec unchanged.
+
+3. **On "Yes"** — fire the batched capture AUQ (up to 4 questions) per §5b: `workspace` (new branch / current branch / worktree / here), `deep_mode` (Standard / Deep), `branch_freshness` (rebase / merge / skip), `ship_mode` (draft PR / PR ready for review / commit only don't push / stop after review). An empty answer on any single field falls back to that field's recommended default (`new-branch` / `false` / `rebase` / `draft-pr`) — the user already opted in by picking "Yes". Capture the four values into a `launch_config:` block held for the §8.4 write.
+
+4. **Persist the pick** to `approvals[]` with category `launch_config` via `atomic_state_write` (the gate answer + the captured fields). On "No", record the declined gate answer; no block is held.
+
+Doctrine: `launch_config` pre-answers SETUP only. It does NOT pre-authorize the new-dependency adoption gate, the runaway-scope / budget escalation, the handoff open-questions gate, or the spec-challenge-on-drift gate — each of those still fires on its own real trigger during `/geniro:implement` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety").
 
 ### 8.4 Approve → git commit
 
 On user picks "Approve":
 
 1. **Persist approval** to `approvals[]` with category `final_approve`.
-2. **Flip spec.md `lifecycle: draft` → `lifecycle: approved`** in spec.md frontmatter via a fresh `atomic_state_write` that rewrites the whole spec (idempotent regeneration — the only field changing is `lifecycle:`; an in-place `Edit` is hard-blocked by the `enforce-state-helper` hook on `.geniro/planning/**`). Per design-doc lifecycle marker.
+2. **Flip spec.md `lifecycle: draft` → `lifecycle: approved`** in spec.md frontmatter via a fresh `atomic_state_write` that rewrites the whole spec (idempotent regeneration — the fields changing are `lifecycle:`, plus the `launch_config:` block + `geniro_schema_version: m5-v4` when §8.3.5 captured one; an in-place `Edit` is hard-blocked by the `enforce-state-helper` hook on `.geniro/planning/**`). Per design-doc lifecycle marker. **Fold the launch-config write into this SAME rewrite — zero extra writes:** when §8.3.5 captured a `launch_config:` block, write it into the spec frontmatter and set `geniro_schema_version: m5-v4` (additive-optional per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Version & backward-compat"; the m5-v3/m5-v2/m5-v1 chain-enrichment version rule of §6.1 still applies when no launch_config was captured). When §8.3.5 wrote no block (user picked "No" or the step was skipped by modifiers), leave the spec's version and frontmatter unchanged — only `lifecycle:` flips.
 3. **`git commit`** fires HERE (NOT in Phase 6):
  - `git add .geniro/planning/<slug>/spec.md` + every sibling `milestone-N.md`
  - `git commit -m "plan: <task-slug> — <one-line summary from section 1 Objective>"`
@@ -740,6 +754,7 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 - [ ] Phase 7 mechanical validator ran the full check set defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 7.5 spec challenge ran on every plan (no Trivial skip) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).
 - [ ] Phase 8 rendered the spec summary to a chat message in the Visual rendering language (all-prior-stops-✔ tracker + one-sentence opener + at-a-glance digest with done-condition checklist + concrete examples), then fired ONE lean AUQ; user picked one of 3 options; max 3 user-revision rounds respected.
+- [ ] After Phase 8 Approve, the launch-config question was offered (skipped only when `$ARGUMENTS` modifiers already set workspace / depth / branch-handling / ship); on opt-in, the four fields were captured to a `launch_config:` block, persisted to `approvals[]` category `launch_config`, and the block + `geniro_schema_version: m5-v4` were written into the committed spec inside the §8.4 lifecycle-flip rewrite (no extra write); on decline / skip, no block was written and the version was unchanged.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
 - [ ] Phase 9 printed the milestone-aware `/geniro:implement <path>` command and wrote terminal `phase: done`.
 - [ ] HARD-GATE released only on Phase 8 "Approve".

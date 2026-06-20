@@ -119,7 +119,7 @@ Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never 
 | `checksum` | Manual-edit corruption detection (sha256 of body) |
 | `notes` | Free-form |
 | `geniro_kind` | Producer schema marker — informational only |
-| `geniro_schema_version` | Producer schema-version marker — informational only |
+| `geniro_schema_version` | Producer schema-version marker — informational only. For spec.md (`geniro_kind: design-doc`) the additive-optional frontmatter blocks bump it: `m5-v2`/`m5-v3` carry `workflow_refs[]` (tracker linkage + chain enrichment), `m5-v4` carries the optional `launch_config` block (`/geniro:plan`'s pre-set of `/geniro:implement`'s launch settings; canonical `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`). All of `m5-v1`..`m5-v4` are valid downstream; each block is additive-optional (absent = unchanged behavior). |
 
 ### T1 optional `approvals` array
 
