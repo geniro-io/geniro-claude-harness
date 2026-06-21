@@ -8,7 +8,7 @@
 - §ADR target — when to use it (sparingly)
 - §Why code rules go to `.claude/rules/`, not CLAUDE.md
 - §Reflection-agent feed — how to source candidates (agent vs inline)
-- §Presentation — how to surface the routed suggestion
+- §Presentation — surface the routed suggestions one candidate at a time
 
 When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
 
@@ -163,4 +163,24 @@ A candidate tagged `Recurrence-eligible: yes` restates a learning already seen 3
 
 ## Presentation
 
-For each improvement, draft `target / file / change / why`. Present via `AskUserQuestion` with header "Improvements" and options `Apply all` / `Review one-by-one` / `Skip`. Group by target so the user sees what goes where; render each candidate with its `Significance:` tag and its Evidence citation from the §Candidate bar, so the user judges the incident behind the proposal, not just the proposal. If no improvements found, skip the prompt — an empty list never opens an `AskUserQuestion`, but the `Reviewed for improvements: 0 candidate(s)` echo still fires (per §"Anchor + echo"). On a `Skip` or an explicit decline, log it via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`) so the declined suggestion does not re-surface next run. Writes happen only after approval — for `.geniro/instructions/` targets, hand off to `/geniro:instructions create`; for CLAUDE.md / `.claude/rules/` / ADR / learnings, the orchestrator writes via the atomic state helpers.
+Surface candidates **one at a time** in the shared visual gate language (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Visual rendering language"; the two-step render-then-question shape and render-exists check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering). A rule is a permanent tax on every future session (§Candidate bar), so the user has to see exactly what each rule says, where it lands, and what incident justifies it before approving — a single bundled "apply all" prompt hides that detail and trains the user to rubber-stamp or dismiss the whole batch.
+
+Draft each candidate as `target / file / change / why`, then walk them in descending `Significance` order (the §Candidate bar caps the walk at 3). For each candidate, render a self-contained chat message, then fire its own lean `AskUserQuestion`:
+
+- **Tracker** (only when ≥2 candidates remain) — `● Rule 1 of 2 · ○ Rule 2`, per the gate-rendering tracker.
+- **Opener** — one sentence naming the candidate, e.g. `**Rule 1 of 2** — a testing rule this run exemplifies.`
+- **What I'd write** — the candidate's `change` (the `WHEN <condition> → <action>` body) shown verbatim in a fenced block, exactly as it would land in the file. The rule text itself, not a paraphrase of it.
+- **Where** — the routed `target` + `file` in plain English, e.g. "appends to your project's API-testing rules (`.claude/rules/api-testing.md`)". Name the file and what kind of rule store it is.
+- **Why** — the candidate's durable value followed by its Evidence citation from the §Candidate bar, both expanded to plain English, so the user judges the incident behind the proposal rather than the proposal alone. Frame a `Dedupe: UPDATE <file:line>` verdict as amending the existing rule at that location, not adding a sibling.
+- **A visual** — the smallest aid that shows the rule's effect (the rule rendered as it will read in the file, or a before/after of the behavior it guards).
+
+Then the lean question (header `Rule N of M`, or just `Rule N` when only one candidate remains), options:
+- **"Write this rule"** — apply this one candidate (pre-select `Recommended` when `Significance: critical`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy).
+- **"Skip this rule"** — decline just this candidate and continue to the next.
+- **"Skip the rest"** — decline this candidate and all remaining ones; ends the walk.
+
+Write each approved candidate before rendering the next — for `.geniro/instructions/` and `code-style.md` targets, hand off to `/geniro:instructions create`; for CLAUDE.md / `.claude/rules/` / ADR / learnings, the orchestrator writes via the atomic state helpers. On a `Skip this rule` / `Skip the rest` / explicit decline, log it via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`) so the declined suggestion does not re-surface next run.
+
+An empty candidate list opens no `AskUserQuestion` — skip the walk entirely — but the `Reviewed for improvements: 0 candidate(s)` echo still fires (per §"Anchor + echo").
+
+Read-only skills route instead of apply — `/geniro:review` runs the same one-at-a-time render, but the per-candidate options become "Capture this rule" / "Skip this rule" / "Skip the rest", handing instruction-scoped picks to `/geniro:instructions create` and listing CLAUDE.md / `.claude/rules/` / ADR picks in chat for the user to apply (it writes no project file); see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.7.
