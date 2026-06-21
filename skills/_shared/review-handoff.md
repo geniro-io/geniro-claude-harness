@@ -337,10 +337,10 @@ Runs after §3.5 finalize and BEFORE the §4 Action gate — only when Phase 6 f
 
 2. **Zero candidates: skip the AUQ only.** Still echo `Reviewed for improvements: 0 candidate(s)` — the echo is unconditional per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Anchor + echo"; a silent zero is indistinguishable from a dropped step.
 
-3. **Surface candidates.** The agent returns only candidates that passed the §Candidate bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`; render each with its `Significance:` tag (`critical` | `general`) and its `Evidence:` citation so the user can judge it without re-reading the diff, and present a `Dedupe: UPDATE <file:line>` verdict as a refinement of the existing rule at that location, not a new rule. Group by target per the helper's §Routing table and fire ONE `AskUserQuestion` (header "Improvements"). Because /geniro:review never mutates project files, the options route rather than apply:
-   - **"Capture as rules now"** — hand instruction-scoped candidates (`.geniro/instructions/*`, `code-style.md`) to `/geniro:instructions create`; list the CLAUDE.md / `.claude/rules/` / ADR candidates in chat for the user to apply manually or carry into `/geniro:implement`. /geniro:review writes none of them.
-   - **"Review one-by-one"** — walk candidates individually; same routing per pick.
-   - **"Skip"** — write nothing.
+3. **Surface candidates one at a time.** The agent returns only candidates that passed the §Candidate bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`. Walk them per that helper's §Presentation — one self-contained chat render per candidate (what the rule says / where it lands / why, with its `Significance:` tag and `Evidence:` citation; frame a `Dedupe: UPDATE <file:line>` verdict as amending the existing rule at that location, not a new sibling), then its own lean `AskUserQuestion`. Because /geniro:review never mutates project files, the per-candidate options route rather than apply:
+   - **"Capture this rule"** — hand an instruction-scoped pick (`.geniro/instructions/*`, `code-style.md`) to `/geniro:instructions create`; list a CLAUDE.md / `.claude/rules/` / ADR pick in chat for the user to apply manually or carry into `/geniro:implement`. /geniro:review writes none of them.
+   - **"Skip this rule"** — decline just this candidate; continue to the next.
+   - **"Skip the rest"** — decline this candidate and all remaining ones.
    A `Recurrence-eligible: yes` candidate routes to `/geniro:instructions create` directly — it restates a rule already seen 3+ times.
 
 4. **Echo + log.** Echo `Reviewed for improvements: <N> candidate(s)`. On Skip or an explicit decline, log via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`; scope `review/<branch>`, category `improvement_candidate`) so the same suggestion does not re-surface next round.
