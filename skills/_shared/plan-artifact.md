@@ -7,8 +7,9 @@ Owns the full lifecycle of an opt-in "visual plan artifact" for `/geniro:plan` �
 - When to run — the `artifact_mode` gate and the native-only constraint
 - The opt-in question — the Phase-0 question fired when `--artifact` is absent
 - Availability detection & create — the first publish (skeleton page + inspect-for-URL)
-- Update — per-phase revise-and-republish
-- Content layers — the rich page outline (the heart of the page)
+- Update — per-phase revise-and-republish, blanking the Current decision panel once an answer lands
+- Before-gate update — mirroring the pending decision onto the Current decision panel before a gate fires
+- Content layers — the rich page outline (the heart of the page), including the Current decision panel
 - URL persistence — saving the captured URL into state via `atomic_state_write`
 - Unavailable / skip handling — one notice, then continue
 - Caller contract — what callers provide and receive, with the verbatim invocation strings
@@ -72,7 +73,23 @@ After a compaction or a new session, the file↔URL link is lost, so the saved U
 
 > Update <artifact_url> with <the content just produced> for the "<section name>" section, advance the progress tracker to <current stop>, and republish to that same URL. Revise the existing page in place — don't rebuild it.
 
-In both forms, fill only the layers that now have real content and flip the header status badge / progress tracker to match the current stop. At final approval, set the badge to "✅ Approved" and mark every tracker stop done.
+In both forms, fill only the layers that now have real content and flip the header status badge / progress tracker to match the current stop. Also blank the Current decision panel (per § Content layers): the decision it mirrored just resolved, so leaving it in place would show the user a stale question. At final approval, set the badge to "✅ Approved" and mark every tracker stop done.
+
+### Before-gate update
+
+Just before a substantive decision gate fires in chat, fill the Current decision panel (per § Content layers) with the question the user is about to be asked — the same pending question, its options, and a one-line consequence of each that the chat gate message carries. The user can then read the whole decision on the page while answering in the terminal.
+
+This panel mirrors the chat gate message; it never replaces it. The chat message stays the place the decision is rendered, and the answer is still captured by the terminal `AskUserQuestion`. The page is published and read-only — it has no way to send a click back to the session — so a question shown only on the page would leave the user with nothing to act on, and the chat-side render check still expects the question in chat. Keep the chat render; the panel just mirrors it.
+
+Refresh only the panel, in place — never regenerate the page. The matching after-the-decision Update call blanks the panel once the answer lands (per § Update), so the panel never accumulates stale questions or grows the page toward the 16 MiB ceiling.
+
+Same-session form:
+
+> Revise the artifact and republish to the same URL: fill the "Current decision" panel with <the pending question, its options, and the one-line consequence of each>. Keep every other section as-is — revise in place, don't regenerate the page.
+
+Cross-session / resume form (name the saved URL so no duplicate page is created):
+
+> Update <artifact_url> by filling its "Current decision" panel with <the pending question, its options, and the one-line consequence of each>, and republish to that same URL. Revise the existing page in place — don't rebuild it.
 
 ## Content layers
 
@@ -84,6 +101,7 @@ Reuse the visuals `/plan` already builds at the approach gate, the section-appro
 
 - **Header** — plan title, a status badge (`🚧 In progress N/total` while planning, `✅ Approved` once approved), and a progress tracker over the planning journey (explore · clarify · approach · steps · approval) with the current stop marked. The badge and tracker are the at-a-glance "where is this plan" signal.
 - **At a glance** — the objective in one or two sentences, an in-scope / out-of-scope split, the chosen approach in a sentence, and a small SVG data-flow diagram of how the change moves through the system.
+- **Current decision** — while a decision gate is open, the question the user is being asked right now, its options, and a one-line consequence of each, styled to match the chat gate render. It mirrors the chat gate message so the user can read the full decision on the page; it sits empty between gates. The page cannot capture the answer — the user answers in the terminal — so this panel shows the decision, it does not collect it. Filled by § Before-gate update, blanked by the next § Update.
 
 **Collapsible deep-dive layers** (each a collapsed `<details>`, rendered only when it has content):
 
@@ -121,6 +139,11 @@ A concrete target for the model authoring the page:
 │  <Plan title> — Plan            🚧 In progress 3/5           │
 │  explore ✔ · clarify ✔ · approach ● · steps ○ · approval ○  │
 ├─────────────────────────────────────────────────────────────┤
+│  CURRENT DECISION            (only while a gate is open)    │
+│  Q: <the question being asked in chat right now>            │
+│  ◦ <option A> — <consequence>   ◦ <option B> — <consequence>│
+│  ↳ answer in the terminal — this panel only shows it        │
+├─────────────────────────────────────────────────────────────┤
 │  AT A GLANCE                                                 │
 │  Objective: …                                               │
 │  In scope: …                Out of scope: …                 │
@@ -144,7 +167,7 @@ A concrete target for the model authoring the page:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Only sections with real content appear; a plan with no schema change drops the schema row, a plan with no UI drops the data-flow visual.
+Only sections with real content appear; a plan with no schema change drops the schema row, a plan with no UI drops the data-flow visual. The Current decision panel shows only while a gate is open and is blank otherwise.
 
 ## URL persistence
 
@@ -185,7 +208,7 @@ Then stop trying for the rest of the run: the unavailable state disarms the upda
 
 ## Caller contract
 
-- **Callers provide:** the task-dir / state.md path, the current phase, the planning-journey stops for the tracker, and the content just produced for the layer being filled.
+- **Callers provide:** the task-dir / state.md path, the current phase, the planning-journey stops for the tracker, the content just produced for the layer being filled, and — for a before-gate refresh — the pending question, its options, and each option's one-line consequence.
 - **Callers receive:** a persisted `claude.ai` URL with the page recorded as live, or an unavailable signal after the one-time skip notice.
 - **Callers are responsible for:** writing the artifact frontmatter fields (`artifact_mode`, `artifact_status`, `artifact_url`) via `atomic_state_write`; guarding every call on `artifact_mode: true`; and additionally skipping the update call when the page is recorded as unavailable.
 
@@ -193,6 +216,7 @@ Invocation strings the callers use, verbatim:
 
 - **Create** (once, at the start of planning): `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Availability detection & create`
 - **Update** (at later phase boundaries): `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: <phase> and the content just produced`
+- **Before-gate update** (just before a substantive gate fires): `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: <phase> and the pending question`
 
 ## Anti-rationalization
 
@@ -206,3 +230,5 @@ Invocation strings the callers use, verbatim:
 | "The user opted in, so I'll suppress the publish consent prompt / add `Artifact` to `allowed-tools`." | The one-time native consent prompt is the meaningful "publishing to a private claude.ai page" confirmation — opting into the artifact is not opting into the publish. Leave the consent prompt in place and keep `Artifact` out of `allowed-tools`. |
 | "The page already has the spec content, so a terse copy is enough." | The page exists to go deeper than the spec — expanded code examples, full evidence drill-downs, complete alternative write-ups. A terse mirror of the spec wastes the richer surface. |
 | "I'll render every deep-dive section so the page looks complete." | Empty sections are noise the reader has to skip past. Render a layer only when this plan has real content for it; omit the rest entirely. |
+| "I'll refresh the Current decision panel before every grill question." | The grill asks many questions one at a time; republishing the page on each would thrash the user's tab and burn tokens for little gain. Refresh the panel only at the substantive gates — the grill checkpoint, the approach gate, each section cluster, and final approval — not at each individual grill question. |
+| "I'll put the gate question only on the artifact so the user answers there." | The page is published and read-only — it has no way to send a click back to the session, so a question shown only on the page leaves the user with nothing to act on, and the chat-side render check still expects the question in chat. Always render the gate message in chat and answer the `AskUserQuestion` in the terminal; the panel only mirrors it. |

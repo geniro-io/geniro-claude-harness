@@ -340,6 +340,8 @@ On compaction-resume, the SessionStart re-injector renders `approvals[]` and the
 
 There is no fixed question cap — the grill runs until the spec-shaping branches resolve. To keep it bounded without a hard number, pause for a checkpoint whichever comes first: a full design branch resolves, OR ~6 questions have been asked since the last checkpoint. This is an escalation gate, not an abort — consistent with the clarification-heavy budget framing, which caps no total AUQ count; the user, not a fixed number, decides when to stop.
 
+**Mirror the pending decision onto the artifact first.** When `artifact_mode: true` and the page is not recorded unavailable (`artifact_status` is not `unavailable`), refresh the Current decision panel before the checkpoint AUQ so the user can read it on the page: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: clarify and the pending question`. The chat summary below stays the primary render; the panel only mirrors it. Refresh the panel only at this checkpoint, never per grill question.
+
 At a checkpoint, render a running summary to a chat message — resolved decisions, deferred items, and the open branches still to walk — then fire ONE lean AUQ:
 - **Keep grilling** (Recommended while open branches remain) — continue the walk.
 - **Wrap up now** — stop; remaining open branches become stated assumptions.
@@ -415,6 +417,8 @@ Carry the recommendation into the spec's Approach and Steps prose (Phase 5 / Pha
 ### 4.3 Present approaches — message-first
 
 Apply the Gate presentation contract.
+
+**Mirror the pending decision onto the artifact first.** When `artifact_mode: true` and the page is not recorded unavailable, refresh the Current decision panel before the approach AUQ: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: approach and the pending question`. The chat message below stays the primary render; the panel only mirrors it.
 
 1. **Render the approaches to a chat message in the Visual rendering language** (Gate presentation contract): open with the progress tracker (`● Approach` current) and a one-sentence opener naming the decision. For each of the 2-3 approaches: name, a plain-English 1-2 sentence summary, an ASCII data-flow / architecture diagram (5-10 lines), `What changes:` (the key new/edited files), `Trade-off:` (gain vs give-up in plain words), and the approach's `Stress-test:` verdict line from §4.2 (top risk + evidence `file:line`). Lead with the Recommended approach. Where no usable verdict exists, render the note in the verdict line's place: "stress-test unavailable" on an approach whose §4.2 critique did not return, "stress-test inconclusive" on an approach whose no-risks critique lacked its `Checked:` account.
 
@@ -494,7 +498,7 @@ Author cluster N → render it → gate it → on approve, author cluster N+1. C
 
 Per cluster, apply the Gate presentation contract:
 
-1. **Author** the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate.
+1. **Author** the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate. Then, when `artifact_mode: true` and the page is not recorded unavailable, mirror this cluster's approval decision onto the artifact before the gate: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: sections and the pending question`. The chat render in step 2 stays primary; the panel only mirrors it.
 
 2. **Render the cluster to a chat message in the Visual rendering language** (Gate presentation contract): the progress tracker (this cluster `●`, with `step N of 3`), a one-sentence opener stating what the cluster decides, the cluster-level visual (cluster 1: the in-scope/out-of-scope map; cluster 2: the steps flow diagram; cluster 3: the done-condition checklist), then one icon-headed sub-heading per section with its friendly digest block — lead sentence, `**Why:**` grounded in a Phase 1 finding `file:line` + the Phase 4 approach, `**How it gets built:**`, `**You'll see:**` — closing with the section's concrete example + visual per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example + visual per section type". A "none — task scope precludes" section is a one-line note here, not a rendered section.
 
@@ -646,6 +650,8 @@ State.md `phase: user-approve` during this phase.
 Phase 8 closes the loop with a final whole-spec approval. Apply the Gate presentation contract.
 
 ### 8.2 Shape — message-first
+
+**Mirror the pending decision onto the artifact first.** When `artifact_mode: true` and the page is not recorded unavailable, refresh the Current decision panel before the final-approval AUQ: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: approval and the pending question`. The chat summary below stays the primary render; the panel only mirrors it.
 
 1. **Render the spec summary to a chat message in the Visual rendering language** (Gate presentation contract) — the progress tracker with every prior stop `✔` and `● Final approval`, a one-sentence opener restating the Objective in plain English, then an at-a-glance digest: scope summary (sections 2-3, reusing the in/out scope map), Approval Points (section 8 — where the user will be asked mid-build), Risk class auto-computed from section 5 + section 7 with a one-line why, Rollback (section 10, one line), Done Condition (section 11 rendered as a `☐` checklist — one box per observable signal), touched-file glob count, approval-expiration notice. Include the concrete examples already authored per section so the user reviews the real plan, not a label list.
 
