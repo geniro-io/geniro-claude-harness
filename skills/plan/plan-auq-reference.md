@@ -444,7 +444,7 @@ On Revision pick: max 3 user-revision rounds (Phase 8 → re-enter affected sect
 
 ## 5b. Phase 8 launch-config AUQ — pre-define implement settings (opt-in)
 
-Fires at the very end of planning — Phase 8, AFTER the user approves the spec (§5 above) and BEFORE the §8.4 git commit. Skipped entirely when `$ARGUMENTS` modifiers already set these (workspace / depth / branch-handling / ship modifiers). It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
+Fires at the very end of planning — Phase 8, AFTER the user approves the spec (§5 above) and BEFORE the §8.4 git commit. Replaced by the flag-driven build in §8.3.5 when launch modifiers (workspace / `freshness:` / ship / `--deep`) are present in `$ARGUMENTS`; this interactive gate fires only when no launch modifier was passed. It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
 
 Two steps: a gate question, then (only on "Yes") a batched capture.
 

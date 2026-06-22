@@ -175,6 +175,10 @@ Opt-in quality mode on `/review`, `/plan`, `/implement`, `/debug`. Canonical con
 - Activation: `--deep` flag, or a Standard/Deep chooser folded into each skill's existing early AskUserQuestion (standalone only in `/debug`, which has no early always-fire gate). Persisted to `deep-mode:` frontmatter + `approvals[]` for compaction survival.
 - Standard single-pass is the floor: a workflow failure degrades to single-pass with a plain-English caveat, never a hard stop. Deep mode changes pass count and aggregation only — every gate, boundary, and no-ship contract binds unchanged inside the workflow.
 
+### Flags & presets
+
+Every flag and modifier that pre-sets an interactive question across `/plan`, `/implement`, and `/review` — `--prd`, `--deep`, `--artifact`, the workspace / ship / `freshness:` modifiers, and the spec `launch_config` block — is cataloged in `skills/_shared/flags-reference.md`. Presets cover setup only; the safety gates listed there (new-dependency adoption, runaway-scope, handoff open-questions, spec-challenge-on-drift, shared-branch ship, merge/rebase conflict) fire on their own trigger regardless of any flag.
+
 ---
 
 ## /refactor (M8)

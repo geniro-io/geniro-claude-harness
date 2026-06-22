@@ -231,6 +231,16 @@ When invoked from a linked git worktree, `run` falls back to the main worktree's
 /geniro:update --dry-run                     # preview without invoking update
 ```
 
+## Flags & presets
+
+Some skills take flags and modifiers that answer a setup question in advance, so the run starts without stopping to ask. They cover setup only — the safety gates (adopting a new dependency, blowing past the planned scope, unresolved questions from a prior review, a real merge conflict, pushing to a shared branch) always stop for you regardless of any flag.
+
+- **`/geniro:plan`** — `--prd` (run a problem-first discovery interview), `--deep` (wider approach search + claim verification), `--artifact` (build a live visual plan page). Plan also accepts the implement launch modifiers (`worktree` / `no-worktree` / `current-branch` / `new-branch`, the ship choices `commit only` / `draft only` / `ready-for-review` / `stop after review`, and `freshness:merge|rebase|skip`) and saves them into the spec so `/geniro:implement` runs hands-free.
+- **`/geniro:implement`** — workspace (`new-branch` / `current-branch` / `worktree` / `no-worktree`), `--deep` (deeper self-review + pre-edit fact-check), `--no-adversarial`, and ship choices (`don't push` / `draft only` / `ready-for-review` / `stop after review`). A spec written by `/plan` can pre-answer all of these at once.
+- **`/geniro:review`** — `--deep` (multi-angle review + extra verification), `--plan <path>` (check the diff against a spec), and the workspace modifiers.
+
+Full catalog — every flag, the values it takes, and the question it skips — in [`skills/_shared/flags-reference.md`](skills/_shared/flags-reference.md).
+
 ## Skills deleted
 
 The previous surface had 19 skills. The current 11-skill set absorbed or dropped 8:
