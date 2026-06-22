@@ -466,7 +466,7 @@ On "No" → write no `launch_config:` block; persist the declined gate answer to
 
 ### Step 2 — batched capture (only on "Yes")
 
-ONE batched AUQ (up to 4 questions). Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, Standard (`deep_mode: false`), `rebase`, `draft-pr`.
+A batched capture. The four always-present settings (workspace / depth / branch handling / ship mode) fill ONE AUQ call — the 4-question-per-call tool cap. When the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty), a fifth setting — the kickoff tracker-status pre-answer — is added; since that would make five questions, it chains into a SECOND AUQ call rather than displacing one of the four (the 4-question-per-call cap applies; chain, never drop). With no linked tracker ticket, only the first four-question call fires. Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, Standard (`deep_mode: false`), `rebase`, `draft-pr`, and (when offered) `move-to-in-progress`.
 
 ```yaml
 questions:
@@ -510,7 +510,20 @@ questions:
         description: "Stop before any commit or push."
 ```
 
-Map the picks to the `launch_config:` block values (`workspace` / `deep_mode` / `branch_freshness` / `ship_mode`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"The block". Hold the block for the §8.4 spec rewrite.
+**Chained second call — only when a tracker ticket is linked** (`workflow_refs[]` non-empty). Fire a SECOND `AskUserQuestion` immediately after the first resolves, carrying the single tracker-status question (do NOT add it to the first call — that would make five questions in one call, past the 4-question cap):
+
+```yaml
+questions:
+  - header: "Task status"
+    question: "When /geniro:implement starts, move the linked tracker task to In Progress?"
+    options:
+      - label: "Yes — move to In Progress"        # Recommended → tracker_status: move-to-in-progress
+        description: "/geniro:implement confirms the kickoff move on its own. It still skips the move when the task is already In Progress."
+      - label: "No — leave the status unchanged"   # → tracker_status: leave-unchanged
+        description: "/geniro:implement won't change the tracker status at kickoff."
+```
+
+Map the picks to the `launch_config:` block values (`workspace` / `deep_mode` / `branch_freshness` / `ship_mode`, plus `tracker_status` when the chained tracker-status call fired) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"The block". Omit `tracker_status` from the block when no tracker ticket was linked (the chained call did not fire). Hold the block for the §8.4 spec rewrite.
 
 ### Step 3 — persistence
 
@@ -527,10 +540,11 @@ approvals:
       deep_mode: false
       branch_freshness: rebase
       ship_mode: draft-pr
+      tracker_status: move-to-in-progress   # present only when a tracker ticket was linked
     at: 2026-05-17T11:20:00Z
     asked_in_phase: user-approve
 ```
 
 On "No", omit the `launch_config:` sub-block and record `picked: "No — /implement will ask when it runs"`.
 
-Doctrine: these four fields pre-answer SETUP only. They do NOT pre-authorize the new-dependency adoption gate, the runaway-scope / budget escalation, the handoff open-questions gate, or the spec-challenge-on-drift gate — each of those still fires on its own real trigger during `/geniro:implement` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety").
+Doctrine: these settings pre-answer SETUP only. They do NOT pre-authorize the new-dependency adoption gate, the runaway-scope / budget escalation, the handoff open-questions gate, or the spec-challenge-on-drift gate — each of those still fires on its own real trigger during `/geniro:implement` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety").
