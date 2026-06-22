@@ -29,6 +29,7 @@ launch_config:                 # optional; present only when the user pre-define
   deep_mode: false             # true | false
   branch_freshness: rebase     # merge | rebase | skip
   ship_mode: draft-pr          # commit-no-push | draft-pr | ready-for-review | stop-after-review
+  tracker_status: move-to-in-progress  # move-to-in-progress | leave-unchanged; OPTIONAL even within the block — written only when the spec has a linked tracker ticket (workflow_refs[] non-empty)
 ```
 
 Each key pre-answers exactly one existing `/implement` setup question:
@@ -39,6 +40,7 @@ Each key pre-answers exactly one existing `/implement` setup question:
 | `deep_mode` | `true` \| `false` | The Standard/Deep depth chooser; `true` is equivalent to passing `--deep`. |
 | `branch_freshness` | `merge` \| `rebase` \| `skip` | The strategy when the branch is behind the default branch. |
 | `ship_mode` | `commit-no-push` \| `draft-pr` \| `ready-for-review` \| `stop-after-review` | The Ship-gate behavior — maps to the four sanctioned Ship modifiers. |
+| `tracker_status` | `move-to-in-progress` \| `leave-unchanged` | `/geniro:implement` Step 0 workflow-status question ("Move to In Progress?"). Written only when the spec carries a linked tracker ticket (`workflow_refs[]` non-empty); absent ⇒ `/implement` asks it interactively. |
 
 ## Field semantics
 
@@ -65,6 +67,12 @@ Maps to the four sanctioned Ship-gate bypass modifiers:
 
 The existing commit-grade safeguards STILL apply regardless of `ship_mode`. A push to a shared or default branch, or a push updating an open PR that was reached via a handoff, is commit-grade and still gates. `ship_mode` pre-answers the routine Ship choice; it does not waive the safeguards that protect shared history.
 
+### `tracker_status`
+
+Pre-answers the Step 0 workflow-status question (`/geniro:implement` "Move to In Progress?"). `move-to-in-progress` is consent to auto-confirm the kickoff status move the workflow file's `### On task start` block would offer; `leave-unchanged` declines it. This key is captured at plan time ONLY when the spec carries a linked tracker ticket (`workflow_refs[]` non-empty) — with no ticket there is nothing to move, so the question is not offered and no key is written. It is therefore optional even within a present block: its absence never fails validation.
+
+The pre-set is consent to the move the workflow file would offer, NOT an unconditional tracker write. `/geniro:implement` still threads it through the workflow file's status-conditional gate — the move is skipped when the task is already In Progress and reframed (or omitted) in other states, exactly as an interactive answer would be. It is a no-op when no tracker ref is in scope at `/implement` time, and fail-open when the workflow MCP is unavailable (logs a warning and proceeds without the transition, mirroring an interactive "Yes"). This stays inside `/geniro:implement`'s tracker-mutation authority — a kickoff status transition, never a ticket creation; `/geniro:plan` only records the preference, it never writes to the tracker.
+
 ## Doctrine boundary — setup only, never safety
 
 `launch_config` pre-answers SETUP only. It does NOT and CANNOT pre-authorize the genuine safety gates that fire on a real event. The following gates remain Always-WAIT and fire only when their trigger condition is actually met:
@@ -83,18 +91,19 @@ Bump `geniro_schema_version` to `m5-v4` when `launch_config` is present. Backwar
 - `m5-v1` (legacy, no `workflow_refs` / no `launch_config`), `m5-v2`, `m5-v3` (chain-enrichment fields), and `m5-v4` (`launch_config` present) are ALL valid downstream.
 - Every reader that accepts `m5-v1` / `m5-v2` / `m5-v3` must also accept `m5-v4` and treat an absent `launch_config` as "ask interactively." The `launch_config` additions are purely additive and optional, so a reader rejecting an `m5-v4` value would lose the structured pre-set and fall back to interactive setup — never a hard error.
 - A spec at `m5-v4` may still carry `launch_config` as the only m5-v4-distinguishing block; the chain-enrichment fields remain orthogonal and optional.
+- Adding a key to the `launch_config` block (e.g. `tracker_status`) is a further additive-optional change WITHIN `m5-v4` — it does NOT bump the version, because every reader that accepts `m5-v4` already treats an absent or unknown `launch_config` key as "ask interactively." Do not bump to a new version for a new launch_config key.
 
 ## Producer / consumer contract
 
-**Producer — `/geniro:plan`.** The end-of-plan launch-config answer persists to state.md `approvals[]` under category `launch_config`. The `launch_config` block is written into spec.md frontmatter inside the SAME approval-time full-spec `atomic_state_write` rewrite that flips `lifecycle: draft` → `lifecycle: approved`, so it commits atomically with the approved spec — there is no window where an approved spec exists without its pre-set, or a pre-set exists against a not-yet-approved spec. `/plan` does not act on the values; it only records them for `/implement`.
+**Producer — `/geniro:plan`.** The end-of-plan launch-config answer persists to state.md `approvals[]` under category `launch_config`. The `launch_config` block is written into spec.md frontmatter inside the SAME approval-time full-spec `atomic_state_write` rewrite that flips `lifecycle: draft` → `lifecycle: approved`, so it commits atomically with the approved spec — there is no window where an approved spec exists without its pre-set, or a pre-set exists against a not-yet-approved spec. `/plan` does not act on the values; it only records them for `/implement`. When the spec carries a linked tracker ticket, the block also carries `tracker_status` (the kickoff move-to-In-Progress pre-answer); with no linked ticket the key is omitted.
 
-**Consumer — `/geniro:implement`.** When `launch_config` is present, Step 0 applies it and records the equivalent `approvals[]` entries (`deep_mode_choice`, `ship_mode`, and the workspace choice), each noting the source is the spec's `launch_config`, and skips the corresponding setup questions. The recorded source matters for the session-restore and compaction paths — a restored run must distinguish a choice the user made interactively this session from one carried in from the plan. Every safety gate listed under the doctrine boundary continues to fire on its own trigger; the recorded pre-sets cover setup only.
+**Consumer — `/geniro:implement`.** When `launch_config` is present, Step 0 applies it and records the equivalent `approvals[]` entries (`deep_mode_choice`, `ship_mode`, the workspace choice, and — when `tracker_status` is set — `implement_workflow_status`), each noting the source is the spec's `launch_config`, and skips the corresponding setup questions. The recorded source matters for the session-restore and compaction paths — a restored run must distinguish a choice the user made interactively this session from one carried in from the plan. Every safety gate listed under the doctrine boundary continues to fire on its own trigger; the recorded pre-sets cover setup only.
 
 ## Validator contract
 
 A shape-only check mirrors the `workflow_refs_consistency` check in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`:
 
-- **When present:** verify each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `deep_mode` ∈ {`true`, `false`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}. An out-of-enum value returns `fail` — the block is structurally broken.
+- **When present:** verify each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `deep_mode` ∈ {`true`, `false`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}; and, when the optional `tracker_status` key is present, `tracker_status` ∈ {`move-to-in-progress`, `leave-unchanged`} (key-presence-guarded — its absence inside a present block is valid, since it is written only when the spec had a linked tracker ticket). An out-of-enum value returns `fail` — the block is structurally broken.
 - **When absent:** skip the check entirely. Older specs without the block stay valid.
 - **Guard by `geniro_schema_version`:** the check runs only when `launch_config:` is present (which implies `m5-v4`); it never fires on a spec that omits the block, so a legacy `m5-v1` / `m5-v2` / `m5-v3` spec is never failed for not carrying it.
 
