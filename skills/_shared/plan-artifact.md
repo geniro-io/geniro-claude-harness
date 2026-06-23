@@ -1,6 +1,6 @@
 # Plan Artifact
 
-Owns the full lifecycle of an opt-in "visual plan artifact" for `/geniro:plan` — a live, rich, collapsible HTML page published to a private `claude.ai` URL and updated in place as the plan's phases proceed. The page drives Claude Code's native `Artifact` tool, which is prose-driven: you make the page appear and evolve by instructing the model in natural language, capture the returned URL, and persist it so a later session re-targets the same page. This is native-only — when a session can't publish, the caller shows one clean skip notice and `/plan` continues in chat exactly as before.
+Owns the full lifecycle of an opt-in "visual plan artifact" for `/geniro:plan` — a live, rich, collapsible HTML page published to a private `claude.ai` URL and updated in place as the plan's phases proceed. You author the page as a single self-contained HTML file — inline CSS and inline SVG, no external requests — placed in the session scratchpad (never the hook-guarded `.geniro/` tree), and publish it with Claude Code's native `Artifact` tool; you capture the returned `claude.ai` URL, persist it, and evolve the page by editing that same HTML file and re-publishing to the same URL. The page must read like an RFC and lead with diagrams, not restate the spec as prose — its whole reason to exist is to be the richest, most visual surface of the plan (see § Content layers). This is native-only — when a session can't publish, the caller shows one clean skip notice and `/plan` continues in chat exactly as before.
 
 ## Contents
 
@@ -35,16 +35,16 @@ Persistence intent: on option A, the run is in artifact mode (`artifact_mode: tr
 
 The first publish builds the page skeleton and tells you whether this session can publish at all. There is no separate availability pre-check — you attempt the publish and read the result.
 
-### Step 1: Instruct the skeleton publish
+### Step 1: Author and publish the skeleton
 
-The `Artifact` tool is prose-driven, so steer the title, content, and styling in natural language rather than hand-authoring a tool call. Instruct the model with a message shaped like this (fill the plan title and the planning-journey stops from the run):
+Author the page as a self-contained HTML file in the session scratchpad, then publish it with the `Artifact` tool (which takes the file path). You steer every part of the page — title, structure, styling, and the inline-SVG diagrams — by authoring the HTML, not by passing prose content to the tool. Build the first version as an RFC-shaped skeleton, ordered problem → design → diagrams → alternatives → risks (fill the plan title and the planning-journey stops from the run):
 
-> Publish an artifact titled "<plan title> — Plan" as an HTML page. This is a live plan that I'll revise as planning proceeds, so build it as a skeleton I can fill in:
 > - A header with the plan title, a status badge reading "🚧 In progress", and a progress tracker over the planning journey (explore · clarify · approach · steps · approval) with the current stop marked.
-> - An "At a glance" summary block near the top, left empty for now with a short "filling in as we plan" placeholder.
-> - Empty, collapsed `<details>` placeholders for the deep-dive sections that this plan will need (steps, validation, evidence, alternatives, decision log, risks, diagrams) — each with its heading and a one-line "to be filled" note.
+> - An "At a glance" summary block near the top, left empty for now with a short "filling in as we plan" placeholder — it will lead with an inline-`<svg>` data-flow diagram once the approach is set.
+> - A "Before / after" summary block placeholder, for the inline-`<svg>` (or two-column HTML/CSS) side-by-side of how the system works now versus after the change.
+> - Empty, collapsed `<details>` placeholders for the deep-dive sections that this plan will need (steps, validation, evidence, alternatives, decision log, risks, architecture & data-flow diagrams) — each with its heading and a one-line "to be filled" note.
 > - Honor the project's design system: if this project's CLAUDE.md has a `## Design system` block, style the page to match it; otherwise use a clean, readable default.
-> - Self-contained only: inline CSS, no external scripts or stylesheets, SVG for any diagrams.
+> - Self-contained only: inline CSS, no external scripts or stylesheets. Author every diagram as inline `<svg>` (or an HTML/CSS box-and-connector layout) — never a monospace `<pre>` ASCII tree, which is the flat text result this page exists to replace.
 
 The first publish triggers a one-time consent prompt because the page goes to a private `claude.ai` page — that prompt is the meaningful "publishing to claude.ai" confirmation. Let it fire; do not add the `Artifact` tool to the skill's `allowed-tools` to suppress it.
 
@@ -95,12 +95,15 @@ Cross-session / resume form (name the saved URL so no duplicate page is created)
 
 The page is the heart of this feature: a single always-visible summary plus collapsible deep-dive layers, far richer than the terse spec.md the user also gets. The summary layer is always expanded; every deep-dive layer is a native `<details>` collapsed by default. Render a layer only when this plan actually has content for it — an SVG sequence diagram for a plan with no sequence is noise, so omit empty layers entirely rather than showing empty headings.
 
+**Visual-first, and never a text substitute for a diagram.** This page exists to *show* the design, not retype the spec. Every structural relationship — the data flow, the component architecture, and the before/after of the change — is authored as an inline `<svg>` (or an HTML/CSS box-and-connector layout when SVG would be overkill). A monospace `<pre>` ASCII tree is the chat fallback, not the artifact standard: it is exactly the flat, text-only result this feature is meant to replace, so a `<pre>` used as a diagram is a defect, not a shortcut. And every section either visualizes the design or adds depth the spec lacks (expanded examples, evidence drill-downs, trade-off detail) — a section that would only restate spec prose is rendered as a diagram or omitted. The bar is RFC readability: a reader who never opens the spec should grasp the problem, see how it works from the diagrams, and weigh the alternatives from the page alone.
+
 Reuse the visuals `/plan` already builds at the approach gate, the section-approval gate, and the final-approval gate (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` — borrow the five visual elements there as page-styling guidance: a progress tracker, a one-sentence opener, friendly digest blocks, a visual per unit, and light heading icons). Those elements were defined for chat gate messages; here they style a persistent page, so take the look and the structure but none of the chat mechanics (no question pairing, no turn guard). On the page, go deeper than chat or the spec allow — expanded code examples richer than the spec's terse snippets, full evidence drill-downs, complete alternative write-ups.
 
 **Always-visible summary layer:**
 
 - **Header** — plan title, a status badge (`🚧 In progress N/total` while planning, `✅ Approved` once approved), and a progress tracker over the planning journey (explore · clarify · approach · steps · approval) with the current stop marked. The badge and tracker are the at-a-glance "where is this plan" signal.
-- **At a glance** — the objective in one or two sentences, an in-scope / out-of-scope split, the chosen approach in a sentence, and a small SVG data-flow diagram of how the change moves through the system.
+- **At a glance** — the objective in one or two sentences, an in-scope / out-of-scope split, the chosen approach in a sentence, and a small inline-`<svg>` data-flow diagram of how the change moves through the system. The diagram is real SVG nodes and arrows — an ASCII `<pre>` tree does not satisfy this.
+- **Before / after** — for any plan that changes existing structure or behavior, a side-by-side visual of how the system works now versus after the change, authored as inline `<svg>` or two HTML/CSS columns. This is the single most load-bearing picture of *how it will work*, so it lives in the always-visible summary, not a collapsed layer. Omit only when the plan adds something wholly new with no prior state to contrast.
 - **Current decision** — while a decision gate is open, the question the user is being asked right now and, for each option, its rationale, its trade-off, a decision-relevant artifact (a code or schema snippet, or a small inline-SVG diagram), and any feasibility / stress-test verdict — going deeper than the per-option consequence the chat gate message carries, since this panel is where the user weighs the options on the page (the lean one-line recap belongs to the terminal question's preview box, not here). The panel auto-expands while the gate is open and anchor-links each option to its full write-up in the deep-dive layers below; it sits empty between gates. The page is read-only — the user answers in the terminal — so this panel shows the decision, it does not collect it. Filled by § Before-gate update, blanked by the next § Update.
 
 **Collapsible deep-dive layers** (each a collapsed `<details>`, rendered only when it has content):
@@ -114,7 +117,7 @@ Reuse the visuals `/plan` already builds at the approach gate, the section-appro
 7. **Glossary / data tables / dependency list** — terms, reference tables, and the components this plan depends on.
 8. **Architecture diagram** — an SVG of the components and how they connect.
 9. **Sequence & data-flow diagrams** — SVG diagrams of the runtime flow and how data moves.
-10. **Before / after** — a side-by-side of the code or behavior as it is now versus as it will be.
+10. **Before / after (detail)** — the code-level diff behind the summary's before/after visual: the as-is versus to-be source side-by-side, longer and more concrete than the summary picture.
 11. **Data model / ER / state-machine** — an SVG of the entities, their relationships, or the state transitions the change introduces.
 12. **API contracts** — endpoint or function signatures with request and response schemas.
 13. **Schema & migrations** — database schema diffs and the ordered migration steps.
@@ -153,7 +156,12 @@ A concrete target for the model authoring the page:
 │  Objective: …                                               │
 │  In scope: …                Out of scope: …                 │
 │  Approach: …                                                │
-│  [ SVG data-flow diagram ]                                  │
+│  [ inline-SVG data-flow diagram — not an ASCII tree ]       │
+├─────────────────────────────────────────────────────────────┤
+│  BEFORE / AFTER                                             │
+│  [ before ]            →            [ after ]               │
+│  inline-SVG (or two HTML/CSS columns) — how it works now    │
+│  versus after the change                                    │
 ├─────────────────────────────────────────────────────────────┤
 │  ▸ Steps                                          (collapsed)│
 │  ▸ Validation & done conditions                   (collapsed)│
@@ -227,13 +235,14 @@ Invocation strings the callers use, verbatim:
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll hand-author an `Artifact(path=, content=)` call." | The native tool is prose-driven — there is no structured call to hand-author. Make the page appear by instructing the model in natural language, steering title, content, and styling through prose. |
+| "The `Artifact` tool takes the page content inline as a prose argument." | It takes a file path to an HTML file you author. Write the page as a self-contained HTML file (inline CSS + inline SVG) in the session scratchpad and publish that file; you steer all content and styling by authoring the file, not by passing prose to the tool. |
+| "An ASCII `<pre>` tree shows the same structure as an SVG, so it's good enough for the diagram." | A monospace tree is the flat, text-only output this page exists to replace — it is the exact "just text, no schema" failure the feature is meant to fix. Author the data-flow, architecture, and before/after as inline `<svg>` (or HTML/CSS boxes with connectors); a `<pre>` used as a diagram is a defect, not a shortcut. |
 | "I'll use Mermaid for the diagrams." | The page runs under a strict content policy that blocks every external request, so a Mermaid CDN script never loads. Draw diagrams as inline SVG or HTML/CSS, which render with no external fetch. |
 | "No URL came back — I'll retry the publish each phase." | A missing `claude.ai` URL means this session can't publish at all; retrying every phase just re-fails and re-spams the notice. Record the page as unavailable, show the skip notice once, and stop attempting. |
 | "I'll regenerate the whole page from scratch each phase." | A full regen re-renders the whole document, thrashing the user's open tab and pushing a large plan toward the 16 MiB ceiling. Revise the existing page in place and republish to the same URL. |
-| "I'll write the artifact source file into `.geniro/planning/<slug>/`." | The native tool owns the artifact's file path, and the state-helper hook guards that directory — fighting it just earns a block. Persist the returned URL, not a hand-placed file. |
+| "I'll write the artifact's HTML source into `.geniro/planning/<slug>/`." | The state-helper hook guards `.geniro/` and blocks the write. Author the HTML in the session scratchpad instead, publish it from there, and persist the returned `claude.ai` URL into state — the scratchpad file is disposable, the URL is what a later session re-targets. |
 | "The user opted in, so I'll suppress the publish consent prompt / add `Artifact` to `allowed-tools`." | The one-time native consent prompt is the meaningful "publishing to a private claude.ai page" confirmation — opting into the artifact is not opting into the publish. Leave the consent prompt in place and keep `Artifact` out of `allowed-tools`. |
-| "The page already has the spec content, so a terse copy is enough." | The page exists to go deeper than the spec — expanded code examples, full evidence drill-downs, complete alternative write-ups. A terse mirror of the spec wastes the richer surface. |
+| "The page already has the spec content, so a terse copy is enough." | The page exists to go deeper than the spec and to *visualize* it — expanded code examples, full evidence drill-downs, complete alternative write-ups, and real diagrams. A prose copy of the spec wastes the richer surface; restate the section as a diagram or drill-down, or omit it. |
 | "I'll render every deep-dive section so the page looks complete." | Empty sections are noise the reader has to skip past. Render a layer only when this plan has real content for it; omit the rest entirely. |
 | "The panel mirrors the chat gate, so one line per option is enough." | The panel is where the user weighs the options on the page, so it carries each option's rationale, trade-off, and a snippet or diagram — deeper than chat. The lean one-liner belongs to the terminal question's preview box; the only thing the panel must not do is collect the answer. |
 | "I'll leave Evidence / alternatives / diagrams 'to be filled' until the post-pick Update." | At the gate the user is deciding, and all that content already exists in context, so deferring it leaves the page emptiest exactly when the user most needs it. Eager-fill the layers that have content at the gate boundary; the post-pick Update then just promotes the chosen option and demotes the losers to Considered alternatives. |
