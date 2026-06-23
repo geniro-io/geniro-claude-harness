@@ -352,6 +352,8 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
 
+The full cross-skill catalog of modifiers and the spec `launch_config` block (workspace / ship / depth / freshness / tracker_status) lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+
 #### 0c — AUQ structure
 
 Single `AskUserQuestion` call carrying up to 3 questions (always-WAIT, never auto-resolve). When a spec `launch_config` pre-answered a question (Step 0g), drop that question from the batch — the pre-set is its answer; if `launch_config` pre-answers every question that would otherwise fire, the AUQ does not fire at all.

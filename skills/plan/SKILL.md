@@ -34,6 +34,8 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
+**Flags & presets:** `--prd`, `--deep`, `--artifact`, and the launch modifiers (workspace / ship / `freshness:`) that pre-fill the spec's `launch_config` are cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+
 ---
 
 ## When to use
