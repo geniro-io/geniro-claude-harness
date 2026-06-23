@@ -85,12 +85,14 @@ grep -n "typeof\|instanceof" file.js | grep -v "if\|assert"
 - Promise rejections not handled
 - Callback errors not checked before use
 - Missing error propagation
+- Fire-and-forget async call — a promise neither awaited nor `.catch`'d, so its rejection vanishes, ordering breaks, or a "done" signal fires before the work finishes
 
 **How to detect:**
 - Find `try` blocks followed by empty catch
 - Look for unhandled Promise chains
 - Check async functions for `await` without error context
 - Identify callbacks not checking `err` parameter
+- Find async calls used as bare statements with no `await` / `.then` / `.catch` / `void` (floating promises)
 
 ### 5.5. Silent Failure & Dangerous Fallback
 
@@ -128,6 +130,10 @@ grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | gr
 - Unreachable code after return/break/throw
 - Duplicate/contradictory conditions
 - Infinite loops or missing loop termination
+- Missing `else` / `default` branch — a conditional or `switch` that silently does nothing on the unmatched case where it should act
+- Non-exhaustive `switch` / `match` over an enum or union — a variant added elsewhere falls through unhandled
+- Unhandled state — a status / mode / state-machine value with no branch (the "none of these" case)
+- Asymmetric guard — handles case X but silently ignores the complementary case Y (checks `> max` but not `< min`)
 
 **How to detect:**
 ```bash
@@ -135,6 +141,8 @@ grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | gr
 grep -n "if\s*(\s*!" file.js | grep -A2 "return\|throw"
 # Find unreachable code (a line immediately after a return/break/throw at block level)
 grep -nA1 -E "^\s*(return|break|throw)\b" file.js
+# Switch/match — confirm a default / catch-all arm exists
+grep -nE "switch\s*\(|\bmatch\b" file.js
 ```
 
 ### 7. Resource Leaks
@@ -178,11 +186,34 @@ grep -n "mktemp\|tmpfile\|createTempFile\|tmp\." file.js | grep -v "unlink\|remo
 - Maximum/minimum value limits
 - Negative number handling
 - Division by zero
+- String edge cases — empty, very long, leading/trailing whitespace, unicode / multibyte / emoji
+- Time / date edge cases — timezone & DST boundaries, leap year, epoch overflow, month/day rollover
 
 **How to detect:**
 - Look for operations on `array[0]` without length check
 - Find math operations that could have zero denominator
 - Check boundary value comparisons
+
+### 9. Functional completeness — real-world states the change must handle
+
+Distinct from the checks above (which flag wrong or unsafe code that is PRESENT): this lens flags handling that is ABSENT but that the change needs in order to work in real use. The question is not "does the diff match the spec" — that is the spec-compliance dimension, which deliberately never invents requirements. It is "given what this change is for, is there a real input or state it will actually hit that it silently mishandles?"
+
+Walk the change's purpose against the states a working version encounters:
+- **Empty / no-result** — zero rows, empty list, no search hits. Handled, or does it index `[0]`, divide, or render nothing where something is expected?
+- **Zero / one / many** — the single-element and large-N cases of what the change iterates, paginates, or batches (and its interaction with an existing limit / page size / cursor).
+- **First-run / uninitialized** — no prior record, missing config, a table or cache that does not exist yet.
+- **Concurrent access** — two requests on the same resource (double-submit, two edits to one row, a retry firing while the first is in flight) with no lock, version check, or idempotency key.
+- **Partial failure mid-flow** — one step of a multi-step operation fails; is there recovery, or is the resource left half-updated?
+- **Dependency unavailable** — the called service times out, errors, or is offline; does the change degrade, or hang / crash?
+- **Auth / session expiry mid-flow** — a long operation whose credential expires partway through.
+
+**The bar that keeps this from becoming noise:** a completeness finding is valid ONLY when you can name a concrete, reachable input or scenario under the current configuration where the missing handling produces a wrong result, a crash, data loss, or a stuck state — name it the way an Evidence Block names a triggering input. A merely-theoretical "you didn't handle every case" is NOT a finding; it would be correctly refuted at verification for lacking a reachable failure path. Cite the code path that hits the unhandled state and the input that reaches it.
+
+**How to detect:**
+- Read the change's entry points; for each input it consumes, ask what the empty / single / huge / concurrent / failed-dependency value is and trace where it flows.
+- Walk the success path, then ask which state above has no corresponding branch.
+
+**Finding shape:** "`<fn@file:line>` handles the populated case, but `<concrete reachable scenario>` reaches `<file:line>` with `<empty | concurrent | failed>` input, producing `<crash | wrong result | data loss | hang>`." Name why THIS change reaches the state (e.g. "this PR adds the endpoint that hits the empty-list path"), so the failure is a delta the PR introduces, not a pre-existing gap the verifier will refute. Severity by impact (this dimension may emit CRITICAL): CRITICAL on data loss or a crash on a reachable common path; HIGH / MEDIUM otherwise. Tag `[FIX-NOW]` when it is plainly a bug; `[PRODUCT-DECISION]` when whether to handle the case at all is a judgment call.
 
 ## Output Format
 
@@ -242,15 +273,16 @@ This criteria works across languages:
 - [ ] All errors are caught and handled
 - [ ] No masking defaults or swallowing fallbacks hide a failure from the caller
 - [ ] Network/IO calls have timeouts; multi-step writes have rollback on partial failure
-- [ ] Logic flows are correct (no inverted conditions)
-- [ ] Resources are cleaned up (files, listeners, timers)
-- [ ] Edge cases handled (empty, single item, max values)
+- [ ] Logic flows are correct (no inverted conditions); conditionals/switches are complete (else/default present, exhaustive match, no unhandled state)
+- [ ] Resources are cleaned up (files, listeners, timers); no fire-and-forget async calls
+- [ ] Edge cases handled (empty, single item, max values, unicode strings, timezone/DST)
+- [ ] Real-world states the change will hit are handled (empty / concurrent / partial-failure / dependency-down), evidenced by a concrete reachable scenario
 
 ## Severity Guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
-- **CRITICAL** — Unbounded recursion on user input; auth-bypass via missing role check; SQL injection in a dynamic query; deadlock with a documented trigger; data-corruption write with no compensating action; infinite loop reachable from a public entry point.
-- **HIGH** — Race condition with a specific reachable scenario (e.g., two concurrent writes to the same row without a transaction); off-by-one in pagination when item count equals page size; null-dereference on a non-edge-case path; unhandled error path that leaks state or aborts a request mid-write; a masking default that hides a failure on a path where a downstream consumer acts on the fallback as if it were real data (e.g., `.catch(() => [])` feeding a count / filter / dispatch); a missing rollback that leaves a multi-step write half-applied.
+- **CRITICAL** — Unbounded recursion on user input; auth-bypass via missing role check; SQL injection in a dynamic query; deadlock with a documented trigger; data-corruption write with no compensating action; infinite loop reachable from a public entry point; an unhandled real-world state on a reachable common path (empty input, concurrent double-submit) that causes data loss or a crash.
+- **HIGH** — Race condition with a specific reachable scenario (e.g., two concurrent writes to the same row without a transaction); off-by-one in pagination when item count equals page size; null-dereference on a non-edge-case path; unhandled error path that leaks state or aborts a request mid-write; a masking default that hides a failure on a path where a downstream consumer acts on the fallback as if it were real data (e.g., `.catch(() => [])` feeding a count / filter / dispatch); a missing rollback that leaves a multi-step write half-applied; a missing real-world-state branch (empty / concurrent / partial-failure / dependency-down) with a cited reachable scenario where it yields a wrong result or aborts a flow.
 - **MEDIUM** — Edge-case bug with low likelihood and a cited reachable scenario; incorrect-but-mitigated behavior where a downstream layer compensates; pre-existing bug surfaced by this PR's changes that does not make the bug worse; a swallowed error / dropped stack trace that only degrades diagnosability (failure still surfaces elsewhere); a missing timeout on a network/IO call where a hang is reachable but not on the hot path.
 - **LOW** — Defensive-coding suggestions without a demonstrated defect ("add a null check here even though the caller always passes a value"); style suggestions on bug-adjacent code; documentation or PR-description nits about a bug area.
