@@ -20,6 +20,8 @@
 #   - Render earlier in the turn with tool traffic after it → allow.
 #   - Whitespace-only assistant text block is not a render → block.
 #   - Whitespace-only array-shaped user text is not a turn boundary → allow.
+#   - <task-notification> (background agent at rest) skipped, earlier render found → allow.
+#   - <task-notification> present but no render in the turn → still block (no blanket-allow).
 #   - "above" in an option description (not the question text) still gates.
 #   - Array-shaped user text (content blocks) counts as start of turn.
 #   - Fail-open: missing transcript_path / nonexistent file / garbage-only JSONL.
@@ -74,6 +76,11 @@ user_text()       { jq -nc '{type:"user", message:{content:"please run the revie
 user_text_arr()   { jq -nc '{type:"user", message:{content:[{type:"text", text:"please review the finding"}]}}'; }
 user_ws_arr()     { jq -nc '{type:"user", message:{content:[{type:"text", text:"   \n\t  "}]}}'; }
 user_toolresult() { jq -nc '{type:"user", message:{content:[{type:"tool_result", tool_use_id:"t1", content:"ok"}]}}'; }
+# Harness-injected background-agent/workflow completion notice — string and
+# array-text shapes both seen in real transcripts. Mid-turn feedback, not a
+# turn boundary: the scan must skip it like a tool_result.
+user_tasknotif()     { jq -nc '{type:"user", message:{role:"user", content:"<task-notification>\n<task-id>wkx5n4j0d</task-id>\n<status>completed</status>\n<summary>Reflection pass on PR #3119 findings completed</summary>"}}'; }
+user_tasknotif_arr() { jq -nc '{type:"user", message:{role:"user", content:[{type:"text", text:"<task-notification>\n<status>completed</status>"}]}}'; }
 asst_text()       { jq -nc --arg t "$1" '{type:"assistant", message:{content:[{type:"text", text:$t}]}}'; }
 asst_string()     { jq -nc --arg t "$1" '{type:"assistant", message:{content:$t}}'; }
 asst_tooluse()    { jq -nc '{type:"assistant", message:{content:[{type:"tool_use", name:"Bash", input:{}}]}}'; }
@@ -177,6 +184,24 @@ expect_block "whitespace-only assistant text is not a render → block" "$(run_q
 # Reverse scan must skip past it and reach the earlier render.
 { user_text; asst_text 'Digest: finding X, evidence Y.'; user_ws_arr; asst_tooluse; } > "$TR"
 expect_allow "whitespace-only array user text skipped, render found → allow" "$(run_q 'Approve the plan above?' "$TR")"
+
+# ===== Background-agent completion notification is NOT a turn boundary =====
+# A <task-notification> (a backgrounded agent/workflow coming to rest) is
+# harness-injected mid-flow feedback; the assistant resumes the SAME logical
+# turn after it. The reverse scan must skip it like a tool_result and keep
+# looking for the render — so a gate fired right after a background agent is not
+# falsely blocked when the render exists. This is the PR #3119 race.
+{ user_text; asst_text 'Review complete: F1 is X; F6 converged across reviewers — full table here.'; user_tasknotif; asst_tooluse; } > "$TR"
+expect_allow "task-notification (string) skipped, earlier render found → allow" \
+  "$(run_q 'Findings F1 and F6 (converged x3): how should I proceed?' "$TR")"
+{ user_text; asst_text 'Review complete: F1 is X; F6 converged across reviewers — full table here.'; user_tasknotif_arr; asst_tooluse; } > "$TR"
+expect_allow "task-notification (array text) skipped, earlier render found → allow" \
+  "$(run_q 'Findings F1 and F6 (converged x3): how should I proceed?' "$TR")"
+# But the skip does NOT blanket-allow: with no render anywhere in the turn the
+# scan reaches the real user-text start and still blocks.
+{ user_text; asst_tooluse; user_tasknotif; asst_tooluse; } > "$TR"
+expect_block "task-notification present but no render in turn → still blocks" \
+  "$(run_q 'Findings F1 and F6 (converged x3): how should I proceed?' "$TR")"
 
 # ===== "above" only in an option description still gates; array-shaped user text =====
 run_desc() {

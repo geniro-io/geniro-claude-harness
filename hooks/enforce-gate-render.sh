@@ -154,9 +154,15 @@ fi
 #              message exists in the current turn.
 #   USERTEXT — real user message with non-whitespace text (same two shapes):
 #              start of turn reached without a render.
-# User records that are only tool_result blocks are mid-turn tool feedback;
-# anything else (system, summary, progress, malformed line) is skipped via
-# fromjson?/objects so one bad line never kills the stream. The 2000-record
+# User records that are only tool_result blocks — or a harness-injected
+# <task-notification> (a backgrounded agent/workflow coming to rest) — are
+# mid-turn feedback, not a turn boundary: the assistant resumes the SAME
+# logical turn after them, so the reverse scan skips them and keeps looking for
+# a render. Without the task-notification skip a gate fired right after a
+# background agent blocks even when the render exists, because the scan stops at
+# the notification before reaching the render. Anything else (system, summary,
+# progress, malformed line) is skipped via fromjson?/objects so one bad line
+# never kills the stream. The 2000-record
 # cap bounds work on huge transcripts; past it with no decision → fail open.
 # `tac` is GNU-only; stock macOS has `tail -r`. Branch on availability rather
 # than `tac || tail -r`: if tac dies mid-stream (SIGPIPE once jq's first() has
@@ -183,14 +189,17 @@ scan_transcript() {
                     then "RENDER" else empty end)
                  else empty end)
             elif .type == "user" then
+              # A <task-notification> (a backgrounded agent coming to rest) is
+              # harness-injected mid-turn feedback, NOT a real user turn — treat
+              # it like a tool_result and skip it so the scan reaches the render.
               ((.message.content // null) as $c
-               | if ($c | type) == "string" then
-                   (if ($c | test("\\S")) then "USERTEXT" else empty end)
-                 elif ($c | type) == "array" then
-                   (if ([$c[]? | objects | select(.type == "text")
-                         | (.text // "") | select(test("\\S"))] | length) > 0
-                    then "USERTEXT" else empty end)
-                 else empty end)
+               | (if ($c | type) == "string" then $c
+                  elif ($c | type) == "array" then
+                    ([$c[]? | objects | select(.type == "text") | (.text // "")] | join("\n"))
+                  else "" end) as $utext
+               | if ($utext | test("\\S"))
+                    and ($utext | test("^\\s*<task-notification>") | not)
+                 then "USERTEXT" else empty end)
             else empty
             end
         )' 2>/dev/null || true
