@@ -26,18 +26,10 @@ Design patterns, modularity, coupling, performance, scalability, and technical d
 ```bash
 # Count imports per file
 grep -c "^import\|^require\|^from" file.js
-# Find circular imports — build dependency graph and check for cycles
-# Step 1: Extract all import relationships
-grep -rn "import.*from\|require(" src/ | awk -F: '{print $1, $0}' > /tmp/deps.txt
-# Step 2: For each file, check if any of its imports also import it back
-for file in $(grep -rl "import\|require" src/); do
-deps=$(grep "import\|require" "$file" | grep -oE "from ['\"]\./[^'\"]+['\"]" | sed "s/from ['\"]\.\\///;s/['\"]//g")  # -oE (portable ERE), not -oP (PCRE) — BSD/macOS grep lacks -P and the snippet exits rc=2
-for dep in $deps; do
-grep -q "$(basename "$file" .js)\|$(basename "$file" .ts)" "src/$dep"* 2>/dev/null && echo "CIRCULAR: $file <-> src/$dep"
-done
-done
-# Check dependency directions
-grep "import\|require" file.js | sort
+# Find circular imports — use a graph tool; it catches transitive A->B->C->A cycles a grep can't:
+madge --circular src/          # Node/TS  (import-linter for Python, `go list` for Go, etc.)
+# Trace one file's imports by hand to follow a chain:
+grep -E "^(import|from)|require\(" file.js | sort
 ```
 
 **Circular dependency verification:** Don't just grep for import patterns — actually trace the dependency chain. A→B→C→A is circular even though no single file imports from its direct importer. Use `madge --circular` (Node) or equivalent tooling when available.
@@ -184,6 +176,30 @@ wc -l file.js | awk '$1 > 500 {print $0}'
 - Very large files (500+ lines)
 - Functions with vague names (do, process, handle)
 
+### 4.5 Function-level complexity & cognitive load
+
+A function readers can't hold in their head is a maintenance hazard even when it works correctly. This targets readability — how much state and control flow a reader must track at once — not run-time cost (the nested-loop check in §6 covers the performance angle).
+
+**Red flags:**
+- Deep nesting — several levels of conditionals/loops stacked (roughly 4+ levels of nested control flow) so the logic at the center is hard to follow.
+- Many interacting locals — a block forces the reader to track a large set of mutable variables simultaneously to predict its outcome.
+- Long, branch-dense functions doing several distinct jobs in one scope — the function-granularity cousin of the §3 Single-Responsibility check.
+- Boolean-expression overload — compound conditions mixing several `&&`/`||`/negations with no intermediate named predicate.
+
+**How to detect:**
+```bash
+# Surface deeply-indented lines (a heuristic pointer, not a quality metric).
+# {12,} / \t{3,} assume a 4-space or tab indent (~3+ nested levels); for a 2-space-indent file use {8,} to catch the same depth.
+grep -nE '^( {12,}|\t{3,})\S' file.js
+```
+
+**Severity:** LOW by default (readability). MEDIUM when the function sits on a critical path (auth / payment / data-write) where the cognitive load raises real defect risk. Never CRITICAL — a runtime defect this complexity hides is owned by the bugs dimension.
+
+**Not a finding when:**
+- The nesting is guard clauses / early returns that *reduce* downstream depth, or framework-required structure (nested builders, deeply-nested config literals).
+- A short, locally-obvious function carries one extra level — flag only when depth genuinely impairs comprehension, never on a count alone.
+- The complexity is inherent to the problem and already factored as well as the domain allows (per Common False Positives §2 — don't demand abstraction the problem doesn't support).
+
 ### 5. Error Handling Architecture
 - Inconsistent error handling patterns
 - Missing error context propagation
@@ -199,7 +215,7 @@ wc -l file.js | awk '$1 > 500 {print $0}'
 - Look for recovery strategies
 
 **Red flags:**
-- Some functions use try-catch, others use.catch
+- Some functions use try-catch, others use .catch
 - `catch (e) {}` (empty catch)
 - Errors logged without context
 - No error hierarchy
@@ -381,6 +397,7 @@ Works across languages/frameworks:
 - [ ] Abstractions properly hide implementation details
 - [ ] SOLID principles generally followed
 - [ ] Code organization is consistent
+- [ ] Functions stay readable — no excessive nesting or cognitive load (per §4.5)
 - [ ] Error handling follows patterns
 - [ ] No obvious performance red flags
 - [ ] Technical debt is documented/addressed
@@ -395,5 +412,5 @@ Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibra
 
 - **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is the rare CRITICAL path, and even then the finding is logged under the bugs or optimizations dimension that owns the runtime defect.
 - **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap (per §1.7) where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist; hand-rolled crypto / auth / parsing a battle-tested library would secure (per §7.5 reinvented-wheel).
-- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap (per §1.7) contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier).
-- **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; documentation or PR-description nits about an architectural area.
+- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap (per §1.7) contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier); function-level complexity / deep nesting (per §4.5) on a critical path where the cognitive load raises real defect risk.
+- **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; excessive function-level nesting / cognitive load (per §4.5) on a non-critical path; documentation or PR-description nits about an architectural area.
