@@ -9,7 +9,8 @@ Owns the full lifecycle of an opt-in "visual plan artifact" for `/geniro:plan` �
 - Availability detection & create — the first publish (skeleton page + inspect-for-URL)
 - Update — per-phase revise-and-republish, blanking the Current decision panel once an answer lands
 - Before-gate update — mirroring the pending decision onto the Current decision panel before a gate fires
-- Content layers — the rich page outline (the heart of the page), including the Current decision panel
+- Re-sync on revision — re-running the before-gate refresh when a gate is re-presented after a revise, so the page never shows a stale plan
+- Content layers — the rich page outline (the heart of the page), including the Current decision panel and the data layer
 - URL persistence — saving the captured URL into state via `atomic_state_write`
 - Unavailable / skip handling — one notice, then continue
 - Caller contract — what callers provide and receive, with the verbatim invocation strings
@@ -91,11 +92,15 @@ Cross-session / resume form (name the saved URL so no duplicate page is created)
 
 > Update <artifact_url> by filling its "Current decision" panel with <the pending question; for each option its rationale, trade-off, a code/schema snippet or inline-SVG, and any feasibility verdict; and the deep-dive layers that already have content (evidence, candidate write-ups, diagram)>, and republish to that same URL. Revise the existing page in place — don't rebuild it.
 
+### Re-sync on revision
+
+When a decision gate is re-presented because the user asked to revise it — the content is re-authored and the chat gate message is re-rendered (e.g. the Phase 5 "Revise specific sections" round) — re-run the Before-gate update above against the revised content so the page mirrors the re-rendered chat: refill the Current decision panel and re-eager-fill the deep-dive layers that changed, including the Data layer when a data-bearing section changed. Do NOT blank the panel on a revision — the gate is still open and no answer has landed; the panel blanks only at the matching post-resolution § Update once the user finally approves. The chat render stays primary and the page mirror stays in lockstep with it. This fires once per revision round (the revise loop is bounded), not per micro-edit — the same throttle as refreshing only at substantive gates, not at each grill question.
+
 ## Content layers
 
 The page is the heart of this feature: a single always-visible summary plus collapsible deep-dive layers, far richer than the terse spec.md the user also gets. The summary layer is always expanded; every deep-dive layer is a native `<details>` collapsed by default. Render a layer only when this plan actually has content for it — an SVG sequence diagram for a plan with no sequence is noise, so omit empty layers entirely rather than showing empty headings.
 
-**Visual-first, and never a text substitute for a diagram.** This page exists to *show* the design, not retype the spec. Every structural relationship — the data flow, the component architecture, and the before/after of the change — is authored as an inline `<svg>` (or an HTML/CSS box-and-connector layout when SVG would be overkill). A monospace `<pre>` ASCII tree is the chat fallback, not the artifact standard: it is exactly the flat, text-only result this feature is meant to replace, so a `<pre>` used as a diagram is a defect, not a shortcut. And every section either visualizes the design or adds depth the spec lacks (expanded examples, evidence drill-downs, trade-off detail) — a section that would only restate spec prose is rendered as a diagram or omitted. The bar is RFC readability: a reader who never opens the spec should grasp the problem, see how it works from the diagrams, and weigh the alternatives from the page alone.
+**Visual-first, and never a text substitute for a diagram.** This page exists to *show* the design, not retype the spec. Every structural relationship — the data flow, the component architecture, and the before/after of the change — is authored as an inline `<svg>` (or an HTML/CSS box-and-connector layout when SVG would be overkill). A monospace `<pre>` ASCII tree is the chat fallback, not the artifact standard: it is exactly the flat, text-only result this feature is meant to replace, so a `<pre>` used as a diagram is a defect, not a shortcut. The same bar applies to data: the data layer's structure renders as an inline-`<svg>` ER diagram, and its request/response/types render as the typed-JSON widget (inline-styled JSON-with-types beside a typed field table) — a flat `<pre>` of JSON or an ASCII column list is the same flat-text result this page exists to replace, so it is a defect here too, exactly as a `<pre>` used as a flow diagram is. And every section either visualizes the design or adds depth the spec lacks (expanded examples, evidence drill-downs, trade-off detail) — a section that would only restate spec prose is rendered as a diagram or omitted. The bar is RFC readability: a reader who never opens the spec should grasp the problem, see how it works from the diagrams, and weigh the alternatives from the page alone.
 
 Reuse the visuals `/plan` already builds at the approach gate, the section-approval gate, and the final-approval gate (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` — borrow the five visual elements there as page-styling guidance: a progress tracker, a one-sentence opener, friendly digest blocks, a visual per unit, and light heading icons). Those elements were defined for chat gate messages; here they style a persistent page, so take the look and the structure but none of the chat mechanics (no question pairing, no turn guard). On the page, go deeper than chat or the spec allow — expanded code examples richer than the spec's terse snippets, full evidence drill-downs, complete alternative write-ups.
 
@@ -118,18 +123,19 @@ Reuse the visuals `/plan` already builds at the approach gate, the section-appro
 8. **Architecture diagram** — an SVG of the components and how they connect.
 9. **Sequence & data-flow diagrams** — SVG diagrams of the runtime flow and how data moves.
 10. **Before / after (detail)** — the code-level diff behind the summary's before/after visual: the as-is versus to-be source side-by-side, longer and more concrete than the summary picture.
-11. **Data model / ER / state-machine** — an SVG of the entities, their relationships, or the state transitions the change introduces.
-12. **API contracts** — endpoint or function signatures with request and response schemas.
-13. **Schema & migrations** — database schema diffs and the ordered migration steps.
-14. **Types & data shapes** — the type definitions and data shapes the change adds or alters.
-15. **Test plan** — the test cases, example test code, edge cases to cover, and coverage targets.
-16. **Security & privacy** — the threat model, plus how auth and sensitive data are handled.
-17. **Performance** — the expected impact, the hot paths touched, and any benchmark figures.
-18. **Rollout & rollback** — feature flags, the deploy and migration sequence, what to monitor, and how to roll back.
-19. **Milestones & timeline** — the ordered milestones for a larger plan.
-20. **Dependencies & libraries** — the build-vs-buy calls, chosen versions, install commands, and links.
-21. **Links & references** — linked tracker tickets, related pull requests, and the sources the plan cites.
-22. **Interactivity** — an in-page search box, jump-to navigation, expand-all / collapse-all controls, and a live changelog of the plan's revisions. These use small inline JavaScript, which is allowed because it makes no external request; keep all script inline (no CDN, no external file).
+11. **Data layer** — the typed widget for everything this plan changes about data. Render it only when the plan actually changes data — a database/table/entity, an API endpoint, or a type/data shape — and omit the whole layer otherwise. It has three conditional parts; render each only when the plan touches that part:
+    - **Database / data model** (when the plan changes a schema, table, or entity) — an inline-`<svg>` ER diagram: each entity is a box with a table-name header and one row per column, the primary key marked (underlined or `PK`-prefixed) and foreign keys marked `FK`; relationships are drawn as connectors between the FK and the parent PK, with **crow's-foot cardinality** end-markers so 1:1 / 1:N / M:N read off the line ends; group related tables by fill color; lay it out anchor-table-first (central domain tables first, lookup/link tables outward). Alongside the diagram, give the **schema diff** (columns/tables added · changed · dropped) and the **ordered migration steps**. State-machine transitions the change introduces also render here as an inline-`<svg>`.
+    - **API endpoints** (when the plan adds or changes an endpoint) — one block per endpoint: a method badge colored by verb (GET/POST/PUT/PATCH/DELETE) plus the path, then a **request** pane (headers + an example body) and a **response** pane (a status badge colored by class — 2xx green / 3xx amber / 4xx–5xx red — + an example body). Pair each example with a **typed field table**: one row per field carrying name · a type badge · a required/optional marker · any constraint chips (enum, min/max, format) · a one-line description — the example pane alongside the typed field reference. Response-only (read-only) fields appear only in the response example; request-only (write-only) fields appear only in the request example. Nested objects/arrays collapse via inner `<details>` (no JavaScript).
+    - **Types & data shapes** (when the change adds or alters a type) — the type definitions rendered the same way: a typed field table beside an annotated example.
+   Render every JSON example as inline-CSS-styled tokens, not a flat `<pre>` dump — one styled `<span>` per token in the conventional developer palette: object keys blue, string values green, numbers orange, booleans purple, null red, structural punctuation neutral. This needs no external highlighter and stays within the content policy; defer the palette to the project's `## Design system` tokens when CLAUDE.md declares one. Keep examples representative — a few rows, a trimmed body — never full datasets, so the typed widget stays under the token cap and the 16 MiB ceiling.
+12. **Test plan** — the test cases, example test code, edge cases to cover, and coverage targets.
+13. **Security & privacy** — the threat model, plus how auth and sensitive data are handled.
+14. **Performance** — the expected impact, the hot paths touched, and any benchmark figures.
+15. **Rollout & rollback** — feature flags, the deploy and migration sequence, what to monitor, and how to roll back.
+16. **Milestones & timeline** — the ordered milestones for a larger plan.
+17. **Dependencies & libraries** — the build-vs-buy calls, chosen versions, install commands, and links.
+18. **Links & references** — linked tracker tickets, related pull requests, and the sources the plan cites.
+19. **Interactivity** — an in-page search box, jump-to navigation, expand-all / collapse-all controls, and a live changelog of the plan's revisions. These use small inline JavaScript, which is allowed because it makes no external request; keep all script inline (no CDN, no external file).
 
 Deliberately omit a file-change / blast-radius map — that view is not part of this page.
 
@@ -170,7 +176,7 @@ A concrete target for the model authoring the page:
 │  ▸ Decision log                                   (collapsed)│
 │  ▸ Risks & mitigations                            (collapsed)│
 │  ▸ Architecture / sequence / data-model diagrams  (collapsed)│
-│  ▸ API contracts · schema · types                 (collapsed)│
+│  ▸ Data layer — DB schema · API · types           (collapsed)│
 │  ▸ Test plan · security · performance             (collapsed)│
 │  ▸ Rollout & rollback · milestones                (collapsed)│
 │  ▸ Dependencies · links & references              (collapsed)│
@@ -180,7 +186,7 @@ A concrete target for the model authoring the page:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Only sections with real content appear; a plan with no schema change drops the schema row, a plan with no UI drops the data-flow visual. The Current decision panel shows only while a gate is open and is blank otherwise.
+Only sections with real content appear; a plan with no data change drops the whole data layer, a plan with no UI drops the data-flow visual. The Current decision panel shows only while a gate is open and is blank otherwise.
 
 ## URL persistence
 
@@ -236,7 +242,7 @@ Invocation strings the callers use, verbatim:
 | Your reasoning | Why it's wrong |
 |---|---|
 | "The `Artifact` tool takes the page content inline as a prose argument." | It takes a file path to an HTML file you author. Write the page as a self-contained HTML file (inline CSS + inline SVG) in the session scratchpad and publish that file; you steer all content and styling by authoring the file, not by passing prose to the tool. |
-| "An ASCII `<pre>` tree shows the same structure as an SVG, so it's good enough for the diagram." | A monospace tree is the flat, text-only output this page exists to replace — it is the exact "just text, no schema" failure the feature is meant to fix. Author the data-flow, architecture, and before/after as inline `<svg>` (or HTML/CSS boxes with connectors); a `<pre>` used as a diagram is a defect, not a shortcut. |
+| "An ASCII `<pre>` tree (or a `<pre>` JSON / ASCII column list) shows the same structure, so it's good enough." | A monospace tree is the flat, text-only output this page exists to replace — the exact "just text, no schema" failure the feature is meant to fix. Author the data-flow, architecture, and before/after as inline `<svg>` (or HTML/CSS boxes with connectors); for the data layer, render schema as an inline-`<svg>` ER diagram (PK / FK / crow's-foot cardinality) and request/response/types as the typed-JSON widget (inline-styled JSON-with-types beside a typed field table). A `<pre>` used as a diagram or a JSON dump is a defect, not a shortcut. |
 | "I'll use Mermaid for the diagrams." | The page runs under a strict content policy that blocks every external request, so a Mermaid CDN script never loads. Draw diagrams as inline SVG or HTML/CSS, which render with no external fetch. |
 | "No URL came back — I'll retry the publish each phase." | A missing `claude.ai` URL means this session can't publish at all; retrying every phase just re-fails and re-spams the notice. Record the page as unavailable, show the skip notice once, and stop attempting. |
 | "I'll regenerate the whole page from scratch each phase." | A full regen re-renders the whole document, thrashing the user's open tab and pushing a large plan toward the 16 MiB ceiling. Revise the existing page in place and republish to the same URL. |
@@ -248,3 +254,5 @@ Invocation strings the callers use, verbatim:
 | "I'll leave Evidence / alternatives / diagrams 'to be filled' until the post-pick Update." | At the gate the user is deciding, and all that content already exists in context, so deferring it leaves the page emptiest exactly when the user most needs it. Eager-fill the layers that have content at the gate boundary; the post-pick Update then just promotes the chosen option and demotes the losers to Considered alternatives. |
 | "I'll refresh the Current decision panel before every grill question." | The grill asks many questions one at a time; republishing the page on each would thrash the user's tab and burn tokens for little gain. Refresh the panel only at the substantive gates — the grill checkpoint, the approach gate, each section cluster, and final approval — not at each individual grill question. |
 | "I'll put the gate question only on the artifact so the user answers there." | The page is published and read-only — it has no way to send a click back to the session, so a question shown only on the page leaves the user with nothing to act on, and the chat-side render check still expects the question in chat. Always render the gate message in chat and answer the `AskUserQuestion` in the terminal; the panel only mirrors it. |
+| "I'll add a `## Data` section to the spec to source the data layer." | The spec schema is fixed at 11 sections, and a bump propagates to `/geniro:implement`, `/geniro:review`, and the Phase 7 validator. The data layer is artifact-only content synthesized from the spec's Steps section plus the Phase 1 exploration evidence — build it on the page, do not bump the spec schema for it. |
+| "The chat re-rendered the revised sections, so the page will catch up at the next Update." | The next § Update only fires on approve, which can be several revision rounds away; until then the page shows the stale pre-revision plan. Re-run the Before-gate refresh on every revision round so the page mirrors the chat — and do not blank the panel, since the gate is still open. |
