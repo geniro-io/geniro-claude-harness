@@ -61,7 +61,7 @@ mode-detect → [problem-discovery: --prd only] → explore → [visual-companio
 
 Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve.
 
-**Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed".
+**Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed". Every transition into a terminal state first runs the transient cleanup in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §9.2 (`clean_task_transients` against the planning task-dir) before the terminal `phase:` write — the per-facet research, approach-critique, and spec-challenge scratch files left in a finished task-dir otherwise resurface as recurring migration warnings on every `/geniro:update`. Cleanup deletes only this run's scratch; the durable `spec.md` / `state.md` / `plan-*.md` / `milestone-*.md` survive.
 
 **Phase contracts** are defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`:
 
@@ -208,7 +208,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
 | Phase 7.5 (Spec challenge, always-on) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn — OMIT `model=`) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
-| Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write) | All file mutations except the state.md terminal write |
+| Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
 
 **Mutation enforcement:** frontmatter `allowed-tools` excludes `Edit` (this skill never edits in place).
 

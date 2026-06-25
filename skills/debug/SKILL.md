@@ -462,7 +462,7 @@ Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 
 After Phase 3 completes (escalated, accepted, or user-handles):
 
-- **Scientific-method mode only:** Remove `.geniro/state/debug/<slug>/state.md` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — its useful content has already been saved (root cause, repro, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + persisted handoff. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
+- **Scientific-method mode only:** `rm -rf .geniro/state/debug/<slug>/` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any experiment artifact written under it (§2.3 permits scratch there) goes with `state.md`; nothing under `.geniro/state/debug/<slug>/` is read after the run, and the migration sweep does not scan `.geniro/state/`, so a leftover there would have no backstop. Its useful content is already saved (root cause, repro, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + the persisted handoff at `.geniro/state/handoff/`. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
 - **Clear old state files** (best-effort; any may not exist):
 ```bash
 rm -f ".geniro/debug/HYPOTHESES.md" 2>/dev/null

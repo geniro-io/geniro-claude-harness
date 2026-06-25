@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# T1 cleanup-consistency lint — asserts the Ship-cleanup rm list covers every
-# T1 transient file the canonical tier spec declares.
+# T1 cleanup-consistency lint — asserts the shared cleanup helper's rm list
+# covers every T1 transient file the canonical tier spec declares.
 #
 # Run: bash tests/authoring/t1-cleanup-consistency.sh
 #
@@ -9,9 +9,10 @@
 #   SOURCE   skills/_shared/state-tier-spec.md
 #            §"T1 — ephemeral transient outputs" table — the canonical list of
 #            `.geniro/planning/<task-dir>/<name>` transient files.
-#   COVERAGE skills/implement/implement-reference.md
-#            §Cleanup `rm -f` fenced block — the executor's delete list of
-#            `"<task-dir>"/<entry>` tokens.
+#   COVERAGE lib/clean-task-transients.sh
+#            The shared helper's `rm -f` block — the single executor list of
+#            `"$task_dir"/<entry>` tokens that /geniro:plan AND /geniro:implement
+#            both call at terminal exit.
 # Every T1 basename in the spec table must match at least one rm entry, either
 # literally or via shell glob (e.g. `.research-*.md` covers `.research-out.md`
 # and the per-facet `.research-<facet>.md`). Placeholder forms like `<facet>`
@@ -31,7 +32,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
 SPEC_FILE="skills/_shared/state-tier-spec.md"
-RM_FILE="skills/implement/implement-reference.md"
+RM_FILE="lib/clean-task-transients.sh"
 
 HARD_FAILS=0
 report_fail() { HARD_FAILS=$((HARD_FAILS + 1)); echo "FAIL: $1" >&2; }
@@ -67,23 +68,16 @@ if [ -z "$spec_basenames" ]; then
   report_fail "parsed zero T1 paths from $SPEC_FILE §\"T1 — ephemeral transient outputs\" — section heading or path prefix drifted; fix this parser's anchors"
 fi
 
-# --- 2. rm entries from the implement-reference Cleanup block --------------
-# First fenced bash block after the ### Cleanup heading is the Ship rm list.
-rm_block=$(awk '
-  /^### Cleanup/ { in_sec = 1; next }
-  in_sec && !in_block && (/^### / || /^## /) { exit }
-  in_sec && /^```bash/ { in_block = 1; next }
-  in_block && /^```/ { exit }
-  in_block { print }
-' "$RM_FILE")
-
-rm_entries=$(printf '%s\n' "$rm_block" \
-  | grep -oE '"<task-dir>"/[A-Za-z0-9._*?-]+' \
-  | sed -E 's#^"<task-dir>"/##' \
+# --- 2. rm entries from the shared cleanup helper -------------------------
+# The helper has one `rm -f` block; each path is a `"$task_dir"/<entry>` token.
+# Parse the whole file for that token shape (no other line uses it), so a
+# reworded comment can't hide a dropped entry.
+rm_entries=$(grep -oE '"\$task_dir"/[A-Za-z0-9._*?-]+' "$RM_FILE" \
+  | sed -E 's#^"\$task_dir"/##' \
   | sort -u)
 
 if [ -z "$rm_entries" ]; then
-  report_fail "parsed zero rm entries from $RM_FILE §Cleanup rm-f block — heading, fence tag, or \"<task-dir>\"/ token shape drifted; fix this parser's anchors"
+  report_fail "parsed zero rm entries from $RM_FILE rm-f block — the \"\$task_dir\"/ token shape drifted; fix this parser's anchor"
 fi
 
 if [ "$HARD_FAILS" -gt 0 ]; then
@@ -123,7 +117,7 @@ while IFS= read -r raw; do
     covered=$((covered + 1))
     echo "OK: $display — covered by rm entry '$matched_by'"
   else
-    report_fail "T1 transient file not covered by the Ship rm block: $display — add it (or a covering glob) to $RM_FILE §Cleanup"
+    report_fail "T1 transient file not covered by the cleanup helper's rm block: $display — add it (or a covering glob) to $RM_FILE"
   fi
 done <<< "$spec_basenames"
 
