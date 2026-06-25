@@ -619,17 +619,11 @@ Run the transient cleanup directly (no agent needed). The T1 / T1.5 split contra
 **Transient outputs — DELETE at terminal exit** (T1 ephemeral):
 
 ```bash
-rm -f "<task-dir>"/.kr-out.md \
-      "<task-dir>"/.ce-out.md \
-      "<task-dir>"/.tr-out.md \
-      "<task-dir>"/.adversarial-out.md \
-      "<task-dir>"/.spec-challenge-out.md \
-      "<task-dir>"/.research-*.md \
-      "<task-dir>"/notes.md \
-      "<task-dir>"/playwright-verify.png
+source "${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh"
+clean_task_transients "<task-dir>"
 ```
 
-These files were used once by the orchestrator or subagents during the run; they're dead weight once the task reaches a terminal state. The `.research-*.md` glob covers the `codebase-research-agent` report and `/plan`'s per-facet research files left in the same task-dir — `/plan`'s own terminal phase is read-only, so this cleanup is where they get removed.
+The helper is the single source of the T1 transient list (mirrors `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1): `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `.spec-challenge-out.md`, the `.research-*.md` glob (the `codebase-research-agent` report plus `/plan`'s per-facet and critique research files left in the same task-dir), `notes.md`, and `playwright-verify.png`. These files were used once by the orchestrator or subagents during the run; they're dead weight once the task reaches a terminal state. `/geniro:plan` calls the same helper at its own terminal exit, so a plan-only or milestone-sliced run cleans its scratch even when this skill never runs against that task-dir — this run remains the backstop for any leftover from an interrupted `/geniro:plan`.
 
 After the rm, echo `Cleaned up transient working files from <task-dir>` — one plain line; this is the in-session signal the pre-terminal check in Ship step 9 looks for.
 

@@ -192,7 +192,7 @@ find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o
   done' sh {} + 2>/dev/null
 ```
 
-**Severity:** LOW — leftover transient files are inert; `/geniro:implement` cleans them at every terminal exit, but interrupted or killed runs can still leave them behind, and this entry is the recurring sweep that catches those — periodic re-detection is expected behavior.
+**Severity:** LOW — leftover transient files are inert; both `/geniro:plan` (on `done`/`aborted`) and `/geniro:implement` (on every terminal exit) now clean their own scratch via the shared `clean_task_transients` helper, so a completed plan-only or milestone-sliced run no longer leaves `.research-*.md` behind (that was a systematic leak — `/geniro:implement` cleaned only the task-dir it ran in, never the parent planning dir of a milestone slice). With that closed, an interrupted or killed run is the remaining way a transient outlives its cleanup, and this entry is the recurring sweep that catches those — periodic re-detection after an interrupted run is expected behavior, not a sign a prior fix failed.
 
 ---
 

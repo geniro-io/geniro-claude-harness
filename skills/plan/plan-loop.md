@@ -739,9 +739,20 @@ State.md `phase: handoff` during this phase. Non-interactive — no AskUserQuest
 1. **Determine the target path.** For milestone-sliced specs (Phase 5 milestone-mode fired): `.geniro/planning/<slug>/milestone-1.md`. Otherwise: `.geniro/planning/<slug>/spec.md`.
 2. **Print a short closing message** stating the plan is saved and committed, plus the next-step command — e.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md`. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
 
-### 9.2 Terminal transition
+### 9.2 Clean up transient working files
 
-Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery treats it as completed; a session crashing between the §8.4 transition and the print resumes at `phase: handoff` and re-runs the print + done write.
+Before the terminal `phase:` write, remove this run's scratch outputs from the planning task-dir — the per-facet `.research-<facet>.md`, the Phase 4 `.research-critique-*.md`, the `.spec-challenge-out.md`, and any `notes.md`. They were each read once during planning and are dead weight now; left behind, they resurface as recurring `/geniro:update` migration-walk warnings (and in a milestone-sliced plan `/geniro:implement` runs in a different task-dir, so it never reaches these — this cleanup is the only one that does). Deleting `/geniro:plan`'s own scratch is not a source mutation, so it stays within the read-only-on-source boundary.
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh"
+clean_task_transients ".geniro/planning/<slug>"
+```
+
+The helper preserves the durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) and is a no-op on files that were never written, so the same call is safe on the `aborted` terminal path. Run it before every terminal `phase:` write (`done` and `aborted`). After it runs, echo `Cleaned up transient working files from .geniro/planning/<slug>`.
+
+### 9.3 Terminal transition
+
+Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery treats it as completed; a session crashing between the §8.4 transition and the print resumes at `phase: handoff` and re-runs the print + cleanup + done write.
 
 ---
 
@@ -769,6 +780,7 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 - [ ] After Phase 8 Approve, the launch-config question was offered (skipped only when `$ARGUMENTS` modifiers already set workspace / depth / branch-handling / ship); on opt-in, the settings were captured to a `launch_config:` block (the four always-present settings, plus `tracker_status` when the spec had a linked tracker ticket — chained into a second AUQ call past the 4-question cap), persisted to `approvals[]` category `launch_config`, and the block + `geniro_schema_version: m5-v4` were written into the committed spec inside the §8.4 lifecycle-flip rewrite (no extra write); on decline / skip, no block was written and the version was unchanged.
 - [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
 - [ ] Phase 9 printed the milestone-aware `/geniro:implement <path>` command and wrote terminal `phase: done`.
+- [ ] Phase 9 ran `clean_task_transients` against the planning task-dir before the terminal `phase:` write (`done` and `aborted`), removing this run's `.research-*.md` / `.spec-challenge-out.md` / `notes.md` scratch while preserving `spec.md` / `state.md` / `plan-*.md` / `milestone-*.md`.
 - [ ] HARD-GATE released only on Phase 8 "Approve".
 - [ ] Terminal state.md `phase: done` (or `aborted` with `## Termination reason` body line).
 

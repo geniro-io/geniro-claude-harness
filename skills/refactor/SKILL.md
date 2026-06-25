@@ -446,7 +446,7 @@ Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 
 After Phase 3 completes:
 
-- **All tiers:** Remove `.geniro/state/refactor/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope") for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. Useful content already saved (transformations, discoveries) via L2 emit + chat summary. Do NOT delete sibling slugs from concurrent refactor sessions on other branches.
+- **All tiers:** `rm -rf .geniro/state/refactor/<slug>/` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope") for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any scratch written under it goes with `state.md` (nothing there is read after the run, and the migration sweep does not scan `.geniro/state/`). Useful content already saved (transformations, discoveries) via L2 emit + chat summary. Do NOT delete sibling slugs from concurrent refactor sessions on other branches.
 - **Clear old state files** (best-effort; any may not exist):
 ```bash
 rm -f ".geniro/refactor/state.md" 2>/dev/null
