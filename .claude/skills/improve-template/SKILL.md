@@ -331,10 +331,12 @@ Apply the following approved changes:
   notes, exceptions, caveats, or conditions below/after the original. Adding
   "NOTE: also handle X" or "Exception: when Y, do Z" creates context distance and
   instruction rot. The original instruction should read correctly on its own.
-- **Minimum-tokens principle:** Write the change at the lowest token cost that
-  preserves meaning — don't restate a rule already present in the file, don't
-  re-explain standard tool or model behavior, and prefer tightening an existing line
-  over adding a new one. Signal density, not line count, is the target.
+- **Minimum-tokens principle:** Write the change at the lowest token cost that fully
+  preserves meaning and behavior — don't restate a rule already present in the file,
+  don't re-explain standard tool or model behavior, and prefer tightening an existing
+  line over adding a new one. The bar is zero degradation: a tightening that drops a
+  load-bearing nuance, edge case, or behavioral condition is a degradation, not a
+  compaction — keep the longer wording. Signal density, not line count, is the target.
 
 ### Definition of Done
 - [ ] All approved changes applied
@@ -355,7 +357,7 @@ Orchestrator runs these checks directly (no subagent). All must pass before Phas
 5. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
 6. **Description-format checks (6 sub-checks):** apply when any changed SKILL.md's YAML `description:` field was added or modified; full procedure in the "Description-format validator" section below. Items: length ≤1024 chars (warning), third person (warning), "Use when" trigger clause (warning), "Skip for" anti-trigger clause (note), no `{{placeholder}}` residue (blocker), valid YAML frontmatter (blocker, overlaps with check #4 — counts once).
 7. **README/docs sync (when changes touch user-facing surface):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md` since it carries the skills-table row. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
-8. **Compaction & redundancy (added text):** scan the lines this change ADDED for weight without payload — a restatement of an instruction already in the file, a re-explanation of standard tool or model behavior, or a hedge with no condition. Propose a tightening; never cut load-bearing content to save tokens (the `description` field is out of scope here — the Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
+8. **Compaction & redundancy (added text):** scan the lines this change ADDED for weight without payload — a restatement of an instruction already in the file, a re-explanation of standard tool or model behavior, or a hedge with no condition. Propose a tightening only when it fully preserves meaning and behavior — the bar is zero degradation; never trade away a load-bearing nuance, edge case, or behavioral condition to save tokens (the `description` field is out of scope here — the Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
 
 If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#6 sub-items 1-4, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
