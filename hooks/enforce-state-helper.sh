@@ -164,10 +164,6 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   if [ -z "$COMMAND" ]; then
     exit 0
   fi
-  # Sanctioned helpers write via their own mktemp + mv — allow the command.
-  if printf '%s' "$COMMAND" | grep -qE '\b(atomic_state_write|atomic_state_append)\b'; then
-    exit 0
-  fi
 
   # Heredoc bodies are DATA, not shell syntax — a `> .geniro/...` inside one is
   # text. Drop body lines (between <<TAG / <<-TAG / <<'TAG' and the closing TAG)
@@ -197,6 +193,19 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 
   # Quoted string literals are data (`echo "see > .geniro/x"` writes nothing).
   ONELINE=$(printf '%s' "$ONELINE" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+  # Strip trailing comments. Quotes are already blanked above, so a `#` at a
+  # word boundary is a real comment — drop it so a helper name in a comment
+  # can't gate the allow-check below.
+  ONELINE=$(printf '%s' "$ONELINE" | sed -E 's/(^|[[:space:]])#.*$//')
+
+  # Sanctioned helpers write via their own mktemp + mv — allow the command. This
+  # runs AFTER the quote+comment scrub so the helper name only counts as a real
+  # command word: `echo "atomic_state_write" > .geniro/x` (name in data) no
+  # longer short-circuits, while a genuine `atomic_state_write "path" <<EOF`
+  # invocation survives the scrub (only its quoted path is blanked).
+  if printf '%s' "$ONELINE" | grep -qE '\b(atomic_state_write|atomic_state_append)\b'; then
+    exit 0
+  fi
 
   CANDIDATES=""
   add_candidate() {
@@ -230,7 +239,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # 3) In-place sed: file arguments of a `sed -i` span are overwritten.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
-    printf '%s' "$span" | grep -qE '[[:space:]]-i' || continue
+    printf '%s' "$span" | grep -qE '[[:space:]]-i|[[:space:]]--in-place' || continue
     set -f
     # shellcheck disable=SC2086
     for tok in $span; do
