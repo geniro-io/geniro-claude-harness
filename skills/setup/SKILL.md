@@ -177,13 +177,14 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-The canonical 11-skill list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries.)
+The canonical 12-skill list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries.)
 
 ```yaml
 skill_inventory:
 - {slug: implement, purpose: "Spec-driven implementation"}
 - {slug: plan, purpose: "Spec-first planning"}
 - {slug: review, purpose: "Multi-dim code review"}
+- {slug: resolve, purpose: "PR-feedback triage → fix plan"}
 - {slug: debug, purpose: "Scientific-method investigation"}
 - {slug: refactor, purpose: "Zero-behavior-change restructuring"}
 - {slug: onboard, purpose: "Codebase mapping"}

@@ -243,7 +243,7 @@ Full catalog — every flag, the values it takes, and the question it skips — 
 
 ## Skills deleted
 
-The previous surface had 19 skills. The current 11-skill set absorbed or dropped 8:
+The current 12-skill set absorbed or dropped 8 earlier skills:
 
 | Deleted | Replacement |
 |---|---|
@@ -288,9 +288,9 @@ Or run `/geniro:update` inside Claude Code — preserves user content, walks any
 geniro-claude-plugin/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest
-│   └── marketplace.json         # 11-skill canonical inventory
+│   └── marketplace.json         # Marketplace manifest (plugin source entry)
 ├── agents/                      # 7 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / reflection / test-runner)
-├── skills/                      # 11 reusable workflow definitions
+├── skills/                      # 12 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning
 │   ├── implement/               # autonomous implementation

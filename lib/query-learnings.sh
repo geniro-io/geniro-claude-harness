@@ -282,12 +282,13 @@ record_access() {
   # Pre-acquire stale-lock reclaim: a SIGKILL/crash while another rewriter held
   # the lock leaves the dir behind with no trap to clear it, which would wedge
   # this counter bump for up to the TTL. Reclaim an abandoned lock whose mtime
-  # age exceeds the TTL, then the mkdir below retries. The 600s TTL mirrors the
-  # reclaim window in update-semantic.sh / archive-stale.sh.
+  # age exceeds the TTL, then the mkdir below retries. Shared reclaim window —
+  # override via GENIRO_LOCK_RECLAIM_SECS (default 600s); this reclaims the SAME
+  # lock as archive-stale.sh, so the two must agree.
   if [ -d "$lock" ]; then
     local lock_mtime
     lock_mtime=$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null || echo 0)
-    if [ $(( $(date +%s) - lock_mtime )) -gt 600 ]; then
+    if [ $(( $(date +%s) - lock_mtime )) -gt "${GENIRO_LOCK_RECLAIM_SECS:-600}" ]; then
       rmdir "$lock" 2>/dev/null
     fi
   fi

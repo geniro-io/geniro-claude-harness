@@ -50,8 +50,10 @@ _us_resolve_target() {
 }
 
 # Stale-lock window: a lock older than this (seconds) is presumed abandoned by a
-# crashed/killed holder and reclaimed. Mirrors archive-stale.sh's 600s reclaim.
-_US_STALE_LOCK_SECS=600
+# crashed/killed holder and reclaimed. Single shared knob across every lock-reclaim
+# site (archive-stale.sh / query-learnings.sh use the same env var) — set
+# GENIRO_LOCK_RECLAIM_SECS to retune all reclaim windows at once. Default 600 (10 min).
+_US_STALE_LOCK_SECS="${GENIRO_LOCK_RECLAIM_SECS:-600}"
 
 # O_EXCL-style lock acquisition. Returns 0 on acquire, non-zero if held.
 # Before acquiring, reclaim a stale lock whose mtime is older than the stale
