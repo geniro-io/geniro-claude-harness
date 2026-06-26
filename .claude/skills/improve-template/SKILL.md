@@ -331,6 +331,10 @@ Apply the following approved changes:
   notes, exceptions, caveats, or conditions below/after the original. Adding
   "NOTE: also handle X" or "Exception: when Y, do Z" creates context distance and
   instruction rot. The original instruction should read correctly on its own.
+- **Minimum-tokens principle:** Write the change at the lowest token cost that
+  preserves meaning — don't restate a rule already present in the file, don't
+  re-explain standard tool or model behavior, and prefer tightening an existing line
+  over adding a new one. Signal density, not line count, is the target.
 
 ### Definition of Done
 - [ ] All approved changes applied
@@ -351,8 +355,9 @@ Orchestrator runs these checks directly (no subagent). All must pass before Phas
 5. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
 6. **Description-format checks (6 sub-checks):** apply when any changed SKILL.md's YAML `description:` field was added or modified; full procedure in the "Description-format validator" section below. Items: length ≤1024 chars (warning), third person (warning), "Use when" trigger clause (warning), "Skip for" anti-trigger clause (note), no `{{placeholder}}` residue (blocker), valid YAML frontmatter (blocker, overlaps with check #4 — counts once).
 7. **README/docs sync (when changes touch user-facing surface):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md` since it carries the skills-table row. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
+8. **Compaction & redundancy (added text):** scan the lines this change ADDED for weight without payload — a restatement of an instruction already in the file, a re-explanation of standard tool or model behavior, or a hedge with no condition. Propose a tightening; never cut load-bearing content to save tokens (the `description` field is out of scope here — the Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
 
-If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#6 sub-items 1-4 and #7 README/docs drift) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
+If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#6 sub-items 1-4, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
 ---
 
@@ -557,7 +562,7 @@ Adds 6 format checks to the existing Phase 4 validation gate. Applies to BOTH im
 
 For each changed/created SKILL.md, check the YAML `description:` field:
 
-1. **Length ≤1024 chars**: Anthropic's hard limit on description budget. Warning if violated (not blocker — content matters more than character count, and some skills genuinely need the room).
+1. **Length ≤1024 chars**: Anthropic's hard limit on description budget. Warning if violated (not blocker — content matters more than character count). Flag a description only for exceeding this limit, never for verbosity: its trigger keywords + what/when drive skill selection, so trimming them to save tokens degrades discovery.
 2. **Third person**: description should read as "use when X" / "the skill does Y" — NOT "I will X" / "you should X". Check: grep for `\b(I |my |me |you |your )\b` in the description; if matches, flag as warning.
 3. **"Use when" trigger clause**: description should include a phrase like "Use when …" / "Use for …" / "Trigger when …" — names the conditions that activate the skill. Required (warning if missing).
 4. **"Skip for" anti-trigger clause** (recommended, not required): "Skip for X — use Y instead" — disambiguates against neighbor skills. Adds a recommendation note when missing; not a warning.
@@ -600,7 +605,7 @@ If the user interjects mid-phase: corrections/context fold into the current phas
 - [ ] Phase 2b: Redundancy & relevance validated orchestrator-inline
 - [ ] Phase 3: Evidence table presented, user approved specific changes
 - [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
-- [ ] Phase 4 Step 3 validation gate: 7 standard checks (line counts / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync) PLUS 6 description-format sub-checks (length / third person / Use-when clause / Skip-for clause / no placeholders / valid YAML) for any changed SKILL.md
+- [ ] Phase 4 Step 3 validation gate: 8 standard checks (line counts / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync / compaction-redundancy) PLUS 6 description-format sub-checks (length / third person / Use-when clause / Skip-for clause / no placeholders / valid YAML) for any changed SKILL.md
 - [ ] Phase 5: Independent review by fresh agent passed
 - [ ] Phase 6: Summary presented, state file cleaned up
 - [ ] Phase 6: Commit & push offered to the user (Step 4)
@@ -614,7 +619,7 @@ If the user interjects mid-phase: corrections/context fold into the current phas
 - [ ] Phase A: 3-5 sequential AskUserQuestion calls completed (trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow)
 - [ ] Phase A: Pre-existing-instruction check via generic Agent (sonnet) — overlap table reviewed; duplicates rejected, user routed to existing skill if overlap
 - [ ] Phase B: Author agent spawned with interview transcript + constraints + 1-2 exemplar SKILL.md files; SKILL.md written to disk
-- [ ] Phase B: Phase 4 Step 3 validation gate run including 6 description-format checks AND check #7 (README/CLAUDE.md/docs sync) for any new top-level skill
+- [ ] Phase B: Phase 4 Step 3 validation gate run including 6 description-format checks AND checks #7 (README/CLAUDE.md/docs sync) + #8 (compaction/redundancy) for any new top-level skill
 - [ ] Phase C: Fresh review agent spawned; 8-item create-skill review checklist applied; blockers fixed (max 1 round)
 - [ ] Phase D: Phase 6 Summary + Commit & push offered
 - [ ] Created SKILL.md within the 500-line target / 700-line hard ceiling (Phase 4 Step 3 check #1); overflow split into companion reference files rather than trimmed
