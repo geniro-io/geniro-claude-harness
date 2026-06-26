@@ -230,6 +230,21 @@ emit_learning() {
     rebuilt=$(printf '%s' "$rebuilt" | jq -c --arg k "$ekey" --arg v "$esan" '.[$k] = $v')
   done
 
+  # Sanitize string elements of the tags[] array. The string-key loop above
+  # walks only scalar top-level string fields, so a secret stashed in a tag
+  # label would otherwise reach the log unredacted. Non-string elements (if any)
+  # are left untouched — redacting them would change their type.
+  local tags_count ti
+  tags_count=$(printf '%s' "$rebuilt" | jq '(.tags // []) | length')
+  for ((ti = 0; ti < tags_count; ti++)); do
+    local ttype tval tsan
+    ttype=$(printf '%s' "$rebuilt" | jq -r --argjson i "$ti" '.tags[$i] | type')
+    [ "$ttype" = "string" ] || continue
+    tval=$(printf '%s' "$rebuilt" | jq -r --argjson i "$ti" '.tags[$i]')
+    tsan=$(printf '%s' "$tval" | redact_secrets "$producer" "tags[$ti]" "$dedup_key")
+    rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson i "$ti" --arg v "$tsan" '.tags[$i] = $v')
+  done
+
   # Dedup scan — last 200 entries.
   local log root
   root=$(_geniro_repo_root)

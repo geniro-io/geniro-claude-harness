@@ -223,7 +223,7 @@ open_questions:                       # MUST be present; MAY be empty []
 **Phase:** <phase that ran the resolution AUQ>
 
 ## Termination reason
-<rendered per §9 — only on aborted | escalated state>
+<rendered per §9 — only on the aborted terminal; escalated surfaces its reason in ## Open Questions>
 
 ## Persisted approvals
 <rendered from approvals[] frontmatter for user-readability>

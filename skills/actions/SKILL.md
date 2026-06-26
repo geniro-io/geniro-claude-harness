@@ -329,7 +329,7 @@ If no gaps, proceed without asking. Do not call any tool the action did not decl
 
 If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt; transition to `failed` with step number captured.
 
-### Phase 5.5: Wrap-up + L2 emit
+### Phase 5.5: Wrap-up + record a learning
 
 Print summary:
 

@@ -31,7 +31,7 @@ expect_root() {
   else
     fail "$label — expected '$expected', got '$got'"
   fi
-  cd "$TMPDIR_BASE"
+  cd "$TMPDIR_BASE" || exit
 }
 
 # 1. Simple git project with .geniro/ at the root.

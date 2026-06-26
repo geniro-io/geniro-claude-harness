@@ -199,6 +199,18 @@ else
   fail "body not sanitized: '$body'"
 fi
 
+# Sanitization: tags[] array elements (regression — the extra-keys loop walks
+# only scalar top-level string fields, so a secret in a tag label would reach
+# the log unredacted without the dedicated tags[] sanitize pass).
+new_sandbox
+echo '{"producer":"/debug","scope":"x","summary":"y","tags":["bug","AKIAIOSFODNN7EXAMPLE"]}' | emit_learning
+tag1=$(read_log | jq -r '.tags[1]')
+if echo "$tag1" | grep -q '\[REDACTED:aws-key\]'; then
+  pass "tags[] element sanitization fires"
+else
+  fail "tag not sanitized: '$tag1'"
+fi
+
 # Sanitization: ext.* strings
 new_sandbox
 jq -nc '{

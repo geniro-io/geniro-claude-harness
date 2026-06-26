@@ -39,11 +39,11 @@ State.md `phase:` enum transitions:
 └── aborted ── (round-limit / safety / tool-unavailable)
 ```
 
-**Terminal states:** `done`, `aborted`, `escalated`. the SessionStart recovery treats all three as "review complete / cancelled". `done` includes a Phase 6 handoff line; `escalated` (round-limit hand-off) and `aborted` each carry a `## Termination reason`.
+**Terminal states:** `done`, `aborted`, `escalated`. the SessionStart recovery treats all three as "review complete / cancelled". `done` includes a Phase 6 handoff line; `aborted` carries a `## Termination reason`, and `escalated` (round-limit hand-off) surfaces its reason in `## Open Questions` instead (per review-handoff.md §9).
 
 **Non-terminal states:** `triage`, `mechanical-prepass`, `llm-spawn`, `filter`, `stratify`, `persist`, `action-gate`. the recovery rolls these back to phase-entry and re-runs from there (idempotent — `approvals[]` ensures Phase 6 AUQ skips already-answered).
 
-**Termination-case mapping** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9. The `## Termination reason` body section is written on `aborted` / `escalated` terminals.
+**Termination-case mapping** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9. The `## Termination reason` body section is written on the `aborted` terminal; on `escalated` the reason is surfaced in `## Open Questions` instead.
 
 ---
 
@@ -76,7 +76,7 @@ This skill has no hard kill caps. Same model as other skills.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Round-N reviewer re-spawn | 3 | Phase 6 Round-N gate | AUQ — debug-handoff / continue / abort. User picks. |
+| Round-N reviewer re-spawn | 3 | Phase 6 Round-N gate | AUQ — Continue / Escalate / Abort. User picks. |
 | Reviewer output size | ~4000 chars per dim | invariant #4 | Truncation marker, not abort. |
 | Phase 3 dedup pass | 1 per round | Phase 3 | Orchestrator-inline (no subagent — folded under subagent rationalization). Cannot "fail" — runs in orchestrator's main context. |
 
