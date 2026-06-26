@@ -52,6 +52,8 @@ echo '<json-object>' | emit_learning
 
 3. **Surface a non-zero return — don't wave it off.** Silently swallowing the failure loses the learning without anyone noticing (a real session dropped one this way). On a non-zero return, diagnose the exit code against the §Return codes table and print one plain-English line so the loss is visible — e.g. `Couldn't record the learning — entry oversized` (rc=68), `Couldn't record the learning — a required field was missing` (rc=64), `Couldn't record the learning — write failed (disk full or permission denied)` (rc=69). Retry once only for the write-failed code (rc=69), since a transient disk/permission condition may clear; the other codes (missing field rc=64, oversized rc=68) describe the entry itself and won't succeed on a retry — fix the entry or surface and move on. Never run the emit as a backgrounded command: a backgrounded failure returns no exit code to inspect, so its loss is noticed only by accident.
 
+4. **Route through a declared memory backend.** When `global.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` around this emit: the helper's redaction runs first (so the backend receives sanitized text), then on `mode: mirror` also call the declared `write` tool, or on `mode: replace` call the declared `write` tool INSTEAD of the file append. Fail-open — a backend error drops to the file append (replace) or is a no-op on top of it (mirror), with a one-line caveat; a learning is never lost to an unreachable backend. No block → this is a no-op and the emit is the file append exactly as above.
+
 ## MODE contract
 
 Write-side helper — **no MODE parameter, compaction-immune.** Behavior is

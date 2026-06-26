@@ -101,6 +101,10 @@ record_access "<dedup_key>"
 - Best-effort, lock-aware: takes the shared knowledge-rewrite mkdir lock (`.geniro/knowledge/.archive-stale.lock` — the same lock the auto-archive path uses) and SKIPS the bump (rc=0) when the lock is already held, so two whole-file rewriters cannot overwrite each other's changes. A skipped bump is acceptable (counter, not ledger). Uses POSIX `rename(2)` for atomicity.
 - Callers typically invoke after surfacing a query result they actually used. Example: `/geniro:debug` Phase 1 surfaces 3 entries, orchestrator cites entry `bbb00002` in hypothesis → call `record_access bbb00002`.
 
+## Memory backend override
+
+When `global.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` around this query: on `mode: mirror` also call the declared read-only `read` tool and merge its results with the file query (dedup by `dedup_key`, backend-first); on `mode: replace` call the `read` tool INSTEAD of `query_learnings`. The `read` tool passes the read-only screen first. Fail-open — a backend error drops to the file query with a caveat. No block → this is a no-op and the file query runs exactly as above.
+
 ## Trust level ordering
 
 ```

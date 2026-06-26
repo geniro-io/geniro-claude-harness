@@ -85,7 +85,7 @@ For each file in the load set, in order:
 1. Call the **Read** tool on the file:
  - **External dir active (`EXTERNAL_DIR` non-empty):** Read `<EXTERNAL_DIR>/<file>` (the flat layout — no `.geniro/instructions/` suffix). Step 2a does not apply in external mode; the cwd + `PRIMARY_ROOT` fallback is skipped.
  - **In-repo (no external dir):** Read `.geniro/instructions/<file>` (cwd-relative) — the cwd-first / `PRIMARY_ROOT`-fallback behavior. A configured-but-missing external dir already failed open (the probe emitted the caveat), so the loop runs here in in-repo mode.
-2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present). Skip step 2a.
+2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `global.md` only). Skip step 2a.
 2a. **If Read errors with file-not-found AND no external dir is active AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
 3. **If file is still not found** (cwd missing AND fallback missing or unavailable): treat as a silent skip — no error, no warning, just the missing-file echo line.
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
@@ -94,6 +94,7 @@ For each file in the load set, in order:
  - `## Rules` → standing rules active in every phase of the consumer skill
  - `## Constraints` → a flat bullet list of hard gates, evaluated globally (or at a phase boundary when a bullet's text names one) — not organized into per-phase subsections; only `## Additional Steps` uses named-phase subsections
  - `## Additional Steps` → extra steps inserted at the named phase boundary (if the skill has that phase; otherwise apply where they fit and skip the rest)
+ - `## Memory Backend` → routes L2 learnings through a project-declared backend at the `emit-learning` / `query-learnings` call-sites, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`; absent = built-in `.geniro/knowledge/learnings.jsonl` file, unchanged
 
 ## Echo contract
 
@@ -146,13 +147,23 @@ The instruction files this helper loads have a fixed schema (defined authoritati
 
 ## Constraints
 - Hard limits enforced as gates
+
+## Data Sources
+- **label** (confirms: <fact kind>) — read-only source (shell command / MCP tool / action)
+
+## Memory Backend
+- layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <mcp tool>
 ```
+
+`## Data Sources` and `## Memory Backend` are optional and `global.md`-scoped; the others appear per-skill too.
 
 The loader applies these as:
 
 - **Rules → standing rules.** Active in every phase of the consumer skill until the run ends.
 - **Constraints → hard gates.** A flat bullet list, evaluated globally (or at a phase boundary when a bullet names one). Only `## Additional Steps` uses named-phase subsections.
 - **Additional Steps → extra steps inserted at the named phase boundary.** If the per-skill file declares an Additional Step for a phase that doesn't exist in the consumer (e.g. `debug` has no PHASE 1 — it has step 1 / Observe), apply where it fits and skip the rest.
+- **Data Sources → read-only fact-verification sources** consulted by `/geniro:plan` and `/geniro:implement` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`.
+- **Memory Backend → L2-learnings routing** applied at the `emit-learning` / `query-learnings` call-sites per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`.
 
 Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantics in their own text. That phrase migrates entirely into this helper; consumer call sites say only "Apply this helper, echo per contract" — nothing more.
 
