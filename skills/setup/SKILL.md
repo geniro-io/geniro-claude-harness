@@ -175,7 +175,7 @@ Each detection records `{ file: <path>, line: <N>, snippet: "<exact text>" }`. N
 
 **Spec-driven-development tooling (read-only):**
 
-- OpenSpec: an `openspec/` directory (or a custom OpenSpec root) carrying `project.md`, `specs/`, or `changes/`. Resolve a custom root per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/openspec-integration.md` §1 (honors an `openspec.json` / `.openspec.json` `directory` field before the `openspec/` default). Store the resolved root as `$OPENSPEC_ROOT` (empty when not detected) for the Phase 2 integration question.
+- OpenSpec: an `openspec/` directory (or a custom OpenSpec root) carrying `project.md`, `specs/`, or `changes/`. Default root is `openspec/`; a non-default checkout shows up under a different top-level dir carrying those same children — detect that dir and store it. Store the resolved root as `$OPENSPEC_ROOT` (empty when not detected) for the Phase 2 integration question; the workflow file installed in Phase 2 records it so `/geniro:plan` reuses it without re-detecting. Resolution contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/openspec-integration.md` §1.
 
 Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
@@ -270,7 +270,7 @@ Store as `$ISSUE_TRACKER_CHOICE` for Phase 3.
 
 Fires only when Phase 1 detected OpenSpec (`$OPENSPEC_ROOT` non-empty). When not detected, skip silently — there is nothing to integrate with.
 
-Use `AskUserQuestion` header "OpenSpec", question "This repo uses OpenSpec (at `$OPENSPEC_ROOT`). Enable duplicating approved `/geniro:plan` plans into OpenSpec change proposals?", options "Yes — enable OpenSpec integration" (Recommended) / "No — skip". On "Yes", install `.geniro/workflow/openspec.md` from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/openspec.md`, setting `directory:` to `$OPENSPEC_ROOT`. On "No", write no workflow file — the integration stays off until the user re-runs setup or adds the file via `/geniro:instructions`.
+Use `AskUserQuestion` header "OpenSpec", question "This repo uses OpenSpec (at `$OPENSPEC_ROOT`). Enable duplicating approved `/geniro:plan` plans into OpenSpec change proposals?", options "Yes — enable OpenSpec integration" (Recommended) / "No — skip". On "Yes", install `.geniro/workflow/openspec.md` from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/openspec.md`, but do NOT copy it verbatim — the template's `directory:` line ships as `directory: openspec` (the default); replace that value with the detected `$OPENSPEC_ROOT` so a non-default checkout records its real root, then write the result. On "No", write no workflow file — the integration stays off until the user re-runs setup or adds the file via `/geniro:instructions`.
 
 Store as `$OPENSPEC_CHOICE` for Phase 3. The duplication itself happens per-plan in `/geniro:plan` (it still asks before writing each change); this file is the standing enablement + directory config, mirroring how the tracker workflow file enables the Linear/issue-tracker integration.
 
