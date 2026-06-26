@@ -176,6 +176,11 @@ expect_block "Bash printf eval into .js blocks" \
   "$(run_bash 'printf "%s" "var r = eval(s)" > app.js')"
 expect_block "Bash echo innerHTML piped to tee .js blocks" \
   "$(run_bash 'echo "el.innerHTML = userInput" | tee widget.js')"
+# Regression: a > or | INSIDE the quoted payload must not be grabbed as the
+# redirect target — the target is extracted from a quote-blanked copy, so the
+# real .js target (and its extension) is found and the sink is still scanned.
+expect_block "Bash in-payload > does not steal redirect target" \
+  "$(run_bash 'echo "x=document.write(a) > 0" > app.js')"
 # Extension scoping holds on the Bash path: a py-only pattern in a heredoc whose
 # target is .md must NOT fire (the body is scanned at the target's extension).
 expect_allow "Bash heredoc pickle.load into .md NOT blocked (ext-scoped)" \

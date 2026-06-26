@@ -54,6 +54,7 @@ if ! command -v _geniro_sha256 >/dev/null 2>&1; then
     # shellcheck disable=SC1091
     source "$_vsf_script_dir/hash.sh"
   else
+    # shellcheck disable=SC2120  # callers pass file args; this shim mirrors lib/hash.sh
     _geniro_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
   fi
 fi

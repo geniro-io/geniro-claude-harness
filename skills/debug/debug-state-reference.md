@@ -254,7 +254,7 @@ BRANCH: [from `git branch --show-current`]
 none — adversarial mode runs a fresh pass (no prior reviewer findings available in debug).
 
 ### Output
-Write your report to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
+Write your report to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) via the atomic-write helper — a direct Edit/Write to any `.geniro/state/` path is hard-blocked by the state-helper enforcement hook, so write it with `source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"` then `atomic_state_write "<path>" <<'EOF' … EOF`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
 
 The handoff's frontmatter MUST include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check. Inline this schema verbatim — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree:
 

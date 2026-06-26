@@ -41,12 +41,18 @@ function getInstalledVersion() {
   } catch { return 'unknown'; }
 }
 
+// Version-fetch timeouts, shared by both fetch sites below. curl's --max-time
+// caps the network call; the execSync timeout is the hard ceiling on the whole
+// child (kept higher so curl's own timeout fires first with a cleaner error).
+const CURL_MAX_TIME_S = 10;
+const FETCH_TIMEOUT_MS = 15000;
+
 function getLatestVersion() {
   try {
     // Check the GitHub API for the latest release tag
     const result = execSync(
-      'curl -sf --max-time 10 "https://api.github.com/repos/geniro-io/geniro-claude-harness/releases/latest"',
-      { encoding: 'utf8', timeout: 15000 }
+      `curl -sf --max-time ${CURL_MAX_TIME_S} "https://api.github.com/repos/geniro-io/geniro-claude-harness/releases/latest"`,
+      { encoding: 'utf8', timeout: FETCH_TIMEOUT_MS }
     );
     const data = JSON.parse(result);
     return (data.tag_name || '').replace(/^v/, '') || null;
@@ -54,8 +60,8 @@ function getLatestVersion() {
     // Fallback: check package.json or plugin.json from main branch
     try {
       const result = execSync(
-        'curl -sf --max-time 10 "https://raw.githubusercontent.com/geniro-io/geniro-claude-harness/main/.claude-plugin/plugin.json"',
-        { encoding: 'utf8', timeout: 15000 }
+        `curl -sf --max-time ${CURL_MAX_TIME_S} "https://raw.githubusercontent.com/geniro-io/geniro-claude-harness/main/.claude-plugin/plugin.json"`,
+        { encoding: 'utf8', timeout: FETCH_TIMEOUT_MS }
       );
       const data = JSON.parse(result);
       return data.version || null;

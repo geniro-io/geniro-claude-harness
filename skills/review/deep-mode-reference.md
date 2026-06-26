@@ -108,13 +108,14 @@ return verdicts
 //   OR (first.validation === 'refuted' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'))
 ```
 
-**Mandatory mitigations (every deep workflow MUST observe):**
+**Mandatory mitigations** — canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4; every deep workflow MUST observe all of them. The review-specific application of each is noted below:
 
 1. **Raw JSON, not schema.** Use `agent(prompt)` returning raw JSON text and parse it defensively in-script — NEVER `agent({schema})`. The dynamic-Workflow StructuredOutput tool-call drops roughly two-thirds of the time on long / converged agents; a schema-typed vote would silently lose votes. A parse failure is an **abstention**, never a refute.
 2. **Re-assert the Reporter contract in every agent prompt.** Each reviewer/verifier prompt restates: read-only; no `Edit`/`Write`; no `git` mutation; no state writes (the orchestrator owns all `atomic_state_write`). The workflow parallelizes the fan-out, not the contract — see §7 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 3. **Path constants outside template literals.** A bare `${CLAUDE_PLUGIN_ROOT}` (or any `${...}`) inside a workflow backtick template literal is interpreted as JS interpolation and crashes the script. Build path/context strings as plain constants BEFORE the literal, or reference plugin files by repo-relative path inside prompts.
 4. **OMIT `model=` at every spawn.** Reviewers/verifiers inherit the orchestrator tier (`model: inherit`). Never tier-pin voters to control cost — that defeats the user's session `/model` choice and is exactly the failure mode the model-tiering doctrine prevents.
 5. **Agent registration.** The `spawn-agent.md` prefixed→bare→general-purpose retry ladder is awkward inside a single `agent({agentType})` call. Resolve by either (a) passing the session-resolved registration rung as `agentType`, or (b) spawning `general-purpose` with the `reviewer-agent` body (frontmatter stripped) + criteria inlined into the prompt — the most runtime-robust option. If agent registration fails inside the workflow runtime, fail-safe to the non-workflow single-pass path (§6).
+6. **No `run_in_background` on the Workflow call.** The Workflow tool has no `run_in_background` parameter — workflows always run in the background. That parameter belongs to `Bash`/`Agent`; passing it to the Workflow call fails with a schema error and the deep stage never starts. Omit it.
 
 ---
 

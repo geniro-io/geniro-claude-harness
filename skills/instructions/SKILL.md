@@ -479,7 +479,7 @@ Free-form subsections raise `LOW` warning. Subsections referencing dropped phase
 
 - **Soft warning** if >6 files: `⚠ Count {N} exceeds the 4-6 sweet-spot — consider consolidating overlapping reviewers.`
 - **Hard error** if >10 files: `✗ Count {N} exceeds hard cap of 10 — the loader will refuse to load all reviewers.`
-- These thresholds (sweet-spot 4-6, hard cap 10) mirror the create-flow caps defined canonically in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Step 3 — change both together so the create-flow and validate-mode caps never diverge.
+- These thresholds (sweet-spot 4-6, hard cap 10) mirror the create-flow caps defined canonically in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Step 3 AND the runtime enforcer `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 (which actually aborts the review past the cap) — change all three together so the create-flow, validate-mode, and enforcer caps never diverge.
 
 ### Step 5 — Output format
 

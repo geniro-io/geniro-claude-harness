@@ -79,6 +79,7 @@ expect_block "bash: append to .env blocked"               "$(run_bash 'printf "K
 expect_block "bash: tee to .env blocked"                  "$(run_bash 'echo x | tee .env')"
 expect_block "bash: tee -a to credentials.json blocked"   "$(run_bash 'cat tmp.txt | tee -a config/credentials.json')"
 expect_block "bash: sed -i on go.sum blocked"             "$(run_bash "sed -i.bak 's/a/b/' go.sum")"
+expect_block "bash: sed --in-place (GNU long form) on .env blocked" "$(run_bash "sed --in-place 's/a/b/' .env")"
 expect_block "bash: cp onto .env blocked"                 "$(run_bash 'cp .env.example .env')"
 expect_block "bash: mv onto server.pem blocked"           "$(run_bash 'mv new.pem server.pem')"
 expect_block "bash: dd of=secrets.yaml blocked"           "$(run_bash 'dd if=/dev/stdin of=secrets.yaml')"

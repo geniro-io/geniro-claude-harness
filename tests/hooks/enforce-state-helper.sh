@@ -90,6 +90,11 @@ expect_allow ".geniro/state/tdd/ path is exempt"    "$(rc_path '/proj/.geniro/st
 
 # ===== Bash branch: shell-side writes into state paths block =====
 expect_block "bash: redirect into state path blocks"   "$(rc_bash 'echo x > .geniro/state/review/s/state.md')"
+# Regression: the sanctioned-helper allow-check runs AFTER the quote+comment
+# scrub, so the helper name appearing only in a string or comment can no longer
+# disable the guard while a real invocation still passes.
+expect_block "bash: helper name in echo string still blocks"   "$(rc_bash 'echo "atomic_state_write" > .geniro/state/review/s/state.md')"
+expect_block "bash: helper name in trailing comment still blocks" "$(rc_bash 'echo x > .geniro/state/review/s/state.md  # atomic_state_write')"
 expect_block "bash: append into state path blocks"     "$(rc_bash 'printf y >> ./.geniro/planning/td/state.md')"
 expect_block "bash: tee into state path blocks"        "$(rc_bash 'echo x | tee .geniro/state/debug/s/state.md')"
 expect_block "bash: sed -i on state file blocks"       "$(rc_bash "sed -i.bak 's/a/b/' .geniro/instructions/global.md")"

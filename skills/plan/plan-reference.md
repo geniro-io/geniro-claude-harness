@@ -44,7 +44,7 @@ The example + visual close out each section in the chat message, below the diges
 
 ---
 
-## workflow_refs[] usage notes (m5-v2 / m5-v3)
+## workflow_refs[] usage notes (m5-v2 / m5-v3 / m5-v4)
 
 Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHub Issues / Asana) when `$ARGUMENTS` carries a URL/ID. Phase 6 copies the fetched payload from state.md `## Workflow Refs` into spec.md frontmatter `workflow_refs[]`. Downstream consumers (/geniro:implement Step 0, /geniro:review Phase 1, /geniro:debug Phase 1, /geniro:refactor Phase 1) read this field.
 

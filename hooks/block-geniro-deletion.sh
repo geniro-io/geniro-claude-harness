@@ -149,16 +149,26 @@ block() {
 RM_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[|;&(/[:space:]])rm[[:space:]]+[^|;&]*' || true)
 while IFS= read -r RM_SPAN; do
   [ -z "$RM_SPAN" ] && continue
-  # Only recursive rm (-r/-R in any flag combination, or --recursive) is
-  # segment-gated — `rm -f <single-file>` at any depth stays allowed.
-  if ! printf '%s' " $RM_SPAN " | grep -qE '[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]|[[:space:]]--recursive[[:space:]]'; then
-    continue
+  # Recursion gate. A recursive rm (-r/-R in any flag combination, or
+  # --recursive) is fully segment-gated. A NON-recursive rm still causes bulk
+  # loss through a glob — `rm -f .geniro/actions/*` expands to every file in the
+  # dir, the same loss as wiping it — while `rm -f <single-file>` at any depth
+  # is an allowed individual delete and a bare `rm -f <dir>` without -r is a
+  # no-op. So a non-recursive span also runs the per-arg gate below, but the
+  # loop evaluates ONLY its glob args (it skips non-glob args), keeping
+  # single-file deletes allowed.
+  recursive=0
+  if printf '%s' " $RM_SPAN " | grep -qE '[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]|[[:space:]]--recursive[[:space:]]'; then
+    recursive=1
   fi
 
-  # 1. rm -rf .geniro / .geniro/ / <prefix>/.geniro (bare — whole tree). The
-  #    trailing space appended to the span lets the terminator class match at
-  #    end-of-span; ) is in the class so `$(rm -rf .geniro)` terminates a match.
-  if ! is_allowed "rm-geniro-tree"; then
+  # 1. rm -rf .geniro / .geniro/ / <prefix>/.geniro (bare — whole tree). Only a
+  #    recursive rm deletes a bare directory, so this whole-tree check is
+  #    recursion-gated; the glob spellings (.geniro/*) are caught per-arg below
+  #    for both recursion modes. The trailing space appended to the span lets
+  #    the terminator class match at end-of-span; ) is in the class so
+  #    `$(rm -rf .geniro)` terminates a match.
+  if [ "$recursive" -eq 1 ] && ! is_allowed "rm-geniro-tree"; then
     if printf '%s' "$RM_SPAN " | grep -qE '(/|[[:space:]"'"'"'])\.geniro/?[[:space:]"'"'"');|&]'; then
       block "rm-geniro-tree" "rm -rf .geniro/ would wipe ALL plugin runtime + user-authored content (instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Use \`rm -f <single-file>\` for individual deletes."
     fi
@@ -180,6 +190,13 @@ while IFS= read -r RM_SPAN; do
     arg="${raw#\"}"; arg="${arg%\"}"
     arg="${arg#\'}"; arg="${arg%\'}"
     arg="${arg%)}"
+
+    # Non-recursive rm bulk-deletes only via a glob; skip non-glob args so a
+    # single-file `rm -f <path>` (any depth) stays allowed while
+    # `rm -f .geniro/<dir>/*` (bulk) falls through to the segment gate.
+    if [ "$recursive" -eq 0 ]; then
+      case "$arg" in *'*'*|*'?'*|*'['*) : ;; *) continue ;; esac
+    fi
 
     # Remember whether the arg explicitly named a directory (trailing slash) — a
     # dotted DIRECTORY name (.geniro/state/review.bak/) must not be mistaken for a

@@ -336,10 +336,16 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       *printf*|*echo*) : ;;
       *) continue ;;
     esac
+    # Target detection runs on a quote-blanked copy of the line so a `>` or `|`
+    # INSIDE the quoted payload (`echo "a=x > 0" > f.js`) can't be grabbed as the
+    # redirect target — `head -1` must land on the real target, not an in-payload
+    # one, or the derived extension is wrong and the scan is skipped. The raw
+    # line is kept below for the content (the quoted payload IS what we scan).
+    line_nq=$(printf '%s' "$line" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
     # Target: a redirect `> file` / `>> file`, else a `tee file` argument.
-    tgt=$(printf '%s' "$line" | grep -oE '>{1,2}\|?[[:space:]]*[^[:space:];|&<>)]+' | head -1 | sed -E 's/^>{1,2}\|?[[:space:]]*//' || true)
+    tgt=$(printf '%s' "$line_nq" | grep -oE '>{1,2}\|?[[:space:]]*[^[:space:];|&<>)]+' | head -1 | sed -E 's/^>{1,2}\|?[[:space:]]*//' || true)
     if [ -z "$tgt" ]; then
-      tgt=$(printf '%s' "$line" | grep -oE '(^|[|;&[:space:]])tee[[:space:]]+(-a[[:space:]]+)?[^[:space:];|&<>)]+' | head -1 | sed -E 's/^.*tee[[:space:]]+(-a[[:space:]]+)?//' || true)
+      tgt=$(printf '%s' "$line_nq" | grep -oE '(^|[|;&[:space:]])tee[[:space:]]+(-a[[:space:]]+)?[^[:space:];|&<>)]+' | head -1 | sed -E 's/^.*tee[[:space:]]+(-a[[:space:]]+)?//' || true)
     fi
     [ -z "$tgt" ] && continue
     tgt="$(strip_quotes "$tgt")"

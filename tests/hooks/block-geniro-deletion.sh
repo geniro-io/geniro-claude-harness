@@ -69,6 +69,16 @@ expect_block "trailing glob .geniro/* blocked"  "$(run_cmd 'rm -rf .geniro/*')"
 # the bare-* form and must block too (audit D5b-3 — only bare * was normalized).
 expect_block "trailing glob subdir/*.md blocked" "$(run_cmd 'rm -rf .geniro/instructions/*.md')"
 expect_allow "deep task-dir/*.md allowed"        "$(run_cmd 'rm -rf .geniro/planning/task-1/*.md')"
+# Regression: a NON-recursive glob bulk-delete (rm -f .geniro/<dir>/*) expands to
+# every file in the dir — the real Cursor-SCM .geniro/actions/*.md incident form —
+# and must block even without -r, which the recursive-only gate previously skipped.
+expect_block "rm -f subdir/* (no -r) blocked"    "$(run_cmd 'rm -f .geniro/instructions/*')"
+expect_block "rm -f subdir/*.md (no -r) blocked" "$(run_cmd 'rm -f .geniro/actions/*.md')"
+expect_block "rm -f .geniro/* (no -r) blocked"   "$(run_cmd 'rm -f .geniro/*')"
+# A NON-glob single-file rm -f at any depth stays allowed (the design-allowed
+# individual delete); a deep task-dir glob is skill cleanup and stays allowed.
+expect_allow "rm -f single file (no -r) allowed" "$(run_cmd 'rm -f .geniro/instructions/global.md')"
+expect_allow "rm -f deep task-dir glob allowed"  "$(run_cmd 'rm -f .geniro/planning/task-1/*.tmp')"
 expect_block "double-slash subdir blocked"      "$(run_cmd 'rm -rf .geniro//instructions/')"
 expect_block "parent-escape .. blocked"         "$(run_cmd 'rm -rf .geniro/instructions/..')"
 expect_block "dotted-DIR state subdir blocked"  "$(run_cmd 'rm -rf .geniro/state/review.bak/')"

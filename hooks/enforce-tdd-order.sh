@@ -263,7 +263,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    not a path; quoted scripts were already blanked by the quote scrub above.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
-    printf '%s' "$span" | grep -qE '[[:space:]]-i' || continue
+    printf '%s' "$span" | grep -qE '[[:space:]]-i|[[:space:]]--in-place' || continue
     set -f
     # shellcheck disable=SC2086
     for tok in $span; do
