@@ -5,14 +5,14 @@
 - §Why this exists — tool-explicit, observable, canonical load
 - §When to invoke — initial-load / refresh modes
 - §Caller contract — SKILL_SLUG / LOAD_TIER / MODE parameters
-- §Procedure — load set, primary-worktree fallback, per-file reads
-- §Echo contract — the one-line-per-file proof of read
+- §Procedure — load set, external-dir override, primary-worktree fallback, per-file reads
+- §Echo contract — the one-line-per-file proof of read (incl. external-dir success + bad-pointer caveat)
 - §Mid-pipeline refresh — phase-boundary re-read
 - §Producer contract — instruction-file schema the loader applies
 - §Anti-rationalization
 - §Definition of Done
 
-**Status:** Authoritative for loading and refreshing `.geniro/instructions/global.md`, `.geniro/instructions/<SKILL_SLUG>.md`, and `.geniro/instructions/code-style.md`.
+**Status:** Authoritative for loading and refreshing `global.md`, `<SKILL_SLUG>.md`, and `code-style.md` — from the in-repo `.geniro/instructions/` by default, or from an external base dir when `$GENIRO_INSTRUCTIONS_DIR` / the plugin's `instructions_dir` install option is configured.
 
 ## Why this exists
 
@@ -21,6 +21,7 @@ A natural-language "Load X" directive does not reliably trigger the Read tool �
 - **Tool-explicit** — imperative `` Read `<path>` `` directives, not "Load X if present"
 - **Observable** — a one-line echo after every Read, so the user can SEE that the read fired
 - **Canonical** — defined once here; consumers reference by path, never duplicate the prose
+- **Source-flexible** — loads from the in-repo `.geniro/instructions/` by default, or from an external base dir (`$GENIRO_INSTRUCTIONS_DIR` / the plugin's `instructions_dir` install option) so the plugin runs on clean fresh-clone environments where instructions aren't committed
 - **Anti-rationalization-guarded** — known skip rationalizations (e.g. "I already know the rules from memory") flagged in the table below
 
 ## When to invoke
@@ -53,13 +54,39 @@ Compute the load set from `LOAD_TIER`:
 - `pipeline` → `[global.md, <SKILL_SLUG>.md, code-style.md]` (three files, in that order)
 - `rules-only` → `[global.md]` (one file)
 
+**Resolve the instructions base directory once, before the load loop.** An external override lets the instruction files live OUTSIDE the repo (e.g. a clean fresh-clone environment where `.geniro/instructions/` is not committed). Run this Bash probe via the Bash tool to compute the active base directory:
+
+```bash
+EXTERNAL_DIR=""
+ext="${GENIRO_INSTRUCTIONS_DIR:-}"
+[ -z "$ext" ] && ext="${CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR:-}"
+if [ -n "$ext" ]; then
+  case "$ext" in
+    "~")   ext="$HOME" ;;
+    "~/"*) ext="$HOME/${ext#"~/"}" ;;
+  esac
+  if [ -d "$ext" ]; then
+    EXTERNAL_DIR="$ext"          # active external dir (absolute path)
+  else
+    echo "External instructions dir $ext not found — using in-repo instructions."
+  fi
+fi
+echo "EXTERNAL_DIR=$EXTERNAL_DIR"   # empty = in-repo default
+```
+
+Precedence: `$GENIRO_INSTRUCTIONS_DIR` (manual/automation override), then `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (set by Claude Code from the plugin's `instructions_dir` install option), then — neither set — the in-repo default. A configured-but-missing path fails open: emit the caveat (printed by the probe; §Echo contract) and fall back to the in-repo default. This inline resolution mirrors `_geniro_instructions_dir()` in `lib/repo-root.sh` — the two live in different execution worlds (orchestrator-Bash here, hook-shell there) but must stay in lockstep, the same rationale as the primary-worktree Mode A snippet inlined below vs `repo-root.sh`. Inlining the logic here (rather than sourcing a `lib/` helper) keeps the loader self-contained for vendored installs that lack `lib/`.
+
+When `EXTERNAL_DIR` is non-empty, the load set reads from it as a flat layout — `<EXTERNAL_DIR>/<file>`, with no `.geniro/instructions/` suffix — and the `PRIMARY_ROOT` resolution + cwd-first fallback below are skipped entirely (the external dir is an explicit override, not a merge). Resolve `PRIMARY_ROOT` and use the cwd-first fallback ONLY when `EXTERNAL_DIR` is empty (no external dir active, or a configured one was missing and already failed open).
+
 **Resolve `PRIMARY_ROOT` once, before the load loop.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash to compute the fallback location. When cwd is the main worktree (or the project isn't a git repo), `PRIMARY_ROOT="."` and the fallback is a no-op. When cwd is a linked worktree, `PRIMARY_ROOT` is the main worktree's absolute path. This handles two real failure modes: (a) `$ARGUMENTS` runs in `.claude/worktrees/<dir>/` where the branch checkout doesn't have instructions committed; (b) the current branch was created before `.geniro/instructions/*` was added on trunk, so the cwd checkout is stale relative to the user's latest authored rules.
 
 For each file in the load set, in order:
 
-1. Call the **Read** tool on `.geniro/instructions/<file>` (cwd-relative).
+1. Call the **Read** tool on the file:
+ - **External dir active (`EXTERNAL_DIR` non-empty):** Read `<EXTERNAL_DIR>/<file>` (the flat layout — no `.geniro/instructions/` suffix). Step 2a does not apply in external mode; the cwd + `PRIMARY_ROOT` fallback is skipped.
+ - **In-repo (no external dir):** Read `.geniro/instructions/<file>` (cwd-relative) — the cwd-first / `PRIMARY_ROOT`-fallback behavior. A configured-but-missing external dir already failed open (the probe emitted the caveat), so the loop runs here in in-repo mode.
 2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present). Skip step 2a.
-2a. **If Read errors with file-not-found AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
+2a. **If Read errors with file-not-found AND no external dir is active AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
 3. **If file is still not found** (cwd missing AND fallback missing or unavailable): treat as a silent skip — no error, no warning, just the missing-file echo line.
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
 4. After the Read attempt(s) (success OR file-not-found), print exactly one echo line per the §Echo contract — non-negotiable.
@@ -72,11 +99,13 @@ For each file in the load set, in order:
 
 After each Read attempt (or sequence of attempts including the primary-worktree fallback), print exactly one line to the user — non-negotiable. The echo is the user-visible proof that the Read fired. A silent Read is indistinguishable from a skipped Read.
 
-Three formats:
+Four success/skip formats plus one caveat:
 
 - **On Read success (cwd):** `Loaded <filename> (<N> rules, <M> constraints[, <D> data sources]).`
 - **On Read success (primary-worktree fallback fired):** `Loaded <filename> from primary worktree (<N> rules, <M> constraints[, <D> data sources]).` — signals to the user that cwd is stale relative to the main worktree's checkout.
+- **On Read success (external instructions dir active):** `Loaded <filename> from external instructions dir (<N> rules, <M> constraints[, <D> data sources]).` — signals the file came from the configured external base dir, not the repo.
 - **On file-not-found (both cwd and fallback, or fallback unavailable):** `No <filename> found — skipping.`
+- **Bad-pointer caveat (emitted once, by the base-dir probe, before the in-repo fallback loop runs):** `External instructions dir <path> not found — using in-repo instructions.`
 
 Examples (verbatim):
 
@@ -84,6 +113,8 @@ Examples (verbatim):
 Loaded global.md (3 rules, 2 constraints).
 Loaded global.md (3 rules, 2 constraints, 2 data sources).
 Loaded implement.md from primary worktree (2 rules, 1 constraint).
+Loaded code-style.md from external instructions dir (4 rules, 1 constraint).
+External instructions dir /opt/geniro-rules not found — using in-repo instructions.
 No code-style.md found — skipping.
 ```
 
@@ -139,12 +170,16 @@ Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantic
 | "Refresh wording from old code says 'since Phase 1' — I'll keep it." | Some skills (debug) have no Phase 1. "Since the previous load" is the canonical anchor-free wording — update on contact. |
 | "Cwd Read returned file-not-found — skip straight to the missing-file echo." | The user may have authored instructions on the main worktree's branch while the current cwd is a stale feature branch or a linked worktree. Always try the `PRIMARY_ROOT` fallback before echoing `No <filename> found` — that's the durability contract. |
 | "I'll always read from `PRIMARY_ROOT` directly and skip the cwd Read." | The user may have edited the instruction file on the current branch mid-session via `/geniro:instructions edit`. Cwd-first respects per-branch edits; primary-only loses them. The fallback fires ONLY when cwd misses. |
+| "An external instructions dir is set, so I'll merge it with the cwd `.geniro/instructions/` too." | The external dir is an explicit override, not a merge. When it's active and valid, read only from it — the cwd and primary-worktree fallbacks are skipped. Merging would resurrect stale in-repo rules the user meant to replace. |
+| "The configured external dir path doesn't exist, so I'll just load nothing and move on." | A bad pointer must be visible, not silent. Emit the `External instructions dir <path> not found — using in-repo instructions.` caveat and fall back to the in-repo default — silently loading zero rules hides a typo'd path. |
 
 ## Definition of Done
 
 - [ ] Helper is invoked at every consumer's Step 0 (initial load) — physically first, not buried mid-step
 - [ ] Helper is re-invoked at every phase-boundary refresh site declared in the consumer
-- [ ] `PRIMARY_ROOT` is resolved once per invocation via `primary-worktree.md` Mode A before the load loop
+- [ ] The instructions base directory is resolved once per invocation before the load loop (external override `$GENIRO_INSTRUCTIONS_DIR` > `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` > in-repo default), with a leading `~` expanded to an absolute path
+- [ ] When an external instructions dir is configured and valid, every file loads from it (flat layout, no `.geniro/instructions/` suffix) and the cwd/`PRIMARY_ROOT` fallbacks are skipped; a configured-but-missing dir emits the `External instructions dir <path> not found — using in-repo instructions.` caveat and falls back to in-repo
+- [ ] `PRIMARY_ROOT` is resolved once per invocation via `primary-worktree.md` Mode A before the load loop (in-repo mode only)
 - [ ] When cwd Read returns file-not-found AND `PRIMARY_ROOT` differs from cwd, a fallback Read against `<PRIMARY_ROOT>/.geniro/instructions/<file>` is attempted before the "No `<name>` found" echo
 - [ ] Every Read emits exactly one echo line per §Echo contract (cwd success / primary-worktree success / not-found)
 - [ ] File-not-found (after fallback) triggers the "No `<name>` found — skipping." echo, not an error

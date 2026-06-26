@@ -14,5 +14,12 @@
     "multi-agent",
     "code-review",
     "safety-hooks"
-  ]
+  ],
+  "userConfig": {
+    "instructions_dir": {
+      "type": "directory",
+      "title": "Custom instructions directory",
+      "description": "Optional. Absolute path to a directory holding your Geniro custom-instruction files (global.md, code-style.md, <skill>.md) when you don't commit .geniro/instructions/ into the repo — e.g. clean fresh-clone or ephemeral environments. For automated or headless environments, prefer setting the GENIRO_INSTRUCTIONS_DIR environment variable. Leave empty to use the in-repo .geniro/instructions/."
+    }
+  }
 }

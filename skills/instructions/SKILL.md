@@ -72,6 +72,8 @@ The stable scope set:
 
 **Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`) do NOT load instruction files** beyond `global.md`.
 
+**External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo `.geniro/instructions/` copy, because the atomic-write helper and the `.geniro/` deletion guard key on the literal `.geniro/` path — an external location would bypass both. To manage the external set, edit it directly at its path. The override covers only the loaded instruction trio (`global.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
+
 ## File Structure (singleton scopes)
 
 ```markdown

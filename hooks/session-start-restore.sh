@@ -42,6 +42,17 @@ if ! command -v _geniro_repo_root >/dev/null 2>&1; then
 fi
 GENIRO_ROOT="$(_geniro_repo_root)"
 
+# Resolve where L4 custom instructions load from — an external override
+# (GENIRO_INSTRUCTIONS_DIR / the plugin's instructions_dir option) means
+# they live outside the repo, which the post-compaction re-read must know.
+# The helper lives in repo-root.sh (sourced above); fall back to the in-repo
+# default when it is missing on a vendored install.
+if declare -f _geniro_instructions_dir >/dev/null 2>&1; then
+  INSTR_DIR="$(_geniro_instructions_dir)"
+else
+  INSTR_DIR="$GENIRO_ROOT/.geniro/instructions"
+fi
+
 # Portable SHA-256 resolver. Stock macOS ships `shasum` but not `sha256sum`;
 # a bare `sha256sum` would fail silently and yield empty slug suffixes / hash
 # markers. Source the canonical helper, falling back to an inline definition
@@ -643,6 +654,15 @@ SKILL.md instructions and conversation nuance may have been lost — re-read the
 files before continuing (the .geniro/instructions/* entries route through the
 canonical loader, NOT direct cwd Reads; CLAUDE.md, .geniro/planning/_FEATURES.md,
 spec/plan files remain direct Reads):"
+
+# When custom instructions resolve to an external directory (set via
+# GENIRO_INSTRUCTIONS_DIR or the plugin's instructions_dir option), the loader
+# reads them from outside the repo — the re-read must know where, since the
+# default .geniro/instructions/ path no longer holds them.
+if [ "$INSTR_DIR" != "$GENIRO_ROOT/.geniro/instructions" ]; then
+  BLOCK1="$BLOCK1
+Custom instructions load from an external directory: $INSTR_DIR (set via GENIRO_INSTRUCTIONS_DIR or the plugin's instructions_dir option) — the loader reads them from there, not from .geniro/instructions/."
+fi
 
 # Block 1b — standing behavioral contracts. File pointers survive compaction but
 # the behavioral rules drop silently; re-assert them whenever a Geniro task is

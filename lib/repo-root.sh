@@ -54,3 +54,28 @@ _geniro_repo_root() {
   fi
   echo "$PWD"
 }
+
+# Resolve the directory the L4 custom-instruction files are loaded from.
+# Honors an external override so instructions can live outside the repo
+# (e.g. a clean fresh-clone environment where .geniro/instructions/ is not
+# committed). Precedence: GENIRO_INSTRUCTIONS_DIR > the plugin install
+# option's CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR > <repo-root>/.geniro/instructions.
+# A configured-but-missing external dir falls back to the in-repo default
+# (fail-open). Always rc=0; prints an absolute path.
+_geniro_instructions_dir() {
+  local ext="${GENIRO_INSTRUCTIONS_DIR:-}"
+  [ -z "$ext" ] && ext="${CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR:-}"
+  if [ -n "$ext" ]; then
+    # shellcheck disable=SC2088  # literal tilde match patterns, not expansions
+    case "$ext" in
+      "~")   ext="$HOME" ;;
+      "~/"*) ext="$HOME/${ext#"~/"}" ;;
+    esac
+    if [ -d "$ext" ]; then
+      echo "$ext"
+      return 0
+    fi
+    # configured but not a directory → fail-open to the in-repo default
+  fi
+  echo "$(_geniro_repo_root)/.geniro/instructions"
+}
