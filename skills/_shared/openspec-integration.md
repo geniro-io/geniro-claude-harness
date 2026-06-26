@@ -11,6 +11,7 @@ The Geniro `spec.md` stays the source of truth that `/geniro:implement` consumes
 - §1 What OpenSpec is + detection
 - §2 The opt-in suggestion (detection-gated)
 - §3 Change-id and capability naming
+- §3.5 Tooling-first — prefer the repo's own OpenSpec commands & conventions
 - §4 Files written — the change-proposal layout
 - §5 Mapping — Geniro spec sections to OpenSpec files
 - §6 Spec deltas — requirement + scenario format
@@ -83,9 +84,26 @@ Persist the pick to `approvals[]` category `openspec_duplicate` so a resume does
 
 **Capability** — the spec folder a requirement belongs to. Match an existing `<root>/specs/<capability>/` folder when the plan's scope maps to one (read the folder list; pick the closest by name). When none matches, derive a single new capability slug from the primary affected area in scope section 2. One capability per change keeps the delta simple; split into multiple capability folders only when the scope plainly spans two established capabilities.
 
+## 3.5 Tooling-first — prefer the repo's own OpenSpec commands & conventions
+
+A repo that uses OpenSpec ships its own scaffolding tooling — the `/opsx:*` commands (`/opsx:propose` scaffolds a change folder, `/opsx:explore` refines, `/opsx:apply` works the tasks, `/opsx:archive` merges deltas), a project `openspec` CLI, and a refresh script such as `pnpm openspec:update`. That tooling is the authority on the exact shape a change must take in THIS repo's installed OpenSpec version — including files the hand-written §4–§6 contract can't anticipate (the per-change `.openspec.yaml` marker was one such surprise). Generate through the repo's tooling and conventions; hand-writing is the fallback for when no tooling is present.
+
+**Discover the repo's tooling first (read-only).** Before writing anything:
+
+1. **Read an existing change as the living template.** `ls <root>/changes/` and read one non-archived `changes/<id>/` end-to-end — its file set, its `.openspec.yaml` key set, its requirement/scenario style, and its change-id naming style (verb-led vs feature-led). Mirror exactly what you find; an existing change in the repo outranks the generic §4–§6 contract whenever they differ.
+2. **Detect the commands + CLI.** Check for the `openspec` CLI (`command -v openspec`), the `/opsx:*` commands (named in `AGENTS.md`, `.claude/commands/`, or a `package.json` script like `openspec:update`), and any documented refresh step. Note what exists for the steps below.
+
+**Generate through the tooling when it can do the work:**
+
+- When the `openspec` CLI exposes a scaffold/create command in this repo's version, use it to create the change skeleton, then fill the skeleton from the Geniro plan (§5–§6) — so the structure and marker files are tool-generated and version-correct, not reverse-engineered.
+- When scaffolding is only available as an interactive `/opsx:propose` command (AI-driven, would re-derive the plan you already approved), do NOT re-run it — instead replicate the artifacts it produces by mirroring the existing-change template from step 1, then fill them from the plan.
+- Always finish with the repo's validator (§8, `openspec validate --strict`) — it is the tooling's own check that the generated change is well-formed. When the repo documents a refresh step (`pnpm openspec:update`), surface it in the §11 echo rather than running it (it regenerates the team's command set — their call, not the plan's).
+
+This is a specific case of a general rule: when a repo provides its own commands, skills, or CLI for an artifact, detect them and generate through them fully before hand-rolling the artifact yourself. Hand-writing reverse-engineers a format the tooling already produces correctly, and drifts the moment the tooling's version moves.
+
 ## 4. Files written — the change-proposal layout
 
-Write under `<root>/changes/<change-id>/` (the §1-resolved root). These live OUTSIDE `.geniro/`, so the `enforce-state-helper` hook does not apply — write them with the `Write` tool (the skill's `allowed-tools` includes `Write`). They are planning artifacts, not source code: markdown specs and task checklists with no executable code, authored only after the Phase 8 approval and committed in the same commit as the Geniro spec.
+The §4–§6 file contract below is the **fallback** shape, used when §3.5 found no usable tooling — and even then, mirror an existing change (§3.5 step 1) over this generic contract wherever they differ. Write under `<root>/changes/<change-id>/` (the §1-resolved root). These live OUTSIDE `.geniro/`, so the `enforce-state-helper` hook does not apply — write them with the `Write` tool (the skill's `allowed-tools` includes `Write`). They are planning artifacts, not source code: markdown specs and task checklists with no executable code, authored only after the Phase 8 approval and committed in the same commit as the Geniro spec.
 
 | File | Always? | Source |
 |---|---|---|
@@ -242,7 +260,8 @@ User-facing lines name what happened in plain words — never internal identifie
 
 ```
 This repo uses OpenSpec — I can duplicate this plan into an OpenSpec change proposal too.
-Created the OpenSpec change "add-two-factor-auth" and validated it — included in the plan commit.
+Created the OpenSpec change "add-two-factor-auth" and validated it — included in the plan commit. I matched the shape of your existing changes (same marker file and naming style).
+Your OpenSpec commands refresh with `pnpm openspec:update` after a CLI release — run that yourself if the generated change looks out of date.
 Created the OpenSpec change "add-two-factor-auth" (OpenSpec CLI not installed, so I skipped its validator — the files follow the standard format).
 The OpenSpec validator flagged the change proposal — here's what it wants fixed, and I can fix it for you.
 You passed --openspec, but this repo has no openspec/ directory yet — skipping. Run `openspec init` first if you want OpenSpec here.
@@ -259,3 +278,4 @@ Couldn't write the OpenSpec change file — your Geniro plan is saved and commit
 | "Skip the scenario — the requirement text already states the behavior." | OpenSpec `validate --strict` fails any requirement with zero scenarios. Every requirement needs at least one `#### Scenario:`; derive it from the Done Condition's observable signal when the plan gives no explicit case. |
 | "`--openspec` was passed but there's no openspec/ dir — run `openspec init` to set it up." | Initializing a framework the team has not adopted is a bigger decision than this skill owns. Detection gates the integration; when not detected, note it and skip — the team runs `openspec init` themselves. |
 | "The OpenSpec validator failed — abort the plan so nothing inconsistent ships." | The Geniro spec is already approved and is the primary deliverable; the OpenSpec duplicate is secondary. Surface the failure, offer a bounded fix, but never block the plan commit on the secondary artifact. |
+| "Hand-write the OpenSpec files from the §4–§6 contract — my format is correct, no need to look at the repo's tooling." | The repo's own `/opsx:*` commands and `openspec` CLI are the authority on the exact shape its installed OpenSpec version expects — including files the generic contract can't anticipate (the per-change `.openspec.yaml` marker was discovered only by reading a real repo). Per §3.5, read an existing change and generate through the tooling first; the §4–§6 contract is the fallback, and an existing change outranks it on any difference. |
