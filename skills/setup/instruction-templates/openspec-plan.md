@@ -1,6 +1,6 @@
 ## Additional Steps
 
-### After approval
+### After user-approve
 
 <!--
 Duplicate the approved plan into an OpenSpec change proposal, using THIS repo's own OpenSpec tooling.

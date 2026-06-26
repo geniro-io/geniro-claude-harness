@@ -30,7 +30,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6.
-- Phase 8.7 executes any user-authored `### After approval` steps loaded from `.geniro/instructions/plan.md` — the generic extension point for project-specific post-plan work (e.g. duplicating the approved plan into an OpenSpec change via the project's own tooling). The plugin stays tool-agnostic; the procedure lives in the project's instruction file.
+- Phase 8.7 executes any user-authored `### After user-approve` steps loaded from `.geniro/instructions/plan.md` — the generic extension point for project-specific post-plan work (e.g. duplicating the approved plan into an OpenSpec change via the project's own tooling). The plugin stays tool-agnostic; the procedure lives in the project's instruction file.
 - Phase 9 handoff — prints the milestone-aware `/geniro:implement <path>` command (no question — the spec is already saved and committed at Phase 8).
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
@@ -78,7 +78,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open; `--deep`: 3× verify per cited claim with majority vote) | §"Phase 7.5 — Spec challenge" |
-| 8 | User approve (visual summary message + lean AUQ + git commit; §8.7 executes any user-authored `### After approval` steps from `.geniro/instructions/plan.md`) | §"Phase 8 — User approval" |
+| 8 | User approve (visual summary message + lean AUQ + git commit; §8.7 executes any user-authored `### After user-approve` steps from `.geniro/instructions/plan.md`) | §"Phase 8 — User approval" |
 | 9 | Handoff (non-interactive — prints the milestone-aware `/geniro:implement <path>` command, writes terminal `phase: done`) | §"Phase 9 — Handoff" |
 
 Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema gap.

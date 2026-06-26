@@ -269,10 +269,10 @@ Store as `$ISSUE_TRACKER_CHOICE` for Phase 3.
 Fires only when Phase 1 detected OpenSpec (`$OPENSPEC_ROOT` non-empty). When absent, skip silently.
 
 Use `AskUserQuestion` header "OpenSpec", question "This repo uses OpenSpec (at `$OPENSPEC_ROOT`). Have `/geniro:plan` duplicate approved plans into OpenSpec change proposals, and `/geniro:implement` archive them after ship?", options "Yes — add the OpenSpec steps" (Recommended) / "No — skip". On "Yes", append the two instruction blocks to the project's custom-instruction files (creating each from the `instructions-template.md` scaffold first if absent):
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md` → merge its `## Additional Steps` → `### After approval` subsection into `.geniro/instructions/plan.md`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md` → merge its `## Additional Steps` → `### After user-approve` subsection into `.geniro/instructions/plan.md`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md` → merge its `### After ship` subsection into `.geniro/instructions/implement.md`.
 
-The OpenSpec procedure lives ENTIRELY in these project instruction files — the plugin's `/geniro:plan` and `/geniro:implement` stay tool-agnostic and just execute the user-authored `### After approval` / `### After ship` steps via their custom-step anchors. On "No", write nothing.
+The OpenSpec procedure lives ENTIRELY in these project instruction files — the plugin's `/geniro:plan` and `/geniro:implement` stay tool-agnostic and just execute the user-authored `### After user-approve` / `### After ship` steps via their custom-step anchors. On "No", write nothing.
 
 Store as `$OPENSPEC_CHOICE` for Phase 3.
 
@@ -341,7 +341,7 @@ Generated CLAUDE.md sections:
 - `<PROJECT_ROOT>/CLAUDE.md` — project-specific content only. No section markers — CLAUDE.md is user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts).
 - `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in.
 - `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
-- `<PROJECT_ROOT>/.geniro/instructions/{plan,implement}.md` — only if OpenSpec was detected AND the user enabled it (§2.4b); the `### After approval` / `### After ship` blocks merged from the OpenSpec instruction templates.
+- `<PROJECT_ROOT>/.geniro/instructions/{plan,implement}.md` — only if OpenSpec was detected AND the user enabled it (§2.4b); the `### After user-approve` / `### After ship` blocks merged from the OpenSpec instruction templates.
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
