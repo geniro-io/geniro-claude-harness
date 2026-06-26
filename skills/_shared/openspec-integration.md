@@ -1,0 +1,266 @@
+# OpenSpec integration — duplicate an approved plan into an OpenSpec change proposal
+
+Single source of truth for the OpenSpec integration primitive. Skills cite this file; do NOT inline-paste the procedure.
+
+Applied by `/geniro:plan` when the consumer repository already uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) — a spec-driven-development framework that tracks change proposals under an `openspec/` directory. When that directory is present, `/geniro:plan` offers to duplicate the approved plan into a standard OpenSpec change proposal, so a team that drives its workflow through OpenSpec gets the plan in their own tooling's format without re-authoring it by hand.
+
+The Geniro `spec.md` stays the source of truth that `/geniro:implement` consumes. The OpenSpec change is a parallel, cross-linked artifact derived from it — never a replacement. Detection-gated, opt-in, read-only on detection, fail-open on every write and CLI step.
+
+## Contents
+
+- §1 What OpenSpec is + detection
+- §2 The opt-in suggestion (detection-gated)
+- §3 Change-id and capability naming
+- §4 Files written — the change-proposal layout
+- §5 Mapping — Geniro spec sections to OpenSpec files
+- §6 Spec deltas — requirement + scenario format
+- §7 Cross-reference — the integration link
+- §8 CLI validation (when available)
+- §9 Lifecycle — write at approval, one commit
+- §10 Fail-open
+- §11 Plain-English echo
+- §12 Anti-rationalization
+
+---
+
+## 1. What OpenSpec is + detection
+
+OpenSpec organizes spec-driven work under a repo-root `openspec/` directory:
+
+```
+openspec/
+  project.md                       # project context
+  specs/<capability>/spec.md       # current, deployed capabilities (source of truth "today")
+  changes/<change-id>/             # one folder per in-flight change proposal
+    proposal.md
+    tasks.md
+    design.md                      # optional — complex changes only
+    specs/<capability>/spec.md     # the requirement delta for this change
+  changes/archive/                 # changes archived after deploy
+```
+
+**Detection (read-only).** A repo uses OpenSpec when its OpenSpec root directory exists with at least one of `<root>/project.md`, `<root>/specs/`, or `<root>/changes/`. The root is `openspec/` by default, but the repo may configure a custom location — resolve it first, then test, all read-only from the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`.
+
+**Resolve the OpenSpec root (custom-directory aware).** Check these in order; first hit wins, default last:
+
+1. **Geniro workflow config (the setup-written file).** `.geniro/workflow/openspec.md` carries an `openspec:` block with `enabled` + `directory`, written by `/geniro:setup` when the user enables the integration (the same place the Linear/issue-tracker integration is configured). When the file is present: `enabled: false` turns the integration OFF (skip everything below); `enabled: true` uses its `directory` as the root. This is the canonical config when setup has run.
+2. **Geniro custom-instruction override.** A user may declare `openspec_dir: <path>` in `.geniro/instructions/plan.md` or `global.md` (surfaced by the L4 loader). Honor it when no workflow file set the directory.
+3. **OpenSpec's own config.** When the repo carries an OpenSpec config file, read the directory it declares — common shapes: a `directory` / `specsDir` field in `openspec.json` or `.openspec.json`, or an `openspec.directory` field in `package.json`. Parse read-only; on a parse error, fall through.
+4. **Default.** `openspec/` at the primary worktree root.
+
+Sources 2–4 are the fallback when setup has not run but OpenSpec is clearly present — the integration still offers itself, resolving the root from the repo's own configuration. The workflow file (source 1) is preferred because it also carries the explicit `enabled` switch.
+
+Source 1 (the `.geniro/workflow/openspec.md` `openspec:` block) is read as markdown by the orchestrator first — when it sets `enabled: false`, stop; when it sets a `directory`, use it. The bash below resolves the fallback sources 2–4 when the workflow file did not set a directory:
+
+```bash
+# resolve_openspec_root: echo the configured root, else default "openspec"
+# $openspec_dir_override holds the directory from the workflow file (source 1)
+# or the L4 custom-instruction openspec_dir (source 2), when either set one.
+root=""
+# (sources 1-2) directory already resolved from the workflow file or L4 override
+[ -n "$openspec_dir_override" ] && root="$openspec_dir_override"
+# (source 3) OpenSpec config files
+if [ -z "$root" ]; then
+  for cfg in openspec.json .openspec.json; do
+    if [ -f "$cfg" ]; then
+      d=$(grep -oE '"(directory|specsDir)"[[:space:]]*:[[:space:]]*"[^"]+"' "$cfg" | head -1 | sed -E 's/.*"([^"]+)"$/\1/')
+      [ -n "$d" ] && root="$d" && break
+    fi
+  done
+fi
+# (source 4) default
+[ -z "$root" ] && root="openspec"
+
+if [ -d "$root" ] && { [ -f "$root/project.md" ] || [ -d "$root/specs" ] || [ -d "$root/changes" ]; }; then
+  echo "openspec-detected:$root"
+fi
+```
+
+Carry the resolved `<root>` through every later step — `<root>/changes/<change-id>/`, `<root>/specs/<capability>/`, and the CLI run all use it, not a hard-coded `openspec/`. Detection never writes and never blocks. Absence is the normal case — the integration stays dormant and `/geniro:plan` behaves exactly as it does without OpenSpec.
+
+## 2. The opt-in suggestion (detection-gated)
+
+The suggestion fires ONLY when §1 detected OpenSpec. A repo without `openspec/` never sees the question — there is nothing to duplicate into.
+
+When the `--openspec` / `--no-openspec` modifier pre-answered the suggestion, skip the question and apply the modifier (`--openspec` → emit; `--no-openspec` → skip). `--openspec` still requires detection — when it is passed but no `openspec/` directory exists, emit the §11 "not found" note and skip rather than scaffolding OpenSpec from scratch (initializing a framework the team has not adopted is a heavier decision than this skill owns; the team runs `openspec init` themselves).
+
+Otherwise render a one-line plain-English framing, then fire ONE lean `AskUserQuestion`:
+- `header`: "OpenSpec"
+- `question`: "This repo uses OpenSpec. Also duplicate this approved plan into an OpenSpec change proposal?"
+- `options[]` (single-select):
+  - **Yes — create the OpenSpec change** (Recommended) — write the change proposal under `openspec/changes/<change-id>/` and include it in the plan commit.
+  - **No — Geniro spec only** — leave OpenSpec untouched; the Geniro spec is unaffected either way.
+
+Persist the pick to `approvals[]` category `openspec_duplicate` so a resume does not re-ask.
+
+## 3. Change-id and capability naming
+
+**Change-id** — verb-led kebab-case, the OpenSpec convention (`add-two-factor-auth`, `refactor-payment-retry`). Derive it from the plan: prefer a verb + the task slug (e.g. task slug `two-factor-auth` → `add-two-factor-auth`); when the objective already starts with a verb, kebab-case the objective's first clause. Cap at ~40 chars. If `openspec/changes/<change-id>/` already exists, append `-2`, `-3`, … so an existing change is never overwritten.
+
+**Capability** — the spec folder a requirement belongs to. Match an existing `openspec/specs/<capability>/` folder when the plan's scope maps to one (read the folder list; pick the closest by name). When none matches, derive a single new capability slug from the primary affected area in scope section 2. One capability per change keeps the delta simple; split into multiple capability folders only when the scope plainly spans two established capabilities.
+
+## 4. Files written — the change-proposal layout
+
+Write under `openspec/changes/<change-id>/`. These live OUTSIDE `.geniro/`, so the `enforce-state-helper` hook does not apply — write them with the `Write` tool (the skill's `allowed-tools` includes `Write`). They are planning artifacts, not source code: markdown specs and task checklists with no executable code, authored only after the Phase 8 approval and committed in the same commit as the Geniro spec.
+
+| File | Always? | Source |
+|---|---|---|
+| `proposal.md` | yes | §5 — objective + scope + risk/rollback |
+| `tasks.md` | yes | §5 — the plan's Steps |
+| `specs/<capability>/spec.md` | yes | §6 — Validation + Done Condition as requirements |
+| `design.md` | Medium / Big tier only | §5 — chosen approach + considered alternatives |
+
+`design.md` is optional in OpenSpec — emit it only for Medium/Big effort tiers, where the approach reasoning is worth recording. Skip it on Trivial/Small; a one-paragraph design adds noise.
+
+## 5. Mapping — Geniro spec sections to OpenSpec files
+
+Read the approved Geniro `spec.md` and map its sections. Do not re-derive content — transcribe and reshape what the user already approved.
+
+**`proposal.md`:**
+
+```markdown
+## Why
+
+<Geniro spec section 1 Objective, expanded with the Problem & Evidence section when the spec carries one (--prd run); 1-3 sentences stating the motivation.>
+
+## What Changes
+
+<Geniro spec section 2 Scope — Included, as a bullet list. Add a "Not changing:" line summarizing section 3 Scope — Excluded when it is non-empty.>
+
+## Impact
+
+- Affected specs: <capability/ folders touched by the delta>
+- Affected code: <the file globs from section 2 / the Steps' cited paths>
+- Risks: <Geniro spec section 5 Risks, one line; "none" when the spec says so>
+- Rollback: <Geniro spec section 10 Rollback-Recovery, one line>
+```
+
+**`tasks.md`** — OpenSpec uses numbered groups with checkbox sub-items. Map the plan's Steps (section 6): group related steps under a `## N. <group>` heading, each step a `- [ ] N.M` checkbox. A flat plan maps to a single group:
+
+```markdown
+## 1. Implementation
+
+- [ ] 1.1 <Geniro spec Step 1 description>
+- [ ] 1.2 <Geniro spec Step 2 description>
+
+## 2. Validation
+
+- [ ] 2.1 <each section 9 Validation criterion as a verifiable task>
+```
+
+Carry each step's intent in plain words; drop the Geniro `<!-- step-N -->` anchors and `file:line` cites (OpenSpec tasks are coarser). For a milestone-sliced plan, one group per milestone.
+
+**`design.md`** (Medium/Big only) — the chosen approach and why, plus the alternatives considered:
+
+```markdown
+## Context
+
+<one paragraph: the design problem, from the Objective + Risks>
+
+## Decision
+
+<the Phase 4 chosen approach name + summary from the Geniro spec's Approach prose>
+
+## Alternatives considered
+
+<the Geniro spec `## Considered Alternatives` body, condensed — each alternative + why not>
+```
+
+## 6. Spec deltas — requirement + scenario format
+
+The delta at `openspec/changes/<change-id>/specs/<capability>/spec.md` states the behavior this change adds or modifies, in OpenSpec's requirement/scenario grammar. Derive requirements from the plan's behavioral criteria — section 9 (Validation) and section 11 (Done Condition) describe observable behavior, which is exactly what a requirement captures.
+
+Format (OpenSpec canonical):
+
+```markdown
+## ADDED Requirements
+
+### Requirement: <short capability name>
+
+The system SHALL <observable behavior, derived from a Validation criterion or the Done Condition>.
+
+#### Scenario: <scenario name>
+
+- **WHEN** <the triggering condition>
+- **THEN** <the expected outcome>
+```
+
+Rules that keep `openspec validate --strict` green:
+- Use `## ADDED Requirements` for new behavior, `## MODIFIED Requirements` for changed behavior, `## REMOVED Requirements` for removed behavior. A pure-additive feature uses `ADDED` only.
+- **Every requirement carries at least one `#### Scenario:`.** OpenSpec validation fails a requirement with no scenario. When the plan gives a behavior but no explicit case, write one scenario from the Done Condition's observable signal.
+- One requirement per distinct behavior; do not collapse unrelated criteria into one requirement.
+- Requirement text uses SHALL/MUST (normative); scenarios use the `WHEN`/`THEN` (optionally `GIVEN`/`AND`) bullet form.
+
+A Trivial plan with a single Validation criterion yields one requirement with one scenario — that is valid and sufficient.
+
+## 7. Cross-reference — the integration link
+
+Link the two artifacts so each points at the other:
+
+1. **Geniro spec → OpenSpec.** At the Phase 8 approval rewrite (the same rewrite that flips `lifecycle: draft` → `approved`), add `openspec_change_id: <change-id>` to the Geniro spec frontmatter. Optional field; absent when the user declined the suggestion. Per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` § Frontmatter.
+2. **OpenSpec → Geniro spec.** Add a trailer line to `proposal.md`:
+
+   ```markdown
+   ---
+   Generated from the Geniro plan at `.geniro/planning/<slug>/spec.md`.
+   ```
+
+The cross-reference is what makes this an integration rather than two disconnected files: a reader on either side can find the other, and a later `/geniro:plan` re-run that detects the existing `openspec_change_id` updates that change rather than creating a duplicate.
+
+## 8. CLI validation (when available)
+
+After writing the files, validate the change when the `openspec` CLI is installed (it ships with the team's OpenSpec setup; absence is common and fine):
+
+```bash
+if command -v openspec >/dev/null 2>&1; then
+  openspec validate "<change-id>" --strict
+fi
+```
+
+- CLI present and validation passes → echo the §11 success line.
+- CLI present and validation fails → the files are written but malformed against OpenSpec's stricter checks. Surface the validator output in plain English and offer to fix it (re-author the flagged file, re-validate; max 2 rounds), then continue. A validation failure never blocks the plan commit — the Geniro spec is already approved and the OpenSpec change is the secondary artifact.
+- CLI absent → skip validation silently; the files still conform to §4–§6, which is the format the CLI checks.
+
+## 9. Lifecycle — write at approval, one commit
+
+The OpenSpec change is written at Phase 8 AFTER the user approves the Geniro spec, and folded into the SAME commit:
+- Write the §4 files only on the "Yes" pick (or `--openspec`).
+- `git add openspec/changes/<change-id>/` alongside the Geniro `spec.md` (+ milestones) in the Phase 8 commit step, so one commit carries the plan and its OpenSpec duplicate.
+- Record the write in the Geniro state.md `## Tool log` and add the written paths to the Phase 8 `non-resumable-actions[]` commit entry's `files` list.
+
+Writing at approval (not at Phase 6 draft time) means an artifact the user declined is never created, and a plan that is revised before approval never leaves a stale OpenSpec change on disk.
+
+## 10. Fail-open
+
+| Situation | Behavior |
+|---|---|
+| `openspec/` absent | Integration dormant; no question, no write, no notice beyond nothing. |
+| Detection check errors | Treat as not-detected; continue the plan unchanged. |
+| A file write fails | Echo a one-line caveat naming the file; the Geniro spec commit still proceeds (the plan is the primary deliverable). Do not abort the plan over the secondary artifact. |
+| `openspec` CLI absent | Skip validation; files still conform to the documented format. |
+| `openspec validate` fails | Surface in plain English, offer a bounded fix loop (§8), never block the commit. |
+| `--openspec` passed but not detected | Echo the §11 "not found" note; skip — never scaffold OpenSpec the team has not adopted. |
+
+## 11. Plain-English echo
+
+User-facing lines name what happened in plain words — never internal identifiers.
+
+```
+This repo uses OpenSpec — I can duplicate this plan into an OpenSpec change proposal too.
+Created the OpenSpec change "add-two-factor-auth" and validated it — included in the plan commit.
+Created the OpenSpec change "add-two-factor-auth" (OpenSpec CLI not installed, so I skipped its validator — the files follow the standard format).
+The OpenSpec validator flagged the change proposal — here's what it wants fixed, and I can fix it for you.
+You passed --openspec, but this repo has no openspec/ directory yet — skipping. Run `openspec init` first if you want OpenSpec here.
+Couldn't write the OpenSpec change file — your Geniro plan is saved and committed regardless.
+```
+
+## 12. Anti-rationalization
+
+| Reasoning | Why it is wrong |
+|---|---|
+| "OpenSpec is detected, so replace the Geniro spec with the OpenSpec change and skip spec.md." | `/geniro:implement` consumes the Geniro `spec.md` — replacing it breaks the whole plan→implement pipeline. The OpenSpec change is a parallel, cross-linked duplicate, never a substitute. Write both. |
+| "Writing under `openspec/` is writing source — that violates /geniro:plan's never-touch-source rule." | OpenSpec change files are markdown specs, task checklists, and requirement deltas — planning artifacts, the same class as spec.md, just in another tool's convention. They carry no executable code, are written only after the Phase 8 approval, and ship in the plan commit. That is planning, not implementation. |
+| "Emit the OpenSpec change at Phase 6 alongside spec.md to mirror its lifecycle exactly." | The suggestion is offered at Phase 8 after the user approves; emitting earlier would create an artifact the user may decline, and a pre-approval revision would leave a stale change on disk. Write at approval, commit once. |
+| "Skip the scenario — the requirement text already states the behavior." | OpenSpec `validate --strict` fails any requirement with zero scenarios. Every requirement needs at least one `#### Scenario:`; derive it from the Done Condition's observable signal when the plan gives no explicit case. |
+| "`--openspec` was passed but there's no openspec/ dir — run `openspec init` to set it up." | Initializing a framework the team has not adopted is a bigger decision than this skill owns. Detection gates the integration; when not detected, note it and skip — the team runs `openspec init` themselves. |
+| "The OpenSpec validator failed — abort the plan so nothing inconsistent ships." | The Geniro spec is already approved and is the primary deliverable; the OpenSpec duplicate is secondary. Surface the failure, offer a bounded fix, but never block the plan commit on the secondary artifact. |

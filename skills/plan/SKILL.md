@@ -4,7 +4,7 @@ description: "Use when turning a vague idea or feature request into an approved 
 context: main
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, WebSearch, WebFetch, Workflow]
 model: inherit
-argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
+argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact] [--openspec]"
 ---
 
 # /geniro:plan — Spec-first planning
@@ -30,11 +30,12 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6.
+- When the repo uses OpenSpec (detected at Phase 1, configurable via `.geniro/workflow/openspec.md`): an optional, cross-linked OpenSpec change proposal under `<openspec_root>/changes/<change-id>/`, offered at Phase 8 post-approve and committed alongside spec.md. The Geniro spec stays the source of truth `/geniro:implement` consumes; the OpenSpec change is a parallel duplicate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/openspec-integration.md`.
 - Phase 9 handoff — prints the milestone-aware `/geniro:implement <path>` command (no question — the spec is already saved and committed at Phase 8).
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
-**Flags & presets:** `--prd`, `--deep`, `--artifact`, and the launch modifiers (workspace / ship / `freshness:`) that pre-fill the spec's `launch_config` are cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+**Flags & presets:** `--prd`, `--deep`, `--artifact`, `--openspec` / `--no-openspec`, and the launch modifiers (workspace / ship / `freshness:`) that pre-fill the spec's `launch_config` are cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
 
 ---
 
@@ -69,7 +70,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 |---|---|---|
 | 0 | Mode detect (also detects the opt-in `--prd`, `--deep`, and `--artifact` flags; asks the visual-artifact opt-in question when `--artifact` is absent, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) | §"Phase 0 — Mode detect" |
 | 0.5 | Problem discovery (opt-in — fires only with `--prd`: problem-first interview before explore, feeds the spec's optional `## Problem & Evidence` section) | §"Phase 0.5 — Problem discovery" |
-| 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch) | §"Phase 1 — Explore" |
+| 1 | Explore (effort-tier-scaled spawns + custom-instructions/project-snapshot/past-learnings refresh + workflow_refs fetch + read-only OpenSpec detection per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/openspec-integration.md`) | §"Phase 1 — Explore" |
 | 2 | Visual Companion (UI-conditional — calls ui-preview-gate.md) | §"Phase 2 — Visual Companion" |
 | 3 | Grill (decision-tree clarification — depth-first walk of the design's open decisions, one question at a time, each preceded by a message-first framing then a lean single-question AUQ with a recommended answer; the frontier regenerates after each answer so a later question adapts to or drops on an earlier one; no fixed cap — bounded by a summarize-and-continue checkpoint AUQ every ~6 questions or at branch completion), plus the Standard/Deep depth question asked once at wrap-up when `--deep` is absent | §"Phase 3 — Grill (decision-tree clarification)" |
 | 4 | Approaches (2-3 rendered to a chat message in the shared visual language — progress tracker, plain-English digest, diagrams — then ONE lean AUQ with Recommended first; when an approach involves non-trivial code an external library could own (effort tier Small/Medium/Big — skip Trivial), folds a build-vs-buy option into the approach trade-offs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: plan — verified candidate libraries with links; the approach approval is the confirmation, the binding install confirmation is deferred to /geniro:implement; `--deep`: judge-panel approach search + 3× feasibility critics with majority vote — `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`) | §"Phase 4 — Approaches" |
@@ -77,7 +78,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 6 | Write spec.md (NO auto-commit; `workflow_refs[]` copied from state.md) | §"Phase 6 — Write spec.md" |
 | 7 | Mechanical validator (full check set — adds `workflow_refs_consistency`) | §"Phase 7 — Mechanical validator" |
 | 7.5 | Spec challenge (always-on adversarial pass — verify claims, generate alternatives, red-team; advisory, fail-open; `--deep`: 3× verify per cited claim with majority vote) | §"Phase 7.5 — Spec challenge" |
-| 8 | User approve (visual summary message + lean AUQ + git commit) | §"Phase 8 — User approval" |
+| 8 | User approve (visual summary message + lean AUQ + git commit; offers the OpenSpec duplicate when OpenSpec is active) | §"Phase 8 — User approval" |
 | 9 | Handoff (non-interactive — prints the milestone-aware `/geniro:implement <path>` command, writes terminal `phase: done`) | §"Phase 9 — Handoff" |
 
 Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema gap.
@@ -150,6 +151,8 @@ deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); m
 artifact_mode: true              # optional, present only when the user opted into the visual artifact (Phase 0 question or --artifact)
 artifact_status: pending|live|unavailable  # optional, present only in artifact mode — publish lifecycle state
 artifact_url: "<url>"            # optional, present once the page is published live
+openspec_detected: true          # optional, present only when Phase 1.6 found an active OpenSpec setup
+openspec_root: "<dir>"           # optional, the resolved OpenSpec root (default "openspec" or a custom dir)
 ---
 ```
 
@@ -207,7 +210,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) | Edit / direct Write / mutating Bash |
 | Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
 | Phase 7.5 (Spec challenge, always-on) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn — OMIT `model=`) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
-| Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
+| Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit`; read-only `openspec validate` when installed) / atomic_state_write / Write (OpenSpec change files under `<openspec_root>/changes/` only — outside `.geniro/`, on the §8.3.6 opt-in) | Edit / general-purpose Bash |
 | Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
 
 **Mutation enforcement:** frontmatter `allowed-tools` excludes `Edit` (this skill never edits in place).
