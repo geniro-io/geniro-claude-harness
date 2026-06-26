@@ -61,7 +61,7 @@ These are intended to outlive any single task. The resolver applies to both read
 | `.geniro/planning/_focus-<area>.md` | manual | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
 | `.geniro/workflow/<kind>.md` | manual / `/geniro:setup` | `/geniro:plan`, `/geniro:implement`, `/geniro:review`, `/geniro:refactor` | Tracker integration configs (Linear/Jira/GitHub-Issues/Asana); read with cwd-first / primary-fallback per per-site preambles |
 | `.geniro/actions/<slug>.md` | manual / `/geniro:actions create` | `/geniro:actions` (list/run/validate/delete) | User-authored workflow-helper actions; dual-glob with local-wins-on-slug-collision per `skills/actions/SKILL.md` Phase 5.0 Step 1 |
-| `.geniro/instructions/<scope>.md` | manual / `/geniro:setup` / `/geniro:instructions create` | every pipeline skill's Phase 1 `load-custom-instructions` invocation | L4 procedural memory (global / code-style / per-skill / review-extra/<slug>); cwd-first / primary-fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §"Resolve `PRIMARY_ROOT` once" |
+| `.geniro/instructions/<scope>.md` | manual / `/geniro:setup` / `/geniro:instructions create` | every pipeline skill's Phase 1 `load-custom-instructions` invocation | L4 procedural memory (global / code-style / per-skill / review-extra/<slug>); cwd-first / primary-fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §"Resolve `PRIMARY_ROOT` once". An external override (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), when configured, takes precedence over the cwd-first/primary-fallback resolution — see the same loader doc |
 
 ## Artifacts NOT in scope (task-local — keep cwd-relative)
 

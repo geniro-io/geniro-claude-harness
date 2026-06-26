@@ -106,6 +106,30 @@ Each skill reads from and writes to `.geniro/` so context survives across compac
 - **Rules persist** — `/geniro:instructions` manages `.geniro/instructions/`, and every relevant skill applies the canonical loader at `skills/_shared/load-custom-instructions.md` on every run (Step 0 + phase-boundary refresh) to read `global.md` + per-skill file + `code-style.md`, with an observable echo line after each Read (so "always use snake_case for DB columns" only has to be said once, and you can SEE that the rules were loaded).
 - **State survives compaction** — long pipelines checkpoint to T1 state files (`<task-dir>/state.md` or `state/<skill>/<slug>/state.md`); the SessionStart hook re-injects them after every `compact|resume|startup` event. Within-skill state files are slug-scoped per `skills/_shared/within-skill-state-handoff.md` so parallel sessions on different branches don't clobber each other.
 
+### Custom instructions from an external directory
+
+By default the plugin reads your custom instructions — `global.md`, `code-style.md`, and per-skill files like `implement.md` — from `.geniro/instructions/` in your repo. For clean fresh-clone or ephemeral environments where you don't want to commit those files, point the plugin at a directory **outside** the repo instead. Two ways to set it, highest precedence first:
+
+**1. Environment variable (recommended)** — the reliable channel: the plugin reads it from the shell environment its Bash steps run in, so it always takes effect. Best for CI / per-environment setup:
+
+```bash
+export GENIRO_INSTRUCTIONS_DIR=/etc/geniro/instructions
+```
+
+**2. Plugin install option (convenience)** — when you enable the plugin, Claude Code prompts for an `instructions_dir` (a directory), which it exports as `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR`. Point it at your external folder; the plugin uses it whenever the environment variable above is unset. If it doesn't take effect for instruction loading in your runtime, set `GENIRO_INSTRUCTIONS_DIR` instead — that channel always works.
+
+The directory holds the instruction files **flat** — no `.geniro/instructions/` subpath:
+
+```
+/etc/geniro/instructions/
+├── global.md
+├── code-style.md
+├── implement.md
+└── review.md
+```
+
+When an external directory is active it **replaces** the in-repo `.geniro/instructions/` (the two are not merged), and only the skills read from it — editing the files with `/geniro:instructions` still updates the in-repo copy, which you manage yourself. If the configured path is missing, the plugin warns and falls back to the in-repo default, so a bad path never blocks a run.
+
 ## Skills (12 total)
 
 ### `/geniro:setup` — AI-driven project setup

@@ -35,6 +35,7 @@ Four-layer taxonomy: L1 Working / L2 Episodic / L3 Semantic / L4 Procedural.
 - CLAUDE.md is outside the memory model — the plugin never writes to it.
 - L3 files live under `planning/_*.md`; `.fingerprint.json` hashes detect drift.
 - Hard conflict (L4 rule contradicts L3 reality) halts the skill and opens an AUQ per `_shared/resolve-conflicts.md`.
+- **L4 base directory is overridable for clean fresh-clone / ephemeral environments.** Precedence: `GENIRO_INSTRUCTIONS_DIR` > `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (the plugin's `instructions_dir` install option) > `<repo>/.geniro/instructions`. The external dir holds the instruction files flat (`<dir>/global.md`, …); an active external dir is **override, not merge** (it replaces the in-repo set). Read-side only — pipeline skills read from it, but `/geniro:instructions` CRUD stays in-repo because the atomic-write + `.geniro/`-deletion guards key on the literal `.geniro/` path. A configured-but-missing pointer fails open to the in-repo default. Resolver: `skills/_shared/load-custom-instructions.md` (inline) + `lib/repo-root.sh` (`_geniro_instructions_dir`).
 
 ---
 

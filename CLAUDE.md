@@ -114,7 +114,7 @@ Every persisted fact lives in exactly one of four layers. Writers know **what** 
 
 | Helper | Purpose |
 |--------|---------|
-| `_shared/load-custom-instructions.md` | Load L4 — `global.md` + `<skill>.md` + `code-style.md` |
+| `_shared/load-custom-instructions.md` | Load L4 — `global.md` + `<skill>.md` + `code-style.md`; base dir is overridable to an external location via `GENIRO_INSTRUCTIONS_DIR` (or the plugin's `instructions_dir` install option) for sourcing instructions outside the repo |
 | `lib/load-semantic.sh` | Load L3 — `_project.md` + `_CODEBASE_MAP.md` by default; `--extras "..."` for additional files; auto-runs fingerprint drift check to stderr |
 | `lib/update-semantic.sh` | Bounded-write L3 — `--file <codebase-map\|features> --append "<line>"` or `--replace "<prefix>" "<new>"`. Per-file POSIX-O_EXCL lock; rc=11 if held |
 | `lib/emit-learning.sh` | Append L2 — JSON on stdin, auto-sanitization, auto-dedup with supersede chain |
