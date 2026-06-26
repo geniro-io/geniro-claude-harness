@@ -63,9 +63,14 @@ PADDED=" ${JOINED//$'\n'/ } "
 # --git-dir/--work-tree/--namespace/--exec-path/--config-env/--attr-source, pager
 # flags) so the `git <subcommand>` matchers below see the subcommand contiguously.
 # Without this, `git -C /repo worktree remove` and `git -C /repo add -f .geniro/...`
-# evade the data-loss guards. Mirrors block-dangerous-git.sh (kept inline so this
-# guard stays self-contained for vendored installs).
-PADDED=$(printf '%s' "$PADDED" | sed -E 's/git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--work-tree(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--namespace(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--exec-path(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--config-env(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--attr-source(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g')
+# evade the data-loss guards. The operand alternative matches a double- or
+# single-quoted span (which may contain spaces) before a bare token, so a quoted
+# path like `git -C "/my repo" worktree remove` is consumed as one unit instead of
+# the strip stopping at the first space inside the quotes and leaking the
+# subcommand. Mirrors block-dangerous-git.sh (kept inline so this guard stays
+# self-contained for vendored installs).
+_op='("[^"]*"|'\''[^'\'']*'\''|[^[:space:]]+)'
+PADDED=$(printf '%s' "$PADDED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
 
 # Blank quoted-string literals that CONTAIN an `rm` word — these are rm mentions
 # inside another command's string argument (`echo "do not rm -rf .geniro/"`,
@@ -221,10 +226,13 @@ while IFS= read -r RM_SPAN; do
     # Normalize to the path the shell actually deletes, so equivalent forms count
     # at the same depth instead of slipping the segment gate:
     #  - squeeze repeated slashes: .geniro//instructions == .geniro/instructions
-    #  - drop a trailing glob '*' segment: the shell expands .geniro/instructions/*
-    #    to every entry in the PARENT — the same loss as .geniro/instructions/.
+    #  - drop a trailing glob segment — bare `*` OR a globbed filename like `*.md`:
+    #    the shell expands .geniro/instructions/*.md to every matching entry in the
+    #    PARENT, the same loss as wiping .geniro/instructions/ itself. Matching only
+    #    a bare `*` let `.geniro/instructions/*.md` keep its 3rd segment and pass the
+    #    gate while `.geniro/instructions/*` was correctly blocked.
     while [ "$norm" != "${norm//\/\//\/}" ]; do norm="${norm//\/\//\/}"; done
-    if [ "${norm##*/}" = "*" ]; then norm="${norm%/*}"; fi
+    case "${norm##*/}" in *'*'*) norm="${norm%/*}" ;; esac
 
     # After dropping a trailing glob, a bare `.geniro` means "delete everything in
     # .geniro" (rm -rf .geniro/*) — the whole-tree loss spelled with a glob.

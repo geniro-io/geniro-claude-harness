@@ -37,6 +37,13 @@ run_multiedit() {
   jq -nc --arg p "$1" '{tool_input: {file_path: $p, edits: [{old_string: "a", new_string: "b"}]}}' | bash "$HOOK" >/dev/null 2>&1
   echo $?
 }
+# Bash-form payload: the command writes a file via heredoc / redirect / tee. The
+# Bash branch extracts the write target and applies the same test-vs-production
+# classification as the Edit path.
+run_bash() {
+  jq -nc --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
 
 # Isolated git repo so `git branch --show-current` (the slug source) is deterministic.
 GITREPO="$TMPDIR_BASE/repo"
@@ -83,6 +90,36 @@ rm -f "$GITREPO/.geniro/safety.json"
 
 # ===== Missing file_path → allow =====
 expect_allow "missing file_path → allow" "$(echo '{"tool_input": {}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
+
+# ===== Bash branch: shell-side writes are gated like Edits during RED =====
+write_phase RED
+expect_block "RED: Bash heredoc into production src/app.js blocked" \
+  "$(run_bash "$(printf 'cat > %s/src/app.js <<EOF\nconst x = 1;\nEOF\n' "$GITREPO")")"
+expect_allow "RED: Bash heredoc into test file src/app.test.js allowed" \
+  "$(run_bash "$(printf 'cat > %s/src/app.test.js <<EOF\ntest()\nEOF\n' "$GITREPO")")"
+expect_block "RED: Bash redirect into production app.py blocked" \
+  "$(run_bash "printf abc > $GITREPO/app.py")"
+expect_allow "RED: Bash redirect into tests/ dir allowed" \
+  "$(run_bash "printf abc > $GITREPO/tests/helper.js")"
+# A bash command whose only write target is a pseudo-device (2>/dev/null) is not
+# production source — allowed, so ordinary RED-phase commands aren't surprised.
+expect_allow "RED: Bash 2>/dev/null only (no production write) allowed" \
+  "$(run_bash 'pytest 2>/dev/null')"
+# The TDD orchestrator's own RED-phase state write lands under .geniro/ — skipped,
+# else the mktemp+mv that advances the cycle would deadlock.
+expect_allow "RED: Bash write under .geniro/ allowed (orchestrator state)" \
+  "$(run_bash "mv /tmp/x $GITREPO/.geniro/state/tdd/state-${SLUG}.md")"
+expect_allow "RED: Bash read-only command (no write target) allowed" \
+  "$(run_bash "cat $GITREPO/src/app.js | grep foo")"
+# Outside RED, Bash writes to production are allowed.
+write_phase GREEN
+expect_allow "GREEN: Bash heredoc into production allowed" \
+  "$(run_bash "$(printf 'cat > %s/src/app.js <<EOF\nx\nEOF\n' "$GITREPO")")"
+# No TDD state file → not opted in → Bash production write allowed.
+write_phase RED
+rm -f "$STATE_FILE"
+expect_allow "no state file: Bash production write allowed" \
+  "$(run_bash "$(printf 'cat > %s/src/app.js <<EOF\nx\nEOF\n' "$GITREPO")")"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
