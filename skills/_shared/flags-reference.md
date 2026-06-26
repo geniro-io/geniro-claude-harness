@@ -16,7 +16,7 @@ Each row names a flag or modifier, the values it accepts, what it presets, and w
 
 ## /geniro:plan
 
-`argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"`
+`argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact] [--openspec]"`
 
 | Flag / modifier | Values | What it presets | Which question it skips |
 |---|---|---|---|

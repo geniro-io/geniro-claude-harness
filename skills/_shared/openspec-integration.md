@@ -80,7 +80,7 @@ Persist the pick to `approvals[]` category `openspec_duplicate` so a resume does
 
 ## 3. Change-id and capability naming
 
-**Change-id** — verb-led kebab-case, the OpenSpec convention (`add-two-factor-auth`, `refactor-payment-retry`). Derive it from the plan: prefer a verb + the task slug (e.g. task slug `two-factor-auth` → `add-two-factor-auth`); when the objective already starts with a verb, kebab-case the objective's first clause. Cap at ~40 chars. If `<root>/changes/<change-id>/` already exists, append `-2`, `-3`, … so an existing change is never overwritten.
+**Change-id** — verb-led kebab-case, the OpenSpec convention (`add-two-factor-auth`, `refactor-payment-retry`). Derive it from the plan: prefer a verb + the task slug (e.g. task slug `two-factor-auth` → `add-two-factor-auth`); when the objective already starts with a verb, kebab-case the objective's first clause. Cap at ~40 chars for folder-name readability — OpenSpec imposes no hard limit. If `<root>/changes/<change-id>/` already exists, append `-2`, `-3`, … so an existing change is never overwritten.
 
 **Capability** — the spec folder a requirement belongs to. Match an existing `<root>/specs/<capability>/` folder when the plan's scope maps to one (read the folder list; pick the closest by name). When none matches, derive a single new capability slug from the primary affected area in scope section 2. One capability per change keeps the delta simple; split into multiple capability folders only when the scope plainly spans two established capabilities.
 
@@ -226,7 +226,7 @@ fi
 ```
 
 - CLI present and validation passes → echo the §11 success line.
-- CLI present and validation fails → the files are written but malformed against OpenSpec's stricter checks. Surface the validator output in plain English and offer to fix it (re-author the flagged file, re-validate; max 2 rounds), then continue. A validation failure never blocks the plan commit — the Geniro spec is already approved and the OpenSpec change is the secondary artifact.
+- CLI present and validation fails → the files are written but malformed against OpenSpec's stricter checks. Surface the validator output in plain English and offer to fix it (re-author the flagged file, re-validate; max 2 rounds — bounds cost on a secondary artifact), then continue. A validation failure never blocks the plan commit — the Geniro spec is already approved and the OpenSpec change is the secondary artifact.
 - CLI absent → skip validation silently; the files still conform to §4–§6, which is the format the CLI checks.
 
 ## 9. Lifecycle — write at approval, one commit
@@ -235,7 +235,7 @@ The OpenSpec change is written at Phase 8 AFTER the user approves the Geniro spe
 - Write the §4 files only on the "Yes" pick (or `--openspec`).
 - `git add <root>/changes/<change-id>/` alongside the Geniro `spec.md` (+ milestones) in the Phase 8 commit step, so one commit carries the plan and its OpenSpec duplicate.
 - Record the write in the Geniro state.md `## Tool log` and add the written paths to the Phase 8 `non-resumable-actions[]` commit entry's `files` list.
-- When the Phase 8 commit itself fails (pre-commit hook, dirty tree), remove the just-written `<root>/changes/<change-id>/` before surfacing the error — it was never committed, and the Geniro Phase 9 cleanup sweeps only `.geniro/`, so leaving it would orphan a stale change on disk.
+- When the Phase 8 commit itself fails (pre-commit hook, dirty tree), remove the change folder this run just wrote — using a guarded command so an unset variable can never widen the delete. Remove the exact path, only when BOTH parts are non-empty: `[ -n "$openspec_root" ] && [ -n "$change_id" ] && rm -rf -- "$openspec_root/changes/$change_id"`. Never re-interpolate the `<root>/changes/<change-id>/` template into an unguarded `rm` — an empty `change_id` would collapse it to `rm -rf openspec/changes/` and delete every in-flight change. The folder was never committed, and the Geniro Phase 9 cleanup sweeps only `.geniro/`, so leaving it would orphan a stale change on disk.
 
 Writing at approval (not at Phase 6 draft time) means an artifact the user declined is never created, and a plan revised before approval never leaves a stale OpenSpec change on disk; the commit-failure removal above closes the one remaining window where a stale change could survive.
 
