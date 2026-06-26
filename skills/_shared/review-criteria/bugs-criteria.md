@@ -1,6 +1,6 @@
 # Bugs Review Criteria
 
-Logic errors, null/undefined checks, boundary conditions, state management, and type safety issues.
+Logic errors, null/undefined checks, boundary conditions, numeric precision, state management, and type safety issues.
 
 ## Contents
 
@@ -194,6 +194,35 @@ grep -n "mktemp\|tmpfile\|createTempFile\|tmp\." file.js | grep -v "unlink\|remo
 - Find math operations that could have zero denominator
 - Check boundary value comparisons
 
+### 8.5. Numeric Precision & Floating-Point
+
+Distinct from §8 (which flags missing bounds / limits): here the arithmetic itself is lossy or unstable, so the code runs and returns a plausible-but-wrong number. Floating-point defects are silent — no exception, just a value that is slightly (or catastrophically) off — so they have to be caught at the pattern level rather than by a thrown error.
+
+- **Exact-equality on floats** — `==` / `!=` (or a `>` / `<` threshold that assumes an exact value) on a computed float. `0.1 + 0.2 == 0.3` is false; float comparisons need a tolerance / epsilon, not equality.
+- **Accumulated rounding error** — summing or multiplying floats in a loop, a repeated `+=` running total, an iterative numerical method. Per-step error compounds and the result drifts from the mathematically-correct value.
+- **Money / currency as a binary float** — amounts stored or computed in a float (`price * quantity`, tax, interest) instead of integer minor units (cents) or a decimal type. Produces off-by-a-cent rounding that fails reconciliation.
+- **Lossy int <-> float coercion** — a large integer (ID, timestamp, counter) flowing through a float that cannot represent it exactly (an IEEE-754 double / JS `Number` loses integer precision above 2^53); integer-division truncation where a fraction was intended (or a fraction where integer math was intended).
+- **NaN / Infinity propagation** — an unchecked division, `0/0`, `log` / `sqrt` of a negative, or a failed numeric parse yields `NaN` / `Infinity` that flows downstream silently. `NaN` compares false to everything including itself, so a guard like `if (x > 0)` neither catches nor routes it — it slips through every branch.
+- **Unit / scale confusion** — mixing values of different unit or magnitude in one expression (ms vs s, bytes vs KiB, percent vs fraction): the arithmetic is precise but the quantity is wrong.
+
+**How to detect:**
+```bash
+# Exact equality against a float literal (often a computed value)
+grep -nE "(==|!=)\s*-?[0-9]+\.[0-9]+" file.js
+# Float arithmetic on money-named variables
+grep -nE "(price|amount|total|cost|balance|tax|rate|cents?)\b.*[-*/+]" file.js
+# Division / parse / external numeric input used without a NaN/Infinity guard
+grep -nE "parseFloat|parseInt|Number\(|/[^/*]" file.js | grep -viE "isNaN|isFinite|Number\.isInteger|toFixed"
+```
+
+**Red flags:**
+- A float compared with `==` / `!=` where one side is the result of arithmetic
+- Currency or financial math in a binary float type rather than integer cents / a decimal library
+- A division, `parseFloat`, or external numeric input whose result feeds a comparison or index with no `isNaN` / `isFinite` check
+- A 64-bit ID or high-resolution timestamp passed through a language's default float number type
+
+Severity by impact: HIGH when the wrong number drives money, a security / authz threshold, or persisted data (currency-as-float in a billing path; a lost-precision ID that collides). MEDIUM for a float exact-equality or NaN-propagation bug with a cited reachable input. LOW for a precision concern with no demonstrated wrong output. Tag `[FIX-NOW]` when the correct fix is mechanical (epsilon compare, integer cents, `isNaN` guard); `[PRODUCT-DECISION]` only when the acceptable tolerance is itself a judgment call.
+
 ### 9. Functional completeness — real-world states the change must handle
 
 Distinct from the checks above (which flag wrong or unsafe code that is PRESENT): this lens flags handling that is ABSENT but that the change needs in order to work in real use. The question is not "does the diff match the spec" — that is the spec-compliance dimension, which deliberately never invents requirements. It is "given what this change is for, is there a real input or state it will actually hit that it silently mishandles?"
@@ -276,6 +305,7 @@ This criteria works across languages:
 - [ ] Logic flows are correct (no inverted conditions); conditionals/switches are complete (else/default present, exhaustive match, no unhandled state)
 - [ ] Resources are cleaned up (files, listeners, timers); no fire-and-forget async calls
 - [ ] Edge cases handled (empty, single item, max values, unicode strings, timezone/DST)
+- [ ] Numeric/float math is precise (no exact-equality on floats, money not in binary float, NaN/Infinity guarded, no lossy large-int coercion)
 - [ ] Real-world states the change will hit are handled (empty / concurrent / partial-failure / dependency-down), evidenced by a concrete reachable scenario
 
 ## Severity Guidelines
