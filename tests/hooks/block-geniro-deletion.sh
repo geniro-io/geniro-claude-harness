@@ -65,6 +65,10 @@ expect_block "multi-arg deep+shallow still blocks" \
 # ===== path-normalization bypass forms (glob / double-slash / .. / dotted-dir) =====
 expect_block "trailing glob subdir/* blocked"   "$(run_cmd 'rm -rf .geniro/instructions/*')"
 expect_block "trailing glob .geniro/* blocked"  "$(run_cmd 'rm -rf .geniro/*')"
+# Regression: a globbed-filename trailing segment (*.md) wipes the same files as
+# the bare-* form and must block too (audit D5b-3 — only bare * was normalized).
+expect_block "trailing glob subdir/*.md blocked" "$(run_cmd 'rm -rf .geniro/instructions/*.md')"
+expect_allow "deep task-dir/*.md allowed"        "$(run_cmd 'rm -rf .geniro/planning/task-1/*.md')"
 expect_block "double-slash subdir blocked"      "$(run_cmd 'rm -rf .geniro//instructions/')"
 expect_block "parent-escape .. blocked"         "$(run_cmd 'rm -rf .geniro/instructions/..')"
 expect_block "dotted-DIR state subdir blocked"  "$(run_cmd 'rm -rf .geniro/state/review.bak/')"
@@ -101,6 +105,9 @@ expect_allow "find .geniro | xargs grep allowed" "$(run_cmd 'find .geniro -type 
 
 # ===== git worktree remove =====
 expect_block "git worktree remove blocked"      "$(run_cmd 'git worktree remove ../wt')"
+# Regression: a quoted -C operand with a space must not leak the subcommand past
+# the global-options strip (audit D5b-2).
+expect_block "git -C \"<spaced>\" worktree remove blk" "$(run_cmd 'git -C "/my repo" worktree remove ../wt')"
 
 # ===== git add -f on .geniro/ =====
 expect_block "git add -f .geniro/ blocked"      "$(run_cmd 'git add -f .geniro/actions/foo.md')"

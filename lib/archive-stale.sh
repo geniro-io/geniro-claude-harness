@@ -245,7 +245,9 @@ if [ "$_as_direct" = "1" ]; then
   if [ -d "$_as_lock_root/.geniro/knowledge" ] && [ -z "${GENIRO_ARCHIVE_LOCK_HELD:-}" ]; then
     if [ -d "$_as_lock" ]; then
       _as_lock_mtime=$(stat -c %Y "$_as_lock" 2>/dev/null || stat -f %m "$_as_lock" 2>/dev/null || echo 0)
-      if [ $(( $(date +%s) - _as_lock_mtime )) -gt 600 ]; then
+      # Shared reclaim window — override via GENIRO_LOCK_RECLAIM_SECS (default 600s);
+      # archive-stale.sh + query-learnings.sh reclaim the SAME lock and must agree.
+      if [ $(( $(date +%s) - _as_lock_mtime )) -gt "${GENIRO_LOCK_RECLAIM_SECS:-600}" ]; then
         rmdir "$_as_lock" 2>/dev/null
       fi
     fi

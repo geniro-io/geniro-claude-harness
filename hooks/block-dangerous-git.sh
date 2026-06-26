@@ -71,18 +71,27 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
 JOINED="${SCRUBBED//\\$'\n'/ }"
 PADDED=" ${JOINED//$'\n'/ } "
 
-# Quoted string literals are also DATA, not commands. A destructive git pattern
-# inside an echo arg, a `git commit -m` message, or any other quoted string
-# (`echo "run git push --force later"`) must not block — a real git subcommand is
-# never wrapped in quotes. Blank single- AND double-quoted literals before the
-# matchers run. Mirrors file-protection.sh.
-PADDED=$(printf '%s' "$PADDED" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
-
 # Strip git GLOBAL options (`git -C <path> push`, `git -c k=v push`, --git-dir/
 # --work-tree/--namespace, pager flags) so the subcommand matchers below see
 # `git <subcommand>` contiguously. Without this, `git -C /repo push --force`
 # evades every `git[[:space:]]+<subcommand>` matcher.
-PADDED=$(printf '%s' "$PADDED" | sed -E 's/git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--work-tree(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--namespace(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--exec-path(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--config-env(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|--attr-source(=[^[:space:]]+|[[:space:]]+[^[:space:]]+)|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g')
+#
+# This MUST run BEFORE the quote-blank below: a quoted global-option operand
+# (`git -C "/my repo" push --force`) is consumed here as one unit only while its
+# quotes are intact. If quote-blanking ran first it would erase the path to a
+# space, and `-C[[:space:]]+<token>` would then swallow the following SUBCOMMAND
+# (`push`) instead, leaving `git --force` and bypassing every matcher. The
+# operand alternative matches a double- or single-quoted span (which may contain
+# spaces) before falling back to a bare token.
+_op='("[^"]*"|'\''[^'\'']*'\''|[^[:space:]]+)'
+PADDED=$(printf '%s' "$PADDED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
+
+# Quoted string literals are also DATA, not commands. A destructive git pattern
+# inside an echo arg, a `git commit -m` message, or any other quoted string
+# (`echo "run git push --force later"`) must not block — a real git subcommand is
+# never wrapped in quotes. Blank single- AND double-quoted literals so the
+# matchers below never see a destructive pattern that lives inside string data.
+PADDED=$(printf '%s' "$PADDED" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
 
 # Find the nearest .geniro/safety.json walking up from cwd
 find_safety_json() {

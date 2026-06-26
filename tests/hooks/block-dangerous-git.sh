@@ -105,6 +105,13 @@ expect_block "git --git-dir=... clean -fd blocked"     "$(run_cmd 'git --git-dir
 expect_block "git -C <path> branch -D blocked"         "$(run_cmd 'git -C ../other branch -D feature')"
 expect_allow "git -C <path> plain push allowed"        "$(run_cmd 'git -C /tmp/r push origin main')"
 expect_allow "git -C <path> status allowed"            "$(run_cmd 'git -C /tmp/r status')"
+# Regression: a QUOTED -C operand (incl. one with a space) must be consumed by the
+# global-options strip, not leak the subcommand past it (audit D5b-1 — a quoted
+# path defeated every destructive-git guard).
+expect_block "git -C \"<path>\" push --force blocked"    "$(run_cmd 'git -C "/tmp/r" push --force')"
+expect_block "git -C \"<spaced>\" reset --hard blocked"  "$(run_cmd 'git -C "/tmp/my repo" reset --hard')"
+expect_block "git -C '<spaced>' clean -fd blocked"      "$(run_cmd "git -C '/tmp/my repo' clean -fd")"
+expect_allow "git -C \"<path>\" status allowed"          "$(run_cmd 'git -C "/tmp/r" status')"
 
 # ===== backslash line-continuation must not evade =====
 expect_block "backslash-continued force-push blocked"  "$(run_cmd 'git \
