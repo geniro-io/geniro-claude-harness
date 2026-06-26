@@ -89,12 +89,22 @@ Write under `<root>/changes/<change-id>/` (the §1-resolved root). These live OU
 
 | File | Always? | Source |
 |---|---|---|
+| `.openspec.yaml` | yes | §4 marker below |
 | `proposal.md` | yes | §5 — objective + scope + risk/rollback |
 | `tasks.md` | yes | §5 — the plan's Steps |
 | `specs/<capability>/spec.md` | yes | §6 — Validation + Done Condition as requirements |
 | `design.md` | Medium / Big tier only | §5 — chosen approach + considered alternatives |
 
 `design.md` is optional in OpenSpec — emit it only for Medium/Big effort tiers, where the approach reasoning is worth recording. Skip it on Trivial/Small; a one-paragraph design adds noise.
+
+**`.openspec.yaml` (per-change marker).** OpenSpec writes a small metadata file in each change folder; match it so the generated change reads as native to the team's tooling and passes any per-change validation. Two fields:
+
+```yaml
+schema: spec-driven
+created: <YYYY-MM-DD>
+```
+
+`schema` is the literal `spec-driven`. `created` is today's date from a live `date -u +%Y-%m-%d` read — never a model-supplied date (same timestamp-sourcing rule as `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` § Timestamp sourcing). When a repo's existing changes carry additional keys in their `.openspec.yaml`, read one and mirror its key set rather than assuming these two are exhaustive.
 
 ## 5. Mapping — Geniro spec sections to OpenSpec files
 
