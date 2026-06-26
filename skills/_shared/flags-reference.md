@@ -16,14 +16,13 @@ Each row names a flag or modifier, the values it accepts, what it presets, and w
 
 ## /geniro:plan
 
-`argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact] [--openspec]"`
+`argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"`
 
 | Flag / modifier | Values | What it presets | Which question it skips |
 |---|---|---|---|
 | `--prd` | present / absent | Turns on the problem-discovery interview (problem / evidence / target user / hypothesis / success metrics / MoSCoW) and the spec's optional `## Problem & Evidence` section. | Adds the Phase 0.5 interview; absent = no problem-first pre-phase. |
 | `--deep` | present / absent | Deepens the approach search (wider candidate set) and adds majority-vote verification of the spec's cited claims. Higher quality, higher cost. | The Standard/Deep depth question (asked at the Phase 3 clarify wrap-up). |
 | `--artifact` | present / absent | Turns on the live, auto-updating visual plan artifact published to a private page as the plan develops. | The artifact opt-in question. |
-| `--openspec` / `--no-openspec` | present / absent | Pre-answers the OpenSpec duplicate offer (`--openspec` → create the change; `--no-openspec` → skip). Still detection-gated — `--openspec` in a repo without an OpenSpec directory yields a "not found" note, never a scaffold. | The Phase 8 OpenSpec duplicate suggestion (fires only when the repo uses OpenSpec). |
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Pre-fills the spec's `launch_config` workspace setting so `/geniro:implement` runs hands-free without asking where to land its edits (`no-worktree` and `here` both map to the `here` enum value). | `/implement`'s workspace setup question (deferred — applied when `/implement` consumes the spec). |
 | `don't push` / `no push` / `commit only` / `draft only` / `ready-for-review` / `stop after review` | one value | Pre-fills the spec's `launch_config` ship setting (commit-no-push / draft PR / ready-for-review PR / stop before commit). | `/implement`'s ship-mode question (deferred). |
 | `freshness:merge` / `freshness:rebase` / `freshness:skip` | one value (colon form only) | Pre-sets the strategy for a branch behind the default branch. Feeds both `/plan`'s own Phase 1 branch-freshness offer and the spec's `launch_config`. | `/plan`'s Phase 1 branch-freshness offer AND `/implement`'s branch-freshness question (deferred). |
