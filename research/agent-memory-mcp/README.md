@@ -66,6 +66,8 @@ capability + self-hostability judgment. Run your own benchmark — see
 | `setup-mem0-selfhosted.md` | Docker bring-up + Claude Code MCP wiring + dashboard. Recommended path. |
 | `setup-graphiti-falkordb.md` | Docker bring-up (FalkorDB single container) + MCP wiring. Alternative. |
 | `benchmarks.md` | Disputed-number caveats + how to run your own LoCoMo/LongMemEval. |
+| `retrieval-techniques.md` | KG/DB retrieval techniques that beat plain vector search (hybrid, RRF, entity-centric PPR, NodeRAG/TERAG token efficiency) + what Graphiti's search recipes/rerankers give, and recipe-per-query-intent routing. |
+| `graphiti-integration-plan.md` | The Graphiti adoption decision + integration plan for the Genera product and the Geniro plugin. |
 
 ## Sources
 
