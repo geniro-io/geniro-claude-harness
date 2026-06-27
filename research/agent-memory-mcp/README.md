@@ -21,10 +21,13 @@ agent memory). Committed so the experiments can be re-run from any machine.
   validity windows (valid-time + transaction-time) and are superseded, not
   deleted; semantic+BM25+graph-traversal retrieval; ships a graph-explorer UI,
   not a memory-management console; FalkorDB bundles into a single container.
-- **For Geniro's two goals** (MCP memory for Claude + a UI where the user
-  manages their own memory instead of a hand-written store): **Mem0
-  self-hosted** is the better fit — it ships exactly that dashboard. Pick
-  Graphiti only if temporal/relationship reasoning is core to the memory.
+- **For Geniro's API-first plan** (custom UI you build yourself → your backend
+  over REST, and agents over MCP — no ready dashboard): both expose REST + MCP +
+  docker-compose, so the choice is **model-driven**, not dashboard-driven. See
+  `api-first-integration.md`. **Graphiti** is the more modern/advanced technique
+  (bi-temporal knowledge graph, fact invalidation, real-time incremental, graph
+  traversal) and fits a graph-shaped product memory + per-tenant `group_id`;
+  **Mem0** is the simpler, lighter vector-first option with the broadest SDKs.
 
 ## Why a dedicated memory system over DIY embeddings + vector search
 

@@ -18,23 +18,24 @@ a ready end-user management UI.
 | License | Apache 2.0 | OSS |
 | Best when | Simple facts/preferences; want a ready management UI; light ops | Relationships + time matter; evolving/contradicting facts |
 
-## The one difference that decides it for Geniro
+## What decides it for Geniro (API-first, own UI)
 
-Geniro's two goals:
+The plan is API-first: you build the UI yourself (`api-first-integration.md`), so
+the ready dashboard is irrelevant and the decision is purely the **memory model
+and how modern the technique is** — not the UI.
 
-1. **MCP memory the plugin/Claude can query** — both deliver this. Mem0 is
-   lighter (a vector store vs running a graph DB).
-2. **A UI wrapper where the end user manages their own memory, on a ready MCP,
-   instead of a hand-written store** — **Mem0 self-hosted ships exactly that
-   dashboard**: create/view/update/delete memories, filter by app/category/date,
-   pause/archive, revoke a client's access, audit every read/write. Graphiti's UI
-   is a *graph explorer*, not a memory-management console — you would build that
-   dashboard yourself.
+Both expose a REST API + an MCP server + docker-compose, so the wiring is the
+same shape either way. The difference that matters:
 
-So **Mem0 self-hosted** covers both goals out of the box. Choose **Graphiti**
-only if the memory genuinely needs temporal/relationship reasoning — "what did
-the user believe about X at time T", evolving project facts that supersede each
-other — and you accept Neo4j/FalkorDB plus building your own management UI.
+- **Graphiti** is the more advanced/modern architecture — a bi-temporal
+  knowledge graph with LLM contradiction detection + fact invalidation,
+  real-time incremental updates (no batch recompute), and hybrid
+  semantic+BM25+graph-traversal retrieval. It matches a graph-shaped product
+  memory and gives per-tenant `group_id` isolation. Cost: Neo4j/FalkorDB ops,
+  Python-centric.
+- **Mem0** is the simpler, lighter vector-first technique (extract facts → embed
+  → hybrid recall, optional graph), with the broadest SDKs and built-in API-key
+  auth. Cost: a more conventional model with weaker temporal/relational reach.
 
 ## Mapping onto Geniro's memory layers
 
@@ -48,7 +49,10 @@ other — and you accept Neo4j/FalkorDB plus building your own management UI.
 
 ## Recommendation
 
-Default to **Mem0 self-hosted** for the Geniro memory wrapper. Keep Graphiti as
-the upgrade path if temporal reasoning becomes a first-class requirement. Either
-way the plugin wiring is the same shape — only the MCP endpoint and tool names
-change. Benchmark both on your own data before committing (`benchmarks.md`).
+For an API-first build where the product memory is graph-shaped and you want the
+more modern technique, lean **Graphiti** (bi-temporal graph + `group_id`
+multi-tenancy, exposed via REST + MCP). Choose **Mem0** when you want the
+simplest vector-first store with the broadest SDKs and lightest ops, and don't
+need temporal/relational reasoning. The plugin/platform wiring is the same shape
+either way — only the endpoint and tool names change. Benchmark both on your own
+data before committing (`benchmarks.md`).
