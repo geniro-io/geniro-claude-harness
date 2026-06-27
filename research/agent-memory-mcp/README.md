@@ -68,6 +68,7 @@ capability + self-hostability judgment. Run your own benchmark — see
 | `benchmarks.md` | Disputed-number caveats + how to run your own LoCoMo/LongMemEval. |
 | `retrieval-techniques.md` | KG/DB retrieval techniques that beat plain vector search (hybrid, RRF, entity-centric PPR, NodeRAG/TERAG token efficiency) + what Graphiti's search recipes/rerankers give, and recipe-per-query-intent routing. |
 | `graphiti-integration-plan.md` | The Graphiti adoption decision + integration plan for the Genera product and the Geniro plugin. |
+| `graphiti-gotchas.md` | "Saved but nothing persisted" — the async-worker server bug (#566) and the Anthropic embedder/max_tokens silent-empty traps, with diagnosis + fixes. |
 
 ## Sources
 
