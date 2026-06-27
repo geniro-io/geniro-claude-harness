@@ -17,7 +17,7 @@ Applied at the L2 memory call-sites (`emit-learning` / `query-learnings`) so a p
 
 ## 1. What it consumes
 
-A `## Memory Backend` block authored in `.geniro/instructions/global.md` and surfaced by the L4 loader (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Absent block → no routing; L2 reads/writes use the built-in file helpers exactly as today. Project-wide concern, so it lives in `global.md` (not a per-skill file).
+A `## Memory Backend` block authored in the dedicated `.geniro/instructions/memory.md` file and surfaced by the L4 loader (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`, which loads `memory.md` alongside `global.md` for every consumer). Absent file or block → no routing; L2 reads/writes use the built-in file helpers exactly as today. Memory routing is its own concern, so it lives in its own file (not mixed into `global.md`'s behavioral rules and not a per-skill file).
 
 ## 2. Block schema
 

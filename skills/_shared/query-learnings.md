@@ -103,7 +103,7 @@ record_access "<dedup_key>"
 
 ## Memory backend override
 
-When `global.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` around this query: on `mode: mirror` also call the declared read-only `read` tool and merge its results with the file query (dedup by `dedup_key`, backend-first); on `mode: replace` call the `read` tool INSTEAD of `query_learnings`. The `read` tool passes the read-only screen first. Fail-open — a backend error drops to the file query with a caveat. No block → this is a no-op and the file query runs exactly as above.
+When `memory.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` around this query: on `mode: mirror` also call the declared read-only `read` tool and merge its results with the file query (dedup by `dedup_key`, backend-first); on `mode: replace` call the `read` tool INSTEAD of `query_learnings`. The `read` tool passes the read-only screen first. Fail-open — a backend error drops to the file query with a caveat. No block → this is a no-op and the file query runs exactly as above.
 
 ## Trust level ordering
 

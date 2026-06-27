@@ -12,7 +12,7 @@
 - §Anti-rationalization
 - §Definition of Done
 
-**Status:** Authoritative for loading and refreshing `global.md`, `<SKILL_SLUG>.md`, and `code-style.md` — from the in-repo `.geniro/instructions/` by default, or from an external base dir when `$GENIRO_INSTRUCTIONS_DIR` / the plugin's `instructions_dir` install option is configured.
+**Status:** Authoritative for loading and refreshing `global.md`, `memory.md`, `<SKILL_SLUG>.md`, and `code-style.md` — from the in-repo `.geniro/instructions/` by default, or from an external base dir when `$GENIRO_INSTRUCTIONS_DIR` / the plugin's `instructions_dir` install option is configured.
 
 ## Why this exists
 
@@ -38,8 +38,8 @@ Callers provide three parameters in the call site:
 
 - **`SKILL_SLUG`** — kebab-case name of the invoking skill (e.g. `implement`, `debug`, `actions`). Used to compute the per-skill file path `.geniro/instructions/<SKILL_SLUG>.md`.
 - **`LOAD_TIER`** — one of:
- - `pipeline` → loads `global.md` + `<SKILL_SLUG>.md` + `code-style.md`. Applies to: `implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`. `onboard` and `investigate` are promoted from `rules-only` to `pipeline` — discovery skills emit to L2/L3 and need code-style rules respected when their save-routing focused agents write to the user's tree (CLAUDE.md, ADR, etc.).
- - `rules-only` → loads `global.md` only. Applies to: `setup`, `instructions`, `actions`, `update`. These are operational/CRUD-on-meta skills — they manage rules rather than produce code or learnings, so the per-skill + code-style layers don't apply.
+ - `pipeline` → loads `global.md` + `memory.md` + `<SKILL_SLUG>.md` + `code-style.md`. Applies to: `implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`. `onboard` and `investigate` are promoted from `rules-only` to `pipeline` — discovery skills emit to L2/L3 and need code-style rules respected when their save-routing focused agents write to the user's tree (CLAUDE.md, ADR, etc.).
+ - `rules-only` → loads `global.md` + `memory.md`. Applies to: `setup`, `instructions`, `actions`, `update`. These are operational/CRUD-on-meta skills — they manage rules rather than produce code, so the per-skill + code-style layers don't apply; `memory.md` still loads because some of them emit L2 learnings (`/geniro:setup` / `/geniro:actions`) and must honor a declared memory backend.
 - **`MODE`** — `initial-load` (Step 0) or `refresh` (phase boundary).
 
 Callers receive (on completion):
@@ -51,8 +51,8 @@ Callers receive (on completion):
 
 Compute the load set from `LOAD_TIER`:
 
-- `pipeline` → `[global.md, <SKILL_SLUG>.md, code-style.md]` (three files, in that order)
-- `rules-only` → `[global.md]` (one file)
+- `pipeline` → `[global.md, memory.md, <SKILL_SLUG>.md, code-style.md]` (four files, in that order)
+- `rules-only` → `[global.md, memory.md]` (two files)
 
 **Resolve the instructions base directory once, before the load loop.** An external override lets the instruction files live OUTSIDE the repo (e.g. a clean fresh-clone environment where `.geniro/instructions/` is not committed). Run this Bash probe via the Bash tool to compute the active base directory:
 
@@ -85,7 +85,7 @@ For each file in the load set, in order:
 1. Call the **Read** tool on the file:
  - **External dir active (`EXTERNAL_DIR` non-empty):** Read `<EXTERNAL_DIR>/<file>` (the flat layout — no `.geniro/instructions/` suffix). Step 2a does not apply in external mode; the cwd + `PRIMARY_ROOT` fallback is skipped.
  - **In-repo (no external dir):** Read `.geniro/instructions/<file>` (cwd-relative) — the cwd-first / `PRIMARY_ROOT`-fallback behavior. A configured-but-missing external dir already failed open (the probe emitted the caveat), so the loop runs here in in-repo mode.
-2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `global.md` only). Skip step 2a.
+2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `memory.md` only). Skip step 2a.
 2a. **If Read errors with file-not-found AND no external dir is active AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
 3. **If file is still not found** (cwd missing AND fallback missing or unavailable): treat as a silent skip — no error, no warning, just the missing-file echo line.
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
@@ -115,11 +115,15 @@ Loaded global.md (3 rules, 2 constraints).
 Loaded global.md (3 rules, 2 constraints, 2 data sources).
 Loaded implement.md from primary worktree (2 rules, 1 constraint).
 Loaded code-style.md from external instructions dir (4 rules, 1 constraint).
+Loaded memory.md (memory backend: learnings → mirror).
 External instructions dir /opt/geniro-rules not found — using in-repo instructions.
 No code-style.md found — skipping.
+No memory.md found — skipping.
 ```
 
 If a file has zero rules or zero constraints, still emit the line with the literal `0` count. Do NOT abbreviate to `Loaded global.md.` — always include the rules + constraints parenthetical. Append `, <D> data sources` to the parenthetical only when the file carries a `## Data Sources` block (it is optional, unlike rules/constraints — omit the clause entirely when the block is absent).
+
+**`memory.md` is the exception to the rules/constraints parenthetical** — it carries the `## Memory Backend` block, not rules or constraints, so its success echo names the routed layer + mode instead: `Loaded memory.md (memory backend: <layer> → <mode>).` (the fallback / external-dir variants apply identically). When `memory.md` exists but declares no `## Memory Backend` block, echo `Loaded memory.md (no memory backend declared).`; when absent, `No memory.md found — skipping.`
 
 ## Mid-pipeline refresh
 
@@ -150,12 +154,16 @@ The instruction files this helper loads have a fixed schema (defined authoritati
 
 ## Data Sources
 - **label** (confirms: <fact kind>) — read-only source (shell command / MCP tool / action)
-
-## Memory Backend
-- layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <mcp tool>
 ```
 
-`## Data Sources` and `## Memory Backend` are optional and `global.md`-scoped; the others appear per-skill too.
+`## Data Sources` is optional and `global.md`-or-per-skill-scoped; `## Rules` / `## Constraints` / `## Additional Steps` appear in `global.md` and per-skill files. The `## Memory Backend` block lives in its own dedicated `memory.md` file (loaded alongside `global.md` by every consumer):
+
+```markdown
+# Memory
+
+## Memory Backend
+- layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <read-only mcp tool>
+```
 
 The loader applies these as:
 
