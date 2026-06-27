@@ -111,26 +111,36 @@ Memory) is a legitimate call.
 
 ## Community forks that address this
 
-The silent-non-persist problem drove community forks — useful to unblock and to
-diagnose, but single-maintainer/unofficial (weigh maintenance risk for product use).
+The silent-non-persist problem drove community forks. Ranked by "fixes the bug
+AND actively maintained" (commit recency checked 2026-06):
 
-- **`michabbb/graphiti-mcp-but-working`** — directly targets the MCP queue
-  persistence class: replaces the in-memory queue with a **Redis-backed
-  persistent queue** (BRPOPLPUSH, survives crashes/restarts — the "1-2 episodes
-  after a reboot then nothing" pattern), adds a **`get_queue_status`** tool so
-  silent drops become visible, graceful shutdown (SIGTERM/SIGINT), and token
-  auth. `docker compose up` brings up Neo4j + server on `/mcp` + `/sse`. Note: its
-  README solves the category (persistence + observability), not a named issue #.
+- **`michabbb/graphiti-mcp-but-working`** — **recommended working+active pick.**
+  Directly fixes the MCP queue persistence class: replaces the in-memory queue
+  with a **Redis-backed persistent queue** (BRPOPLPUSH, survives crashes/restarts
+  — the "1-2 episodes after a reboot then nothing" pattern), adds
+  **`get_queue_status`** + `list_group_ids` so silent drops become visible,
+  graceful shutdown (SIGTERM/SIGINT), token auth, health checks; a complete
+  working server on current Graphiti core. Last commit **2026-06-02** (plus a
+  Dec-2025 cluster). Caveat: small (9★, single maintainer) → bus-factor.
+  `docker compose up` brings up Neo4j + server on `/mcp` + `/sse`.
+- **`FalkorDB/graphiti`** — **company-backed, actively maintained** (Jan-Feb 2026
+  activity, 750 commits, open PRs); ships an MCP server and is heavily documented
+  for Graphiti+FalkorDB. Best institutional longevity, but its value-add is the
+  FalkorDB backend, not an MCP-queue rewrite — **verify persistence yourself**
+  (it may inherit the upstream async queue).
 - **`mandelbro/graphiti-memory`** — first-class **Ollama for LLM and embeddings**
   (`--ollama-embedding-model`, default `nomic-embed-text`, dim 768; CLI/env/YAML),
   which sidesteps the #1116 OpenAI-fallback embedder trap.
-- `rawr-ai/mcp-graphiti` (DX, multi-project CLI, shared DB) and
-  `maskshell/graphiti-mcp-server` — other maintained MCP forks, not specifically
-  this bug.
+- `rawr-ai/mcp-graphiti` — multi-project DX, but **stale (last commit 2025-07-23)**
+  and does not address persistence. Avoid for "active".
 
-Diagnostic shortcut: run `michabbb/graphiti-mcp-but-working` and read
-`get_queue_status` — it shows immediately whether jobs queue and die in the
-background (→ embedder/auth cause) or never enqueue at all.
+Diagnostic shortcut: run `michabbb/graphiti-mcp-but-working`, add an episode,
+call `get_queue_status` + a read-back search — it shows immediately whether jobs
+queue and die in the background (→ embedder/auth cause) or never enqueue at all.
+
+For production, the most robust path remains `graphiti-core` directly
+(synchronous awaited writes, no queue); use an MCP fork only as the agent-facing
+front door.
 
 ## Integration implication
 
