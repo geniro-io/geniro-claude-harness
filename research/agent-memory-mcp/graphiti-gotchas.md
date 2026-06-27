@@ -91,6 +91,29 @@ The episodic node saves but no entities/edges appear. Causes:
   silently persists nothing.
 - Ensure Neo4j 5.26+; tune `SEMAPHORE_LIMIT` for concurrency.
 
+## Community forks that address this
+
+The silent-non-persist problem drove community forks — useful to unblock and to
+diagnose, but single-maintainer/unofficial (weigh maintenance risk for product use).
+
+- **`michabbb/graphiti-mcp-but-working`** — directly targets the MCP queue
+  persistence class: replaces the in-memory queue with a **Redis-backed
+  persistent queue** (BRPOPLPUSH, survives crashes/restarts — the "1-2 episodes
+  after a reboot then nothing" pattern), adds a **`get_queue_status`** tool so
+  silent drops become visible, graceful shutdown (SIGTERM/SIGINT), and token
+  auth. `docker compose up` brings up Neo4j + server on `/mcp` + `/sse`. Note: its
+  README solves the category (persistence + observability), not a named issue #.
+- **`mandelbro/graphiti-memory`** — first-class **Ollama for LLM and embeddings**
+  (`--ollama-embedding-model`, default `nomic-embed-text`, dim 768; CLI/env/YAML),
+  which sidesteps the #1116 OpenAI-fallback embedder trap.
+- `rawr-ai/mcp-graphiti` (DX, multi-project CLI, shared DB) and
+  `maskshell/graphiti-mcp-server` — other maintained MCP forks, not specifically
+  this bug.
+
+Diagnostic shortcut: run `michabbb/graphiti-mcp-but-working` and read
+`get_queue_status` — it shows immediately whether jobs queue and die in the
+background (→ embedder/auth cause) or never enqueue at all.
+
 ## Integration implication
 
 For the Geniro integration, prefer the **core library (awaited) or the MCP
@@ -109,3 +132,6 @@ the integration's smoke test so a silent non-persist is caught immediately.
 - #1116 (OpenAI provider ignores api_base → 401 with local/Ollama embedder): https://github.com/getzep/graphiti/issues/1116
 - MCP server (async episode queue, env, group_id default 'main'): https://github.com/getzep/graphiti/blob/main/mcp_server/README.md
 - LLM configuration (Anthropic needs OpenAI for embeddings/reranking): https://help.getzep.com/graphiti/configuration/llm-configuration
+- Fork `graphiti-mcp-but-working` (Redis persistent queue + get_queue_status): https://github.com/michabbb/graphiti-mcp-but-working
+- Fork `graphiti-memory` (Ollama LLM + embeddings): https://github.com/mandelbro/graphiti-memory
+- Fork `rawr-ai/mcp-graphiti` (multi-project DX): https://github.com/rawr-ai/mcp-graphiti
