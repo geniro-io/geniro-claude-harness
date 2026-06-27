@@ -691,6 +691,7 @@ fi
 BLOCK2="- CLAUDE.md
 - .geniro/planning/_FEATURES.md
 - .geniro/instructions/global.md            (loader-routed, MODE: refresh)
+- .geniro/instructions/memory.md            (loader-routed, MODE: refresh)
 - .geniro/instructions/code-style.md        (loader-routed, MODE: refresh)"
 
 if [ -n "$active_skill" ]; then

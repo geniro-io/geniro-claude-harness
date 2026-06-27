@@ -1,6 +1,6 @@
 ---
 name: geniro:instructions
-description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step. Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
+description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step; also for declaring read-only fact-verification sources (## Data Sources) or routing the agent's memory/learnings through a custom backend like an MCP (## Memory Backend). Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
@@ -61,6 +61,7 @@ The stable scope set:
 |---|---|---|---|---|
 | `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only |
 | `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase self-review, `refactor` Phase verify); pre-inlined into reviewer-agent prompts for guidelines/conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
+| `memory` | `.geniro/instructions/memory.md` | L4 | Every pipeline + discovery skill (and operational skills that emit L2) at Step 0 + phase-boundary refresh, loaded alongside `global.md` | Holds the `## Memory Backend` block only — no Rules/Constraints/Additional Steps |
 | `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default`, `requires-context` |
 | `implement` | `.geniro/instructions/implement.md` | L4 | `/geniro:implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `plan` | `.geniro/instructions/plan.md` | L4 | `/geniro:plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
@@ -72,7 +73,7 @@ The stable scope set:
 
 **Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`) do NOT load instruction files** beyond `global.md`.
 
-**External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo `.geniro/instructions/` copy, because the atomic-write helper and the `.geniro/` deletion guard key on the literal `.geniro/` path — an external location would bypass both. To manage the external set, edit it directly at its path. The override covers only the loaded instruction trio (`global.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
+**External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo `.geniro/instructions/` copy, because the atomic-write helper and the `.geniro/` deletion guard key on the literal `.geniro/` path — an external location would bypass both. To manage the external set, edit it directly at its path. The override covers the loaded instruction set (`global.md`, `memory.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
 
 ## File Structure (singleton scopes)
 
@@ -95,6 +96,20 @@ The stable scope set:
 ```
 
 The optional `## Data Sources` section declares read-only sources the verification step in `/geniro:plan` and `/geniro:implement` cross-checks load-bearing facts against (related-task chain statuses + the spec's cited claims). Each entry is a label + a `(confirms: <fact kind>)` hint + ONE source: a backticked read-only shell command, an MCP tool name, or an action name. The full contract — discovery, read-only screening, the max-source cross-check, and per-fact outcomes — lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`. Applies to `global` and the per-skill scopes; absent = no declared sources (verification falls back to the built-in code / git / tracker sources).
+
+## File Structure: memory
+
+The `memory` scope is its own dedicated file — `.geniro/instructions/memory.md` — loaded alongside `global.md` for every skill. It holds the `## Memory Backend` block (and is reserved for future memory configuration); it does NOT carry `## Rules` / `## Constraints` / `## Additional Steps`.
+
+```markdown
+# Memory
+
+## Memory Backend
+<!-- Optional. Route agent learnings (L2) through a custom backend. Default = built-in .geniro file. The `read` tool MUST be read-only. -->
+- layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <read-only mcp tool>
+```
+
+The `## Memory Backend` section routes the L2 learnings layer through a custom backend — typically a memory MCP — so agentic knowledge is stored/retrieved there instead of, or alongside, the built-in `.geniro/knowledge/learnings.jsonl`. Each entry names a `layer` (`learnings`), a `mode` (`mirror` = file + backend, the default; `replace` = backend only), and a `write` + read-only `read` MCP-tool (or action). The full routing contract — orchestrator-consumed at the `emit-learning` / `query-learnings` call-sites, redact-before-store, read-only-screened, fail-open to the file — lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`. Absent file/block = built-in file, unchanged.
 
 ## File Structure: review-extra
 
@@ -153,6 +168,20 @@ If no arguments: default to `list`.
 - Multi-scope: "all", "every", "global and review" → collect into list
 - "all" / "every" → expand to all valid scopes that have existing files (for edit/validate/delete) or all valid scopes (for create)
 
+### Block-type detection (which section the request fills)
+
+A `create`/`edit` request implies WHICH block to author, not just which scope. Map the user's intent to the block type so the right section is filled:
+
+| User intent (examples) | Block type | Scope |
+|---|---|---|
+| "always do X" / "never Y" / a standing rule | `## Rules` | the named/contextual scope |
+| "run X after `<phase>`" / a project-specific post-phase step (e.g. duplicate the plan into OpenSpec, archive after ship) | `## Additional Steps` → `### After <phase-enum-value>` (e.g. `### After user-approve` for `/plan`, `### After ship` for `/implement`) | the per-skill scope |
+| "hard limit" / "must not exceed" / a gate | `## Constraints` | the named scope |
+| "verify facts against my <source>" / "cross-check status from <db/MCP>" | `## Data Sources` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`) | `global` or per-skill |
+| "change how memory/knowledge works" / "store learnings in my MCP" / "use a custom memory backend" | `## Memory Backend` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`) | `memory` (its own dedicated file) |
+
+When the block type is ambiguous, ask in the Step 4 interview; default a vague "add a rule" to `## Rules`. The `## Additional Steps` phase anchor must be a real phase-enum value for the scope (see §Validation table) — for a `/plan` post-approval step use `### After user-approve`.
+
 ### Ambiguity resolution
 
 Chain up to 3 AUQs across the stable scope set. Use a 2-level chain:
@@ -163,6 +192,7 @@ Chain up to 3 AUQs across the stable scope set. Use a 2-level chain:
 - **Options:**
 - `global` — Project-wide rules loaded by every Geniro skill
 - `code-style` — Cross-cutting style rules for code writing AND review
+- `memory` — Memory-backend routing (`## Memory Backend`) in its own `memory.md`
 - `Specific skill or review-extra` — Pick from per-skill (7) or review-extra (custom reviewer)
 
 If "Specific skill or review-extra", chain Level 2:
@@ -339,6 +369,21 @@ Each scope gets a **scope-specific scaffold** with example Rules to make the emp
 
 Include the commented `## Data Sources` stub in the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the stub entries commented — an empty block is the safe default.
 
+**`memory.md` scaffold:**
+
+```markdown
+# Memory
+
+## Memory Backend
+<!-- Optional. Route agent learnings (L2) through a custom backend (a memory MCP, vector store, knowledge graph). Default = built-in .geniro/knowledge/learnings.jsonl. The `read` tool MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md -->
+<!-- - layer: learnings -->
+<!--   mode: mirror            # mirror = file + backend (default); replace = backend only -->
+<!--   write: mcp tool `mcp__memory__upsert` -->
+<!--   read:  mcp tool `mcp__memory__search` -->
+```
+
+The `memory.md` scaffold carries ONLY the commented `## Memory Backend` stub — no Rules/Constraints. Leave it commented; an absent block means the built-in file.
+
 Use `AskUserQuestion` after showing the scaffold:
 
 - **Question:** "Add what kind of rules?"
@@ -413,8 +458,8 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | Check | Severity | Example violation |
 |---|---|---|
 | File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
-| `## Rules` heading present | HIGH | File has body but no `## Rules` header |
-| `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead) | HIGH | Missing `## Constraints` |
+| `## Rules` heading present (skip for `memory.md` — it carries the `## Memory Backend` block only) | HIGH | File has body but no `## Rules` header |
+| `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead; skip for `memory.md`) | HIGH | Missing `## Constraints` |
 | File ≤ 300 lines (threshold env-overridable, see Step 1) | LOW | Anthropic Claude Code memory guidance: "longer files consume more context and reduce adherence". Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
 
 **Reference checks:**
@@ -441,6 +486,19 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 
 The HIGH severity matches the spec `verify:` read-only doctrine: a data-source shell command runs unattended during fact verification, so a mutating one is the same prod-risk class the `/geniro:implement` side-effect screen guards. `## Data Sources` is optional — absence is not a finding.
 
+**`## Memory Backend` lint rules** (applied to `memory.md` when a `## Memory Backend` section is present):
+
+| Rule | Severity |
+|---|---|
+| A `## Memory Backend` block in any file OTHER than `memory.md` (e.g. left in `global.md` or a per-skill file — those are not loaded for the memory layer) | MEDIUM — emit: "`## Memory Backend` belongs in the dedicated `memory.md` file; move it there or remove it." |
+| `memory.md` carries `## Rules` / `## Constraints` / `## Additional Steps` (the memory scope is for the backend block only) | LOW — emit: "`memory.md` holds the `## Memory Backend` block only; put rules/steps in `global.md` or the per-skill file." |
+| An entry missing `layer`, or `layer` not `learnings` (the only routed layer in v1; `snapshot` is reserved) | MEDIUM — emit: "Memory Backend entry needs `layer: learnings` (the only routed layer)." |
+| `mode` present but not `mirror` / `replace` | MEDIUM — emit: "Memory Backend `mode` must be `mirror` or `replace` (default `mirror`)." |
+| The `read` tool/command fails the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 (the query op must be read-only; the `write` op is the declared mutator and is exempt) | HIGH — emit: "Memory Backend `read` must be a read-only query tool (it runs unattended during retrieval); make it read-only or remove it." |
+| An entry missing `write` or `read` | MEDIUM — emit: "Memory Backend entry needs both a `write` and a read-only `read` tool." |
+
+`## Memory Backend` is optional — absence is not a finding (memory uses the built-in file).
+
 **description lint rules** (applied to `review-extra/<slug>.md` frontmatter `description:` field only):
 
 | Rule | Severity |
@@ -466,7 +524,7 @@ This is the guard that catches the silent-empty-findings trap at authoring time:
 | Scope | Real phase enum | Example subsection names |
 |---|---|---|
 | `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
-| `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `Before user-approve` |
+| `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) |
 | `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
 | `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
 | `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
