@@ -43,17 +43,17 @@ The L2 helpers (`emit-learning.sh` / `query-learnings.sh`) are shell — shell c
 ## 4. Procedure — DISCOVER → SCREEN → ROUTE
 
 - **DISCOVER.** Read the `## Memory Backend` entries surfaced by the L4 loader. Absent → built-in file only; stop.
-- **SCREEN.** The `read` tool/command passes the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 before it runs (a query / search / get tool). A `read` that fails the screen is skipped with a caveat → fall back to the file query. The `write` tool is the declared mutator (storing a learning is its job), exempt from the read-only screen but still screened against non-memory destructive ops.
-- **ROUTE (per L2 op).**
-  - On `emit_learning` (write): the helper's own redaction runs FIRST, then the declared op per §5 — the backend receives sanitized text, never raw.
-  - On `query_learnings` (read): per §5, query the backend, the file, or both (merge + dedup by `dedup_key`, backend-first).
+- **SCREEN.** The `read` tool/command passes the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 before it runs (a query / search / get tool). A `read` that fails the screen is skipped with a caveat → fall back to the file query. The `write` tool is the declared mutator — storing a learning is its job — so it is exempt from the read-only screen, but it must be a STORE op (`upsert` / `store` / `save` / `put` / `add` semantics); reject it if its name carries a clearly out-of-scope destructive verb (`rm` / `drop` / `delete` / `deploy` / `push`). The write is a store, never a delete or deploy.
+- **ROUTE (per L2 op).** Redact BEFORE any backend store — the backend is an external sink and must never receive raw repo text. The orchestrator-reachable redaction primitive is `lib/redact-secrets.sh` (standalone); `emit_learning`'s redaction is internal to the shell helper and applies only when the helper runs. And `emit_learning` ALWAYS appends to the file (no skip mode), so it is used only on the file/mirror path.
+  - On a write (per §5 mode): **mirror** → run `emit_learning` (file append, redacts internally) AND run `lib/redact-secrets.sh` on the same text → call the `write` tool with the redacted text. **replace** → run `lib/redact-secrets.sh` on the text → call the `write` tool with the redacted text; do NOT run `emit_learning` (it would write the file). Either way the backend receives sanitized text, never raw.
+  - On a read (`query_learnings`): per §5, query the backend, the file, or both (merge + dedup by `dedup_key`, backend-first).
 
 ## 5. Modes — mirror vs replace
 
 | mode | emit (write) | query (read) |
 |---|---|---|
-| `mirror` | file helper AND backend write | merge file + backend results (dedup by `dedup_key`) |
-| `replace` | backend write only (skip the file) | backend query only |
+| `mirror` | `emit_learning` (file append, redacts internally) AND `redact-secrets.sh` → backend write | merge file + backend results (dedup by `dedup_key`, backend-first) |
+| `replace` | `redact-secrets.sh` → backend write only; `emit_learning` is NOT called (it always appends, so calling it would write the file) | backend query only |
 
 Default when `mode` is omitted is `mirror` — never silently lose the local audit trail.
 
@@ -68,7 +68,7 @@ A backend error never blocks the run or the learning.
 | `read` tool fails the read-only screen | Skip it; fall back to the file query; caveat. |
 | No `## Memory Backend` block | Built-in file only; no caveat; unchanged behavior. |
 
-The SessionStart auto-archive operates on the file mirror only; under `replace` with no local file written, it has nothing to scan — documented, not an error.
+The SessionStart auto-archive operates on the file mirror only; under `replace` with no local file written, it has nothing to scan — documented, not an error. For the same reason, under `replace` the file-based access counter (`record_access`) and the dedup / supersede chain also no-op (there is no file to rewrite) — the backend owns ranking and dedup. This is a documented consequence of `replace`, not a silent break; `mirror` keeps all of them on the local file.
 
 ## 7. Plain-English echo
 
@@ -86,6 +86,6 @@ Retrieved past learnings from your memory backend.
 |---|---|
 | "Put the MCP call inside `emit-learning.sh`." | Shell cannot call MCP. Routing is orchestrator-level, around the helper — that is why this contract lives at the call-site, not in the script. |
 | "Use `replace` by default to fully offload memory." | Default is `mirror`. `replace` silently drops the local audit trail and disables SessionStart auto-archive — use it only when the user explicitly wants the backend as the sole store. |
-| "Skip the read-only screen — it's the user's own tool." | The `read` op must be read-only; the screen is non-negotiable because a misdeclared read tool could mutate. The `write` op is the declared mutator (exempt from the read-only screen) but still screened against non-memory destructive ops. |
+| "Skip the read-only screen — it's the user's own tool." | The `read` op must be read-only; the screen is non-negotiable because a misdeclared read tool could mutate. The `write` op is the declared mutator (exempt from the read-only screen), but it must be a STORE op — reject a `write` whose name carries `rm` / `drop` / `delete` / `deploy` / `push` (§4 SCREEN). |
 | "Backend is down — fail the emit so nothing is lost." | Fail-open: drop to the file helper for that op. Blocking a learning on an unreachable backend is how a learning is lost; the file fallback never loses it. |
-| "Send the learning to the backend, then redact." | Redact FIRST (the helper's own sanitization), then store — the backend must never receive un-redacted secrets, same bar as the local file. |
+| "On `replace`, call `emit_learning` and just point it at the backend." | `emit_learning` ALWAYS appends to the local file (no skip mode) and its redaction is internal to the shell helper. On `replace` (no file) the orchestrator must redact via `lib/redact-secrets.sh` standalone, then call the `write` tool — calling `emit_learning` would write the file (making it `mirror`), and skipping it without `redact-secrets.sh` egresses un-redacted text. Redact FIRST, then store; the backend never receives raw secrets (§4 ROUTE). |
