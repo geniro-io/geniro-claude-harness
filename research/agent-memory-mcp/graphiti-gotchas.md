@@ -31,10 +31,42 @@ MATCH (n) RETURN labels(n) AS label, count(*) ORDER BY count(*) DESC
   `ServerSession._receive_loop` pydantic validation error on `mcp==1.5.0`).
 
 **Fix / workaround:**
-- Call `await graphiti.add_episode(...)` directly via the library, or use the
-  **MCP server** path, instead of the buggy async `/messages` queue; OR
+- Call `await graphiti.add_episode(...)` directly via the library instead of the
+  buggy async `/messages` queue; OR
 - patch the server `main.py` to call `async_worker.start()` in the FastAPI
   lifespan/startup; OR pin a version where the worker start is fixed.
+
+### Cause A on the MCP server (different mechanism, same empty graph)
+
+The **MCP server** is not the REST `/messages` server — but it has its own
+asynchronous **episode queue**. `add_memory`/`add_episode` enqueues the episode
+(the worker logs `Starting episode queue worker for group_id ...`) and **returns
+success to the MCP client immediately**; extraction + embedding + the Neo4j write
+run in a **background worker**. If that worker throws, the client already saw
+success and the graph stays empty — no error reaches the client.
+
+So a totally-empty graph on the MCP path is almost always a **silent
+background-worker failure**. The real error is in the **MCP server's own
+stderr / container logs**, not the client. Read those first. Most common causes:
+
+- **Embedder fails in the background.** The embedder is separate from the LLM and
+  defaults to OpenAI. With Anthropic as the LLM but no valid `OPENAI_API_KEY`
+  (or a local embedder), the embedding step throws and the episode never
+  persists. Issue **#1116**: the OpenAI provider **ignores `api_base`** and falls
+  back to the official API → **401 with Ollama / a local embedder** — the most
+  common "empty on MCP".
+- **`group_id` mismatch.** `add_memory` without an explicit group writes to the
+  default **`main`**; inspecting a different group looks empty. Check what was
+  actually written:
+  `MATCH (n) RETURN DISTINCT n.group_id AS group, count(*) ORDER BY count(*) DESC`.
+- **429 / 401 / 400 in the queue** — rate-limit or auth during background
+  processing → silent non-persist.
+
+**Fix / workaround (MCP):** read the server logs to find the thrown error;
+provision a valid embedder (real `OPENAI_API_KEY`, or a local embedder whose
+`api_base` is actually honored — watch #1116); pass an explicit `group_id` and
+inspect that same group; confirm the server's `NEO4J_URI`/database is the one you
+open.
 
 ## Cause B — extraction / embedder returned empty (common with Anthropic)
 
@@ -74,4 +106,6 @@ the integration's smoke test so a silent non-persist is caught immediately.
 - #763 (max_tokens not respected): https://github.com/getzep/graphiti/issues/763
 - #871 (add_episode invalid JSON / index out of range): https://github.com/getzep/graphiti/issues/871
 - #1153 (neo4j data write error): https://github.com/getzep/graphiti/issues/1153
+- #1116 (OpenAI provider ignores api_base → 401 with local/Ollama embedder): https://github.com/getzep/graphiti/issues/1116
+- MCP server (async episode queue, env, group_id default 'main'): https://github.com/getzep/graphiti/blob/main/mcp_server/README.md
 - LLM configuration (Anthropic needs OpenAI for embeddings/reranking): https://help.getzep.com/graphiti/configuration/llm-configuration
