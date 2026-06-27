@@ -91,6 +91,24 @@ The episodic node saves but no entities/edges appear. Causes:
   silently persists nothing.
 - Ensure Neo4j 5.26+; tune `SEMAPHORE_LIMIT` for concurrency.
 
+## Maintenance status (why this matters for the decision)
+
+This is a **long-standing, low-priority** area, not a one-off. Issue #566 was
+opened **2025-06-08** and is **still OPEN ~a year later** with no assignee, label,
+milestone, linked PR, or visible maintainer response. It is one of a recurring
+family of MCP/ingestion issues spanning many releases: #325/#450 (mid-2025) →
+#566 (Jun 2025) → #871 (Aug 2025) → #1062 / #1116 → #1469 (`graphiti-core`
+0.29.0, 2026).
+
+Split by layer: **`graphiti-core` is actively maintained** (frequent releases);
+the **OSS MCP server is a reference/example surface whose hardening lags** —
+Zep's commercial focus is the hosted product, and the community routed around
+the queue bug with forks rather than an upstream fix. Decision implication: build
+on the maintained core (synchronous, awaited writes), not the neglected
+MCP-server async queue. If depending on the wrapper at all is unacceptable,
+switching to a more battle-tested store (Mem0) or a files-as-truth store (Basic
+Memory) is a legitimate call.
+
 ## Community forks that address this
 
 The silent-non-persist problem drove community forks — useful to unblock and to
