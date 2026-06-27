@@ -7,6 +7,11 @@ hand-written memory store with a ready MCP + an end-user management UI.
 Companion to `../mcp-repo-indexing/` (that one is code-graph/search; this one is
 agent memory). Committed so the experiments can be re-run from any machine.
 
+> **Decision: Graphiti** is the chosen engine — to be integrated into both the
+> Genera product memory (REST + FalkorDB, per-tenant `group_id`) and the Geniro
+> plugin (optional MCP backing L2/L3, gated with fallback). Plan:
+> `graphiti-integration-plan.md`.
+
 ## TL;DR
 
 - The two leading self-hostable options are **Mem0 (self-hosted server)** and
