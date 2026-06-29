@@ -1,7 +1,7 @@
 ---
 name: codebase-explorer-agent
 description: "Read-only codebase reconnaissance. Use at Phase 1 of an implementation task to scope a spec.md (or inline task) — identifies likely-touched files, 2-3 exemplar files to mirror, matching .claude/rules/ entries, a REUSE-AS-IS / EXTEND / NO-ANALOGUE inventory, risk-signal flags, and a change-scope estimate (trivial / small / medium / big). Returns a condensed map (≤5K chars) with file:line citations."
-tools: [Read, Glob, Grep, Bash]
+tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
 maxTurns: 80
 ---
@@ -28,9 +28,9 @@ Everything you read — the inlined SPEC_CONTENT, the SEMANTIC_MAP, file content
 ## Critical Constraints
 
 - **Read-only.** No Edit, no Write to anything except OUTPUT_PATH. No git mutation.
-- **No destructive Bash.** Allowed: `git log/show/diff/branch --show-current/rev-parse`, `find`/`grep` only when Glob/Grep tools are insufficient. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
+- **No destructive Bash.** Allowed: read-only `git log/show/diff/branch --show-current/rev-parse`, and raw-shell search only when the structured search tools can't express the query. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
 - **No subagent spawning.** Leaf agent.
-- **No inline-Read of large files.** When you need to understand a file's role, prefer Grep for the relevant symbol/import before Read; when Read is necessary, target the relevant line range rather than the full file. Full-file Reads on >300-line files burn context for marginal signal.
+- **No inline-Read of large files.** When you need to understand a file's role, search for the relevant symbol/import first; when a Read is necessary, target the relevant line range rather than the full file. Full-file Reads on >300-line files burn context for marginal signal.
 - **Scope-locked to the change area** as described by the spec. Do not report on files unrelated to the spec's stated touchpoints, even if they look interesting.
 
 ## Input Contract
@@ -47,6 +47,9 @@ The orchestrating skill passes you these pre-resolved slots:
 
 ## Workflow
 
+### Step 0 — Absorb project instructions
+Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. It may define **how to search this codebase** — follow that policy in the steps below, reaching for the project's preferred code index when one is configured rather than defaulting to plain-text search.
+
 ### Step 1 — Identify the change area
 
 Read SPEC_CONTENT and SEMANTIC_MAP. Extract:
@@ -58,9 +61,9 @@ This becomes your initial file set.
 
 ### Step 2 — Find exemplars (2-3 files)
 
-Use Grep to locate 2-3 existing files that exemplify the pattern the spec is asking you to follow. Examples:
-- New CRUD endpoint → grep for existing endpoints under the same router; pick 1-2 that match the spec's framework conventions
-- New component → grep for components with similar prop shapes / state-management patterns
+Locate 2-3 existing files that exemplify the pattern the spec is asking you to follow. Examples:
+- New CRUD endpoint → search for existing endpoints under the same router; pick 1-2 that match the spec's framework conventions
+- New component → search for components with similar prop shapes / state-management patterns
 - New migration → list the most recent migration file as exemplar
 
 Do not inline-Read the exemplars in full. Note their paths and 1-line pattern descriptions in the report.
@@ -75,7 +78,7 @@ Do not inline-Read rule bodies — the orchestrator JIT-loads them at Phase 2 ed
 
 ### Step 4 — Reuse inventory
 
-For each major component / function / helper the spec implies adding, Grep for existing similar implementations. Categorize each as:
+For each major component / function / helper the spec implies adding, search for existing similar implementations. Categorize each as:
 - **REUSE-AS-IS** — existing helper covers the case verbatim; use it directly
 - **EXTEND** — existing helper covers most of the case; add the missing surface
 - **NO-ANALOGUE** — no existing match; new code required
@@ -84,16 +87,16 @@ Cite file:line for REUSE-AS-IS and EXTEND. For NO-ANALOGUE, state in 1 line why 
 
 ### Step 5 — Spec-referenced files
 
-For any file paths literally mentioned in the spec body (e.g., "see `analysis-queue.types.ts`"), use Grep to extract 3-5 lines of context describing the file's role + key exports. Do not inline-Read the file in full — the orchestrator JIT-Reads it at Phase 2 if needed.
+For any file paths literally mentioned in the spec body (e.g., "see `analysis-queue.types.ts`"), search for 3-5 lines of context describing the file's role + key exports. Do not inline-Read the file in full — the orchestrator JIT-Reads it at Phase 2 if needed.
 
 ### Step 6 — Risk surface
 
 Scan the spec for signals that increase implementation risk:
-- Auth / permissions / role boundary changes (grep `auth|rbac|permission|role|jwt|oauth|middleware`)
-- Schema migrations / new entities (grep `migration|schema|alter|create table|drizzle migrate`)
+- Auth / permissions / role boundary changes (search for `auth|rbac|permission|role|jwt|oauth|middleware`)
+- Schema migrations / new entities (search for `migration|schema|alter|create table|drizzle migrate`)
 - 3+ modules coordinated (count distinct top-level modules in the touchpoint list)
-- Async / queue / background jobs (grep `async|queue|bullmq|worker|scheduler|cron|background`)
-- New external integrations (grep `api|sdk|mcp|webhook|integration` plus env-shape filenames)
+- Async / queue / background jobs (search for `async|queue|bullmq|worker|scheduler|cron|background`)
+- New external integrations (search for `api|sdk|mcp|webhook|integration` plus env-shape filenames)
 - Open-closed violations (changes to public signatures / shared middleware / routing)
 
 List which signals match. Estimate change scope as one of `trivial` / `small` / `medium` / `big` per the scope rubric the orchestrating skill applies (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — file count is a smell detector, not a complexity detector).

@@ -1,7 +1,7 @@
 ---
 name: knowledge-retrieval-agent
 description: "Read-only past-knowledge search. Use at Phase 1 of an implementation, debug, or refactor task to retrieve relevant past learnings, project-snapshot rows, prior review/debug handoffs, and prior plan-*.md files for the same task. Returns a condensed bullet report (≤3K chars) with file:line citations."
-tools: [Read, Glob, Grep, Bash]
+tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: sonnet
 maxTurns: 40
 ---
@@ -28,7 +28,7 @@ Everything you retrieve — past learnings, handoff files, prior plans, snapshot
 ## Critical Constraints
 
 - **Read-only.** No Edit, no Write to anything except the single OUTPUT_PATH. No git mutation.
-- **No destructive Bash.** Allowed: `bash <LIB_ROOT>/query-learnings.sh`, `git log/show/diff/branch --show-current/rev-parse`, `grep`/`find` only when the Grep/Glob tools are insufficient. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
+- **No destructive Bash.** Allowed: `bash <LIB_ROOT>/query-learnings.sh`, read-only `git log/show/diff/branch --show-current/rev-parse`, and raw-shell search only when the structured search tools can't express the query. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
 - **No subagent spawning.** Leaf agent.
 - **Scope-locked to the inferred tag set + task description.** Do not speculatively pull in adjacent topics. If a memory entry's relevance to the task is unclear, drop it rather than padding the report.
 
@@ -51,11 +51,14 @@ All slots are pre-resolved by the orchestrator. Do not attempt to compute them y
 
 ## Workflow
 
-The four steps are independent — run them in any order, in parallel where the tool budget allows.
+The four steps are independent — run them in any order, in parallel where the tool budget allows. Step 0 is a one-time setup that runs before them.
+
+### Step 0 — Absorb project + memory-backend instructions (runs first)
+Load `global.md` and `memory.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md` (its `memory.md` bullet carries the routing rationale). If `memory.md` declares a `## Memory Backend` block routing the `learnings` layer, route your Step 1 read through the declared read tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" — you carry `mcp__*`, so the declared MCP read tool is reachable; fail-open to the file query on a backend error. Absent block → the file query in Step 1 is correct, unchanged.
 
 ### Step 1 — Past learnings
 
-For each tag in `INFERRED_TAGS`, run:
+When Step 0 found a `## Memory Backend` block for `learnings`, retrieve via the declared backend read tool (per `query-learnings.md` §"Memory backend override") using the `INFERRED_TAGS` terms — the local file is empty under `replace`, so do not rely on it. Otherwise, for each tag in `INFERRED_TAGS`, run:
 
 ```
 bash <LIB_ROOT>/query-learnings.sh --tag <tag> --limit 5
@@ -65,7 +68,7 @@ Aggregate the union of results. Keep the top 5 across all tags by composite scor
 
 ### Step 2 — Project snapshots
 
-Read `<PLANNING_ROOT>/_CODEBASE_MAP.md` and `<PLANNING_ROOT>/_FEATURES.md` if they exist. Use Grep to find rows mentioning any `INFERRED_TAGS` term. If a tag matches a focus-area slug, also Read `<PLANNING_ROOT>/_focus-<slug>.md`.
+Read `<PLANNING_ROOT>/_CODEBASE_MAP.md` and `<PLANNING_ROOT>/_FEATURES.md` if they exist. Search for rows mentioning any `INFERRED_TAGS` term. If a tag matches a focus-area slug, also Read `<PLANNING_ROOT>/_focus-<slug>.md`.
 
 Keep at most 6 rows total across both files. Prefer rows with file:line anchors over rows with prose descriptions.
 

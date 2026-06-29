@@ -193,6 +193,8 @@ load_semantic --extras "_FEATURES.md" # if spec mentions feature backlog
 
 ### L2 — Episodic event log
 
+Route every L2 read below per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": when `memory.md` declares a `## Memory Backend` block for `learnings`, query the declared read tool instead of the file helper — under `mode: replace` the local `learnings.jsonl` is never written, so the file query returns nothing and only the backend read recalls anything. Absent block → the file query is correct, unchanged.
+
 **Read (Phase 1 entry):**
 
 ```bash
@@ -208,7 +210,7 @@ Tags inferred from task description (e.g., `react`, `auth`, `bug`); skipped if t
 query_learnings --tag <inferred-tag> --scope <changed-file-path> --limit 5
 ```
 
-Used to prime reviewer-agent prompts with known conventions/pitfalls.
+Used to prime reviewer-agent prompts with known conventions/pitfalls (same backend routing as the Phase 1 entry read above).
 
 **Write (Phase 3 ship sub-step, auto-emit):**
 
@@ -489,7 +491,7 @@ Record the applied choices in `approvals[]` the same way the interactive answers
 7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Subagent spawn template" — first prime both spawns with the related-task chain context (parent epic + sibling tasks + neighboring milestones) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out).
 8. **Read subagent outputs.** Read `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`. The codebase-explorer's `change_scope` field gates Phase 3 adversarial-tester spawn (`trivial` → skip). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
 8.5. **Library reuse audit (build-vs-buy).** For each codebase-explorer `NO-ANALOGUE` component, when `change_scope` is small / medium / big (skip trivial), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` with MODE: implement — a web-research agent finds candidate libraries in the project's detected ecosystem, filters them (existence-verified against the real registry), and a message-first confirmation gate requires explicit approval before any library is adopted (persists `approvals[]` category `library_adoption`). Skip silently when there is no package manifest or no NO-ANALOGUE component; fail-open on a research/registry error.
-9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5`. Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
+9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5` — route per the Memory I/O §"Read" backend rule above (a declared backend redirects this to its read tool; the file is empty under `replace`). Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
 11. **Detect frontend files in scope.** Use the codebase-explorer "Likely-Touched Files" report against the UI-file detection rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule). Gates Pre-Ship Visual Verification.
 12. **Persist review/debug handoffs AND gate on unresolved open questions.** For every `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` that exists:

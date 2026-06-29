@@ -137,7 +137,7 @@ On Phase 1 entry, in order:
 
 1. **Refresh custom instructions** — `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` per Echo contract.
 2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.
-3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` to find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope.
+3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` to find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the local file is empty under `mode: replace`).
 4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict. Echo lines from each loader are mandatory per its §Echo contract.
 5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept `geniro_schema_version: m5-v1` (treat field as absent), `m5-v2`, `m5-v3`, and `m5-v4` (read the field if present; an m5-v4 spec carries `workflow_refs[]` identically and may also carry a `launch_config` block, which /geniro:refactor ignores). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). On `m5-v3` the cached parent-epic status and sibling sub-task statuses also prime scope decisions (e.g. an in-flight sibling touching the same module argues for a smaller perturbation surface), still read-only. Read-only — /geniro:refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
 6. **Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /geniro:refactor applies changes in place on the current branch, so if that branch is behind the default branch, offer to update it before scope discovery and baseline validation run against stale code. Skipped silently when the branch is already current.
@@ -145,8 +145,8 @@ On Phase 1 entry, in order:
 ### 1.2 Scope discovery + baseline + Test-first gate
 
 1. **Parse `$ARGUMENTS`** to understand what is being refactored and why.
-2. **Use Grep + Glob** to find all related files. Read all files in scope to understand current organization, dependencies, imports, and test coverage.
-3. **Prior-planning context.** Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Check: `.geniro/planning/*/` (task-local), workflow files (cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/*.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` (grep for scope-file keywords), git state (`git rev-parse --show-toplevel`, `git branch --show-current`, `git log --oneline -5`, `git status --short`).
+2. **Find all related files** with the project's code-search tooling (follow the project's search policy from `global.md` — reach for its code index when one is configured). Read all files in scope to understand current organization, dependencies, imports, and test coverage.
+3. **Prior-planning context.** Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Check: `.geniro/planning/*/` (task-local), workflow files (cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/*.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` (search for scope-file keywords — or, under a `## Memory Backend` block, query the declared read tool instead per `query-learnings.md` §"Memory backend override", since the file is empty under `replace`), git state (`git rev-parse --show-toplevel`, `git branch --show-current`, `git log --oneline -5`, `git status --short`).
 4. **Read project convention files** referenced in CLAUDE.md.
 5. **Baseline validation** — run the project's validation suite once (read command from CLAUDE.md). Capture as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Outcomes:
 - **Red:** `AskUserQuestion` header "Baseline" — "Fix the broken tests first (stop refactoring)" / "Proceed anyway — existing failures are out of scope (risky)". Default: stop. state.md → `phase: plan-escalated`.
@@ -191,10 +191,10 @@ The orchestrator runs the 6 smell detection categories + Deepening Opportunities
 
 **Per-smell procedure:**
 
-1. Apply the 6 smell categories (duplication / long methods / god classes / dead code / tight coupling / type+import issues) via Read + Grep against the FILES IN SCOPE from Phase 1 §1.2.
+1. Apply the 6 smell categories (duplication / long methods / god classes / dead code / tight coupling / type+import issues) via Read + the project's code-search tooling against the FILES IN SCOPE from Phase 1 §1.2.
 2. Apply the Deepening Opportunities lens — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first for vocabulary grounding, then scan for wide-interface shallow modules / pass-through wrappers / repeated cross-call orchestration / high-leverage shallow code.
-3. For every detected smell, run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (Grep designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format.
-4. Count consumers per smell via Grep (`Grep(pattern="SymbolName", output_mode="count")`). Adjust glob filter based on language (`*.ts` / `*.py` / etc).
+3. For every detected smell, run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (search designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format.
+4. Count consumers per smell with the project's code-search tooling (a code index returns dependents directly when configured; otherwise a count-mode structured search), scoped by language (`*.ts` / `*.py` / etc).
 5. Public-surface guard: flag smells that change public API signature, module export, or shared type — these are HIGH-risk regardless of consumer count.
 
 Output (write directly to state.md `## Smells Detected`):
@@ -223,7 +223,7 @@ For each smell detected in §1.4, the orchestrator weighs three signals inline:
 
 1. **Convention alignment** — is this "smell" actually the repo's chosen pattern? Cross-check with CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs (when present) and CLAUDE.md.
 2. **Over-engineering** — would fixing this smell introduce more complexity than it removes? Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` mental check.
-3. **Intentional pattern** — does the flagged pattern exist deliberately in 3+ other files? Quick Grep pass over similar paths confirms.
+3. **Intentional pattern** — does the flagged pattern exist deliberately in 3+ other files? A quick search over similar paths confirms.
 
 Synthesis matrix per smell:
 
@@ -422,7 +422,7 @@ At Phase 3 exit:
 - **NOT emitted :** `diagnosis` (/geniro:debug owns); `convention` (/geniro:implement self-review owns); `decision` (/geniro:plan owns).
 - **Echo + ordering:** after a successful emit, echo `Recorded learning: <summary>` to the user, and fire the emit before declaring Phase 3 done — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". A silent emit trailing the phase's done declaration is the documented drop vector.
 
-**Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back via `query-learnings` and gates the offer on `>= 3`.
+**Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
 
 ### 3.6 Suggest improvements (project scope only, routes)
 

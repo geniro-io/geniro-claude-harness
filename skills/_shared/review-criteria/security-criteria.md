@@ -233,7 +233,7 @@ This check covers failures that exist only when changed code COMPOSES with its s
 
 For each changed symbol whose output crosses a module boundary:
 
-1. Grep the working tree (read-only) for its 1-hop consumers: `Grep(pattern="\\bSymbolName\\b", output_mode="files_with_matches", glob="<project-language-glob>")`.
+1. Search the working tree (read-only) for its 1-hop consumers — the project's code-search tooling (a code index returns the dependents directly when one is configured; otherwise a whole-word, files-with-matches search), scoped to the project's language files.
 2. For each consumer, read the input assumption at the call site — the validation it performs or skips, the format it parses, the invariant its logic relies on.
 3. Emit only when the changed output can concretely violate that assumption — cite both the producer change and the consumer assumption `path:line`.
 

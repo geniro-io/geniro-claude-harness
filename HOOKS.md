@@ -105,8 +105,9 @@ Emits an `additionalContext` block-set:
 - Unresolved errors from state.md `## Errors`, pending `## Open Questions`, and persisted `approvals:` from state.md frontmatter.
 - Resume protocol (suppressed when the resolved task is in a terminal state).
 - Auto-archive of stale L2 entries (default ON, hash-gated + mkdir-locked for multi-tab safety; opt-out via `safety.json` `memory.auto_archive_stale: false`); when entries are flipped the `systemMessage` gains an "auto-archived: N" suffix.
+- Memory-backend-active notice — when `.geniro/instructions/memory.md` routes the `learnings` layer to a `replace`-mode backend (no local file), the coverage line is absent, so the `systemMessage` gains a "memory backend active" suffix in its place. Detection-only; the hook is shell and never queries the backend.
 
-`systemMessage` one-liner emitted on every source except cold startup with no active task. Read-only on state.md — never writes it; the only writes are `.geniro/knowledge/learnings.jsonl` (the auto-archive flip) and `.geniro/knowledge/.archive-stale.{hash,lock}` (the hash-gate + multi-tab lock).
+`systemMessage` one-liner emitted on every source except cold startup with no active task (an auto-archive event, a coverage line, or a memory-backend notice overrides that suppression). Read-only on state.md — never writes it; the only writes are `.geniro/knowledge/learnings.jsonl` (the auto-archive flip) and `.geniro/knowledge/.archive-stale.{hash,lock}` (the hash-gate + multi-tab lock).
 
 ### security-pattern-check.sh
 

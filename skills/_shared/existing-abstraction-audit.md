@@ -16,7 +16,7 @@ Before recommending any of:
    - Behavioral keywords (e.g., `debounce`, `memoize`, `parse`, `serialize`)
    - Type / signature fragments where applicable
 
-2. **Grep designated helper directories.** Run Grep (case-insensitive, regex) across the project's conventional helper directories:
+2. **Search designated helper directories.** Search (case-insensitive) with the project's code-search tooling across the project's conventional helper directories:
    - `utils/`, `lib/`, `shared/`, `helpers/`, `services/`
    - Plus any project-specific directories named in CLAUDE.md
    - Also check barrel files: `index.*` at module roots
@@ -45,5 +45,5 @@ The orchestrator weighs these tags against the finding before applying or propos
 |---|---|
 | "I already see it duplicated twice — extract now" | Two sites don't yet reveal the axis of variation; wait for the third. Duplication is far cheaper to unwind later than the wrong abstraction is. |
 | "I'll add an optional parameter to the existing helper to fit this case" | That's force-fitting. The next caller adds another optional parameter, and the helper becomes a pile of orthogonal flags. Prefer local duplication. |
-| "Skip the Grep — I know that helper doesn't exist" | Project layouts vary, helpers move, your memory of the repo may be stale. The Grep takes 2 seconds and the audit is the single source of truth. |
+| "Skip the search — I know that helper doesn't exist" | Project layouts vary, helpers move, your memory of the repo may be stale. The search takes 2 seconds and the audit is the single source of truth. |
 | "Extend it anyway — the parameter complication is small" | Small parameter complications compound. Each one masks the original abstraction's intent. Today's optional flag is tomorrow's bug. |

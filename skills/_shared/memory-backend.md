@@ -40,6 +40,8 @@ One entry per layer the project routes. v1 covers L2 (`learnings`); other layers
 
 The L2 helpers (`emit-learning.sh` / `query-learnings.sh`) are shell — shell cannot call MCP tools (MCP is an orchestrator capability). So routing happens at the ORCHESTRATOR call-sites, around the shell-helper call — exactly as `## Data Sources` is consumed by the orchestrator, not by a helper. This primitive is the call-site contract the `emit-learning.md` / `query-learnings.md` docs cite; the shell scripts are unchanged.
 
+**Reader subagents that carry `mcp__*`.** A leaf agent whose `tools` allowlist includes `mcp__*` (e.g. `knowledge-retrieval-agent`, `reflection-agent`) CAN call an MCP read tool. Such an agent loads `memory.md` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`) and, on a routed `learnings` block, applies this same DISCOVER → SCREEN → ROUTE for its OWN read — necessary because its read runs inside the fork, where the orchestrator cannot route on its behalf, and because under `replace` the file it would otherwise read is empty. The "shell cannot call MCP" constraint still governs the shell helpers and any leaf agent without `mcp__*` (those depend on the orchestrator pre-routing or pre-inlining).
+
 ## 4. Procedure — DISCOVER → SCREEN → ROUTE
 
 - **DISCOVER.** Read the `## Memory Backend` entries surfaced by the L4 loader. Absent → built-in file only; stop.
@@ -69,6 +71,8 @@ A backend error never blocks the run or the learning.
 | No `## Memory Backend` block | Built-in file only; no caveat; unchanged behavior. |
 
 The SessionStart auto-archive operates on the file mirror only; under `replace` with no local file written, it has nothing to scan — documented, not an error. For the same reason, under `replace` the file-based access counter (`record_access`) and the dedup / supersede chain also no-op (there is no file to rewrite) — the backend owns ranking and dedup. This is a documented consequence of `replace`, not a silent break; `mirror` keeps all of them on the local file.
+
+Two more file-based readers degrade the same way under `replace`, by design: (1) the SessionStart **verification-coverage line** is computed over the local file, so under `replace` it is empty — the hook is shell and cannot query the backend, so it emits a short `memory backend active` notice in that slot instead of a fraction; (2) the **recurrence-count gate** (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md`) reads the file-based `recurrence_count`, which no-ops here — so a recurrence count is available under `replace` only if the backend itself tracks recurrence; absent that, the gate stays below threshold (it never fabricates a count). `mirror` keeps both on the local file.
 
 ## 7. Plain-English echo
 

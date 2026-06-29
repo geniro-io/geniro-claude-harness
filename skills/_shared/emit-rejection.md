@@ -69,7 +69,7 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 
 Skills that **read** these L2 entries (to surface "user previously rejected X" hints) should:
 
-1. Call `query-learnings --type user_rejected_suggestion --tag auq-rejection [--tag <category>] --scope <current>` at Phase 1 of relevant skill.
+1. Read these entries at Phase 1 of the relevant skill — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a `## Memory Backend` block query the declared read tool for `user_rejected_suggestion` / `auq-rejection` / this scope (the local file is empty under `replace`), else call `query-learnings --type user_rejected_suggestion --tag auq-rejection [--tag <category>] --scope <current>`.
 2. Surface result count to user in pre-AUQ display:
    ```
    User previously rejected <suggestion> in <scope> (<relative-time>).
