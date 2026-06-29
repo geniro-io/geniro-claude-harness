@@ -443,7 +443,7 @@ Adds `risk_class: low` right after the opening `---` of each affected action's f
 
 **Action required:** For each non-canonical instruction file acting as a custom reviewer, recreate via `/geniro:instructions create review-extra/<slug>` (interview copies the body + adds `slug` / `description` / `model` / `paths` / `severity-default` frontmatter), then `/geniro:instructions delete <old-scope>`.
 
-**Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|implement|plan|review|debug|refactor|onboard|investigate)\.md$'`
+**Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|memory|implement|plan|review|debug|refactor|onboard|investigate)\.md$'`
 
 **Auto-fix:** manual-only — custom reviewer migration requires user judgment to set frontmatter fields (`description`, `model`, `paths`, `severity-default`). Run `/geniro:instructions create review-extra/<slug>` per file.
 
