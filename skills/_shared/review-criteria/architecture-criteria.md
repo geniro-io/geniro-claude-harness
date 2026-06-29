@@ -58,7 +58,7 @@ A "semantic mutation" is a code change where a function / method / field / opera
 
 **How to detect:**
 1. From `DIFF CONTEXT`, scan changed hunks for: operator changes (`>` ↔ `>=`, `===` ↔ `==`), return-value type or value changes, default-argument changes, regex changes, new conditional branches in shared helpers.
-2. For each candidate symbol whose semantic changed but whose signature / name is stable, count callers via the Grep tool (NOT bash grep): `Grep(pattern="SymbolName", output_mode="count", glob="<project-language-glob>")`. Adjust `glob` per the project's languages (e.g., `*.ts` for TypeScript, `*.py` for Python, `*.rb` for Ruby).
+2. For each candidate symbol whose semantic changed but whose signature / name is stable, count its callers — use the project's code-search tooling (a code index, when one is configured, returns the dependents directly), otherwise a count-mode structured search scoped to the project's language files (pattern `SymbolName`, scoped by language glob — e.g., `*.ts` for TypeScript, `*.py` for Python, `*.rb` for Ruby).
 3. Classify risk per the canonical Change Impact Scoring rubric at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § "Step 2: Change Impact Scoring" (1-3 callers LOW / 4-9 MEDIUM / 10+ HIGH). Apply the same escalation override: any public API / module export / shared type change is HIGH regardless of count.
 4. For each caller above LOW: open the call site, read the surrounding context (5-10 lines), and ask: does the new semantic break THIS caller's assumption? Did the PR description mention this caller? Are there tests asserting THIS caller's behavior under the new semantic?
 5. Surface findings as: "Symbol `<name>` at `<file:line>` had a semantic mutation (was `<old>`, now `<new>`) with N callers; caller at `<callsite-path:line>` reads the result and `<does-X>` — verify intent or add test."
@@ -82,7 +82,7 @@ When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code
 
 **How to detect:**
 1. Name the invariant the change enforces (e.g., "every deleted row is replaced", "superseded records are synced, not dropped").
-2. Identify sibling paths that share it — a sibling function with a parallel name (`syncWeekly` ↔ `syncDaily`), an adjacent `switch` / `if` arm, or a dispatcher where only one variant was edited. `Grep(pattern="<sibling-stem>", output_mode="files_with_matches", glob="<project-language-glob>")` the enclosing module (adjust `glob` per the project's languages — e.g., `**/*.{ts,tsx,js,jsx}` / `**/*.py` / `**/*.go`).
+2. Identify sibling paths that share it — a sibling function with a parallel name (`syncWeekly` ↔ `syncDaily`), an adjacent `switch` / `if` arm, or a dispatcher where only one variant was edited. Search the enclosing module for the sibling stem — the project's code-search tooling, scoped to the project's language files (e.g., `**/*.{ts,tsx,js,jsx}` / `**/*.py` / `**/*.go`).
 3. For each sibling: did the diff apply the same guard / replacement there? A sibling that shares the invariant but is untouched by the diff is the mirror gap.
 4. When you confirm one gap, sweep the rest — enumerate ALL siblings in the module / switch / dispatch table and check each; a point-fix on one while C and D stay broken reproduces the asymmetry one level down.
 

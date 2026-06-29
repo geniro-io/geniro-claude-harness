@@ -953,6 +953,32 @@ if [ -f "$_learnings_log" ] && [ -s "$_learnings_log" ]; then
   fi
 fi
 
+# Memory-backend notice. When `memory.md` routes the learnings layer to a backend
+# (a `## Memory Backend` block), the local learnings.jsonl is the mirror only — and
+# under `mode: replace` it is never written, so the file-based coverage line above
+# comes back empty even though the backend holds the corpus. This hook is shell and
+# cannot query an MCP backend, so it cannot compute real coverage; instead, when a
+# backend is declared AND the local coverage is empty, surface a short notice so the
+# user isn't left wondering where the always-on "memory verified" line went. (When
+# the file IS populated — mirror mode — the real coverage line fires and this stays
+# silent.) Detection only; never queries the backend.
+MEMORY_BACKEND_NOTE=""
+if [ -z "$COVERAGE_SUFFIX" ]; then
+  # Reuse the already-resolved INSTR_DIR (it honors GENIRO_INSTRUCTIONS_DIR, the
+  # plugin install-option dir, and tilde) rather than re-deriving the path here.
+  _memory_md="$INSTR_DIR/memory.md"
+  if [ -f "$_memory_md" ]; then
+    # Fire only under `mode: replace` — that is the mode with no local file, so the
+    # coverage line is genuinely absent. Scope the check to the block so an unrelated
+    # `layer:`/`mode:` line elsewhere in the file cannot false-positive.
+    _mb_block="$(awk '/^## Memory Backend/{f=1; next} /^## /{f=0} f' "$_memory_md" 2>/dev/null)"
+    if printf '%s' "$_mb_block" | grep -qE 'layer:[[:space:]]*learnings' 2>/dev/null \
+       && printf '%s' "$_mb_block" | grep -qE 'mode:[[:space:]]*replace' 2>/dev/null; then
+      MEMORY_BACKEND_NOTE="memory backend active — past learnings are tracked in your backend, not the local file"
+    fi
+  fi
+fi
+
 # Block 6 — resume protocol. The cold-startup branch
 # (no active task) emits no "active task" block — i.e., the 7-step
 # resume protocol is suppressed entirely. Loader-refresh advice still
@@ -1044,6 +1070,9 @@ fi
 if [ -n "$COVERAGE_SUFFIX" ]; then
   SYSTEM_MESSAGE="$SYSTEM_MESSAGE · memory verified: $COVERAGE_SUFFIX"
 fi
+if [ -n "$MEMORY_BACKEND_NOTE" ]; then
+  SYSTEM_MESSAGE="$SYSTEM_MESSAGE · $MEMORY_BACKEND_NOTE"
+fi
 
 # Suppression rule: cold startup with no active task → no systemMessage spam.
 # Exception: auto-archive event (ARCHIVED_COUNT > 0) OR a coverage line overrides
@@ -1051,7 +1080,8 @@ fi
 # start.
 emit_system_message=true
 if [ "$SOURCE" = "startup" ] && [ -z "$state_file" ] \
-   && [ "${ARCHIVED_COUNT:-0}" -eq 0 ] && [ -z "$COVERAGE_SUFFIX" ]; then
+   && [ "${ARCHIVED_COUNT:-0}" -eq 0 ] && [ -z "$COVERAGE_SUFFIX" ] \
+   && [ -z "$MEMORY_BACKEND_NOTE" ]; then
   emit_system_message=false
 fi
 

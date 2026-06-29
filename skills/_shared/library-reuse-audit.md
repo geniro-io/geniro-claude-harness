@@ -124,7 +124,7 @@ The existence check in Step 3 Stage 0 is mandatory, not optional polish. Languag
 | | existing-abstraction-audit.md | this audit |
 |---|---|---|
 | Scope | in-repo reuse | external-registry reuse |
-| Looks at | `utils/ lib/ shared/` via Grep | npm / PyPI / crates / Maven / Go / RubyGems |
+| Looks at | `utils/ lib/ shared/` via the project's code search | npm / PyPI / crates / Maven / Go / RubyGems |
 | Fires | any reuse smell | only after an in-repo `NO-ANALOGUE` result |
 | Outcome | reuse-as-is / extend-existing / no-analogue | adopt-library / keep-hand-written |
 

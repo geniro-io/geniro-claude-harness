@@ -39,7 +39,7 @@ Scan the diff for hunks that DELETE production symbols. Targets:
 For each deleted symbol:
 
 1. Search the diff's ADDITION hunks for any reference to the symbol — if the same name appears in additions, the diff is renaming or relocating it; cross-check whether the relocation is complete.
-2. Grep the working tree (read-only) for surviving callers of the deleted symbol. Use the Grep tool: `Grep(pattern="\\bSymbolName\\b", output_mode="files_with_matches", glob="<project-language-glob>")`. For TypeScript / JavaScript: `glob="**/*.{ts,tsx,js,jsx}"`. For Python: `glob="**/*.py"`. For Go: `glob="**/*.go"`. Match the project's primary language list.
+2. Search the working tree (read-only) for surviving callers of the deleted symbol — the project's code-search tooling (a code index returns the dependents directly when one is configured; otherwise a whole-word, files-with-matches search), scoped to the project's language files. For TypeScript / JavaScript: `**/*.{ts,tsx,js,jsx}`. For Python: `**/*.py`. For Go: `**/*.go`. Match the project's primary language list.
 3. For each surviving caller path, verify it is NOT modified in the current diff (compare against the diff's changed-files list). Surviving cross-file callers in unchanged files are the high-confidence regression signal.
 4. Flag as a finding with `File:` anchored at the deletion site, body quoting the deleted hunk AND the surviving caller `path:line`, and `Suggested fix:` naming either "restore the symbol" or "update caller at `<path:line>` to use `<replacement>`".
 
@@ -110,7 +110,7 @@ When the diff adds or changes a guard / filter / cleanup / replacement on ONE co
 For each guard / filter / replacement / cleanup the diff adds or modifies:
 
 1. Name the invariant the change enforces (e.g., "every deleted weekly row is replaced", "superseded records are synced, not dropped").
-2. Identify sibling paths that share the invariant. Cues: a sibling function in the same module with a parallel name (`syncWeekly` ↔ `syncDaily`, `reclaim` ↔ `release`); a `switch` / `if` arm adjacent to the changed arm; a caller that dispatches to N variants where only one variant was edited. Grep the enclosing module (read-only) for the sibling symbol: `Grep(pattern="<sibling-name-stem>", output_mode="files_with_matches", glob="<project-language-glob>")` (adjust `glob` per the project's languages — e.g., `**/*.{ts,tsx,js,jsx}` / `**/*.py` / `**/*.go`).
+2. Identify sibling paths that share the invariant. Cues: a sibling function in the same module with a parallel name (`syncWeekly` ↔ `syncDaily`, `reclaim` ↔ `release`); a `switch` / `if` arm adjacent to the changed arm; a caller that dispatches to N variants where only one variant was edited. Search the enclosing module (read-only) for the sibling symbol stem with the project's code-search tooling, scoped to the project's language files (e.g., `**/*.{ts,tsx,js,jsx}` / `**/*.py` / `**/*.go`).
 3. For each sibling path, check the diff: was the same guard / replacement applied there? If a sibling shares the invariant but the diff does NOT touch it, that is the mirror gap.
 4. Flag as a finding anchored at the EDITED path, body naming the unedited sibling `path:line` and the invariant it now violates. `Suggested fix:` "apply the same <guard|replacement|cleanup> at <sibling-path:line>".
 

@@ -40,7 +40,7 @@ Before analyzing code, read any project convention files referenced in the orche
 Scan the target codebase for:
 
 #### Duplication Patterns
-- Use Grep to find identical or near-identical code blocks across files
+- Search the codebase to find identical or near-identical code blocks across files
 - Identify repeated logic that could be extracted to shared utilities
 - Flag magic numbers, repeated conditions, or boilerplate patterns
 - Report: file paths, line ranges, similarity scores
@@ -56,7 +56,7 @@ Scan the target codebase for:
 - Report: class structure, responsibility breakdown
 
 #### Dead Code
-- Use Grep to find unused variables, unreachable branches, orphaned functions
+- Search the codebase to find unused variables, unreachable branches, orphaned functions
 - Cross-reference against test files and call graphs
 - Confirm unused status by checking imports and references
 - Report: confirmed dead code with confidence levels
@@ -86,7 +86,7 @@ For each deepening opportunity, report:
 - **Module**: file:line of the current shallow module
 - **Current interface size**: count of exported symbols
 - **Proposed deepening**: what behavior to absorb (1-2 sentences)
-- **Affected call sites**: count of consumers (use Grep — this drives risk classification per Step 2)
+- **Affected call sites**: count of consumers (this drives risk classification per Step 2)
 - **Vocabulary tag**: which terms apply (depth / seam / adapter / leverage / locality)
 
 Deepening findings are subject to the same Step 2 Change Impact Scoring as smells. They are typically MEDIUM or HIGH risk because they touch the seam between modules and their consumers — flag accordingly.
@@ -95,11 +95,7 @@ Deepening findings are subject to the same Step 2 Change Impact Scoring as smell
 
 For each detected smell, score its change impact before including it in the plan:
 
-1. **Count consumers**: Use the Grep tool (not bash grep) to count files that import or reference the symbol being changed:
- ```
- Grep(pattern="SymbolName", output_mode="count")
- ```
- Adjust the glob filter based on the project's language (e.g., `glob: "*.ts"` for TypeScript, `glob: "*.py"` for Python).
+1. **Count consumers**: count the files that import or reference the symbol being changed — use the project's code-search tooling (a code index returns the dependents directly when one is configured; otherwise a count-mode structured search), scoped to the project's language (e.g., `*.ts` for TypeScript, `*.py` for Python).
 2. **Classify risk** based on consumer count:
 
 | Consumers | Risk | Action |

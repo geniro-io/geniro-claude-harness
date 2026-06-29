@@ -451,7 +451,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 |---|---|---|
 | `load-custom-instructions` MODE: refresh | scope = `review` + `global` + `code-style` (3 files) | concatenated rule body |
 | `load-semantic` MODE: refresh | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + fingerprint drift check |
-| `query-learnings` | tags inferred from changed-file paths | top-K matching L2 entries (default K=5; filter superseded/deprecated) |
+| `query-learnings` (route per `query-learnings.md` §"Memory backend override" — declared backend read tool under a `## Memory Backend` block; the file is empty under `replace`) | tags inferred from changed-file paths | top-K matching L2 entries (default K=5; filter superseded/deprecated) |
 | `resolve-conflicts` | transitive | hard conflict → AUQ |
 
 ---
