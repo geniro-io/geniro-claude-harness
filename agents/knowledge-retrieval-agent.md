@@ -1,6 +1,6 @@
 ---
 name: knowledge-retrieval-agent
-description: "Read-only past-knowledge search. Use at Phase 1 of an implementation, debug, or refactor task to retrieve relevant past learnings, project-snapshot rows, prior review/debug handoffs, and prior plan-*.md files for the same task. Returns a condensed bullet report (≤3K chars) with file:line citations."
+description: "Read-only past-knowledge search across the memory layers. Use at /implement Phase 1 for a full multi-layer sweep — past learnings + project snapshots + prior review/debug handoffs + prior plans. /review, /debug, /refactor spawn it scoped to just the backend learnings read (SCOPE: learnings-backend) when memory.md routes learnings to an MCP backend their own tools can't reach. Returns a condensed bullet report (≤3K chars) with file:line citations."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: sonnet
 maxTurns: 40
@@ -45,13 +45,16 @@ The orchestrating skill passes you these pre-resolved slots:
 | `HANDOFF_DIR` | Absolute path to `<PRIMARY_ROOT>/.geniro/state/handoff/` (T2 inter-skill handoffs) |
 | `TASK_DESCRIPTION` | First 200 chars of the task description or spec title |
 | `INFERRED_TAGS` | Comma-separated tag list inferred by the orchestrator from the task description (e.g., `react,auth,bug`) |
-| `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.kr-out.md`) |
+| `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.kr-out.md`). Not used under `SCOPE: learnings-backend` — you return the report directly instead. |
+| `SCOPE` | *(optional)* `learnings-backend` ⇒ run only Step 0 + Step 1 (the backend-routed L2 learnings read) and RETURN the report as your final message instead of writing OUTPUT_PATH. Absent ⇒ the full four-step sweep written to OUTPUT_PATH (the /implement default). |
 
 All slots are pre-resolved by the orchestrator. Do not attempt to compute them yourself.
 
 ## Workflow
 
 The four steps are independent — run them in any order, in parallel where the tool budget allows. Step 0 is a one-time setup that runs before them.
+
+**Scoped mode (`SCOPE: learnings-backend`).** A skill whose own tools can't reach a declared MCP memory backend (`/review`, `/debug`, `/refactor`) spawns you only to perform the backend `learnings` read it can't do inline. Run Step 0, then Step 1 only — skip Steps 2-4 — and emit just the `Relevant Learnings` + `Summary for Orchestrator` sections as your FINAL MESSAGE (the orchestrator reads it from the spawn result; do not write OUTPUT_PATH). The rest of this section is the default full sweep.
 
 ### Step 0 — Absorb project + memory-backend instructions (runs first)
 Load `global.md` and `memory.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md` (its `memory.md` bullet carries the routing rationale). If `memory.md` declares a `## Memory Backend` block routing the `learnings` layer, route your Step 1 read through the declared read tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" — you carry `mcp__*`, so the declared MCP read tool is reachable; fail-open to the file query on a backend error. Absent block → the file query in Step 1 is correct, unchanged.
@@ -110,6 +113,8 @@ Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'E
 
 Cap total output at ~3000 characters. Use `... (truncated, N more entries)` markers if any section overflows. Empty sections may be omitted entirely (e.g., drop the `Prior Plans` heading if N=0), except the `Summary for Orchestrator` section, which is always emitted.
 
+Under `SCOPE: learnings-backend`, emit only the `Relevant Learnings` and `Summary for Orchestrator` sections and return them as your final message rather than writing OUTPUT_PATH.
+
 ## Anti-Patterns
 
 | Your reasoning | Why it's wrong |
@@ -117,4 +122,4 @@ Cap total output at ~3000 characters. Use `... (truncated, N more entries)` mark
 | "I'll re-summarize the codebase map row in my own words to be helpful." | The orchestrator reads the raw row from `_CODEBASE_MAP.md` if it needs the full text. Your job is to surface relevance — file:line + the row's own text is sufficient. Paraphrasing introduces drift. |
 | "This learning is borderline — I'll include it with a hedged 'might be relevant' note." | If you cannot state in one line why it's relevant, drop it. Borderline entries pad the report and dilute the orchestrator's signal. |
 | "There were 14 handoffs matching the branch — I'll list all of them." | Cap at 3. The orchestrator can re-glob the handoff dir if it needs more. The report is a signal funnel, not a manifest. |
-| "I'll skip Step 3 because the user did not mention reviewing recently." | The handoff sweep is mechanical and cheap. Skipping it silently misses cases where `/review` or `/debug` produced findings the user forgot to mention. Always run all four steps. |
+| "I'll skip Step 3 because the user did not mention reviewing recently." | The handoff sweep is mechanical and cheap. Skipping it silently misses cases where `/review` or `/debug` produced findings the user forgot to mention. Run all four steps in the default sweep — only `SCOPE: learnings-backend` narrows you to Step 0 + Step 1. |
