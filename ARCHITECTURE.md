@@ -187,7 +187,7 @@ Every flag and modifier that pre-sets an interactive question across `/plan`, `/
 3 phases: Plan → Apply → Verify. Zero-behavior-change guarantee.
 
 - Adopts canonical 4-tier effort-scaling (Trivial/Small/Medium/Big).
-- All review/execution runs orchestrator-inline (no dedicated subagents).
+- Core smell-detection and per-step execution run orchestrator-inline; Phase-3 review (`reviewer-agent` + `reflection-agent`), on-demand `codebase-research-agent`, and the conditional backend-learnings read (`knowledge-retrieval-agent`, `SCOPE: learnings-backend`, only under a declared `## Memory Backend` block) use dedicated subagents.
 - Blocked-step protocol: max 3 retries per step → mark BLOCKED and continue; >=30% blocked → escalation AUQ.
 - PRODUCT-DECISION findings escalate to `/implement` via AUQ (always-wait, 4-option ADR-aware).
 - NEVER ships code — diff is the deliverable.
