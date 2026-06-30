@@ -7,7 +7,7 @@
 - §Decision logic when target is ambiguous
 - §ADR target — when to use it (sparingly)
 - §Why code rules go to `.claude/rules/`, not CLAUDE.md
-- §Reflection-agent feed — how to source candidates (agent vs inline)
+- §Reflection-agent feed — how to source candidates (agent vs inline), and when to background the agent spawn so it never blocks the final gate
 - §Presentation — surface the routed suggestions one candidate at a time
 
 When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
@@ -150,9 +150,23 @@ Two ways to source the improvement candidates that feed §Presentation. Match th
 
 Pass the agent: **mode** (`implement` | `refactor` | `review`), **the change** (diff summary + changed files; for review, the kept findings + their diff), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns candidates that passed the §Candidate bar per its Output Format; it never writes.
 
+### Background spawn — don't block the final decision gate
+
+In a skill whose run ends at a user decision gate the reflection output does NOT feed (`/review`'s Action gate, `/implement`'s Ship-mode AUQ), spawn the reflection agent with `run_in_background: true` and do not wait on it. Fire the decision gate in the same turn — the spawn returns immediately, so the gate renders without delay. The candidates are not an input to that decision, so blocking the gate on them only makes the user wait for work the gate does not need.
+
+When the agent completes, the harness re-invokes the orchestrator with the agent's final message — no poll, no `ScheduleWakeup`, no deprecated `TaskOutput` (`Read` the task output file only as a fallback when the auto-return is missing). At that point run §Presentation + the echo. The `gate-render` hook already treats the completion `<task-notification>` as mid-turn feedback, so the per-candidate AUQs fired on return are not falsely blocked.
+
+This is safe where backgrounding a fire-and-forget shell command is not (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract": "Never run the emit as a backgrounded command"). That ban is about a shell command with no return path — a lost failure is noticed only by accident. A reflection-agent spawn is a harness-tracked task: completion re-invokes the orchestrator, the output file persists, and the agent is resumable by ID, so a missed return is detectable, not silent.
+
+**Drain before the terminal transition.** The pre-gate spawn is the visible anchor; the drain is the backstop. Before writing any terminal `phase:`, confirm the reflection returned and its echo fired. If it has not returned by terminal time, collect it now — `Read` the task output file, or resume the agent by ID — then run §Presentation + echo before the terminal write. This replaces synchronous-before-the-gate ordering with two guarantees (visible spawn + terminal drain) instead of one, so the drop vector the echo guards stays closed.
+
+**Synchronous fallback.** If the runtime ran the spawn synchronously (e.g. `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`), the candidates are already in hand when the spawn returns — run §Presentation + echo at the gate, exactly as the pre-background flow did. The protocol degrades to the original ordering with no special handling.
+
+**Skills without a final gate stay synchronous.** `/refactor` never ships — its §3.6 candidate walk IS the terminal interaction, so there is no separate gate to unblock, and its §3.5 recurrence offer must stay adjacent to §3.6 for the "never prompt twice" dedup. Run `/refactor`'s reflection synchronously. The inline source (`/plan`, `/onboard`) is orchestrator-inline work with no spawn, so backgrounding does not apply there either.
+
 ### Anchor + echo (both sources)
 
-Run the improvement step as a **named step sequenced before the skill's ship/finalize prompt**, not as trailing prose after the deliverable — a silent step after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). After the step runs, echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired. The echo is unconditional, including at N=0: zero is the majority outcome, so a silent zero is indistinguishable from a dropped step. When the candidate list is empty, skip only the §Presentation prompt — the echo still fires.
+The improvement step must be guaranteed to execute and prove it fired — a step that trails off as housekeeping after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). Guarantee it by source: a **synchronous** step (the inline sources, and `/refactor`) is a named step run before the skill's finalize prompt; a **backgrounded** step (the gate-bearing agent consumers, §"Background spawn") is anchored by the visible pre-gate spawn plus the drain-before-terminal check. Either way echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired (for the background path, in the turn the agent returns). The echo is unconditional, including at N=0: zero is the majority outcome, so a silent zero is indistinguishable from a dropped step. When the candidate list is empty, skip only the §Presentation prompt — the echo still fires.
 
 ### Coexistence with recurrence rule-capture
 

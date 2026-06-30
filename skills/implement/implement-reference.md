@@ -586,7 +586,7 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 ### Suggest Improvements (project scope only)
 
-Runs as Ship step 4 — BEFORE the Ship-mode AUQ, alongside the learnings emit — so it finalizes the work rather than trailing the PR (a post-deliverable step is the documented drop vector, same failure mode the learnings emit's ordering rule guards against).
+Spawned as Ship step 4 **in the background** (`run_in_background: true`), then the Ship-mode AUQ fires without waiting — the candidates are not an input to the ship decision, so blocking on them only makes the user wait. The drop-vector protection (a post-deliverable step trailing the PR is the documented drop vector, same failure mode the learnings emit's ordering rule guards against) moves from synchronous-before-the-gate ordering to two anchors: the visible pre-gate spawn plus the step 9 drain-before-terminal check. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn".
 
 Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (mode `implement`): pass the committed diff + changed-file list, the Phase 3 reviewer findings, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`). The agent returns only candidates that passed the helper's §Candidate bar (each tagged `Significance: critical | general` with an `Evidence:` citation; zero candidates is the common outcome); route any `Recurrence-eligible: yes` candidate to the rule-capture offer (`/geniro:instructions create`) rather than the improvements prompt, and surface the rest via the helper's §Routing table + §Presentation. Echo `Reviewed for improvements: <N> candidate(s)`; skip the prompt silently when the agent returns none.
 
@@ -668,7 +668,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 
 **Soft limits.** Big tweaks: after 2 rounds, suggest starting a new /geniro:implement session — fresh context provides clean separation. Medium/Small tweaks: after 3 rounds, surface a message recommending the user re-spec via `/geniro:plan`.
 
-**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). Pre-ship steps (Update Docs, Extract Learnings, Suggest Improvements) run once on first Ship entry and are NOT repeated on tweak rounds unless the tweak materially changes the docs/learnings/improvement surface.
+**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). Pre-ship steps (Update Docs, Extract Learnings, and the Suggest-Improvements background spawn) run once on first Ship entry and are NOT repeated on tweak rounds unless the tweak materially changes the docs/learnings/improvement surface.
 
 ---
 
