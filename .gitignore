@@ -40,3 +40,4 @@ evals/runs/
 # so same-machine cross-run continuity holds; a fresh clone just starts without
 # prior-audit context — fail-open). Drop any throwaway design note here.
 design/scratch/
+.codegraph
