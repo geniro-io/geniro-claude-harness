@@ -16,7 +16,6 @@ The specific palette, type, and layout values below are illustrative: you own th
 - Code & data tokens — styled token pills
 - Motion — deliberate, inline-only, reduced-motion-safe
 - Quality floor — responsive, accessible, self-contained
-- Techniques to build in — what to implement in your own CSS
 - Anti-rationalization
 
 ## The failure this prevents
@@ -98,18 +97,6 @@ Build to a floor without announcing it:
 - **Accessible** — visible keyboard focus on every interactive control, sufficient text-vs-ground contrast, real heading order.
 - **Reduced-motion** honored (above).
 - **Self-contained** — inline CSS + inline SVG + optional inline JS only; zero external requests. Keep examples representative (a few rows, a trimmed body), so the page stays under the per-response token cap and the 16 MiB rendered ceiling.
-
-## Techniques to build in
-
-With no project `## Design system` to inherit, build these techniques into your own inline CSS — you choose every token, value, class, and structure from the plan's subject; there is no house stylesheet to copy:
-
-- **Grid ground** — a low-opacity textured layer over the ground so the field never reads as flat.
-- **Type scale** — a display face used large, tight, and heavy; a readable body face; and a monospace utility face for eyebrows, labels, code, and captions.
-- **Eyebrow** — a short mono label in the accent above each heading, naming the real section.
-- **Card edge** — cards a surface-step above the ground with a subtle border and an optional edge tinted by the card's semantic role.
-- **Code pill** — inline code and JSON tokens as mono pills with a subtle tinted background; defer the token palette to the project's `## Design system` when one is declared.
-- **Reveal** — one scroll-triggered fade-and-rise as sections enter, via an inline-only `IntersectionObserver`, disabled under `prefers-reduced-motion: reduce`.
-- **Focus** — a visible `:focus-visible` outline on every interactive control.
 
 ## Anti-rationalization
 

@@ -386,7 +386,7 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 
 - [ ] Phase 1: thread file located, format detected, events list normalized, geniro-run flag set, metadata extracted
 - [ ] Phase 1 checkpoint written via `atomic_state_write`
-- [ ] Phase 2 mechanical checks all run (per `checks-reference.md` § Mechanical reference)
+- [ ] Phase 2 mechanical checks all run (per `checks-reference.md` §§1-3 — Mechanical checks A/B/C-class)
 - [ ] Phase 2 LLM-judge spawn: single Agent call, OMITted `model=`, taxonomy + mechanical-results + excerpts pre-inlined
 - [ ] Phase 2 checkpoint written; findings_raw count under the 60-cap
 - [ ] Phase 3 orchestrator-inline filter applied; each raw finding tagged TRUE-POSITIVE / UNCERTAIN / REDUNDANT / FALSE-POSITIVE

@@ -107,7 +107,7 @@ TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the structured
-report to OUTPUT_PATH per the §Output Schema (cap ~3K chars). Do NOT mutate the
+report to OUTPUT_PATH per the §Output Schema. Do NOT mutate the
 codebase or git state — read-only retrieval only.
 """)
 ```
@@ -135,7 +135,7 @@ TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the
-structured report to OUTPUT_PATH per the §Output Schema (cap ~5K chars). Do NOT
+structured report to OUTPUT_PATH per the §Output Schema. Do NOT
 mutate the codebase or git state — read-only reconnaissance only.
 
 For `.claude/rules/` matching: parse YAML frontmatter `paths:` field per file;

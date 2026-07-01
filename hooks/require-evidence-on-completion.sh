@@ -39,7 +39,17 @@ if [ -z "$MSG" ]; then
     # truncated to line 1 here, hiding any claim below it. The trailing `jq -r .`
     # decodes the JSON string back to raw text. Tool-use-only events are skipped
     # (select(length > 0)) so they can't mask the newest text-bearing turn.
-    MSG=$({ tac "$TRANSCRIPT_PATH" 2>/dev/null || tail -r "$TRANSCRIPT_PATH" 2>/dev/null; } \
+    # `tac` is GNU-only; stock macOS has `tail -r`. Branch on availability rather
+    # than `tac || tail -r`: if tac dies mid-stream (SIGPIPE once `head -1` below
+    # closes the pipe) the || fallback would re-feed the transcript from the start
+    # — the same guard enforce-gate-render.sh's scan_transcript() uses.
+    MSG=$({
+      if command -v tac >/dev/null 2>&1; then
+        tac "$TRANSCRIPT_PATH" 2>/dev/null
+      else
+        tail -r "$TRANSCRIPT_PATH" 2>/dev/null
+      fi
+    } \
       | jq -rR 'fromjson? | select(.type == "assistant")
                 | [.message.content[]? | select(.type == "text") | .text]
                 | select(length > 0) | join("\n") | @json' 2>/dev/null \
