@@ -16,7 +16,7 @@ The specific palette, type, and layout values below are illustrative: you own th
 - Code & data tokens — styled token pills
 - Motion — deliberate, inline-only, reduced-motion-safe
 - Quality floor — responsive, accessible, self-contained
-- Worked default — a disposable illustration of the techniques (author your own tokens)
+- Techniques to build in — what to implement in your own CSS
 - Anti-rationalization
 
 ## The failure this prevents
@@ -36,7 +36,7 @@ Distinctive choices come from the subject's own world — its domain, its instru
 Defer to the project first:
 
 - If this project's `CLAUDE.md` has a `## Design system` block, adopt its tokens exactly — palette, type, spacing. The project's identity outranks any default here.
-- If there is no design-system block, derive an identity from the plan's subject and domain, using the §Worked default below as the floor, not the answer.
+- If there is no design-system block, derive an identity from the plan's subject and domain, using the §Techniques to build in below as the checklist, not a stylesheet.
 
 A telemetry/coverage surface, a billing flow, and an auth refactor should not look identical. The example that motivates this guide deliberately avoided the phosphor-green radar cliché and chose a deep slate ground with one warm accent *because* the subject was a control surface — the choice fit the brief.
 
@@ -99,78 +99,17 @@ Build to a floor without announcing it:
 - **Reduced-motion** honored (above).
 - **Self-contained** — inline CSS + inline SVG + optional inline JS only; zero external requests. Keep examples representative (a few rows, a trimmed body), so the page stays under the per-response token cap and the 16 MiB rendered ceiling.
 
-## Worked default
+## Techniques to build in
 
-A disposable illustration of how the techniques wire together, NOT a stylesheet to copy. Adopt the *techniques* (grid ground, type scale, eyebrow, card edge, code pill, scroll reveal); author your own tokens and derive every color, type metric, size, spacing value, and radius from the plan's subject rather than shipping the values below.
+With no project `## Design system` to inherit, build these techniques into your own inline CSS — you choose every token, value, class, and structure from the plan's subject; there is no house stylesheet to copy:
 
-```html
-<style>
-  /* =============================================================
-     DISPOSABLE ILLUSTRATION — do NOT copy this as a theme.
-     It shows how the techniques wire together (grid ground, type
-     scale, eyebrow, card edge, code pill, reveal). Author your own
-     tokens: derive every color, size, and radius from THIS plan's
-     subject. The palette values are placeholders, not a stylesheet.
-     ============================================================= */
-  :root {
-    --ground:    /* page field — derive from subject */ ;
-    --surface:   /* cards — derive from subject */ ;
-    --surface-2: /* nested surfaces — derive from subject */ ;
-    --line:      /* dividers — derive from subject */ ;
-    --text:      /* headings / strong — derive from subject */ ;
-    --muted:     /* body / labels — derive from subject */ ;
-    --accent:    /* the one voice — thesis word, eyebrows, signature — derive from subject */ ;
-    --valid:     /* semantic: covered / compatible — derive from subject */ ;
-    --stale:     /* semantic: stale / breaking — derive from subject */ ;
-    --info:      /* semantic: secondary — derive from subject */ ;
-    --display:   /* display heading font: large, tight, heavy — set for your type choice */ ;
-    --mono:      /* monospace utility font: eyebrows, code, labels — set for your type choice */ ;
-    --measure:   /* content measure ~60–75ch — set for your type and layout */ ;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; color: var(--text); background: var(--ground);
-    font: 400 1.0625rem/1.65 system-ui, sans-serif;
-    /* faint graph-paper grid ground */
-    background-image:
-      linear-gradient(var(--line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--line) 1px, transparent 1px);
-    background-size: 48px 48px;
-    background-blend-mode: soft-light;
-  }
-  main { max-width: 980px; margin: 0 auto; padding: clamp(2rem, 6vw, 6rem) 1.5rem; }
-  .eyebrow { font: var(--mono); letter-spacing: 0.18em; text-transform: uppercase;
-             color: var(--accent); margin-bottom: 0.75rem; }
-  h1.thesis { font: var(--display); letter-spacing: -0.02em; margin: 0 0 1rem; }
-  h1.thesis .key { color: var(--accent); }
-  p { color: var(--muted); max-width: var(--measure); }
-  .card { background: var(--surface); border: 1px solid var(--line);
-          border-radius: 14px; padding: 1.5rem 1.75rem; position: relative; overflow: hidden; }
-  .card[data-role]::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; }
-  .card[data-role="valid"]::before   { background: var(--valid); }
-  .card[data-role="stale"]::before   { background: var(--stale); }
-  .card[data-role="accent"]::before  { background: var(--accent); }
-  code, .tok { font: var(--mono); background: color-mix(in srgb, var(--info) 16%, transparent);
-               color: var(--text); padding: 0.1em 0.4em; border-radius: 5px; }
-  details > summary { cursor: pointer; list-style: none; }
-  details { transition: background 0.2s ease; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
-  .reveal.in { opacity: 1; transform: none; }
-  @media (prefers-reduced-motion: reduce) {
-    .reveal { opacity: 1; transform: none; transition: none; }
-  }
-</style>
-<script>
-  // inline-only, no external request: fade-and-rise sections as they enter
-  addEventListener("DOMContentLoaded", () => {
-    const io = new IntersectionObserver((es) => es.forEach(e => {
-      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    }), { threshold: 0.12 });
-    document.querySelectorAll(".reveal").forEach(el => io.observe(el));
-  });
-</script>
-```
+- **Grid ground** — a low-opacity textured layer over the ground so the field never reads as flat.
+- **Type scale** — a display face used large, tight, and heavy; a readable body face; and a monospace utility face for eyebrows, labels, code, and captions.
+- **Eyebrow** — a short mono label in the accent above each heading, naming the real section.
+- **Card edge** — cards a surface-step above the ground with a subtle border and an optional edge tinted by the card's semantic role.
+- **Code pill** — inline code and JSON tokens as mono pills with a subtle tinted background; defer the token palette to the project's `## Design system` when one is declared.
+- **Reveal** — one scroll-triggered fade-and-rise as sections enter, via an inline-only `IntersectionObserver`, disabled under `prefers-reduced-motion: reduce`.
+- **Focus** — a visible `:focus-visible` outline on every interactive control.
 
 ## Anti-rationalization
 
