@@ -39,7 +39,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 
 **Firing order:**
 
-1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry (cap-extension when >4). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
+1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry, fired in sequence (cap-extension applies only within a single entry whose options exceed 4 — never to batching entries). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip.
 4. **Failing tests:** fires once per gate-chain pass when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests; a later chat-text commit/push request re-fires it (§6). Firing order relative to Action gate conditional:
@@ -96,7 +96,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 4. Mirror the resolution into the body `## Resolved Questions` section per the schema example in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
-5. When >4 unresolved entries, chain into a second AUQ batch per the AskUserQuestion cap-extension pattern.
+5. Each entry gets its own `AskUserQuestion` call, fired in sequence with a message-first render before each (per step 2); cap-extension applies only to a single entry whose options exceed 4 — never to batching entries into one call.
 
 6. After the last entry resolves, every `open_questions[]` entry MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
 
@@ -321,7 +321,7 @@ The handoff written in Phase 5.1 carries `report_status: draft`. After §2.5 (Pr
 1. Re-verify every `open_questions[]` entry is `{resolved, wontfix}` and every PRODUCT-DECISION finding is `step0_status: {resolved, wontfix}` — the same invariants §7.0 re-reads. Scan PRODUCT-DECISION findings in the `## Findings` body section AND — when present (a round >=2 re-review where the user collapsed unchanged repeats) — the `## Carried-over from round <N>` section, mirroring the §7.0 guard's dual-section read; a demoted needs-your-decision finding sits in the carried-over section while still `step0_status: pending`, so reading only `## Findings` would finalize over an open decision. If any entry/finding is still `unresolved` / `pending`, loop back to the owning gate; do NOT finalize.
 2. Set frontmatter `report_status: final` via `atomic_state_write`.
 
-This is a re-verify-plus-one-field-flip, NOT a re-bake — the per-finding decisions already persisted in §3 step 4. The field exists so the §4 Action gate's handoff option and the §7.0 public-post guard can assert the report is no longer provisional: a report still at `draft` means a decision gate did not clear, and the handoff would route an un-finalized report. Keep this step — a future "simplification" pass that strips it silently re-opens the gap the user reported (the handoff offered before their decisions land).
+This is a re-verify-plus-one-field-flip, NOT a re-bake — the per-finding decisions already persisted in §3 step 4. The field exists so the §4 Action gate's handoff option and the §7.0 public-post guard can assert the report is no longer provisional: a report still at `draft` means a decision gate did not clear, and the handoff would route an un-finalized report. Keep this step — a future "simplification" pass that strips it silently re-opens a real failure mode — the handoff offered before the user's decisions land.
 
 No AUQ fires here — finalize is silent. The user already answered the decision gates; a separate "finalize?" confirmation would be friction without new information.
 

@@ -57,15 +57,23 @@ query_learnings() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --type)               type_filter="$2"; shift 2 ;;
-      --tag)                tag_filter="$2"; shift 2 ;;
-      --scope)              scope_filter="$2"; shift 2 ;;
-      --min-trust)          min_trust="$2"; shift 2 ;;
-      --score-min)          score_min="$2"; shift 2 ;;
+      # Each value-taking flag requires its operand: a bare trailing flag makes
+      # `shift 2` fail to consume $1, so the while-loop spins on it forever.
+      --type)               [ "$#" -ge 2 ] || { echo "query_learnings: --type requires a value" >&2; return 64; }
+                            type_filter="$2"; shift 2 ;;
+      --tag)                [ "$#" -ge 2 ] || { echo "query_learnings: --tag requires a value" >&2; return 64; }
+                            tag_filter="$2"; shift 2 ;;
+      --scope)              [ "$#" -ge 2 ] || { echo "query_learnings: --scope requires a value" >&2; return 64; }
+                            scope_filter="$2"; shift 2 ;;
+      --min-trust)          [ "$#" -ge 2 ] || { echo "query_learnings: --min-trust requires a value" >&2; return 64; }
+                            min_trust="$2"; shift 2 ;;
+      --score-min)          [ "$#" -ge 2 ] || { echo "query_learnings: --score-min requires a value" >&2; return 64; }
+                            score_min="$2"; shift 2 ;;
       --include-superseded) include_superseded=true; shift ;;
       --include-deprecated) include_deprecated=true; shift ;;
       --include-archive)    include_archive=true; shift ;;
-      --limit)              limit="$2"; shift 2 ;;
+      --limit)              [ "$#" -ge 2 ] || { echo "query_learnings: --limit requires a value" >&2; return 64; }
+                            limit="$2"; shift 2 ;;
       *)
         echo "query_learnings: unknown flag '$1'" >&2
         return 64
@@ -200,6 +208,15 @@ query_learnings() {
     local now tau
     now=$(date -u +%s)
     tau="${GENIRO_DECAY_TAU_DAYS:-$GENIRO_DECAY_TAU_DAYS_DEFAULT}"
+    # Validate tau up front — a non-numeric value otherwise reaches `--argjson`
+    # below, and the 2>/dev/null-masked jq failure would silently return an
+    # EMPTY result set at rc=0 instead of an error. Zero is rejected too:
+    # recency_decay divides by tau. Same knob validation as archive-stale.sh.
+    if ! printf '%s' "$tau" | grep -Eq '^([0-9]+(\.[0-9]+)?|\.[0-9]+)$' \
+       || printf '%s' "$tau" | grep -Eq '^0*(\.0*)?$'; then
+      echo "query_learnings: GENIRO_DECAY_TAU_DAYS must be a positive number (got '$tau')" >&2
+      return 64
+    fi
 
     # Score-formula weight functions are single-sourced in lib/score-formula.sh
     # so the ranker and the archiver (archive-stale) never drift.

@@ -43,7 +43,7 @@ Reconciliation between this rule and the previous one: explain WHY for rules the
 | Routine procedure → state what | Non-obvious rule → explain why |
 |---|---|
 | "Spawn the agent with `subagent_type: reviewer-agent`." | "Spawn the agent in parallel with the other 4 dimensions in ONE assistant response — separate turns serialize execution and double wall-time." |
-| "Read `<task-dir>/.kr-out.md`." | "OMIT `model=` at every spawn site — plugin agents declare `model: inherit` and the runtime arg defeats the user's session-level `/model` choice." |
+| "Read `<task-dir>/.kr-out.md`." | "OMIT `model=` at every spawn site — plugin agents declare their tier in frontmatter (`inherit`, or `sonnet` for the two mechanical carve-outs) and the runtime arg defeats the user's session-level `/model` choice." |
 | "Set `phase: ship` on entry." | (Don't write "set phase to ship because the state machine expects ..." — the state machine is documented in §State machine; the imperative is enough.) |
 
 ## One default + escape hatch

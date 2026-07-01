@@ -84,7 +84,7 @@ Just before a substantive decision gate fires in chat, fill the Current decision
 
 This panel mirrors the chat gate message; it never replaces it. The chat message stays the place the decision is rendered, and the answer is still captured by the terminal `AskUserQuestion`. The page is published and read-only — it has no way to send a click back to the session — so a question shown only on the page would leave the user with nothing to act on, and the chat-side render check still expects the question in chat. Keep the chat render; the panel just mirrors it.
 
-Refresh only the panel, in place — never regenerate the page. The matching after-the-decision Update call blanks the panel once the answer lands (per § Update), so the panel never accumulates stale questions or grows the page toward the 16 MiB ceiling.
+Refresh via targeted in-place edits — never regenerate the page. The matching after-the-decision Update call blanks the panel once the answer lands (per § Update), so the panel never accumulates stale questions or grows the page toward the 16 MiB ceiling.
 
 Same-session form:
 

@@ -99,7 +99,7 @@ The optional `## Data Sources` section declares read-only sources the verificati
 
 ## File Structure: memory
 
-The `memory` scope is its own dedicated file — `.geniro/instructions/memory.md` — loaded alongside `global.md` for every skill. It holds the `## Memory Backend` block (and is reserved for future memory configuration); it does NOT carry `## Rules` / `## Constraints` / `## Additional Steps`.
+The `memory` scope is its own dedicated file — `.geniro/instructions/memory.md` — loaded alongside `global.md` for every skill. It holds the `## Memory Backend` block (future memory-related blocks also land here); it does NOT carry `## Rules` / `## Constraints` / `## Additional Steps`.
 
 ```markdown
 # Memory
@@ -162,7 +162,7 @@ If no arguments: default to `list`.
 
 ### Scope detection
 
-- Explicit names: `global`, `code-style`, `review-extra`, or a per-skill scope (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`)
+- Explicit names: `global`, `code-style`, `memory`, `review-extra`, or a per-skill scope (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`)
 - Contextual: "add a rule to review" → scope=review · "create debug instructions" → scope=debug · "code-style" / "style" / "naming conventions" → scope=code-style · "custom reviewer" / "review dimension" → scope=review-extra
 - Explicit slug form: `review-extra <slug>` (e.g., `review-extra sql-bindings`)
 - Multi-scope: "all", "every", "global and review" → collect into list
@@ -266,6 +266,7 @@ Custom instructions in .geniro/instructions/ (project: my-project):
 
 global.md 348 B modified 3 days ago
 code-style.md 1.2 KB modified 2 hours ago
+memory.md (none)
 implement.md (none — create with /geniro:instructions create implement)
 plan.md (none)
 review.md 892 B modified 1 week ago
@@ -277,7 +278,7 @@ review-extra/ (directory — 2 files)
 ├── sql-bindings.md 1.6 KB modified 4 days ago
 └── accessibility-aria.md 2.1 KB modified 1 day ago
 
-10 scopes total · 4 active · 6 not-yet-created
+11 scopes total · 4 active · 7 not-yet-created
 ```
 
 Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars per file).
@@ -468,7 +469,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | Check | Severity |
 |---|---|
 | No references to dropped skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) | HIGH |
-| No references to dropped phase names (e.g., "Phase 4 (Implement)" predates the spec's enum redesign) | MEDIUM |
+| No references to dropped phase names (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM |
 | `Additional Steps` subsections match per-skill phase enum (the cross-skill `### After worktree-setup` anchor in `global.md` is the one non-phase exception) | MEDIUM |
 
 **Per-scope checks:**

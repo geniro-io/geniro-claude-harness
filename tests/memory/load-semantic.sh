@@ -119,6 +119,19 @@ else
   fail "load_semantic unknown flag should rc=64; got $rc"
 fi
 
+# Trailing --extras (missing operand) → rc=64, not a parse-loop spin
+# (`shift 2` with $#=1 no-ops, so an unguarded arm loops on the flag forever).
+new_sandbox
+set +e
+load_semantic --extras >/dev/null 2>&1
+rc=$?
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "trailing --extras (missing operand) → rc=64"
+else
+  fail "trailing --extras should rc=64; got $rc"
+fi
+
 # ---------------------------------------------------------------------------
 # update_fingerprint
 # ---------------------------------------------------------------------------

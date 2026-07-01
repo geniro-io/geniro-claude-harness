@@ -113,7 +113,10 @@ load_semantic() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --extras) extras="$2"; shift 2 ;;
+      # --extras requires its operand: a bare trailing flag makes `shift 2`
+      # fail to consume $1, so the while-loop spins on it forever.
+      --extras) [ "$#" -ge 2 ] || { echo "load_semantic: --extras requires a value" >&2; return 64; }
+                extras="$2"; shift 2 ;;
       --quiet)  quiet=true; shift ;;
       *)
         echo "load_semantic: unknown flag '$1'" >&2

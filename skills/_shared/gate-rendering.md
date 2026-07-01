@@ -38,7 +38,7 @@ Every gate message in this language carries five elements, so the user always kn
 - **A visual per unit.** Every unit — spec section, approach, finding, investigation result — carries a visual. The shape comes from the calling contract's map: plan units per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example + visual per section type"; findings and investigation results per per-finding-question.md §Finding-type visual map. The visuals are the load-bearing comprehension aid for a user skimming the gate; render plain text instead only when a unit genuinely has nothing to map.
 - **Light icons on headings** — one per heading (e.g. 🎯 🧭 📦 🚫 ⚠️ 🧪 ↩️ ✅ 🔍) to make the message scannable at a glance.
 
-Close every render against the plain-English bar: a user with no plugin internals loaded must be able to act on every line (the fresh-user test, `.claude/rules/skill-prose.md` §"User-facing output uses plain English"). Expand shorthand, drop internal identifiers, keep evidence cites as `path:lines`.
+Close every render against the plain-English bar: a user with no plugin internals loaded must be able to act on every line. Translate author-facing identifiers into plain English (`PRODUCT-DECISION` → "needs your decision", `T2` → "handoff"), drop internal phase / step numbers, keep evidence cites as `path:lines`.
 
 ### Worked example — a finding gate message
 

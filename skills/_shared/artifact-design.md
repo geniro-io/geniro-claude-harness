@@ -35,9 +35,9 @@ Distinctive choices come from the subject's own world — its domain, its instru
 Defer to the project first:
 
 - If this project's `CLAUDE.md` has a `## Design system` block, adopt its tokens exactly — palette, type, spacing. The project's identity outranks any default here.
-- If there is no design-system block, derive an identity from the plan's subject and domain, using the §Techniques to build in below as the checklist, not a stylesheet.
+- If there is no design-system block, derive an identity from the plan's subject and domain, using the technique sections below (§Design tokens through §Quality floor) as the checklist, not a stylesheet.
 
-A telemetry/coverage surface, a billing flow, and an auth refactor should not look identical. The example that motivates this guide deliberately avoided the phosphor-green radar cliché and chose a deep slate ground with one warm accent *because* the subject was a control surface — the choice fit the brief.
+A telemetry/coverage surface, a billing flow, and an auth refactor should not look identical. For a control-surface subject, skip the phosphor-green radar cliché; a deep slate ground with one warm accent fits that brief *because* it is grounded in the subject, not reached for by reflex.
 
 ## Two-pass method
 

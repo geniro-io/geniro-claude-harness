@@ -15,7 +15,7 @@ Thank you for your interest in contributing! This project aims to provide the be
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-improvement`)
 3. Make your changes
-4. Test by installing the template into a real project and running `/setup`
+4. Test by installing the plugin into a real project — via the marketplace (`claude plugin install geniro-claude-plugin@geniro-claude-harness`) or a local-path marketplace add — and running `/geniro:setup`
 5. Commit with clear messages
 6. Push and open a Pull Request
 
@@ -23,7 +23,7 @@ Thank you for your interest in contributing! This project aims to provide the be
 
 We especially welcome:
 
-- **New agents** — specialized personas for specific domains (e.g., data-agent, mobile-agent)
+- **New agents** — workflow roles the skills can spawn (in the mold of `reviewer-agent` or `codebase-explorer-agent`)
 - **New skills** — reusable workflows that solve common development tasks
 - **Hook improvements** — better safety patterns, new protection categories
 - **Bug fixes** — especially in the `/setup` skill's detection and generation logic
@@ -31,8 +31,8 @@ We especially welcome:
 
 ### Guidelines
 
-- **Keep it universal** — agents, skills, and hooks should work across languages and frameworks. Project-specific content belongs in the generated output, not the template
-- **Test with real projects** — install the template, run `/setup`, and verify the generated output makes sense
+- **Keep it universal** — agents, skills, and hooks should work across languages and frameworks. Project-specific content belongs in the generated output, not the plugin
+- **Test with real projects** — install the plugin, run `/geniro:setup`, and verify the generated output makes sense
 - **Follow existing patterns** — look at how existing agents/skills are structured before creating new ones
 - **Update ARCHITECTURE.md** — if your change affects design decisions, update the consolidated architecture reference
 - **Keep working docs local** — plans, research notes, audit reports, and other throwaway design artifacts go in `design/scratch/` (gitignored, never committed). Skills that generate such docs (e.g. `/audit-plugin`) write them there; nothing in the tracked tree should depend on them

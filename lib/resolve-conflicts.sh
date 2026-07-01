@@ -46,15 +46,26 @@ _rc_parse_args() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --subject)          _RC_SUBJECT="$2"; shift 2 ;;
-      --l4)               _RC_L4="$2"; shift 2 ;;
-      --l4-source)        _RC_L4_SRC="$2"; shift 2 ;;
-      --l3)               _RC_L3="$2"; shift 2 ;;
-      --l3-source)        _RC_L3_SRC="$2"; shift 2 ;;
-      --l2)               _RC_L2="$2"; shift 2 ;;
-      --l2-source)        _RC_L2_SRC="$2"; shift 2 ;;
-      --following)        _RC_FOLLOWING="$2"; shift 2 ;;
-      --suggested-action) _RC_SUGGESTED="$2"; shift 2 ;;
+      # Each value-taking flag requires its operand: a bare trailing flag makes
+      # `shift 2` fail to consume $1, so the while-loop spins on it forever.
+      --subject)          [ "$#" -ge 2 ] || { echo "resolve-conflicts: --subject requires a value" >&2; return 64; }
+                          _RC_SUBJECT="$2"; shift 2 ;;
+      --l4)               [ "$#" -ge 2 ] || { echo "resolve-conflicts: --l4 requires a value" >&2; return 64; }
+                          _RC_L4="$2"; shift 2 ;;
+      --l4-source)        [ "$#" -ge 2 ] || { echo "resolve-conflicts: --l4-source requires a value" >&2; return 64; }
+                          _RC_L4_SRC="$2"; shift 2 ;;
+      --l3)               [ "$#" -ge 2 ] || { echo "resolve-conflicts: --l3 requires a value" >&2; return 64; }
+                          _RC_L3="$2"; shift 2 ;;
+      --l3-source)        [ "$#" -ge 2 ] || { echo "resolve-conflicts: --l3-source requires a value" >&2; return 64; }
+                          _RC_L3_SRC="$2"; shift 2 ;;
+      --l2)               [ "$#" -ge 2 ] || { echo "resolve-conflicts: --l2 requires a value" >&2; return 64; }
+                          _RC_L2="$2"; shift 2 ;;
+      --l2-source)        [ "$#" -ge 2 ] || { echo "resolve-conflicts: --l2-source requires a value" >&2; return 64; }
+                          _RC_L2_SRC="$2"; shift 2 ;;
+      --following)        [ "$#" -ge 2 ] || { echo "resolve-conflicts: --following requires a value" >&2; return 64; }
+                          _RC_FOLLOWING="$2"; shift 2 ;;
+      --suggested-action) [ "$#" -ge 2 ] || { echo "resolve-conflicts: --suggested-action requires a value" >&2; return 64; }
+                          _RC_SUGGESTED="$2"; shift 2 ;;
       *)
         echo "resolve-conflicts: unknown flag '$1'" >&2
         return 64

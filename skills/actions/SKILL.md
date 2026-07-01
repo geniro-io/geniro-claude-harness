@@ -312,7 +312,7 @@ Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`,
 
 ### Phase 5.3: No run-confirmation gate
 
-`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 5.4. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 7), the validate lint rules (Phase 8), and the L2 learning tag (Phase 5.5) — it no longer gates execution.
+`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 5.4. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 7), the validate lint rules (Phase 8), and the L2 learning tag (Phase 5.5) — it never gates execution.
 
 The remaining WAIT points in run mode are operational, not confirmational, and stay in place: the cross-worktree confirmation (Phase 5.0 Step 2 — answers "use the copy from another worktree?"), the free-text picker (Phase 5.0 Step 3 — answers "which action?"), the tool-scope gap AUQ (Phase 5.4 — fires only when a step needs a tool outside the allowlist intersection), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body. None of these is an "are you sure you want to run this?" prompt.
 

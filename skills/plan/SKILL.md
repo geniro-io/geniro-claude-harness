@@ -81,7 +81,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 8 | User approve (visual summary message + lean AUQ + git commit; §8.7 executes any user-authored `### After user-approve` steps from `.geniro/instructions/plan.md`) | §"Phase 8 — User approval" |
 | 9 | Handoff (non-interactive — prints the milestone-aware `/geniro:implement <path>` command, writes terminal `phase: done`) | §"Phase 9 — Handoff" |
 
-Execute `plan-loop.md` end-to-end. The loop encodes every defect fix and schema gap.
+Execute `plan-loop.md` end-to-end; it is the authoritative phase contract.
 
 ---
 
@@ -122,7 +122,7 @@ This skill has no hard kill caps. All limits are escalation gates that surface t
 - spec.md section count: exactly 11.
 
 **Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
-**Rationale.** The ≤3 AUQ gates guideline applies to /geniro:implement, NOT /geniro:plan. /geniro:plan is a **clarification-heavy** skill — its job IS to ask questions. Rich content is rendered to chat messages (the Gate presentation contract); each gate then fires ONE lean question: Phase 3 runs a decision-tree grill (one single-question AUQ per decision, depth-first, each preceded by its own framing, with a summarize-and-continue checkpoint every ~6 questions or at branch completion — variable count, no fixed cap) + Phase 4 ×1 + Phase 5 ×3 (one per cluster, not per section) + Phase 8 ×1. Phase 3 trades round-trips for per-question clarity (focused explanation + answers that reshape the tree frontier); the checkpoint is the off-ramp that keeps the grill bounded by the user's judgment rather than a fixed number. Phase 5 stays one-per-cluster (not one-per-section), keeping the questions the user answers there at 3 not ~11. Explain-further rounds add re-asks only when the user requests them.
+**Rationale.** /geniro:plan is a **clarification-heavy** skill — its job IS to ask questions. Rich content is rendered to chat messages (the Gate presentation contract); each gate then fires ONE lean question: Phase 3 runs a decision-tree grill (one single-question AUQ per decision, depth-first, each preceded by its own framing, with a summarize-and-continue checkpoint every ~6 questions or at branch completion — variable count, no fixed cap) + Phase 4 ×1 + Phase 5 ×3 (one per cluster, not per section) + Phase 8 ×1. Phase 3 trades round-trips for per-question clarity (focused explanation + answers that reshape the tree frontier); the checkpoint is the off-ramp that keeps the grill bounded by the user's judgment rather than a fixed number. Phase 5 stays one-per-cluster (not one-per-section), keeping the questions the user answers there at 3 not ~11. Explain-further rounds add re-asks only when the user requests them.
 
 ---
 

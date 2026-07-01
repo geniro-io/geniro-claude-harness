@@ -121,6 +121,18 @@ else
   fail "unknown flag should rc=64; got $rc"
 fi
 
+# Trailing value-taking flag (missing operand) → rc=64, not a parse-loop spin
+# (`shift 2` with $#=1 no-ops, so an unguarded arm loops on the flag forever).
+set +e
+emit_conflict_notice --subject "x" --l4 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "trailing --l4 (missing operand) → rc=64"
+else
+  fail "trailing --l4 should rc=64; got $rc"
+fi
+
 # Empty content (just subject) — should still emit header line
 out=$(emit_conflict_notice --subject "stub")
 case "$out" in

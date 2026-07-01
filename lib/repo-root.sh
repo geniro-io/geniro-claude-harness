@@ -33,7 +33,17 @@ _geniro_repo_root() {
   local toplevel primary
   toplevel="$(git rev-parse --show-toplevel 2>/dev/null)"
   if [ -n "$toplevel" ]; then
-    primary="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print; exit}')"
+    # Porcelain stanzas are `worktree <path>` followed by attribute lines
+    # (`bare` / `HEAD …` / `branch …`), blank-line separated. Skip bare
+    # entries: in a worktree of a bare repo the FIRST entry is the bare dir
+    # itself, and returning it would land memory writes inside `<hub>.git`.
+    # If every entry is bare, print nothing → fall through to the walk-up.
+    primary="$(git worktree list --porcelain 2>/dev/null | awk '
+      /^worktree / { path = $0; sub(/^worktree /, "", path) }
+      /^bare$/     { path = "" }
+      /^$/         { if (path != "") { done = 1; print path; exit } }
+      END          { if (!done && path != "") print path }
+    ')"
     if [ -n "$primary" ] && [ "$toplevel" != "$primary" ]; then
       echo "$primary"
       return 0

@@ -35,6 +35,8 @@ if [ -z "${_US_DEPS_LOADED:-}" ]; then
   source "$_us_script_dir/repo-root.sh"
   # shellcheck disable=SC1091
   source "$_us_script_dir/atomic-state-write.sh"
+  # shellcheck disable=SC1091
+  source "$_us_script_dir/redact-secrets.sh"
   _US_DEPS_LOADED=1
 fi
 
@@ -83,6 +85,11 @@ update_semantic() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --file)
+        # Require the operand (same trailing-flag spin guard as --append below).
+        if [ "$#" -lt 2 ]; then
+          echo "update_semantic: --file requires <codebase-map|features>" >&2
+          return 64
+        fi
         target_file="$2"
         shift 2
         ;;
@@ -173,6 +180,10 @@ update_semantic() {
   local rc=0
   case "$op" in
     append)
+      # Redact-before-store: the line persists in the L3 snapshot, so pass it
+      # through the shared secret redaction first — the same pipeline
+      # emit-learning applies to every L2 field before it reaches disk.
+      arg1=$(printf '%s' "$arg1" | redact_secrets "update_semantic" "append:$target_md" "")
       # Route through atomic_state_append so we inherit (a) the
       # last-byte-is-newline guard against no-trailing-newline corruption,
       # (b) the POSIX-atomic append for writes ≤ PIPE_BUF, and (c) fsync.
@@ -186,6 +197,9 @@ update_semantic() {
       fi
       ;;
     replace)
+      # Redact the replacement value before it reaches disk (the match prefix
+      # stays verbatim — redacting it would change what it matches).
+      arg2=$(printf '%s' "$arg2" | redact_secrets "update_semantic" "replace:$target_md" "")
       if [ ! -f "$target_path" ]; then
         # No file → no-op (replace can't match anything).
         rc=0

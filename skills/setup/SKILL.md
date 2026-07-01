@@ -204,7 +204,7 @@ Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-sim
 All-results land in state frontmatter `detected:` block. The default branch is captured via `git symbolic-ref --short refs/remotes/origin/HEAD` (fallback `git branch --show-current`) into `default_branch_candidates`, surfaced in the Phase 5 report as `Default branch: <branch> (auto-detected)`. Phase log captures one summary line:
 
 ```
-[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=11, evidence_count=14
+[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=12, evidence_count=14
 ```
 
 Transition to Phase 2.
@@ -555,7 +555,7 @@ evidence:
 - {file: package.json, line: 5, snippet: "\"name\": \"my-project\""}
 skill_inventory:
 - {slug: implement, purpose: "..."}
-#... 11 total
+#... 12 total
 write_targets:
 - {path: CLAUDE.md, op: write, loc: 45}
 validate_rounds: 1

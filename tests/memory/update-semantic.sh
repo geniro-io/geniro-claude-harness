@@ -189,6 +189,49 @@ else
   fail "unknown flag should rc=64; got $rc"
 fi
 
+# Trailing --file (missing operand) → rc=64 PROMPTLY. Regression guard against
+# the parse-loop spin: `shift 2` with $#=1 no-ops, so an unguarded arm loops on
+# --file forever. Run in a background subshell and poll, so a regression fails
+# the test instead of hanging the whole suite.
+new_sandbox
+set +e
+( update_semantic --file 2>/dev/null ) &
+guard_pid=$!
+rc=""
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if ! kill -0 "$guard_pid" 2>/dev/null; then
+    wait "$guard_pid"
+    rc=$?
+    break
+  fi
+  sleep 0.5
+done
+if [ -z "$rc" ]; then
+  kill "$guard_pid" 2>/dev/null
+  wait "$guard_pid" 2>/dev/null
+  fail "trailing --file hung (parse-loop spin regression)"
+elif [ "$rc" -eq 64 ]; then
+  pass "trailing --file (missing operand) → rc=64 promptly (no spin)"
+else
+  fail "trailing --file should rc=64; got $rc"
+fi
+set -e
+
+# ---------------------------------------------------------------------------
+# Secret redaction
+# ---------------------------------------------------------------------------
+
+# Appended content routes through redact_secrets before commit — a line
+# carrying a secret must land redacted, never verbatim.
+new_sandbox
+update_semantic --file codebase-map --append "- api key sk-ant-abc123XYZ used in src/client.ts"
+if grep -q 'REDACTED:api-key:anthropic' .geniro/planning/_CODEBASE_MAP.md \
+   && ! grep -q 'sk-ant-abc123XYZ' .geniro/planning/_CODEBASE_MAP.md; then
+  pass "append redacts secrets before commit"
+else
+  fail "append redaction — stored: $(cat .geniro/planning/_CODEBASE_MAP.md)"
+fi
+
 # ---------------------------------------------------------------------------
 # Lock contention
 # ---------------------------------------------------------------------------

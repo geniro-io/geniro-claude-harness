@@ -74,6 +74,27 @@ mkdir -p "$TMPDIR_BASE/proj5/.geniro/state/foo"
 expect_root "$TMPDIR_BASE/proj5/.geniro/state/foo" "$TMPDIR_BASE/proj5" \
   "walk-up from inside .geniro/ finds the parent containing .geniro/"
 
+# 7. Linked worktree of a NORMAL repo resolves to the primary worktree —
+# cross-session memory writes must land in primary, not the removable linked
+# worktree.
+mkdir -p "$TMPDIR_BASE/proj6/.geniro"
+( cd "$TMPDIR_BASE/proj6" && git init -q \
+  && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init \
+  && git worktree add -q "$TMPDIR_BASE/proj6-wt" 2>/dev/null )
+expect_root "$TMPDIR_BASE/proj6-wt" "$TMPDIR_BASE/proj6" \
+  "linked worktree of a normal repo resolves to the primary worktree"
+
+# 8. Worktree of a BARE repo — the first porcelain entry is the bare hub dir;
+# resolution must skip it (a `bare` attribute line follows the path) instead
+# of landing memory writes inside <hub>.git.
+mkdir -p "$TMPDIR_BASE/bare-src"
+( cd "$TMPDIR_BASE/bare-src" && git init -q \
+  && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init )
+git clone -q --bare "$TMPDIR_BASE/bare-src" "$TMPDIR_BASE/hub.git" 2>/dev/null
+( cd "$TMPDIR_BASE/hub.git" && git worktree add -q "$TMPDIR_BASE/wt-of-bare" 2>/dev/null )
+expect_root "$TMPDIR_BASE/wt-of-bare" "$TMPDIR_BASE/wt-of-bare" \
+  "worktree of a bare repo resolves to the worktree, not the bare hub"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

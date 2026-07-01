@@ -219,6 +219,44 @@ else
   fail "bad --min-trust should rc=64; got $rc"
 fi
 
+# Trailing value-taking flag (missing operand) → rc=64, not a parse-loop spin
+# (`shift 2` with $#=1 no-ops, so an unguarded arm loops on the flag forever).
+new_sandbox; seed_log
+set +e
+query_learnings --type >/dev/null 2>&1
+rc=$?
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "trailing --type (missing operand) → rc=64"
+else
+  fail "trailing --type should rc=64; got $rc"
+fi
+
+# Bad GENIRO_DECAY_TAU_DAYS must fail LOUD (rc=64 + stderr), not silently
+# return an empty result set via the 2>/dev/null-masked jq failure.
+new_sandbox; seed_log
+set +e
+err=$(GENIRO_DECAY_TAU_DAYS="bogus" query_learnings --score-min 0.1 2>&1 >/dev/null)
+rc=$?
+set -e
+if [ "$rc" -eq 64 ] && echo "$err" | grep -q 'GENIRO_DECAY_TAU_DAYS'; then
+  pass "non-numeric GENIRO_DECAY_TAU_DAYS fails loud (rc=64 + stderr notice)"
+else
+  fail "bad tau should rc=64 with stderr notice; rc=$rc err='$err'"
+fi
+
+# Zero tau rejected too — recency_decay divides by tau.
+new_sandbox; seed_log
+set +e
+GENIRO_DECAY_TAU_DAYS=0 query_learnings --score-min 0.1 >/dev/null 2>&1
+rc=$?
+set -e
+if [ "$rc" -eq 64 ]; then
+  pass "zero GENIRO_DECAY_TAU_DAYS → rc=64 (division-by-zero guard)"
+else
+  fail "tau=0 should rc=64; got $rc"
+fi
+
 # Trust handling: missing trust field treated as inferred.
 new_sandbox
 cat > .geniro/knowledge/learnings.jsonl <<'EOF'

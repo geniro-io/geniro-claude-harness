@@ -54,7 +54,7 @@ The invariants apply unchanged:
 
 ## Budgets — Quality-First
 
-This skill has no hard kill caps. Runs at opus by default (deep hypothesis-driven investigation) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
+This skill has no hard kill caps. Deep hypothesis-driven investigation merits a strong session tier; the skill inherits the session's model (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
 **Quality gates (escalate to user, do not abort):**
 
@@ -463,14 +463,6 @@ Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 After Phase 3 completes (escalated, accepted, or user-handles):
 
 - **Scientific-method mode only:** `rm -rf .geniro/state/debug/<slug>/` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any experiment artifact written under it (§2.3 permits scratch there) goes with `state.md`; nothing under `.geniro/state/debug/<slug>/` is read after the run, and the migration sweep does not scan `.geniro/state/`, so a leftover there would have no backstop. Its useful content is already saved (root cause, repro, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + the persisted handoff at `.geniro/state/handoff/`. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
-- **Clear old state files** (best-effort; any may not exist):
-```bash
-rm -f ".geniro/debug/HYPOTHESES.md" 2>/dev/null
-rm -f ".geniro/debug/HYPOTHESES-${slug}.md" 2>/dev/null
-rm -f ".geniro/state/debug/HYPOTHESES-${slug}.md" 2>/dev/null
-rm -f ".geniro/state/debug/findings-state.md" 2>/dev/null
-rm -f ".geniro/state/debug/adversarial-tests.md" 2>/dev/null
-```
 - **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. The reproduction test (authored at project's normal test path) STAYS on disk — it ships with the fix as the regression guard.
 - **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` must remain on disk as the escalation handoff channel, so do not delete it. Stays until next debug run overwrites it (single file per branch).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).

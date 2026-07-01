@@ -90,8 +90,9 @@ USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro
     printf '%s %s %s\n' "$h" "$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null)" "$f"
   done) || true
 # The snapshot is best-effort (a benign trailing find/read status must not read as failure); survival is verified by the Phase 3 Step 2 diff, not this exit code.
-# Persist the snapshot to a temp file — each Bash call runs in a fresh shell, so the shell variable does not survive to Phase 3 Step 2. The temp file is the carry-forward channel.
-printf '%s\n' "$USER_SNAPSHOT" > /tmp/geniro-user-snapshot.txt
+# Persist the snapshot to a temp file — each Bash call runs in a fresh shell, so the shell variable does not survive to Phase 3 Step 2. The temp file is the carry-forward channel. The filename carries a hash of PRIMARY_ROOT so two concurrent /update sessions (different repos) never clobber each other's snapshot.
+_gu_hash=$(printf '%s' "$PRIMARY_ROOT" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-12)
+printf '%s\n' "$USER_SNAPSHOT" > "/tmp/geniro-user-snapshot.${_gu_hash}.txt"
 ```
 
 ### Step 3 — Version-confirm AUQ
@@ -240,12 +241,13 @@ If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended — a hash-check failure means
 
 ### Step 2 — User-content survival check
 
-Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless. The pre-update snapshot carries forward through the temp file `/tmp/geniro-user-snapshot.txt` written in Phase 1 Step 2, not through a shell variable — read it back below.
+Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless. The pre-update snapshot carries forward through the temp file `/tmp/geniro-user-snapshot.<root-hash>.txt` written in Phase 1 Step 2 (the suffix is a hash of `PRIMARY_ROOT`, so concurrent /update sessions in different repos never share a snapshot file), not through a shell variable — recompute the same suffix from the re-resolved `PRIMARY_ROOT` and read it back below.
 
 ```bash
 # PRIMARY_ROOT is set by the Mode A resolver run above.
-# Read the pre-update snapshot back from the temp file written in Phase 1 Step 2.
-USER_SNAPSHOT=$(cat /tmp/geniro-user-snapshot.txt 2>/dev/null)
+# Read the pre-update snapshot back from the temp file written in Phase 1 Step 2 — same per-root suffix, computed from the re-resolved PRIMARY_ROOT.
+_gu_hash=$(printf '%s' "$PRIMARY_ROOT" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-12)
+USER_SNAPSHOT=$(cat "/tmp/geniro-user-snapshot.${_gu_hash}.txt" 2>/dev/null)
 
 CURRENT_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
 | sort \

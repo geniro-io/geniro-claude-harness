@@ -52,7 +52,7 @@ Never hardcode `npm`. The registry, the inspect command, and the adopt command a
 Spawn ONE web-research agent (`subagent_type: general-purpose`, OMIT `model=` — it inherits the orchestrator tier; it needs `WebSearch` + `WebFetch`, which the read-only codebase agents lack). Orchestrate the spawn at the top level — subagents cannot spawn sub-agents.
 
 Prompt it to, for the one hand-written problem under audit:
-- Search the detected registry and the web for several candidate libraries that solve it — the user asked for several options, not the first hit.
+- Search the detected registry and the web for several candidate libraries that solve it — return several ranked candidates, never just the first hit.
 - For each candidate, gather the Step 4 signals and the canonical registry + repository URLs.
 - Return a ranked shortlist of 2-3 with the signals and links. Research only — it never edits files or installs anything.
 

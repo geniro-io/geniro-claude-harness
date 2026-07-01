@@ -460,7 +460,7 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 | User picks "Other" with custom text on Question 1 | Treat as "Current branch" semantically; no git mutation; echo custom text into state.md `## Workspace decision` body block. |
 | Multiple review/debug handoffs for current branch (review AND debug both produced findings) | Both signals satisfy rule 2 of 0b. Echo both signal names; behavior otherwise identical. |
 | Stale review/debug handoff (older than the current work) | Still triggers rule 2. Emit soft notice: `"Note: review handoff is N days old. Re-run /geniro:review if you want fresh findings."` |
-| `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 5 fires (full AUQ); worktree-presence is incidental. |
+| `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 4 fires (worktree-mismatch AUQ) — a worktree checked out on a protected branch is itself the anomaly to surface; rule 5 requires `IN_WORKTREE == false`. |
 
 #### 0g — Apply spec `launch_config` (pre-answer setup)
 
