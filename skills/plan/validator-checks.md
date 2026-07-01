@@ -1,4 +1,4 @@
-# Phase 7 Validator — 15 checks
+# Phase 7 Validator — 13 checks
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules executed orchestrator-side, near-zero token usage.
 
@@ -9,7 +9,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 ## Contents
 
 - good-goal criteria: 1 `single_objective` / 2 `bounded_scope` / 3 `source_materials` / 4 `allowed_tools` / 5 `forbidden_actions` / 6 `budget` / 7 `checkpoints` / 8 `validation_method` / 9 `stopping_condition`
-- Additional checks: 10 `placeholder_scan` / 11 `contradiction_heuristic` / 12 `scope_creep_marker` / 13 `schema_completeness` / 14 `workflow_refs_consistency` / 15 `launch_config_consistency`
+- Additional checks: 10 `placeholder_scan` / 13 `schema_completeness` / 14 `workflow_refs_consistency` / 15 `launch_config_consistency` (IDs 11-12 retired)
 - Check API contract
 
 ---
@@ -108,21 +108,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Fix hint on fail:** "Found placeholder token '<token>' at line <N>. Replace with actual content OR remove the line."
 
-### 11. `contradiction_heuristic`
-
-**Rule:** section 2 (Scope.Included) and section 3 (Scope.Excluded) have no shared bullet token (case-insensitive whole-word).
-
-**Heuristic:** tokenize bullets, set-intersection check.
-
-**Fix hint on fail:** "Token '<token>' appears in both Included (section 2) and Excluded (section 3). Pick one — a thing cannot be both in and out of scope."
-
-### 12. `scope_creep_marker`
-
-**Rule:** section 6 (Steps) contains no step beyond the file/feature surface declared in section 2 (Scope.Included).
-
-**Heuristic:** extract file paths from section 6 bullets; check each is a subset of paths in section 2 OR matches a glob declared in section 2.
-
-**Fix hint on fail:** "Step <N> touches file `<path>` which is not in section 2 Scope.Included (or not matches its globs). Either expand section 2 OR remove step <N>."
+> **Checks 11 (`contradiction_heuristic`) and 12 (`scope_creep_marker`) were retired** — both were false-positive-prone heuristics whose real defect is caught downstream. The token set-intersection flagged benign shared words (a module name legitimately partly in / partly out of scope) while missing real semantic contradictions; the step-path check false-flagged files a step only cites as read-only evidence, which check #3 actively requires. A true in/out contradiction is caught by the Phase 8 human whole-spec render, and real scope over-reach by `/geniro:review` on the actual diff. The remaining checks keep their original IDs, so external references by number stay valid.
 
 ### 13. `schema_completeness`
 
