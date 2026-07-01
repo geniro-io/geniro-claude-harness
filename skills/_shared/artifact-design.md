@@ -2,6 +2,8 @@
 
 The house design language for the `/geniro:plan` visual artifact. Apply it whenever you author or substantially re-author the page — the create step AND every later per-phase update or before-gate fill that adds a section, panel, or layer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` loads this first before writing any HTML, and re-loads it on a cross-session update where it has fallen out of context). The job is a single self-contained HTML page — inline CSS, inline SVG, no external requests — that reads as if it were art-directed for *this* plan's subject, not a generic readable default. A "clean default" is the failure this file exists to prevent: it reads as templated and AI-generated. The page should look deliberate, opinionated, and specific to the system being planned.
 
+The specific palette, type, and layout values below are illustrative: you own those choices and derive them from this plan's subject. What is required is the methodology — ground the look in the subject, avoid the generic defaults, render diagrams as SVG, and defer to the project's design system when it declares one; the exact hues, sizes, and spacing are yours to set.
+
 ## Contents
 
 - The failure this prevents — why a clean default is the wrong target
@@ -14,7 +16,7 @@ The house design language for the `/geniro:plan` visual artifact. Apply it whene
 - Code & data tokens — styled token pills
 - Motion — deliberate, inline-only, reduced-motion-safe
 - Quality floor — responsive, accessible, self-contained
-- Worked default — a copy-pasteable CSS foundation to adapt
+- Worked default — a disposable illustration of the techniques (author your own tokens)
 - Anti-rationalization
 
 ## The failure this prevents
@@ -53,10 +55,10 @@ Plan before you build, then critique before you ship. Do this in your thinking; 
 
 ## Design tokens
 
-- **Color.** A dark editorial ground suits a developer RFC and gives diagrams and code room to read. Use one vivid accent as the page's voice — apply it to the thesis word, section eyebrows, and the signature element, and almost nowhere else. Keep body text muted, headings bright. Semantic state colors (a teal for valid/covered, a magenta for stale/breaking, a violet for secondary) earn their place only when the content marks states; used everywhere they become noise.
-- **Type.** Display headings are large, tight in line-height (~0.95–1.05), and heavy — the headline is the hero, not a label over a paragraph. Body sits at a comfortable reading size (~17–18px) with generous line-height (~1.6) and muted color. The monospace utility face carries eyebrows (uppercase, wide letter-spacing, small, accent-or-muted), inline code, data labels, and figure captions — it is the page's "telemetry" voice and signals "this is a technical document."
-- **Surface & structure.** A faint grid or graph-paper ground (a low-opacity repeating linear-gradient) gives the dark field texture without competing with content. Hairline dividers (1px at low opacity) separate sections. Cards sit one surface-step above the ground with a subtle border and an optional gradient top edge tinted by the card's semantic role.
-- **Rhythm.** Generous vertical space between sections; a content measure around 70ch so prose stays readable; consistent padding inside cards. Whitespace is the cheapest way to read as deliberate rather than cramped.
+- **Color.** Choose a ground derived from the subject and register — an RFC-style plan wants a calm, low-chroma field that gives diagrams and code room to read, whichever direction (dark, light, or tinted) the brief and any project design system point to. Use one vivid accent as the page's voice — apply it to the thesis word, section eyebrows, and the signature element, and almost nowhere else. Keep body text muted, headings bright. Semantic state colors (a teal for valid/covered, a magenta for stale/breaking, a violet for secondary) earn their place only when the content marks states; used everywhere they become noise.
+- **Type.** Display headings are large, tight in line-height, and heavy — the headline is the hero, not a label over a paragraph. Body sits at a comfortable reading size with generous line-height and muted color. The monospace utility face carries eyebrows (uppercase, wide letter-spacing, small, accent-or-muted), inline code, data labels, and figure captions — it is the page's "telemetry" voice and signals "this is a technical document."
+- **Surface & structure.** A faint grid or graph-paper ground (a low-opacity textured layer) gives the field texture without competing with content. Quiet dividers separate sections. Cards sit one surface-step above the ground with a subtle border and an optional top edge tinted by the card's semantic role.
+- **Rhythm.** Generous vertical space between sections; a content measure that keeps prose comfortably readable (roughly 60–75 characters per line is the typographic comfort zone — pick the exact width for your type and layout); consistent padding inside cards. Whitespace is the cheapest way to read as deliberate rather than cramped.
 
 ## The signature element
 
@@ -66,9 +68,9 @@ Spend boldness in one place. Pick a single device that embodies the plan's subje
 
 Structural devices should encode something true about the content, not decorate it.
 
-- **Eyebrows** (small mono uppercase labels above a heading) name the real section — `RUNTIME · ONE CRON TICK` — and orient the reader.
+- **Eyebrows** (a short label above a heading, styled in the Type token's mono face) name the real section — `RUNTIME · ONE CRON TICK` — and orient the reader.
 - **Numbered markers** (`01 / 02 / 03`) are right only when the content is a genuine sequence — an ordered process, a typed timeline — where order carries information. Do not number a set that has no order.
-- **State marks** carry meaning at a glance: strikethrough for a retired/removed item, a dashed border for a missing/absent slot, a diagonal-stripe fill for a stale state, a solid accent for the healed/current one. Pair any such system with a small legend so the marks are legible.
+- **State marks** encode each state distinctly and carry meaning at a glance — for example strikethrough for a retired/removed item, a dashed border for a missing/absent slot, a diagonal-stripe fill for a stale state, a solid accent for the healed/current one; choose the glyphs that fit the content. Pair any such system with a small legend so the marks are legible.
 
 ## Diagrams are the visual language
 
@@ -76,7 +78,7 @@ Every structural relationship — data flow, component architecture, before/afte
 
 ## Code & data tokens
 
-Render inline code and JSON examples as styled token pills, not flat `<pre>` dumps — one inline-styled `<span>` per token in the conventional developer palette: object keys blue, string values green, numbers orange, booleans purple, null red, structural punctuation neutral; identifiers and constants get a subtle tinted background pill. This needs no external highlighter and stays within the content policy. Defer the palette to the project's `## Design system` tokens when CLAUDE.md declares one.
+Render inline code and JSON examples as styled token pills, not flat `<pre>` dumps — one inline-styled `<span>` per token, colored with a conventional developer syntax palette (distinct hues for keys, strings, numbers, booleans, null, and punctuation — your exact colors, tuned to the page's accent); identifiers and constants get a subtle tinted background pill. This needs no external highlighter and stays within the content policy. Defer the palette to the project's `## Design system` tokens when CLAUDE.md declares one.
 
 ## Motion
 
@@ -99,24 +101,31 @@ Build to a floor without announcing it:
 
 ## Worked default
 
-A concrete starting point for a dark RFC-style plan with no project design system. Adopt the *techniques* (grid ground, type scale, eyebrow, card edge, code pill, scroll reveal); derive the *accent and any subject-specific hues* from the plan's subject rather than shipping these exact values every time.
+A disposable illustration of how the techniques wire together, NOT a stylesheet to copy. Adopt the *techniques* (grid ground, type scale, eyebrow, card edge, code pill, scroll reveal); author your own tokens and derive every color, type metric, size, spacing value, and radius from the plan's subject rather than shipping the values below.
 
 ```html
 <style>
+  /* =============================================================
+     DISPOSABLE ILLUSTRATION — do NOT copy this as a theme.
+     It shows how the techniques wire together (grid ground, type
+     scale, eyebrow, card edge, code pill, reveal). Author your own
+     tokens: derive every color, size, and radius from THIS plan's
+     subject. The palette values are placeholders, not a stylesheet.
+     ============================================================= */
   :root {
-    --ground: #13151C;     /* page field */
-    --surface: #1B1E27;    /* cards */
-    --surface-2: #21242F;  /* nested */
-    --line: #2A2E3A;       /* hairlines */
-    --text: #E9E7E0;       /* headings / strong */
-    --muted: #888EA0;      /* body / labels */
-    --accent: #FF6B4A;     /* the one voice — thesis word, eyebrows, signature */
-    --valid: #4FB6A8;      /* semantic: covered / compatible */
-    --stale: #D6457F;      /* semantic: stale / breaking */
-    --info: #A78BFA;       /* semantic: secondary */
-    --display: 800 clamp(2.6rem, 6vw, 5rem)/0.98 system-ui, "Helvetica Neue", sans-serif;
-    --mono: 500 0.8rem/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-    --measure: 70ch;
+    --ground:    /* page field — derive from subject */ ;
+    --surface:   /* cards — derive from subject */ ;
+    --surface-2: /* nested surfaces — derive from subject */ ;
+    --line:      /* dividers — derive from subject */ ;
+    --text:      /* headings / strong — derive from subject */ ;
+    --muted:     /* body / labels — derive from subject */ ;
+    --accent:    /* the one voice — thesis word, eyebrows, signature — derive from subject */ ;
+    --valid:     /* semantic: covered / compatible — derive from subject */ ;
+    --stale:     /* semantic: stale / breaking — derive from subject */ ;
+    --info:      /* semantic: secondary — derive from subject */ ;
+    --display:   /* display heading font: large, tight, heavy — set for your type choice */ ;
+    --mono:      /* monospace utility font: eyebrows, code, labels — set for your type choice */ ;
+    --measure:   /* content measure ~60–75ch — set for your type and layout */ ;
   }
   * { box-sizing: border-box; }
   body {
