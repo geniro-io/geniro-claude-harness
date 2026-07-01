@@ -50,7 +50,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 **Schema-version compatibility:**
 - `m5-v1` — legacy schema, no `workflow_refs[]`. Still valid for inline-task /geniro:plan with no tracker linkage.
-- `m5-v2` — adds optional `workflow_refs[]`. Field absent ⇔ no tracker linkage; field present ⇔ Phase 7 check #14 validates structure.
+- `m5-v2` — adds optional `workflow_refs[]`. Field absent ⇔ no tracker linkage; field present ⇔ Phase 7 check #12 validates structure.
 - `m5-v3` — adds optional related-task chain enrichment to `workflow_refs[]` entries (parent epic title/status/scope + sibling sub-tasks with statuses + `chain_fetched_at`). Field present ⇔ /geniro:plan fetched the chain; absent ⇔ not fetched.
 - `m5-v4` — adds the optional `launch_config` block (`/geniro:plan`'s pre-set of `/geniro:implement`'s launch settings; canonical `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`). Carries `workflow_refs[]` identically to m5-v3. All of m5-v1/m5-v2/m5-v3/m5-v4 are accepted downstream.
 
@@ -60,7 +60,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 **Staleness:** downstream readers re-fetch per the `fetched_at` staleness window defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` (§Per-entry shape). Cached `title` / `suggested_branch` / `status` fields let /geniro:implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
 
-**Graceful degrade:** workflow file lookup is cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When the file is absent from BOTH locations, Phase 7 check #14 returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
+**Graceful degrade:** workflow file lookup is cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When the file is absent from BOTH locations, Phase 7 check #12 returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
 
 ---
 

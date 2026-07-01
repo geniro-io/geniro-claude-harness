@@ -9,7 +9,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 ## Contents
 
 - good-goal criteria: 1 `single_objective` / 2 `bounded_scope` / 3 `source_materials` / 4 `allowed_tools` / 5 `forbidden_actions` / 6 `budget` / 7 `checkpoints` / 8 `validation_method` / 9 `stopping_condition`
-- Additional checks: 10 `placeholder_scan` / 13 `schema_completeness` / 14 `workflow_refs_consistency` / 15 `launch_config_consistency` (IDs 11-12 retired)
+- Additional checks: 10 `placeholder_scan` / 11 `schema_completeness` / 12 `workflow_refs_consistency` / 13 `launch_config_consistency`
 - Check API contract
 
 ---
@@ -108,9 +108,9 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Fix hint on fail:** "Found placeholder token '<token>' at line <N>. Replace with actual content OR remove the line."
 
-> **Checks 11 (`contradiction_heuristic`) and 12 (`scope_creep_marker`) were retired** — both were false-positive-prone heuristics whose real defect is caught downstream. The token set-intersection flagged benign shared words (a module name legitimately partly in / partly out of scope) while missing real semantic contradictions; the step-path check false-flagged files a step only cites as read-only evidence, which check #3 actively requires. A true in/out contradiction is caught by the Phase 8 human whole-spec render, and real scope over-reach by `/geniro:review` on the actual diff. The remaining checks keep their original IDs, so external references by number stay valid.
+> **Two checks — `contradiction_heuristic` and `scope_creep_marker` — were retired.** Both were false-positive-prone heuristics whose real defect is caught downstream: the token set-intersection flagged benign shared words (a module name legitimately partly in / partly out of scope) while missing real semantic contradictions; the step-path check false-flagged files a step only cites as read-only evidence, which check #3 actively requires. A true in/out contradiction is caught by the Phase 8 human whole-spec render, and real scope over-reach by `/geniro:review` on the actual diff. The remaining Additional checks were renumbered contiguously.
 
-### 13. `schema_completeness`
+### 11. `schema_completeness`
 
 **Rule:** all 11 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 11 + the optional body sections `## Considered Alternatives`, `## Milestones`, `## Problem & Evidence`, and `## Comment Resolution Map`. The optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); `## Comment Resolution Map` appears only on `/geniro:resolve`-produced specs; a normal spec omits both and still passes.
 
@@ -118,7 +118,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Fix hint on fail:** "Section <name> missing OR misnamed at line <N>. Expected: '<canonical-header>'. Got: '<actual>'."
 
-### 14. `workflow_refs_consistency`
+### 12. `workflow_refs_consistency`
 
 **Rule:** for each entry in frontmatter `workflow_refs[]` (m5-v2, m5-v3, or m5-v4 — skipped on legacy `m5-v1` specs), a matching workflow file exists at either `./.geniro/workflow/<kind>.md` (cwd-local) OR `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (primary fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Per-entry required fields `kind`, `issue_id`, `url`, `fetched_at` are non-empty.
 
@@ -139,7 +139,7 @@ These sub-checks run on m5-v2 OR m5-v3 OR m5-v4 specs, guarded by key-presence (
 
 **Fix hint on fail (sibling shape):** "Entry <N> siblings[<M>] is missing required field issue_id — re-run /geniro:plan with the tracker URL/ID so Phase 1 can re-fetch the chain, OR remove the malformed sibling entry."
 
-### 15. `launch_config_consistency`
+### 13. `launch_config_consistency`
 
 **Rule:** when frontmatter `launch_config:` is present (which implies `m5-v4`), each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `deep_mode` ∈ {`true`, `false`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}; and, when the optional `tracker_status` key is present, `tracker_status` ∈ {`move-to-in-progress`, `leave-unchanged`}. Shape-only — the check verifies enum membership, never executes anything. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
 
