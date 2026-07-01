@@ -8,7 +8,7 @@ Consumers: `/geniro:implement` (both modes), `/geniro:plan`, `/geniro:debug`, `/
 
 - §1 When to invoke — the two modes
 - §2 Shared sub-steps — resolve default branch + fetch (fail-open)
-- §3 Mode FRESH-BASE — cut new branch/worktree from latest default
+- §3 Mode FRESH-BASE — cut new branch/worktree from latest default (§3.1 project worktree-setup steps)
 - §4 Mode FRESH-CONTINUE — offer to update a branch that is behind
 - §5 Dirty working tree
 - §6 Conflict handling
@@ -78,6 +78,14 @@ AHEAD="$(git rev-list --count "$DEFAULT_BRANCH..$BASE" 2>/dev/null || echo 0)"
 - Already current / offline: `"Created <slug> from <DEFAULT_BRANCH>."`
 
 No extra question — cutting from the latest default is the correct base, so it happens as part of branch creation.
+
+### 3.1 Worktree-setup steps (project-defined; worktree path only)
+
+When the new-workspace path created a WORKTREE (the `git worktree add` line — not a plain in-place `git checkout -b`, which shares the current worktree's setup), run any project-authored `### After worktree-setup` Additional Step before the run spawns subagents. This is the guaranteed execution site for a per-worktree bootstrap the project declares in `global.md` (e.g. building a per-worktree code index for an MCP) — the plugin runs the project's command without knowing what it does. The project authors the step to be idempotent — a no-op when the worktree is already set up — because some entry points run it on entry to an existing worktree, not only at first creation (e.g. `/geniro:review` re-entering a review worktree), so it doubles as a self-heal for a worktree that predates the step or lost its setup.
+
+- **Load the block from the primary worktree.** A fresh linked worktree does not carry the gitignored `.geniro/instructions/global.md`, so resolve it via the `PRIMARY_ROOT` fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — a cwd-only Read from inside the new worktree would miss it. No file, or no `### After worktree-setup` block → nothing to run; continue silently.
+- **Run once, in the orchestrator, before fan-out.** Execute the steps in the orchestrator before any parallel subagent spawn, never inside each subagent — a per-worktree bootstrap can serialize concurrent runs on a shared lock, so N subagents each launching it would race and stall the fan-out behind one build.
+- **Fail-open.** A setup step that errors surfaces one line and does not block the run — the worktree is still usable, just without the optional bootstrap.
 
 ## 4. Mode FRESH-CONTINUE — offer to update a branch that is behind
 

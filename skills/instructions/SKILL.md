@@ -59,7 +59,7 @@ The stable scope set:
 
 | Scope | File path | Layer | Loaded by | Notes |
 |---|---|---|---|---|
-| `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints only |
+| `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints, plus the one cross-skill `### After worktree-setup` event step |
 | `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase self-review, `refactor` Phase verify); pre-inlined into reviewer-agent prompts for guidelines/conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
 | `memory` | `.geniro/instructions/memory.md` | L4 | Every pipeline + discovery skill (and operational skills that emit L2) at Step 0 + phase-boundary refresh, loaded alongside `global.md` | Holds the `## Memory Backend` block only — no Rules/Constraints/Additional Steps |
 | `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default`, `requires-context` |
@@ -176,11 +176,12 @@ A `create`/`edit` request implies WHICH block to author, not just which scope. M
 |---|---|---|
 | "always do X" / "never Y" / a standing rule | `## Rules` | the named/contextual scope |
 | "run X after `<phase>`" / a project-specific post-phase step (e.g. duplicate the plan into OpenSpec, archive after ship) | `## Additional Steps` → `### After <phase-enum-value>` (e.g. `### After user-approve` for `/plan`, `### After ship` for `/implement`) | the per-skill scope |
+| "run X every time a new worktree is created" / a per-worktree workspace bootstrap (e.g. build a per-worktree code index for an MCP) | `## Additional Steps` → `### After worktree-setup` (a cross-skill event anchor, not a phase) | `global` |
 | "hard limit" / "must not exceed" / a gate | `## Constraints` | the named scope |
 | "verify facts against my <source>" / "cross-check status from <db/MCP>" | `## Data Sources` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`) | `global` or per-skill |
 | "change how memory/knowledge works" / "store learnings in my MCP" / "use a custom memory backend" | `## Memory Backend` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`) | `memory` (its own dedicated file) |
 
-When the block type is ambiguous, ask in the Step 4 interview; default a vague "add a rule" to `## Rules`. The `## Additional Steps` phase anchor must be a real phase-enum value for the scope (see §Validation table) — for a `/plan` post-approval step use `### After user-approve`.
+When the block type is ambiguous, ask in the Step 4 interview; default a vague "add a rule" to `## Rules`. The `## Additional Steps` phase anchor must be a real phase-enum value for the scope (see §Validation table) — for a `/plan` post-approval step use `### After user-approve`. The sole exception is `### After worktree-setup`: a cross-skill event anchor (hosted in `global.md`, not a per-skill file) that fires when any skill creates a new worktree rather than at a phase boundary.
 
 ### Ambiguity resolution
 
@@ -437,7 +438,7 @@ Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next ti
 ### Body section invariants (post-edit)
 
 - `## Rules` section present (may be empty list).
-- `## Additional Steps` section present (omitted only for rules-only scopes: `global`, `code-style`, `review-extra/<slug>`, `onboard`, `investigate`).
+- `## Additional Steps` section present (omitted for the rules-only scopes `code-style`, `review-extra/<slug>`, `onboard`, `investigate`; for `global` the section is optional and, when present, carries only the cross-skill `### After worktree-setup` event anchor).
 - `## Constraints` section present (may be empty list).
 - Frontmatter (for `review-extra/<slug>.md`) parses YAML cleanly.
 
@@ -468,7 +469,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 |---|---|
 | No references to dropped skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) | HIGH |
 | No references to dropped phase names (e.g., "Phase 4 (Implement)" predates the spec's enum redesign) | MEDIUM |
-| `Additional Steps` subsections match per-skill phase enum | MEDIUM |
+| `Additional Steps` subsections match per-skill phase enum (the cross-skill `### After worktree-setup` anchor in `global.md` is the one non-phase exception) | MEDIUM |
 
 **Per-scope checks:**
 
@@ -519,7 +520,7 @@ This is the guard that catches the silent-empty-findings trap at authoring time:
 
 ### Step 3 — Per-skill phase mapping
 
-`Additional Steps` subsections must match a real phase enum value from the corresponding skill doc. Lowercase-hyphenated; subsection prose may use any case (validate normalizes).
+`Additional Steps` subsections must match a real phase enum value from the corresponding skill doc — except the cross-skill `### After worktree-setup` event anchor, which is valid only in `global.md` (it keys to the worktree-creation event, not a phase). Lowercase-hyphenated; subsection prose may use any case (validate normalizes).
 
 | Scope | Real phase enum | Example subsection names |
 |---|---|---|
@@ -530,6 +531,7 @@ This is the guard that catches the silent-empty-findings trap at authoring time:
 | `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
 | `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
 | `investigate` | `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
+| `global` | (no phase enum — cross-skill) | `After worktree-setup` (the only permitted anchor; fires when a skill creates a new worktree) |
 
 Free-form subsections raise `LOW` warning. Subsections referencing dropped phase names (e.g., `After Phase 4 (Implement)`) raise `MEDIUM`.
 
@@ -620,10 +622,11 @@ For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delet
 
 ### Additional Steps Writing
 
-- **Use exact phase enum values** from the per-skill mapping — `validate` checks these
+- **Use exact phase enum values** from the per-skill mapping — `validate` checks these (the cross-skill `### After worktree-setup` anchor is the sole non-phase exception, below)
 - **Keep steps actionable** — each step describes a concrete action
 - **Limit to 2-3 steps per phase** — too many slow down workflow and dilute attention
 - **Best insertion points:** `Before ship` (quality gates), `After implement` (post-checks), `After verify` (refactor wrap-up)
+- **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after any skill creates a new worktree and before subagent fan-out
 
 ### Constraint Writing
 

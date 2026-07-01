@@ -278,7 +278,7 @@ Store as `$OPENSPEC_CHOICE` for Phase 3.
 
 ### 2.5 Custom instructions
 
-AUQ: "Create a custom `.geniro/instructions/global.md` for project-wide workflow rules?" Default: no (avoid clutter). Users can run `/geniro:instructions create global` later.
+AUQ: "Create a custom `.geniro/instructions/global.md` for project-wide workflow rules?" Default: no (avoid clutter). Users can run `/geniro:instructions create global` later. `global.md` also hosts the cross-skill `### After worktree-setup` step, if the project needs a per-worktree bootstrap (e.g. building a per-worktree code index for an MCP) to run whenever a skill creates a new worktree.
 
 Transition to Phase 3.
 
