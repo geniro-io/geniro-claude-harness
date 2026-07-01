@@ -263,6 +263,17 @@ Three additional L2 entry types + score-based query ranking.
 
 ---
 
+## Idle-window overlap (cross-skill)
+
+Long-running skills overlap a background research/critic spawn's wait with provably-independent work instead of blocking idle, per `skills/_shared/idle-overlap.md`. Wall-clock collapses from `agent + other` to `max(agent, other)`.
+
+- Two shapes: **A** — spawn the agent(s) `run_in_background: true` and, during the wait, fire a user question whose answer does not depend on the agent's output (the user reasons while the agent computes); **B** — co-fire mutually-independent agents that feed the same gate in one response.
+- Eligibility is strict: provably independent (dependency-DAG regime), never speculative; agent spawns only, never a fire-and-forget shell command. The contract reuses the reflection background-spawn anchors — visible spawn + drain-before-dependent-step + reconcile-against-live-state at the drain + unconditional echo.
+- Applied: `/plan` Phase 1 explore ↔ code-independent grill questions (Shape A) and Phase 4.2/4.2.5 critic + library-research co-fire (Shape B); `/implement` Phase 1 knowledge-retrieval / codebase-explorer ↔ review/debug handoff open-questions (Shape A, handoff runs only — the common no-handoff run is unchanged).
+- Forbidden past Edit/Write-gating gates, Always-WAIT safety gates, and reviewer/verifier batches whose output feeds the gate — those stay synchronous.
+
+---
+
 ## Operational Rules (from report.md)
 
 - Hook blocking requires `exit 2`, not `exit 1` — `exit 1` is fail-open.
