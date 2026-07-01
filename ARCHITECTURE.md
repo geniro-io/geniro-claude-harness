@@ -109,7 +109,7 @@ Renamed from /brainstorm; absorbs /decompose; produces canonical spec.md.
 - Cluster authoring is incremental in dependency order (author cluster N → render to chat → lean AUQ → on approve, author cluster N+1) — this preserves cross-section issue-catching while avoiding BOTH the over-gating of a per-section design (one low-content gate per section → click-through fatigue) AND the redundancy of re-asking each section after it was already rendered to chat (the lean per-cluster AUQ captures the whole cluster in one decision). Each section's pick still persists immediately to `approvals[]` under category `section_<id>` for compaction safety — granularity is unchanged (the per-cluster AUQ writes one entry per section it covers), only the AUQ delivery is grouped, so Phase 6.4 compaction re-author and the session-start restore hook need no change.
 - Each user answer and approach pick is immediately persisted to `approvals[]` for compaction safety.
 - Milestone-mode fires when task is classified Big: emits sibling `milestone-N.md` files alongside `spec.md`.
-- Phase 7 mechanical validator runs 15 checks (adds `workflow_refs_consistency` and `launch_config_consistency` — `workflow_refs_consistency` warns when `.geniro/workflow/<kind>.md` missing; fails on structural field-presence violations; the shape check runs on m5-v2 OR m5-v3, skipped on m5-v1; on m5-v3 it also shape-checks the sibling/chain fields — `siblings[]`, `chain_fetched_at`, the enriched `parent_ref` — when present).
+- Phase 7 mechanical validator runs 13 checks (adds `workflow_refs_consistency` and `launch_config_consistency`; retired the false-positive-prone `contradiction_heuristic` + `scope_creep_marker`, whose defect is caught by the Phase 8 human render / `/geniro:review` — `workflow_refs_consistency` warns when `.geniro/workflow/<kind>.md` missing; fails on structural field-presence violations; the shape check runs on m5-v2 OR m5-v3, skipped on m5-v1; on m5-v3 it also shape-checks the sibling/chain fields — `siblings[]`, `chain_fetched_at`, the enriched `parent_ref` — when present).
 - Phase 7.5 runs an always-on spec-challenge (`_shared/spec-challenge.md` MODE: plan) between the mechanical validator and the Phase 8 human approval — re-verifies the spec's cited claims against live code, generates competing approaches, and red-teams the chosen one. The failure class it catches is the factually-wrong claim that reads as plausible prose. Cost is bounded by the spec's own cited-claim set (one verifier per claim, not per sentence) — which is why always-on includes Trivial. `keep-with-modifications` folds fixes into the draft via the Phase 6 re-author loop and re-runs Phase 7; `re-plan` re-enters approach selection. Advisory + fail-open — it hardens the spec but never hard-blocks the human approval gate.
 - No auto-commit — commit fires at Phase 8 (post-approve) only.
 
@@ -260,6 +260,17 @@ Three additional L2 entry types + score-based query ranking.
 - `user_rejected_suggestion`: emitted by `emit-rejection.sh` after qualifying AUQ resolution.
 - `retry_failure_sequence`: emitted when retries >=2 in `/implement`, `/debug`, `/refactor`.
 - Score-based ranking: recency × trust × access-count × recurrence. A learning's `recurrence_count` (incremented on each dedup-key re-emit by `emit-learning.sh`; absent treated as 1) folds in as a log-dampened factor `1 + ln(max(n,1))`, so absent/1 has no effect. Stale entries (score < 0.1, age > 180d, access_count == 0) auto-archived at SessionStart.
+
+---
+
+## Idle-window overlap (cross-skill)
+
+Long-running skills overlap a background research/critic spawn's wait with provably-independent work instead of blocking idle, per `skills/_shared/idle-overlap.md`. Wall-clock collapses from `agent + other` to `max(agent, other)`.
+
+- Two shapes: **A** — spawn the agent(s) `run_in_background: true` and, during the wait, fire a user question whose answer does not depend on the agent's output (the user reasons while the agent computes); **B** — co-fire mutually-independent agents that feed the same gate in one response.
+- Eligibility is strict: provably independent (dependency-DAG regime), never speculative; agent spawns only, never a fire-and-forget shell command. The contract reuses the reflection background-spawn anchors — visible spawn + drain-before-dependent-step + reconcile-against-live-state at the drain + unconditional echo.
+- Applied: `/plan` Phase 1 explore ↔ code-independent grill questions (Shape A) and Phase 4.2/4.2.5 critic + library-research co-fire (Shape B); `/implement` Phase 1 knowledge-retrieval / codebase-explorer ↔ review/debug handoff open-questions (Shape A, handoff runs only — the common no-handoff run is unchanged).
+- Forbidden past Edit/Write-gating gates, Always-WAIT safety gates, and reviewer/verifier batches whose output feeds the gate — those stay synchronous.
 
 ---
 

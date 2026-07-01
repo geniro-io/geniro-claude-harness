@@ -4,6 +4,7 @@
 
 - §When to use — tier → helper table
 - §API — `atomic_state_write` / `atomic_state_append` signatures + exit codes
+- §Timestamp sourcing — time-bearing fields come from a live clock read
 - §Caller-side mtime check — optimistic-concurrency for T3 CRUD files
 - §Known limitations — symlinks, append race
 - §What this helper does NOT do — validation, locking, rollback, retry

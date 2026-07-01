@@ -57,6 +57,17 @@ If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task
 
 Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, TWO `Agent(...)` tool calls. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
+### Backgrounding when a handoff gate is pending (idle-overlap)
+
+Default: spawn both agents BLOCKING and read their outputs at Step 8 — the common no-handoff run, unchanged. Engage the overlap ONLY when Step 0a flagged a review/debug handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF`) carrying unresolved open-questions: those questions are on disk and independent of the agents' output, so the Step 12 open-questions AUQ can fire while the agents compute (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`). Procedure:
+
+1. Spawn both agents `run_in_background: true` in ONE assistant response (same template + slots below; only the background flag changes).
+2. In that same turn, run Step 12 sub-steps 1-7 — read the handoff, persist its body, parse `open_questions[]`, filter to unresolved, fire the open-questions AUQ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 (message-first render, then a lean question), and persist each answer the moment it is picked: round-trip the producer handoff to `status: resolved` (sub-step 6) and append the `review_handoff_resolution` approval to state.md (sub-step 7). Persist in the pick-turn — never defer persistence across the Step 8 drain, where large agent outputs make compaction likely and an unpersisted pick is lost and re-asked (the blocking path persists immediately after each pick; the overlap must not widen that window). These sub-steps consume the handoff and the user's answers, never the agents' output, so they are provably independent.
+3. Drain at Step 8: before reading `.kr-out.md` / `.ce-out.md`, confirm both backgrounded agents returned (Read the output file, or resume by ID). This is the first step that consumes their output.
+4. After the drain, run Step 12 sub-steps 8-11 (authored-tests extraction, comment-resolutions, and the remaining bookkeeping) — the answer persistence (sub-steps 6-7) already fired in step 2.
+
+Hard boundary: the overlap changes only WHEN the open-questions AUQ is asked, never the Edit/Write gate itself — every unresolved entry must still be resolved before `phase: implement`, exactly as in the blocking path.
+
 ### Related-task chain priming
 
 Before spawning, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: implement) to assemble the related-task chain context — the surrounding chain of work that places this task in its done-before / where-we-are / what's-next narrative. Source the tracker half from the spec frontmatter `workflow_refs[]` when present (already enriched by `/geniro:plan` on its newest spec format); when the chain's tracker fetch is stale (older than 1 hour) or absent, the helper refreshes it via MCP (fail-open). Source the milestone half from disk — when `/geniro:implement` is invoked on a `milestone-N.md`, the helper reads the sibling `milestone-*.md` files and the parent `spec.md` to place this milestone in the chain (what shipped before, what is next).
@@ -96,7 +107,7 @@ TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the structured
-report to OUTPUT_PATH per the §Output Schema (cap ~3K chars). Do NOT mutate the
+report to OUTPUT_PATH per the §Output Schema. Do NOT mutate the
 codebase or git state — read-only retrieval only.
 """)
 ```
@@ -124,7 +135,7 @@ TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the
-structured report to OUTPUT_PATH per the §Output Schema (cap ~5K chars). Do NOT
+structured report to OUTPUT_PATH per the §Output Schema. Do NOT
 mutate the codebase or git state — read-only reconnaissance only.
 
 For `.claude/rules/` matching: parse YAML frontmatter `paths:` field per file;

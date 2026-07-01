@@ -273,7 +273,7 @@ A new `regressions` reviewer dimension is added as the 8th always-fire dim (betw
 
 `/geniro:plan` now persists Linear / Jira / GitHub-Issues / Asana tracker references into spec.md frontmatter. The new field is OPTIONAL — old spec.md files without it remain valid. `/geniro:implement` Step 0 treats absence as "no tracker linkage" and proceeds without workflow on-task-start hooks. `/geniro:debug` and `/geniro:refactor` Phase 1 entry read the cached `status` field as priming context (read-only — never mutates tracker state). The `geniro_schema_version` field bumps from `m5-v1` to `m5-v2`; downstream readers accept both.
 
-Per-entry shape: `{kind, issue_id, url, fetched_at, title?, suggested_branch?, status?, parent_ref?}`. Phase 7 validator gains check #14 `workflow_refs_consistency` — warns when `.geniro/workflow/<kind>.md` is missing; fails on structural field-presence violations; skipped on `m5-v1` specs.
+Per-entry shape: `{kind, issue_id, url, fetched_at, title?, suggested_branch?, status?, parent_ref?}`. Phase 7 validator gains check #12 `workflow_refs_consistency` — warns when `.geniro/workflow/<kind>.md` is missing; fails on structural field-presence violations; skipped on `m5-v1` specs.
 
 **Action required:** None — backward compatible. New `/plan` runs against tracker URLs gain the field organically.
 

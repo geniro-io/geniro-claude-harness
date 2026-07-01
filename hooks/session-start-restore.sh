@@ -895,6 +895,9 @@ if [ -f "$_learnings_log" ]; then
         ARCHIVED_COUNT="${ARCHIVED_COUNT:-0}"
 
         if [ "$ARCHIVED_COUNT" -gt 0 ]; then
+          # The "Criteria:" line below mirrors archive-stale.sh's stale filter
+          # (age>180d AND score<0.1 AND access_count==0); that script is the source
+          # of truth — keep this prose in lockstep if the filter is ever retuned.
           BLOCK5E="ℹ️ Auto-archived $ARCHIVED_COUNT stale L2 entries (deprecated:true; audit trail preserved on-disk).
 Criteria: age>180d AND score<0.1 AND access_count==0.
 learnings.jsonl: $_line_count entries (size unchanged — entries kept, flagged only).

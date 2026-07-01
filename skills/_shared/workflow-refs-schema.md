@@ -22,7 +22,7 @@ Each `workflow_refs[]` entry:
 
 ## Schema-version compatibility
 
-`geniro_schema_version: m5-v1` (legacy, no `workflow_refs`), `m5-v2` (`workflow_refs[]` without chain enrichment), `m5-v3` (chain-enrichment fields present), and `m5-v4` (adds the optional `launch_config` block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) are ALL valid downstream. Every reader that accepts `m5-v1` OR `m5-v2` OR `m5-v3` must also accept `m5-v4` — each version's additions are purely additive and optional, so a reader rejecting a newer value would fall back to prose-mode and lose the structured tracker linkage. Strict validators (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` check #14) verify the field shape on `m5-v2` OR `m5-v3` OR `m5-v4`; the check is skipped on legacy `m5-v1`.
+`geniro_schema_version: m5-v1` (legacy, no `workflow_refs`), `m5-v2` (`workflow_refs[]` without chain enrichment), `m5-v3` (chain-enrichment fields present), and `m5-v4` (adds the optional `launch_config` block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) are ALL valid downstream. Every reader that accepts `m5-v1` OR `m5-v2` OR `m5-v3` must also accept `m5-v4` — each version's additions are purely additive and optional, so a reader rejecting a newer value would fall back to prose-mode and lose the structured tracker linkage. Strict validators (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` check #12) verify the field shape on `m5-v2` OR `m5-v3` OR `m5-v4`; the check is skipped on legacy `m5-v1`.
 
 ## Mutation responsibility
 

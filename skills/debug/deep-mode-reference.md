@@ -57,7 +57,7 @@ Standard Phase 2.4 judges "does the monkey-patched fix turn the F→P test red�
 
 **This precision layer is NATIVE to debug.** Plan and implement delegate their precision layer to the shared spec-challenge helper, but that helper's `MODE` enum is `plan | implement` only — debug has no spec.md to fact-check and no spec-challenge entry. So debug's precision layer is built directly against the fix proposal + F→P test inside this skill, not delegated.
 
-**The `adversarial-tester-agent` stays a SINGLE spawn even in deep mode.** It already hunts edge cases exhaustively and AUTHORS tests; tripling test authoring triples authored-test churn for little recall gain — mirroring `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md` §3. Deep mode multiplies hypothesis generation and the fix-verification votes, and keeps the adversarial-tester a single spawn.
+**The `adversarial-tester-agent` stays a SINGLE spawn even in deep mode.** It already hunts edge cases exhaustively and AUTHORS tests; tripling test authoring triples authored-test churn for little recall gain. Deep mode multiplies hypothesis generation and the fix-verification votes, and keeps the adversarial-tester a single spawn.
 
 ## 4. Fail-safe + boundary
 
