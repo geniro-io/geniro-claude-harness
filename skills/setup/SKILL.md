@@ -82,7 +82,7 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 
 **Resolve `PRIMARY_ROOT`** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. `/geniro:setup` writes to `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (singleton — main worktree only, even when invoked from a linked worktree).
 
-`PROJECT_ROOT` is the current project root — the worktree `/geniro:setup` was invoked from (the cwd). `CLAUDE.md`, `.geniro/instructions/`, and `.geniro/workflow/` are written to `PROJECT_ROOT`; only the singleton state file goes to `PRIMARY_ROOT`. When invoked from a linked worktree the two diverge, so keep them distinct.
+`PROJECT_ROOT` is the current project root — the worktree `/geniro:setup` was invoked from (the cwd). `CLAUDE.md` is written to `PROJECT_ROOT` — a tracked repo file that belongs to the invoked checkout/branch. `.geniro/instructions/` and `.geniro/workflow/` are written to `<PRIMARY_ROOT>` — cross-session user-authored content that must survive worktree removal, per the primary-worktree contract. When invoked from a linked worktree the two diverge, so keep them distinct.
 
 ## Phase 1: Detect
 
@@ -260,7 +260,7 @@ E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package ma
 Use `AskUserQuestion` header "Tracker". The recommended default is whichever tracker Phase 1 detected (else Skip) — e.g. `.github/ISSUE_TEMPLATE/` signals GitHub Issues, a `.gitlab/` directory signals GitLab Issues, a Linear ID or URL in recent commit messages signals Linear.
 
 - Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates.
-- On selection, install `.geniro/workflow/<tracker>.md` from template (or stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
+- On selection, install `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` from template (or stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
 
 Store as `$ISSUE_TRACKER_CHOICE` for Phase 3.
 
@@ -269,8 +269,8 @@ Store as `$ISSUE_TRACKER_CHOICE` for Phase 3.
 Fires only when Phase 1 detected OpenSpec (`$OPENSPEC_ROOT` non-empty). When absent, skip silently.
 
 Use `AskUserQuestion` header "OpenSpec", question "This repo uses OpenSpec (at `$OPENSPEC_ROOT`). Have `/geniro:plan` duplicate approved plans into OpenSpec change proposals, and `/geniro:implement` archive them after ship?", options "Yes — add the OpenSpec steps" (Recommended) / "No — skip". On "Yes", append the two instruction blocks to the project's custom-instruction files (creating each from the `instructions-template.md` scaffold first if absent):
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md` → merge its `## Additional Steps` → `### After user-approve` subsection into `.geniro/instructions/plan.md`.
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md` → merge its `### After ship` subsection into `.geniro/instructions/implement.md`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md` → merge its `## Additional Steps` → `### After user-approve` subsection into `<PRIMARY_ROOT>/.geniro/instructions/plan.md`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md` → merge its `### After ship` subsection into `<PRIMARY_ROOT>/.geniro/instructions/implement.md`.
 
 The OpenSpec procedure lives ENTIRELY in these project instruction files — the plugin's `/geniro:plan` and `/geniro:implement` stay tool-agnostic and just execute the user-authored `### After user-approve` / `### After ship` steps via their custom-step anchors. On "No", write nothing.
 
@@ -339,9 +339,9 @@ Generated CLAUDE.md sections:
 ### 3.3 Write targets
 
 - `<PROJECT_ROOT>/CLAUDE.md` — project-specific content only. No section markers — CLAUDE.md is user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts).
-- `<PROJECT_ROOT>/.geniro/instructions/global.md` — only if user opted in.
-- `<PROJECT_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
-- `<PROJECT_ROOT>/.geniro/instructions/{plan,implement}.md` — only if OpenSpec was detected AND the user enabled it (§2.4b); the `### After user-approve` / `### After ship` blocks merged from the OpenSpec instruction templates.
+- `<PRIMARY_ROOT>/.geniro/instructions/global.md` — only if user opted in.
+- `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
+- `<PRIMARY_ROOT>/.geniro/instructions/{plan,implement}.md` — only if OpenSpec was detected AND the user enabled it (§2.4b); the `### After user-approve` / `### After ship` blocks merged from the OpenSpec instruction templates.
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
@@ -359,17 +359,22 @@ Section merge runs **orchestrator-inline** — no subagent spawn. Rules:
 
 ### 3.5 Runtime directories + gitignore
 
-```bash
-mkdir -p .geniro/workflow .geniro/instructions .geniro/planning .geniro/knowledge
+Recompute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` inside this same Bash call — shell state does not persist across Bash calls, so a value resolved in an earlier phase is gone here and an unset `$PRIMARY_ROOT` expands to a root-anchored `/.geniro/...` path.
 
-# .gitignore — only write if file exists and doesn't already cover these (never create from scratch)
-if [ -f .gitignore ]; then
-grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
-grep -q "^\!\.geniro/$" .gitignore 2>/dev/null || echo "!.geniro/" >> .gitignore
-grep -q "^\!\.geniro/workflow/$" .gitignore 2>/dev/null || echo "!.geniro/workflow/" >> .gitignore
-grep -q "^\!\.geniro/workflow/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/workflow/**" >> .gitignore
-grep -q "^\!\.geniro/instructions/$" .gitignore 2>/dev/null || echo "!.geniro/instructions/" >> .gitignore
-grep -q "^\!\.geniro/instructions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/instructions/**" >> .gitignore
+```bash
+# workflow/ + instructions/ are cross-session → primary worktree. planning/ is task-local (cwd).
+# knowledge/ is cross-session too, but its writers self-route to the repo root via lib/repo-root.sh — this cwd mkdir is only a convenience.
+mkdir -p "$PRIMARY_ROOT"/.geniro/workflow "$PRIMARY_ROOT"/.geniro/instructions .geniro/planning .geniro/knowledge
+
+# .gitignore — the primary worktree's copy, beside the negated content; only write if it exists (never create from scratch)
+GI="$PRIMARY_ROOT/.gitignore"
+if [ -f "$GI" ]; then
+grep -q "^\.geniro/\*$" "$GI" 2>/dev/null || echo ".geniro/*" >> "$GI"
+grep -q "^\!\.geniro/$" "$GI" 2>/dev/null || echo "!.geniro/" >> "$GI"
+grep -q "^\!\.geniro/workflow/$" "$GI" 2>/dev/null || echo "!.geniro/workflow/" >> "$GI"
+grep -q "^\!\.geniro/workflow/\*\*$" "$GI" 2>/dev/null || echo "!.geniro/workflow/**" >> "$GI"
+grep -q "^\!\.geniro/instructions/$" "$GI" 2>/dev/null || echo "!.geniro/instructions/" >> "$GI"
+grep -q "^\!\.geniro/instructions/\*\*$" "$GI" 2>/dev/null || echo "!.geniro/instructions/**" >> "$GI"
 fi
 ```
 

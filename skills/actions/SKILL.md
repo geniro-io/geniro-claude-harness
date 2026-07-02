@@ -46,7 +46,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
 | `execute` (list) | `Read`, `Glob`, `Bash(ls...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
-| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p .geniro/actions/, grep, echo >> .gitignore, sed -i, rm -f .gitignore.bak, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
+| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p "$PRIMARY_ROOT"/.geniro/actions/, grep, echo >> "$PRIMARY_ROOT"/.gitignore, sed -i, rm -f "$PRIMARY_ROOT"/.gitignore.bak, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
 | `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
 | `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
 | `execute` (run) | **Intersection of /geniro:actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
@@ -157,9 +157,11 @@ Close with: "Run with `/geniro:actions run <name>`."
 
 If `<name>` was not provided, use the name-validation flow from Phase 1.
 
-If `.geniro/actions/<name>.md` already exists, AUQ:
+Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, re-running the snippet in every Bash call that uses the variable — shell state does not persist across Bash calls, and an unset `$PRIMARY_ROOT` expands to a root-anchored `/.geniro/...` path. Actions are cross-session content, so every create-path write below is `"$PRIMARY_ROOT"`-prefixed — a cwd-relative write from a linked worktree is destroyed on `git worktree remove`.
 
-- **Question:** "`.geniro/actions/<name>.md` already exists. What do you want to do?"
+If `"$PRIMARY_ROOT"/.geniro/actions/<name>.md` already exists, AUQ:
+
+- **Question:** "`<resolved path>` already exists. What do you want to do?"
 - **Options:**
 - `Edit in place` — Open the existing file and modify it directly
 - `Version it` — Rename existing to `<name>-v1.md`, then write a new `<name>.md`
@@ -167,25 +169,25 @@ If `.geniro/actions/<name>.md` already exists, AUQ:
 
 On **Edit in place**: route to Phase 6 (which handles external-editor flow with `edit-in-place` entry mode).
 
-On **Version it**: `mv .geniro/actions/<name>.md .geniro/actions/<name>-v1.md`, then continue to Step 2.
+On **Version it**: `mv "$PRIMARY_ROOT"/.geniro/actions/<name>.md "$PRIMARY_ROOT"/.geniro/actions/<name>-v1.md`, then continue to Step 2.
 
 On **Cancel**: stop.
 
 ### Step 2 — Ensure directory + gitignore
 
 ```bash
-mkdir -p .geniro/actions
+mkdir -p "$PRIMARY_ROOT"/.geniro/actions
 
 # Remove bare `.geniro/` if present — it would block negation patterns below.
-sed -i.bak '/^\.geniro\/$/d' .gitignore 2>/dev/null && rm -f .gitignore.bak
+sed -i.bak '/^\.geniro\/$/d' "$PRIMARY_ROOT"/.gitignore 2>/dev/null && rm -f "$PRIMARY_ROOT"/.gitignore.bak
 
-grep -q "^\.geniro/\*$" .gitignore 2>/dev/null || echo ".geniro/*" >> .gitignore
-grep -q "^\!\.geniro/$" .gitignore 2>/dev/null || echo "!.geniro/" >> .gitignore
-grep -q "^\!\.geniro/actions/$" .gitignore 2>/dev/null || echo "!.geniro/actions/" >> .gitignore
-grep -q "^\!\.geniro/actions/\*\*$" .gitignore 2>/dev/null || echo "!.geniro/actions/**" >> .gitignore
+grep -q "^\.geniro/\*$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo ".geniro/*" >> "$PRIMARY_ROOT"/.gitignore
+grep -q "^\!\.geniro/$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo "!.geniro/" >> "$PRIMARY_ROOT"/.gitignore
+grep -q "^\!\.geniro/actions/$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo "!.geniro/actions/" >> "$PRIMARY_ROOT"/.gitignore
+grep -q "^\!\.geniro/actions/\*\*$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo "!.geniro/actions/**" >> "$PRIMARY_ROOT"/.gitignore
 ```
 
-This default keeps `.geniro/actions/` committed (team-shareable). Users who want their actions ignored can manually remove the `!.geniro/actions/` lines.
+This default keeps `.geniro/actions/` committed (team-shareable). The negation edits target `"$PRIMARY_ROOT"/.gitignore` — the negation must live where the action file is written. Users who want their actions ignored can manually remove the `!.geniro/actions/` lines.
 
 **Hook reminder:** the `.geniro/` deletion guard hook blocks `git add -f` on `.geniro/` paths — the correct path is `.gitignore` negation (above), never `git add -f`. Force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click becomes a one-click data-loss vector.
 
@@ -241,7 +243,7 @@ On `Edit before writing`: capture specific changes via `AskUserQuestion` (free-t
 
 ### Step 5 — Write the file
 
-Route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/actions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook. Apply the §Caller-side mtime check before the write (`create` is the initial-write branch — target absent at read time and write time, so no conflict; `edit-in-place` catches concurrent modification). Frontmatter must include `created: <YYYY-MM-DD>` (today) and `created-by: geniro:actions`. The body must not contain any `{{placeholder}}` strings.
+Route the file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/actions/<name>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/actions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook. Apply the §Caller-side mtime check before the write (`create` is the initial-write branch — target absent at read time and write time, so no conflict; `edit-in-place` catches concurrent modification). Frontmatter must include `created: <YYYY-MM-DD>` (today) and `created-by: geniro:actions`. The body must not contain any `{{placeholder}}` strings.
 
 ### Step 6 — Validation gate
 
@@ -262,16 +264,16 @@ After Write, run these checks (orchestrator-side, no subagent):
 
 On fail: surface the specific failure (check, line, expected). The on-failure rollback depends on **entry mode**:
 
-- **Entry mode `create`** (Step 5 just wrote the file from a Step 4 draft): `rm -f .geniro/actions/<name>.md`. Re-run `/geniro:actions create <name>`.
+- **Entry mode `create`** (Step 5 just wrote the file from a Step 4 draft): `rm -f "$PRIMARY_ROOT"/.geniro/actions/<name>.md`. Re-run `/geniro:actions create <name>`.
 - **Entry mode `edit-in-place`** (Phase 6 OR Step 1 "Edit in place"): leave the file as the user left it. Re-run `/geniro:actions edit <name>`.
 
 Do NOT auto-fix the written file in either mode. Re-validate up to 3 retry rounds.
 
-After all 10 checks pass, print: `Created \`.geniro/actions/<name>.md\`. Run with \`/geniro:actions run <name>\`.`
+After all 10 checks pass, print: `Created \`.geniro/actions/<name>.md\`. Run with \`/geniro:actions run <name>\`.` When `$PRIMARY_ROOT` is not the current directory, show the resolved absolute path instead and append: "Written to the main repo checkout, so it survives if this worktree is removed."
 
 ## Phase 5: `run` sub-command
 
-### Phase 5.0: Resolve target by name-or-description (shared by `run` / `delete` / `validate`)
+### Phase 5.0: Resolve target by name-or-description (shared by `run` / `edit` / `delete` / `validate`)
 
 The resolver returns three named values: `<resolved-path>` (absolute or repo-relative), `<resolved-slug>` (basename minus `.md`), and `<source>` (`local` or `main-worktree`).
 
@@ -285,11 +287,12 @@ Dual-glob both `./.geniro/actions/*.md` (local) and `<PRIMARY_ROOT>/.geniro/acti
 
 Compute `<lookup>` from input: if already a valid kebab slug, `<lookup> = <input>`; otherwise normalize (trim, lowercase, whitespace-runs → hyphens). If `<lookup>` matches a registry entry's `name`:
 
-- **Source = local:** return `(<resolved-path>, <resolved-slug>, local)`. No AUQ.
+- **Source = local, sub-command = `run` or `validate`:** return `(<resolved-path>, <resolved-slug>, local)`. No AUQ.
+- **Source = local, sub-command = `edit` or `delete`:** do not return yet — continue to Step 4. The Step 1 registry dropped any same-slug main-worktree entry (local wins), so only Step 4's direct both-locations check can see the second copy.
 - **Source = main-worktree, sub-command = `run`:** confirm via AUQ before returning (cross-worktree confirmation; `<source>` was tagged in Step 1):
 - **Question:** "Action `<lookup>` exists in the main worktree at `<PRIMARY_ROOT>/.geniro/actions/<lookup>.md`. Use it?"
 - **Options:** `Use the main-worktree copy` / `Cancel`
-- **Source = main-worktree, sub-command = `delete` or `edit`:** skip the gate here; Step 4 handles the refuse-and-surface.
+- **Source = main-worktree, sub-command = `edit` or `delete`:** no gate here; Step 4 resolves which copy is operated on.
 - **Source = main-worktree, sub-command = `validate`:** return `(<resolved-path>, <resolved-slug>, main-worktree)` without AUQ — `validate` is read-only.
 
 #### Step 3 — Free-text matching path
@@ -298,9 +301,17 @@ If Step 2 did not resolve, score every entry by semantic fit (orchestrator score
 
 Present an AUQ picker with up to 3 candidate options plus a final "Other" option. When "Other" is picked, surface free-text and loop. Cap loop at **3 rounds**; then surface "Could not narrow down — try `/geniro:actions list` for exact slugs" and stop.
 
-#### Step 4 — Source-aware destructive-op guard (delete only)
+#### Step 4 — Canonical-copy resolution (`edit` / `delete` only)
 
-If `<source> == main-worktree` AND sub-command is `delete`, refuse-and-surface (no "delete from main anyway" option — sibling worktrees represent intentionally separate workstreams).
+The main repo checkout is the canonical home of actions — `create` writes there, so refusing to edit/delete the copy `create` just wrote would break the create→edit flow from a worktree. Worktree-local copies (tracked branch variants) stay respected at read/run time — the `run`/`list` local-wins rule is unchanged. For `edit` and `delete`, after Step 2 or Step 3 resolves `<resolved-slug>`, check BOTH `./.geniro/actions/<resolved-slug>.md` AND `<PRIMARY_ROOT>/.geniro/actions/<resolved-slug>.md` directly on disk — not the Step 1 registry, whose local-wins dedupe hides the main copy — before returning:
+
+- Slug exists ONLY at `<PRIMARY_ROOT>` → operate there directly.
+- Slug exists ONLY locally (cwd copy, e.g. a committed branch-local file) → operate on the local copy.
+- Slug exists in BOTH with identical contents → operate on the main-repo copy without asking. Contents differ → one AUQ:
+- **Question:** "`<resolved-slug>` exists in both the main repo checkout and this worktree, and the two copies differ (`run` currently uses this worktree's copy). Which copy should I <edit|delete>?"
+- **Options:** `Main repo copy (Recommended)` / `This worktree's branch copy` / `Cancel`
+
+`delete` still passes through the Phase 7 Step 2 destructive-op confirmation regardless of which copy is targeted.
 
 ### Phase 5.1: Resolve target
 
@@ -326,6 +337,8 @@ Follow the action body's numbered steps directly. The orchestrator is the runtim
 - **Options:** `Skip the affected steps and run the rest` / `Cancel the run`
 
 If no gaps, proceed without asking. Do not call any tool the action did not declare in `allowed-tools` — the intersection is the action author's stated tool budget. Do not re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
+
+**Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write (shell state does not persist across Bash calls) — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
 
 If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt; transition to `failed` with step number captured.
 
@@ -366,7 +379,7 @@ Else: no emit (most action runs are not novel-discovery events).
 
 ### Step 1 — Resolve target
 
-Call **Phase 5.0**. If `<source> == main-worktree`, refuse-and-surface (editing a sibling worktree's action would modify a separate workstream — same rationale as `delete`).
+Call **Phase 5.0**. Phase 5.0 Step 4 resolves which copy to edit — the canonical main-repo copy by default, the local branch copy when only it exists or the user picks it.
 
 ### Step 2 — Open for external editing
 
@@ -392,19 +405,19 @@ Re-run the **Phase 4 Step 6 validation gate** with **entry mode = `edit-in-place
 
 The auto-validation does NOT block save; it surfaces. User remains in control. On any terminal pick (Save / Revert / Cancel), remove the snapshot: `rm -f "<path>.pre-edit.bak"`.
 
-After all 10 checks pass: `Edited \`.geniro/actions/<resolved-slug>.md\`. Run with \`/geniro:actions run <resolved-slug>\`.`
+After all 10 checks pass: `Edited \`<resolved-path>\`. Run with \`/geniro:actions run <resolved-slug>\`.` When the edited copy is the main-repo one and the current directory is a different worktree, append: "Written to the main repo checkout, so it survives if this worktree is removed."
 
 ## Phase 7: `delete` sub-command
 
-### Step 1 — Resolve + source-guard
+### Step 1 — Resolve target copy
 
-Call **Phase 5.0**. Phase 5.0 Step 4 enforces the source-aware guard: if `<source> == main-worktree`, refuse and stop. Phase 7 only continues when `<source> == local`.
+Call **Phase 5.0**. Phase 5.0 Step 4 resolves which copy to delete — the canonical main-repo copy by default, the local branch copy when only it exists or the user picks it. Phase 7 continues with `<resolved-path>`.
 
 ### Step 2 — Confirm + high-risk warning
 
 Read action's frontmatter `risk_class`. AUQ:
 
-- **Question:** "Delete `.geniro/actions/<resolved-slug>.md`? This cannot be undone unless the file is committed to git." (For `risk_class: high`, prepend: "⚠ This high-risk action will be permanently removed; if it represents critical workflow, consider versioning it first via `/geniro:actions edit <resolved-slug>` and renaming to `<resolved-slug>-archived`.")
+- **Question:** "Delete `<resolved-path>`? This cannot be undone unless the file is committed to git." (For `risk_class: high`, prepend: "⚠ This high-risk action will be permanently removed; if it represents critical workflow, consider versioning it first via `/geniro:actions edit <resolved-slug>` and renaming to `<resolved-slug>-archived`.")
 - **Options:** `Delete the file` / `Cancel` (Recommended)
 
 ### Step 3 — Execute
@@ -412,11 +425,11 @@ Read action's frontmatter `risk_class`. AUQ:
 If confirmed:
 
 ```bash
-rm -f .geniro/actions/<resolved-slug>.md
-rmdir .geniro/actions/ 2>/dev/null # silently if empty
+rm -f "<resolved-path>"
+rmdir "$(dirname "<resolved-path>")" 2>/dev/null # silently if empty
 ```
 
-Print: "Deleted `.geniro/actions/<resolved-slug>.md`."
+Print: "Deleted `<resolved-path>`."
 
 The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/actions/<slug>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk deletion is blocked.
 
@@ -496,7 +509,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
 | "I'll re-use Phase 4 Step 6's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
-| "I'll silently delete the action from the main worktree even though I'm in a linked worktree" | No — `delete` from a linked worktree refuses-and-surfaces. Sibling worktrees represent intentionally separate workstreams. |
+| "I'm in a linked worktree, so I'll refuse to edit/delete the main repo's copy of an action" | No — the main repo checkout is the canonical home of actions (`create` writes there); refusing would break the create→edit flow from a worktree. Local branch copies stay respected at read/run time (local wins); CRUD targets the canonical copy, asking only when both copies exist and differ. |
 
 ## Cross-references
 
@@ -510,7 +523,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - [ ] If `create`: 5-question interview completed, draft previewed and approved, file written, all 10 validation checks passed
 - [ ] If `run`: action file located and read, action steps executed inline within tool-scope intersection (no run-confirmation gate — invoking the action is the authorization)
 - [ ] If `delete`: confirmed via AUQ before removal (high-risk warning added if applicable)
-- [ ] If `edit`: target resolved (or refused if main-worktree), absolute path printed, AUQ "Done" gate fired, Phase 4 Step 6 checks (1-10) re-run on Done, file NOT deleted on validation failure
+- [ ] If `edit`: target copy resolved (canonical main-repo copy by default), absolute path printed, AUQ "Done" gate fired, Phase 4 Step 6 checks (1-10) re-run on Done, file NOT deleted on validation failure
 - [ ] If `validate`: 13-rule lint executed; CRITICAL/HIGH cause non-zero exit
 - [ ] All user interactions used `AskUserQuestion`
 - [ ] `.gitignore` re-include rules added on first action created (idempotent)
@@ -518,4 +531,4 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 - [ ] On create, file written has frontmatter `created`, `created-by: geniro:actions`, and `risk_class:` (validate enforces `risk_class:`; `created`/`created-by` are create-time stamps, not re-validated, so a hand-authored action without them still passes validate)
 - [ ] L2 `discovery` emit fired on successful run with `external-send: true`
 - [ ] Worktree fallback for `run` consulted main worktree only when local registry didn't resolve, and path confirmed via AUQ before executing
-- [ ] `delete` / `edit` refused to operate on actions in a sibling worktree
+- [ ] `create` wrote to the main repo checkout; `edit` / `delete` resolved their target per the Phase 5.0 Step 4 3-case rule (main-repo copy by default, local copy when only it exists, AUQ only when both exist and differ)

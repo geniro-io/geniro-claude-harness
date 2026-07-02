@@ -10,6 +10,26 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v3.0.0
 
+### Persistent `.geniro/` content now writes to the main repo checkout (primary worktree)
+
+`/geniro:instructions` CRUD, `/geniro:actions` create/edit/delete, and `/geniro:setup`'s instruction/workflow scaffolds now resolve their write target to the main repo checkout (the primary worktree root) instead of the invoked worktree's cwd, so instructions, actions, and workflow files authored from a linked git worktree survive `git worktree remove`. `/geniro:actions` edit/delete no longer refuse cross-worktree operations — they resolve to the canonical main-repo copy (the local copy when only it exists; one question only when both copies exist and differ). `run`/`list`/`validate` keep the local-wins read behavior unchanged, so worktree-local copies from older versions are still read in place.
+
+**Action required:** None for main-worktree users. Users with live linked worktrees holding locally-authored instructions/actions should copy them into the main checkout's `.geniro/` (one manual `cp` per file) so they survive worktree removal.
+
+**Auto-detect:**
+
+```bash
+[ "$(git rev-parse --git-dir 2>/dev/null)" != "$(git rev-parse --git-common-dir 2>/dev/null)" ] && find .geniro/instructions .geniro/actions -maxdepth 2 -name '*.md' 2>/dev/null
+```
+
+(Reports worktree-local instruction/action files when the session runs from a linked worktree; empty from the main checkout.)
+
+**Auto-fix:** Manual-only — copy each listed file to the same path under the main checkout, then keep or delete the worktree copy depending on whether it is an intentional branch-local variant (reads still prefer the local copy).
+
+**Severity:** LOW — reads keep local-wins so nothing breaks in place; the change only moves where new writes land.
+
+---
+
 ### `config-weakening` safety hook removed
 
 The `block-config-weakening.sh` PreToolUse hook — which hard-blocked edits to an existing linter / formatter / type-checker config file (eslint / prettier / biome / ruff / tsconfig / golangci) so a check could not be silenced at edit time — has been removed, along with its `config-weakening` allowlist pattern ID. Editing those config files is no longer guarded at edit time, so intentional config tuning no longer needs a bypass; `/geniro:review` still flags a config change that weakens a rule when it reads the resulting diff.

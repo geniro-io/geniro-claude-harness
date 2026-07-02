@@ -245,7 +245,7 @@ Read-only PR-feedback triage → fix-plan producer (4-phase loop: Fetch & Triage
 /geniro:actions delete pr-notify-slack
 ```
 
-When invoked from a linked git worktree, `run` falls back to the main worktree's registry (with confirmation); `delete` refuses cross-worktree deletion.
+When invoked from a linked git worktree, `run` falls back to the main worktree's registry (with confirmation); `edit`/`delete` operate on the main-repo copy (with the delete confirmation; a lean question appears only when a differing branch-local copy also exists).
 
 ### `/geniro:update` — Update plugin
 

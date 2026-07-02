@@ -73,7 +73,7 @@ The stable scope set:
 
 **Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`) do NOT load instruction files** beyond `global.md`.
 
-**External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo `.geniro/instructions/` copy, because the atomic-write helper and the `.geniro/` deletion guard key on the literal `.geniro/` path — an external location would bypass both. To manage the external set, edit it directly at its path. The override covers the loaded instruction set (`global.md`, `memory.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
+**External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo copy at the primary worktree root (`"$PRIMARY_ROOT"/.geniro/instructions/`) — the path keeps the literal `.geniro/` segment, so the atomic-write helper and the `.geniro/` deletion guard stay engaged; an external location would bypass both. To manage the external set, edit it directly at its path. The override covers the loaded instruction set (`global.md`, `memory.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
 
 ## File Structure (singleton scopes)
 
@@ -147,6 +147,8 @@ What to NOT flag:
 ## Phase 1: Parse intent
 
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Echo contract requires one observable line.
+
+**Step 0.5 — Locate the instructions directory.** Compute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, re-running the snippet in every Bash call that uses the variable — shell state does not persist across Bash calls, and an unset `$PRIMARY_ROOT` expands to a root-anchored `/.geniro/...` path; every `.geniro/instructions/...` path in the rest of this skill is prefixed `"$PRIMARY_ROOT"/`. Instruction files are cross-session content — a cwd-relative write from a linked worktree is lost when the worktree is removed. When `PRIMARY_ROOT` is not `.`: create/edit/delete success lines show the resolved absolute path, create/edit lines append `— written to the main repo checkout so it survives this worktree's removal.`, and if a same-named file exists at the cwd-local `.geniro/instructions/` path with different content, print one notice after create/edit: `Note: this worktree has its own copy of <file>, which takes precedence here when rules load.` Notice only — no question, no block.
 
 ### Action detection
 
@@ -244,8 +246,8 @@ Print summary after all scopes complete:
 ### Step 1 — Scan directory
 
 ```bash
-ls -la .geniro/instructions/ 2>/dev/null
-ls -la .geniro/instructions/review-extra/ 2>/dev/null
+ls -la "$PRIMARY_ROOT"/.geniro/instructions/ 2>/dev/null
+ls -la "$PRIMARY_ROOT"/.geniro/instructions/review-extra/ 2>/dev/null
 ```
 
 ### Step 2 — Present results
@@ -288,7 +290,7 @@ Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars p
 ### Step 1 — Check for existing file
 
 ```bash
-cat .geniro/instructions/<scope>.md 2>/dev/null
+cat "$PRIMARY_ROOT"/.geniro/instructions/<scope>.md 2>/dev/null
 ```
 
 If file exists: AUQ "File exists — overwrite, edit instead, or cancel?". Branch accordingly.
@@ -296,8 +298,8 @@ If file exists: AUQ "File exists — overwrite, edit instead, or cancel?". Branc
 ### Step 2 — Ensure directory exists
 
 ```bash
-mkdir -p .geniro/instructions
-mkdir -p .geniro/instructions/review-extra # if scope == review-extra
+mkdir -p "$PRIMARY_ROOT"/.geniro/instructions
+mkdir -p "$PRIMARY_ROOT"/.geniro/instructions/review-extra # if scope == review-extra
 ```
 
 ### Step 3 — Gather project context
@@ -395,7 +397,7 @@ Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into
 
 ### Step 5 — Generate the file
 
-Apply writing principles ("Writing Effective Instructions" below). Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
+Apply writing principles ("Writing Effective Instructions" below). Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, route the file through `atomic_state_write` targeting `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
 
 ### Step 6 — Confirm
 
@@ -433,7 +435,7 @@ After editing a `review-extra` file, re-run the lint rule set against the edited
 ### Step 4 — Show updated file
 
 ```
-Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run `/geniro:<scope>` (or any affected skill for global.md).
+Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run `/geniro:<scope>` (or any affected skill for global.md), unless this worktree has its own differing copy of the file — that copy takes precedence here.
 ```
 
 ### Body section invariants (post-edit)
@@ -582,9 +584,9 @@ AUQ 2-option: `Confirm delete` / `Cancel`. Show file size + last-modified for co
 ### Step 3 — Execute
 
 ```bash
-rm -f .geniro/instructions/<scope>.md
+rm -f "$PRIMARY_ROOT"/.geniro/instructions/<scope>.md
 # OR for review-extra:
-rm -f .geniro/instructions/review-extra/<slug>.md
+rm -f "$PRIMARY_ROOT"/.geniro/instructions/review-extra/<slug>.md
 ```
 
 The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/instructions/<scope>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk `rm -rf .geniro/instructions/` is blocked.
@@ -592,8 +594,8 @@ The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/instr
 Clean up empty parent dirs silently:
 
 ```bash
-rmdir .geniro/instructions/review-extra/ 2>/dev/null
-rmdir .geniro/instructions/ 2>/dev/null
+rmdir "$PRIMARY_ROOT"/.geniro/instructions/review-extra/ 2>/dev/null
+rmdir "$PRIMARY_ROOT"/.geniro/instructions/ 2>/dev/null
 ```
 
 For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delete review-extra <slug>` per-file; bulk delete protected by guard hook."

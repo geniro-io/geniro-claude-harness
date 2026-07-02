@@ -17,7 +17,7 @@
   - Step 11: Confirm
 - Worked example — an adversarial reviewer for high-risk paths (a complete, copy-adaptable `review-extra/adversarial.md`).
 
-Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-11). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer.
+Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-11). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per SKILL.md Step 0.5).
 
 See `SKILL.md` for the load-bearing rules referenced below: validation rules (`## — Mode: validate`, `### Step 2 — Lint rule set` — the `review-extra/<slug>.md` row in the per-scope table), file structure (`## File Structure: review-extra`), count caps cross-references.
 
@@ -37,7 +37,7 @@ Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a diffe
 
 ## Mode: create — review-extra variant
 
-When the resolved scope is `review-extra`, follow this slug-bearing flow instead of the singleton-file `create` flow in SKILL.md. The output is a single file at `.geniro/instructions/review-extra/<slug>.md` declaring one custom reviewer.
+When the resolved scope is `review-extra`, follow this slug-bearing flow instead of the singleton-file `create` flow in SKILL.md. The output is a single file at `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/<slug>.md` declaring one custom reviewer.
 
 ### Step 1: Resolve the slug
 
@@ -50,7 +50,7 @@ Refuse and re-ask if any of the following fail:
 
 - **Regex** — must match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter).
 - **No built-in collision** — must not match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `rules-compliance`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
-- **No existing file** — `.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `.geniro/instructions/review-extra/{{slug}}.md` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it. and stop.
+- **No existing file** — `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `<resolved path>` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it. and stop.
 
 On any validation failure, re-ask via `AskUserQuestion` with the error message included in the question text.
 
@@ -59,7 +59,7 @@ On any validation failure, re-ask via `AskUserQuestion` with the error message i
 Count existing files in `.geniro/instructions/review-extra/`:
 
 ```bash
-ls .geniro/instructions/review-extra/*.md 2>/dev/null | wc -l
+ls "$PRIMARY_ROOT"/.geniro/instructions/review-extra/*.md 2>/dev/null | wc -l
 ```
 
 - If creating the 7th file (existing count == 6), warn via `AskUserQuestion`:
@@ -87,7 +87,7 @@ Stop without writing.
 ### Step 4: Ensure directory exists
 
 ```bash
-mkdir -p .geniro/instructions/review-extra
+mkdir -p "$PRIMARY_ROOT"/.geniro/instructions/review-extra
 ```
 
 ### Step 5: Gather the description
@@ -158,7 +158,7 @@ Store the answer verbatim as the `requires-context:` frontmatter value. On "No e
 
 ### Step 10: Write the file
 
-Assemble the frontmatter (omitting fields the user skipped) and route the file through `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
+Assemble the frontmatter (omitting fields the user skipped) and route the file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
 
 Example output for the `sql-bindings` walk-through (the user picked "Inherit session model" at Step 6, so `model:` is omitted):
 
@@ -183,7 +183,7 @@ What to NOT flag:
 
 ### Step 11: Confirm
 
-Show the created file content and report:
+Show the created file content and report (per SKILL.md Step 0.5: when the main repo checkout is not the current directory, show the resolved absolute path and append `— written to the main repo checkout so it survives this worktree's removal.`):
 
 ```
 Created `.geniro/instructions/review-extra/{{slug}}.md`.
