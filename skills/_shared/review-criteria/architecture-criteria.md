@@ -7,7 +7,6 @@ Design patterns, modularity, coupling, performance, scalability, and technical d
 - What to Check
 - Output Format
 - Common False Positives
-- Stack-Agnostic Patterns
 - Review Checklist
 - Severity Guidelines
 
@@ -378,16 +377,6 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - Don't flag over-engineering fears
 - Some coupling is acceptable for simplicity
 - Only flag if causing real problems
-
-## Stack-Agnostic Patterns
-
-Works across languages/frameworks:
-- Module/package import patterns (all languages)
-- Dependency directions (acyclic dependencies)
-- Class/function responsibility (all OOP languages)
-- Error handling strategies (all languages)
-- Performance patterns (all runtimes)
-- Code organization principles (language-agnostic)
 
 ## Review Checklist
 
