@@ -14,10 +14,8 @@ Smell detection + change-impact scoring + per-step execution protocol for `/geni
 - Phase 1: Code Smell Detection — smell taxonomy + change-impact scoring
 - Phase 2: Refactoring Plan — plan-line schema
 - Phase 3: Atomic Application & Verification — per-step execution + Blocked Step Protocol
-- Phase 4: Structured Reporting — completion-summary schema
 - Guardrails — what to avoid without approval, and what to do every step
 - When to Stop the Session & Report Back — terminal conditions
-- Git Operations — no version control from this protocol
 
 ## Core Principle
 
@@ -194,44 +192,6 @@ Per-step blocked rationale schema in state.md:
 
 ---
 
-## Phase 4: Structured Reporting
-
-After all transformations, /geniro:refactor emits the completion summary using this schema:
-
-```
-Refactoring Summary
-===================
-
-Transformations Applied: [count]
- [Transformation 1 name] — LOW risk, consumers: 2
- [Transformation 2 name] — MEDIUM risk, consumers: 5
- ...
-
-Transformations Blocked: [count]
- [Transformation N name] — BLOCKED after 3 attempts: [brief reason]
- ...
-
-Code Health Improvements:
- - Duplication reduced: [X lines -> Y lines]
- - Long methods simplified: [N methods -> M methods]
- - Dead code removed: [N files, M lines]
- - Coupling improved: [specific examples]
-
-Test Results:
- - All tests passing: YES/NO
- - Regressions introduced: 0
-
-Files Modified: [count]
- [file path]: [brief changes]
- ...
-
-Next Steps:
- - [blocked transformations that need manual attention]
- - [optional follow-up smells to address]
-```
-
----
-
 ## Guardrails
 
 Avoid these without an explicit request — each widens blast radius beyond a zero-behavior-change refactor:
@@ -262,7 +222,3 @@ Stop the entire refactoring session when:
 - Codebase has no test infrastructure
 
 If a single transformation fails after 3 attempts, use the **Blocked Step Protocol** (Phase 3) — revert that step and continue to the next. A per-step failure reverts that step, not the whole session.
-
-## Git Operations
-
-No Git operations from within this protocol. The /geniro:refactor skill's verify phase and user-driven commits handle all version control. Do NOT run `git add`, `git commit`, `git push`, `git checkout` during atomic application.
