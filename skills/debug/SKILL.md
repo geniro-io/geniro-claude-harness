@@ -438,8 +438,8 @@ At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnos
 
 - **`emit-learning`** — called by /geniro:debug at three distinct points:
 - **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical `emit_learning` call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` to the user — the helper writes silently, so the echo is the only in-session signal the diagnosis was captured.
-- **`discarded_hypothesis`** (fires per-rejection during Phase 1) — every rejected hypothesis emits one entry with required `ext.{hypothesis, evidence_against, tested_by}`. Sliding-window cap = 5 latest per `(producer, scope)`. See §1.5 for the payload schema and emit logic.
-- **`retry_failure_sequence`** (fires at Phase 2 exit, conditional on `fix_attempts >= 2`) — captures the failed fix-attempt chain with required `ext.{phase, attempts, resolution}`. Single-attempt exits do not emit. See §2.5 for the payload schema and emit logic.
+- **`discarded_hypothesis`** — fires per-rejection during Phase 1; payload schema, cap, and emit logic in §1.5.
+- **`retry_failure_sequence`** — fires at Phase 2 exit when `fix_attempts >= 2`; payload schema and emit logic in §2.5.
 - **NOT emitted :** `pitfall` (/geniro:refactor + /geniro:review own), `convention` (/geniro:implement self-review owns), `decision` (/geniro:plan owns), `discovery` (/geniro:refactor + /geniro:onboard + /geniro:investigate own).
 
 - **Offer to capture a recurring diagnosis as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: diagnosis`, the debug scope routing (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks), and rejection args `"/geniro:debug" "debug/<scope>" "promote_diagnosis_to_rule"`. The helper reads the just-emitted diagnosis's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
@@ -578,9 +578,9 @@ T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `de
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
 | Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes hypotheses |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
-| Phase 1 (per rejection) | `emit-learning` | write L2 | n/a (type `discarded_hypothesis`; fires per rejected hypothesis; required `ext.{hypothesis, evidence_against, tested_by}`) |
-| Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence`; fires when `fix_attempts >= 2`; required `ext.{phase, attempts, resolution}`) |
-| Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis`; required `ext.{symptom, root_cause, fix}`) |
+| Phase 1 (per rejection) | `emit-learning` | write L2 | n/a (type `discarded_hypothesis` — §1.5) |
+| Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence` — §2.5) |
+| Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis` — §3.3) |
 
 `update-semantic` is NOT called. Debug investigates existing code; it does not add modules, move files, or rename — those are /geniro:implement and /geniro:refactor concerns.
 
@@ -652,18 +652,4 @@ These are the load-bearing exit gates and safety invariants for the mode that ra
 
 ## Examples
 
-### Example 1: Cache Not Invalidating
-```
-/geniro:debug User sees stale data after profile update
-```
-→ Phase 1 Observe: User updates name, refresh page shows old name
-→ Hypothesis 1: Cache invalidation broken; Hypothesis 2: Update endpoint not called
-→ Test: Add logging to cache invalidation and endpoint
-→ Result: Hypothesis 1 confirmed (cache key mismatch) → `[ROOT-CAUSE]`
-→ Phase 2 Propose: patch cacheKey builder in `src/cache/user.ts` to include user ID
-→ Verify: local experiment shows bug disappears with monkey-patch
-→ Phase 3 Findings persisted to `from-debug-<branch>.md`
-→ Escalate: /geniro:implement with the proposed patch
-→ L2 emit `diagnosis` with tags=[cache, invalidation, user-role]
-
-Additional worked examples (Intermittent Timeout, Verify Recent Changes) live in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §7.
+Worked examples (Cache Not Invalidating, Intermittent Timeout, Verify Recent Changes) live in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §7.

@@ -318,6 +318,22 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ## 7. Extended examples
 
+### Example 1: Cache Not Invalidating
+
+```
+/geniro:debug User sees stale data after profile update
+```
+
+→ Phase 1 Observe: User updates name, refresh page shows old name
+→ Hypothesis 1: Cache invalidation broken; Hypothesis 2: Update endpoint not called
+→ Test: Add logging to cache invalidation and endpoint
+→ Result: Hypothesis 1 confirmed (cache key mismatch) → `[ROOT-CAUSE]`
+→ Phase 2 Propose: patch cacheKey builder in `src/cache/user.ts` to include user ID
+→ Verify: local experiment shows bug disappears with monkey-patch
+→ Phase 3 Findings persisted to `from-debug-<branch>.md`
+→ Escalate: /geniro:implement with the proposed patch
+→ L2 emit `diagnosis` with tags=[cache, invalidation, user-role]
+
 ### Example 2: Intermittent Timeout
 
 ```
