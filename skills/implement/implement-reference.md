@@ -177,7 +177,7 @@ When ≥1 signal matches, emit: `"Spec touches <matched signals> — consider ru
 
 **Persistence and flow.** The user's pick persists to state.md `approvals[]` category `library_adoption`. An adopted library becomes a Phase 2 install-and-integrate todo. A decline emits a `user_rejected_suggestion` learning via `emit-rejection.sh`. Fail-open on any research or registry error — write a line to state.md `## Errors`, note it to the user, and proceed; a failed audit never blocks the run.
 
-**Spec already names a library.** When the spec (carried from `/geniro:plan`) already names a candidate, the audit re-verifies that named library — existence plus health — before confirming it, since a spec can go stale between planning and implementation.
+**Spec already names a library.** When the spec names a candidate (legitimate in a spec only when it was already in the project's manifest or the user named it), the audit re-verifies that named library — existence plus health — before confirming it, since a spec can go stale between planning and implementation.
 
 ---
 
@@ -556,19 +556,6 @@ emit_rejection_if_signal \
 
 ---
 
-### Update Docs
-
-Check whether existing docs need updating based on what was implemented. **Skip if nothing changed that affects documented surfaces.** This is a thin fallback over the Phase 3 architecture reviewer's docs-staleness check — if that reviewer already surfaced doc-update findings, they would have been fixed inline during the fix loop. This step catches anything left over.
-
-Scan the diff against main and check:
-- Do any existing docs reference patterns/files that were renamed, moved, or superseded?
-- Did this implementation introduce a new pattern that should be documented as a canonical example?
-- Do README, architecture docs, or contributing guides need patches?
-
-If updates needed, delegate to a general-purpose subagent with `model="haiku"` containing the diff summary + the doc files to patch. If that spawn returns empty (`0 tokens` — the Haiku tier is unavailable under the orchestrator's context-beta, e.g. a 1M-context session), apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (retry with `model=` omitted, then patch inline). Keep changes minimal — patch what's stale or add a new reference, don't rewrite docs. If no docs need updating, skip silently.
-
----
-
 ### Extract Learnings
 
 Learning capture is a Phase 3 ship sub-step (step 3 — after Commit, before the Ship-mode AUQ), so it isn't a postscript that gets dropped once the PR is open. Phase 3 calls the L2 helper `emit-learning` when conditions are met.
@@ -597,7 +584,7 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 ### Suggest Improvements (project scope only)
 
-Spawned as Ship step 4 **in the background** (`run_in_background: true`), then the Ship-mode AUQ fires without waiting — the candidates are not an input to the ship decision, so blocking on them only makes the user wait. The drop-vector protection (a post-deliverable step trailing the PR is the documented drop vector, same failure mode the learnings emit's ordering rule guards against) moves from synchronous-before-the-gate ordering to two anchors: the visible pre-gate spawn plus the step 9 drain-before-terminal check. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn".
+Fires only when the codebase-explorer reported `change_scope: big`; smaller scopes skip the step entirely — no spawn, no echo (rationale at Ship step 4). When it fires: spawned as Ship step 4 **in the background** (`run_in_background: true`), then the Ship-mode AUQ fires without waiting — the candidates are not an input to the ship decision, so blocking on them only makes the user wait. The drop-vector protection (a post-deliverable step trailing the PR is the documented drop vector, same failure mode the learnings emit's ordering rule guards against) moves from synchronous-before-the-gate ordering to two anchors: the visible pre-gate spawn plus the step 9 drain-before-terminal check. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn".
 
 Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (mode `implement`): pass the committed diff + changed-file list, the Phase 3 reviewer findings, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`). The agent returns only candidates that passed the helper's §Candidate bar (each tagged `Significance: critical | general` with an `Evidence:` citation; zero candidates is the common outcome); route any `Recurrence-eligible: yes` candidate to the rule-capture offer (`/geniro:instructions create`) rather than the improvements prompt, and surface the rest via the helper's §Routing table + §Presentation. Echo `Reviewed for improvements: <N> candidate(s)`; skip the prompt silently when the agent returns none.
 
@@ -619,7 +606,7 @@ Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/ski
 
 Execute any user-authored post-ship steps from the loaded L4 `<skill>.md` (`.geniro/instructions/implement.md`). Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-ship anchor is `### After ship` (`ship` is the final non-terminal phase enum value; post-ship steps run after its work completes). Run any subsection whose phase anchor is post-ship. When a step is conditioned on a PR existing and the run did not create one (ship-mode "commit only" / "no push"), skip it.
 
-Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The other plugin-defined Ship steps (Update Docs / Extract Learnings / Suggest Improvements / Integration Updates) cover plugin-defined work (some pre-AUQ, some post); this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
+Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The other plugin-defined Ship steps (Extract Learnings / Suggest Improvements / Integration Updates) cover plugin-defined work (some pre-AUQ, some post); this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
 
 ---
 
@@ -679,7 +666,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 
 **Soft limits.** Big tweaks: after 2 rounds, suggest starting a new /geniro:implement session — fresh context provides clean separation. Medium/Small tweaks: after 3 rounds, surface a message recommending the user re-spec via `/geniro:plan`.
 
-**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). Pre-ship steps (Update Docs, Extract Learnings, and the Suggest-Improvements background spawn) run once on first Ship entry and are NOT repeated on tweak rounds unless the tweak materially changes the docs/learnings/improvement surface.
+**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). Pre-ship steps (Extract Learnings and the Suggest-Improvements background spawn) run once on first Ship entry and are NOT repeated on tweak rounds unless the tweak materially changes the learnings/improvement surface.
 
 ---
 

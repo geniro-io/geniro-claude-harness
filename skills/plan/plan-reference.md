@@ -88,7 +88,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 Shared rules consumed by this skill:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and always-on Phase 7.5 spec-challenge; Phase 2 Visual Companion fires only on UI trigger). The Phase 0 / empty-argument AUQs are inlined directly in plan-loop.md.
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and the Phase 7.5 spec-challenge, which fires on Big effort tier or `--deep`; Phase 2 Visual Companion fires only on UI trigger). The Phase 0 / empty-argument AUQs are inlined directly in plan-loop.md.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — Recommended-label policy for the Phase 4 approach AUQ + multi-select picker schema for Phase 5 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.

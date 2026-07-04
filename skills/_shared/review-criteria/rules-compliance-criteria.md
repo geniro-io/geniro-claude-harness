@@ -60,7 +60,7 @@ Do NOT escalate every violation to HIGH because "it's a rule." A repo that bans 
 - Process / workflow rules that code cannot violate ("open a PR for every change", "squash before merge").
 - Pre-existing violations in lines the diff does not touch — review the diff, not the whole repo.
 - Vague / aspirational rules with no checkable criterion ("write clean code", "be consistent") — not actionable.
-- A restatement of a `conventions` modal pattern — `rules-compliance` owns the explicit-rule citation; cite the rule here and let `conventions` skip the duplicate.
+- A restatement of a repo-modal pattern — this authored-rule-citation class owns the explicit-rule citation; cite the rule here and let the modal-pattern class (`conventions-criteria.md`) skip the duplicate.
 
 ## 6. Checklist
 

@@ -86,7 +86,7 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 |---|---|---|
 | "Documentation gap is MEDIUM because docs matter" | LOW unless the missing doc directly causes a defect (e.g., undocumented BREAKING change in a public API → HIGH). General doc polish never exceeds LOW. | LOW |
 | "PR description should mention X — that's a MEDIUM" | PR-description verbosity is process feedback, not a code defect. Reviewers do not block merge on prose. | LOW |
-| "Naming convention drift is MEDIUM because consistency matters" | Naming is style. The `conventions` dim's mandate is to flag it, not block merge on it. | LOW |
+| "Naming convention drift is MEDIUM because consistency matters" | Naming is style. The `conventions` dim's style-rubric class mandate is to flag it, not block merge on it. | LOW |
 | "Missing test coverage is HIGH because tests matter" | HIGH only if the uncovered path has a documented failure mode that this PR could trigger. Otherwise MEDIUM (verifiable defect risk) or LOW (theoretical gap). | MEDIUM or LOW |
 | "Performance suggestion is HIGH because it might be slow" | HIGH requires a measured threshold per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` (>100 items, >1000 rows, >100KB). Below that: MEDIUM. Untested: LOW. | depends |
 | "Could be refactored — MEDIUM" | "Could be refactored" with no impact citation is LOW. MEDIUM requires a specific maintainability impact (e.g., new contributor onboarding time, common error source). | LOW |
@@ -108,17 +108,25 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 - MEDIUM: Missing required field per repo's PR template (e.g., `risk_class:` declared in CONTRIBUTING.md)
 - LOW: PR description could include the linked Linear ticket; commit message could be more verbose
 
-### guidelines
-- CRITICAL: never (guidelines findings are by nature style/convention)
-- HIGH: never
+### conventions
+
+The dim owns three defect classes; each keeps its own ceiling:
+
+**Style-rubric class** (per-file rubrics, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md`):
+- CRITICAL / HIGH: never (style-rubric findings are by nature style/convention)
 - MEDIUM: Convention drift on a tooling-load-bearing field (e.g., missing `name:` in a SKILL.md frontmatter that the loader requires)
 - LOW: Style / formatting / naming polish; documentation gaps; comment wording
 
-### conventions
-- CRITICAL: never (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity Guidelines)
+**Modal-pattern class** (repo-modal patterns, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity Guidelines):
+- CRITICAL: never
 - HIGH: clear ≥80% modal violation in [NEW] code that introduces a pattern the repo uses nowhere else (zero-shot novel), or crosses a 100%-respected module/layer boundary
 - MEDIUM: ≥80% modal violation in [NEW] code where the introduced pattern exists in 1-2 other places; any [PRE-EXISTING] finding regardless of frequency
-- LOW: not emitted (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md`; the dim suppresses sub-threshold rather than down-tagging)
+- LOW: not emitted (the class suppresses sub-threshold rather than down-tagging)
+
+**Authored-rule-citation class** (explicit rule files, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` §4 — severity follows the IMPACT of breaking the cited rule, never the bare fact that it is a rule):
+- CRITICAL / HIGH: the cited rule encodes a correctness / security invariant (input validation, auth, no-secrets-in-source)
+- MEDIUM: the cited rule encodes a maintainability convention
+- LOW: stylistic preference, or a rule the author marked advisory / optional
 
 ---
 

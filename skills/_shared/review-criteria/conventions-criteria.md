@@ -191,14 +191,14 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 - Quote style (single vs double)
 - Pure aesthetic naming preferences (`userList` vs `users` when both are clear)
 
-Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) defer to `rules-compliance` per §What to Check step 1.
+Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) belong to the authored-rule-citation class (`rules-compliance-criteria.md`) per §What to Check step 1.
 
-**Other dimensions — defer:**
-- Vague names, magic numbers, missing JSDoc, TODO without issue ref → `guidelines-criteria.md`
+**Out of this class — route:**
+- Vague names, magic numbers, missing JSDoc, TODO without issue ref → the style-rubric class (`guidelines-criteria.md`)
 - Module-scale organization, utils sprawl, circular imports, file-structure inconsistency at module scale → `architecture-criteria.md`
 - Findings that match repo patterns and should be silenced → handled by orchestrator-side Phase 3 dedup + KEEP/FILTER (SKILL.md Phase 3)
 - Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md`
-If a finding fits a style/naming/docs rubric mold, it is `guidelines`'s job. If a finding requires sampling siblings and computing a mode (repo-modal patterns / single-exemplar rubric drift / ADR contradictions / file placement / convention guard), it is conventions's job.
+If a finding fits a style/naming/docs rubric mold, it belongs to the style-rubric class (`guidelines-criteria.md`). If a finding requires sampling siblings and computing a mode (repo-modal patterns / single-exemplar rubric drift / ADR contradictions / file placement / convention guard), it belongs to this modal-pattern class.
 
 ## How to Detect — Worked Example
 
@@ -279,7 +279,7 @@ Do NOT apply the modal threshold to peer PRs as if they were merged siblings —
 
 ## Review Checklist
 
-- [ ] Explicit authored rules deferred to `rules-compliance`; this dim sampled repo-modal patterns (read CONTRIBUTING.md + ADRs for modal context)
+- [ ] Explicit authored rules routed to the authored-rule-citation class (`rules-compliance-criteria.md`); this class sampled repo-modal patterns (read CONTRIBUTING.md + ADRs for modal context)
 - [ ] Step 0 sibling glob run for every changed file; N≥3 confirmed before judging
 - [ ] 80% modal threshold applied per category; ambiguous splits skipped
 - [ ] Sibling-file consistency: helpers placed where ≥80% of siblings put them

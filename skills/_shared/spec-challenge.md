@@ -2,11 +2,11 @@
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the procedure.
 
-A default, always-on adversarial pass that hardens a `spec.md` before it is acted on. It re-verifies the spec's load-bearing factual claims against the live code, (in plan mode) generates competing alternative approaches and red-teams the chosen one, then synthesizes a verdict. The failure class it exists to catch is the factually-wrong claim that reads as plausible prose: a headline mechanism that carries no weight, a backfill predicate that matches zero rows, a write-volume estimate off by an order of magnitude — defects that survive every gate keyed on structure rather than ground truth.
+An adversarial verification pass, invoked per the calling skill's contract, that hardens a `spec.md` before it is acted on — `/geniro:plan` gates the invocation on Big effort tier or deep mode; `/geniro:implement` and `/geniro:resolve` invoke it on every spec-driven run. It re-verifies the spec's load-bearing factual claims against the live code, (in plan mode) generates competing alternative approaches and red-teams the chosen one, then synthesizes a verdict. The failure class it exists to catch is the factually-wrong claim that reads as plausible prose: a headline mechanism that carries no weight, a backfill predicate that matches zero rows, a write-volume estimate off by an order of magnitude — defects that survive every gate keyed on structure rather than ground truth.
 
-## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit)
+## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit), /geniro:resolve (MODE: plan over its produced spec)
 
-`/geniro:plan` invokes after writing `spec.md` and before the human approval gate. `/geniro:implement` invokes in Phase 1 after research and before the first Edit/Write. Both pass `MODE`; the rest of the contract is identical.
+`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, when its Big-tier-or-deep gate fires. `/geniro:implement` invokes in Phase 1 after research and before the first Edit/Write, on every spec-driven run. `/geniro:resolve` invokes over the spec it emits, before handoff. Each caller passes `MODE`; the rest of the contract is identical. Whether to invoke at all is the calling skill's contract; once invoked, the helper never tier-skips internally.
 
 ## Contents
 
@@ -35,10 +35,10 @@ Caller invokes:
 | `MODE` | `plan` (post-write, pre-approval) or `implement` (Phase 1, pre-edit). Branches per-skill behavior — see §2. |
 | `SPEC_PATH` | Path to the `spec.md` to challenge. |
 | `TASK_DIR` | Planning task-dir; scratch output lands at `<TASK_DIR>/.spec-challenge-out.md`. |
-| `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|small\|medium\|big`). Context for the synthesis judge's risk calibration, NOT a gate. This pass is always-on. |
+| `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|small\|medium\|big`). Calibrates the synthesis judge's risk tolerance — never an internal gate; whether the pass runs at all is the caller's contract. |
 | `DEEP` | `true` when the calling skill is in deep mode (`deep-mode: true`), else `false` / absent. When `true`, Stage B (§4) runs each cited claim through 3 independent verifiers with majority aggregation instead of 1 — the precision layer per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Orthogonal to `MODE`; raises verification reliability, not the claim set. Missing reads as `false`. |
 
-**Always-on, no tier skip.** The pass runs even on Trivial. "Always-on" does not mean "unbounded" — the cost is bounded by the spec's own cited-claim set (§3): one verifier per cited claim, scaling to claim count rather than every sentence. A Trivial spec cites few claims and gets a small batch; a Big spec cites many and gets a larger one. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, not whether the pass runs (the rejected-tiering rationale lives in the anti-rationalization table).
+**Once invoked, no internal tier skip.** The helper never decides to skip itself — the invocation decision was already made by the caller's contract, and re-deciding it here would silently undo a skill-level decision. Cost stays bounded by the spec's own cited-claim set (§3): one verifier per cited claim, scaling to claim count rather than every sentence — a spec citing few claims gets a small batch, one citing many gets a larger one. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, never whether a stage runs.
 
 The caller receives back:
 - A verdict (per §7, MODE-specific).
@@ -191,7 +191,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 
 | Reasoning | Why it is wrong |
 |---|---|
-| "This is a Trivial task — skip the challenge to save time." | The pass is always-on by design. A Trivial spec with one wrong `file:line` is the cheap-but-fatal case the pass exists to catch; the cost is bounded to the spec's cited claims, which for a Trivial spec is a small batch. Tier gates the judge's risk tolerance, not whether the pass runs. |
+| "This is a Trivial task — skip the challenge to save time." | The caller's gate already decided this run warrants the pass — skipping internally would silently undo a decision made at the skill level. A small spec with one wrong `file:line` is the cheap-but-fatal case the pass exists to catch; the cost is bounded to the spec's cited claims, which for a small spec is a small batch. Tier calibrates the judge's risk tolerance, not whether the pass runs. |
 | "The spec was just written/approved, so its claims are probably correct — confirm them." | "Probably correct" is the exact posture the pass refutes. The three defects that motivated this pass all lived in an approved spec that read as plausible. Re-read the cited code; a claim survives only when the code bears it out. |
 | "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to file:line citations + assumptions + estimates, mirroring how `/geniro:review` verifies every survivor over a bounded set. Wall-time is ~max(spawn-time) because the batch is parallel. Sampling reintroduces the miss the pass eliminates. |
 | "A verifier said the claim looks consistent — that's a confirm." | "Looks consistent" is a paraphrase, not evidence. The output contract requires a literal quote from the cited file. Refuse the paraphrase-only verdict and re-prompt — the evidence standard forbids reasoning-as-evidence. |
@@ -204,7 +204,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 
 ## 11. Definition of Done
 
-- [ ] Helper runs on every spec regardless of `EFFORT_TIER` — no tier skip.
+- [ ] Once invoked, the helper runs to completion regardless of `EFFORT_TIER` — the invocation decision belongs to the caller.
 - [ ] Stage A extracts claims from Section 6 citations, Section 4 assumptions, frontmatter `budget`/`effort_tier`, and (when present) frontmatter `workflow_refs[]` linked-ticket constraints.
 - [ ] Stage B spawns exactly one verifier per cited claim, all in ONE assistant response, via the spawn-agent ladder with `model=` omitted.
 - [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.

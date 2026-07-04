@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / guidelines / conventions / regressions / design / pr-metadata / spec-compliance / rules-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits a structured validation result (confirmed/refuted/clarified) for a single CRITICAL/HIGH/MEDIUM survivor finding."
+description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits a structured validation result (confirmed/refuted/clarified) for a single CRITICAL/HIGH/MEDIUM survivor finding."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
 maxTurns: 100
@@ -53,7 +53,7 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 
 The orchestrating skill passes you:
 
-1. **Dimension**: Which review dimension you own. Always-fire built-ins (8): bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions. Conditional built-ins: design, pr-metadata, spec-compliance, rules-compliance. /implement Phase 3 self-review also spawns code-quality (always-fire there, not a /review conditional). Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
+1. **Dimension**: Which review dimension you own. Always-fire built-ins (7): bugs, security, architecture, tests, optimizations, conventions, regressions — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations, each scoped by its own inlined criteria input. Conditional built-ins: design, pr-metadata, spec-compliance. /implement Phase 3 self-review also spawns code-quality (always-fire there, not a /review conditional). Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
 2. **Criteria**: Content of the corresponding criteria file (e.g., `bugs-criteria.md`)
 3. **Changed files**: List of files to review, with their diffs or full content
 4. **Project context**: Brief description of the project's stack and conventions
@@ -75,7 +75,7 @@ If PLAN CONTEXT was provided in your input:
 5. If no PLAN CONTEXT is provided, or its value is the literal string `none` (the orchestrator's sentinel for "no plan resolved"), skip this step — apply general best practices.
 
 ### Step 1.6: Absorb Project Instructions (if present)
-Load the project's instruction files — `global.md` and `code-style.md` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. `global.md` carries project-wide rules, **including how to search and explore this codebase** — follow that search policy when you locate code in Step 2, so you reach for the project's preferred code index when one is configured rather than defaulting to plain-text search. `code-style.md` carries cross-cutting code-style rules that supplement your dimension's primary criteria. When a code-style rule is violated by changed code, flag it as part of your dimension review IF AND ONLY IF the violation is style-adjacent to your dimension (e.g., the guidelines reviewer flags style violations; the bugs reviewer does NOT flag style violations — those are guidelines-territory). Do not duplicate findings already covered by your dimension's criteria file.
+Load the project's instruction files — `global.md` and `code-style.md` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. `global.md` carries project-wide rules, **including how to search and explore this codebase** — follow that search policy when you locate code in Step 2, so you reach for the project's preferred code index when one is configured rather than defaulting to plain-text search. `code-style.md` carries cross-cutting code-style rules that supplement your dimension's primary criteria. When a code-style rule is violated by changed code, flag it as part of your dimension review IF AND ONLY IF the violation is style-adjacent to your dimension (e.g., the conventions reviewer flags style violations; the bugs reviewer does NOT flag style violations — those are conventions-territory (style)). Do not duplicate findings already covered by your dimension's criteria file.
 
 ### Step 1.7: Absorb Prior-Round Context (if present)
 If PRIOR-ROUND FINDINGS was provided in your input:

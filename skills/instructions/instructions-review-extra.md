@@ -23,7 +23,7 @@ See `SKILL.md` for the load-bearing rules referenced below: validation rules (`#
 
 ## Custom Reviewer Authoring (review-extra)
 
-Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a different shape from the other instruction files — they declare a new code-review dimension that runs alongside the built-in reviewer-agents (bugs, security, architecture, tests, optimizations, guidelines, conventions, regressions, plus design/pr-metadata/spec-compliance/rules-compliance). Treat each file as a reviewer-agent prompt body, not a workflow rule:
+Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a different shape from the other instruction files — they declare a new code-review dimension that runs alongside the built-in reviewer-agents (bugs, security, architecture, tests, optimizations, conventions, regressions, plus design/pr-metadata/spec-compliance). Treat each file as a reviewer-agent prompt body, not a workflow rule:
 
 - **Keep the criteria body short — 30-80 lines is the sweet spot.** Reviewer-agents do better with a focused checklist than a long prose document. If your reviewer body exceeds ~120 lines, you are probably encoding two reviewers in one — split into two files with distinct slugs.
 - **Mirror the `what to flag / what NOT to flag` shape** of the canonical exemplars at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/*-criteria.md` (e.g., `bugs-criteria.md`, `security-criteria.md`). The reviewer-agent infrastructure expects this convention and pattern-matches against the "What to flag" list to extract candidate findings.
@@ -49,7 +49,7 @@ If the slug was provided on the command line (e.g., `/geniro:instructions create
 Refuse and re-ask if any of the following fail:
 
 - **Regex** — must match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter).
-- **No built-in collision** — must not match any built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `rules-compliance`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
+- **No built-in collision** — must not match any built-in dimension name or retired-but-reserved name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `guidelines`, `rules-compliance`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
 - **No existing file** — `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `<resolved path>` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it. and stop.
 
 On any validation failure, re-ask via `AskUserQuestion` with the error message included in the question text.

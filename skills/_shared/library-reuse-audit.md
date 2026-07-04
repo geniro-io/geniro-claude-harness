@@ -23,9 +23,9 @@ The two are a funnel, never a parallel duplicate: the in-repo audit asks "does T
 
 The caller passes one mode:
 
-- **MODE: plan** — during approach design, surface build-vs-buy opportunities for the feature's components and fold "adopt library X" into the relevant approach(es) and the spec's Approach / Steps prose. The user approving the approach IS the confirmation that a library belongs in the plan; the binding install confirmation is deferred to `/geniro:implement`. No separate gate fires here.
+- **MODE: plan** — a no-spawn textual consideration during approach design: surface "adopt an external library vs hand-write" as a trade-off in the relevant approach(es) and the spec's Approach / Steps prose, without researching or naming unverified packages. No candidate research, no registry calls, no gate. The user approving the approach IS the planning-time confirmation; candidate research and the binding install confirmation live in `/geniro:implement`.
 - **MODE: implement** — full flow: detect ecosystem → research candidates → filter → confirmation gate → on adopt, hand the dependency to Phase 2 for install and integration.
-- **MODE: review** — detection only: flag hand-written code a maintained external library covers, as an advisory finding the user decides. No candidate research and no registry calls — the reviewer-agent has no web access, so `/geniro:review` reports the smell and `/geniro:plan` or `/geniro:implement` does the candidate research.
+- **MODE: review** — detection only: flag hand-written code a maintained external library covers, as an advisory finding the user decides. No candidate research and no registry calls — the reviewer-agent has no web access, so `/geniro:review` reports the smell and `/geniro:implement` does the candidate research.
 
 ## When to run / when to skip
 
@@ -47,7 +47,7 @@ Read the ecosystem from the project snapshot (`_project.md` / CLAUDE.md §Tech S
 
 Never hardcode `npm`. The registry, the inspect command, and the adopt command all key off the detected ecosystem. A project with no row matched skips this audit.
 
-## Step 2 — Research candidates (MODE: plan, MODE: implement)
+## Step 2 — Research candidates (MODE: implement)
 
 Spawn ONE web-research agent (`subagent_type: general-purpose`, OMIT `model=` — it inherits the orchestrator tier; it needs `WebSearch` + `WebFetch`, which the read-only codebase agents lack). Orchestrate the spawn at the top level — subagents cannot spawn sub-agents.
 
@@ -68,7 +68,7 @@ Run the shortlist through a fail-fast funnel before ranking:
 
 **Stage 2 — Rank survivors.** Order by, roughly, security posture and adoption (hardest to fake) > maintenance recency and cadence > fit, docs, and first-class language support > transitive-dependency footprint and size.
 
-**Stage 3 — Keep the top 1-3** for the gate (implement) or the approach digest (plan).
+**Stage 3 — Keep the top 1-3** for the MODE: implement confirmation gate.
 
 ## Step 4 — Evaluation rubric
 
@@ -88,15 +88,15 @@ Free, cross-ecosystem data sources: **deps.dev** (one call returns the dependenc
 
 ## MODE: plan — fold into approaches
 
-Fold the surviving top 1-3 candidates into approach design, not a separate gate. For a component an external library could own, present the build-vs-buy choice as part of the approach trade-offs — e.g. "Approach A: adopt `<library>` (links + signals); Approach B: hand-write it" — or, when one approach clearly dominates, note the recommended library inline in that approach's digest with its registry + repository links as the evidence cite. Carry the recommendation into the spec's Approach and Steps prose so `/geniro:implement` inherits it.
+Plan mode is a textual consideration, not a research pass — no spawn, no registry calls. For a component an approach would otherwise hand-write that looks like a solved problem an established library likely covers, present "adopt an external library vs hand-write" as part of the approach trade-offs — e.g. "Approach A: adopt an established CSV-parsing library; Approach B: hand-write it". A specific package may appear by name only when it is already in the project's manifest or the user named it; otherwise describe the capability generically — `/geniro:implement` does the candidate research (Step 2), the registry existence-verification (Step 3 Stage 0), and names the candidates. Carry the trade-off into the spec's Approach and Steps prose so `/geniro:implement` inherits it.
 
-The user selecting the approach at the approach-approval gate is the confirmation that a library belongs in the plan; do NOT fire a separate adoption AskUserQuestion here, and never write an unverified package name into the spec (run Step 3 Stage 0 first). The binding install confirmation happens at `/geniro:implement`.
+The user selecting the approach at the approach-approval gate is the planning-time confirmation; do NOT fire a separate adoption AskUserQuestion here, and never write an unverified package name into the spec. The binding install confirmation happens at `/geniro:implement`.
 
 ## MODE: implement — confirmation gate, then install
 
 Adopting a dependency is a real decision the user owns — it adds supply-chain surface, a license obligation, and maintenance cost. It is never pre-authorized by the task invocation or the approved spec. Confirm before adopting ANY library.
 
-When the spec already names a recommended library for this component (carried from `/geniro:plan`), verify that named candidate's existence and current health (Step 3 Stage 0 + Step 4) rather than re-discovering from scratch — a spec can go stale between planning and implementation (the library may have been yanked or newly flagged), so re-verification is mandatory, not skipped because the plan already chose.
+When the spec names a library for this component (legitimate only when the name came from the project's manifest or the user named it during planning), existence-verify and health-check that named candidate (Step 3 Stage 0 + Step 4) before adoption — never adopt on the spec's word alone, since a library can be yanked or newly flagged between planning and implementation and the name itself must resolve on the registry. When the spec names none (the plan described the capability generically), run full discovery from Step 2.
 
 Render the gate message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`: a self-contained chat block FIRST (a one-sentence opener, a plain-English statement of what the code does and which library could replace it, and a candidate-comparison table whose rows carry the Step 4 signals and the registry + repository links as the evidence cite), THEN a lean `AskUserQuestion`.
 
@@ -138,6 +138,6 @@ One-sentence rule: the in-repo audit asks "does this repo already solve it?"; th
 | "The library is obviously better — mark Adopt as Recommended." | Adopting a dependency is the user's decision; it adds supply-chain, license, and maintenance surface. Keep-hand-written stays the default — users ratify Recommended options, so auto-recommending an adoption removes the choice. |
 | "Search npm for the package." | Only when the project IS a Node project. Detect the ecosystem first; a Python / Rust / Go repo needs PyPI / crates / pkg.go.dev. An npm-only step is a bug. |
 | "Auto-install the adopted library to save a step." | Never auto-install. Install runs at Phase 2 through the package manager after the user confirms; the lockfile-write hook blocks editor writes, and an unconfirmed install is exactly the slopsquatting delivery vector. |
-| "The plan already chose this library — adopt it without re-checking." | A spec goes stale; the library may have been yanked or newly flagged between planning and implementation. Re-verify existence and health at the gate, then confirm. |
+| "The spec already names this library — adopt it without re-checking." | A spec-named library (from the manifest or the user) still goes stale — yanked or newly flagged between planning and implementation — and the name itself must resolve on the registry. Re-verify existence and health at the gate, then confirm. |
 | "Web is down — block the run until research succeeds." | Fail open. A library suggestion is an optimization; a registry timeout must never stop the work. Note it and hand-write the component. |
 | "Suggest a library for this 3-line helper." | A trivial, stable snippet does not justify a dependency's transitive and supply-chain cost. Skip Trivial scope and one-off snippets. |

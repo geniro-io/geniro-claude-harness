@@ -9,7 +9,7 @@ Plan-specific layers of the opt-in `--deep` quality mode. The cross-skill contra
 - §1 — Activation
 - §2 — Recall: Phase 4 approach panel
 - §3 — Precision: Phase 4 feasibility critics (signal-gated majority)
-- §4 — Precision: Phase 7.5 spec-challenge (3× verify)
+- §4 — Precision: Phase 7.5 spec-challenge (forced fire + 3× verify)
 - §5 — Workflow shape
 - §6 — Fail-safe
 - §7 — Anti-rationalization
@@ -18,7 +18,7 @@ Plan-specific layers of the opt-in `--deep` quality mode. The cross-skill contra
 
 ## 1. Activation
 
-`/geniro:plan --deep <topic>` sets `deep-mode: true`. Semantic parse at Phase 0 mode-detect (alongside `--prd`) — matches `--deep` / `deep` / `deep mode`. When `--deep` is absent, a depth question (Standard / Deep) is asked as the LAST question in the Phase 3 clarify sequence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2 — no new standalone gate; on a Trivial task (Phase 3 skipped) depth falls back to flag-only. Persist `deep-mode:` to state.md frontmatter and the activation to `approvals[]` category `deep_mode_choice`. When false (default), Phase 4 and Phase 7.5 run their standard single-pass paths and deep mode adds zero overhead.
+`/geniro:plan --deep <topic>` sets `deep-mode: true`. Semantic parse at Phase 0 mode-detect (alongside `--prd`) — matches `--deep` / `deep` / `deep mode`. When `--deep` is absent, a depth question (Standard / Deep) is asked as the LAST question in the Phase 3 clarify sequence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2 — no new standalone gate; on a Trivial task (Phase 3 skipped) depth falls back to flag-only. Persist `deep-mode:` to state.md frontmatter and the activation to `approvals[]` category `deep_mode_choice`. When false (default), Phase 4 runs its standard single-pass path and Phase 7.5 fires only on its Big-tier gate; deep mode adds zero overhead.
 
 ## 2. Recall — Phase 4 approach panel
 
@@ -43,9 +43,9 @@ Standard §4.2 spawns tier-scaled critics (Trivial skip / Medium 1 comparative /
 
 Majority matters where a demotion is at stake — §4.2's purpose is to make the `Recommended` marker reflect feasibility evidence, not author confidence, and a single critic that hallucinates a blocker would otherwise demote the best approach. A clean first critic needs no escalation, so the extra votes are spent only on the approaches a demotion actually threatens.
 
-## 4. Precision — Phase 7.5 spec-challenge (3× verify)
+## 4. Precision — Phase 7.5 spec-challenge (forced fire + 3× verify)
 
-Deep mode needs no plan-side logic here — it passes `DEEP: true` to the always-on spec-challenge. Phase 7.5 already invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: plan`; in deep mode add `DEEP: true`, and the helper runs each cited claim through 3 verifiers with majority aggregation (its §4 Deep-mode subsection — single-sourced there so plan and implement deepen the spec-check identically). The verdict handling (keep / keep-with-modifications / re-plan) is unchanged — deep mode only hardens the FACT verification that feeds the verdict.
+`--deep` forces the Phase 7.5 spec-challenge to fire — deep mode satisfies the phase's Big-tier-or-deep gate on any effort tier — and passes `DEEP: true`. Phase 7.5 invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: plan`; with `DEEP: true` the helper runs each cited claim through 3 verifiers with majority aggregation (its §4 Deep-mode subsection — single-sourced there so plan and implement deepen the spec-check identically). The verdict handling (keep / keep-with-modifications / re-plan) is unchanged — deep mode changes whether the pass fires and how hard it verifies facts, not the verdict path.
 
 ## 5. Workflow shape
 

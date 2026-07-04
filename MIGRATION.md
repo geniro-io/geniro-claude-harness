@@ -8,6 +8,104 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ---
 
+## v2.78.0
+
+### `/geniro:implement` no longer patches docs at Ship
+
+The "Update Docs" Ship sub-step is removed from `/geniro:implement` — a run no longer edits documentation files itself before shipping. Documentation staleness is still covered: the architecture reviewer's docs-staleness check in the Phase 3 self-review flags docs the diff made stale as ordinary findings, which route through the normal fix loop and gates.
+
+**Action required:** None — docs-staleness findings still surface via the self-review; apply them like any other finding.
+
+**Auto-detect:** N/A — behavior change in the shipped skill with no project-state impact.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — removes an automatic edit step; the review-side check preserves coverage.
+
+---
+
+### `/geniro:plan` Phase 7.5 spec-challenge now fires only on big-tier or `--deep` plans
+
+The pre-approval spec-challenge — which re-verifies the spec's cited claims against live code, generates competing alternatives, and red-teams the approach before the human approval gate — now runs only when the plan's effort tier is Big or the run passed `--deep`. Smaller plans skip the plan-time pass; `/geniro:implement` still fact-checks every spec's cited claims before the first edit on every spec-driven run, so claim verification before any code change is preserved.
+
+**Action required:** None — pass `--deep` (or pick Deep at the depth chooser) to get the plan-time challenge on smaller plans.
+
+**Auto-detect:** N/A — behavior change in the shipped skill with no project-state impact.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — the pre-edit fact-check in `/geniro:implement` remains always-on as the backstop.
+
+---
+
+### `/geniro:plan` no longer researches library candidates at plan time
+
+The plan-side build-vs-buy check no longer spawns a web-research agent or lists candidate libraries. Build-vs-buy stays a textual consideration in approach prose: a spec names a package only when it is already in the project manifest or the user named it, otherwise it describes the capability generically. Candidate research, registry existence-verification, and the binding install confirmation live in `/geniro:implement` Step 8.5, unchanged.
+
+**Action required:** None — library adoption still requires the explicit confirmation gate in `/geniro:implement`.
+
+**Auto-detect:** N/A — behavior change in the shipped skill with no project-state impact.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — moves the research later in the pipeline; the adoption gate is unchanged.
+
+---
+
+### `/geniro:review` merges the `guidelines` and `rules-compliance` dimensions into `conventions`
+
+One always-fire `conventions` dimension now covers the scopes of the former `guidelines` and `rules-compliance` dimensions — it reads all three criteria files (style rubrics + repo-modal patterns + authored-rule citations when the repo has rule files). Findings previously tagged `guidelines` / `rules-compliance` now surface under `conventions`; the spawn counts are 7 always-fire + 3 conditional. Custom reviewers under `.geniro/instructions/review-extra/` are unaffected, but instruction files that reference the retired dimension names should update to `conventions`.
+
+**Action required:** Check `.geniro/instructions/review-extra/` and other instruction files for references to the retired dimension names and update them to `conventions`.
+
+**Auto-detect:**
+
+```bash
+grep -rn "guidelines\|rules-compliance" .geniro/instructions/ 2>/dev/null
+```
+
+(Empty output = not affected.)
+
+**Auto-fix:** Manual-only — update matched references to `conventions` (context-dependent prose edits).
+
+**Severity:** LOW — findings keep surfacing under the merged dimension; only stale name references need touching.
+
+---
+
+### Reflection improvement suggestions now fire only on substantial runs
+
+The post-task `reflection-agent` spawn — which proposes project-rule improvement candidates after a run settles — is now conditional: `/geniro:review` spawns it only when the finalized report keeps 3 or more findings, and `/geniro:implement` only when the change scope is big. When it fires, behavior is unchanged (background spawn, candidates drained before the run exits). `/geniro:refactor`'s synchronous reflection spawn is unchanged.
+
+**Action required:** None — small runs simply skip the improvement-suggestion pass.
+
+**Auto-detect:** N/A — behavior change in the shipped skill with no project-state impact.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — conditional skip of an advisory step; no schema, state, or user-file change.
+
+---
+
+### `/geniro:review` re-runs no longer collapse repeats into a Carried-over section
+
+On a round ≥2 re-run, an unchanged repeat finding now stays in the main `## Findings` list with its `repeat-of-prior-round` marker, and the report + handoff carry a one-line repeats count in the Disposition line (`<R> repeated unchanged from round <N-1>`). There is no `## Carried-over from round N` section, and the re-review gate no longer asks a repeat-handling question. The `rereview_repeat_handling` approvals category is retired — values persisted by older runs are read by no consumer and are ignored harmlessly (same pattern as the removed `--tdd` flag). A `## Carried-over` section in a handoff produced by an older version is simply absent from the next handoff `/geniro:review` produces.
+
+**Action required:** None — the next `/geniro:review` run writes the handoff in the new shape.
+
+**Auto-detect:**
+
+```bash
+grep -l "## Carried-over" .geniro/state/handoff/from-review-*.md 2>/dev/null
+```
+
+(Hits = handoffs produced by the older version; re-run `/geniro:review` to regenerate.)
+
+**Auto-fix:** Manual-only — none required (re-running `/geniro:review` regenerates the handoff).
+
+**Severity:** LOW — presentation-only change; old persisted values degrade to no-ops.
+
+---
+
 ## v3.0.0
 
 ### Persistent `.geniro/` content now writes to the main repo checkout (primary worktree)

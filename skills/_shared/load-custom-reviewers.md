@@ -15,7 +15,7 @@ Canonical rule for discovering and spawning user-authored custom review dimensio
 
 ## When to invoke
 
-Invoke this helper as the LAST step BEFORE the parallel reviewer batch — after loading built-in criteria files, after building the changed-files list, after detecting UI-files / PR-ref conditionals. The result is N additional `Agent(subagent_type="reviewer-agent", ...)` calls that join the SAME parallel batch as the 7-9 built-ins (one assistant turn, parallel execution — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §Parallel-spawn sites).
+Invoke this helper as the LAST step BEFORE the parallel reviewer batch — after loading built-in criteria files, after building the changed-files list, after detecting UI-files / PR-ref conditionals. The result is N additional `Agent(subagent_type="reviewer-agent", ...)` calls that join the SAME parallel batch as the 7-10 built-ins (one assistant turn, parallel execution — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §Parallel-spawn sites).
 
 ## Inputs from the consumer skill
 
@@ -69,7 +69,7 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 
 1. The frontmatter does not parse as YAML.
 2. The `slug:` field is missing OR does not match the filename without `.md`.
-3. The `slug:` value matches a built-in dimension name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `guidelines`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `rules-compliance`.
+3. The `slug:` value matches a reserved dimension name (case-insensitive): the built-ins `bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, plus `guidelines` and `rules-compliance` (retired built-in names — reserved to avoid ambiguity).
 4. The `slug:` value does not match the regex `^[a-z][a-z0-9-]*$`.
 5. The `description:` field is missing OR empty.
 6. The `model:` field is present and is not in `{haiku, sonnet, opus, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)
