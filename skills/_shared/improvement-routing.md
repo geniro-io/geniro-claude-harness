@@ -132,12 +132,7 @@ CLAUDE.md is loaded **every turn for every agent**, so its budget is finite — 
 | **Geniro instructions file** | `.geniro/instructions/<skill>.md` (or `global.md`) | The matching skill (`implement` / `plan` / `review` / `debug` / `refactor` / `onboard` / `investigate`) starts a run | Skill-behavior customization: extra workflow steps, quality gates, hard constraints applied at skill phase boundaries |
 | **Geniro cross-skill code-style file** | `.geniro/instructions/code-style.md` | A Geniro pipeline skill (`implement` / `refactor` / `review`) starts a code-writing or review phase | Cross-cutting code-style / convention rules that apply to ALL code writing and ALL review (regardless of file pattern). Pre-inlined into 3 style-adjacent reviewer-agent dimensions (conventions, design, architecture). |
 
-The three are complementary, not overlapping. Choose based on the trigger you want:
-- **File-scoped** (`.claude/rules/`) fires per-edit when a matching glob touches a file. Use for language-specific or directory-specific rules.
-- **Skill-scoped** (`.geniro/instructions/<skill>.md`) fires when the matching skill runs. Use for workflow steps, quality gates, hard constraints specific to one skill's lifecycle.
-- **Cross-skill code-style** (`.geniro/instructions/code-style.md`) fires when ANY pipeline skill enters a code-writing or review phase. Use for project-wide style/naming/convention rules that don't need file-pattern scoping.
-
-**Reserve CLAUDE.md for:** commands, tech-stack/structure facts, and project-wide gates that must survive context compaction. Code rules go to `.claude/rules/` (per file-pattern) or `.geniro/instructions/code-style.md` (cross-cutting); skill-behavior rules go to `.geniro/instructions/<skill>.md`.
+The three are complementary, not overlapping — choose by the trigger you want (the table's "Triggers when" column). CLAUDE.md stays reserved for commands, tech-stack/structure facts, and project-wide gates that must survive context compaction.
 
 ## Reflection-agent feed
 
