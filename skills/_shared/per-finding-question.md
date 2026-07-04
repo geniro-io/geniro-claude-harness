@@ -56,7 +56,7 @@ Every gate under this contract follows a two-step shape — **render the finding
 
 Why this shape: `AskUserQuestion` renders `preview` as a narrow monospace side-box that hard-truncates long content with no scroll, and is often absent entirely in an interactive session. A finding body placed there is unreadable or invisible — so the body lives in the chat message, which has full width, and the lean question captures only the decision.
 
-**Resume paths render too.** The separate-message rule holds after a compaction, wakeup, or workflow-completion continuation. Do not assume the chat block was rendered in an earlier turn — verify against the visible transcript/state, then author the render fresh if it is not there, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/wakeup-prompts.md`. The pre-compaction message is gone from the user's live view even when state.md records that the gate was reached.
+**Resume paths render too.** The separate-message rule holds after a compaction, wakeup, or workflow-completion continuation. Treat a wakeup or self-prompt's embedded premises as claims, not facts — verify against the visible transcript/state, then author the render fresh if it is not there. The pre-compaction message is gone from the user's live view even when state.md records that the gate was reached.
 
 ## Finding-type visual map
 

@@ -32,7 +32,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
-**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter (subagent reports — `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `.research-out.md`, per-facet `.research-<facet>.md` from `/plan`, and the spec-challenge scratch `.spec-challenge-out.md`; ad-hoc scratch `notes.md`; screenshots `playwright-verify.png` — canonical list: the §T1 table below). They never pass through `validate_state_file`. T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships. The terminal-exit cleanup contract `rm -f`s ONLY the T1 ephemeral list, via the shared helper `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>`) — the single source of the list. Each skill that writes into a planning task-dir calls it before its own terminal `phase:` write: `/geniro:implement` on every terminal transition (Ship and the rest), and `/geniro:plan` on `done`/`aborted` (a plan-only or milestone-sliced run would otherwise leak its `.research-*.md` scratch, since `/geniro:implement` then runs in a different task-dir or not at all). T1.5 durable files persist for skill chains.
+**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via the shared helper `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list; timing per the note under that table). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them.
 
 ---
 
@@ -167,21 +167,13 @@ open_questions:
     question: "API seeder additions in-scope or split into separate PR?"  # the actual question, verbatim
     context: |                                      # OPTIONAL but RECOMMENDED — 2-6 line problem framing rendered with the question
       The PR includes 3 new seeder files under db/seeders/ alongside the API
-      endpoint changes. spec.md §Forbidden Actions lists "seeder modifications
-      outside dedicated seeder PRs". Reviewer flagged scope mismatch; the right
-      resolution depends on whether the seeders are mandatory for the endpoint
-      to function (in-scope) or coincidental cleanup (split).
+      endpoint changes; spec.md §Forbidden Actions bars seeder modifications
+      outside dedicated seeder PRs.
     evidence:                                       # OPTIONAL but RECOMMENDED — code anchors with snippets, rendered in AUQ preview
       - file: db/seeders/api_users.sql
         lines: 1-12
         snippet: |
-          -- Seed initial API users so the new /api/v2/users endpoint has data.
           INSERT INTO api_users (id, email, role) VALUES ...
-      - file: spec.md
-        lines: 145-149
-        snippet: |
-          ## Forbidden Actions
-          - No seeder modifications outside dedicated seeder PRs.
     options:                                        # OPTIONAL but RECOMMENDED — pre-authored options used directly by the AUQ renderer
       - id: A
         label: "In scope — keep seeders in this PR"
@@ -190,25 +182,11 @@ open_questions:
           ## Effect
           - 3 seeder files stay in this PR
           - spec.md §Forbidden Actions gets a per-task exception line
-          - PR description annotated: "Seeders bundled — required for smoke-test"
-      - id: B
-        label: "Split — revert seeders to a separate PR"
-        description: "Honors spec.md forbidden-actions verbatim. Endpoint PR ships without seeders; reviewer must trust unit tests."
-        preview: |
-          ## Effect
-          - `git checkout HEAD~ -- db/seeders/` reverts seeder additions
-          - New branch `chore/api-seeders` for seeders alone
-          - Endpoint PR description updated: "Seeders split to #N+1"
-      - id: C
-        label: "Out of scope — drop entirely"
-        description: "Seeders weren't planned in spec.md; treat them as accidental scope creep. Lose the smoke-test data."
-        preview: |
-          ## Effect
-          - `git checkout HEAD~ -- db/seeders/` reverts seeder additions
-          - No follow-up PR — seeders deferred to backlog
+      - id: B     # "Split — revert seeders to a separate PR" — same shape as A (label + description + preview)
+      - id: C     # "Out of scope — drop entirely" — same shape as A
     recommendation:                                 # OPTIONAL — producer's recommended option + rationale
       option_id: B
-      rationale: "Spec.md is explicit; honoring it preserves the project's PR-scope hygiene. The smoke-test data gap is recoverable via a follow-up seeder PR."
+      rationale: "Spec.md is explicit; honoring it preserves PR-scope hygiene. The smoke-test data gap is recoverable via a follow-up seeder PR."
     related_findings: [F1, F4]                      # optional — finding IDs this question gates (cross-reference into ## Findings body)
     related_hypotheses: [H2]                         # optional — /geniro:debug equivalent: Hypothesis IDs this question gates
     status: unresolved                              # enum: unresolved | resolved | wontfix
@@ -321,7 +299,7 @@ comment_resolutions:                 # MAY be []; only review-comment items appe
 
 ## Concrete examples
 
-### T1.5 — task-bound (`/geniro:implement`)
+### T1.5 — all three layouts
 
 ```yaml
 ---
@@ -340,37 +318,7 @@ non-resumable-actions: []
 - implement started at 14:30:00Z
 ```
 
-### T1.5 — session-bound (`/geniro:debug`)
-
-```yaml
----
-tier: T1.5
-producer: debug
-schema-version: 1
-branch: fix/null-pointer
-timestamp: 2026-05-19T14:30:00Z
-phase: investigate
-status: in-progress
-non-resumable-actions: []
-geniro_kind: debug-state
----
-```
-
-### T1.5 — singleton (`/geniro:setup`)
-
-```yaml
----
-tier: T1.5
-producer: setup
-schema-version: 1
-branch: main
-timestamp: 2026-05-19T14:30:00Z
-phase: detect
-status: in-progress
-non-resumable-actions: []
-mode: init
----
-```
+The session-bound (`/geniro:debug` etc.) and singleton (`/geniro:setup`) layouts use the identical required-field set; they differ only in `producer:` and optional producer-specific extensions (e.g. `geniro_kind: debug-state`, `mode: init`).
 
 ### T2 — handoff
 
@@ -433,19 +381,7 @@ Per-line JSONL schema (canonical L2 entry schema): `ts`, `producer`, `scope`, `s
 
 ## Validation rules (summary)
 
-The `validate_state_file` helper enforces:
-
-1. File exists and starts with `---` on line 1.
-2. Frontmatter parses (closing `---` present).
-3. Common-base required fields present and non-empty.
-4. Tier-specific required fields present per the `tier:` value.
-5. `schema-version: 1` (fall-through to migration prompt on mismatch).
-6. If `checksum` present, body sha256 matches.
-7. If `worktree` present, path exists in `git worktree list` output (graceful skip on non-repo paths).
-
-On failure: hard-fail with a recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
-
-JSONL files use line-by-line validation: malformed lines logged and skipped.
+`validate_state_file` enforces the frontmatter contract above (fence on line 1, required fields per tier, `schema-version: 1`, optional `checksum` / `worktree` checks); the ordered check list, exit codes, and recovery AskUserQuestion live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`. JSONL files use line-by-line validation: malformed lines logged and skipped.
 
 ---
 
