@@ -8,7 +8,6 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 - What to Check
 - Output Format
 - Common False Positives
-- Stack-Agnostic Patterns
 - Litmus Test (The Deletion Test)
 - Assertion completeness & spec coverage
 - Test Deletions in the Diff (Inverse Deletion Test)
@@ -328,16 +327,6 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - Parameterized tests cover many cases concisely
 - One "test" function might test many inputs
 - Count test cases, not test functions
-
-## Stack-Agnostic Patterns
-
-Works across languages/frameworks:
-- Coverage analysis (tools available for all languages)
-- Edge case patterns (language-agnostic)
-- Async testing patterns (promise/callback/async)
-- Integration test structure (all languages)
-- Mocking patterns (all frameworks)
-- Test organization (language-independent)
 
 ## Litmus Test (The Deletion Test)
 

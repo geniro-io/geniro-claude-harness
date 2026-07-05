@@ -16,13 +16,7 @@
 
 ## Why this exists
 
-A natural-language "Load X" directive does not reliably trigger the Read tool — the model often treats it as already-satisfied and skips the actual file read. Defining the load procedure once here, in tool-explicit terms, is the durable fix: consumers reference this file by path instead of each restating the directive in prose that drifts apart. This helper makes the load:
-
-- **Tool-explicit** — imperative `` Read `<path>` `` directives, not "Load X if present"
-- **Observable** — a one-line echo after every Read, so the user can SEE that the read fired
-- **Canonical** — defined once here; consumers reference by path, never duplicate the prose
-- **Source-flexible** — loads from the in-repo `.geniro/instructions/` by default, or from an external base dir (`$GENIRO_INSTRUCTIONS_DIR` / the plugin's `instructions_dir` install option) so the plugin runs on clean fresh-clone environments where instructions aren't committed
-- **Anti-rationalization-guarded** — known skip rationalizations (e.g. "I already know the rules from memory") flagged in the table below
+A natural-language "Load X" directive does not reliably trigger the Read tool — the model often treats it as already-satisfied and skips the actual file read. Defining the load procedure once here, in tool-explicit terms, is the durable fix: consumers reference this file by path instead of each restating the directive in prose that drifts apart.
 
 ## When to invoke
 
@@ -194,14 +188,8 @@ Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantic
 
 ## Definition of Done
 
-- [ ] Helper is invoked at every consumer's Step 0 (initial load) — physically first, not buried mid-step
-- [ ] Helper is re-invoked at every phase-boundary refresh site declared in the consumer
 - [ ] The instructions base directory is resolved once per invocation before the load loop (external override `$GENIRO_INSTRUCTIONS_DIR` > `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` > in-repo default), with a leading `~` expanded to an absolute path
 - [ ] When an external instructions dir is configured and valid, every file loads from it (flat layout, no `.geniro/instructions/` suffix) and the cwd/`PRIMARY_ROOT` fallbacks are skipped; a configured-but-missing dir emits the `External instructions dir <path> not found — using in-repo instructions.` caveat and falls back to in-repo
-- [ ] `PRIMARY_ROOT` is resolved once per invocation via `primary-worktree.md` Mode A before the load loop (in-repo mode only)
 - [ ] When cwd Read returns file-not-found AND `PRIMARY_ROOT` differs from cwd, a fallback Read against `<PRIMARY_ROOT>/.geniro/instructions/<file>` is attempted before the "No `<name>` found" echo
 - [ ] Every Read emits exactly one echo line per §Echo contract (cwd success / primary-worktree success / not-found)
-- [ ] File-not-found (after fallback) triggers the "No `<name>` found — skipping." echo, not an error
-- [ ] `LOAD_TIER` decides whether per-skill and `code-style.md` are part of the load set
 - [ ] Consumer SKILL.md files do not duplicate the producer-side Rules/Constraints/Steps semantics — that lives here only
-- [ ] Refresh sites use "since the previous load" wording (not "since Phase 1")

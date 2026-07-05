@@ -92,7 +92,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 If any delegated agent fails (timeout, error, empty/garbage result): retry once with the same prompt. If the retry also fails:
 - **Smell detection and smell evidence** run orchestrator-inline and cannot fail separately — failures bubble up as normal orchestrator errors (Read / Grep / Glob unavailable would halt the skill).
-- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue (the ≥30% blocked → AUQ gate fires in Phase 2 §2.3). Catastrophic Edit failures (filesystem error) → revert the refactor's changes (`git restore --source=HEAD -- <each path from git diff --name-only>` — targeted paths, never a bare `.`, which the git-guardrail hook blocks; with user confirmation) and escalate to user with failure context.
+- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue (the ≥30% blocked → AUQ gate fires in Phase 2 §2.3). Catastrophic Edit failures (filesystem error) → revert the refactor's changes (`git restore --source=HEAD -- <each path from git diff --name-only>` per §Git Constraint; with user confirmation) and escalate to user with failure context.
 - **Phase 3 reviewer-agent:** note the failure in the completion summary and proceed (fail-open); warn the user that independent review did not complete.
 
 ---
@@ -314,7 +314,7 @@ Model tier note: the orchestrator's session tier runs the loop. HIGH-risk plan s
 After execution returns, count BLOCKED-to-executed ratio (post-user-rejection denominator: approved plan steps minus user-rejected HIGH-risk steps). **If ≥30% BLOCKED:** stop and escalate in two steps per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — render the run outcome to a chat message first (`**In one sentence:**` opener + a blocked-steps mini-table: step · what blocked it · retries used), then fire the lean `AskUserQuestion` header "Stuck":
 
 - **Keep what worked and escalate the rest** — proceed to Phase 3 with blocked-steps list noted; user runs `/geniro:implement` separately for blocked items. state.md → `phase: verify` with `## Accepted Blocks` body section.
-- **Revert all changes** — `git restore --source=HEAD -- <each path from git diff --name-only>` (targeted paths, never a bare `.`, which the git-guardrail hook blocks; with user confirmation). state.md → `phase: reverted` (terminal).
+- **Revert all changes** — `git restore --source=HEAD -- <each path from git diff --name-only>` (per §Git Constraint; with user confirmation). state.md → `phase: reverted` (terminal).
 - **Force-continue (not recommended)** — proceed to Phase 3 with blocked work treated as accepted. state.md → `phase: verify`.
 
 Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `phase: apply-escalated` with timestamp + blocked-ratio + blocked-steps list before AUQ; transitions per user pick. The open-question render surfaces this on resume.
@@ -323,7 +323,7 @@ Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `
 
 After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change guarantee held.
 
-If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git restore --source=HEAD -- <each path from git diff --name-only>` (targeted paths, never a bare `.`, which the git-guardrail hook blocks) after explicit user confirmation. state.md → `phase: reverted` (terminal).
+If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git restore --source=HEAD -- <each path from git diff --name-only>` (per §Git Constraint) after explicit user confirmation. state.md → `phase: reverted` (terminal).
 
 If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
@@ -360,7 +360,7 @@ A PRODUCT-DECISION finding implies multiple valid resolution paths, and refactor
 Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per its § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per § Finding-type visual map — then fire the lean `AskUserQuestion`. 4 fixed options (ADR-eligibility determines whether 4th option included):
 
 1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: routed` (terminal — recovery treats as complete; the decision was handed to /geniro:implement). Without a terminal write here the run would resume re-surfacing an already-resolved escalation.
-2. **Revert this refactor and start over** — `git restore --source=HEAD -- <each path from git diff --name-only>` (targeted paths, never a bare `.`, which the git-guardrail hook blocks) with user confirmation. state.md → `reverted` (terminal).
+2. **Revert this refactor and start over** — `git restore --source=HEAD -- <each path from git diff --name-only>` (per §Git Constraint) with user confirmation. state.md → `reverted` (terminal).
 3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
 4. **(ADR-eligible only)** **Document as ADR** — spawn a focused ADR-drafting agent (OMIT `model=` — inherits the orchestrator's session tier per the canonical model-tiering rule and the table row in the Subagent Model Tiering section) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
 

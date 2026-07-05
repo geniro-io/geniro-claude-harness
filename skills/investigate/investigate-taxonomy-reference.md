@@ -33,7 +33,7 @@ present ──┬── (happy: flows to done)
                              └── done (user picks "save findings" → save-routing AUQ executes → done)
 ```
 
-Terminal states: `done`, `present-summary-only`, `aborted`, `routed`. The SessionStart recovery treats all as "task complete — no resume". Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context. `present-loop` is a sub-state of `present`, not a top-level phase: during dive-deeper rounds the persisted `phase:` value stays `present` (which is why the `phase:` enum below has no `present-loop` member).
+Terminal/escalation semantics live in SKILL.md §State machine. Reference-only note: `present-loop` is a sub-state of `present`, not a top-level phase — during dive-deeper rounds the persisted `phase:` value stays `present`, which is why the `phase:` enum below has no `present-loop` member.
 
 ---
 
@@ -113,7 +113,7 @@ Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skil
 
 ## 3. Phase 2 research-agent spawn templates
 
-Each spawn pre-populates the 6 required fields from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope, acceptance criteria, file paths with content, prohibited tools, output schema, model tier) and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
+Each spawn follows SKILL.md §Subagent Spawn Contract. Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
@@ -244,7 +244,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ## 4. Phase 3 fresh verifier agent spawn template
 
-The verifier inherits the orchestrator's session tier (OMIT `model=`). The spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and obeys the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
+The verifier inherits the orchestrator's session tier (OMIT `model=`); the spawn follows SKILL.md §Subagent Spawn Contract.
 
 ```
 Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""

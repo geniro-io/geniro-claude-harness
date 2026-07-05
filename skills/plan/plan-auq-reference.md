@@ -91,9 +91,7 @@ The full artifact lifecycle (availability detection, create, per-phase update, U
 
 ## 2. Phase 3 grill AUQ — message-first, one question at a time
 
-Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract"). Phase 3 is a decision-tree grill — walk the design's open decisions depth-first (plan-loop §3.1). Ask the grill questions **one at a time** — one `AskUserQuestion` call per question, never a multi-question batch. Before each question, render its framing to a chat message FIRST, then fire a LEAN single-question AUQ. Size the framing to the question: a one-line orientation when every option is self-explanatory, a full per-option consequence breakdown (code anchor / config diff / behavior trace) when an option's consequence needs more than its one-line `description`. Give a recommended answer for every question (Recommended-first option).
-
-One question at a time (over batching) because each answer reshapes the tree frontier — a still-pending child can become moot or need reworded options. Do NOT pre-generate a fixed question list; regenerate the next question from the live tree after each answer. The cost is more round-trips than a batch; that is the deliberate trade for per-question clarity and a frontier that adapts to each answer.
+The grill procedure — message-first framing sized to the question, then a lean single-question AUQ, one question at a time, frontier regenerated after each answer — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §3.2 (Gate presentation contract in plan-loop §"Gate presentation contract"). This section holds the literal templates.
 
 Chat message rendered before the FIRST question:
 
@@ -123,22 +121,7 @@ questions:
         description: "Recorded as an assumption for /geniro:implement to verify."
 ```
 
-After the user answers, persist it (below), then render the next question's framing and fire its own single-question AUQ — e.g. the rate-limit decision:
-
-```yaml
-questions:
-  - header: "Rate limit"
-    question: "Should the endpoint enforce a per-user rate limit?"
-    options:
-      - label: "Yes — reuse RateLimitGuard"
-        description: "60 req/min/user; 429 on exceed."
-      - label: "No — unlimited"
-        description: "Matches sibling read-only endpoints."
-      - label: "Skip — assume no limit"
-        description: "Recorded as an assumption."
-```
-
-There is no fixed question cap — the grill runs until the spec-shaping branches resolve, bounded by the §2b checkpoint gate. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — depth-first walking exists precisely to let one answer reshape what follows.
+After the user answers, persist it (below), then render the next question's framing and fire its own single-question AUQ. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — depth-first walking exists precisely to let one answer reshape what follows.
 
 Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. Append the entry for each answer before rendering the next question:
 
@@ -182,7 +165,7 @@ approvals:
 
 ### 2b. Checkpoint gate and termination summary
 
-No fixed cap bounds the grill (§2 above) — instead pause for a checkpoint whichever comes first: a full design branch resolves, OR ~6 questions have been asked since the last checkpoint (plan-loop §3.4). At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
+The checkpoint trigger (a resolved branch OR ~6 questions since the last checkpoint) is canonical in plan-loop §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
 
 Chat message rendered before the checkpoint AUQ:
 
@@ -228,7 +211,7 @@ approvals:
     asked_in_phase: clarify
 ```
 
-**Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. Render a closing summary (resolved decisions / deferred work / unaddressed risks) and hold it in context — it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition). Then ask the §2a planning-depth question when `--deep` is absent, and transition to Phase 4.
+**Termination** rules are canonical in plan-loop §3.4 (closing summary → the §2a planning-depth question when `--deep` is absent → Phase 4).
 
 ---
 
@@ -293,21 +276,7 @@ Group the 11-section schema into 3 dependency-ordered clusters. Author and gate 
 | 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required | "Approach" |
 | 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition | "Safety" |
 
-Procedure per cluster (Gate presentation contract):
-
-1. **Author the cluster's sections inline** using Phase 1 research findings + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate.
-
-2. **Render the cluster to a chat message in the Visual rendering language** (Gate presentation contract) — progress tracker (`step N of 3`), one-sentence opener, the cluster-level visual (cluster 1: in/out scope map; cluster 2: steps flow diagram; cluster 3: done-condition checklist), then one icon-headed sub-heading per section with its friendly digest block (lead sentence / `**Why:**` with evidence cite / `**How it gets built:**` / `**You'll see:**`) closed by the concrete example + visual per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example + visual per section type". A "none — task scope precludes" section is a one-line note here, not a rendered section.
-
-3. **Fire ONE lean AUQ for the cluster** — four options, no `preview` (the message above carries the content): Approve all / Explain a section further / Revise specific sections / Cancel planning.
-
-4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). On "Approve all", append one entry per section (`picked: approve`); on "Revise", record revised sections distinctly (`picked: revised: <summary>`); "Explain a section further" persists nothing. The cluster is a presentation grouping only — no `cluster_<id>` category.
-
-5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6.
-
-**Explain path.** "Explain a section further" opens the same section picker as Revise. For each picked section, render a deeper walkthrough message — the full evidence chain (additional `file:line` cites), an expanded or alternative diagram, edge-case behavior, and exactly what /geniro:implement will and will not touch — then re-fire the cluster AUQ. A reading aid, not a decision: it writes no `approvals[]` entry, never changes section content, and does not count toward the 3 revision rounds.
-
-**Revise path.** "Revise specific sections" opens a follow-up multi-select picker of the cluster's section names (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` multi-select schema). For each picked section, capture the revision (free-text via Other), re-author it AND any same-cluster sections that depend on it, re-render the cluster message, then — when `artifact_mode: true` and the page is not recorded unavailable (`artifact_status` is not `unavailable`) — re-sync the page so it mirrors the re-rendered chat rather than the stale pre-revision plan: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: sections and the revised section content` (reads the saved `artifact_url` from state.md; refresh the panel, don't blank it — the gate is being re-presented). Then re-fire this AUQ. Max 3 revision rounds per cluster.
+The per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §5.2. This section holds the literal templates.
 
 Literal cluster-1 chat message (rendered before the AUQ):
 

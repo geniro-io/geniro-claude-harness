@@ -9,7 +9,6 @@ Code style, naming conventions, documentation, consistency, and compliance with 
 - What to Check
 - Output Format
 - Common False Positives
-- Stack-Agnostic Patterns
 - Review Checklist
 - Severity Tagging
 
@@ -250,16 +249,6 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - Don't flag if matches project config
 
 7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW — the Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) will still surface correct findings via convergence or evidence-grounding.
-
-## Stack-Agnostic Patterns
-
-Works across all languages/frameworks:
-- Naming conventions (all languages)
-- Code formatting (all languages)
-- Documentation (all languages)
-- Code duplication (all languages)
-- Import/dependency patterns (all languages)
-- Type safety (statically typed languages)
 
 ## Review Checklist
 

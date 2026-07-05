@@ -30,7 +30,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
 2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written). `run` is not preceded by a confirmation gate — invoking `/geniro:actions run <name>` authorizes the run.
-3. Invoking authorizes execution — `run` fires the action's steps directly regardless of `risk_class`; the user already chose to run it, so re-asking "are you sure?" would only repeat a decision they made. The per-step tool-allowlist is still respected (Phase 5.4 intersection), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body still fires.
+3. Invoking authorizes execution — `run` fires the action's steps directly regardless of `risk_class` (Phase 5.3); the tool-allowlist intersection (Phase 5.4) and author-placed `[AUQ]`/`## Confirm:` checkpoints still fire.
 4. Bounded structured results — `list` renders a frontmatter-only table; the `description` field is the only free text shown and is already capped at create-validation time, so no separate body truncation applies.
 5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
 6. Observations not assumed success — each step in `run` mode checks return status; failed step transitions to `failed` with step number captured.
@@ -55,7 +55,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 **Run mode tool gating:** the effective tool surface is the intersection of the `/geniro:actions` skill's own `allowed-tools` (SKILL.md frontmatter) with the action's frontmatter `allowed-tools:` field. Phase 5.4 applies this intersection before any step runs.
 
-Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); these run with no confirmation gate — the action author scopes them via `allowed-tools`, and invoking the action authorizes them. `risk_class` labels their blast radius for the listing / delete-warning / lint, not for a run-time prompt (Phase 5.3).
+Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); these run with no confirmation gate per Phase 5.3 — the action author scopes them via `allowed-tools`. `risk_class` labels their blast radius for the listing / delete-warning / lint, not for a run-time prompt.
 
 ## Termination case → state mapping
 
@@ -157,7 +157,7 @@ Close with: "Run with `/geniro:actions run <name>`."
 
 If `<name>` was not provided, use the name-validation flow from Phase 1.
 
-Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, re-running the snippet in every Bash call that uses the variable — shell state does not persist across Bash calls, and an unset `$PRIMARY_ROOT` expands to a root-anchored `/.geniro/...` path. Actions are cross-session content, so every create-path write below is `"$PRIMARY_ROOT"`-prefixed — a cwd-relative write from a linked worktree is destroyed on `git worktree remove`.
+Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, re-running the snippet in every Bash call that uses the variable (Mode A owns the recompute-per-call rule). Actions are cross-session content, so every create-path write below is `"$PRIMARY_ROOT"`-prefixed — a cwd-relative write from a linked worktree is destroyed on `git worktree remove`.
 
 If `"$PRIMARY_ROOT"/.geniro/actions/<name>.md` already exists, AUQ:
 
@@ -338,7 +338,7 @@ Follow the action body's numbered steps directly. The orchestrator is the runtim
 
 If no gaps, proceed without asking. Do not call any tool the action did not declare in `allowed-tools` — the intersection is the action author's stated tool budget. Do not re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
 
-**Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write (shell state does not persist across Bash calls) — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
+**Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
 
 If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt; transition to `failed` with step number captured.
 
@@ -443,21 +443,12 @@ If `<slug>` provided: resolve via Phase 5.0 (Steps 1-3) to get `<resolved-path>`
 
 ### Step 2 — Lint rule set (shared with `/geniro:instructions validate review-extra`)
 
-Combined rule table (Phase 4 Step 6 checks + description hygiene):
+Run the 10 create-gate checks (Phase 4 Step 6 table, same severities), plus these validate-only rows:
 
 | Check | Severity |
 |---|---|
-| YAML frontmatter parses | CRITICAL |
-| `name:` matches filename | CRITICAL |
-| `description:` starts with "Use when" | HIGH |
-| `description:` ≤250 chars | HIGH |
 | `description:` mentions adjacent terms | LOW |
 | `description:` includes boundary clause ("Skip for...") | LOW |
-| `risk_class:` present and valid (`low\|medium\|high`) | CRITICAL |
-| `external-send: true` ⇒ `risk_class: medium\|high` | HIGH |
-| `## Steps` section present with ≥1 numbered item | HIGH |
-| No `{{placeholder}}` in body | HIGH |
-| File <500 lines | MEDIUM |
 | `allowed-tools:` field present (if action mutates) | LOW |
 | No references to dropped skills in body | HIGH |
 
@@ -521,10 +512,10 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 
 - [ ] Intent parsed from `$ARGUMENTS` (or default to `list`)
 - [ ] If `create`: 5-question interview completed, draft previewed and approved, file written, all 10 validation checks passed
-- [ ] If `run`: action file located and read, action steps executed inline within tool-scope intersection (no run-confirmation gate — invoking the action is the authorization)
+- [ ] If `run`: action file located and read, action steps executed inline within tool-scope intersection (no run-confirmation gate — Phase 5.3)
 - [ ] If `delete`: confirmed via AUQ before removal (high-risk warning added if applicable)
 - [ ] If `edit`: target copy resolved (canonical main-repo copy by default), absolute path printed, AUQ "Done" gate fired, Phase 4 Step 6 checks (1-10) re-run on Done, file NOT deleted on validation failure
-- [ ] If `validate`: 13-rule lint executed; CRITICAL/HIGH cause non-zero exit
+- [ ] If `validate`: full lint executed (10 create-gate checks + 4 validate-only rows); CRITICAL/HIGH cause non-zero exit
 - [ ] All user interactions used `AskUserQuestion`
 - [ ] `.gitignore` re-include rules added on first action created (idempotent)
 - [ ] No `{{placeholder}}` left in any written file

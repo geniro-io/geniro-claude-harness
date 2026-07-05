@@ -15,7 +15,7 @@ argument-hint: "[optional: path to template directory]"
 
 ## Path constraints
 
-**Don't use `~` in file paths passed to Read, Write, Edit, or Glob** — these tools don't expand `~`, so it creates a literal `~` directory instead of resolving to the home directory. Use `${CLAUDE_PLUGIN_ROOT}` for plugin files or absolute paths for project files.
+**No `~` in file paths passed to Read, Write, Edit, or Glob** (not expanded — creates a literal `~` directory); use `${CLAUDE_PLUGIN_ROOT}` for plugin files, absolute paths for project files.
 
 Resolve the user's Claude config dir once, honoring `CLAUDE_CONFIG_DIR`:
 
@@ -359,7 +359,7 @@ Section merge runs **orchestrator-inline** — no subagent spawn. Rules:
 
 ### 3.5 Runtime directories + gitignore
 
-Recompute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` inside this same Bash call — shell state does not persist across Bash calls, so a value resolved in an earlier phase is gone here and an unset `$PRIMARY_ROOT` expands to a root-anchored `/.geniro/...` path.
+Recompute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` inside this same Bash call — Mode A owns the recompute-per-call rule.
 
 ```bash
 # workflow/ + instructions/ are cross-session → primary worktree. planning/ is task-local (cwd).
@@ -528,71 +528,7 @@ Only emitted when `mode == re-run` AND the current `.claude-plugin/plugin.json` 
 
 ## State file schema
 
-Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable task state — singleton; deleted at Phase Done since the bootstrap state has zero value once complete).
-
-### Frontmatter
-
-```yaml
----
-tier: T1.5
-producer: setup
-schema-version: 1
-branch: <git-branch> # may be empty if not a git repo
-timestamp: 2026-05-19T14:32:00Z # last-updated ISO-8601 UTC
-phase: detect # detect|interview|generate|validate|done|failed
-status: in-progress # in-progress|done|failed
-non-resumable-actions: [] # typically empty (/geniro:setup ships no external sends)
-approvals: [] # no preference questions; AUQ-only for detection confirm + onboard prompt
-geniro_kind: setup-state
-geniro_schema_version: m10a-v1
-worktree: /absolute/path # cross-check on rehydration
-mode: init # init | re-run
-template_dir: /Users/you/.claude/plugins/geniro-claude-plugin@.../abc123
-plugin_version: 2.21.1 # from .claude-plugin/plugin.json; the §5.4 restart-warning compares this against the current plugin.json version (missing on a pre-field state file → no delta computable → no warning)
-detected:
-stack: node/npm
-lang: node
-pkg_mgr: npm
-test_runner: jest
-has_eslint: true
-default_branch_candidates: [main]
-evidence:
-- {file: package.json, line: 5, snippet: "\"name\": \"my-project\""}
-skill_inventory:
-- {slug: implement, purpose: "..."}
-#... 12 total
-write_targets:
-- {path: CLAUDE.md, op: write, loc: 45}
-validate_rounds: 1
----
-```
-
-### Body sections
-
-```markdown
-## Phase log
-[2026-05-19T14:00:00Z] init → detect (mode=init)
-[2026-05-19T14:02:00Z] detect complete — stack=node/npm, evidence_count=14
-[2026-05-19T14:05:00Z] interview → detection confirmed, tracker: Linear
-[2026-05-19T14:10:00Z] generate → CLAUDE.md written (45 lines, project-specific only)
-[2026-05-19T14:30:00Z] validate round 1 → 0 DRIFT
-[2026-05-19T14:32:00Z] → done
-
-## Tool log # selective logging
-[14:02:00] Detect: read package.json (evidence #1), package-lock.json (#2),...
-[14:30:00] validate: spawn verification subagent → 0 drift items
-
-## Errors # Block 5b (only on failure)
-(empty)
-
-## Open Questions # Block 5c (populated on accept-with-warnings)
-(empty)
-
-## Persisted approvals # Block 5d (renders frontmatter approvals[])
-(empty — no preference questions in current /geniro:setup)
-
-## Termination reason # only set on `failed`
-```
+Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable singleton; deleted at Phase Done). Full frontmatter + body-section schema: `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-state-reference.md` — read it before every state write.
 
 ## Memory I/O
 

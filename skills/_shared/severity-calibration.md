@@ -110,23 +110,11 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 
 ### conventions
 
-The dim owns three defect classes; each keeps its own ceiling:
+The dim owns three defect classes; each keeps its own ceiling, defined in its own criteria file (the `conventions` reviewer reads all three):
 
-**Style-rubric class** (per-file rubrics, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md`):
-- CRITICAL / HIGH: never (style-rubric findings are by nature style/convention)
-- MEDIUM: Convention drift on a tooling-load-bearing field (e.g., missing `name:` in a SKILL.md frontmatter that the loader requires)
-- LOW: Style / formatting / naming polish; documentation gaps; comment wording
-
-**Modal-pattern class** (repo-modal patterns, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity Guidelines):
-- CRITICAL: never
-- HIGH: clear ≥80% modal violation in [NEW] code that introduces a pattern the repo uses nowhere else (zero-shot novel), or crosses a 100%-respected module/layer boundary
-- MEDIUM: ≥80% modal violation in [NEW] code where the introduced pattern exists in 1-2 other places; any [PRE-EXISTING] finding regardless of frequency
-- LOW: not emitted (the class suppresses sub-threshold rather than down-tagging)
-
-**Authored-rule-citation class** (explicit rule files, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` §4 — severity follows the IMPACT of breaking the cited rule, never the bare fact that it is a rule):
-- CRITICAL / HIGH: the cited rule encodes a correctness / security invariant (input validation, auth, no-secrets-in-source)
-- MEDIUM: the cited rule encodes a maintainability convention
-- LOW: stylistic preference, or a rule the author marked advisory / optional
+- **Style-rubric class** — per-file rubrics, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` §Severity Tagging. Never CRITICAL/HIGH; MEDIUM only on a tooling-load-bearing field, else LOW.
+- **Modal-pattern class** — repo-modal patterns, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity Guidelines (ceiling HIGH on a zero-shot-novel ≥80% modal violation or a crossed 100%-respected boundary; LOW suppressed).
+- **Authored-rule-citation class** — explicit rule files, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` §4. Severity follows the IMPACT of breaking the cited rule (correctness/security invariant → up to CRITICAL; maintainability → MEDIUM; advisory → LOW), never the bare fact that it is a rule.
 
 ---
 

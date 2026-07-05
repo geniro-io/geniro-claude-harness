@@ -39,6 +39,8 @@ Then for every cross-session artifact:
 
 If `git` is missing or the project isn't a git repo, both probes return empty → fall back to cwd-relative. Non-git projects have no linked-worktree problem.
 
+**Re-run the snippet inside every Bash call that uses the variable** — shell state does not persist across Bash calls, so a value resolved in an earlier call is gone, and an unset `$PRIMARY_ROOT` expands a `"$PRIMARY_ROOT"/.geniro/...` path to a root-anchored `/.geniro/...` path.
+
 ### Mode B — Subagents without Bash
 
 Some agents have read-only tool surfaces (e.g. `tools: [Read, Glob, Grep]`) and cannot run the resolver themselves. The spawning orchestrator must compute `PRIMARY_ROOT` in Mode A and inline absolute paths into the agent's spawn prompt as named slots, mirroring how `_shared/scope-anchor.md` propagates `WORKTREE` and `BRANCH`. Use narrow per-domain slots (each is `PRIMARY_ROOT/.geniro/<domain>`) — there is no umbrella slot:

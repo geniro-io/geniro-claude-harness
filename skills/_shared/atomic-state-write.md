@@ -176,10 +176,7 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 
 ## Why per-write atomic
 
-- Without atomic writes, direct `Edit`/`Write` calls truncate-and-rewrite, leaving a window where reader sees half-written file.
-- Fix: every state path goes through this helper. `tmp + fsync + rename + fsync-dir` guarantees either pre- or post-state, never partial.
-
-The PreToolUse hook `enforce-state-helper.sh` (hard-block — exit 2) catches sites that bypass the helper.
+Direct `Edit`/`Write` truncate-and-rewrite, leaving a window where a reader sees a half-written file; this helper's `tmp + fsync + rename + fsync-dir` guarantees either the pre- or post-state, never partial. The PreToolUse hook `enforce-state-helper.sh` (hard-block — exit 2) catches sites that bypass the helper.
 
 ---
 
