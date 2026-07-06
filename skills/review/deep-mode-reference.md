@@ -27,7 +27,7 @@ Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verif
 - **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` so the session-restore hook re-applies it on a compaction-resume.
 - **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the verified survivors whenever eligible findings exist; the two never conflict.
 
-When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (single reviewer batch, single per-finding verifier) — deep mode adds no overhead to standard runs.
+When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (single reviewer batch; one verify-finding verdict per survivor via file-clustered verifier spawns) — deep mode adds no overhead to standard runs.
 
 ---
 
@@ -55,7 +55,7 @@ The Workflow tool returns its result to the orchestrator and the orchestrator re
 
 When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, unchanged) is verified inside a `Workflow(...)`, but the vote count is **gated by signal** — one verifier on the clear majority, the full 3-vote majority only on contested or high-stakes findings:
 
-- **First vote (always).** Run ONE independent verifier on the finding — the same isolated input the single-pass verifier gets (the single finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2), NOT any other verifier's output (independence is load-bearing). It emits the standard structured result (`validation: confirmed | refuted | clarified`, `recommended_action`, `confidence`, `evidence`) as raw JSON text.
+- **First vote (always).** Run ONE independent verifier on the finding — the degenerate one-finding cluster input (the finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2), NOT any other verifier's output (independence is load-bearing). It emits the standard structured result (`validation: confirmed | refuted | clarified`, `recommended_action`, `confidence`, `evidence`) as raw JSON text.
 - **Escalate to 3** (run 2 more independent verifiers, then majority) when ANY of:
   - the first vote's `confidence < 70` — a low-confidence vote is the unreliable one the majority exists to backstop;
   - the first vote is `refuted` AND the finding's `convergence_count >= 2` — the verdict contradicts the cross-dimension agreement that admitted it, exactly the contested case majority arbitrates;
