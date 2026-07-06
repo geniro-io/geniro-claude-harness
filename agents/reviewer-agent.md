@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits a structured validation result (confirmed/refuted/clarified) for a single CRITICAL/HIGH/MEDIUM survivor finding."
+description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits an independent validation verdict (confirmed/refuted/clarified) per finding for 1-3 same-file CRITICAL/HIGH/MEDIUM survivor findings."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
 maxTurns: 100
@@ -17,7 +17,7 @@ maxTurns: 100
 - Review Process — absorb criteria, analyze, verify, filter
 - Confidence Scoring — advisory hint, not the load-bearing filter
 - Output Format — finding schema + dimension summary
-- Verify-finding mode — structured validation result for one survivor
+- Verify-finding mode — per-finding validation verdicts (1-3 same-file survivors)
 - Severity levels + Decision Type guidance
 - Anti-Patterns to Avoid + Fallback Strategy
 
@@ -178,12 +178,12 @@ A finding states what you verified, not a chore for the reader. Before writing "
 When the input prompt contains `mode: verify-finding`, emit a structured verification result INSTEAD of the standard finding schema. This mode is used by `/geniro:review` Phase 4.2 per-finding verifier — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` for the full contract.
 
 In verify-finding mode you receive:
-- A single finding body (title, file:line, severity, decision-type, evidence, suggested-fix)
-- The cited code slice (file at the cited line ± 30 lines)
-- 1-hop caller-search output for the key symbol
-- 1-2 sibling test references
+- 1-3 finding bodies citing the same file (title, file:line, severity, decision-type, evidence, suggested-fix each; a single finding is the common case for cross-skill callers)
+- The cited code slice covering each finding's line ± 30
+- 1-hop caller-search output per key symbol
+- 1-2 sibling test references per member symbol
 
-Emit exactly ONE structured response:
+Emit one structured verdict block PER finding, in the order received, each headed by the finding's `file:line — <title>` verbatim (a path-less sentinel finding heads its block with the `File` sentinel — title instead) — never by batch position ("finding 2") — followed by:
 
 ```yaml
 validation: confirmed | refuted | clarified
@@ -191,6 +191,8 @@ recommended_action: fix-now | testable | product-decision | intent-check | drop
 confidence: 1 | 2 | 3 | 4 | 5
 evidence: "<literal quote from cited file:line or caller chain>"
 ```
+
+Judge each finding solely on its own evidence — a sibling's verdict in the same spawn is not evidence, and confirming one finding must not bias the next; re-read the cited lines for every finding separately.
 
 Field semantics:
 - `validation: confirmed` — the cited code exhibits the defect AND the defect is ACTIONABLE (see actionability bar below). Both halves required.

@@ -39,7 +39,7 @@ Standard Phase 3 Round 1 spawns one `reviewer-agent` per dimension (bugs / secur
 
 Standard Phase 3 routes every Round-1 finding straight into the fix loop. Deep mode inserts a verification gate BEFORE the fix so the implementer doesn't spend fix-loop rounds on a hallucinated defect — but the vote count is **gated by signal**: one verifier on the clear majority, the full 3-vote majority only on contested or high-stakes findings.
 
-- **First vote (always).** Run ONE independent verifier (`reviewer-agent` verify-finding mode) on the deduped finding — the same isolated input the single-pass verifier gets, raw JSON parsed defensively. `confirmed`/`clarified` = "real", `refuted` = "drop".
+- **First vote (always).** Run ONE independent verifier (`reviewer-agent` verify-finding mode) on the deduped finding — the degenerate one-finding cluster input of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, raw JSON parsed defensively. `confirmed`/`clarified` = "real", `refuted` = "drop".
 - **Escalate to 3** (then majority) when ANY of:
   - the first vote's `confidence < 70`;
   - the finding is CRITICAL or HIGH — a code fix to a high-stakes finding should clear the full majority in EITHER direction, because in a mutation skill both a wrong fix (false-confirm → an edit the code didn't need) and a dropped real defect (false-refute → ships with the bug) are costly;

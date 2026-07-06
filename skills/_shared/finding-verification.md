@@ -1,6 +1,6 @@
 # /geniro:review Phase 4.2 — Per-finding empirical-reproduction verifier
 
-Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — gets ONE fresh `reviewer-agent` spawn in verify-finding mode. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result. Isolated context per verifier (NOT the full reviewer bundle) prevents anchoring and sycophancy. Every §4.1 survivor is verified — no tier-scaling, no severity-scaling. The §4.1 multi-signal gate already constrains the survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM; Loop Invariant #6 mandates Evidence at every kept severity), so every code-anchored survivor has a concrete file:line for the verifier to re-read. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice (§2 path-less branch).
+Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — is verified by a file-clustered fresh `reviewer-agent` spawn in verify-finding mode: survivors citing the same file share one spawn (up to 3 findings per cluster; a solo survivor or a sentinel-`File` finding spawns singly), with one independent verdict per finding. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result per finding. Isolated context per verifier (NOT the full reviewer bundle — the isolation boundary is the originating reviewer's bundle, not cluster siblings) prevents anchoring and sycophancy. Every §4.1 survivor is verified — no tier-scaling, no severity-scaling. The §4.1 multi-signal gate already constrains the survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM; Loop Invariant #6 mandates Evidence at every kept severity), so every code-anchored survivor has a concrete file:line for the verifier to re-read. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice (§2 path-less branch).
 
 ## Contents
 
@@ -28,29 +28,29 @@ Skip condition: ONLY when the Path-A surviving set is empty (a Path-B-only LOW `
 
 Each verifier spawn receives ONLY:
 
-- The single finding's full body (title / file:line / severity / decision-type / confidence / evidence / suggested-fix / why-matters).
-- The cited code slice — orchestrator reads the file at finding `file:line ± 30` lines and inlines into the prompt.
-- 1-hop caller grep results — orchestrator runs `grep -rn "<symbol>" --include="*.<ext>"` for the cited symbol; pipe results capped at 50 lines.
-- 1-2 sibling test references for the same symbol — orchestrator greps test directories (`test/`, `tests/`, `__tests__/`, `spec/`); capped at 20 lines.
+- The finding bodies of ONE cluster — 1-3 findings citing the same file, each with its full body (title / file:line / severity / decision-type / confidence / evidence / suggested-fix / why-matters). A single finding is the degenerate one-finding cluster; cross-skill callers such as /geniro:resolve and spec-challenge always pass one.
+- The cited code slice — orchestrator reads the cited file ONCE per cluster, extracting each member's `line ± 30` window (overlapping windows merge into one range), and inlines into the prompt.
+- 1-hop caller grep results — orchestrator runs `grep -rn "<symbol>" --include="*.<ext>"` for each member's key symbol; pipe results capped at 50 lines per member (when members share a symbol, one merged grep serves them).
+- 1-2 sibling test references per member symbol — orchestrator greps test directories (`test/`, `tests/`, `__tests__/`, `spec/`); capped at 20 lines per member.
 
 When the finding's body asks the author to confirm something about ANOTHER file, symbol, or migration (a "confirm X" / "verify Y" claim), the orchestrator also includes the evidence needed to check it — the PR's changed-file list (`git diff --name-only <base>...HEAD`), `git log --oneline -- <cited-path>`, or the relevant grep — so the verifier can resolve the claim rather than pass it through. See §3.5. When the finding's risk depends on a feature flag / gate / role / config branch, the orchestrator also includes the current config state (the flag's default value, the gate's condition) so the verifier can apply the §3.6 actionability bar.
 
-**Path-less sentinel findings (`File: SPEC-COMPLIANCE` / `File: PR-METADATA`).** A finding whose `File:` field is a sentinel string carries no code `path:line`, so the cited-code-slice bullet above does not apply — there is nothing at `<sentinel> ± 30 lines`. For these, the orchestrator supplies instead: the finding's `Evidence:` (which quotes the spec/PR fragment verbatim), the PR's changed-file list (`git diff --name-only <base>...HEAD`), and any real code `file:line` embedded in the Evidence (a spec-defect finding cites the code that contradicts the spec premise — read it ± 30 lines). The verifier judges the claim against the diff + cited fragment: "is the scoped item actually absent from the changed files?" for a code-omission finding, or "does the cited code actually contradict the spec premise?" for a spec-defect finding. For an omission finding, `git diff --name-only` confirms the named artifact's presence or absence — the right granularity for an omission claim; it does not validate the artifact's content, which a code-anchored dimension would have flagged with its own `file:line`. The `confirmed` / `refuted` / `clarified` semantics, the §3.6 actionability bar, and the anti-sycophancy guard are unchanged.
+**Path-less sentinel findings (`File: SPEC-COMPLIANCE` / `File: PR-METADATA`).** A finding whose `File:` field is a sentinel string carries no code `path:line`, so the cited-code-slice bullet above does not apply — there is nothing at `<sentinel> ± 30 lines`. For these, the orchestrator supplies instead: the finding's `Evidence:` (which quotes the spec/PR fragment verbatim), the PR's changed-file list (`git diff --name-only <base>...HEAD`), and any real code `file:line` embedded in the Evidence (a spec-defect finding cites the code that contradicts the spec premise — read it ± 30 lines). The verifier judges the claim against the diff + cited fragment: "is the scoped item actually absent from the changed files?" for a code-omission finding, or "does the cited code actually contradict the spec premise?" for a spec-defect finding. For an omission finding, `git diff --name-only` confirms the named artifact's presence or absence — the right granularity for an omission claim; it does not validate the artifact's content, which a code-anchored dimension would have flagged with its own `file:line`. The `confirmed` / `refuted` / `clarified` semantics, the §3.6 actionability bar, and the anti-sycophancy guard are unchanged. Sentinel findings never cluster — each gets its own spawn (they verify against the diff, so there is no shared file slice to amortize).
 
 Each verifier does NOT receive:
 
-- Other reviewers' findings.
+- Findings outside its own cluster.
 - The full reviewer-agent bundle output.
 - The orchestrator's prior reasoning.
 - Information about which dimension originated the finding (avoids anchoring on the originating reviewer's framing).
 
-Rationale: independent verifiers that do not see each other's outputs cannot anchor on a shared framing — each re-reads the cited code cold and judges the finding on its own merits, which is what keeps the verification honest.
+Rationale — the isolation boundary is two-part. The load-bearing isolation is from the ORIGINATING reviewer's framing (bundle, dimension, orchestrator reasoning): a verifier that never sees it re-reads the cited code cold and judges each finding on its own merits, which is what keeps the verification honest. Cluster siblings share only co-location on the cited file, and each is judged independently — a sibling's verdict is never evidence for another finding, because cross-item anchoring is the documented failure mode of batched judgment.
 
 ---
 
 ## 3. Output contract per verifier
 
-The verifier emits exactly one structured response:
+The verifier emits one structured verdict block PER finding in its cluster, in the order received, each headed by the finding's `file:line — <title>` verbatim (never by batch position or index; a path-less sentinel finding heads its block with the `File` sentinel — title instead):
 
 ```yaml
 validation: confirmed | refuted | clarified   # a fourth value, unverified, exists but is orchestrator-assigned (§4.5) — a verifier never emits it
@@ -58,6 +58,8 @@ recommended_action: fix-now | testable | product-decision | intent-check | drop
 confidence: 1 | 2 | 3 | 4 | 5
 evidence: "<exact quote from cited file:line OR caller chain that confirms/refutes>"
 ```
+
+A single-finding spawn therefore emits exactly one block — the shape cross-skill callers already consume.
 
 Field semantics:
 
@@ -106,15 +108,19 @@ A real server-side pattern that is unreachable under the production flag state i
 Orchestrator-side (in /geniro:review Phase 4.2):
 
 ```
-For each §4.1 survivor (CRITICAL / HIGH / MEDIUM):
-  0. If finding.file is a sentinel (SPEC-COMPLIANCE / PR-METADATA) — path-less, no code slice:
-       compose per §2's path-less bullet — finding body + `git diff --name-only <base>...HEAD`
-       + any real code file:line embedded in finding.evidence (read ± 30 lines when present);
-       skip steps 1-3 and go to step 5.
-  1. Read the cited file at finding.file:finding.line ± 30 lines.
-  2. Run `grep -rn "<key symbol from finding.evidence>" --include="*.<ext>"` (cap 50 lines).
-  3. Run `grep -rn "<symbol>" test/ tests/ __tests__/ spec/` (cap 20 lines).
-  4. Compose verifier spawn prompt with finding body + cited slice + caller grep + test grep.
+Group non-sentinel §4.1 survivors by cited file path; split a group of 4+ into clusters of ≤3.
+A sentinel-File survivor (SPEC-COMPLIANCE / PR-METADATA) never clusters — compose its
+spawn per §2's path-less bullet (finding body + `git diff --name-only <base>...HEAD`
++ any real code file:line embedded in its evidence, read ± 30 lines when present);
+add to the same parallel-spawn batch.
+
+For each cluster:
+  1. Read the cited file ONCE, extracting each member's line ± 30 window (merge overlaps).
+  2. Run `grep -rn "<key symbol from member.evidence>" --include="*.<ext>"` per member
+     (cap 50 lines each; one merged grep when members share the symbol).
+  3. Run `grep -rn "<symbol>" test/ tests/ __tests__/ spec/` per member (cap 20 lines each).
+  4. Compose ONE verifier spawn: all member finding bodies + the shared slice + grep
+     outputs; instruct one verdict block per finding, keyed by file:line + title.
   5. Add to parallel-spawn batch.
 
 After loop:
@@ -127,13 +133,13 @@ After loop:
 
 Critical: ALL verifier spawns fire in ONE assistant response, same assistant turn, NOT one per turn. Separate turns serialize execution and double wall-time; the canonical parallel-spawn invariant applies.
 
-**Deep mode (`deep-mode: true`).** Spawn 3 independent verifiers per survivor (instead of 1) inside a `Workflow(...)` and aggregate by 2/3 majority — `confirmed`/`clarified` are "stands" votes, `refuted` is a "drop" vote; ≥2 drop → refuted, else stands; a parse failure abstains; quorum < 2 parseable votes → fail-safe to ONE single-pass verifier. The per-verifier input (§2), output (§3), and actionability bar (§3.6) are identical; deep mode changes only the vote count and the aggregation. Persist the majority verdict to the existing `Validation` field and the tally to `Verification-evidence` (no schema bump). Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3 (a `/geniro:review`-only execution path — cross-skill consumers of this file never follow it).
+**Deep mode (`deep-mode: true`).** Clustering applies only in standard mode; deep mode verifies each survivor individually inside a `Workflow(...)` with signal-gated verification — one verifier, escalating to a 3-vote 2/3 majority only where the verdict is contested or high-stakes; escalation triggers, abstain rule, and quorum fail-safe are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3 (a `/geniro:review`-only execution path — cross-skill consumers of this file never follow it). The per-verifier input (§2), output (§3), and actionability bar (§3.6) are identical; persist the final verdict to the existing `Validation` field and the vote path to `Verification-evidence` (no schema bump).
 
 ---
 
 ## 4.5 Spawn-failure fail-open
 
-A verifier can fail to produce a verdict at all: the spawn errors out even after the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, or it returns output with no parseable `validation:` value after the one empty-result retry (inherit tier). The finding then lands in none of the §3 outcome buckets, and an unmarked `Validation:` would read as `confirmed` to every consumer via the legacy back-compat rule — masking "nobody checked this" as "this was checked". The orchestrator instead assigns an explicit disposition:
+A verifier can fail to produce a verdict at all: the spawn errors out even after the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, or it returns output with no parseable `validation:` value after the one empty-result retry (inherit tier). The finding then lands in none of the §3 outcome buckets, and an unmarked `Validation:` would read as `confirmed` to every consumer via the legacy back-compat rule — masking "nobody checked this" as "this was checked". The orchestrator instead assigns an explicit disposition — a failed cluster spawn (after the ladder + one retry) assigns it to EVERY finding in that cluster:
 
 - `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "verifier did not run — spawn failed after retry"`, `Recommended-action` mirroring the finding's original Decision Type.
 - The finding stays kept — fail-open, mirroring the Phase 1.5 mechanical pre-pass and Phase 4.3 test-gate doctrine: a tooling failure never deletes a finding the reviewers already paid for.
@@ -148,7 +154,7 @@ Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for v
 
 ## 5. Result aggregation and demotion rules
 
-After all verifiers return, the orchestrator processes results:
+After all verifiers return, the orchestrator processes each finding's verdict block by the same rules:
 
 1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier` (or `not-actionable` when the verifier refuted on the §3.6 actionability bar — the defect was real but unreachable / no behavior delta). Do NOT propagate to Phase 4.3 test-confirmation gate or Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged.
 2. **`validation: clarified`** — update the finding's `Decision Type:` to match the verifier's `recommended_action`. Append verifier `confidence` and `evidence` to the finding body. Keep finding in active set. When the verifier resolved an embedded "confirm X" ask (§3.5), replace that phrasing in the finding body with the verified result it returned — the posted finding states the fact, never the un-run check.
@@ -163,9 +169,10 @@ After all verifiers return, the orchestrator processes results:
 |---|---|
 | "The original reviewer is usually right — confirm to maintain coherence." | Agreeing to stay coherent with the original reviewer is the documented multi-judge failure mode. Re-read the cited code; if the defect is not visible in the quote, mark refuted. Coherence is not a verification signal. |
 | "Skip the caller grep — the finding cites `file:line`, that's enough." | The cited `file:line` is the reviewer's claim. Without grepping callers, impact cannot be refuted or confirmed. Read the call sites before emitting. |
-| "Pass the full reviewer bundle to each verifier so they have full context." | Shared context anchors verifiers toward agreement — they read the original framing instead of the code. Each verifier sees ONLY its finding plus cited slice plus caller grep. Independence is load-bearing. |
+| "Pass the full reviewer bundle to each verifier so they have full context." | Shared context anchors verifiers toward agreement — they read the original framing instead of the code. Each verifier sees ONLY its cluster's finding bodies plus cited slice plus caller grep. Independence is load-bearing. The sanctioned cluster — up to 3 co-located finding bodies citing the same file — is not the forbidden bundle, which is the originating reviewer's full output and framing. |
+| "Sibling finding #1 in this cluster is confirmed, so #2 in the same file is probably real too." | Cross-item anchoring is the documented failure mode of batched judgment — a verdict must rest on its own literal quote from the cited code, not on a sibling's verdict. Confirm/refute each finding as if it were the only one in the spawn. |
 | "Verifier confidence:1 — silently demote severity to MEDIUM instead of refuting." | `confidence: 1` with no contradicting evidence means the verifier is uncertain; emit `validation: clarified, confidence: 1` and let the orchestrator decide. Silently demoting severity hides the uncertainty from the consumer. |
-| "All §4.1 survivors verified takes too many spawns — sample top-N instead." | The verifier explicitly drops tier-scaling AND severity-scaling. Parallel-spawn invariant: wall-time is ~max(spawn-time) regardless of N. Token cost is bounded by the §4.1 multi-signal gate, which is already tight (MEDIUM requires Evidence-Block + ≥60 confidence). If finding count is high, that signals tightening Phase 4.1, not under-verifying. Sampling reintroduces the failure mode the empirical-reproduction pass exists to eliminate. |
+| "All §4.1 survivors verified takes too many spawns — sample top-N instead." | The verifier explicitly drops tier-scaling AND severity-scaling. Parallel-spawn invariant: wall-time is ~max(spawn-time) regardless of N. Token cost is bounded by the §4.1 multi-signal gate, which is already tight (MEDIUM requires Evidence-Block + ≥60 confidence), AND by file-clustering — co-located survivors share one spawn. If finding count is high, that signals tightening Phase 4.1, not under-verifying. Sampling or skipping reintroduces the failure mode the empirical-reproduction pass exists to eliminate. |
 | "CRITICAL findings are reliable by definition — skip verification for CRITICALs." | CRITICALs can be admitted under §4.1 signals #1 (convergence) / #3 (criteria pre-resolved) / #4 (confidence ≥80) without an explicit Evidence-Block — a convergent CRITICAL with weak quoting is exactly the case empirical reproduction catches. Skipping verification for CRITICALs because they "look right" is sycophancy at maximum stake: a confirmed-without-evidence CRITICAL lands on the PR, gates `/geniro:implement` Phase 1, and surfaces to the user as load-bearing. Verify every survivor. |
 | "MEDIUM verification is overkill — these are paper cuts." | MEDIUMs that survive §4.1 carry an Evidence-Block per signal #2 (mandatory for MEDIUM) — they cite a concrete code slice (code-anchored) or a verbatim plan/PR fragment (sentinel `File`) worth re-reading. The risk is the opposite of overkill: a MEDIUM that skips verification — but that the verifier would have refuted had it run — lands on the PR as exactly the false positive `## Filtered` exists to hold back. The verifier is the mechanism that distinguishes "the reviewer misread the code" from "the defect is real" at MEDIUM stake. Don't pre-judge which severities deserve grounding — let the verifier ground them. |
 | "The finding's `suggested-fix:` reads sensible — confirm without re-reading code." | The suggested-fix being sensible is independent of whether the defect exists. Verification reads the cited code AND the caller grep; the suggested-fix is not evidence of the defect. |
