@@ -53,7 +53,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 
 | Flag / modifier | Values | What it presets | Which question it skips |
 |---|---|---|---|
-| `--deep` | present / absent | Reviews each check from several angles and majority-verifies findings where the call is contested. Higher quality, higher cost. | The Mode / depth question (the depth pick is folded into the Phase 1 Mode question). |
+| `--deep` | present / absent | Reviews each check from several angles and majority-verifies findings where the call is contested. Higher quality, higher cost. Without it, Standard runs one reviewer pass per dimension — N reviewers for this diff (computed at ask time). | The Mode / depth question (the depth pick is folded into the Phase 1 Mode question). |
 | `--plan <path>` | a spec path | Supplies the spec so the specification-compliance reviewer can check the diff against it. This is a context input, not a question pre-set. | No question — adds spec context to the reviewers. |
 | `worktree` / `no-worktree` / `here` / `current-branch` / `new-branch` | one value | Forces the workspace path the review inspects. | The Step 0 workspace question. |
 

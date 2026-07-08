@@ -8,7 +8,7 @@
 - §Discovery procedure — Steps 1-7 (resolve root → glob → parse → validate → path-filter → cap → build specs)
 - §Hydrating requires-context — orchestrator pre-fetch of declared external data
 - §How consumers use the spawn-specs — the Agent() call template
-- §Batched-mode behavior — `/geniro:review` one-spawn-per-run rule
+- §Large-diff behavior — `/geniro:review` one-spawn-per-dimension rule
 - §Anti-rationalization
 
 Canonical rule for discovering and spawning user-authored custom review dimensions. Referenced from every skill that spawns the parallel reviewer batch: `/geniro:review` (parallel-reviewer-spawn phase), `/geniro:implement` (self-review), `/geniro:refactor` (verify).
@@ -146,11 +146,9 @@ The DIMENSION value uses the literal form `custom:<slug>` so that the reviewer-a
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every custom-reviewer spawn site (same runtime-degradation ladder as the built-ins: prefixed → bare → general-purpose with body inlined). When the batch falls back to the next rung, all custom reviewers in that batch fall back together — do not mix ladder rungs (per `spawn-agent.md` §Parallel-spawn sites).
 
-## Batched-mode behavior (consumer: `/geniro:review` only)
+## Large-diff behavior (consumer: `/geniro:review` only)
 
-When `/geniro:review` is in Batched Mode (large diffs), the built-in reviewers fan out per-batch. Custom reviewers do NOT fan out per-batch — they spawn ONCE per review run regardless of batch count, each one seeing the full changed-files list.
-
-Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spawning would multiply identical `Agent()` calls; one-per-run is simpler and matches the per-PR rule already used for the pr-metadata reviewer. This applies only to `/geniro:review`'s parallel-reviewer-spawn phase, Batched Mode — the other two consumer skills (`/geniro:implement` self-review, `/geniro:refactor` verify) run only the standard parallel batch.
+Custom reviewers spawn once per review run — exactly like every built-in dimension: one spawn per dimension regardless of diff size. On large diffs (Batched payload mode) the diff is organized into ~5-file groups as a reading order inside each reviewer's one spawn; the grouping never multiplies spawns for built-ins or customs.
 
 ## Anti-rationalization
 
@@ -160,7 +158,7 @@ Rationale: custom reviewers tend to be narrow (path-filtered), so per-batch spaw
 | "I'll abort the helper on the first invalid file so the user notices" | Per Step 4, one bad file does not kill the rest. Aborting punishes users for typos — the warning is enough. The user sees the warning, fixes the file, re-runs. |
 | "I'll pre-read all criteria content into orchestrator context for a summary" | The consumer skill IS the orchestrator, and it pre-inlines the criteria content into the spawn prompt — exactly the same as built-in reviewers do with `bugs-criteria.md` etc. Pre-inlining N user files inflates the spawn prompt by N×criteria-length, but each spawned agent only sees its own criteria. This matches the built-in pattern verbatim. |
 | "I'll dedup main + local by union, not by 'local wins'" | Mirror the actions convention exactly: local wins. Uncommitted local edits exist for a reason — typically the user is iterating on a new reviewer. Union would re-introduce the stale committed version. |
-| "I'll let the per-batch case spawn custom reviewers per batch for symmetry with built-ins" | Custom reviewers are narrow by design (path-filtered). Per-batch fan-out multiplies cost with no accuracy gain. Per-PR (or here, per-review-run) matches the pr-metadata pattern. |
+| "Large diff — I'll spawn extra reviewer instances per file group for coverage." | No dimension fans out per file group — built-in or custom. One spawn per dimension; the file groups are a reading order inside that one spawn. Per-group fan-out multiplied a real run to 33+ spawns with no accuracy gain — concern-parallel, never chunk-parallel. |
 | "If `paths:` is set and matches nothing, I'll fire anyway just to be safe" | If the user scoped a reviewer to `**/*.sql` and the diff has no SQL files, firing it wastes a Sonnet call and produces zero findings. Silently drop — the `paths:` field IS the user's opt-out for unrelated diffs. |
 | "I'll cache the spawn-specs across consumer-skill invocations within the session" | Don't. The changed-files list differs per invocation, so the `paths:` filter result differs too. Re-run the helper on every consumer-skill invocation. The cost is one Glob + N small Reads — cheap relative to the parallel reviewer batch itself. |
 | "Custom reviewer's frontmatter omitted `model:` — I'll default to `sonnet` at the spawn site" | When `model:` is OMITTED in the custom-reviewer frontmatter, default to `inherit`, not `sonnet`. Custom reviewers follow the same default as built-ins per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user opts INTO a hardcoded tier only by explicitly writing `model: haiku` / `model: sonnet` / `model: opus` — honor that declaration when present, OMIT `model=` at the spawn site when absent. |

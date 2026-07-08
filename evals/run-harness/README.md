@@ -101,6 +101,55 @@ fixed approve gate. Covered by `src/auto-answer.test.ts` (10 cases).
 > *worse* questions. `gates.jsonl` records every gate verbatim so question quality can be
 > scored separately (plan §5).
 
+## Review spawn assertions (Batched mode)
+
+`/review` enters Batched payload mode past >8 files or >400 changed LOC: the diff is
+grouped into a per-reviewer reading order — never a spawn multiplier. Total reviewer
+spawns must equal the declared dimension count in every mode. The large fixture is
+12 files (>8 — the file-count threshold alone triggers Batched payload mode); ~450
+total changed lines across `src/core`, `src/queue`, `src/web`, `migrations`:
+
+```bash
+REVIEW_REPO=$(bash fixtures/build-review-fixture-large.sh | tail -1)
+node --import tsx src/driver.ts --skill geniro:review --cwd "$REVIEW_REPO" \
+  --out runs/review-batched-1 --max-turns 100 --prompt "main..HEAD"
+```
+
+`--max-turns 100` caps the run as a cost bound (~$2-4) — a full `/review` run has
+completed in ~32 turns, so the cap may never trigger; the transcript appends
+incrementally, so the Phase 2 reviewer fan-out is captured either way. Assert against
+`runs/<id>/transcript.jsonl`:
+
+```bash
+T=runs/review-batched-1/transcript.jsonl
+
+# 1. Phase 2 reviewer spawn count == the declared dimension count (spawn_dims_count in
+#    the target repo's .geniro/planning/*/state.md), NOT dims x file-groups. Excludes
+#    Phase 4.2 verify-finding spawns, which also use reviewer-agent.
+jq -r 'select(.type=="assistant" and .parent_tool_use_id==null)
+  | .message.content[]? | select(.type=="tool_use" and (.name=="Agent" or .name=="Task")
+      and ((.input.prompt // "" | test("mode: verify-finding")) | not))
+  | .input.subagent_type // "?"' "$T" | grep -c reviewer-agent
+
+# 2. One-message batch: every Phase 2 reviewer spawn shares one message.id
+#    (expect a single id whose count equals assertion 1).
+jq -r 'select(.type=="assistant" and .parent_tool_use_id==null)
+  | .message as $m | $m.content[]?
+  | select(.type=="tool_use" and (.name=="Agent" or .name=="Task")
+      and (.input.subagent_type // "" | test("reviewer-agent")))
+  | $m.id' "$T" | sort | uniq -c
+
+# 3. Echo weld: the assistant message carrying the spawns also carries the echo text.
+#    Real transcripts emit one JSONL entry per content block, so group all entries
+#    sharing the spawn-carrying message.id and check their joined text (verified on
+#    both the per-block and whole-message shapes).
+jq -sr 'map(select(.type=="assistant" and .parent_tool_use_id==null)) | group_by(.message.id)[] | select([.[].message.content[]? | select(.type=="tool_use" and (.input.subagent_type//"" | test("reviewer-agent")))] | length > 0) | [.[].message.content[]? | select(.type=="text") | .text] | join(" ")' "$T" | grep -E 'Spawning [0-9]+ reviewers'
+```
+
+A/B protocol: two runs differing only in `--plugin-ref <before>` vs `--plugin-ref
+<after>` (both committed refs — the driver archives the plugin from the ref), then
+compare assertion 1's count across the two transcripts.
+
 ## Operational findings (§5 risks, closed with evidence)
 
 1. **`canUseTool` answers `AskUserQuestion` on subscription** — confirmed live (micro-smoke
@@ -150,5 +199,6 @@ src/auto-answer.test.ts 10 policy tests (node:test)
 src/driver.ts           the canUseTool query() driver
 fixtures/build-plan-fixture.sh    realistic mathlib target for /plan
 fixtures/build-review-fixture.sh  planted-bug git fixture for /review
+fixtures/build-review-fixture-large.sh  12-file/~450-LOC Batched-mode fixture for the review spawn assertions
 runs/                   per-run outputs (gitignored)
 ```

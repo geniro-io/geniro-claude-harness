@@ -445,7 +445,7 @@ After triage, surface the depth question via `AskUserQuestion` (do NOT print opt
 - **Header:** "Review depth"
 - **Question:** "How deep should the review go?"
 - **Options:**
-- "Standard" — one reviewer pass per dimension; findings filtered and verified once.
+- "Standard" — one reviewer pass per dimension — <N> reviewers for this diff (substitute the computed count: 7 always-fire + triggered conditional dimensions + discovered custom reviewers; if custom discovery has not yet run, state the built-in count and append "plus your custom reviewers, if any"); findings filtered and verified once.
 - "Deep — multi-angle review + extra verification" — reviews each check from several angles and verifies findings with a majority vote, escalated only where the call is contested; higher quality (finds more, validates more reliably) at higher token cost. Posts the same finding set as Standard.
 
 Neither option carries a `(Recommended)` suffix — depth is a per-run pick where the alternative is only costlier, never safer (Deep authors no fix), so the user weighs cost against thoroughness each run. If the question is dismissed (empty answer), default to the cheaper value: Standard (`deep-mode: false`).
@@ -463,4 +463,4 @@ After context settled, classify files when diff has >8 files or >400 LOC:
 
 Done inline by orchestrator (read each diff hunk, classify) — no subagent.
 
-The size threshold also controls Phase 2 Standard vs Batched mode (≤8 files AND ≤400 LOC → Standard, all reviewers see all files; >8 files OR >400 LOC → Batched, files split into ~5-file batches).
+The size threshold also controls how each reviewer reads the diff — Standard vs Batched **payload** (≤8 files AND ≤400 LOC → Standard; >8 files OR >400 LOC → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.

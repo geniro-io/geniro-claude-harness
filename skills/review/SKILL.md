@@ -126,8 +126,8 @@ Summary of what Phase 1 does:
 9. **PLAN CONTEXT load (schema-aware).** Detection per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` Structured-section parser when `geniro_kind: design-doc` frontmatter present; prose fallback otherwise.
 10. **Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / mechanical secret-scan strict mode).
 11. **Memory layer load:** `load-semantic` MODE:refresh + `query-learnings` (top-K, K=5 default; when `memory.md` declares a `## Memory Backend` block routing `learnings`, /geniro:review's own tools can't reach the backend read tool, so it delegates that read to a scoped `knowledge-retrieval-agent` spawn — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3 and uses the returned report in place of the file query, which is empty under `mode: replace`; no block → the inline file query runs unchanged) + `resolve-conflicts`.
-12. **Mode AUQ** — review depth (Standard / Deep). Fires on a user-invoked run unless `--deep` is in `$ARGUMENTS`, the §7 re-review gate already asked depth this run, or a compaction-resume inherits it — a fresh re-run always re-asks depth (never inherits a prior completed run's pick). Persist the pick → frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`. Full chooser shape + deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §11 + `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
-13. **Size triage** — classify files Trivial / Substantive when diff >8 files or >400 LOC. Controls Phase 2 Standard vs Batched mode.
+12. **Size triage** — classify files Trivial / Substantive when diff >8 files or >400 LOC. Controls each reviewer's payload shape: Standard (diff as-is) vs Batched (grouped reading order — never extra spawns). Runs before the depth question so the reviewer count is known at ask time.
+13. **Mode AUQ** — review depth (Standard / Deep). Fires on a user-invoked run unless `--deep` is in `$ARGUMENTS`, the §7 re-review gate already asked depth this run, or a compaction-resume inherits it — a fresh re-run always re-asks depth (never inherits a prior completed run's pick). Persist the pick → frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`. Full chooser shape + deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §11 + `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 
 Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, plus `deep-mode` (from the Mode AUQ pick or `--deep` parse) when that step ran; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
@@ -274,7 +274,7 @@ This is observability for the Phase 4 §4.0 verification gate — declared-vs-ac
 
 ### 2.3 Spawn invocation
 
-**Step 2.3.1 — Emit the spawn echo (welded to the batch fire).** Read the `spawn_dims_declared[]` list from state.md (written in §2.2), render dim slugs in plain English (`pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit this one-line status in the SAME assistant response that fires the parallel `Agent(...)` batch (Step 2.3.2) — not a separate turn — so the user sees what is being spawned exactly when it spawns:
+**Step 2.3.1 — Emit the spawn echo (welded to the batch fire).** Read the `spawn_dims_declared[]` list from state.md (written in §2.2; `<N>` below is `spawn_dims_count` — identical in Standard and Batched payload mode), render dim slugs in plain English (`pr-metadata` -> "PR metadata", `spec-compliance` -> "specification compliance"; the slugs `bugs / security / architecture / tests / optimizations / conventions / regressions` are already plain-English — surface verbatim; custom reviewers render as `custom: <slug>`). Emit this one-line status in the SAME assistant response that fires the parallel `Agent(...)` batch (Step 2.3.2) — not a separate turn — so the user sees what is being spawned exactly when it spawns:
 
 > Spawning <N> reviewers: <comma-separated plain-English list>.
 
@@ -284,12 +284,12 @@ A dropped echo produces a silent multi-minute window where the user cannot tell 
 
 **Deep-mode branch (`deep-mode: true`).** Do NOT fire the single parallel batch below. Instead invoke the deep recall Workflow — 3 angle-diverse passes per declared dimension with in-script union + dedup — per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, then proceed to Phase 3 over the deduped per-dim sets. The `spawn_dims_declared[]` declaration (§2.2) and the §4.0 verification gate still apply to the declared dimension SET (the 3 angles are a multiplier on each declared dim, not a new dim). Fail-safe to the single-pass batch below if the workflow errors (deep-mode-reference §6). Everything below describes the standard single-pass path.
 
-Then fire the parallel batch — single message with N parallel `Agent` tool uses, one per dimension. Each spawn:
+Then fire the parallel batch — single message with N parallel `Agent` tool uses, one per dimension. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn. Each spawn:
 
 - `subagent_type: reviewer-agent` (plugin) — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder.
 - OMIT `model=` argument — reviewer-agent declares `model: inherit`. Custom reviewers that declare an explicit tier in their `.geniro/instructions/review-extra/<slug>.md` frontmatter pass that tier verbatim; otherwise OMIT.
 - Pre-inlined context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`:
-  - Diff of changed files (full content for the batch's files in Batched Mode; all files in Standard Mode).
+  - Diff of changed files — all files in both modes; in Batched payload mode organized into ~5-file groups as a structured reading order (highest-risk groups first and last), per the triage reference §12.
   - Project conventions from L4 (refreshed).
   - Mechanical pre-pass findings (Phase 1.5) as prior-context under `## Mechanical Pre-pass Findings`.
   - PLAN CONTEXT — spec-compliance + regressions dims ONLY (other dims see `PLAN CONTEXT: <plan tag fields only>` per the schema-aware reference).
@@ -380,28 +380,38 @@ Before stratification fires, run two declared-vs-actual checks.
 
 **4.0a Mechanical pre-pass declaration check.** Assert state.md frontmatter `mechanical_prepass_attempted` (§1.5.7) exists and each listed check (`lint`, `schema`, `secret`) has a recorded outcome — findings on the list, or a `## Errors mechanical-prepass-<id>` entry. A missing `mechanical_prepass_attempted` declaration means the pre-pass was skipped wholesale (a TS-dominated diff that ran no lint and no `tsc` is the documented live miss); a listed check with no outcome means it was declared but never reached. Either is a contract miss: append `## Errors mechanical-prepass-incomplete: declared=<...> missing-outcome=<...>` and surface it in the Phase 6 report `## Caveats`; this is advisory (the pre-pass is fail-open by design and LLM reviewers still ran), so do NOT block — record the gap so the user knows the cheap-deterministic layer was thin this run.
 
-**4.0b Spawn-batch completeness check.** Verify the Phase 2 parallel batch actually delivered every dimension declared in §2.2:
+**4.0b Spawn-batch completeness check.** Verify the Phase 2 parallel batch actually delivered every dimension declared in §2.2, with exactly one spawn per dimension:
 
 ```
 declared = state.md frontmatter spawn_dims_declared
 actual   = set of dimensions whose reviewer-agent emitted a structured result in Phase 3
+fired    = number of Agent reviewer spawns fired in Phase 2
 
 missing = declared − actual
 ```
 
-A `spawn_dims_declared` list that does not exist in frontmatter at this point is itself a contract miss, not a pass: §2.2 writes it BEFORE the parallel batch precisely so this gate has a baseline — if it appears only at persist time (written ~after the spawns), the gate it powers ran inert against a missing baseline. Treat an absent or first-seen-at-persist `spawn_dims_declared` as drift: append `## Errors phase-2-spawn-declaration-missing` and reconstruct `declared` from the §2.1 grid for THIS run before computing `missing`.
+`fired` must equal `spawn_dims_count` on the standard single-pass path, in both Standard and Batched payload shape; in deep mode the Workflow's 3 angle-passes per declared dimension are checked per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, not by this count. `fired` above the declared count means per-file-batch multiplication (forbidden by §2.3.2); below it means dropped dimensions. Each mismatch direction routes through its matching branch below.
 
-If `missing` is non-empty:
+A `spawn_dims_declared` list that does not exist in frontmatter at this point is itself a contract miss, not a pass: §2.2 writes it BEFORE the parallel batch precisely so this gate has a baseline — if it appears only at persist time (written ~after the spawns), the gate it powers ran inert against a missing baseline. Treat an absent or first-seen-at-persist `spawn_dims_declared` as drift: append `## Errors phase-2-spawn-declaration-missing` and reconstruct `declared` from the §2.1 grid (and `spawn_dims_count` as its length) for THIS run before computing `missing`.
 
-1. Append a `## Errors` body entry: `phase-2-spawn-incomplete: declared=<...> actual=<...> missing=<...>`.
+If `missing` is non-empty, or `fired < spawn_dims_count` (under-fire — dropped dimensions):
+
+1. Append a `## Errors` body entry: `phase-2-spawn-incomplete: declared=<...> actual=<...> missing=<...> fired=<N>`.
 2. Render the round summary to chat first — declared vs returned reviewers, with the missing set in plain-English dimension names — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire a lean `AskUserQuestion` with header `"Review incomplete"`:
    - A) `"Re-run the missing reviewers now"` — issue `Agent(...)` per missing dim; once results land, recompute `actual` and re-verify. (Recommended)
    - B) `"Skip the missing reviewers and continue"` — append to body `## Accepted Gaps`; continue to §4.1.
    - C) `"Abort review"` — terminal `phase: aborted`; `## Termination reason: spawn-batch-incomplete (<missing>)`.
 
-Always-WAIT — an empty answer signals an upstream tool bug; fall back to plain text and re-ask rather than auto-defaulting to the skip-and-continue option, because silently skipping missing reviewers hides a coverage gap the user never consented to.
+If `fired > spawn_dims_count` and `missing` is empty (over-fire — every declared dimension returned, but extra reviewer spawns fired, e.g. per-file-batch multiplication):
 
-When `missing` is empty, proceed directly to §4.1.
+1. Append a `## Errors` body entry: `phase-2-spawn-overfire: declared=<list> fired=<N>`.
+2. Render fired-vs-declared to chat first — how many reviewer agents ran vs how many review dimensions were declared, in plain English — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire a lean `AskUserQuestion` with header `"Extra reviewers ran"`:
+   - A) `"Continue — dedup findings across the extra spawns"` — treat the extra spawns' findings as additional §3.1 dedup inputs; continue to §4.1. (Recommended)
+   - B) `"Abort review"` — terminal `phase: aborted`; `## Termination reason: spawn-overfire`.
+
+Always-WAIT on both gates — an empty answer signals an upstream tool bug; fall back to plain text and re-ask rather than auto-defaulting, because silently skipping missing reviewers (or silently absorbing extra ones) hides a gap the user never consented to.
+
+When `missing` is empty and `fired == spawn_dims_count`, proceed directly to §4.1.
 
 ### 4.1 Multi-signal threshold filter
 
@@ -427,7 +437,9 @@ The admission gate is unchanged for repeat findings — an unchanged repeat is s
 
 Every Path-A survivor of Phase 4.1 — CRITICAL, HIGH, AND MEDIUM — is verified by a fresh `reviewer-agent` verify-finding spawn — in standard mode, survivors citing the same file share one spawn (up to 3 findings per cluster; solo and sentinel-`File` findings spawn singly), all clusters fired as a parallel batch in a single assistant turn, with one independent verdict per finding. No tier-scaling, no severity-scaling within Path A — every severity-gated survivor is verified regardless of `risk-tier`. When `deep-mode: true`, each survivor gets a signal-gated verification — one verifier, escalating to a 3-vote majority only where the call is contested or high-stakes; escalation triggers, abstain rule, and quorum fail-safe are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3. The per-verifier contract is unchanged; only the vote count differs. A finding admitted by §4.1 Path B alone (a LOW `PRODUCT-DECISION`) carries no Evidence-Block to re-read and routes to the §3 open-decision gate rather than defect-confirmation — so it skips this step. The §4.1 multi-signal gate already constrains the survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM per §4.1; Loop Invariant #6 mandates Evidence at every kept severity), so every code-anchored survivor has a concrete file:line for the verifier to re-read. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice — see the path-less branch below.
 
-For each cluster, the orchestrator reads the cited file once (each member's slice window) plus caller and test-dir grep context at the caps defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 (the canonical home for the slice/grep sizes — not restated here so they cannot drift), then composes a verify-finding spawn carrying ONLY the cluster's finding bodies + shared slice + grep outputs (NOT the full reviewer bundle — isolation from the originating reviewer's framing prevents anchoring). All verifier spawns fire in ONE assistant response using the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
+For each cluster, the orchestrator reads the cited file once (each member's slice window) plus caller and test-dir grep context at the caps defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 (the canonical home for the slice/grep sizes — not restated here so they cannot drift), then composes a verify-finding spawn carrying ONLY the cluster's finding bodies + shared slice + grep outputs (NOT the full reviewer bundle — isolation from the originating reviewer's framing prevents anchoring). All verifier spawns fire in ONE assistant response using the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). In that SAME response — welded like the §2.3.1 spawn echo, never a separate turn — emit:
+
+> Verifying <F> findings with <S> independent checks (grouped by file).
 
 **Path-less sentinel findings (`File: SPEC-COMPLIANCE` / `File: PR-METADATA`).** No code `path:line`, so no code slice — the orchestrator composes the verify-finding spawn from the finding body (its `Evidence:` quotes the spec/PR fragment verbatim), the PR's changed-file list, and any real code `file:line` embedded in the Evidence; the verifier confirms/refutes against the diff and the cited fragment. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2.
 
@@ -595,6 +607,7 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 | "Regressions dim feels redundant with spec-compliance — skip it on PRs that have a spec." | spec-compliance covers diff-omits-spec-item; regressions covers diff-exceeds-stated-intent. They're inverse directions, not duplicates. Regressions also fires on spec-less PRs where spec-compliance can't (matches user mental model: catch unintended changes broadly). |
 | "Per-finding verifier agreed with the finding — confirmation logged, done." | Confirmation without an `evidence:` quote from the cited file or caller chain is rationalization theater. If the verifier didn't quote literal code, the verification didn't happen — re-spawn with stricter prompt. Sycophancy is the documented multi-judge failure mode. Additional anti-rationalization guards for the hoisted §4.2 scope (sampling pressure, CRITICAL-skip rationalization) live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §6. |
 | "Round 1 returned clean. Run round 2 to confirm / get a nicer summary line / second opinion." | Clean = Done. The Round-N escalation gate (Loop Invariant #5) ends the flow on clean result; do not loop back into Phase 2 for cosmetic polish or a "second opinion." Extra rounds waste compute AND risk hallucinated findings against an empty diff. Once a round exits with zero kept findings, the Phase 6 Action gate is the terminal step. |
+| "The spawn list is already visible in the tool calls — the echo line is redundant." | The echo is the user's only plain-English record of what fired and the human-visible baseline for the §4.0b instance check. A dropped echo preceded a real incident: 33 undisclosed spawns, user interrupt mid-run. Emit it in the SAME message that fires the batch — welded, never a separate turn. |
 
 ---
 
@@ -602,8 +615,8 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the review incomplete or unsafe. Per-phase mechanics (context loading, mode detection, scoring) live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
 
-- [ ] The mandatory reviewer spawn list ran in parallel — all 7 always-fire dimensions (including `regressions`) + every applicable conditional dimension (design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch and the post-spawn verification gate confirmed declared == actual.
-- [ ] The spawn echo (`Spawning <N> reviewers: ...`) was emitted in the same response that fired the reviewer batch (per §2.3.1).
+- [ ] The mandatory reviewer spawn list ran in parallel — all 7 always-fire dimensions (including `regressions`) + every applicable conditional dimension (design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch and the post-spawn verification gate confirmed declared == actual AND actual spawn instances == `spawn_dims_count` (§4.0b).
+- [ ] The spawn echo (`Spawning <N> reviewers: ...`), with the declared count, was emitted in the same response that fired the reviewer batch (per §2.3.1).
 - [ ] A fresh verify-finding verdict was produced for EVERY admitted survivor (CRITICAL / HIGH / MEDIUM; verifier spawns cluster up to 3 same-file findings); refuted findings demoted to `## Filtered`.
 - [ ] The admission gate was applied (the multi-signal gate, not a single confidence threshold) per Loop Invariant #6.
 - [ ] Every kept finding is classified by severity (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1) and decision type, and tagged `[NEW]` / `[PRE-EXISTING]`.

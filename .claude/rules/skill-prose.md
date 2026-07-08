@@ -175,6 +175,7 @@ Cover the categories below. Extend when new internal vocabulary appears in skill
 | `Step 12 handoff resolution` | "resolving open questions from the prior review" |
 | `Phase 6 Pre-gate` | "the open-question gate" |
 | `Step 0a` / `Step 0b` / `Step 0c` | "detecting current context" / "deciding the action" / "asking for confirmation" |
+| `B1` / `b2/5` / batch labels | "file group 2 of 5" or content-anchored ("the queue-service files") |
 
 **Decision-type tags.** The `FIX-NOW` / `PRODUCT-DECISION` / `TESTABLE` / `INTENT-CHECK` taxonomy is reviewer-internal; `ROOT-CAUSE` / `SYMPTOM` / `UNKNOWN` is debug-internal. Both are jargon to a fresh user.
 

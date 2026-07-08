@@ -35,7 +35,7 @@ When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (s
 
 When `deep-mode: true`, Phase 2 replaces the single parallel reviewer batch with a `Workflow(...)` call that runs **each declared dimension under 3 distinct angles** and aggregates in-script:
 
-- The declared dimension set is unchanged — every always-fire + triggered-conditional + custom dimension from the §2.1 grid (still recorded in `spawn_dims_declared[]`; the `§4.0` verification gate still checks the declared SET, treating the 3 angles as a multiplier on each declared dim, not a new dim).
+- The declared dimension set is unchanged — every always-fire + triggered-conditional + custom dimension from the §2.1 grid (still recorded in `spawn_dims_declared[]`; the `§4.0` verification gate still checks the declared SET, treating the 3 angles as a multiplier on each declared dim, not a new dim). Each angle-pass reviewer receives the same payload shape as standard mode (on large diffs, the Batched grouped reading order per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §12) — the Workflow multiplies angles per dimension, never file-batches.
 - For each dimension, the workflow spawns 3 independent `reviewer-agent` passes (parallel), each with the same pre-inlined context the single-pass spawn uses (diff, criteria, mechanical pre-pass findings, the dim's context slots), but each scoped to a DISTINCT angle so the passes search near-disjoint regions rather than re-running one identical prompt:
   - **A — common path:** the most likely defects of this dimension on the typical code path.
   - **B — boundaries and error paths:** rare inputs, boundary conditions, exception/error handling, resource lifecycle, concurrency.
