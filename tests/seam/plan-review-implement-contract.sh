@@ -125,6 +125,11 @@ _seam_final_no_pending_pd() {
   if _seam_body "$1" | grep -qE 'step0_status:[^[:alnum:]]*pending'; then echo "violation"; else echo "ok"; fi
 }
 
+# Body-section extractors for the m6-v3 fixture (B5). `^## ` terminates a section; `### ` severity
+# sub-headers do not (third char is '#', not space). `^## Deferred` avoids grepping the em-dash.
+_seam_findings_section() { _seam_body "$1" | awk '/^## Findings/{f=1;next} /^## /{f=0} f{print}'; }
+_seam_deferred_section() { _seam_body "$1" | awk '/^## Deferred/{f=1;next} /^## /{f=0} f{print}'; }
+
 # ===========================================================================
 # Part A — /plan → /review : workflow_refs[] seam
 # ===========================================================================
@@ -452,6 +457,78 @@ EOF
   && pass "B4 final report with all PRODUCT-DECISION step0_status resolved → ok" \
   || fail "B4 clean final handoff flagged (got: $(_seam_final_no_pending_pd "$TMPDIR_BASE/from-review-feat.md"))"
 
+# B5 (m6-v3 seam): a handoff on the bumped schema — a [USER-ELECTED] LOW promoted into ## Findings by
+# the include-deferred gate (review-handoff.md §4.6; no verification fields, per the LOW presence-rule
+# exemption) plus a structured ## Deferred — sub-threshold block entry (D-id / File: / Why deferred:).
+# The consumer-side machine contract (the real validator) must accept geniro_schema_version: m6-v3,
+# and the promoted finding must parse as an ordinary finding (ordinary sub-field labels; no §7.0
+# Invariant B trip). The B1 m6-v2 fixture above is untouched — back-compat is pinned by both passing.
+cat > "$TMPDIR_BASE/from-review-elect.md" <<'EOF'
+---
+tier: T2
+producer: review
+schema-version: 1
+branch: feat/minor-elect
+timestamp: 2026-07-09T10:00:00Z
+consumer: implement
+geniro_kind: state-handoff
+geniro_schema_version: m6-v3
+report_status: final
+open_questions: []
+---
+
+# Review: feat/minor-elect
+
+## Findings
+
+### HIGH
+
+- [ ] F1 — [NEW] **SQL injection in getUser** · HIGH
+  - **Severity:** HIGH
+  - **File:** api/users.ts:42-48
+  - **Decision Type:** FIX-NOW
+  - **Validation:** confirmed
+  - **Recommended-action:** fix-now
+  - **Verification-confidence:** 4
+  - **Verification-evidence:** "db.query('SELECT * FROM users WHERE id=' + id)"
+
+### LOW
+
+- [ ] F2 — [NEW] [USER-ELECTED] **rename ambiguous helper** · LOW
+  - **Severity:** LOW
+  - **File:** api/helpers.ts:10-12
+  - **Decision Type:** FIX-NOW
+  - **Suggested fix:** rename doIt to applyUserFilter
+
+## Deferred — sub-threshold
+
+- [ ] D1 — **unused import in logger** · LOW
+  - **Severity:** LOW
+  - **File:** api/logger.ts:3
+  - **Why deferred:** below the fix threshold
+  - **Suggested fix:** drop the unused os import
+EOF
+expect_rc "$TMPDIR_BASE/from-review-elect.md" 0 "B5 m6-v3 handoff (USER-ELECTED promotion + structured deferred entry) validates"
+_b5_findings="$(_seam_findings_section "$TMPDIR_BASE/from-review-elect.md")"
+_b5_deferred="$(_seam_deferred_section "$TMPDIR_BASE/from-review-elect.md")"
+printf '%s\n' "$_b5_findings" | grep -qE '^- \[ \] F[0-9]+ — .*\[USER-ELECTED\].*· LOW' \
+  && printf '%s\n' "$_b5_findings" | awk '/USER-ELECTED/{f=1} f{print}' | grep -qE '\*\*(Severity|File):\*\*' \
+  && pass "B5 [USER-ELECTED] promotion sits in ## Findings as an ordinary per-finding block (checkbox title + sub-field labels)" \
+  || fail "B5 promoted finding not parseable as an ordinary ## Findings block"
+if printf '%s\n' "$_b5_findings" | awk '/USER-ELECTED/{f=1} f{print}' | grep -qE 'Validation:'; then
+  fail "B5 promoted LOW must carry NO verification fields (presence rules exempt LOW)"
+else
+  pass "B5 promoted LOW carries no verification fields (LOW presence-rule exemption holds)"
+fi
+printf '%s\n' "$_b5_deferred" | grep -qE '^- \[ \] D[0-9]+ — ' \
+  && printf '%s\n' "$_b5_deferred" | grep -qE '\*\*File:\*\*' \
+  && printf '%s\n' "$_b5_deferred" | grep -qE '\*\*Why deferred:\*\*' \
+  && pass "B5 deferred entry carries the structured block schema (D-id / File: / Why deferred:)" \
+  || fail "B5 deferred-entry block schema not parseable"
+[ "$(_seam_final_no_pending_pd "$TMPDIR_BASE/from-review-elect.md")" = "ok" ] \
+  && pass "B5 m6-v3 final report with a promoted finding → no Invariant B violation (ordinary-finding treatment)" \
+  || fail "B5 promoted finding tripped the pending-PD invariant (got: $(_seam_final_no_pending_pd "$TMPDIR_BASE/from-review-elect.md"))"
+
 # ===========================================================================
 # Part C — cross-doc drift guards (the producer & consumer docs must keep naming the same seam)
 # ===========================================================================
@@ -535,6 +612,18 @@ if grep -rIlE 'step0_status' "$REPO_ROOT/skills/implement/" >/dev/null 2>&1; the
 else
   pass "C6 step0_status remains /review-internal (absent from skills/implement/) — /implement consumes only open_questions[]"
 fi
+
+# C7 (m6-v3 seam): the handoff contract must keep naming the three-version acceptance sentence and the
+# m6-v3 additions B5 exercises — the [USER-ELECTED] promotion tag (§4.6 include-deferred gate, with its
+# deferred_inclusion approvals category) and the structured deferred-entry schema (`Why deferred:` key).
+# Dropping any of them silently orphans the B5 fixture's shape.
+RH="$REPO_ROOT/skills/_shared/review-handoff.md"
+grep -qE 'accept `m6-v1`.*`m6-v2`.*`m6-v3`' "$RH" \
+  && grep -qE '\[USER-ELECTED\]' "$RH" \
+  && grep -qE 'Why deferred:' "$RH" \
+  && grep -qE 'deferred_inclusion' "$RH" \
+  && pass "C7 review-handoff.md documents m6-v1/v2/v3 acceptance + USER-ELECTED promotion + deferred-entry schema" \
+  || fail "C7 m6-v3 seam drifted — review-handoff.md must keep the version-acceptance sentence, [USER-ELECTED], Why deferred:, deferred_inclusion"
 
 echo
 echo "Tests run:    $TESTS_RUN"

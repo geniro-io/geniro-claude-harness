@@ -427,7 +427,7 @@ Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 
 
 **Path B — decision-type orthogonal** (`Decision Type == PRODUCT-DECISION`, any severity): keep it regardless of severity — admission by decision-type, NOT severity inflation; severity stays as scored (rationale: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 Path B). A finding admitted by Path B alone (LOW severity) skips the Phase 4.2 verifier (§4.2 runs on Path-A survivors only) and lands in `## Findings` with its `File: path:lines` anchor — so the §3 open-decision gate fires and, on a Post, it inline-comments to its line — carrying `step0_status: pending` but no `Validation`/verification fields (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` § Verification fields — presence rules).
 
-DEFER rule (write to `## Deferred — sub-threshold` for user awareness; do NOT post to PR; do NOT populate `open_questions[]`):
+DEFER rule (write to `## Deferred — sub-threshold` per the deferred-entry schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6): deferred entries are excluded from PR comments and the fix list BY DEFAULT, with two user-elected exits — the Post drill (review-handoff.md §7) and the include-deferred gate (review-handoff.md §4.6) — and they never populate `open_questions[]`. Severity conditions:
 - `severity < MEDIUM` AND `Decision Type != PRODUCT-DECISION` — deferred per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5. (A LOW `PRODUCT-DECISION` is kept via Path B above, never deferred.)
 - `severity >= MEDIUM` that fails ALL FOUR signals above.
 
@@ -545,6 +545,7 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
    - `"Skip — keep findings on disk"` — append ` (Recommended)` when CRITICAL=0 AND HIGH≤1.
 
    Full AskUserQuestion shape (literal block), descriptions, and severity-driven recommendation rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4. Persist user pick to `approvals[]` with category `action_gate` via `atomic_state_write` (never a raw write on the handoff path).
+   - **Include-deferred gate (chained).** When the pick is `"/geniro:implement findings"` and the report holds set-aside minor findings, a chained question asks whether to include them in the fix list, resolving before the follow-up echo line; skipped silently when none. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4.6.
 4. **Failing-tests gate** — fires unconditionally whenever state.md `## Authored Tests` is non-empty (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6). A chat request to commit/push authored tests — whenever it arrives — re-fires this gate instead of executing directly.
 
 Operational rules:
@@ -626,5 +627,5 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] The handoff artifact was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
 - [ ] The report was finalized (`report_status: draft→final`) only after the decision gate cleared; on Post, `[POSTED-TO-PR]` idempotency markers were persisted.
 - [ ] When the reflection spawn fired (finalized report kept ≥3 findings): the reflection echo (`Reviewed for improvements: <N> candidate(s)`, including at zero) was emitted when the background reflection agent returned, before Phase 6's terminal transition — and the agent was drained (collected via its task output file or resume-by-ID) if the Action gate reached a terminal exit before it returned (per the Suggest-improvements step). Below the threshold: no spawn, no echo.
-- [ ] The Action gate fired (always-WAIT); the user pick persisted to `approvals[]`; the round-N escalation gate fired when round ≥3.
+- [ ] The Action gate fired (always-WAIT); the user pick persisted to `approvals[]`; on the `/geniro:implement findings` pick, the chained include-deferred gate fired when set-aside minor findings existed (skipped silently when none — review-handoff.md §4.6); the round-N escalation gate fired when round ≥3.
 - [ ] `--deep` honored when present; test authoring (when approved at the test-confirmation gate) stayed additive — it never filtered the posted finding set.

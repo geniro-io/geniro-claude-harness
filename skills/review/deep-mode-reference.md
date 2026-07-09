@@ -147,7 +147,7 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 
 - **Reporter boundary** — reviewers/verifiers are read-only; no `Edit`/`Write`/`git`/`gh` mutation. The workflow produces findings + verdicts, nothing else.
 - **Atomic state writes** — the orchestrator (NOT the workflow agents) owns every `atomic_state_write` to state.md and the handoff. Workflow agents return data; they never write `.geniro/` state.
-- **Action gate** — deep mode does not add or change action-gate options. The canonical 4 options and the `report_status: final` precondition (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) bind unchanged.
+- **Action gate** — deep mode does not add or change the action-gate chain. The canonical 4 option labels bind unchanged, their chained sub-gates (the Post-mode drill, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.2; the include-deferred gate, §4.6) are part of the canonical chain rather than deep-mode variants, and the `report_status: final` precondition (§3.5 of the same reference) binds unchanged.
 - **No-ship** — deep mode never pushes or fixes. The authored-test push carve-out (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1) is the only sanctioned write, and it is independent of deep mode.
 
 ---

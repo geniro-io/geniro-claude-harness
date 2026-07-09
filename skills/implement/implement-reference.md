@@ -15,6 +15,8 @@ This file contains templates, examples, and detailed procedures referenced by SK
 - Phase 3: Self-review reviewer-agent template
 - Phase 3: Adversarial-tester spawn template
 - Phase 3: Bounded fix loop
+- Phase 3: Minor-findings gate
+- Phase 3: Test-quality gate
 - Phase 3 — Ship sub-step
 - Phase 3 — Adjustment Routing (Big / Medium / Small)
 - Definition of Done
@@ -338,7 +340,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 Round 1 only — before issuing the 5 built-in spawns, first resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash (the helper's Step 1 dual-globs `.geniro/instructions/review-extra/*.md` against cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`, so in a linked worktree where `.geniro/instructions/` is gitignored and does not propagate on `git worktree add`, the main-worktree fallback is the only path that finds user-authored review-extra files), then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored `review-extra/<slug>.md` files. The helper returns a list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing the ≤10 cap. Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the SAME parallel batch as the 5 built-ins (one assistant turn, one parallel batch — same rule as `/geniro:review` Phase llm-spawn and `/geniro:refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs).
 
-Round N+1: re-fire a custom reviewer only if its prior round flagged a CRITICAL or HIGH finding (mirrors the failing-dim rule for built-ins). The custom reviewer's spawn-spec list is recomputed only on round 1; round N+1 reuses the round-1 spec cache.
+Round N+1: re-fire a custom reviewer only if its prior round flagged a CRITICAL or HIGH finding — the re-fire threshold for custom dimensions (built-ins follow their own actionable-findings re-spawn rule). The custom reviewer's spawn-spec list is recomputed only on round 1; round N+1 reuses the round-1 spec cache.
 
 If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero matches after path filtering, this section is a silent no-op — the round proceeds with the 5 built-ins.
 
@@ -411,14 +413,19 @@ round = 1
 while round ≤ 3:
   spawn this round's agents IN PARALLEL (one assistant response):
     round 1: reviewer-agents + 1 adversarial-tester (unless skipped) + N custom reviewers
-    round N+1: only dims that flagged in round N + adversarial-tester if its
-               Round-N CRITICAL/HIGH remain unresolved OR any authored test still fails
+    round N+1: only dims that flagged an ACTIONABLE finding in round N + adversarial-tester
+               if its Round-N CRITICAL/HIGH remain unresolved OR any authored test still fails
 
   collect findings (reviewer dim outputs + adversarial-tester findings +
                     list of authored failing tests on disk)
+  partition:
+    ACTIONABLE = severity ≥ MEDIUM, OR Decision Type routes through a user gate
+                 (PRODUCT-DECISION / INTENT-CHECK), OR an authored failing
+                 adversarial test (always a HIGH)
+    MINOR      = LOW findings with none of those properties
 
-  if no findings AND no authored adversarial tests THAT STILL FAIL:
-    break  # exit to Phase 3 Ship sub-step
+  if no ACTIONABLE findings AND no authored adversarial tests THAT STILL FAIL:
+    break  # exit → minor-findings gate → test-quality gate → Ship sub-step
 
   apply fixes inline (single Edit-driven sub-loop, NO further agent spawns)
   re-spawn test-runner-agent; if Verdict != ALL_GREEN, rollback to Phase 2
@@ -428,7 +435,9 @@ else:
   escalate via AskUserQuestion
 ```
 
-**Round N+1 only re-spawns failing dimensions and the adversarial-tester (conditionally).** Dimensions that passed round N are NOT re-spawned — bounds cost and avoids re-litigating clean code. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache.
+**Round N+1 only re-spawns dimensions that flagged an actionable finding, and the adversarial-tester (conditionally).** Dimensions that reported nothing actionable in round N — clean, or minor-only — are NOT re-spawned: bounds cost and avoids re-litigating clean code. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache.
+
+**Minor findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving minor findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_write`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory.
 
 **Adversarial-tester treated as the 6th dimension for fix purposes:**
 - Each authored failing test counts as a HIGH finding.
@@ -452,9 +461,50 @@ The Always-WAIT contract applies: empty `AskUserQuestion` answer = upstream bug,
 
 ---
 
+## Phase 3: Minor-findings gate
+
+Fires once the bounded fix loop converges (clean exit OR the accepted-findings escalation path), BEFORE the test-quality gate and the Ship sub-step. Same ruling set as the test-quality gate: always-on, skip-when-clean, advisory, fail-open, no new agent spawn — it consumes the `## Deferred Findings` section the fix loop persisted to state.md.
+
+**Skip-when-clean.** When `## Deferred Findings` is empty or absent, skip silently — the gate never fires with nothing to decide.
+
+**Message-first render.** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, emit a separate chat message listing each finding in plain English — title · `file:line` · one-line description. Call them "minor findings below the fix threshold"; severity labels and finding-ID shorthand are review-internal vocabulary that means nothing to the user.
+
+**Lean AskUserQuestion** (header: `Minor findings`):
+
+```
+question: "The review also flagged <N> minor findings below the fix threshold.
+           Fix them now before shipping, or leave them listed in the ship report?"
+options:
+  - label: "Leave them in the ship report (Recommended)"
+    description: "They stay listed in the ship report for follow-up. These came from
+                  a single review pass without independent verification, so deferring
+                  is the safe default."
+  - label: "Fix them all now"
+    description: "Fix each one inline, then re-run the test suite before shipping."
+  - label: "Let me pick"
+    description: "Choose which ones to fix now; the rest stay listed in the ship report."
+```
+
+The `(Recommended)` marker follows `per-finding-question.md` §Recommended-label policy — these findings are single-reviewer and unverified, so the conservative disposition carries the label. "Let me pick" runs the same contract's §Multi-select pick loop (≤4 findings per chained call).
+
+**Fix branch** ("Fix them all now", or the picked subset) — mirrors the test-quality gate's tighten-all: re-enter the inline fix sub-loop (Edit-driven, NO new agent spawns; not a review round, so the round-4 prohibition is untouched), then re-spawn `test-runner-agent`; a Verdict other than ALL_GREEN routes through the existing Phase 2 rollback rule. Move fixed entries out of `## Deferred Findings` (rewrite via `atomic_state_write`); unfixed picks stay listed.
+
+**Leave branch** — entries stay in `## Deferred Findings` and feed the ship report's Deferred bullet. This is ordinary deferral, NOT an overridden gate: the ship-mode AUQ's "Disclose overridden gates" stack does not apply to it.
+
+**Persist the pick** to state.md `approvals[]` with `category: minor_findings_disposition` via `atomic_state_write`. Before firing, check `approvals[]` for a prior `minor_findings_disposition` entry and re-apply it instead of re-asking — the same check-before-fire-on-resume protocol as `ship_mode`.
+
+**Empty answer** — re-ask once in plain text (an empty answer indicates an upstream tool bug); if still empty, take the conservative leave-listed path.
+
+**Boundary rules:**
+
+- A spec `launch_config.ship_mode` and the natural-language ship modifiers (`don't push`, `commit only`, ...) pre-answer only the ship-mode question — they never skip this gate.
+- Findings that arrived as task input from a review handoff's `## Findings` — including `[USER-ELECTED]`-tagged promotions the user opted into upstream — are work items already dispositioned by the user, not minor findings: they flow through the normal fix loop regardless of severity and never enter `## Deferred Findings` (no double-gating).
+
+---
+
 ## Phase 3: Test-quality gate
 
-After the bounded fix loop converges (clean exit or accepted findings), and before the Ship sub-step, run the test-quality gate when this run authored or changed test files — full contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md`. It surfaces the fresh `tests`-reviewer audit of the new tests (claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, weak assertions) as a visible decision: a clean audit records a one-line ship-report confirmation and asks nothing; open findings render message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering", then a lean AskUserQuestion (header: `Test quality`) offers tighten-all / pick / ship-as-is. No new agent spawn — the gate consumes the tests-dimension output already collected in the fix loop. Advisory and fail-open: it never blocks Ship and never overrides the Ship-mode AUQ.
+After the bounded fix loop converges (clean exit or accepted findings) and the minor-findings gate settles, and before the Ship sub-step, run the test-quality gate when this run authored or changed test files — full contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md`. It surfaces the fresh `tests`-reviewer audit of the new tests (claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, weak assertions) as a visible decision: a clean audit records a one-line ship-report confirmation and asks nothing; open findings render message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering", then a lean AskUserQuestion (header: `Test quality`) offers tighten-all / pick / ship-as-is. No new agent spawn — the gate consumes the tests-dimension output already collected in the fix loop. Advisory and fail-open: it never blocks Ship and never overrides the Ship-mode AUQ.
 
 ---
 
@@ -528,7 +578,7 @@ emit_rejection_if_signal \
 - **Commit + branch + PR** — commit SHA, branch name, and PR URL quoted verbatim from the actual tool output (`git rev-parse HEAD`, `git branch --show-current`, the `gh pr create` URL line) — never "git push succeeded" without the ref, per Loop invariant #6.
 - **Test results** — the Phase 2 / Phase 3 `test-runner-agent` Verdict block (Command / Exit code / Summary) quoted as the Evidence Block.
 - **Review-round summary** — per dimension, the found / fixed counts across the self-review rounds (e.g. "3 rounds: 4 findings found, 4 fixed"); name any `## Accepted Findings` / `## Accepted Failures` carried as known limitations.
-- **Deferred** — anything left for a follow-up (deferred findings, skipped visual verification, docs not yet patched) — or "nothing deferred".
+- **Deferred** — minor findings left unfixed, read from the task state's `## Deferred Findings` section, plus anything else left for a follow-up (skipped visual verification, docs not yet patched) — or "nothing deferred".
 
 **Step 6 — Trailing bookkeeping writes must not contradict what shipped.** Post-ship bookkeeping (a memory-index update, an `atomic_state_write` of the terminal state, a tracker status transition) runs after the ship report. When such a write FAILS — e.g. an `Edit` rejected by its Read-before-Edit precondition, or a tracker MCP timeout — do not end the run leaving a record that contradicts the ship that already happened (the real failure mode: an index asserting the task is "not implemented" while the PR is open). Surface the failure in plain English, fix the precondition (Read the file, then Edit), and retry the write ONCE. If the retry also fails, say so explicitly in chat — "the project record still shows this as not-shipped; the PR is open at <url> — update the record manually" — so the user knows the bookkeeping is stale and the actual ship state is the PR, not the record.
 
@@ -667,7 +717,8 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Phase 1 ran the build-vs-buy library-reuse audit on NO-ANALOGUE components (skip trivial); any library adoption was user-confirmed via the gate.
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures`).
 - [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
-- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — failing dims only); exited clean OR escalated.
+- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — dims with actionable findings only); exited clean OR escalated.
+- [ ] Minor-findings gate fired after the fix loop converged — or skipped silently when the task state's `## Deferred Findings` was empty — and the disposition pick was persisted to `approvals[]`.
 - [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] Ship report emitted to chat BEFORE the terminal `phase:` transition — Evidence Block with what shipped, commit SHA / branch / PR URL quoted from tool output, test Verdict, review-round found/fixed summary, deferred items (Commit + Push + PR §"Step 5").
 - [ ] Transient working files cleaned from the task-dir before the terminal `phase:` write (§Cleanup).

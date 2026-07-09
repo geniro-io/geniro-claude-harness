@@ -148,7 +148,7 @@ A verifier can fail to produce a verdict at all: the spawn errors out even after
 
 Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for verify-finding spawns — the orchestrator holds the full reviewer bundle, which is exactly the anchoring context the §2 isolation contract forbids, so an inline self-check would be an anchored confirmation, not a verification. `unverified` states the truth instead: this finding was never independently checked.
 
-`unverified` is orchestrator-assigned only — a verifier agent never emits it. Consumer-side semantics (legal `m6-v2` value; kept, not postable, one-line warning) live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`.
+`unverified` is orchestrator-assigned only — a verifier agent never emits it. Consumer-side semantics (legal since `m6-v2`; kept, not postable, one-line warning) live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`.
 
 ---
 

@@ -4,7 +4,7 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). The `/geni
 
 State.md `phase: action-gate` during this phase.
 
-**Handoff schema version: `m6-v2`.** Bumped from `m6-v1` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier; `Validation:` also admits `unverified`, orchestrator-assigned when the verifier failed to spawn (legal m6-v2 value — see the presence rules below). Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per `/geniro:review` SKILL.md §5.1 Handoff file write). Consumers accept BOTH `m6-v1` (legacy — verification fields absent) AND `m6-v2` (rich — verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM). Within m6-v2, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence on HIGH — apply the "treat as confirmed + one-line warning" fallback.
+**Handoff schema version: `m6-v3`.** Bumped from `m6-v1` to `m6-v2` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier; `Validation:` also admits `unverified`, orchestrator-assigned when the verifier failed to spawn (legal since m6-v2 — see the presence rules below). Bumped from `m6-v2` to `m6-v3` — `## Deferred — sub-threshold` entries carry the structured block schema (D-prefixed id, `File:`, `Why deferred:`, `Suggested fix:` — see §"Deferred-entry schema" below), and `## Findings` admits `[USER-ELECTED]`-tagged promotions from the §4.6 include-deferred gate. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per `/geniro:review` SKILL.md §5.1 Handoff file write). Consumers accept `m6-v1` (legacy — verification fields absent), `m6-v2` (verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM; bare deferred list), AND `m6-v3` (structured deferred entries; verification-field rules unchanged). Within m6-v2/v3, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence on HIGH — apply the "treat as confirmed + one-line warning" fallback.
 
 ## Contents
 
@@ -16,6 +16,7 @@ State.md `phase: action-gate` during this phase.
 - §3.5 — Finalize report (draft → final) before the handoff is offered
 - §3.7 — Suggest improvements (reflection, read-only)
 - §4 — Action gate (consolidated decision)
+- §4.6 — Include-deferred gate (chained after the "/geniro:implement findings" pick)
 - §5 — Round-N escalation
 - §6 — Failing-tests gate
 - §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with four invariants → 7.9 post-posting overturn reconciliation)
@@ -41,7 +42,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 
 1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry, fired in sequence (cap-extension applies only within a single entry whose options exceed 4 — never to batching entries). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
-3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip.
+3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip. Two picks drill into sub-gates of their own path, not extra top-level gates: "Post Draft PR review" drills into the §7 Post drill, and "/geniro:implement findings" drills into the §4.6 include-deferred gate when `## Deferred — sub-threshold` is non-empty.
 4. **Failing tests:** fires once per gate-chain pass when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests; a later chat-text commit/push request re-fires it (§6). Firing order relative to Action gate conditional:
 - **Action == Post AND `## Authored Tests` non-empty:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
 - **Action != Post OR `## Authored Tests` empty:** Failing-tests fires AFTER Action gate's path completes.
@@ -121,7 +122,7 @@ branch: <git-branch>
 timestamp: <ISO-8601 UTC>
 consumer: implement
 geniro_kind: state-handoff
-geniro_schema_version: m6-v2
+geniro_schema_version: m6-v3
 task_slug: review-<branch>
 phase: <triage|mechanical-prepass|llm-spawn|filter|stratify|persist|action-gate|done|aborted|escalated>
 status: <in-progress|done|failed>
@@ -180,7 +181,8 @@ open_questions:                       # MUST be present; MAY be empty []
 <list>
 
 ## Deferred — sub-threshold
-<list, surfaced for user awareness>
+<!-- One block per set-aside finding, per the §"Deferred-entry schema" below the template. Read by the §7 post drill and the §4.6 include-deferred gate. -->
+<deferred-entry blocks, or empty>
 
 ## Filtered
 <!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, no-action-needed, user-kept-off-pr, test-challenged, already-resolved-on-pr, overturned-after-post, convention-filtered). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
@@ -230,9 +232,9 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 
 **Write/rewrite discipline — schema comes from the template, never from memory.** Any full handoff write (Phase 5.1 first write) or rewrite (a later round updating the file, a re-author after compaction, any whole-file replacement) follows this procedure — re-authoring the handoff from memory drops the identity frontmatter, renames fields (`pr-head-sha` → `pr-head-oid`, breaking the §7.5 freshness check that then reads null), collapses the per-finding verification fields into a prose line (downstream parses it as legacy `m6-v1`), and drops snapshot fields the same run's Post drill needs:
 
-1. **Before writing, re-read the source schema.** Re-read the §2.6 template above (or, for a rewrite, the prior handoff being updated) and take the field set from there — the frontmatter keys, the per-finding `m6-v2` verification fields, and the `## ` section list. Do not reconstruct any of them from memory.
+1. **Before writing, re-read the source schema.** Re-read the §2.6 template above (or, for a rewrite, the prior handoff being updated) and take the field set from there — the frontmatter keys, the per-finding verification fields (present since `m6-v2`), and the `## ` section list. Do not reconstruct any of them from memory.
 2. **Write via `atomic_state_write`** with the full frontmatter + body skeleton, every finding rendered as the multi-line per-finding body block (not a prose collapse).
-3. **After writing, self-check (grep) presence.** Grep the written file for the identity frontmatter keys (`tier:`, `producer:`, `schema-version:`, `geniro_kind:`, `geniro_schema_version:`, `task_slug:`) AND the mandatory per-finding verification field labels on each kept finding (`Validation:`, `Recommended-action:`, `Verification-confidence:`, `Verification-evidence:`). Any missing key means the write dropped schema — re-author from the template, do not patch by memory.
+3. **After writing, self-check (grep) presence.** Grep the written file for the identity frontmatter keys (`tier:`, `producer:`, `schema-version:`, `geniro_kind:`, `geniro_schema_version:`, `task_slug:`) AND the mandatory per-finding verification field labels on each kept finding (`Validation:`, `Recommended-action:`, `Verification-confidence:`, `Verification-evidence:`) — exempting LOW findings (including `[USER-ELECTED]` promoted LOWs, which carry none per the presence rules). Any missing key means the write dropped schema — re-author from the template, do not patch by memory.
 4. **On a rewrite, preserve every prior frontmatter field.** A field present in the prior version is preserved unless an explicit contract drops it (e.g. a documented schema migration). Fields are dropped by contract, never by omission. Before overwriting, capture the prior frontmatter key set (grep the file's keys); after writing, diff against it — a key that vanished without a contract is a regression. The snapshot fields (`resolved-threads-snapshot:`, `pr-bot-comments-snapshot:`, `pr-formal-reviews-snapshot:`) are the easiest to lose on a rewrite and are exactly what the §7.1 Post-drill dedup reads.
 
 **Definition of Done (write/rewrite):** the written handoff carries every identity frontmatter key and every mandatory per-finding verification field from the §2.6 template, and a rewrite preserved every frontmatter field the prior version carried (verifiable by the before/after key diff in steps 3-4).
@@ -242,7 +244,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff. Every finding — including an unchanged repeat from a prior round — lives under the handoff's `## Findings` body:
 
 ```markdown
-- [ ] F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR] **<short title>** · <SEVERITY> [optional: · seen since round <N>]
+- [ ] F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR|USER-ELECTED] **<short title>** · <SEVERITY> [optional: · seen since round <N>]
   - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
   - **File:** path/to/file.ts:42-48
   - **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
@@ -270,7 +272,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 
 The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 4 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
 
-**Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every kept finding (CRITICAL / HIGH / MEDIUM) that lands in `## Findings`. Phase 4.2 produces one verify-finding verdict per §4.1 survivor regardless of severity (verifier spawns cluster up to 3 same-file findings); verdicts of `validation: refuted` are filtered before reaching the handoff, so any finding present here carries `Validation: confirmed`, `Validation: clarified`, or — when the verifier failed to spawn after retry — the orchestrator-assigned `Validation: unverified` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5). `unverified` is a legal present value meaning the verifier never ran: consumers keep the finding, treat it as NOT postable (excluded from the §7.1 post set), and surface a one-line warning that it was not independently verified. The fields are ABSENT on LOW findings — including a LOW `PRODUCT-DECISION` admitted via §4.1 Path B (decision-type) — because no LOW finding enters the Phase 4.2 verifier (§4.2 runs on Path-A survivors, `severity >= MEDIUM`). A Path-B LOW `PRODUCT-DECISION` still carries `step0_status: pending` (it IS a PRODUCT-DECISION, so the §3 open-decision gate fires for it) but no `Validation`/verification fields. When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions.
+**Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every kept finding (CRITICAL / HIGH / MEDIUM) that lands in `## Findings`. Phase 4.2 produces one verify-finding verdict per §4.1 survivor regardless of severity (verifier spawns cluster up to 3 same-file findings); verdicts of `validation: refuted` are filtered before reaching the handoff, so any finding present here carries `Validation: confirmed`, `Validation: clarified`, or — when the verifier failed to spawn after retry — the orchestrator-assigned `Validation: unverified` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5). `unverified` is a legal present value meaning the verifier never ran: consumers keep the finding, treat it as NOT postable (excluded from the §7.1 post set), and surface a one-line warning that it was not independently verified. The fields are ABSENT on LOW findings — including a LOW `PRODUCT-DECISION` admitted via §4.1 Path B (decision-type) — because no LOW finding enters the Phase 4.2 verifier (§4.2 runs on Path-A survivors, `severity >= MEDIUM`). A Path-B LOW `PRODUCT-DECISION` still carries `step0_status: pending` (it IS a PRODUCT-DECISION, so the §3 open-decision gate fires for it) but no `Validation`/verification fields. When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions. A `[USER-ELECTED]` promotion out of `## Deferred — sub-threshold` (§4.6) follows the same rules: a promoted LOW carries no verification fields; a promoted evidence-less MEDIUM carries all four fields on the finding-verification.md §4.5 spawn-failure convention — `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "user-elected promotion — verifier never ran"`, `Recommended-action:` mirroring its original Decision Type — because the verifier never ran for a deferred entry and user election does not verify it; an accounted state excluded from the §7.1 post set like any other `unverified` finding.
 
 **Verification fields — back-compat for legacy handoffs.** Two legacy cases produce findings without the four verification fields:
 1. `m6-v1` (pre-Phase-4.2) writers — no findings carry verification fields at any severity.
@@ -279,6 +281,19 @@ The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding g
 Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution step) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so missing-field MUST NOT block the Post drill that worked before the field existed.
 
 **Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /geniro:implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /geniro:review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` (the safety improvement post-dates these handoffs) and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
+
+**Deferred-entry schema (referenced by §4.6 + §7.1).** Each entry under `## Deferred — sub-threshold` renders as a compact block mirroring the kept-finding checkbox shape — D-prefixed ids (`D1`, `D2`, …), plain-text lead, bolded short title (same markdown-preview rationale as the kept-finding title line above):
+
+```markdown
+- [ ] D1 — **<short title>** · <SEVERITY>
+  - **Severity:** LOW | MEDIUM | HIGH | CRITICAL       [LOW: below the severity threshold; MEDIUM/HIGH/CRITICAL: `severity >= MEDIUM` that failed all four §4.1 admission signals]
+  - **File:** path/to/file.ts:42-48
+  - **Why deferred:** below the fix threshold | MEDIUM without Evidence Block
+  - **Suggested fix:** <1-2 lines, verbatim from the reviewer output>
+  - **Decision Type:** FIX-NOW | TESTABLE | INTENT-CHECK   [optional — never PRODUCT-DECISION, which §4.1 Path B keeps out of this section]
+```
+
+The schema exists because two consumers parse these entries: the §7 post drill anchors each posted deferred entry's comment by its `File:` path:line (§7.5) and matches POST responses back by (path, line) (§7.7), and the §4.6 include-deferred gate promotes entries into `## Findings` re-rendered as full per-finding blocks — a bare prose list supports neither. **Legacy bare-list entries** (no `File:` sub-field, written by m6-v1/v2 producers) stay awareness-only: the §4.6 include-deferred gate skips them with a one-line notice, and the post drill falls back to listing them in the top-level review body under the `## Findings on unchanged lines` shape when no path:line can be parsed.
 
 **Wontfix path.** If the user picks "Other" with explicit text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream gates — they're recorded but de-prioritized. Downstream consumers treat `wontfix` as "user acknowledged and chose to defer".
 
@@ -386,7 +401,7 @@ AskUserQuestion(
 )
 ```
 
-After the user picks, surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator NEVER auto-invokes /geniro:implement.
+After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator NEVER auto-invokes /geniro:implement.
 
 **Severity-driven recommendation:**
 - Any CRITICAL OR ≥2 HIGH findings → `/geniro:implement` is "(Recommended)"
@@ -406,6 +421,34 @@ After the user picks, surface ONE follow-up chat line stating the chosen next co
 **Persist user pick to `approvals[]`** with category `action_gate`, written via `atomic_state_write`.
 
 Do NOT auto-invoke /geniro:implement — surface the suggestion only. The user runs the slash command themselves; the state file path is the handoff channel.
+
+---
+
+## 4.6 Include-deferred gate (chained after the "/geniro:implement findings" pick)
+
+Fires when the §4 Action-gate pick is `"/geniro:implement findings"` AND `## Deferred — sub-threshold` holds ≥1 entry. Zero entries → skip silently (no no-op menus). It resolves BEFORE the §4 follow-up echo line and before the Failing-tests gate — the echo names the handoff the user will run, so the fix list must be settled first. Structurally this is the "/geniro:implement findings" pick's drill-down — a sub-gate of the Action path like the §7.2 granularity gate on the Post pick, not a fifth top-level gate.
+
+**Message-first render.** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, emit a separate chat message listing each deferred entry in plain English — short title · `file:line` · one line on why it was set aside ("below the fix threshold" → "a minor improvement below the fix bar"; "MEDIUM without Evidence Block" → "flagged without enough supporting evidence to confirm") — then fire the lean AUQ. The § Single-finding gate "Scrub before the AUQ fires (hard)" rule applies to every question string: no "sub-threshold" / "deferred" / severity shorthand ("D1 (LOW)") — say "minor findings below the fix threshold".
+
+**Lean `AskUserQuestion`** — `header: "Minor findings"`:
+- **Question:** "The review also set aside <N> minor findings below the fix threshold. Include them in the fix list for /geniro:implement?"
+- **Options (3):**
+  - `"Leave them in the report (Recommended)"` — the recommendation is conservative per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy: these findings never passed the Phase 4.2 verification pass, so the recommended option must not steer toward acting on them. They stay visible in the report either way.
+  - `"Include all in the fix list"`
+  - `"Let me pick"` — run the § Multi-select pick loop in per-finding-question.md (≤4 findings per chained call).
+
+**On include (all or picked)** — rewrite the handoff per the §2.6 write/rewrite discipline (full-file `atomic_state_write`, preserve every prior frontmatter field):
+
+1. MOVE each included entry out of `## Deferred — sub-threshold` INTO `## Findings`, re-rendered as the full per-finding body block with `[USER-ELECTED]` appended to its title-line tag list. Severity stays as scored — never inflated.
+2. Verification fields per the presence rules: a promoted LOW carries none; a promoted evidence-less MEDIUM carries all four fields on the finding-verification.md §4.5 spawn-failure convention — `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "user-elected promotion — verifier never ran"`, `Recommended-action:` mirroring the finding's original Decision Type — an accounted state per §7.1, excluded from any post set.
+3. The report is already `report_status: final` at this point, and a full rewrite resets it to `draft` (per /geniro:review SKILL.md §5.5 idempotent re-entry). Re-run the §3.5 finalize silently after the rewrite — safe, because a promotion can never introduce a PRODUCT-DECISION (§4.1 Path B keeps those out of `## Deferred — sub-threshold` by construction), so no decision gate re-opens.
+4. A legacy bare-list entry with no `File:` sub-field is skipped with a one-line notice (it cannot be re-rendered as a per-finding block) and stays in the report for awareness.
+
+**Persist the pick** to `approvals[]` category `deferred_inclusion` (value: `leave-in-report` | `include-all` | `include-picked` plus the included ids) via `atomic_state_write`. On a compaction-resume, check `approvals[]` before re-firing, like the other Phase 6 gates.
+
+**Empty answer:** the §8 rule applies — re-ask once, then treat as the conservative "Leave them in the report".
+
+The §9 terminal mapping is unchanged — the "/geniro:implement findings" pick still terminates `done`.
 
 ---
 
@@ -486,7 +529,7 @@ This guard exists because posting a draft PR review with unresolved ambiguity, m
 
 ### 7.1 Step 1.5 — Already-on-PR dedup (post-set filter)
 
-The post-drill's eligible-finding set is every unposted finding across `## Findings` (kept CRITICAL / HIGH / MEDIUM — including unchanged repeats from prior rounds — plus any LOW `PRODUCT-DECISION` admitted via §4.1 Path B) AND `## Deferred — sub-threshold` (LOW awareness items) — once the user has chosen to post, severity no longer gates postability, and any exclusion is surfaced (`## Filtered` `reason:`, or `Validation: unverified` kept-in-place) like every other finding's. This step removes from the post set findings that already exist on the PR, so the user isn't asked to re-raise what's already there.
+The post-drill's eligible-finding set is every unposted finding across `## Findings` (kept CRITICAL / HIGH / MEDIUM — including unchanged repeats from prior rounds — plus any LOW `PRODUCT-DECISION` admitted via §4.1 Path B; a `[USER-ELECTED]` promotion sitting in `## Findings` from a §4.6 include is an ordinary eligible unposted finding on a later Post — a promoted LOW carries no verification fields per the presence rules, which is not an exclusion reason) AND `## Deferred — sub-threshold` (awareness items — LOW plus any severity that failed every §4.1 admission signal) — once the user has chosen to post, severity no longer gates postability, and any exclusion is surfaced (`## Filtered` `reason:`, or `Validation: unverified` kept-in-place) like every other finding's. This step removes from the post set findings that already exist on the PR, so the user isn't asked to re-raise what's already there.
 
 Safety invariant: every exclusion is surfaced — tagged and moved to `## Filtered` with a `reason:`, or (for verification exclusions) kept in `## Findings` with `Validation: unverified` as the recorded reason — never silently dropped. The user sees exactly what was withheld and why, so §7.4's completeness guarantee holds.
 
@@ -611,7 +654,7 @@ GitHub PR comments are public, audience-expanding output. Each comment body open
 - Confidence numerics (no `*Confidence: NN%*`).
 - State-file paths or schema references.
 - User-decision artifacts (`user picked X`, `approved by user`).
-- Internal tags (`[CONFIRMED-BY-TEST]`, `[CHALLENGED-BY-TEST]`, `[POSTED-TO-PR]`, `[NEW]`, `[PRE-EXISTING]`, `[ALIGNS-WITH-PLAN]`, `TRUNCATED`).
+- Internal tags (`[CONFIRMED-BY-TEST]`, `[CHALLENGED-BY-TEST]`, `[POSTED-TO-PR]`, `[NEW]`, `[PRE-EXISTING]`, `[ALIGNS-WITH-PLAN]`, `[USER-ELECTED]`, `TRUNCATED`).
 - Internal finding IDs / orchestrator labels (`M1`, `M1a`, `M1b`, `M2`, `M3`, `L1`…`L7`, `F1`…, and any `<letter><digit>` handle assigned to enumerate findings in the chat summary or handoff). They exist only to cross-reference findings off the PR; the comment body opens with the severity badge, never a finding handle.
 - Internal knowledge-base references — incident IDs (`incident 4`), learning IDs (`learning B.1.5`), and the project's internal incident-report cross-references (a `B.x.y`-style token when it is introduced by the word `incident`/`learning` or appears as a bare parenthetical cross-reference, e.g. `(incident 4 / learning B.1.5)`). These index a private incident log / learnings store the PR author cannot open, so the bare ID reads as noise. The `incident`/`learning` keyword or the parenthetical cross-reference shape is what identifies the pattern — a bare `<letter>.<digit>.<digit>` that is a genuine code fact under review (a spec section ref, a test-case ID, a version) is NOT this pattern and stands. Cite the failure mode in plain language ("the documented backdated-migration-ordering failure") and drop the parenthetical ID — or substitute a shareable link if the reviewer briefing carries one.
 
@@ -642,8 +685,10 @@ If the GET fails (rate limit, transient error), persist the per-finding `[POSTED
 After markers persisted, surface ONE chat-surface line:
 
 ```
-Drafted <P> of <K> kept findings as a pending review on <pr-url>; <W> withheld (<withheld-reason breakdown — e.g. 2 already on the PR, 1 kept off the PR, 1 needs no action, 1 the verifier couldn't confirm; omit any zero-count reason>). Open the PR and click "Finish your review" → Submit when ready — pending reviews are private to you and fire no notifications until submit.
+Drafted <P> of <K> findings (<K1> kept, <K2> minor) as a pending review on <pr-url>; <W> withheld (<withheld-reason breakdown — e.g. 2 already on the PR, 1 kept off the PR, 1 needs no action, 1 the verifier couldn't confirm; omit any zero-count reason>). Open the PR and click "Finish your review" → Submit when ready — pending reviews are private to you and fire no notifications until submit.
 ```
+
+`<K>` counts every finding eligible for the post set (§7.1) — `<K1>` counts `## Findings` entries (kept CRITICAL / HIGH / MEDIUM, plus Path-B LOW `PRODUCT-DECISION`s and `[USER-ELECTED]` promotions) plus `<K2>` counts `## Deferred — sub-threshold` entries, so `<K1>` + `<K2>` always sums to `<K>` over the §7.1 eligible set (counting only kept findings would undercount posted deferred entries). Omit the parenthetical split when `<K2>` is zero. `<W>` spans the same eligible set, so the withheld-reason breakdown covers kept and minor exclusions alike.
 
 ### 7.8 Step 6 — Posting-failure semantics
 

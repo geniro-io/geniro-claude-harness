@@ -76,7 +76,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Real defects (those are MEDIUM+)
 - Cosmetic suggestions that hide a substantive problem (a "could be more readable" finding that masks a hidden bug is MEDIUM, not LOW)
 
-The plugin has no separate NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion". Per §5 below, LOW findings are written to `## Deferred — sub-threshold` for awareness and do not reach the PR-comment surface — with one exception: a LOW finding whose `Decision Type` is `PRODUCT-DECISION` is kept and surfaced regardless of severity (it names the user's call, not the reviewer's), per §5 Path B.
+The plugin has no separate NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion". Per §5 below, LOW findings are written to `## Deferred — sub-threshold` for awareness and reach neither the PR-comment surface nor the fix list BY DEFAULT — an explicit user pick lifts that gate (the Post drill's "Send all", or the include-deferred gate on the "/geniro:implement findings" path; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.2 / §4.6), because severity gates default disposition, not user-elected disposition. One exception to the deferral itself: a LOW finding whose `Decision Type` is `PRODUCT-DECISION` is kept and surfaced regardless of severity (it names the user's call, not the reviewer's), per §5 Path B.
 
 ---
 
@@ -164,7 +164,8 @@ KEEP IF:
   )
   # Path B — decision-type orthogonal (any severity; skips the §4.2 verifier)
   OR Decision Type == PRODUCT-DECISION    # the user's call, not the reviewer's — severity does not gate visibility
-ELSE DEFER to ## Deferred — sub-threshold (state.md body, NOT PR comment)
+ELSE DEFER to ## Deferred — sub-threshold (state.md body; off the PR and the fix list
+     by default — a user pick lifts it, per review-handoff.md §7.1 / §4.6)
 ```
 
 Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence-Block drops to `## Deferred — sub-threshold` regardless of convergence or confidence score.

@@ -52,7 +52,7 @@ Standard Phase 3 routes every Round-1 finding straight into the fix loop. Deep m
 
 ## 5. Interaction with the fix loop
 
-Deep cost is front-loaded on Round 1 discovery + verification. The bounded fix loop (rounds 2-3, failing dims only) re-spawns SINGLE-pass — re-running the deep fan-out every round would multiply the loop cost for diminishing returns, since Round 1's deep pass already established the verified finding set and a later round only re-checks whether the applied fixes hold. The `test-runner-agent` and `adversarial-tester-agent` behavior is unchanged across rounds. Round 4 entry stays forbidden (escalate-AUQ) exactly as in standard mode.
+Deep cost is front-loaded on Round 1 discovery + verification. The bounded fix loop (rounds 2-3, dims with actionable findings only — a minor-only dim counts as clean) re-spawns SINGLE-pass — re-running the deep fan-out every round would multiply the loop cost for diminishing returns, since Round 1's deep pass already established the verified finding set and a later round only re-checks whether the applied fixes hold. The `test-runner-agent` and `adversarial-tester-agent` behavior is unchanged across rounds. Round 4 entry stays forbidden (escalate-AUQ) exactly as in standard mode.
 
 ## 6. Workflow shape
 
