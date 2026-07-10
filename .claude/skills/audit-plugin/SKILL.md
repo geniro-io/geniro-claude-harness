@@ -132,9 +132,11 @@ Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/`
 
 On `--quick` runs, omit sections 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead.
 
-In chat: lead with the highest-value fix, then counts per tier, then the report path. Don't paste the whole report.
+In chat, render **every** finding before the action gate — the user approves individual fixes, so each one has to be visible, low and cosmetic included. A tier count alone is not enough; a count hides the exact change a reader is being asked to authorize. Lead with the highest-value fix, then the full tier tables T0→T5 (same `# | file:line | issue | fix` rows as the report, convergence inline), then the report path. When the table set is very long, send the report file itself (so every row is scannable) AND render the decision-critical tiers (T0/T1/T2) inline — but never collapse a tier to a bare number. The set the user is about to approve and the set they can see must be the same set.
 
 ## PHASE 5 — Action gate
+
+The user must see each finding (Phase 4) before this gate — approving a fix they never read is the failure this gate guards against.
 
 Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness, ...). How should I proceed?" with options: "Fix safety + correctness now (T0-T1) (Recommended)" / "Let me pick findings" / "Report only — I'll handle fixes separately".
 
@@ -164,6 +166,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 | "Skill X mentions /geniro:learnings — stale ref, flag it." | Deleted-skill names inside the documented replacement tables (CLAUDE.md, MIGRATION.md) are documentation OF the deletion. Adjudicate candidates; don't bulk-flag grep hits. |
 | "The user said audit everything — I'll include design/ and evals/." | Out of default scope: design/ holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
+| "There are 80 findings — I'll show tier counts and link the report." | The user approves fixes finding-by-finding, so a count hides the exact edits they're authorizing. Render every finding (low included) before the gate; send the report file when the set is long, but the visible set must equal the approvable set. |
 
 ## Definition of done
 
@@ -171,6 +174,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - [ ] Selected reviewers spawned in one response; outputs collected
 - [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt)
 - [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list
+- [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked
 - [ ] State cleaned up; commit offered
 
