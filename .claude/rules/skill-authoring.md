@@ -38,7 +38,7 @@ Skills are runtime instructions, not change logs. Strip:
 
 ### 4. Informational noise / hedges
 
-Strip text that the runtime model already knows or that does not change behavior:
+Apply the no-op test to every sentence: does it change the model's behavior versus what it would do by default? A failing sentence is deleted whole, not trimmed to a shorter no-op — "be thorough" addressed to a model that is already thorough is paid-for silence, and the fix for a too-weak steering word is a stronger one ("relentless"), not more words. Sentences that commonly fail the test:
 
 - Re-explanations of standard tooling ("the Read tool reads a file", "git is a version control system").
 - Hedging without conditional ("this may or may not work depending"). Either state the condition under which it does/doesn't, or drop the line.

@@ -58,7 +58,7 @@ Predictable section order helps the orchestrator parse and helps human readers s
 6. Budgets / quality gates — table.
 7. Memory I/O — short references to `_shared` helpers.
 8. ACI per-phase tool surface — table.
-9. Per-phase sections (`## PHASE 1`, `## PHASE 2`, ...) — each contains short Steps list. Inline ONLY the workflow narrative; push templates + pseudo-code to reference.md.
+9. Per-phase sections (`## PHASE 1`, `## PHASE 2`, ...) — each contains short Steps list. Inline ONLY the workflow narrative; push templates + pseudo-code to reference.md. End each phase on a completion criterion the model can check — done distinguishable from not-done — and, where coverage matters, exhaustive ("every kept finding rendered", not "render the findings"); a vague bound is what lets a phase end prematurely. The Definition-of-Done checklist is the canonical form.
 10. Modifier handling — table.
 11. Task execution entry / state recovery.
 12. Anti-rationalization — table (see size cap below).
