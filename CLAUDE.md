@@ -187,6 +187,16 @@ To check what's available in your environment, look for `mcp__plugin_playwright_
 
 The plugin agents also carry a broad `mcp__*` grant so a project-configured **code-index** or **memory-backend** MCP (e.g. a graph/search service) is reachable from a subagent without naming the server in the plugin — see §Memory Layers for the memory-backend routing. That grant is read-only by contract: agents are instructed (via the inlined untrusted-content defense) to use MCP for read-only intelligence and never call an egress or mutating MCP tool.
 
+## Editing plugin content — full reads, not grep
+
+When the user asks to improve, review, or modify this plugin's skills/agents/rules, load the relevant files in FULL first by running:
+
+```bash
+scripts/dump-md.sh [path ...]   # e.g. scripts/dump-md.sh skills/implement skills/_shared
+```
+
+It prints every tracked `.md` file under the given paths (whole repo when no path) as a `===== <path> =====` header followed by the file's complete content. Do this BEFORE reaching for Grep: keyword search shows matching lines only, which misses reworded coverage of the same concept and produces false "missing" findings when auditing or extending skills. Grep stays fine for pinpointing an exact known string (an edit anchor, a cross-reference check) — not for surveying what a skill covers. Subagents doing gap analysis or skill edits get the same instruction: read full files, not grep hits.
+
 ## Testing & CI
 
 Shell test suites live under `tests/` (one file per helper / hook). Run the whole set:
