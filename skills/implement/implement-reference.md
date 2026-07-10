@@ -6,6 +6,7 @@ This file contains templates, examples, and detailed procedures referenced by SK
 
 ## Contents
 
+- Phase 1: Step 0c AUQ templates
 - Phase 1: $ARGUMENTS semantic-parse table
 - Phase 1: Spec discovery walk-list
 - Phase 1: Subagent spawn template
@@ -20,6 +21,55 @@ This file contains templates, examples, and detailed procedures referenced by SK
 - Phase 3 — Ship sub-step
 - Phase 3 — Adjustment Routing (Big / Medium / Small)
 - Definition of Done
+
+---
+
+## Phase 1: Step 0c AUQ templates
+
+Literal question shapes for the Step 0c workspace-setup AUQ. SKILL.md §PHASE 1 Step 0c owns when each fires; these are the verbatim templates.
+
+### Question 1 — workspace (rules 5/6)
+
+```
+header: "Git workspace"
+question: "Where should /geniro:implement land its edits?"
+multiSelect: false
+options:
+  - label: "New feature branch (Recommended)"
+    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
+  - label: "Current branch"
+    description: "Pre-flight only; no git mutation. Echo 'Continuing on <branch> at <toplevel>.'"
+  - label: "Git worktree"
+    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same branch-name-format conformance as 'New feature branch'."
+```
+
+### No-ticket-ID sub-flow
+
+```
+header: "Ticket ID needed"
+question: "Branch format requires a ticket prefix (per .geniro/instructions/global.md), but no ticket ID was detected in $ARGUMENTS, spec.md, or the current branch. How do you want to proceed?"
+multiSelect: false
+options:
+  - label: "Provide ticket ID inline"
+    description: "User types the ID (e.g. ENG-123) in the next message; agent re-derives the slug and proceeds."
+  - label: "Use placeholder slug"
+    description: "Slug becomes <type>/no-ticket-<desc>. Branch is created with the placeholder; user can rename later via 'git branch -m'."
+  - label: "Cancel — I'll get a ticket first"
+    description: "Terminal. No git mutation. User exits and re-invokes /geniro:implement once a ticket exists."
+```
+
+### Question 3 — implement depth
+
+```
+header: "Implement depth"
+question: "How deep should the implementation analysis go?"
+multiSelect: false
+options:
+  - label: "Standard"
+    description: "One spec fact-check pass and one self-review pass."
+  - label: "Deep — 3× fact-check + multi-angle self-review"
+    description: "3× spec fact-check before editing plus a multi-angle self-review with verification escalated only where the call is contested; higher quality at higher token cost."
+```
 
 ---
 
@@ -418,16 +468,34 @@ while round ≤ 3:
 
   collect findings (reviewer dim outputs + adversarial-tester findings +
                     list of authored failing tests on disk)
-  partition:
-    ACTIONABLE = severity ≥ MEDIUM, OR Decision Type routes through a user gate
-                 (PRODUCT-DECISION / INTENT-CHECK), OR an authored failing
-                 adversarial test (always a HIGH)
-    MINOR      = LOW findings with none of those properties
+  partition (scope before severity — findings carry [NEW|PRE-EXISTING] tags):
+    OUT-OF-SCOPE = any finding tagged PRE-EXISTING, at ANY severity — it concerns
+                 code this change did not introduce, so fixing it silently expands
+                 the diff past what the spec authorized. Never auto-fix; route to
+                 ## Deferred Findings (severity + "pre-existing" marker preserved)
+                 so the minor-findings gate puts the fix-or-defer call to the user.
+    ACTIONABLE = NEW findings with severity ≥ MEDIUM, OR Decision Type routes
+                 through a user gate (PRODUCT-DECISION / INTENT-CHECK), OR an
+                 authored failing adversarial test (always a HIGH)
+    NIT        = NEW LOW findings whose fix is mechanical and confined to code this
+                 run authored — comment noise, a naming slip, a dead import, a
+                 just-added scenery test flagged for removal. Fold into the CURRENT
+                 round's fix batch: self-review exists to leave the just-written
+                 code clean, and deferring a one-line nit on a line this run wrote
+                 costs the user a decision for no risk reduction. Nits never force
+                 a round and never block exit.
+    MINOR      = remaining NEW LOW findings (judgment-required, or outside the
+                 lines this run authored)
 
   if no ACTIONABLE findings AND no authored adversarial tests THAT STILL FAIL:
     break  # exit → minor-findings gate → test-quality gate → Ship sub-step
 
-  apply fixes inline (single Edit-driven sub-loop, NO further agent spawns)
+  apply ACTIONABLE fixes + NITs inline (single Edit-driven sub-loop, NO further
+    agent spawns). Each fix is the smallest change that resolves the finding at
+    its cited site — never add an abstraction, option, or generality the finding
+    does not require (speculative generality is itself a finding, not a fix); a
+    recommendation that amounts to a redesign routes to the escalation AUQ, never
+    the inline batch.
   re-spawn test-runner-agent; if Verdict != ALL_GREEN, rollback to Phase 2
   round += 1
 else:
@@ -437,7 +505,7 @@ else:
 
 **Round N+1 only re-spawns dimensions that flagged an actionable finding, and the adversarial-tester (conditionally).** Dimensions that reported nothing actionable in round N — clean, or minor-only — are NOT re-spawned: bounds cost and avoids re-litigating clean code. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache.
 
-**Minor findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving minor findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_write`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory.
+**Minor and out-of-scope findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving MINOR + OUT-OF-SCOPE findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_write`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix · a `pre-existing` marker on out-of-scope entries. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory. NITs never persist here — they were fixed in-round.
 
 **Adversarial-tester treated as the 6th dimension for fix purposes:**
 - Each authored failing test counts as a HIGH finding.
@@ -467,12 +535,14 @@ Fires once the bounded fix loop converges (clean exit OR the accepted-findings e
 
 **Skip-when-clean.** When `## Deferred Findings` is empty or absent, skip silently — the gate never fires with nothing to decide.
 
-**Message-first render.** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, emit a separate chat message listing each finding in plain English — title · `file:line` · one-line description. Call them "minor findings below the fix threshold"; severity labels and finding-ID shorthand are review-internal vocabulary that means nothing to the user.
+**Message-first render.** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, emit a separate chat message listing each finding in plain English — title · `file:line` · one-line description. Call them "minor findings below the fix threshold"; severity labels and finding-ID shorthand are review-internal vocabulary that means nothing to the user. Entries carrying the `pre-existing` marker get an explicit callout — "this one concerns code this change didn't touch; fixing it widens the change" — and a serious-severity pre-existing entry states its severity in plain English ("the review rates this one serious"), so the user can weigh an expand-scope-now decision against a follow-up task.
 
 **Lean AskUserQuestion** (header: `Minor findings`):
 
 ```
-question: "The review also flagged <N> minor findings below the fix threshold.
+question: "The review also flagged <N> findings it didn't auto-fix — minor ones
+           below the fix threshold<, and M in pre-existing code this change
+           didn't touch — omit the clause when M is 0>.
            Fix them now before shipping, or leave them listed in the ship report?"
 options:
   - label: "Leave them in the ship report (Recommended)"
@@ -504,7 +574,7 @@ The `(Recommended)` marker follows `per-finding-question.md` §Recommended-label
 
 ## Phase 3: Test-quality gate
 
-After the bounded fix loop converges (clean exit or accepted findings) and the minor-findings gate settles, and before the Ship sub-step, run the test-quality gate when this run authored or changed test files — full contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md`. It surfaces the fresh `tests`-reviewer audit of the new tests (claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, weak assertions) as a visible decision: a clean audit records a one-line ship-report confirmation and asks nothing; open findings render message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering", then a lean AskUserQuestion (header: `Test quality`) offers tighten-all / pick / ship-as-is. No new agent spawn — the gate consumes the tests-dimension output already collected in the fix loop. Advisory and fail-open: it never blocks Ship and never overrides the Ship-mode AUQ.
+After the bounded fix loop converges (clean exit or accepted findings) and the minor-findings gate settles, and before the Ship sub-step, run the test-quality gate when this run authored or changed test files — full contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md`. It surfaces the fresh `tests`-reviewer audit of the new tests (claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, weak assertions, scenery tests flagged for removal) as a visible decision: a clean audit records a one-line ship-report confirmation and asks nothing; open findings render message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering", then a lean AskUserQuestion (header: `Test quality`) offers tighten-all / pick / ship-as-is. No new agent spawn — the gate consumes the tests-dimension output already collected in the fix loop. Advisory and fail-open: it never blocks Ship and never overrides the Ship-mode AUQ.
 
 ---
 

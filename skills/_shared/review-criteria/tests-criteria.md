@@ -9,6 +9,7 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 - Output Format
 - Common False Positives
 - Litmus Test (The Deletion Test)
+- Tests of the scenery — never author, flag for removal
 - Assertion completeness & spec coverage
 - Test Deletions in the Diff (Inverse Deletion Test)
 - Review Checklist
@@ -350,6 +351,17 @@ If the answer is yes, the test is worthless — it's testing mocks, trivial wiri
 - Tests where removing `expect` lines doesn't cause failure
 - "Smoke tests" that import a module and assert `!== undefined`
 
+## Tests of the scenery — never author, flag for removal
+
+A test earns its maintenance cost only by pinning behavior someone could regress. A test that pins the scenery — detail with no behavioral contract — breaks on every refactor and catches nothing:
+
+- **Presentational details**: CSS class names, inline styles, static markup structure, exact copy strings (unless the copy IS the spec'd behavior — e.g. a legally-required disclosure).
+- **The framework or library itself**: that React renders a component, that the router routes, that the ORM maps a column — the dependency's own suite covers that.
+- **Trivial wiring**: getters/setters with no logic, constant re-exports, pass-through calls.
+- **Duplicates of existing suite coverage**: a new test whose cause path AND outcome are already pinned by a surviving test at the same seam — the same pairwise rule as §Redundancy among newly-authored tests, extended to the existing suite. The F→P invariant's first-run-green signal usually exposes these.
+
+Never author such a test. When the diff ADDS one, flag it with an explicit removal recommendation — deleting a scenery test is a quality improvement, not a coverage loss (confirm with the Deletion Test / cause-path comparison first). Severity LOW; raise to MEDIUM when the scenery test is the ONLY test on a spec-required behavior, because then the real finding is the coverage gap it masks.
+
 ## Assertion completeness & spec coverage
 
 The Deletion Test above catches a test that asserts *nothing real*. This section catches the subtler failures: a test whose expected value *is derived the way the implementation derives it*, a test that asserts *less than it claims*, a behavior the spec required that *no test covers*, and *two new tests that pin the same thing*. Run these checks on every newly-authored or modified test.
@@ -461,6 +473,7 @@ This is the inverse of mutation testing: instead of mutating the code to see wha
 - [ ] Expected values are independent of the implementation (literal / worked example / spec — not re-derived by the production algorithm)
 - [ ] Every spec-required behavior (section 9 / Done Condition / acceptance criteria) has a covering test
 - [ ] No two newly-authored tests pin the same cause path and outcome
+- [ ] No new test pins scenery (presentational detail, framework behavior, trivial wiring) or duplicates existing suite coverage — such additions are flagged for removal
 
 ## Severity Guidelines
 
