@@ -97,7 +97,7 @@ Review ONLY your dimension; other dimensions are covered by parallel reviewers.
 {{battery summary; for D3 additionally: the candidate lists; for D7 additionally: the seed-grep output}}
 
 ### Procedure
-1. Read every file in scope relevant to your checks (Grep first to prioritize; Read before claiming).
+1. Load your markdown scope in FULL first: run `scripts/dump-md.sh <scope paths>` — it prints every tracked .md file under the paths as a `===== <path> =====` header followed by complete content. Survey from that, not from Grep hits: keyword search shows matching lines only, which misses reworded coverage and produces false "missing" findings. Grep stays fine for pinpointing an exact known string; non-markdown files (shell, JSON) are Read directly.
 2. Verify each candidate finding by Reading the exact cited lines — your `evidence` column must be a verbatim quote.
 3. Return ONLY the findings table per the output contract (≤25 rows) plus a 2-3 sentence per-dimension verdict ("healthy / debt concentrated in X").
 Do NOT fix anything. Do NOT review outside your dimension. Report only.
@@ -105,7 +105,7 @@ Do NOT fix anything. Do NOT review outside your dimension. Report only.
 ```
 
 Dimension-specific notes:
-- **D4 (rules compliance):** instruct the reviewer to Read the three `.claude/rules/*.md` files first as its rubric source (they're too long to paste).
+- **D4 (rules compliance):** instruct the reviewer to load the three `.claude/rules/*.md` files first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
 - **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
 - **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
 
@@ -180,3 +180,4 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - `.claude/rules/skill-authoring.md` / `skill-prose.md` / `skill-structure.md` — the D4 rubric source
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `tests/run-all.sh` + `tests/authoring/lint-skills.sh` — the D1 battery core
+- `scripts/dump-md.sh [path ...]` — full-content markdown dump (filename header + complete body per tracked file); reviewers survey their markdown scope with it instead of grep
