@@ -51,7 +51,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
    - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings (the action gate and cleanup apply regardless of depth).
    - A path (`skills/review`, `hooks/`, `lib/`) → restrict every dimension's scope to files under it; spawn only dimensions whose scope intersects.
    - A dimension name (`consistency`, `staleness`, `rules`, `logic`, `shell`, `simplicity`, `numbers`, `safety`) → spawn only that reviewer (plus the Phase 1 battery, which always runs).
-2. **Build the inventory** (Glob; record counts + `wc -l` totals in the state checkpoint):
+2. **Build the inventory** (record file counts + line totals in the state checkpoint):
    - Shipped: `skills/**/*.md`, `agents/*.md`, `hooks/*` + `hooks/hooks.json`, `lib/*.sh`, `settings.json`.
    - Repo-local: `.claude/rules/*.md`, `.claude/skills/**/*.md`.
    - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
@@ -61,7 +61,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 
-Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, file-size caps, TOC presence, orphan-candidate grep. Preflight external tools first (`command -v shellcheck`, `command -v jq`): a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. For each command: capture output verbatim; non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
+Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, file-size caps, TOC presence, orphan-candidate grep. Preflight external tools: a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. For each command: capture output verbatim; non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
@@ -97,7 +97,7 @@ Review ONLY your dimension; other dimensions are covered by parallel reviewers.
 {{battery summary; for D3 additionally: the candidate lists; for D7 additionally: the seed-grep output}}
 
 ### Procedure
-1. Load your markdown scope in FULL first: run `scripts/dump-md.sh <scope paths>` — it prints every tracked .md file under the paths as a `===== <path> =====` header followed by complete content. Survey from that, not from Grep hits: keyword search shows matching lines only, which misses reworded coverage and produces false "missing" findings. Grep stays fine for pinpointing an exact known string; non-markdown files (shell, JSON) are Read directly.
+1. Load your markdown scope in FULL via `scripts/dump-md.sh <scope paths>` and survey from that — grep hits miss reworded coverage; grep only to pinpoint an exact known string. Read non-markdown files directly.
 2. Verify each candidate finding by Reading the exact cited lines — your `evidence` column must be a verbatim quote.
 3. Return ONLY the findings table per the output contract (≤25 rows) plus a 2-3 sentence per-dimension verdict ("healthy / debt concentrated in X").
 Do NOT fix anything. Do NOT review outside your dimension. Report only.
@@ -121,7 +121,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 4 — Report
 
-Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/` is a gitignored local-only working area — not a `.geniro/` state path, so the Write tool is correct here and the state-helper hook does not apply; `mkdir -p design/scratch` first if it does not exist) with this structure, mirroring the established audit-report format:
+Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/` is a gitignored local-only working area — not a `.geniro/` state path, so the state-helper hook does not apply) with this structure, mirroring the established audit-report format:
 
 1. **Header** — date, scope, reviewer topology (which dimensions ran, sharding).
 2. **Health summary** — what's strong and must NOT be over-corrected (feeds the next run's do-not-flag list).
@@ -142,7 +142,7 @@ Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness,
 - **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
 - **Report only:** proceed to cleanup.
 
-**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Run `git status --short`; offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow repo commit style (`git log -5 --oneline` first); never `--no-verify` / `--amend`.
+**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow the repo's commit style; never `--no-verify` / `--amend`.
 
 ## State recovery
 

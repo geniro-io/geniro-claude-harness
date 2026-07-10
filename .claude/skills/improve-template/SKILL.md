@@ -337,6 +337,14 @@ Apply the following approved changes:
   line over adding a new one. The bar is zero degradation: a tightening that drops a
   load-bearing nuance, edge case, or behavioral condition is a degradation, not a
   compaction — keep the longer wording. Signal density, not line count, is the target.
+- **Assume a capable model** (per `.claude/rules/skill-prose.md` §Assume a capable
+  model): in the sections you touch, also REMOVE over-detailed mechanics the model
+  derives itself — platform command recipes, shell idiom hand-holding, prescribed
+  loop shapes where goal + bound suffices, chewed-up substeps for a one-step goal.
+  Excess detail isn't just token cost: it primes one mechanism and confuses the run
+  when the environment wants another. An improvement pass removes the unnecessary,
+  not only adds. Contracts stay: schemas, paths, thresholds, canonical option labels,
+  and explain-WHY on rationalization-prone rules are not "detail".
 
 ### Definition of Done
 - [ ] All approved changes applied

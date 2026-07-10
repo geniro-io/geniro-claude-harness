@@ -85,7 +85,7 @@ Pick one term per concept and use it across the entire skill file. Per Anthropic
 | Subagent spawn | `spawn` | `spawn` + `invoke` + `call` + `delegate` |
 | Sub-step | `Step N.M` consistently throughout | `Step 0.5` + `Sub-step 0b` + `Phase 1 §3` for the same thing |
 
-When unsure, grep the file for the concept's synonyms and unify before commit.
+Unify a concept's synonyms before commit.
 
 ## Leading words
 

@@ -89,12 +89,10 @@ Constraints:
 
 ## Pre-commit verification
 
-Before committing edits to `skills/**/*.md` or `agents/**/*.md`, walk this checklist:
+Before committing edits to `skills/**/*.md` or `agents/**/*.md`:
 
-1. **Line counts.** `wc -l` the touched file. Over 500 (target) or 700 (hard ceiling) → consider moving detail to a sibling `*-reference.md`; don't trim load-bearing content to hit a number (the caps are guidelines, not a strict split trigger).
-2. **Reference depth.** `grep '${CLAUDE_PLUGIN_ROOT}\|${CLAUDE_SKILL_DIR}'` the file. Any reference target itself must NOT reference another skill body for runtime instructions.
-3. **TOC presence.** Any reference file > 100 lines must have a TOC near the top.
-4. **No line-number cross-refs.** `grep -nE 'SKILL\.md:[0-9]+|reference\.md:[0-9]+'` returns nothing.
-5. **No pseudo-code duplication.** If you added a pseudo-code block (`while`, `if`, `for` in a fenced block), grep the sibling reference file. If it lives there too, point to it from SKILL.md instead of inlining.
-6. **Anti-rationalization table ≤ 15 rows.** `sed -n '/^## Anti-rationalization/,/^## /p' <file> | grep -cE '^\|'` — subtract 2 (header + separator) and check.
-7. **Frontmatter description** is third-person, "Use when …" form, ≤1024 chars.
+1. **Run `bash tests/authoring/lint-skills.sh`.** It mechanizes the checkable rules here — hard-fails on non-Latin text, dangling `${CLAUDE_PLUGIN_ROOT}` file references, and unknown spawn names; warns on file-size targets, anti-rationalization tables over 15 rows, and line-number cross-refs. On an over-target size, move detail to a sibling reference file; never trim load-bearing content to hit a number (the caps are guidelines).
+2. **Reference depth.** Any file this edit makes a skill cite must not itself pull runtime instructions from another skill's body (§Reference graph).
+3. **TOC presence.** A reference file grown past 100 lines has a Contents block near the top.
+4. **No pseudo-code duplication.** A pseudo-code block added to SKILL.md must not also live in the sibling reference file — cite the single source instead.
+5. **Frontmatter description** is third-person, "Use when …" form, ≤1024 chars.
