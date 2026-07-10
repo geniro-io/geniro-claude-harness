@@ -7,7 +7,7 @@ allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, WebSearch
 argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep]"
 ---
 
-# Code Review Skill
+# Code review skill
 
 Comprehensive code review using parallel multi-agent analysis.
 
@@ -20,7 +20,7 @@ Comprehensive code review using parallel multi-agent analysis.
 
 ---
 
-## Your Role — Orchestrate, Don't Review
+## Your role — orchestrate, don't review
 
 You are a **coordinator**. You delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. You do NOT review code yourself — you read files only to gather context and verify agent findings.
 
@@ -28,7 +28,7 @@ You are a **coordinator**. You delegate review work to `reviewer-agent` instance
 
 ---
 
-## State Machine
+## State machine
 
 State.md `phase:` enum transitions:
 
@@ -47,7 +47,7 @@ State.md `phase:` enum transitions:
 
 ---
 
-## Loop Invariants
+## Loop invariants
 
 The invariants apply unchanged:
 
@@ -62,15 +62,15 @@ The invariants apply unchanged:
 9. **Re-verify ambiguity gates at external-effect boundaries.** The Pre-gate (`review-handoff.md` §2.5), the open-decision gate (`review-handoff.md` §3 Step 0), the Phase 4.2 per-finding verifier, and the §3.5 finalize step establish gate invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, kept-finding `Validation:`, and `report_status: final` respectively; the Pre-Post guard (`review-handoff.md` §7.0) re-reads ALL FOUR before any `gh api POST /reviews` because mid-phase producer writes, parallel resolvers, or orchestrator drift can re-create unresolved ambiguity (or surface a `Validation: refuted` finding that bypassed the upstream filter, or leave the report at `report_status: draft`) between the upstream gate and the external write. Never trust an upstream gate's invariant at a public-surface boundary.
 10. **Stamp `phase:` on entry, before the phase's work.** Write state.md `phase: <X>` via `atomic_state_write` when each phase BEGINS, ahead of that phase's steps — not at persist time. A checkpoint written only at the end records history, not current state: a crash mid-phase leaves no resumable marker, and a declaration the phase produces (e.g. `spawn_dims_declared` written in §2.2, before the spawns) lands ~100 events too late to power the gate that reads it if the whole phase's state is deferred to persist. A phase is stamped DONE only after its trailing steps complete — stamp `persist` only once the §5.3 learning emits have run, OR stamp the next phase at its own entry; never stamp a later phase while an earlier phase's trailing emits are still pending.
 
-**Turn-completion check (canonical, un-numbered).** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check: never stop on a statement of intent or an announced-but-unfired question — at every gate the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard, and an answered question is continued with the next action, never a silent stop.
+**Turn-completion check (canonical, un-numbered).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard: never stop on an announced-but-unfired question.
 
 `## Tool log` schema: typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5.3 emit-learning + 1 per PR-side-effect).
 
 ---
 
-## Budgets — Quality-First
+## Budgets — quality-first
 
-This skill has no hard kill caps. Same model as other skills.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. This skill's own gates:
 
 **Quality gates (escalate to user, do not abort):**
 
@@ -87,7 +87,6 @@ This skill has no hard kill caps. Same model as other skills.
 | LLM reviewer spawn count | always-fire + conditional + custom dims (per §2.1) in parallel | §2.1 dimension grid + Phase 1.5 §1.5.4 custom-reviewer discovery |
 | Mechanical pre-pass tools | 3 (lint / schema / secret scan) | Phase 1.5 |
 
-**Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
 ---
 
 ## Subagent model tiering
@@ -107,7 +106,7 @@ Every Agent prompt satisfies the six pre-inlined fields per `${CLAUDE_PLUGIN_ROO
 
 ---
 
-## Phase 1 — Triage & Context Collect
+## Phase 1 — Triage & context collect
 
 State.md `phase: triage`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`.
 
@@ -135,7 +134,7 @@ Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr di
 
 ---
 
-## Phase 1.5 — Mechanical Pre-pass
+## Phase 1.5 — Mechanical pre-pass
 
 State.md `phase: mechanical-prepass`.
 
@@ -220,7 +219,7 @@ The list names every check that ran to an outcome (findings or a `## Errors` ent
 
 ---
 
-## Phase 2 — LLM Reviewer Spawns
+## Phase 2 — LLM reviewer spawns
 
 State.md `phase: llm-spawn`.
 
@@ -343,7 +342,7 @@ Detect at Phase 2 entry, via Glob, whether the repo contains any authored rule f
 
 ---
 
-## Phase 3 — Filter & Aggregate
+## Phase 3 — Filter & aggregate
 
 State.md `phase: filter`.
 
@@ -370,7 +369,7 @@ No external agent to fail — dedup and judgment run in orchestrator's main cont
 
 ---
 
-## Phase 4 — Stratification & Test Gate
+## Phase 4 — Stratification & test gate
 
 State.md `phase: stratify`.
 
@@ -469,7 +468,7 @@ Summary:
 
 ---
 
-## Phase 5 — Persist & Emit
+## Phase 5 — Persist & emit
 
 State.md `phase: persist`.
 
@@ -528,7 +527,7 @@ If Phase 5 re-enters after compaction:
 
 ---
 
-## Phase 6 — Action Gate Handoff
+## Phase 6 — Action gate handoff
 
 State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`.
 
@@ -537,7 +536,7 @@ Summary of the gate chain (each gate is its own AUQ — never collapsed):
 1. **Pre-gate — Resolve Open Questions** fires first whenever frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry (cap-extension >4). Always-WAIT. Resolutions persist back via `atomic_state_write`. Complete this before any other gate, because the later gates act on findings whose ambiguity these questions resolve. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5. Skipped when zero unresolved entries.
 2. **Open-decision gate** — for each kept finding whose state-file `Decision Type:` field is `PRODUCT-DECISION` — judgment calls the reviewer won't resolve for you — render the finding to chat first, then fire one lean AUQ (header `Open decision`), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering. Skipped when none.
    - **Finalize (silent — no AUQ).** After the open-decision gate clears, flip the report from `draft` to `final` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5). The Action gate's handoff option and the public-post guard both require `final`, so the handoff is never offered against a report whose decisions are still open.
-   - **Rule/improvement mining moved to `/geniro:reflect`** — run it on demand to analyze recent sessions for durable rule candidates.
+   - **Rule/improvement mining** — for durable rule mining, run `/geniro:reflect` on demand to analyze recent sessions for rule candidates.
 3. **Action gate** — render the wrap-up chat message first (all-decided tracker + one-sentence opener + kept-findings severity digest, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4), then fire `AskUserQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?" / "apply the fix now" / "add the test now") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). The canonical 4 option labels below are an allowlist: substituting an ad-hoc "apply the fix" / "add the test" / "what next?" option (or applying any fix from /geniro:review) is forbidden — fixes route to `/geniro:implement findings`. Option labels (verbatim, do not paraphrase):
    - `"/geniro:implement findings"` — append ` (Recommended)` when CRITICAL≥1 OR HIGH≥2; exits /geniro:review and the model surfaces `/geniro:implement .geniro/state/handoff/from-review-<branch>.md` as the next command. Its description must disclose that /geniro:implement applies the fixes and asks before committing/pushing — picking it routes the findings, it does not authorize a ship (per the §4 literal description).
    - `"Post Draft PR review"` — present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted. OMIT only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]` from a prior round.
@@ -568,7 +567,7 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 
 ---
 
-## Memory I/O Schedule
+## Memory I/O schedule
 
 | Phase | Helper | Direction | MODE | Inputs | Outputs |
 |---|---|---|---|---|---|
@@ -611,7 +610,7 @@ Existing safety hooks apply: file-protection, git-guardrails, `.geniro/` deletio
 
 ---
 
-## Definition of Done
+## Definition of done
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the review incomplete or unsafe. Per-phase mechanics (context loading, mode detection, scoring) live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
 

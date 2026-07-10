@@ -7,9 +7,9 @@ allowed-tools: [Read, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, WebFe
 argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why was X pattern chosen?']"
 ---
 
-# Investigate: Deep Codebase Q&A
+# Investigate: deep codebase Q&A
 
-3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present) mirroring `/geniro:implement`, `/geniro:debug`, `/geniro:refactor`. Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, verifies with a fresh agent, and presents the answer.
+3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, verifies with a fresh agent, and presents the answer.
 
 ## State machine
 
@@ -28,7 +28,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 ## Quality-first budgets
 
-Quality-first framing: /geniro:investigate has no hard kill caps — all limits are escalation gates that surface to the user.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. All limits below are escalation gates that surface to the user, not abort triggers.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -41,8 +41,6 @@ Quality-first framing: /geniro:investigate has no hard kill caps — all limits 
 - Skip criteria apply ONLY to prune from classified set; never add.
 
 **Claude Code internals** (not under /geniro:investigate control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
-
-**Explicitly NOT capped:** wall-time per run; total Read/Grep/WebSearch calls; total cost per run.
 
 ## Subagent model tiering
 
@@ -103,7 +101,7 @@ Classify the question into one of the types below. The "Agents needed" column is
 
 ### Step 1.5: External-lookup routing (Internet-only → consider /deep-research)
 
-When the question classifies as **External docs lookup** (Internet only — no project code or git evidence needed), the native `/deep-research` workflow runs deeper multi-source web research than this skill's single Internet Researcher: it fans out searches across several angles, cross-checks the sources against each other, and votes on each claim before reporting. Offer it before spawning Phase 2.
+When the question classifies as **External docs lookup** (Internet only — no project code or git evidence needed), a `/deep-research` workflow, when your environment provides one, runs deeper multi-source web research than this skill's single Internet Researcher: it fans out searches across several angles, cross-checks the sources against each other, and votes on each claim before reporting. Offer it before spawning Phase 2.
 
 Fire `AskUserQuestion` (header "Research depth"):
 - **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
@@ -144,19 +142,11 @@ Procedure:
 
 Skip this step entirely when CLAUDE.md has no Domain Context section, when the question has no domain-shaped terms, or when all terms are exact matches. When in doubt, skip — false positives waste user time more than false negatives waste investigation budget.
 
-### Step 2.6: 5-step JIT retrieval cadence
+### Step 2.6: JIT retrieval cadence
 
-The 5-step just-in-time retrieval cadence:
+Retrieval is just-in-time: infer specific tags/paths/symbols from $ARGUMENTS, spawn only the literal classified set (Step 1) pruned by the skip criteria (Step 2), pre-inline the relevant file content into each spawn (Phase 2 §A/§B/§C templates), and require structured findings citing exact refs (Evidence Standard kinds 1-6, verbatim snippets not paraphrase). Those exact refs are what the Phase 3 `discovery` emit persists in `ext.{area, insight}`.
 
-1. **Infer** — extract specific tags, file-paths, and symbols from $ARGUMENTS. Don't broad-scan.
-2. **Search** — apply skip criteria from Step 2; spawn only the literal classified set from Step 1.
-3. **Read most-relevant** — agents pre-inline relevant file content via orchestrator (Phase 2 §A/§B/§C spawn templates) — agents don't broad-Glob themselves.
-4. **Return concise** — agents output structured findings (Evidence Standard kinds 1-6 only); no narrative drift.
-5. **Store exact refs** — every claim cites file:line / commit-hash / URL with verbatim snippet, not paraphrase.
-
-Step 5 closes the L2 emit auto-step — the "exact refs" are what get persisted in the Phase 3 `discovery` emit's `ext.{area, insight}` fields.
-
-State.md `## JIT Cadence` body section logs which steps fired for this run (audit trail).
+Unique requirement: state.md `## JIT Cadence` body section logs which steps fired for this run — the audit trail that makes the JIT discipline reviewable.
 
 Before spawning agents, check past learnings for existing answers to this question or closely related topics — same routing as Phase 0 Step 3 (query-learnings.md §"Memory backend override"), with keywords from the question. If a comprehensive answer exists, present it and ask the user if they want fresh investigation.
 
@@ -244,7 +234,7 @@ After Phase 2 Step 2/3 complete (every load-bearing claim verified or routed):
 
 #### Draft the answer
 
-Structure the answer based on question type. Five literal markdown templates (How / Why / What-if / Compare / Risk) — each with the expected sections (Overview / Execution Flow / Key Details for How; Decision / Evidence / Trade-offs for Why; Direct Impact / Ripple Effects / Risks / Recommendation for What-if; per-dimension comparison table for Compare; Risk Assessment table + Mitigations for Risk) — in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §5. Copy the matching template and fill in evidence; do NOT freelance the shape.
+Structure the answer based on question type. Five literal markdown templates (How / Why / What-if / Compare / Risk) — each with the expected sections (Overview / Execution Flow / Key Details for How; Decision / Evidence / Trade-offs for Why; Direct Impact / Ripple Effects / Risks / Recommendation for What-if; per-dimension comparison table for Compare; Risk Assessment table + Mitigations for Risk) — in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §5. Copy the matching template and fill in evidence — follow its section shape so answers stay consistent and reviewable.
 
 #### Confidence-driven action (no caveats-as-substitute)
 
@@ -294,9 +284,14 @@ Every save-routing Agent spawn below follows §Subagent Spawn Contract (they spa
 - On approval: investigate's `allowed-tools` does NOT include Write/Edit (research-only by design). Spawn a focused Agent (no `subagent_type`; per §Subagent Spawn Contract) with the proposed term-block pre-inlined (field 3) and the instruction: "Read CLAUDE.md, locate the `## Domain Context` section (create one before the first `##`-level section if missing — confirm via the orchestrator's prior AskUserQuestion answer pre-inlined here), append the proposed term-block at the section's end, do not modify other sections. Report the resulting diff." Pin task scope (field 1), acceptance criteria (field 2: "Domain Context section contains the proposed term-block; no other sections modified"), allowed mutation surface (field 4: only CLAUDE.md), output schema (field 5: returned diff), and model tier (field 6: inherit). This preserves investigate's research-only identity while enabling the auto-extract; the agent does the file write.
 2. **Architectural decisions meeting all 3 ADR criteria** (hard to reverse + surprising + genuine trade-offs) — route to **ADR** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR target. Draft the ADR using the template; write into the existing `docs/adr/` or `docs/decisions/` directory (whichever the project uses), and ask the user before creating `docs/adr/` if neither exists. Spawn a focused Agent (per the spawn contract above) with the drafted ADR content + resolved target path pre-inlined; agent writes to `<adr-dir>/NNNN-<slug>.md`.
 3. **Reusable technical insights** (gotchas, lightweight architectural decisions, surprising coupling) — store this learning per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract" (the same routing Step 5 uses): under a `## Memory Backend` block the store routes per its mode — `replace` writes the backend only (redacted first), `mirror` writes both the backend and the local file; absent block → append to **`<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl`** via `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` (resolve path prefix via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so writes land in the main worktree). Bias hard toward flow, architectural, and recurring-mistake learnings; do NOT save narrow interface/field shapes, single-file behaviors, or facts re-derivable by reading the code. Apply the Reflect → Abstract → Generalize pre-pass before every save: if you cannot restate the finding one level up, drop it. The file-append path uses a focused spawned Agent (per the spawn contract above) since investigate has no Write tool; the backend-write path is the orchestrator's own routed store (or use the auto-memory path if the entry maps to project-memory shape).
-4. **User preferences about how to collaborate** — route to **auto-memory** (`feedback_*`). Auto-memory is created via Claude Code's native memory feature — no file write needed, so this path doesn't require the agent-spawn workaround.
+4. **User preferences about how to collaborate** — route to Claude Code's native memory feature. It needs no file write, so this path doesn't require the agent-spawn workaround.
 
-**Surface the to-save findings one at a time** in the shared visual gate language (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Visual rendering language"; the render-then-question two-step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering) — the same one-by-one walk `improvement-routing.md` §Presentation uses for rule candidates. The categories above are the routing logic (which store a finding maps to); this walk is how each is surfaced. For each finding, render a self-contained chat message — **What I'd save** (the exact content that will be written — the term-block / the ADR title + one-line decision / the learning sentence — shown as it will land), **Where** (the routed store in plain English: your project's Domain Context in CLAUDE.md / an ADR under `docs/adr/` / past learnings / collaboration memory), **Why** (why it is durable enough to persist and why that store, per the routing table), plus the queue tracker (when ≥2 findings remain) and a small per-finding visual that the visual language mandates — then fire its own lean `AskUserQuestion` (header `Save N of M`), options "Save to <store>" (pre-select `Recommended` when the finding is durable, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy) / "Save elsewhere" (store picker, for a classification you disagree with) / "Skip this finding" / "Skip the rest". A finding that is load-bearing in two ways (e.g. a domain term that is also an ADR-worthy decision) names every applicable store in its **Where** block and adds a "Save to both <X> and <Y>" option; when that pushes the set past 4 options, chain a follow-up question per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension rather than dropping one. Never batch all findings into one save action — the per-finding walk is what lets the user see what goes where and approve each save on its own evidence.
+**Surface the to-save findings one at a time** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` — the same one-by-one walk `improvement-routing.md` §Presentation uses. For each finding, render a self-contained message:
+- **What I'd save** — the exact content that will be written (term-block / ADR title + one-line decision / learning sentence), shown as it will land.
+- **Where** — the routed store in plain English (Domain Context in CLAUDE.md / an ADR under `docs/adr/` / past learnings / collaboration memory).
+- **Why** — why it is durable enough and why that store.
+
+Then fire its own lean `AskUserQuestion` (header `Save N of M`), options "Save to <store>" (Recommended when durable, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy) / "Save elsewhere" / "Skip this finding" / "Skip the rest". A finding load-bearing in two stores names both in **Where** and adds a "Save to both <X> and <Y>" option; past the 4-option cap, chain per §Cap-extension. Never batch all findings into one save action.
 
 If user wants to dive deeper: re-enter Phase 2 with refined scope (reuse prior findings as context). **Max 2 dive-deeper rounds**, counted in `dive_round:` per the Step 4 option above; if the user needs more, suggest starting a fresh `/geniro:investigate` with the refined question.
 If user wants to save findings: follow Step 4a save-routing (above). Do NOT default everything to learnings.jsonl. Before writing to any store, check if an existing entry covers the topic — UPDATE rather than duplicate.
@@ -375,7 +370,7 @@ T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative —
 
 **Existing safety layer** applies across ALL phases (file-protection / git-guardrail / `.geniro/` deletion guard).
 
-## Git Constraint
+## Git constraint
 
 Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
@@ -400,12 +395,12 @@ Check these rationalizations before drifting from the procedure.
 | "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | If CLAUDE.md has a Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. Always run the check when Domain Context is present. |
 | "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | The 5-step cadence is what makes /geniro:investigate evidence-disciplined; dropping it would let claims drift from evidence. Step 2.6 is the audit trail that makes JIT discipline reviewable. |
 
-## Definition of Done
+## Definition of done
 
 - [ ] Question classified and scoped (Phase 1)
 - [ ] External-lookup routing offered when classification is Internet-only (Phase 1 Step 1.5); `/deep-research` suggested, never auto-invoked
 - [ ] Glossary-mismatch check executed against CLAUDE.md Domain Context (Phase 1 Step 2.5); resolved via AskUserQuestion with `approvals[]` persistence if mismatch found
-- [ ] 5-step JIT retrieval cadence applied (Phase 1 Step 2.6)
+- [ ] JIT retrieval cadence applied (Phase 1 Step 2.6)
 - [ ] Parallel research agents completed (Phase 2 Step 1)
 - [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
 - [ ] Findings cross-referenced and synthesized (Phase 3 Step 1)
@@ -419,7 +414,7 @@ Check these rationalizations before drifting from the procedure.
 
 ## Examples
 
-### Example 1: Understanding a Feature
+### Example 1: understanding a feature
 ```
 /geniro:investigate how does the authentication flow work?
 ```

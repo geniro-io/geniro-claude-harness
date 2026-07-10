@@ -7,7 +7,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
 argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instructions', 'delete review rules']"
 ---
 
-# Instructions: Custom Instruction Management
+# Instructions: custom instruction management
 
 3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file.
 
@@ -66,16 +66,18 @@ The stable scope set:
 | `implement` | `.geniro/instructions/implement.md` | L4 | `/geniro:implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `plan` | `.geniro/instructions/plan.md` | L4 | `/geniro:plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `review` | `.geniro/instructions/review.md` | L4 | `/geniro:review` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
+| `resolve` | `.geniro/instructions/resolve.md` | L4 | `/geniro:resolve` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `debug` | `.geniro/instructions/debug.md` | L4 | `/geniro:debug` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `refactor` | `.geniro/instructions/refactor.md` | L4 | `/geniro:refactor` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
 | `onboard` | `.geniro/instructions/onboard.md` | L4 | `/geniro:onboard` at Step 0 + phase-boundary refresh | Rules and Constraints only |
 | `investigate` | `.geniro/instructions/investigate.md` | L4 | `/geniro:investigate` at Step 0 + phase-boundary refresh | Same as `onboard` |
+| `reflect` | `.geniro/instructions/reflect.md` | L4 | `/geniro:reflect` at Step 0 | Rules and Constraints only (stateless — no Additional Steps) |
 
 **Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`) do NOT load instruction files** beyond `global.md`.
 
 **External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo copy at the primary worktree root (`"$PRIMARY_ROOT"/.geniro/instructions/`) — the path keeps the literal `.geniro/` segment, so the atomic-write helper and the `.geniro/` deletion guard stay engaged; an external location would bypass both. To manage the external set, edit it directly at its path. The override covers the loaded instruction set (`global.md`, `memory.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
 
-## File Structure (singleton scopes)
+## File structure (singleton scopes)
 
 ```markdown
 # Custom Instructions
@@ -97,7 +99,7 @@ The stable scope set:
 
 The optional `## Data Sources` section declares read-only sources the verification step in `/geniro:plan` and `/geniro:implement` cross-checks load-bearing facts against (related-task chain statuses + the spec's cited claims). Each entry is a label + a `(confirms: <fact kind>)` hint + ONE source: a backticked read-only shell command, an MCP tool name, or an action name. The full contract — discovery, read-only screening, the max-source cross-check, and per-fact outcomes — lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`. Applies to `global` and the per-skill scopes; absent = no declared sources (verification falls back to the built-in code / git / tracker sources).
 
-## File Structure: memory
+## File structure: memory
 
 The `memory` scope is its own dedicated file — `.geniro/instructions/memory.md` — loaded alongside `global.md` for every skill. It holds the `## Memory Backend` block (future memory-related blocks also land here); it does NOT carry `## Rules` / `## Constraints` / `## Additional Steps`.
 
@@ -111,7 +113,7 @@ The `memory` scope is its own dedicated file — `.geniro/instructions/memory.md
 
 The `## Memory Backend` section routes the L2 learnings layer through a custom backend — typically a memory MCP — so agentic knowledge is stored/retrieved there instead of, or alongside, the built-in `.geniro/knowledge/learnings.jsonl`. Each entry names a `layer` (`learnings`), a `mode` (`mirror` = file + backend, the default; `replace` = backend only), and a `write` + read-only `read` MCP-tool (or action). The full routing contract — orchestrator-consumed at the `emit-learning` / `query-learnings` call-sites, redact-before-store, read-only-screened, fail-open to the file — lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`. Absent file/block = built-in file, unchanged.
 
-## File Structure: review-extra
+## File structure: review-extra
 
 The `review-extra` scope is **directory-style** — one file per custom reviewer at `.geniro/instructions/review-extra/<slug>.md`:
 
@@ -164,7 +166,7 @@ If no arguments: default to `list`.
 
 ### Scope detection
 
-- Explicit names: `global`, `code-style`, `memory`, `review-extra`, or a per-skill scope (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`)
+- Explicit names: `global`, `code-style`, `memory`, `review-extra`, or a per-skill scope (`implement`, `plan`, `review`, `resolve`, `debug`, `refactor`, `onboard`, `investigate`, `reflect`)
 - Contextual: "add a rule to review" → scope=review · "create debug instructions" → scope=debug · "code-style" / "style" / "naming conventions" → scope=code-style · "custom reviewer" / "review dimension" → scope=review-extra
 - Explicit slug form: `review-extra <slug>` (e.g., `review-extra sql-bindings`)
 - Multi-scope: "all", "every", "global and review" → collect into list
@@ -196,16 +198,16 @@ Chain up to 3 AUQs across the stable scope set. Use a 2-level chain:
 - `global` — Project-wide rules loaded by every Geniro skill
 - `code-style` — Cross-cutting style rules for code writing AND review
 - `memory` — Memory-backend routing (`## Memory Backend`) in its own `memory.md`
-- `Specific skill or review-extra` — Pick from per-skill (7) or review-extra (custom reviewer)
+- `Specific skill or review-extra` — Pick from per-skill (9) or review-extra (custom reviewer)
 
 If "Specific skill or review-extra", chain Level 2:
 
 - **Question:** "Which specific scope?"
 - **Options:**
 - `review-extra (new custom reviewer)` — Add a custom reviewer dimension (asks for slug)
-- `implement / plan / review` — Pipeline skills (chain to L2b)
+- `implement / plan / review / resolve` — Pipeline skills (chain to L2b)
 - `debug / refactor` — Pipeline skills (chain to L2b)
-- `onboard / investigate` — Discovery skills (chain to L2b)
+- `onboard / investigate / reflect` — Discovery skills (chain to L2b)
 
 Level 2b asks for the exact skill (2-3 options, fits in AUQ). Across the stable scope set the chain depth is fixed at 2-3 levels. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
 
@@ -272,15 +274,17 @@ memory.md (none)
 implement.md (none — create with /geniro:instructions create implement)
 plan.md (none)
 review.md 892 B modified 1 week ago
+resolve.md (none)
 debug.md (none)
 refactor.md (none)
 onboard.md (none)
 investigate.md (none)
+reflect.md (none)
 review-extra/ (directory — 2 files)
 ├── sql-bindings.md 1.6 KB modified 4 days ago
 └── accessibility-aria.md 2.1 KB modified 1 day ago
 
-11 scopes total · 4 active · 7 not-yet-created
+13 scopes total · 4 active · 9 not-yet-created
 ```
 
 Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars per file).
@@ -418,7 +422,7 @@ The HIGH severity matches the spec `verify:` read-only doctrine: a data-source s
 |---|---|
 | A `## Memory Backend` block in any file OTHER than `memory.md` (e.g. left in `global.md` or a per-skill file — those are not loaded for the memory layer) | MEDIUM — emit: "`## Memory Backend` belongs in the dedicated `memory.md` file; move it there or remove it." |
 | `memory.md` carries `## Rules` / `## Constraints` / `## Additional Steps` (the memory scope is for the backend block only) | LOW — emit: "`memory.md` holds the `## Memory Backend` block only; put rules/steps in `global.md` or the per-skill file." |
-| An entry missing `layer`, or `layer` not `learnings` (the only routed layer in v1; `snapshot` is reserved) | MEDIUM — emit: "Memory Backend entry needs `layer: learnings` (the only routed layer)." |
+| An entry missing `layer`, or `layer` not `learnings` (`learnings` is the only routed layer) | MEDIUM — emit: "Memory Backend entry needs `layer: learnings` (the only routed layer)." |
 | `mode` present but not `mirror` / `replace` | MEDIUM — emit: "Memory Backend `mode` must be `mirror` or `replace` (default `mirror`)." |
 | The `read` tool/command fails the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 (the query op must be read-only; the `write` op is the declared mutator and is exempt) | HIGH — emit: "Memory Backend `read` must be a read-only query tool (it runs unattended during retrieval); make it read-only or remove it." |
 | An entry missing `write` or `read` | MEDIUM — emit: "Memory Backend entry needs both a `write` and a read-only `read` tool." |
@@ -452,10 +456,12 @@ This is the guard that catches the silent-empty-findings trap at authoring time:
 | `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
 | `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) |
 | `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
+| `resolve` | `triage \| analyze \| clarify \| emit \| done \| aborted` | `After triage`, `After analyze`, `Before emit` |
 | `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
 | `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
 | `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
 | `investigate` | `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
+| `reflect` | (stateless — no phase enum) | n/a — rules-only, no Additional Steps |
 | `global` | (no phase enum — cross-skill) | `After worktree-setup` (the only permitted anchor; fires when a skill creates a new worktree) |
 
 Free-form subsections raise `LOW` warning. Subsections referencing dropped phase names (e.g., `After Phase 4 (Implement)`) raise `MEDIUM`.
@@ -535,11 +541,11 @@ For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delet
 
 **compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.
 
-## Writing Effective Instructions
+## Writing effective instructions
 
 Rule / step / constraint writing principles, file-size guidance, and the what-goes-where routing table (`.geniro/instructions/` vs `.claude/rules/` vs CLAUDE.md) live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2-§4. Read them before authoring any instruction body at create/edit time.
 
-### Custom Reviewer Authoring (review-extra)
+### Custom reviewer authoring (review-extra)
 
 Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`. Read before creating or editing any `.geniro/instructions/review-extra/<slug>.md`.
 
@@ -555,7 +561,7 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 | "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the stable scope set. |
 | "I'll skip showing the scope-specific scaffold to save tokens" | No — scaffolds make the empty-file moment less confusing; they're not optional. |
 
-## Definition of Done
+## Definition of done
 
 - [ ] Intent detected from freeform arguments (or default to `list`)
 - [ ] Scope(s) resolved — single or batch — within 3 AUQ retry cap
@@ -571,5 +577,5 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — T3 persistent-CRUD tier for `.geniro/instructions/` and the optimistic mtime check
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the L4 procedural-memory loader for `.geniro/instructions/*.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for instruction files
-- `/geniro:implement`, `/geniro:plan`, `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate` — the per-skill phase enums the validation table checks against
+- `/geniro:implement`, `/geniro:plan`, `/geniro:review`, `/geniro:resolve`, `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate`, `/geniro:reflect` — the per-skill phase enums the validation table checks against
 - `/geniro:actions` — `validate` mode shares this lint rule set
