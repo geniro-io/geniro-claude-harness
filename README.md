@@ -131,7 +131,7 @@ The directory holds the instruction files **flat** — no `.geniro/instructions/
 
 When an external directory is active it **replaces** the in-repo `.geniro/instructions/` (the two are not merged), and only the skills read from it — editing the files with `/geniro:instructions` still updates the in-repo copy, which you manage yourself. If the configured path is missing, the plugin warns and falls back to the in-repo default, so a bad path never blocks a run.
 
-## Skills (12 total)
+## Skills (13 total)
 
 ### `/geniro:setup` — AI-driven project setup
 
@@ -218,6 +218,15 @@ Read-only PR-feedback triage → fix-plan producer (4-phase loop: Fetch & Triage
 /geniro:investigate why was the ORM switched from Sequelize to Prisma?
 ```
 
+### `/geniro:reflect` — Session-history rule mining
+
+On-demand session-history miner. Locates the project's past Claude Code session transcripts, selects recent work-bearing sessions (or grep-matches a search string), spawns parallel read-only transcript analysts, then synthesizes one reflection-agent pass against the candidate bar + prior declines. Approved candidates route per the improvement-routing ladder (CLAUDE.md / `.claude/rules/` / `.geniro/instructions/` / learnings); declines are recorded so they stop re-surfacing. Stateless, read-only on transcripts; zero candidates is a valid outcome.
+
+```
+/geniro:reflect
+/geniro:reflect ci-flakiness            # grep-match sessions touching a topic
+```
+
 ### `/geniro:instructions` — Custom instruction management
 
 3-phase stateless CRUD (parse → execute → done) over `.geniro/instructions/`. 5 operations: list / create / edit / validate / delete. 11-scope set: `global`, `code-style`, `memory`, `review-extra/<slug>`, and per-skill (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`). `validate` mode: structural + reference + per-scope lint with CRITICAL/HIGH/MEDIUM/LOW severities; catches refs to dropped skills and outdated phase names.
@@ -290,7 +299,7 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | **File protection** | Blocks writes to `.env`, `*.key`, `*.pem`, lock files, credentials, `*.tfstate`, `*.vault*` |
 | **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec, bypass `push-delete`) |
 | **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/`, `git worktree remove`, `git add -f` on `.geniro/` paths |
-| **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions trio + CLAUDE.md so context survives compaction |
+| **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions set + CLAUDE.md so context survives compaction |
 | **Evidence-on-completion** | `Stop` hook (warn-only) — scans last assistant message for completion phrases that lack an Evidence Block |
 | **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files |
 | **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
@@ -315,7 +324,7 @@ geniro-claude-plugin/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # Marketplace manifest (plugin source entry)
 ├── agents/                      # 7 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / reflection / test-runner)
-├── skills/                      # 12 reusable workflow definitions
+├── skills/                      # 13 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning
 │   ├── implement/               # autonomous implementation
@@ -325,6 +334,7 @@ geniro-claude-plugin/
 │   ├── refactor/                # zero-behavior-change restructuring
 │   ├── onboard/                 # codebase mapping
 │   ├── investigate/             # codebase Q&A
+│   ├── reflect/                 # session-history rule mining
 │   ├── instructions/            # L4 rules CRUD
 │   ├── actions/                 # workflow-helper CRUD + runner
 │   ├── update/                  # plugin update

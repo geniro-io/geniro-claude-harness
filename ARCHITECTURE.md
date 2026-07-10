@@ -226,7 +226,7 @@ Stateless CRUD over `.geniro/instructions/` (L4 procedural layer).
 
 - No state file — every invocation is a single transaction.
 - `validate` catches: refs to dropped skills, dropped phase names, `review-extra/` frontmatter hygiene, 300-line soft cap warning (env-overridable via `GENIRO_INSTRUCTIONS_MAX_LINES`).
-- 11 scopes: `global`, `code-style`, `memory` (dedicated `memory.md`), `review-extra/<slug>`, and per-skill (implement, plan, review, debug, refactor, onboard, investigate).
+- 13 scopes: `global`, `code-style`, `memory` (dedicated `memory.md`), `review-extra/<slug>`, and per-skill (implement, plan, review, debug, refactor, onboard, investigate, resolve, reflect).
 - No subagent spawns — CRUD is too small for parallelism.
 
 ---

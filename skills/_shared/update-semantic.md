@@ -54,7 +54,7 @@ event.
 ## Lock semantics
 
 - **Acquire:** `(set -C; :>lock_path) 2>/dev/null` — POSIX-portable O_EXCL create. The shell with `noclobber` set refuses to write to an existing file.
-- **Release:** a `trap 'rm -f "$lock_path"; trap - RETURN' RETURN` installed inside the helper fires on every return path and then uninstalls itself — bash RETURN traps are not function-scoped by default, so without the self-clear it would linger in the caller's shell and clobber a caller's own RETURN trap (the explicit `rm -f` on the success path is a belt-and-braces duplicate). The function does NOT install a *signal* trap — if the process is killed mid-write the lock leaks and a stale lock will surface as rc=11 on the next call. **Manual recovery:** delete the lock file.
+- **Release:** a `trap 'rm -f "$lock_path"; trap - RETURN' RETURN` installed inside the helper fires on every return path and then uninstalls itself — bash RETURN traps are not function-scoped by default, so without the self-clear it would linger in the caller's shell and clobber a caller's own RETURN trap (the explicit `rm -f` on the success path is a belt-and-braces duplicate). An INT/TERM trap removes the lock (and any in-flight `mktemp`) on interrupt, so a Ctrl-C mid-write no longer wedges the next call at rc=11. The only residual leak is a hard SIGKILL or a crash, which skips every trap — and that leak self-heals: before acquiring, the helper reclaims a lock whose mtime is older than the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, default 600s — the shared knob used by `archive-stale.sh` / `query-learnings.sh`), then retries the O_EXCL create.
 - **Different files have independent locks.** A `_CODEBASE_MAP.md` write does not block a `_FEATURES.md` write.
 
 ## Replace semantics
@@ -106,7 +106,7 @@ For high-concurrency contention scenarios, callers can implement bounded retry w
 
 ## Known limitations
 
-- **Stale-lock recovery is manual.** A killed writer leaves the lock file.
+- **Stale-lock recovery is time-bounded, not manual.** A SIGKILL/crash leaves the lock file, but the next writer auto-reclaims it once its mtime exceeds the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, default 600s). The leak is therefore limited to a lock younger than that window.
 - **No batch ops.** One line per call. Callers needing multiple writes loop.
 - **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. Acceptable per the spec's "single-line replacement; no mass rewrites" guarantee.
 
