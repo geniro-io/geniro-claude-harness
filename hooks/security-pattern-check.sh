@@ -259,11 +259,11 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       next
     }
     {
-      if (match($0, /<<-?["'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
+      if (match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
         op = substr($0, RSTART, RLENGTH)
         dash = (op ~ /^<<-/)
         tag = op
-        sub(/^<<-?/, "", tag)
+        sub(/^<<-?[[:space:]]*/, "", tag)
         gsub(/["'\'']/, "", tag)
         target = ""
         if (match($0, />{1,2}[[:space:]]*[^[:space:];|&<>)]+/)) {
@@ -317,10 +317,10 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       if (line == tag) hd = 0
       next
     }
-    match($0, /<<-?["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+    match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
       tag = substr($0, RSTART, RLENGTH)
       dash = (tag ~ /^<<-/)
-      sub(/^<<-?/, "", tag)
+      sub(/^<<-?[[:space:]]*/, "", tag)
       gsub(/["'\'']/, "", tag)
       hd = 1
       print

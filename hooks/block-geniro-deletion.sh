@@ -42,6 +42,15 @@ set -euo pipefail
 # Fail open but LOUDLY if jq is missing: without it the guard cannot inspect
 # commands, and a silent exit 0 would leave the user believing the guard is active.
 if ! command -v jq >/dev/null 2>&1; then
+  # Data-loss guard: without jq we cannot parse the command out of the tool JSON,
+  # but a raw scan for the highest-signal bulk-delete token still blocks the worst
+  # case before failing open. Coarse by design (it also sees the token inside a
+  # quoted string) — accepted for a rarely-hit degraded path.
+  RAW=$(cat)
+  if printf '%s' "$RAW" | grep -qE 'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+[^|;&]*\.geniro'; then
+    echo "Geniro safety blocked [jqless-fallback]: a recursive rm touching .geniro/ was seen and jq is unavailable, so only a coarse raw-text check ran. Install jq to restore full command parsing." >&2
+    exit 2
+  fi
   printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so .geniro/ deletions are NOT being checked. Install jq to restore the guard."}\n'
   exit 0
 fi
@@ -53,10 +62,52 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
+# Heredoc bodies are DATA, not shell syntax — an `rm -rf .geniro/` mentioned
+# inside one is documentation text, not a command. Drop body lines (between
+# <<TAG / <<-TAG / <<'TAG' / << TAG and the closing TAG) before any matching; the
+# line carrying the << operator is kept. Mirrors block-dangerous-git.sh.
+SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
+  hd {
+    line = $0
+    if (dash) sub(/^\t+/, "", line)
+    if (line == tag) hd = 0
+    next
+  }
+  match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+    tag = substr($0, RSTART, RLENGTH)
+    dash = (tag ~ /^<<-/)
+    sub(/^<<-?[[:space:]]*/, "", tag)
+    gsub(/["'\'']/, "", tag)
+    hd = 1
+    print
+    next
+  }
+  { print }
+')
+
+# Interpreter indirection: `sh -c "<payload>"` runs <payload> as a command; the
+# quote-scrub below would treat it as data and miss a destructive op inside.
+# Extract each -c payload and re-run THIS guard on it (unblanked); a block inside
+# propagates out. Nested interpreters terminate because each payload is shorter.
+_geniro_self="${BASH_SOURCE[0]:-$0}"
+INNER_PAYLOADS=$(printf '%s\n' "$SCRUBBED" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)
+if [ -n "$INNER_PAYLOADS" ]; then
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -z "$_pl" ] && continue
+    if ! printf '%s' "$_pl" | jq -Rs '{tool_input: {command: .}}' | bash "$_geniro_self"; then
+      exit 2
+    fi
+  done <<< "$INNER_PAYLOADS"
+fi
+
 # Join backslash-newline continuations, then pad and collapse newlines (mirrors
 # block-dangerous-git.sh) so multi-line heredocs, line-continued commands, and
 # embedded newlines can't slip past whitespace-anchored matchers.
-JOINED="${COMMAND//\\$'\n'/ }"
+JOINED="${SCRUBBED//\\$'\n'/ }"
 PADDED=" ${JOINED//$'\n'/ } "
 
 # Strip git GLOBAL options (`git -C <path> worktree remove`, `git -c k=v add -f`,
@@ -72,16 +123,17 @@ PADDED=" ${JOINED//$'\n'/ } "
 _op='("[^"]*"|'\''[^'\'']*'\''|[^[:space:]]+)'
 PADDED=$(printf '%s' "$PADDED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
 
-# Blank quoted-string literals that CONTAIN an `rm` word — these are rm mentions
-# inside another command's string argument (`echo "do not rm -rf .geniro/"`,
-# `git commit -m "remove the rm -rf .geniro stuff"`), not real rm commands, so the
-# rm-span extractor below must not treat them as deletes. A REAL quoted operand
-# (`rm -rf ".geniro/"`) is left intact because its rm token sits OUTSIDE the
-# quote — the quote holds only the path, which carries no standalone `rm` word —
-# so the data-loss guard still fires on it. The `rm` boundary is non-word chars
-# (or quote edge) on both sides, so a path segment like `charm-data` or `term`
-# inside the operand is not mistaken for the rm command. POSIX ERE, BSD/GNU safe.
-PADDED=$(printf '%s' "$PADDED" | sed -E "s/'([^']*[^[:alnum:]_])?rm([^[:alnum:]_][^']*)?'/ /g; s/\"([^\"]*[^[:alnum:]_])?rm([^[:alnum:]_][^\"]*)?\"/ /g")
+# Quoted string literals are DATA, not commands — with two exceptions handled by
+# pass ordering. Pass A UNQUOTES a whitespace-free quoted token: a quoted rm
+# OPERAND (`rm -rf ".geniro/"`) or a quoted SUBCOMMAND token (`git worktree
+# "remove" ../wt`) is a single shell word, so unquoting it re-exposes the real
+# delete / worktree-removal to the matchers below. Pass B then blanks the
+# remaining quoted literals — those all contain whitespace or a separator, i.e.
+# prose (`echo "do not rm -rf .geniro/"`, `git commit -m "why git add -f .geniro/
+# is banned"`, `echo "later: git worktree remove ../wt"`), which must never
+# block. Pass B excludes ; & | so an unbalanced apostrophe in prose cannot pair
+# across a separator and swallow a real destructive command between two quotes.
+PADDED=$(printf '%s' "$PADDED" | sed -E "s/\"([^\"[:space:]]*)\"/\1/g; s/'([^'[:space:]]*)'/\1/g; s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
 find_safety_json() {
   local dir="$PWD"

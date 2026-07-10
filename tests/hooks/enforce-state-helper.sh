@@ -142,6 +142,32 @@ expect_allow "bypass: Edit/Write to state path allowed" "$(rc_path '/proj/.genir
 expect_allow "bypass: Bash redirect into state path allowed" "$(rc_bash 'echo x > .geniro/state/review/s/state.md')"
 cd "$TMPDIR_BASE" || exit 1
 
+# ===== Bash branch: additional write vectors into state paths block =====
+expect_block "bash: truncate on a state file blocks"   "$(rc_bash 'truncate -s 0 .geniro/state/review/s/state.md')"
+expect_block "bash: shred on learnings.jsonl blocks"   "$(rc_bash 'shred .geniro/knowledge/learnings.jsonl')"
+expect_block "bash: install into a state path blocks"  "$(rc_bash 'install -m 644 /tmp/x .geniro/instructions/global.md')"
+expect_block "bash: ln -sf over a state file blocks"   "$(rc_bash 'ln -sf /tmp/x .geniro/state/review/s/state.md')"
+expect_allow "bash: truncate on a non-state file allowed" "$(rc_bash 'truncate -s 0 /tmp/out.log')"
+
+# ===== Bash branch: per-segment helper allow (T1-1) =====
+# A sanctioned helper call in one segment must NOT whitelist a raw redirect in
+# another segment of the same compound command.
+expect_block "bash: helper in seg 1 does not whitelist redirect in seg 2 (;)" \
+  "$(rc_bash 'true atomic_state_write; echo x > .geniro/planning/t/state.md')"
+expect_block "bash: helper in seg 1 does not whitelist redirect in seg 2 (&&)" \
+  "$(rc_bash 'atomic_state_write foo && echo y > .geniro/planning/t/state.md')"
+# A genuine single-segment helper invocation still passes.
+expect_allow "bash: lone atomic_state_write invocation still allowed" \
+  "$(rc_bash 'atomic_state_write .geniro/state/review/s/state.md < body.txt')"
+
+# ===== verify-cache.json is a documented mktemp+mv artifact — exempt (T1-7) =====
+expect_allow "verify-cache.json write is exempt (Edit/Write)" \
+  "$(rc_path '/proj/.geniro/planning/task-dir/.verify-cache.json')"
+expect_allow "verify-cache mktemp temp form is exempt" \
+  "$(rc_path '/proj/.geniro/planning/task-dir/.verify-cache.cache.aB3xYz')"
+expect_allow "bash: redirect into verify-cache.json is exempt" \
+  "$(rc_bash 'echo x > .geniro/planning/task-dir/.verify-cache.json')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

@@ -23,6 +23,16 @@ set -euo pipefail
 # Fail open but LOUDLY if jq is missing: without it the guard cannot inspect
 # commands, and a silent exit 0 would leave the user believing the guard is active.
 if ! command -v jq >/dev/null 2>&1; then
+  # Data-loss guard: without jq we cannot parse the command out of the tool JSON,
+  # but a raw scan of the payload for the highest-signal destructive tokens still
+  # blocks the worst cases before failing open. Coarse by design (it also sees a
+  # token inside a quoted string) — accepted for a rarely-hit degraded path where
+  # blocking a real force-push matters more than a false positive on prose.
+  RAW=$(cat)
+  if printf '%s' "$RAW" | grep -qE '\-\-force(-with-lease)?|reset[[:space:]]+--hard|filter-branch'; then
+    echo "Security blocked [jqless-fallback]: a destructive git token (--force / reset --hard / filter-branch) was seen and jq is unavailable, so only a coarse raw-text check ran. Install jq to restore full command parsing." >&2
+    exit 2
+  fi
   printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so destructive git commands are NOT being checked. Install jq to restore the guard."}\n'
   exit 0
 fi
@@ -45,10 +55,10 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
     if (line == tag) hd = 0
     next
   }
-  match($0, /<<-?["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+  match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
     tag = substr($0, RSTART, RLENGTH)
     dash = (tag ~ /^<<-/)
-    sub(/^<<-?/, "", tag)
+    sub(/^<<-?[[:space:]]*/, "", tag)
     gsub(/["'\'']/, "", tag)
     hd = 1
     print
@@ -56,6 +66,26 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
   }
   { print }
 ')
+
+# Interpreter indirection: `sh -c "<payload>"` (or bash/zsh/dash -lc, ...) runs
+# <payload> as a command, but the quote-scrub below would treat it as data and
+# miss a destructive op inside it. Extract each -c payload from the heredoc-
+# scrubbed command and re-run THIS guard on it (unblanked); a block inside
+# propagates out. Nested interpreters terminate because each payload is shorter.
+_geniro_self="${BASH_SOURCE[0]:-$0}"
+INNER_PAYLOADS=$(printf '%s\n' "$SCRUBBED" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)
+if [ -n "$INNER_PAYLOADS" ]; then
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -z "$_pl" ] && continue
+    if ! printf '%s' "$_pl" | jq -Rs '{tool_input: {command: .}}' | bash "$_geniro_self"; then
+      exit 2
+    fi
+  done <<< "$INNER_PAYLOADS"
+fi
 
 # Pad the command with leading/trailing whitespace so flag matchers like
 # [[:space:]]-f[[:space:]] reliably hit -f even at start/end of string.
@@ -86,12 +116,17 @@ PADDED=" ${JOINED//$'\n'/ } "
 _op='("[^"]*"|'\''[^'\'']*'\''|[^[:space:]]+)'
 PADDED=$(printf '%s' "$PADDED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
 
-# Quoted string literals are also DATA, not commands. A destructive git pattern
-# inside an echo arg, a `git commit -m` message, or any other quoted string
-# (`echo "run git push --force later"`) must not block — a real git subcommand is
-# never wrapped in quotes. Blank single- AND double-quoted literals so the
-# matchers below never see a destructive pattern that lives inside string data.
-PADDED=$(printf '%s' "$PADDED" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+# Quoted string literals are DATA, not commands — with two exceptions handled by
+# pass ordering. Pass A UNQUOTES a whitespace-free quoted token (a quoted flag or
+# subcommand like "--force"): such a token is a single shell word, so unquoting
+# it re-exposes a destructive op that was smuggled past the matchers by quoting
+# its flag (`git push origin main "--force"`). Pass B then blanks the remaining
+# quoted literals — those all contain whitespace or a separator, i.e. prose
+# (`echo "run git push --force later"`), which must never block. Pass B excludes
+# ; & | from its span so an unbalanced apostrophe in benign prose
+# (`echo can't wait && git push --force && echo don't`) cannot pair across a
+# separator and swallow a real destructive command sitting between two quotes.
+PADDED=$(printf '%s' "$PADDED" | sed -E "s/\"([^\"[:space:]]*)\"/\1/g; s/'([^'[:space:]]*)'/\1/g; s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
 # Find the nearest .geniro/safety.json walking up from cwd
 find_safety_json() {

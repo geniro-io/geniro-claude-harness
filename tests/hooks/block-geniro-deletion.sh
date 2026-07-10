@@ -33,6 +33,19 @@ run_cmd() {
   echo $?
 }
 
+# Feed a raw JSON payload with jq REMOVED from PATH, exercising the jq-less
+# data-loss fallback. FAKEBIN holds symlinks to every tool the fallback needs
+# except jq.
+FAKEBIN="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$FAKEBIN"
+for _t in cat grep sed awk tr head printf env bash sh; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$FAKEBIN/$_t"
+done
+run_cmd_nojq() {
+  printf '%s' "$1" | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+
 expect_block() {
   local label="$1" actual="$2"
   if [ "$actual" = "2" ]; then pass "$label"; else fail "$label (expected exit=2, got exit=$actual)"; fi
@@ -180,6 +193,32 @@ printf '%s\n' '{ this is not valid json' > "$TMPDIR_BASE/badjson/.geniro/safety.
 cd "$TMPDIR_BASE/badjson" || exit 1
 expect_block "malformed safety.json fails safe (tree rm still blocked)" "$(run_cmd 'rm -rf .geniro/')"
 cd "$TMPDIR_BASE" || exit 1
+
+# ===== interpreter indirection (sh -c "<payload>") must be inspected =====
+expect_block "sh -c rm -rf .geniro blocked"        "$(run_cmd 'sh -c "rm -rf .geniro"')"
+expect_block "sh -c subdir rm blocked"             "$(run_cmd 'sh -c "rm -rf .geniro/instructions"')"
+expect_allow "sh -c benign command allowed"        "$(run_cmd 'sh -c "echo hello"')"
+
+# ===== quoted subcommand token must not slip the worktree matcher =====
+# A quoted whitespace-free subcommand ("remove") is unquoted before matching, so
+# a real quoted worktree removal still blocks; a quoted PROSE mention stays data.
+expect_block "git worktree \"remove\" (quoted subcommand) blocked" "$(run_cmd 'git worktree "remove" ../wt')"
+expect_allow "prose mentioning git worktree remove allowed"        "$(run_cmd 'echo "to clean up later: git worktree remove ../wt"')"
+expect_allow "prose mentioning git add -f .geniro/ allowed"        "$(run_cmd 'git commit -m "docs: explain why git add -f .geniro/ is banned"')"
+
+# ===== heredoc body mentioning a bulk delete is DATA, not a command =====
+expect_allow "heredoc body mentioning rm -rf .geniro/ allowed" "$(run_cmd 'cat <<'"'"'EOF'"'"'
+rm -rf .geniro/
+EOF')"
+expect_allow "spaced-tag heredoc body mentioning rm -rf .geniro/ allowed" "$(run_cmd 'cat << EOF
+rm -rf .geniro/
+EOF')"
+# A real bulk delete (unquoted, not in a heredoc body) still blocks after the scrub.
+expect_block "real rm -rf .geniro/ still blocks after heredoc scrub" "$(run_cmd 'rm -rf .geniro/')"
+
+# ===== jq-less data-loss fallback: coarse raw scan still blocks the worst =====
+expect_block "jqless: rm -rf .geniro still blocked"  "$(run_cmd_nojq '{"tool_input":{"command":"rm -rf .geniro/"}}')"
+expect_allow "jqless: benign command fails open"     "$(run_cmd_nojq '{"tool_input":{"command":"ls .geniro/"}}')"
 
 echo
 echo "Tests run:    $TESTS_RUN"
